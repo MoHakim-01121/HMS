@@ -222,17 +222,17 @@ tbody tr:nth-child(even) { background: #fafafa; }
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Reservation No</th>
+                    <th>No Reservasi</th>
                     <th>Hotel</th>
-                    <th class="text-center">Check-in</th>
-                    <th class="text-center">Check-out</th>
-                    <th class="text-right">Amount (SAR)</th>
+                    <th>Check-in</th>
+                    <th>Check-out</th>
+                    <th>Amount (SAR)</th>
                 </tr>
             </thead>
             <tbody>
                 {% for r in reservations %}
                 <tr>
-                    <td class="text-center">{{ r.number }}</td>
+                    <td>{{ r.number }}</td>
                     <td>{{ r.hotel }}</td>
                     <td class="text-center">{% if r.check_in %}{{ r.check_in|date:"d/m/Y" }}{% else %}-{% endif %}</td>
                     <td class="text-center">{% if r.check_out %}{{ r.check_out|date:"d/m/Y" }}{% else %}-{% endif %}</td>
@@ -253,7 +253,7 @@ tbody tr:nth-child(even) { background: #fafafa; }
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Date</th>
+                    <th>Date</th>
                     <th>Method</th>
                     <th class="text-right">Amount</th>
                     <th class="text-center">Cur</th>
@@ -265,7 +265,7 @@ tbody tr:nth-child(even) { background: #fafafa; }
             <tbody>
                 {% for p in payments %}
                 <tr>
-                    <td class="text-center">{% if p.date %}{{ p.date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{% if p.date %}{{ p.date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
                     <td>{{ p.method }}</td>
                     <td class="text-right">{{ p.amount }}</td>
                     <td class="text-center">{{ p.currency }}</td>
@@ -284,8 +284,8 @@ tbody tr:nth-child(even) { background: #fafafa; }
         </div>
     </div>
     <div class="balance-section">
-        <div style="padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 14px; {% if remaining_int == 0 %}background-color: #1f7a1f; color:#fff;{% else %}background-color: #d49a00; color:#fff;{% endif %}">
-            {% if remaining_int == 0 %} PAID IN FULL {% else %} REMAINING {% endif %}
+        <div style="padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 14px; {% if remaining == 0 %}background-color: #1f7a1f; color:#fff;{% else %}background-color: #d49a00; color:#fff;{% endif %}">
+            {% if remaining == 0 %} PAID IN FULL {% else %} REMAINING {% endif %}
         </div>
         <div style="text-align:right;">
             <div class="balance-label">Outstanding Balance</div>

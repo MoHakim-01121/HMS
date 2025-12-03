@@ -186,33 +186,33 @@ tbody tr:nth-child(even) { background: #fafafa; }
 <div class="invoice-container">
     <div class="header">
         <div class="company-info">
-            <img src="{{ logo_path }}" class="company-logo">
+            <img src="file:///home/hakim/Desktop/config/media/logo.jpeg" class="company-logo">
             <div class="company-text">
-                <div class="company-name">{{ company_name }} {{ company_city }}</div>
+                <div class="company-name">Konoz United Surabaya </div>
                 <div class="company-tagline">Travel & Hospitality Services</div>
             </div>
         </div>
         <div class="invoice-meta">
             <div class="invoice-label">Invoice</div>
-            <div class="invoice-number">#{{ invoice_number }}</div>
+            <div class="invoice-number">#CL030-1</div>
         </div>
     </div>
     <div class="info-section">
         <div class="info-block">
             <h3>Bill To</h3>
             <div class="info-content">
-                <strong>{{ customer_name }}</strong>
+                <strong>Jelajah Menara</strong>
             </div>
         </div>
         <div class="info-block">
             <div style="display:flex; gap:15px;">
                 <div>
                     <div style="font-size:10px; text-transform:uppercase; color:#999; font-weight:600;">Issued Date</div>
-                    <div style="font-size:12px; font-weight:600; color:#333;">{% if issued_date %}{{ issued_date|date:"d/m/Y" }}{% else %}-{% endif %}</div>
+                    <div style="font-size:12px; font-weight:600; color:#333;">03/12/2025</div>
                 </div>
                 <div>
                     <div style="font-size:10px; text-transform:uppercase; color:#999; font-weight:600;">Due Date</div>
-                    <div style="font-size:12px; font-weight:600; color:#333;">{% if due_date %}{{ due_date|date:"d/m/Y" }}{% else %}-{% endif %}</div>
+                    <div style="font-size:12px; font-weight:600; color:#333;">13/12/2025</div>
                 </div>
             </div>
         </div>
@@ -230,21 +230,29 @@ tbody tr:nth-child(even) { background: #fafafa; }
                 </tr>
             </thead>
             <tbody>
-                {% for r in reservations %}
+                
                 <tr>
-                    <td class="text-center">{{ r.number }}</td>
-                    <td>{{ r.hotel }}</td>
-                    <td class="text-center">{% if r.check_in %}{{ r.check_in|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-                    <td class="text-center">{% if r.check_out %}{{ r.check_out|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-                    <td class="text-right">{{ r.total }} SAR</td>
+                    <td class="text-center">4639</td>
+                    <td>Al Baraka Mawaddah</td>
+                    <td class="text-center">08/01/2026</td>
+                    <td class="text-center">13/01/2026</td>
+                    <td class="text-right">37,800 SAR</td>
                 </tr>
-                {% endfor %}
+                
+                <tr>
+                    <td class="text-center">4640</td>
+                    <td>Azka Al Safa</td>
+                    <td class="text-center">15/01/2026</td>
+                    <td class="text-center">20/01/2026</td>
+                    <td class="text-right">35,175 SAR</td>
+                </tr>
+                
             </tbody>
         </table>
         <div class="summary-box" style="margin-bottom: 50px;">
             <div class="summary-row total">
                 <span>Total Reservation</span>
-                <span>{{ total_reservation_sar }} SAR</span>
+                <span>72,975 SAR</span>
             </div>
         </div>
     </div>
@@ -263,38 +271,48 @@ tbody tr:nth-child(even) { background: #fafafa; }
                 </tr>
             </thead>
             <tbody>
-                {% for p in payments %}
+                
                 <tr>
-                    <td class="text-center">{% if p.date %}{{ p.date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-                    <td>{{ p.method }}</td>
-                    <td class="text-right">{{ p.amount }}</td>
-                    <td class="text-center">{{ p.currency }}</td>
-                    <td class="text-right">{{ p.exchange }}</td>
-                    <td class="text-right"><strong>{{ p.amount_sar }} SAR</strong></td>
-                    <td>{{ p.note }}</td>
+                    <td class="text-center">30/10/2025</td>
+                    <td>Transfer</td>
+                    <td class="text-right">20,000,000</td>
+                    <td class="text-center">IDR</td>
+                    <td class="text-right">4,510.00</td>
+                    <td class="text-right"><strong>4,435 SAR</strong></td>
+                    <td>4639 DP 1</td>
                 </tr>
-                {% endfor %}
+                
+                <tr>
+                    <td class="text-center">30/10/2025</td>
+                    <td>Transfer</td>
+                    <td class="text-right">20,000,000</td>
+                    <td class="text-center">IDR</td>
+                    <td class="text-right">4,510.00</td>
+                    <td class="text-right"><strong>4,435 SAR</strong></td>
+                    <td>4640 DP 1</td>
+                </tr>
+                
             </tbody>
         </table>
         <div class="summary-box" style="margin-bottom: 50px;">
             <div class="summary-row total">
                 <span>Total Payments</span>
-                <span>{{ total_paid_sar }} SAR</span>
+                <span>8,870 SAR</span>
             </div>
         </div>
     </div>
     <div class="balance-section">
-        <div style="padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 14px; {% if remaining_int == 0 %}background-color: #1f7a1f; color:#fff;{% else %}background-color: #d49a00; color:#fff;{% endif %}">
-            {% if remaining_int == 0 %} PAID IN FULL {% else %} REMAINING {% endif %}
+        <div style="padding: 8px 14px; border-radius: 6px; font-weight: 700; font-size: 14px; background-color: #d49a00; color:#fff;">
+             REMAINING 
         </div>
         <div style="text-align:right;">
             <div class="balance-label">Outstanding Balance</div>
-            <div class="balance-amount">{{ remaining }} SAR</div>
+            <div class="balance-amount">64,105 SAR</div>
         </div>
     </div>
     <div class="footer">
         <p>Thank you for your business</p>
-        <p>{{ company_name }} • Invoice generated on {% if issued_date %}{{ issued_date|date:"d/m/Y" }}{% else %}-{% endif %}</p>
+        <p>Konoz United Surabaya • Invoice generated on 03/12/2025</p>
     </div>
     <div class="terms-container">
         <div class="terms-title">Syarat dan Ketentuan</div>
