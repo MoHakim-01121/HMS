@@ -1,293 +1,124 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Invoice Generator</title>
-<style>
-    * {margin:0; padding:0; box-sizing:border-box;}
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: #fafafa;
-        color: #333;
-        padding: 40px 20px;
-        line-height: 1.6;
-    }
-    .container {
-        max-width: 900px;
-        margin: 0 auto;
-        background: #fff;
-        padding: 40px;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    h1 {
-        font-size: 24px;
-        font-weight: 600;
-        margin-bottom: 30px;
-        color: #111;
-    }
-    .section {
-        margin-bottom: 35px;
-    }
-    .section-title {
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        color: #666;
-        margin-bottom: 15px;
-        letter-spacing: 0.5px;
-    }
-
-    .grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin-bottom: 15px;
-    }
-    .field {
-        display: flex;
-        flex-direction: column;
-    }
-    label {
-        font-size: 13px;
-        font-weight: 500;
-        margin-bottom: 6px;
-        color: #555;
-    }
-    input, select, textarea {
-        border: 1px solid #ddd;
-        padding: 10px 12px;
-        font-size: 14px;
-        border-radius: 4px;
-        background: #fff;
-        transition: border-color 0.2s;
-        font-family: inherit;
-    }
-    input:focus, select:focus, textarea:focus {
-        outline: none;
-        border-color: #666;
-    }
-    textarea {
-        resize: vertical;
-        min-height: 60px;
-    }
-
-    .item, .payment-item {
-        display: grid;
-        gap: 10px;
-        padding: 15px;
-        padding-right: 40px;
-        border: 1px solid #e5e5e5;
-        border-radius: 4px;
-        margin-bottom: 15px;
-        background: #fafafa;
-        position: relative;
-        align-items: start;
-    }
-    .item {
-        grid-template-columns: 150px 1fr 110px 110px 120px;
-    }
-    .payment-item {
-        grid-template-columns: 130px 130px 130px 100px 100px 1fr;
-    }
-    .item input, .payment-item input,
-    .item select, .payment-item select,
-    .item textarea, .payment-item textarea {
-        width: 100%;
-        font-size: 13px;
-        padding: 9px 10px;
-    }
-
-    .remove-btn {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        background: #fff;
-        color: #999;
-        border: 1px solid #ddd;
-        width: 24px;
-        height: 24px;
-        border-radius: 3px;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 1;
-        transition: all 0.2s;
-    }
-    .remove-btn:hover {
-        background: #f5f5f5;
-        color: #666;
-        border-color: #999;
-    }
-
-    .add-btn {
-        background: #fff;
-        color: #333;
-        border: 1px solid #ddd;
-        padding: 10px 20px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        border-radius: 4px;
-        transition: all 0.2s;
-        display: inline-block;
-    }
-    .add-btn:hover {
-        background: #f5f5f5;
-        border-color: #999;
-    }
-
-    .submit-btn {
-        width: 100%;
-        background: #111;
-        color: #fff;
-        border: none;
-        padding: 14px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        border-radius: 4px;
-        margin-top: 20px;
-        transition: background 0.2s;
-    }
-    .submit-btn:hover {
-        background: #333;
-    }
-
-    @media (max-width:768px){
-        .container {padding: 25px;}
-        .grid {grid-template-columns: 1fr; gap: 15px;}
-        .item {grid-template-columns: 1fr;}
-        .payment-item {grid-template-columns: 1fr;}
-    }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator</title>
+    <link rel="stylesheet" href="{% static 'invoices/css/invoice_form.css' %}">
 </head>
 <body>
-<div class="container">
-<h1>Invoice Generator</h1>
+    <div class="container">
+        <h1>Invoice Generator</h1>
 
-<form method="post" action="{% url 'generate_invoice' %}">
-    {% csrf_token %}
+        <form method="post" action="{% url 'generate_invoice' %}" id="invoice-form" target="_blank">
+            {% csrf_token %}
 
-    <!-- Invoice Details -->
-    <div class="section">
-        <div class="section-title">Invoice Details</div>
-        <div class="grid">
-            <div class="field">
-                <label>Invoice Number</label>
-                <input type="text" name="invoice_number" placeholder="INV-001" required>
+            <div class="section">
+                <div class="grid">
+                    <div class="field">
+                        <label for="company_name">Company Name</label>
+                        <input id="company_name" type="text" name="company_name" required aria-label="Company Name">
+                    </div>
+                    <div class="field">
+                        <label for="customer_name">Customer Name</label>
+                        <input id="customer_name" type="text" name="customer_name" required aria-label="Customer Name">
+                    </div>
+                    <div class="field">
+                        <label for="invoice_number">Invoice Number</label>
+                        <input id="invoice_number" type="text" name="invoice_number" required aria-label="Invoice Number">
+                    </div>
+                    <div class="field">
+                        <label for="issued_date">Issued Date</label>
+                        <input id="issued_date" type="date" name="issued_date" required aria-label="Issued Date">
+                    </div>
+                    <div class="field">
+                        <label for="due_date">Due Date</label>
+                        <input id="due_date" type="date" name="due_date" required aria-label="Due Date">
+                    </div>
+                </div>
             </div>
-            <div class="field">
-                <label>Company Name</label>
-                <input type="text" name="company_name" value="Konoz United Surabaya" required>
+
+            <div class="section">
+                <div class="section-title">Reservations</div>
+                <div style="display:grid;grid-template-columns:1fr 2fr 1.2fr 1.2fr 1fr auto;gap:12px;padding:0 20px 8px 20px;font-size:12px;color:#888;font-weight:600">
+                    <div>RES#</div>
+                    <div>HOTEL</div>
+                    <div>CHECK-IN</div>
+                    <div>CHECK-OUT</div>
+                    <div>TOTAL SAR</div>
+                    <div></div>
+                </div>
+                <div id="reservations">
+                    <div class="item">
+                        <input class="compact-res-no" aria-label="Reservation Number" type="text" name="reservation_number" placeholder="0001" required maxlength="6" minlength="4" pattern="[0-9]{4,6}" inputmode="numeric" title="4-6 digit reservation number" oninput="updatePaymentReservationDropdowns()">
+                        <input class="compact-hotel" aria-label="Hotel Name" type="text" name="hotel" placeholder="Hotel Name">
+                        <input aria-label="Check In" type="date" name="check_in" placeholder="Check In">
+                        <input aria-label="Check Out" type="date" name="check_out" placeholder="Check Out">
+                        <input aria-label="Reservation Total" type="number" name="reservation_total" placeholder="Total SAR" step="0.01" required oninput="recalculate()">
+                        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); recalculate(); updatePaymentReservationDropdowns();" aria-label="Remove reservation">×</button>
+                    </div>
+                </div>
+                <div style="margin-top:8px">
+                    <button type="button" class="add-btn" onclick="addReservation()" aria-label="Add reservation">+ Add Reservation</button>
+                </div>
             </div>
-            <div class="field">
-                <label>Customer Name</label>
-                <input type="text" name="customer_name" required>
+
+            <div class="section">
+                <div class="section-title">Payments</div>
+                <div style="display:grid;grid-template-columns:0.8fr 1.2fr 1.2fr 1fr 0.8fr 0.9fr 1.6fr auto;gap:10px;padding:0 20px 8px 20px;font-size:12px;color:#888;font-weight:600">
+                    <div>RES#</div>
+                    <div>DATE</div>
+                    <div>METHOD</div>
+                    <div>AMOUNT</div>
+                    <div>CURRENCY</div>
+                    <div>RATE</div>
+                    <div>NOTE</div>
+                    <div></div>
+                </div>
+                <div id="payments">
+                    <div class="payment-item">
+                        <select aria-label="Reservation Number" name="payment_reservation_no" required>
+                            <option value="">Res#</option>
+                        </select>
+                        <input aria-label="Payment Date" type="date" name="payment_date" required>
+                        <input class="compact-method" aria-label="Payment Method" type="text" name="payment_method" placeholder="Method" required>
+                        <input aria-label="Payment Amount" type="number" step="0.01" name="payment_amount" placeholder="Amount" required oninput="recalculate()">
+                        <select aria-label="Payment Currency" name="payment_currency" onchange="toggleExchange(this); recalculate()">
+                            <option value="SAR">SAR</option>
+                            <option value="USD">USD</option>
+                            <option value="IDR">IDR</option>
+                        </select>
+                        <input aria-label="Exchange Rate" type="number" step="0.0001" name="payment_exchange" placeholder="Rate" value="1" readonly oninput="recalculate()">
+                        <textarea aria-label="Payment Note" name="payment_note" placeholder="Note (optional)"></textarea>
+                        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); recalculate();" aria-label="Remove payment">×</button>
+                    </div>
+                </div>
+                <div style="margin-top:8px">
+                    <button type="button" class="add-btn" onclick="addPayment()" aria-label="Add payment">+ Add Payment</button>
+                </div>
             </div>
-            <div class="field">
-                <label>Issued Date</label>
-                <input type="date" name="issued_date" required>
+
+            <div class="summary-section">
+                <div class="summary-row">
+                    <span class="summary-label">Total Reservations</span>
+                    <span class="summary-value" id="total-reservations">0 SAR</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Total Payments</span>
+                    <span class="summary-value" id="total-payments">0 SAR</span>
+                </div>
+                <div class="summary-row summary-remaining">
+                    <span class="summary-label">REMAINING BALANCE</span>
+                    <span class="summary-value" id="remaining-balance">0 SAR</span>
+                </div>
             </div>
-            <div class="field">
-                <label>Due Date</label>
-                <input type="date" name="due_date" required>
-            </div>
-        </div>
+
+            <button type="submit" name="generate_invoice" class="submit-btn" target="_blank">Generate Invoice PDF</button>
+            <p class="note">Tip: gunakan tombol "Add" untuk menambah baris. Total akan terhitung otomatis.</p>
+        </form>
     </div>
 
-    <!-- Reservations -->
-    <div class="section">
-        <div class="section-title">Reservations</div>
-        <div id="reservations">
-            <div class="item">
-                <input type="text" name="reservation_number" placeholder="Reservation No" required>
-                <input type="text" name="hotel" placeholder="Hotel Name">
-                <input type="date" name="check_in" placeholder="Check In">
-                <input type="date" name="check_out" placeholder="Check Out">
-                <input type="number" name="reservation_total" placeholder="Total SAR" step="0.01" required>
-            </div>
-        </div>
-        <button type="button" class="add-btn" onclick="addReservation()">+ Add Reservation</button>
-    </div>
-
-    <!-- Payments -->
-    <div class="section">
-        <div class="section-title">Payments</div>
-        <div id="payments">
-            <div class="payment-item">
-                <input type="date" name="payment_date" required>
-                <input type="text" name="payment_method" placeholder="Method" required>
-                <input type="number" step="0.01" name="payment_amount" placeholder="Amount" required>
-                <select name="payment_currency" onchange="toggleExchange(this)">
-                    <option value="SAR">SAR</option>
-                    <option value="USD">USD</option>
-                    <option value="IDR">IDR</option>
-                </select>
-                <input type="number" step="0.01" name="payment_exchange" placeholder="Rate" value="1" readonly>
-                <textarea name="payment_note" placeholder="Note (optional)"></textarea>
-            </div>
-        </div>
-        <button type="button" class="add-btn" onclick="addPayment()">+ Add Payment</button>
-    </div>
-
-    <!-- Submit Button -->
-    <button type="submit" name="generate_invoice" class="submit-btn">Generate Invoice PDF</button>
-</form>
-</div>
-
-<script>
-let reservationCount = 1;
-let paymentCount = 1;
-
-function addReservation() {
-    reservationCount++;
-    const container = document.getElementById('reservations');
-    const div = document.createElement('div');
-    div.className = 'item';
-    div.innerHTML = `
-        <input type="text" name="reservation_number" placeholder="Reservation No" required>
-        <input type="text" name="hotel" placeholder="Hotel Name">
-        <input type="date" name="check_in" placeholder="Check In">
-        <input type="date" name="check_out" placeholder="Check Out">
-        <input type="number" name="reservation_total" placeholder="Total SAR" step="0.01" required>
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
-    `;
-    container.appendChild(div);
-}
-
-function addPayment() {
-    paymentCount++;
-    const container = document.getElementById('payments');
-    const div = document.createElement('div');
-    div.className = 'payment-item';
-    div.innerHTML = `
-        <input type="date" name="payment_date" required>
-        <input type="text" name="payment_method" placeholder="Method" required>
-        <input type="number" step="0.01" name="payment_amount" placeholder="Amount" required>
-        <select name="payment_currency" onchange="toggleExchange(this)">
-            <option value="SAR">SAR</option>
-            <option value="USD">USD</option>
-            <option value="IDR">IDR</option>
-        </select>
-        <input type="number" step="0.01" name="payment_exchange" placeholder="Rate" value="1">
-        <textarea name="payment_note" placeholder="Note (optional)"></textarea>
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove()">×</button>
-    `;
-    container.appendChild(div);
-}
-
-function toggleExchange(sel) {
-    const exchange = sel.parentNode.querySelector('input[name="payment_exchange"]');
-    if (!exchange) return;
-    if (sel.value === 'SAR') {
-        exchange.readOnly = true;
-        exchange.value = '1';
-    } else {
-        exchange.readOnly = false;
-        if (!exchange.value || exchange.value === '1') exchange.value = '';
-    }
-}
-</script>
+    <script src="{% static 'invoices/js/invoice_form.js' %}"></script>
 </body>
 </html>

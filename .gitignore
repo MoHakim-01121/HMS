@@ -172,3 +172,26 @@ cython_debug/
 #.idea/
 
 # End of https://www.toptal.com/developers/gitignore/api/django
+
+# Security - NEVER commit these!
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+secret_key.txt
+
+# Logs
+logs/
+*.log
+
+# Database backups
+*.sql
+*.dump
+*.backup
+
+# Sensitive data
+secrets/
+credentials/
+

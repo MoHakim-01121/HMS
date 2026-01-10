@@ -1,4 +1,28 @@
+# Core Framework
 Django==5.2.8
+
+# PDF Generation
 WeasyPrint==60.0
-Pillow
-gunicorn
+pydyf==0.10.0
+Pillow==12.0.0
+
+# Dependencies for WeasyPrint
+cffi==2.0.0
+pycparser==2.23
+cssselect2==0.8.0
+tinycss2==1.2.1
+pyphen==0.14.0
+fonttools==4.61.1
+
+# Barcode & QR Code (optional)
+python-barcode
+qrcode[pil]
+
+# Production Server
+gunicorn==23.0.0
+
+# Database (for production use PostgreSQL)
+psycopg2-binary
+
+# Static files
+whitenoise==6.6.0
