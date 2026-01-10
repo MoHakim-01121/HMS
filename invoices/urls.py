@@ -1,3 +1,7 @@
+"""  
+URL Configuration for Invoice App
+Defines routes for invoice form and PDF generation.
+"""
 from django.urls import path
 from . import views
 

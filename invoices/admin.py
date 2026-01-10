@@ -1,3 +1,8 @@
+"""
+Invoice Admin Configuration
+Register models here when database storage is implemented.
+"""
 from django.contrib import admin
 
-# Register your models here.
+
+# Future: Register Invoice, Reservation, Payment models here

@@ -1,0 +1,60 @@
+# Security Checklist for Production
+
+## Before Deployment:
+
+1. Set environment variables:
+   - SECRET_KEY (random 50+ chars)
+   - DEBUG=False
+   - ALLOWED_HOSTS=yourdomain.com
+
+2. Database:
+   - Use PostgreSQL, not SQLite
+   - Strong password
+   - Backup strategy
+
+3. Static/Media Files:
+   - Run: python manage.py collectstatic
+   - Configure nginx/whitenoise
+   - Set proper permissions
+
+4. SSL/HTTPS:
+   - Install SSL certificate
+   - Force HTTPS redirect
+   - Configure HSTS
+
+5. Server:
+   - Use gunicorn with workers
+   - Setup firewall (ufw)
+   - Disable root SSH
+   - Keep system updated
+
+6. Monitoring:
+   - Setup error logging
+   - Monitor disk space
+   - Setup alerts
+
+7. Backup:
+   - Database backups (daily)
+   - Media files backup
+   - Config backup
+
+## Security Headers Enabled:
+- SECURE_SSL_REDIRECT
+- SESSION_COOKIE_SECURE
+- CSRF_COOKIE_SECURE
+- SECURE_HSTS_SECONDS
+- SECURE_CONTENT_TYPE_NOSNIFF
+- X_FRAME_OPTIONS
+- SECURE_REFERRER_POLICY
+
+## Files to NEVER Commit:
+- .env
+- db.sqlite3
+- *.log
+- *.pem, *.key
+- media/* (user uploads)
+
+## Production Commands:
+python manage.py check --deploy
+python manage.py collectstatic --noinput
+gunicorn config.wsgi:application --bind 0.0.0.0:8000
