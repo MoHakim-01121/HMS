@@ -23,6 +23,7 @@ gunicorn==23.0.0
 
 # Database (for production use PostgreSQL)
 psycopg2-binary
+dj-database-url==2.1.0
 
 # Static files
 whitenoise==6.6.0

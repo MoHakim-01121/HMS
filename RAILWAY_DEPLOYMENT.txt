@@ -1,0 +1,211 @@
+# Deploy Django ke Railway - Panduan Lengkap
+
+## Kenapa Railway?
+✅ Support PostgreSQL built-in (gratis)
+✅ No lambda size limits (WeasyPrint works!)
+✅ Mudah untuk Django apps
+✅ Free tier: 500 jam/bulan + 1GB storage
+✅ Auto SSL certificate
+
+---
+
+## Cara Deploy:
+
+### 1. Sign Up / Login Railway
+- Pergi ke: https://railway.app
+- Login dengan GitHub account
+
+### 2. Create New Project
+- Klik "New Project"
+- Pilih "Deploy from GitHub repo"
+- Pilih repository: MoHakim-01121/config
+- Klik "Deploy Now"
+
+### 3. Add PostgreSQL Database
+- Di project dashboard, klik "New"
+- Pilih "Database" → "Add PostgreSQL"
+- Railway otomatis set DATABASE_URL
+
+### 4. Set Environment Variables
+Di project settings → Variables, tambahkan:
+
+```
+SECRET_KEY = (generate secret key baru)
+DEBUG = False
+ALLOWED_HOSTS = .railway.app
+```
+
+Generate SECRET_KEY:
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+### 5. Deploy!
+- Railway otomatis build & deploy
+- Check logs untuk memastikan success
+- URL: https://config-production-xxxx.up.railway.app
+
+---
+
+## Setup Database (Otomatis):
+Railway provides:
+- DATABASE_URL (otomatis tersedia)
+- PostgreSQL 15
+- 1GB storage free tier
+
+Migration auto-run via Procfile:
+```
+release: python manage.py migrate --noinput
+```
+
+---
+
+## Files yang Sudah Disiapkan:
+✅ railway.toml - Railway configuration
+✅ nixpacks.toml - Build configuration  
+✅ Procfile - Start commands
+✅ runtime.txt - Python version
+✅ requirements.txt - Dengan dj-database-url
+✅ settings.py - PostgreSQL support
+
+---
+
+## Setelah Deploy:
+
+### Create Superuser
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login
+railway login
+
+# Link to project
+railway link
+
+# Create superuser
+railway run python manage.py createsuperuser
+```
+
+### Check Logs
+```bash
+railway logs
+```
+
+### Run Commands
+```bash
+railway run python manage.py <command>
+```
+
+---
+
+## Environment Variables di Railway:
+
+**Wajib:**
+- SECRET_KEY (50+ characters)
+- DEBUG (False untuk production)
+- ALLOWED_HOSTS (.railway.app)
+
+**Otomatis dari Railway:**
+- DATABASE_URL (PostgreSQL connection)
+- PORT (server port)
+- RAILWAY_ENVIRONMENT (production)
+
+---
+
+## Custom Domain (Optional):
+
+1. Di Railway dashboard → Settings → Domains
+2. Add custom domain
+3. Configure DNS:
+   - CNAME: your-app.up.railway.app
+4. SSL otomatis aktif
+
+---
+
+## Monitoring:
+
+**Dashboard Railway:**
+- CPU usage
+- Memory usage
+- Request metrics
+- Deployment history
+
+**Logs:**
+```bash
+railway logs --follow
+```
+
+---
+
+## Pricing:
+
+**Free Tier:**
+- 500 hours/month
+- $5 credit/month
+- 1GB database storage
+- 100GB bandwidth
+
+**Pro Plan:** $20/month
+- Unlimited hours
+- More resources
+- Priority support
+
+---
+
+## Troubleshooting:
+
+### Build Error:
+- Check logs: `railway logs`
+- Verify requirements.txt
+- Check nixpacks.toml
+
+### Database Connection Error:
+- Verify DATABASE_URL exists
+- Check PostgreSQL service running
+- Run migrations: `railway run python manage.py migrate`
+
+### Static Files 404:
+- Check Whitenoise middleware in settings.py
+- Run: `railway run python manage.py collectstatic`
+
+### WeasyPrint Error:
+- Check nixpacks.toml has cairo, pango, gdk-pixbuf
+- Railway supports native dependencies
+
+---
+
+## Tips:
+
+1. **Monitoring:** Enable Railway metrics di dashboard
+2. **Backups:** Railway auto-backup database daily
+3. **Logs:** Keep untuk debugging
+4. **Environment:** Pisahkan staging vs production
+5. **Security:** Jangan commit .env files
+
+---
+
+## Railway vs Vercel:
+
+| Feature | Railway | Vercel |
+|---------|---------|--------|
+| Database | ✅ Built-in | ❌ External |
+| WeasyPrint | ✅ Works | ⚠️ Size limits |
+| Django | ✅ Perfect | ⚠️ Serverless |
+| Free Tier | 500 hrs | Unlimited |
+| Setup | Easy | Complex |
+
+**Kesimpulan:** Railway lebih cocok untuk Django + WeasyPrint!
+
+---
+
+## Next Steps:
+
+1. Deploy ke Railway
+2. Add PostgreSQL database
+3. Set environment variables
+4. Create superuser
+5. Test invoice generation
+6. Monitor logs
+
+**Ready to deploy!** 🚀
