@@ -11,4 +11,5 @@ urlpatterns = [
     path('cl/generate/', views.generate_cl, name='generate_cl'),
     path('invoice/', views.invoice_form, name='invoice_form'),
     path('generate/', views.generate_invoice, name='generate_invoice'),
+    path('test/', views.test, name='test'),
 ]
