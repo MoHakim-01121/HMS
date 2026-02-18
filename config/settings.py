@@ -36,6 +36,8 @@ ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])  # Allow all in development
 
 INSTALLED_APPS = [
     'django.contrib.staticfiles',
+    'django.contrib.contenttypes',
+    'django.contrib.auth',
     'invoices',
 ]
 
