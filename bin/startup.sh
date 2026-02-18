@@ -1,8 +1,9 @@
 #!/bin/bash
 # Startup script for Railway deployment
 
-# Activate virtual environment
-source "$(dirname "$0")/../env/bin/activate"
+
+# Ensure logs directory exists for Django logging
+mkdir -p "$(dirname "$0")/../logs"
 
 # Run Django migrations (optional, comment out if not needed)
 python manage.py migrate --noinput
