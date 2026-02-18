@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Generate new key: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
-SECRET_KEY = get_env_variable('SECRET_KEY', '+-r)458@xdz90a!%zxscvw6@1cdv91yf4dh5rtn4wxw^x4xu&5')
+SECRET_KEY = get_env_variable('SECRET_KEY', 'default-secret-key')  
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_bool_env('DEBUG', True)  # Default True for development
