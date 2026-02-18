@@ -183,7 +183,7 @@ input:focus, select:focus, textarea:focus {
 
 .submit-btn {
     width: 100%;
-    background: var(--accent);
+    background: #334155;
     color: #fff;
     border: none;
     padding: 16px;

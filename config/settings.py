@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.contenttypes',
     'django.contrib.auth',
+    'django.contrib.humanize',
     'invoices',
 ]
 

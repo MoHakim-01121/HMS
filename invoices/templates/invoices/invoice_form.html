@@ -63,22 +63,11 @@
             border-color: #2563eb;
             box-shadow: 0 0 0 2px #60a5fa44;
         }
-        .submit-btn {
-            width: 100%;
-            background: #334155;
-            border: none;
-            padding: 16px;
-            border-radius: 10px;
-            font-weight: bold;
-            margin-top: 25px;
-            cursor: pointer;
-            color: #fff;
-            box-shadow: 0 1px 4px #e0e7ef33;
-            font-size: 1.08rem;
-        }
-        .submit-btn:hover {
-            background: #2563eb;
-            color: #fff;
+        /* .submit-btn style sengaja dihapus agar hanya pakai CSS global */
+        .note {
+            color: #64748b;
+            font-size: 0.98rem;
+            margin-top: 18px;
         }
         .add-btn, .remove-btn {
         }
@@ -125,10 +114,12 @@
             background: #64748b;
             color: #fff;
         }
-        .note {
-            color: #64748b;
-            font-size: 0.98rem;
-            margin-top: 18px;
+        .submit-btn.custom-invoice-btn {
+          background: #334155 !important;
+        }
+        .submit-btn.custom-invoice-btn:hover {
+          background: #64748b !important;
+          color: #fff !important;
         }
     </style>
 </head>
@@ -242,7 +233,7 @@
                 </div>
             </div>
 
-            <button type="submit" name="generate_invoice" class="submit-btn" target="_blank">Generate Invoice PDF</button>
+            <button type="submit" class="submit-btn custom-invoice-btn">Generate PDF</button>
             <p class="note">Tip: gunakan tombol "Add" untuk menambah baris. Total akan terhitung otomatis.</p>
         </form>
     </div>
