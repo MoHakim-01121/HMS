@@ -78,14 +78,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+
 # Database configuration
-# Using SQLite (simple, no external database needed)
+# Using SQLite (simple, no external database needed) by default
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# On Railway or production, use dummy backend if not using DB
+import sys
+if 'test' not in sys.argv and not DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.dummy'
+        }
+    }
 
 
 # Password validation
