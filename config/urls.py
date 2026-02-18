@@ -17,6 +17,6 @@ def redirect_root(request):
 
 urlpatterns = [
     path('', redirect_root),
-    path('admin/', admin.site.urls),
+    # path('admin/', admin.site.urls),  # Dinonaktifkan karena admin tidak digunakan
     path('invoices/', include('invoices.urls')),
 ]
