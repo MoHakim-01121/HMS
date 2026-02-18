@@ -24,12 +24,7 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 SECURE_REFERRER_POLICY = 'same-origin'
 
-# Disable browsable API in production
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': (
-        'rest_framework.renderers.JSONRenderer',
-    )
-}
+# REST_FRAMEWORK dihapus agar tidak error jika DRF tidak terinstall
 
 # Admin URL - change in production
 ADMIN_URL = get_env_variable('ADMIN_URL', 'admin/')
