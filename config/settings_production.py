@@ -9,7 +9,7 @@ DEBUG = False
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', [])
 
 # Force HTTPS
-SECURE_SSL_REDIRECT = True
+SECURE_SSL_REDIRECT = False  # Railway sudah handle HTTPS di proxy, jangan redirect ulang
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
 
