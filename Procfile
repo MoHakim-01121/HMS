@@ -1,2 +1,1 @@
-web: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --log-file - --log-level info
-release: python manage.py migrate --noinputs
+web: gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --log-file - --log-level infos

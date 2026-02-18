@@ -1,0 +1,427 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title></title>
+    <style>
+        @page { size: A4; margin: 0; }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            padding: 20px;
+            background: #fefefe;
+            color: #1c1c1c;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px 40px;
+            border-radius: 6px;
+        }
+        
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 25px;
+            border-bottom: 3px solid #111;
+            margin-bottom: 35px;
+        }
+        
+        .company-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .company-logo {
+            width: 90px;
+            height: 90px;
+            object-fit: contain;
+            margin-right: 20px;
+        }
+        
+        .company-text {
+            display: flex;
+            flex-direction: column;
+            margin-left: 0px;
+        }
+        
+        .company-name {
+            font-size: 18px;
+            font-weight: 800;
+            color: #111;
+            white-space: nowrap;
+        }
+        
+        .company-tagline {
+            font-size: 11px;
+            color: #666;
+            font-weight: 500;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        
+        .remittance-meta {
+            text-align: right;
+        }
+        
+        .remittance-label {
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #111;
+            margin-bottom: 8px;
+        }
+        
+        .remittance-number {
+            font-size: 15px;
+            color: #666;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        
+        /* Info Section */
+        .info-section {
+            margin-bottom: 30px;
+        }
+
+        
+        .info-block h3 {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 8px;
+            letter-spacing: 1.5px;
+        }
+        
+        .info-content {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .info-content strong {
+            font-weight: 700;
+            font-size: 14px;
+            color: #111;
+        }
+        
+        /* Transfer Details Box */
+        .transfer-details {
+            background: #fff;
+            border: 1px solid #111;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .amount-box {
+            background: #111;
+            color: #fff;
+            padding: 15px 20px;
+            margin-top: 15px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .amount-box .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+        
+        .amount-box .amount {
+            font-size: 28px;
+            font-weight: 800;
+        }
+        
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 11px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        th {
+            background: #111;
+            color: #fff;
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            padding: 10px 12px;
+            letter-spacing: 1px;
+            border: none;
+        }
+        
+        th:first-child { border-top-left-radius: 8px; }
+        th:last-child { border-top-right-radius: 8px; }
+        
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e8e8e8;
+            color: #333;
+            font-weight: 500;
+            background: #fff;
+        }
+        
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        
+        tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+        
+        tbody tr:last-child td:first-child { border-bottom-left-radius: 7px; }
+        tbody tr:last-child td:last-child { border-bottom-right-radius: 7px; }
+        tbody tr:hover td { background: #fafafa; }
+        
+        tfoot td {
+            background: #111;
+            color: #fff;
+            font-weight: 700;
+            border: none;
+            padding: 12px;
+            font-size: 12px;
+        }
+        
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: 700; color: #111; }
+        
+        /* Summary */
+        .summary-box {
+            background: #fff;
+            border: 1px solid #111;
+            border-radius: 8px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            font-size: 11px;
+            color: #333;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+        
+        .summary-row.total {
+            font-weight: 700;
+            font-size: 11px;
+            color: #111;
+            background: #111;
+            color: #fff;
+            border-top: none;
+            margin-top: 0;
+            padding: 10px 12px;
+        }
+        
+        /* Footer */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px 0;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            line-height: 1.8;
+            background: #fff;
+        }
+        
+        .footer p:first-child {
+            font-weight: 600;
+            color: #111;
+            font-size: 11px;
+            margin-bottom: 5px;
+        }
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="company-info">
+                <img src="{{ logo_path }}" class="company-logo">
+                <div class="company-text">
+                    <div class="company-name">KONOZ UNITED</div>
+                    <div class="company-tagline">TRAVEL & TOURISM</div>
+                </div>
+            </div>
+            <div class="invoice-meta">
+                <div class="invoice-label">RESERVATION</div>
+                <div class="invoice-number">#{{ confirmation_number }}</div>
+            </div>
+        </div>
+        
+        <!-- Info Section -->
+        <div class="info-section" style="margin-bottom: 30px;">
+            <table style="width: 100%; border: none;">
+                <tr>
+                    <td style="width: 50%; border: none; padding: 0; vertical-align: top;">
+                        <div class="info-block">
+                            <h3>HOTEL</h3>
+                            <div class="info-content">
+                                <strong>{{ hotel_name }}</strong>
+                            </div>
+                        </div>
+                        <div class="info-block" style="margin-top: 20px;">
+                            <h3>CHECK IN</h3>
+                            <div class="info-content">
+                                {{ check_in|date:"d/m/Y" }}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="width: 50%; border: none; padding: 0; padding-left: 40px; vertical-align: top;">
+                        <div class="info-block">
+                            <h3>GUEST</h3>
+                            <div class="info-content">
+                                <strong>{{ guest_name }}</strong><br>
+                                {% if guest_phone %}{{ guest_phone }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="info-block" style="margin-top: 20px;">
+                            <h3>CHECK OUT</h3>
+                            <div class="info-content">
+                                {{ check_out|date:"d/m/Y" }}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        
+        <!-- Rooms Table -->
+        <table style="border: 2px solid #10b981; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <thead>
+                <tr>
+                    <th>Room Type</th>
+                    <th class="text-center">Quantity</th>
+                    <th class="text-right">Price (SAR)</th>
+                    <th class="text-right">Subtotal (SAR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <td class="font-bold">{{ room.type }}</td>
+                    <td class="text-center">{{ room.quantity }}</td>
+                    <td class="text-right">{{ room.price|floatformat:0|intcomma }}</td>
+                    <td class="text-right font-bold">{{ room.subtotal|floatformat:0|intcomma }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Summary -->
+        <div style="display: flex; align-items: flex-start; gap: 15px;">
+            <div style="flex: 1; text-align: right; padding-right: 70px;">
+                <div style="display: inline-block; border: 3px solid {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; border-radius: 6px; padding: 10px 20px; transform: rotate(-8deg); font-weight: 800; font-size: 16px; letter-spacing: 1.5px; text-align: center; color: {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; margin-top: 60px;">{{ reservation_status }}</div>
+            </div>
+            <div style="width: 350px;">
+                <div class="summary-box">
+            <div class="summary-row">                <div>Total Rooms:</div>
+                <div>{{ total_rooms }}</div>
+            </div>
+            <div class="summary-row">                <div>Check-in Date:</div>
+                <div>{{ check_in|date:"d/m/Y" }}</div>
+            </div>
+            <div class="summary-row">
+                <div>Check-out Date:</div>
+                <div>{{ check_out|date:"d/m/Y" }}</div>
+            </div>
+            <div class="summary-row">
+                <div>Number of Nights:</div>
+                <div>{{ num_nights }}</div>
+            </div>
+            <div class="summary-row">
+                <div>Number of Guests:</div>
+                <div>{{ num_guests }}</div>
+            </div>
+            {% if special_requests %}
+            <div class="summary-row">
+                <div>Special Requests:</div>
+                <div>{{ special_requests }}</div>
+            </div>
+            {% endif %}
+            <div class="summary-row total">
+                <div>TOTAL AMOUNT</div>
+                <div style="font-size: 16px;">SAR {{ total_price|floatformat:0|intcomma }}</div>
+            </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Payment Information -->
+        <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 25px;">
+            <h3 style="font-size: 12px; font-weight: 700; color: #111; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1.5px;">Payment Information</h3>
+            <table style="width: 100%; border: none; border-collapse: collapse;">
+                <tr>
+                    <td style="width: 50%; padding-right: 30px; border: none; vertical-align: top;">
+                        <div style="font-size: 11px; color: #333; line-height: 1.8;">
+                            <div style="font-weight: 700; color: #111; margin-bottom: 8px;">IDR Account</div>
+                            <div style="color: #666;">Bank: <span style="color: #333;">[Bank Name]</span></div>
+                            <div style="color: #666;">Account: <span style="color: #333;">[IDR Account Number]</span></div>
+                            <div style="color: #666;">Name: <span style="color: #333;">KONOZ UNITED</span></div>
+                        </div>
+                    </td>
+                    <td style="width: 50%; padding-left: 30px; border-left: 1px solid #eee; vertical-align: top;">
+                        <div style="font-size: 11px; color: #333; line-height: 1.8;">
+                            <div style="font-weight: 700; color: #111; margin-bottom: 8px;">USD Account</div>
+                            <div style="color: #666;">Bank: <span style="color: #333;">[Bank Name]</span></div>
+                            <div style="color: #666;">Account: <span style="color: #333;">[USD Account Number]</span></div>
+                            <div style="color: #666;">IBAN: <span style="color: #333;">[IBAN Number]</span></div>
+                            <div style="color: #666;">SWIFT: <span style="color: #333;">[SWIFT Code]</span></div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+        <!-- Social Media -->
+        <div style="padding: 20px 40px 15px 40px; font-size: 10px; color: #666;">
+            <span style="display: inline-block; vertical-align: middle; margin-right: 50px; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><rect x="2" y="2" width="20" height="20" rx="5" stroke="#111" stroke-width="2"/><circle cx="12" cy="12" r="5" stroke="#111" stroke-width="2"/><circle cx="18" cy="6" r="1.5" fill="#111"/></svg><span style="color: #111; font-weight: 600;">Instagram:</span> @konozunited</span><span style="display: inline-block; vertical-align: middle; margin-right: 50px; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><path d="M9 2L5 6V22L9 18L15 22L19 18V2L15 6L9 2Z" fill="#111" stroke="#111" stroke-width="1"/></svg><span style="color: #111; font-weight: 600;">TikTok:</span> @konozunited</span><span style="display: inline-block; vertical-align: middle; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="display: inline-block; vertical-align: middle; margin-right: 5px;"><circle cx="12" cy="12" r="10" stroke="#111" stroke-width="2"/><path d="M12 2C12 2 8 6 8 12C8 18 12 22 12 22" stroke="#111" stroke-width="2"/><path d="M12 2C12 2 16 6 16 12C16 18 12 22 12 22" stroke="#111" stroke-width="2"/><line x1="2" y1="12" x2="22" y2="12" stroke="#111" stroke-width="2"/></svg><span style="color: #111; font-weight: 600;">Website:</span> www.konozunited.com</span>
+        </div>
+        <div style="border-top: 3px solid #111; padding: 20px 0 0 0; max-width: 680px; padding-left: 40px; padding-right: 40px; margin: 0 auto;">
+            <p>KONOZ UNITED - Travel & Tourism</p>
+            <p>This is a computer-generated reservation. Printed on {{ 'now'|date:"d F Y - H:i" }}</p>
+        </div>
+    </div>
+</body>
+</html>

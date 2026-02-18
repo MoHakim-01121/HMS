@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<style>
+@page { size: A4; margin: 0; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    padding: 20px;
+    background: #fff;
+    color: #1c1c1c;
+    font-size: 13px;
+    line-height: 1.4;
+}
+.invoice-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 20px 30px;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    border-bottom: 2px solid #222;
+    margin-bottom: 25px;
+}
+.company-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.company-logo {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    margin-right: 25px;
+}
+.company-text {
+    display: flex;
+    flex-direction: column;
+    margin-left: 0px;
+}
+.company-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: #111;
+    white-space: nowrap;
+}
+.company-tagline {
+    font-size: 13px;
+    color: #666;
+    font-weight: 500;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+.invoice-meta {
+    text-align: right;
+}
+.invoice-label {
+    font-size: 18px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #111;
+    margin-bottom: 5px;
+}
+.invoice-number {
+    font-size: 14px;
+    color: #555;
+    font-weight: 600;
+}
+.info-section {
+    margin-bottom: 45px;
+}
+.info-block h3 {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #999;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+}
+.info-content {
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    line-height: 1.4;
+}
+.info-content strong {
+    font-weight: 600;
+    font-size: 14px;
+}
+table { 
+    width: 100%; 
+    border-collapse: separate; 
+    border-spacing: 0; 
+    font-size: 11px; 
+    margin-bottom: 20px; 
+    border-radius: 12px; 
+    overflow: hidden; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid #ddd;
+}
+th { 
+    background: #111; 
+    color: #fff; 
+    font-weight: 600; 
+    font-size: 9px; 
+    text-transform: uppercase; 
+    padding: 12px 14px; 
+    letter-spacing: 0.8px;
+    border-bottom: none;
+}
+th:first-child { border-top-left-radius: 12px; }
+th:last-child { border-top-right-radius: 12px; }
+td { 
+    padding: 12px 14px; 
+    border-bottom: 1px solid #e5e5e5; 
+    color: #1c1c1c; 
+    font-weight: 500; 
+    font-size: 11px; 
+    background: #fff; 
+}
+tbody tr:nth-child(even) td { background: #fff; }
+tbody tr:last-child td { border-bottom: none; }
+tfoot td { 
+    background: #f5f5f5; 
+    color: #1c1c1c; 
+    font-weight: 700; 
+    border-top: 2px solid #ddd; 
+    border-bottom: none; 
+    padding: 14px; 
+    font-size: 12px; 
+}
+tfoot tr:last-child td:first-child { border-bottom-left-radius: 12px; }
+tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
+.text-right { text-align: right; font-variant-numeric: tabular-nums; }
+.text-center { text-align: center; }
+.remaining-paid { 
+    color: #166534; 
+    font-weight: 700; 
+}
+.remaining-partial { 
+    color: #92400e; 
+    font-weight: 700; 
+}
+.remaining-unpaid { 
+    color: #991b1b; 
+    font-weight: 700; 
+}
+.summary-box { 
+    background: #fafafa; 
+    border-left: 4px solid #111; 
+    padding: 10px 15px; 
+    border-radius: 4px; 
+    margin-top: 8px; 
+}
+.summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+.summary-row.total { font-weight: 700; font-size: 15px; border-top: 1px solid #e0e0e0; margin-top: 4px; }
+.balance-section {
+    background: #f5f5f5;
+    color: #1c1c1c;
+    padding: 18px 20px;
+    margin-top: 25px;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.balance-label { font-size: 11px; text-transform: uppercase; color: #666; }
+.balance-amount { font-size: 28px; font-weight: 800; color: #111; }
+.footer { 
+    margin-top: 25px; 
+    padding-top: 15px; 
+    border-top: 1px solid #e0e0e0; 
+    text-align: center; 
+    font-size: 10px; 
+    color: #999; 
+}
+.terms-container {
+    page-break-before: always;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #fff;
+}
+.terms-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #111;
+    border-bottom: 2px solid #111;
+    padding-bottom: 10px;
+    margin-bottom: 25px;
+}
+.terms-section {
+    margin-bottom: 20px;
+}
+.terms-section h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 8px;
+}
+.terms-section ul {
+    list-style: disc;
+    margin-left: 20px;
+    color: #333;
+}
+.terms-section ul li {
+    padding: 3px 0;
+    line-height: 1.6;
+    color: #333;
+}
+.terms-section ul ul {
+    list-style: circle;
+    margin-left: 20px;
+    margin-top: 5px;
+}
+.terms-section p {
+    margin-top: 0;
+    line-height: 1.6;
+    color: #333;
+}
+.terms-section strong {
+    color: #111;
+    font-weight: 600;
+}
+</style>
+</head>
+<body>
+<!-- Updated: 2025-12-06 margin-left-60px -->
+<div class="invoice-container">
+    <div class="header">
+        <div class="company-info">
+            <img src="file:///home/hakim/Desktop/config_v1/media/logo.jpeg" class="company-logo">
+            <div class="company-text">
+                <div class="company-name">Konoz United Surabaya</div>
+                <div class="company-tagline">Travel &amp; Hospitality Services</div>
+            </div>
+        </div>
+        <div class="invoice-meta">
+            <div class="invoice-label">Invoice</div>
+            <div class="invoice-number">#8478/2</div>
+        </div>
+    </div>
+    <div class="info-section" style="margin-bottom: 40px;">
+        <table style="width: 100%; border: none;">
+            <tr>
+                <td style="width: 30%; border: none; padding: 0; vertical-align: top;">
+                    <div class="info-block">
+                        <h3>Bill To</h3>
+                        <div class="info-content">
+                            <strong>Haneefa T&amp;T</strong>
+                        </div>
+                    </div>
+                </td>
+                <td style="width: 25%; border: none; padding: 0; padding-left: 40px; vertical-align: top;">
+                    <div class="info-block">
+                        <h3>Issued Date</h3>
+                        <div class="info-content">17/02/2026</div>
+                    </div>
+                </td>
+                <td style="width: 25%; border: none; padding: 0; padding-left: 40px; vertical-align: top;">
+                    <div class="info-block">
+                        <h3>Due Date</h3>
+                        <div class="info-content">18/02/2026</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="section" style="margin-top:12px;">
+        <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Reservations</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-center">Reservation No</th>
+                    <th>Hotel</th>
+                    <th class="text-center">Check-in</th>
+                    <th class="text-center">Check-out</th>
+                    <th class="text-right">Amount (SAR)</th>
+                    <th class="text-right">Remaining (SAR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td class="text-center">8478</td>
+                    <td>Sawaed Al Kheir</td>
+                    <td class="text-center">09/03/2026</td>
+                    <td class="text-center">19/03/2026</td>
+                    <td class="text-right">45,000 SAR</td>
+                    <td class="text-right remaining-partial">17,250 SAR</td>
+                </tr>
+                
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" class="text-right">TOTAL</td>
+                    <td class="text-right">45,000 SAR</td>
+                    <td class="text-right">17,250 SAR</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    <div class="section" style="margin-top: 40px; margin-bottom: 40px;">
+        <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Payment History</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-center">Res#</th>
+                    <th class="text-center">Date</th>
+                    <th>Method</th>
+                    <th class="text-right">Amount</th>
+                    <th class="text-right">Amount (SAR)</th>
+                    <th style="width:18%;">Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td class="text-center">8478</td>
+                    <td class="text-center">24/12/2025</td>
+                    <td>Transfer</td>
+                    <td class="text-right"><span style="font-size:12px;">47,460,000 IDR</span><br><small style="color:#999;font-size:11px;">@ 4,520.00</small></td>
+                    <td class="text-right"><strong>10,500 SAR</strong></td>
+                    <td>DP 1</td>
+                </tr>
+                
+                <tr>
+                    <td class="text-center">8478</td>
+                    <td class="text-center">16/02/2026</td>
+                    <td>Transfer</td>
+                    <td class="text-right"><span style="font-size:12px;">77,970,000 IDR</span><br><small style="color:#999;font-size:11px;">@ 4,520.00</small></td>
+                    <td class="text-right"><strong>17,250 SAR</strong></td>
+                    <td>DP 2</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+    <div class="balance-section">
+        <div style="padding: 10px 16px; border-radius: 6px; font-weight: 700; font-size: 14px; background-color: #d49a00; color:#fff;">
+            • REMAINING
+        </div>
+        <div style="text-align:right;">
+            <div class="balance-label">Outstanding Balance</div>
+            <div class="balance-amount">17,250 SAR</div>
+        </div>
+    </div>
+    <div class="footer">
+        <p style="font-weight:600;font-size:11px;color:#333;margin-bottom:8px;">Thank you for your business</p>
+        <p style="margin-bottom:6px;">Konoz United Surabaya • Invoice generated on 17/02/2026</p>
+    </div>
+    <div class="terms-container">
+        <div class="terms-title">Syarat dan Ketentuan</div>
+        <div class="terms-section">
+            <h4>Tarif</h4>
+            <ul>
+                <li>Tarif di atas adalah per kamar per malam, dalam mata uang Riyal Saudi, bersih, dan tidak dapat dikomisikan.</li>
+                <li>Tarif sudah termasuk Biaya Kota 5% dan Pajak Pertambahan Nilai (PPN) 15%.</li>
+                <li>Hari kerja (Weekdays/WD) adalah Sabtu–Rabu, akhir pekan (Weekend/WE) adalah Kamis–Jumat.</li>
+            </ul>
+        </div>
+        <div class="terms-section">
+            <h4>Kebijakan Pembatalan (Cancellation Policy)</h4>
+            <ul>
+                <li><strong>Pemesanan Individu (&lt;5 kamar)</strong>
+                    <ul>
+                        <li>Kurang dari 15 hari sebelum kedatangan: biaya 1 malam termasuk makan.</li>
+                        <li>Kurang dari 7 hari sebelum kedatangan: biaya seluruh masa inap termasuk makan.</li>
+                    </ul>
+                </li>
+                <li><strong>Pemesanan Grup (≥5 kamar)</strong>
+                    <ul>
+                        <li>&gt;30 hari: 20% biaya.</li>
+                        <li>&gt;21 hari: 50% biaya.</li>
+                        <li>&gt;14 hari: 80% biaya.</li>
+                        <li>&gt;7 hari: 100% biaya.</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+        <div class="terms-section">
+            <h4>Kebijakan Perubahan (Amendment Policy)</h4>
+            <ul>
+                <li>30 hari: maksimal 80% kamar dapat dikurangi.</li>
+                <li>21 hari: maksimal 50% kamar dapat dikurangi.</li>
+                <li>14 hari: maksimal 20% kamar dapat dikurangi.</li>
+                <li>6 hari: maksimal 5% kamar dapat dikurangi.</li>
+                <li>&lt;6 hari: perubahan tidak diterima.</li>
+            </ul>
+        </div>
+        <div class="terms-section">
+            <h4>Kebijakan Pembayaran (Payment Policy)</h4>
+            <ul>
+                <li>Pemesanan individu: pembayaran penuh sesuai tanggal konfirmasi.</li>
+                <li>Pemesanan grup:
+                    <ul>
+                        <li>20% saat konfirmasi.</li>
+                        <li>50% 21 hari sebelum kedatangan.</li>
+                        <li>80% 14 hari sebelum kedatangan.</li>
+                        <li>100% 7 hari sebelum kedatangan.</li>
+                    </ul>
+                </li>
+                <li>Tidak memenuhi jadwal pembayaran: pemesanan dibatalkan dan biaya pembatalan berlaku.</li>
+            </ul>
+        </div>
+        <div class="terms-section">
+            <h4>Kebijakan Ketidakhadiran (No Show Policy)</h4>
+            <p>Jika tamu tidak datang tanpa pemberitahuan, biaya penuh seluruh masa inap termasuk makan akan dikenakan.</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
