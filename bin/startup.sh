@@ -6,7 +6,8 @@
 mkdir -p "$(dirname "$0")/../logs"
 
 # Run Django migrations (optional, comment out if not needed)
-python manage.py migrate --noinput
+## Tidak perlu migrate karena tidak pakai database
+# python manage.py migrate --noinput
 
 # Collect static files (optional, comment out if not needed)
 python manage.py collectstatic --noinput
