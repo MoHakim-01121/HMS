@@ -40,6 +40,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,14 +80,7 @@ DATABASES = {
     }
 }
 
-# On Railway or production, use dummy backend if not using DB
-import sys
-if 'test' not in sys.argv and not DEBUG:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.dummy'
-        }
-    }
+## Dummy backend dihapus, selalu gunakan sqlite3 agar Django tetap berjalan
 
 
 # Password validation
