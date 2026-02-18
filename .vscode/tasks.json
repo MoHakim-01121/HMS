@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "replace_cl_color",
+			"type": "shell",
+			"command": "sed -i 's/#1a5c2a/#0f3d1d/g' invoices/templates/invoices/cl_pdf_ijabah.html",
+			"isBackground": false
+		}
+	]
+}

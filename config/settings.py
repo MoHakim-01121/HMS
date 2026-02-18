@@ -26,10 +26,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = get_env_variable('SECRET_KEY', '+-r)458@xdz90a!%zxscvw6@1cdv91yf4dh5rtn4wxw^x4xu&5')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = get_bool_env('DEBUG', False)
+DEBUG = get_bool_env('DEBUG', True)  # Default True for development
 
 # Restrict hosts in production
-ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
+ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])  # Allow all in development
 
 
 # Application definition
@@ -41,12 +41,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
     'invoices'
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files on Vercel
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,28 +79,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # Database configuration
-import dj_database_url
-
-# Use DATABASE_URL from environment (Railway provides this)
-DATABASE_URL = get_env_variable('DATABASE_URL', None)
-
-if DATABASE_URL:
-    # Production: Use PostgreSQL from Railway
-    DATABASES = {
-        'default': dj_database_url.config(
-            default=DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
+# Using SQLite (simple, no external database needed)
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    # Development: Use SQLite
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 
 # Password validation
@@ -140,9 +125,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Whitenoise configuration for Railway
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
 # Additional locations of static files
 STATICFILES_DIRS = []
 
@@ -158,6 +140,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Security Settings
 # https://docs.djangoproject.com/en/5.2/topics/security/
 
+# Only enable HTTPS redirects in production
 if not DEBUG:
     # HTTPS/SSL Settings
     SECURE_SSL_REDIRECT = True
@@ -232,6 +215,11 @@ LOGGING = {
             'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'django.server': {
+            'handlers': [],  # Disable HTTPS error logging in development
+            'level': 'ERROR',
+            'propagate': False,
         },
         'django.request': {
             'handlers': ['mail_admins', 'file'],

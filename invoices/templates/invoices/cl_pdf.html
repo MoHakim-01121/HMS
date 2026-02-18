@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Confirmation Letter</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            padding: 20px;
+            background: #fff;
+            color: #1c1c1c;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px 30px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #222;
+            margin-bottom: 25px;
+        }
+
+        .company-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .company-logo {
+            width: 100px;
+            height: 100px;
+            object-fit: contain;
+            margin-right: 25px;
+        }
+
+        .company-text {
+            display: flex;
+            flex-direction: column;
+            margin-left: 0px;
+        }
+
+        .company-name {
+            font-size: 22px;
+            font-weight: 800;
+            color: #111;
+            white-space: nowrap;
+        }
+
+        .company-tagline {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+
+        .invoice-meta {
+            text-align: right;
+        }
+
+        .invoice-label {
+            font-size: 18px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #111;
+            margin-bottom: 5px;
+        }
+
+        .invoice-number {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .info-section {
+            margin-bottom: 45px;
+        }
+
+        .info-block h3 {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #999;
+            margin-bottom: 6px;
+            letter-spacing: 1px;
+        }
+
+        .info-content {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .info-content strong {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 11px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background: #111;
+            color: #fff;
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            padding: 12px 14px;
+            letter-spacing: 0.8px;
+            border-bottom: none;
+        }
+
+        th:first-child { border-top-left-radius: 12px; }
+        th:last-child { border-top-right-radius: 12px; }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #e5e5e5;
+            color: #1c1c1c;
+            font-weight: 500;
+            font-size: 11px;
+            background: #fff;
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+
+        tfoot td {
+            background: #f5f5f5;
+            color: #1c1c1c;
+            font-weight: 700;
+            border-top: 2px solid #ddd;
+            border-bottom: none;
+            padding: 14px;
+            font-size: 12px;
+        }
+
+        tfoot tr:last-child td:first-child { border-bottom-left-radius: 12px; }
+        tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
+
+        .text-right {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .balance-section {
+            background: #f5f5f5;
+            color: #1c1c1c;
+            padding: 18px 20px;
+            margin-top: 25px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .balance-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        .balance-amount {
+            font-size: 28px;
+            font-weight: 800;
+            color: #111;
+        }
+
+        .summary-box {
+            background: #fafafa;
+            border-left: 4px solid #111;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-top: 8px;
+        }
+
+        .footer {
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            text-align: center;
+            font-size: 10px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <div class="header">
+            <div class="company-info">
+                <img src="{{ logo_path }}" class="company-logo">
+                <div class="company-text">
+                    <div class="company-name">Travel & Hospitality Services</div>
+                    <div class="company-tagline">Hotel Confirmation Letter</div>
+                </div>
+            </div>
+            <div class="invoice-meta">
+                <div class="invoice-label">Reservation</div>
+                <div class="invoice-number">#{{ confirmation_number }}</div>
+            </div>
+        </div>
+
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Hotel</div>
+                    <div style="font-size: 16px; font-weight: 700; color: #111; margin-bottom: 15px;">{{ hotel_name }}</div>
+                    
+                    <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Guest Name</div>
+                    <div style="font-size: 14px; font-weight: 600; color: #1c1c1c;">{{ guest_name }}</div>
+                    
+                    {% if guest_phone %}
+                    <div style="margin-top: 12px;">
+                        <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Phone</div>
+                        <div style="font-size: 13px; color: #333;">{{ guest_phone }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Check-in</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1c1c1c;">{{ check_in|date:"d/m/Y" }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Check-out</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1c1c1c;">{{ check_out|date:"d/m/Y" }}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div>
+                            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Nights</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1c1c1c;">{{ num_nights }}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 6px; letter-spacing: 1px;">Guests</div>
+                            <div style="font-size: 13px; font-weight: 600; color: #1c1c1c;">{{ num_guests }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:12px;">
+            <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Room Details</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Room Type</th>
+                        <th class="text-center">Quantity</th>
+                        <th class="text-right">Price (SAR)</th>
+                        <th class="text-right">Subtotal (SAR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in rooms %}
+                    <tr>
+                        <td>{{ room.type }}</td>
+                        <td class="text-center">{{ room.quantity }}</td>
+                        <td class="text-right">{{ room.price|floatformat:2 }}</td>
+                        <td class="text-right">{{ room.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td>Total</td>
+                        <td class="text-center">{{ total_rooms }} room(s)</td>
+                        <td></td>
+                        <td class="text-right">{{ total_price|floatformat:2 }} SAR</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="balance-section">
+            <div>
+                <div class="balance-label">Total Amount</div>
+            </div>
+            <div class="balance-amount">{{ total_price|floatformat:2 }} SAR</div>
+        </div>
+
+        {% if special_requests %}
+        <div style="margin-top: 25px;">
+            <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Special Requests</h3>
+            <div class="summary-box">
+                {{ special_requests }}
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 25px;">
+            <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Important Information</h3>
+            <ul style="margin-left: 20px; line-height: 1.8; color: #1c1c1c; font-size: 12px;">
+                <li>Check-in time: 2:00 PM</li>
+                <li>Check-out time: 12:00 PM</li>
+                <li>Please present a valid photo ID and credit card upon check-in</li>
+                <li>Cancellation policy: Please refer to your booking terms</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p>If you have any questions, please contact us. We look forward to welcoming you!</p>
+        </div>
+    </div>
+</body>
+</html>

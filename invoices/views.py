@@ -13,6 +13,168 @@ from weasyprint import HTML
 from .utils import parse_date, convert_to_sar, format_currency
 
 
+def home(request):
+    """
+    Display the home page with options for CL and Invoice
+    
+    Args:
+        request: HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered home page template
+    """
+    return render(request, "invoices/home.html")
+
+
+def cl_form(request):
+    """
+    Display the confirmation letter form page
+    
+    Args:
+        request: HTTP request object
+        
+    Returns:
+        HttpResponse: Rendered CL form template
+    """
+    return render(request, "invoices/cl_form.html")
+
+
+def generate_cl(request):
+    """
+    Generate PDF confirmation letter from form data
+    
+    Args:
+        request: HTTP POST request with form data
+        
+    Returns:
+        HttpResponse: PDF file response
+    """
+    if request.method != "POST":
+        return HttpResponse("Method not allowed", status=405)
+
+    # Extract basic CL data
+    company = request.POST.get("company", "konoz")
+    cl_data = {
+        'company': company,
+        'hotel_name': request.POST.get("hotel_name"),
+        'guest_name': request.POST.get("guest_name"),
+        'guest_phone': request.POST.get("guest_phone"),
+        # num_guests will be calculated below
+        'num_guests': 0,
+        'check_in': None,
+        'check_out': None,
+        'note': request.POST.get("note", ""),
+        'confirmation_number': request.POST.get("confirmation_number"),
+        'reservation_status': request.POST.get("reservation_status", "DEFINITE"),
+    }
+    
+    # Parse dates
+    check_in_raw = request.POST.get("check_in")
+    check_out_raw = request.POST.get("check_out")
+    
+    try:
+        cl_data['check_in'] = datetime.strptime(check_in_raw, "%Y-%m-%d") if check_in_raw else None
+    except ValueError:
+        cl_data['check_in'] = None
+
+    try:
+        cl_data['check_out'] = datetime.strptime(check_out_raw, "%Y-%m-%d") if check_out_raw else None
+    except ValueError:
+        cl_data['check_out'] = None
+
+    # Validasi: check-out tidak boleh sebelum check-in
+    if cl_data['check_in'] and cl_data['check_out']:
+        if cl_data['check_out'] < cl_data['check_in']:
+            return HttpResponse("<h2 style='color:red'>Tanggal check-out tidak boleh sebelum check-in.</h2>", status=400)
+
+    # Calculate number of nights
+    num_nights = 0
+    if cl_data['check_in'] and cl_data['check_out']:
+        num_nights = (cl_data['check_out'] - cl_data['check_in']).days
+    cl_data['num_nights'] = num_nights
+    nights_factor = num_nights if num_nights > 0 else 1
+    
+    # Process multiple room types
+    room_types = request.POST.getlist("room_type")
+    room_meals = request.POST.getlist("room_meals")
+    num_rooms = request.POST.getlist("num_rooms")
+    room_prices = request.POST.getlist("room_price")
+    
+    rooms = []
+    total_rooms = 0
+    total_price = 0.0
+    # Calculate number of guests based on room types
+    room_type_capacity = {
+        'Double': 2,
+        'Triple': 3,
+        'Quad': 4,
+        'Quint': 5,
+    }
+    num_guests = 0
+    for i, rt in enumerate(room_types):
+        try:
+            qty = int(num_rooms[i])
+        except (IndexError, ValueError):
+            qty = 1
+        cap = room_type_capacity.get(rt, 1)
+        num_guests += qty * cap
+    cl_data['num_guests'] = num_guests
+    for i in range(len(room_types)):
+        if room_types[i]:
+            room_count = int(num_rooms[i]) if i < len(num_rooms) and num_rooms[i] else 1
+            room_price = float(room_prices[i]) if i < len(room_prices) and room_prices[i] else 0.0
+            meals = room_meals[i] if i < len(room_meals) and room_meals[i] else ""
+            # Subtotal reflects the full stay (rooms x rate x nights)
+            subtotal = room_count * room_price * nights_factor
+            rooms.append({
+                'type': room_types[i],
+                'meals': meals,
+                'quantity': room_count,
+                'price': room_price,
+                'subtotal': subtotal
+            })
+            total_rooms += room_count
+            total_price += subtotal
+    
+    cl_data['rooms'] = rooms
+    cl_data['total_rooms'] = total_rooms
+    cl_data['total_price'] = total_price
+
+    # Add logo path based on company
+    if company == "ijabah":
+        logo_filename = "ijabahlogo.png"
+    else:
+        logo_filename = "logo.jpeg"
+    logo_path = os.path.join(settings.BASE_DIR, "media", logo_filename)
+    cl_data['logo_path'] = "file://" + logo_path
+
+    # Prepare context for PDF template
+    context = cl_data
+
+    # Select template based on company
+    if company == "ijabah":
+        template_path = os.path.join(settings.BASE_DIR, "invoices/templates/invoices/cl_pdf_ijabah.html")
+    else:
+        template_path = os.path.join(settings.BASE_DIR, "invoices/templates/invoices/cl_pdf_konoz.html")
+    with open(template_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
+
+    # Render HTML with context
+    template = Template(html_template)
+    html_content = template.render(Context(context))
+
+    # Generate PDF
+    pdf = HTML(string=html_content, base_url=str(settings.BASE_DIR)).write_pdf()
+
+    # Tentukan nama file berdasarkan confirmation_number
+    confirmation_number = cl_data.get("confirmation_number") or "NORESERVASI"
+    filename = f"CL{confirmation_number}.pdf"
+    # Return PDF response (inline for preview, not download)
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
+
+
 def invoice_form(request):
     """
     Display the invoice form page
@@ -40,9 +202,17 @@ def generate_invoice(request):
         return HttpResponse("Method not allowed", status=405)
 
     # Extract basic invoice data
+    company = request.POST.get("company", "konoz")
+    if company == "konoz":
+        company_name = "Konoz United Surabaya"
+    else:
+        company_name = "iJabah Group"
+    company_tagline = "Travel & Hospitality Services"
+
     invoice_data = {
         'number': request.POST.get("invoice_number"),
-        'company_name': request.POST.get("company_name"),
+        'company': company,
+        'company_name': company_name,
         'customer_name': request.POST.get("customer_name"),
         'issued_date': None,
         'due_date': None,
@@ -78,6 +248,7 @@ def generate_invoice(request):
     context = {
         "company_name": invoice_data['company_name'],
         "company_city": "",
+        "company_tagline": company_tagline,
         "customer_name": invoice_data['customer_name'],
         "issued_date": invoice_data['issued_date'],
         "due_date": invoice_data['due_date'],
@@ -89,11 +260,11 @@ def generate_invoice(request):
         "total_paid_sar": f"{total_paid_sar:,}",
         "remaining": f"{total_reservation_sar - total_paid_sar:,}",
         "remaining_int": total_reservation_sar - total_paid_sar,
-        "logo_path": get_logo_path()
+        "logo_path": get_logo_path(company)
     }
     
     # Generate PDF
-    return generate_pdf_response(context, invoice_data['number'])
+    return generate_pdf_response(context, invoice_data['number'], company)
 
 
 def process_reservations(request):
@@ -248,31 +419,45 @@ def calculate_remaining_per_reservation(reservations, payments_by_reservation):
     return updated_reservations
 
 
-def get_logo_path():
+def get_logo_path(company="konoz"):
     """
     Get the file path to the logo image
     
+    Args:
+        company (str): Company name ('konoz' or 'ijabah')
+        
     Returns:
         str: File URL path to logo
     """
-    logo_path = os.path.join(settings.BASE_DIR, "media", "logo.jpeg")
+    if company == "ijabah":
+        logo_filename = "ijabahlogo.png"
+    else:
+        logo_filename = "logo.jpeg"
+    logo_path = os.path.join(settings.BASE_DIR, "media", logo_filename)
     return "file://" + logo_path
 
 
-def generate_pdf_response(context, invoice_number):
+def generate_pdf_response(context, invoice_number, company="konoz"):
     """
     Generate PDF file from template and context
     
     Args:
         context (dict): Template context data
         invoice_number (str): Invoice number for filename
+        company (str): Company name to select template
         
     Returns:
         HttpResponse: PDF file response
     """
+    # Select template based on company
+    if company == "ijabah":
+        template_filename = "invoice_pdf_ijabah.html"
+    else:
+        template_filename = "invoice_pdf.html"
+    
     # Read template file directly
     template_path = os.path.join(
-        settings.BASE_DIR, "invoices", "templates", "invoices", "invoice_pdf.html"
+        settings.BASE_DIR, "invoices", "templates", "invoices", template_filename
     )
     
     with open(template_path, 'r', encoding='utf-8') as f:
@@ -288,7 +473,7 @@ def generate_pdf_response(context, invoice_number):
     
     # Generate PDF response
     response = HttpResponse(content_type="application/pdf")
-    filename = f"invoice_{invoice_number}.pdf"
+    filename = f"INV_{invoice_number}.pdf"
     response["Content-Disposition"] = f'inline; filename="{filename}"'
     
     # Generate PDF using WeasyPrint

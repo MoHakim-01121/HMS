@@ -174,6 +174,7 @@ function toggleExchange(sel) {
     }
 }
 
+
 /**
  * Initialize on page load
  */
