@@ -1,3 +1,5 @@
+def test(request):
+    return HttpResponse("OK")
 """
 Invoice views for handling form display and PDF generation
 """
