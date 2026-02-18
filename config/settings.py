@@ -1,3 +1,7 @@
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://hms-production-0a02.up.railway.app',
+]
 """
 Django settings for config project.
 
