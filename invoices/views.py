@@ -141,12 +141,7 @@ def generate_cl(request):
     cl_data['total_price'] = total_price
 
     # Add logo path based on company
-    if company == "ijabah":
-        logo_filename = "ijabahlogo.png"
-    else:
-        logo_filename = "logo.jpeg"
-    logo_path = os.path.join(settings.BASE_DIR, "media", logo_filename)
-    cl_data['logo_path'] = "file://" + logo_path
+    cl_data['logo_path'] = "/media/ijabahlogo.png" if company == "ijabah" else "/media/konozlogo.jpeg"
 
     # Prepare context for PDF template
     context = cl_data
@@ -162,6 +157,11 @@ def generate_cl(request):
     # Render HTML with context
     template = Template(html_template)
     html_content = template.render(Context(context))
+
+    # Debug: Save HTML for troubleshooting
+    debug_path = os.path.join(settings.BASE_DIR, f'debug_cl_{company}.html')
+    with open(debug_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
 
     # Generate PDF
     pdf = HTML(string=html_content, base_url=str(settings.BASE_DIR)).write_pdf()
@@ -245,6 +245,11 @@ def generate_invoice(request):
     total_remaining_sar = total_reservation_sar - total_paid_sar
 
     # Prepare context for PDF template
+    if company == "ijabah":
+        logo_filename = "ijabahlogo.png"
+    else:
+        logo_filename = "konozlogo.jpeg"
+    logo_path = f"/media/{logo_filename}"
     context = {
         "company_name": invoice_data['company_name'],
         "company_city": "",
@@ -260,7 +265,7 @@ def generate_invoice(request):
         "total_paid_sar": f"{total_paid_sar:,}",
         "remaining": f"{total_reservation_sar - total_paid_sar:,}",
         "remaining_int": total_reservation_sar - total_paid_sar,
-        "logo_path": get_logo_path(company)
+        "logo_path": logo_path
     }
     
     # Generate PDF
@@ -421,20 +426,17 @@ def calculate_remaining_per_reservation(reservations, payments_by_reservation):
 
 def get_logo_path(company="konoz"):
     """
-    Get the file path to the logo image
-    
+    Get the web path to the logo image
     Args:
         company (str): Company name ('konoz' or 'ijabah')
-        
     Returns:
-        str: File URL path to logo
+        str: Web URL path to logo
     """
     if company == "ijabah":
         logo_filename = "ijabahlogo.png"
     else:
         logo_filename = "logo.jpeg"
-    logo_path = os.path.join(settings.BASE_DIR, "media", logo_filename)
-    return "file://" + logo_path
+    return f"/media/{logo_filename}"
 
 
 def generate_pdf_response(context, invoice_number, company="konoz"):
