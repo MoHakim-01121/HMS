@@ -1,4 +1,4 @@
-{% load humanize %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -283,7 +283,7 @@
             </div>
             <div class="invoice-meta">
                 <div class="invoice-label">RESERVATION</div>
-                <div class="invoice-number">#{{ confirmation_number }}</div>
+                <div class="invoice-number">#211</div>
             </div>
         </div>
         
@@ -295,13 +295,13 @@
                         <div class="info-block">
                             <h3>HOTEL</h3>
                             <div class="info-content">
-                                <strong>{{ hotel_name }}</strong>
+                                <strong>121</strong>
                             </div>
                         </div>
                         <div class="info-block" style="margin-top: 20px;">
                             <h3>CHECK IN</h3>
                             <div class="info-content">
-                                {{ check_in|date:"d/m/Y" }}
+                                20/02/2026
                             </div>
                         </div>
                     </td>
@@ -309,14 +309,14 @@
                         <div class="info-block">
                             <h3>GUEST</h3>
                             <div class="info-content">
-                                <strong>{{ guest_name }}</strong><br>
-                                {% if guest_phone %}{{ guest_phone }}{% endif %}
+                                <strong>121</strong><br>
+                                
                             </div>
                         </div>
                         <div class="info-block" style="margin-top: 20px;">
                             <h3>CHECK OUT</h3>
                             <div class="info-content">
-                                {{ check_out|date:"d/m/Y" }}
+                                24/02/2026
                             </div>
                         </div>
                     </td>
@@ -335,51 +335,46 @@
                 </tr>
             </thead>
             <tbody>
-                {% for room in rooms %}
+                
                 <tr>
-                    <td class="font-bold">{{ room.type }}</td>
-                    <td class="text-center">{{ room.quantity }}</td>
-                    <td class="text-right">{{ room.price|floatformat:0|intcomma }}</td>
-                    <td class="text-right font-bold">{{ room.subtotal|floatformat:0|intcomma }}</td>
+                    <td class="font-bold">Quad</td>
+                    <td class="text-center">2</td>
+                    <td class="text-right">900</td>
+                    <td class="text-right font-bold">7,200</td>
                 </tr>
-                {% endfor %}
+                
             </tbody>
         </table>
         
         <!-- Summary -->
         <div style="display: flex; align-items: flex-start; gap: 15px;">
             <div style="flex: 1; text-align: right; padding-right: 70px;">
-                <div style="display: inline-block; border: 3px solid {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; border-radius: 6px; padding: 10px 20px; transform: rotate(-8deg); font-weight: 800; font-size: 16px; letter-spacing: 1.5px; text-align: center; color: {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; margin-top: 60px;">{{ reservation_status }}</div>
+                <div style="display: inline-block; border: 3px solid #10b981; border-radius: 6px; padding: 10px 20px; transform: rotate(-8deg); font-weight: 800; font-size: 16px; letter-spacing: 1.5px; text-align: center; color: #10b981; margin-top: 60px;">DEFINITE</div>
             </div>
             <div style="width: 350px;">
                 <div class="summary-box">
             <div class="summary-row">                <div>Total Rooms:</div>
-                <div>{{ total_rooms }}</div>
+                <div>2</div>
             </div>
             <div class="summary-row">                <div>Check-in Date:</div>
-                <div>{{ check_in|date:"d/m/Y" }}</div>
+                <div>20/02/2026</div>
             </div>
             <div class="summary-row">
                 <div>Check-out Date:</div>
-                <div>{{ check_out|date:"d/m/Y" }}</div>
+                <div>24/02/2026</div>
             </div>
             <div class="summary-row">
                 <div>Number of Nights:</div>
-                <div>{{ num_nights }}</div>
+                <div>4</div>
             </div>
             <div class="summary-row">
                 <div>Number of Guests:</div>
-                <div>{{ num_guests }}</div>
+                <div>8</div>
             </div>
-            {% if special_requests %}
-            <div class="summary-row">
-                <div>Special Requests:</div>
-                <div>{{ special_requests }}</div>
-            </div>
-            {% endif %}
+            
             <div class="summary-row total">
                 <div>TOTAL AMOUNT</div>
-                <div style="font-size: 16px;">SAR {{ total_price|floatformat:0|intcomma }}</div>
+                <div style="font-size: 16px;">SAR 7,200</div>
             </div>
                 </div>
             </div>
@@ -420,7 +415,7 @@
         </div>
         <div style="border-top: 3px solid #111; padding: 20px 0 0 0; max-width: 680px; padding-left: 40px; padding-right: 40px; margin: 0 auto;">
             <p>KONOZ UNITED - Travel & Tourism</p>
-            <p>This is a computer-generated reservation. Printed on {{ 'now'|date:"d F Y - H:i" }}</p>
+            <p>This is a computer-generated reservation. Printed on </p>
         </div>
     </div>
 </body>

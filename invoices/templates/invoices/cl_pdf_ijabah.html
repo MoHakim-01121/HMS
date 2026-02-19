@@ -320,6 +320,24 @@
             font-size: 11px;
             margin-bottom: 5px;
         }
+        
+        /* Add media queries for mobile responsiveness */
+        @media (max-width: 768px) {
+            .invoice-container {
+                padding: 10px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .company-logo {
+                width: 80px;
+                height: 80px;
+            }
+            .company-text {
+                margin-left: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -327,7 +345,7 @@
         <!-- Header -->
         <div class="header">
             <div class="company-info">
-                <img src="{{ logo_path }}" class="company-logo">
+                <img src="/media/ijabahlogo.png" class="company-logo">
                 <div class="company-text">
                     <div class="company-name">iJabah Group</div>
                     <div class="company-tagline">for umrah & hajj services</div>
