@@ -47,19 +47,19 @@ body {
     flex-direction: column;
     justify-content: flex-end;
     margin-top: 20px;
-    margin-left: 15px;
+    margin-left: 0px;
 }
 .company-name {
-    font-size: 18px;
+    font-size: 19px;
     font-weight: 700;
     color: #0f3d1d;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     display: inline-block;
 }
 .company-tagline {
-    font-size: 11px;
+    font-size: 12px;
     color: #666;
-    font-weight: 500;
+    font-weight: 400;
     letter-spacing: 0.5px;
 }
 .invoice-meta {
@@ -205,7 +205,7 @@ tfoot td.td-green {
 <div class="invoice-container">
     <div class="header">
         <div class="company-info">
-            <img src="{{ logo_path }}" class="company-logo">
+            <img src="{{ logo_rel_path }}" class="company-logo">
             <div class="company-text">
                 <div class="company-name">{{ company_name }} {{ company_city }}</div>
                 <div class="company-tagline" style="white-space: nowrap;">for umrah & hajj services</div>
@@ -261,7 +261,7 @@ tfoot td.td-green {
             </tfoot>
         </table>
     </div>
-    <div class="section" style="margin-top: 40px; margin-bottom: 40px;">
+    <div class="section" style="margin-top: 8px; margin-bottom: 40px;">
         <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Payment History</h3>
         <table>
             <thead>

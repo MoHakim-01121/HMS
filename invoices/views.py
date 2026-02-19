@@ -141,7 +141,8 @@ def generate_cl(request):
     cl_data['total_price'] = total_price
 
     # Add logo path based on company
-    cl_data['logo_path'] = f"/static/invoices/img/{'ijabahlogo.png' if company == 'ijabah' else 'konozlogo.jpeg'}"
+    cl_data['logo_path'] = os.path.join(settings.BASE_DIR, f"invoices/static/invoices/img/{'ijabahlogo.png' if company == 'ijabah' else 'konozlogo.jpeg'}")
+    cl_data['logo_rel_path'] = f"invoices/static/invoices/img/{'ijabahlogo.png' if company == 'ijabah' else 'konozlogo.jpeg'}"
 
     # Prepare context for PDF template
     context = cl_data
@@ -247,9 +248,12 @@ def generate_invoice(request):
     # Prepare context for PDF template
     if company == "ijabah":
         logo_filename = "ijabahlogo.png"
-    else:
+    elif company == "konoz":
         logo_filename = "konozlogo.jpeg"
-    logo_path = f"/static/invoices/img/{logo_filename}"
+    else:
+        logo_filename = "logo.png"
+    logo_path = os.path.join(settings.BASE_DIR, f"invoices/static/invoices/img/{logo_filename}")
+    logo_rel_path = f"invoices/static/invoices/img/{logo_filename}"
     context = {
         "company_name": invoice_data['company_name'],
         "company_city": "",
@@ -265,7 +269,8 @@ def generate_invoice(request):
         "total_paid_sar": f"{total_paid_sar:,}",
         "remaining": f"{total_reservation_sar - total_paid_sar:,}",
         "remaining_int": total_reservation_sar - total_paid_sar,
-        "logo_path": logo_path
+        "logo_path": logo_path,
+        "logo_rel_path": logo_rel_path
     }
     
     # Generate PDF
@@ -436,7 +441,7 @@ def get_logo_path(company="konoz"):
         logo_filename = "ijabahlogo.png"
     else:
         logo_filename = "logo.jpeg"
-    return f"/static/invoices/img/{logo_filename}"
+    return os.path.join(settings.BASE_DIR, f"invoices/static/invoices/img/{logo_filename}")
 
 
 def generate_pdf_response(context, invoice_number, company="konoz"):
@@ -479,7 +484,7 @@ def generate_pdf_response(context, invoice_number, company="konoz"):
     response["Content-Disposition"] = f'inline; filename="{filename}"'
     
     # Generate PDF using WeasyPrint
-    pdf_bytes = HTML(string=html_string).write_pdf()
+    pdf_bytes = HTML(string=html_string, base_url=str(settings.BASE_DIR)).write_pdf()
     response.write(pdf_bytes)
     
     return response
