@@ -170,7 +170,7 @@ input:focus, select:focus, textarea:focus {
 
 .add-btn {
     background: #fff;
-    color: #2563eb;
+    color: var(--accent);
     border: 1px solid #e6e6e6;
     padding: 8px 12px;
     border-radius: 6px;
@@ -183,7 +183,7 @@ input:focus, select:focus, textarea:focus {
 
 .submit-btn {
     width: 100%;
-    background: #2563eb;
+    background: #334155;
     color: #fff;
     border: none;
     padding: 16px;
@@ -217,6 +217,7 @@ input:focus, select:focus, textarea:focus {
     justify-content: space-between;
     align-items: center;
     padding: 12px 0;
+    border-bottom: 1px solid #e8e8e8;
 }
 
 .summary-row:last-child {
@@ -234,14 +235,14 @@ input:focus, select:focus, textarea:focus {
 .summary-value {
     font-size: 18px;
     font-weight: 700;
-    color: #334155;
+    color: #1a1a1a;
     font-variant-numeric: tabular-nums;
 }
 
 .summary-remaining {
     margin-top: 10px;
     padding-top: 20px;
-    border-top: 2px solid #334155;
+    border-top: 2px solid #1a1a1a;
 }
 
 .summary-remaining .summary-label {
