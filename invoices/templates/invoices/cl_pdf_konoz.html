@@ -1,3 +1,4 @@
+                <div class="reservation-status {{ reservation_status|lower }}">
 {% load humanize %}
 <!DOCTYPE html>
 <html lang="en">
@@ -6,6 +7,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title></title>
     <style>
+                .reservation-status.tentative {
+                    display: inline-block;
+                    border: 3px solid #f59e0b;
+                    border-radius: 6px;
+                    padding: 10px 20px;
+                }
+                .reservation-status.confirmed {
+                    display: inline-block;
+                    border: 3px solid #10b981;
+                    border-radius: 6px;
+                    padding: 10px 20px;
+                }
         @page { size: A4; margin: 0; }
         
         * {
