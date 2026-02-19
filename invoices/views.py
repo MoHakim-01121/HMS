@@ -141,7 +141,7 @@ def generate_cl(request):
     cl_data['total_price'] = total_price
 
     # Add logo path based on company
-    cl_data['logo_path'] = "/media/ijabahlogo.png" if company == "ijabah" else "/media/konozlogo.jpeg"
+    cl_data['logo_path'] = f"/static/invoices/img/{'ijabahlogo.png' if company == 'ijabah' else 'konozlogo.jpeg'}"
 
     # Prepare context for PDF template
     context = cl_data
@@ -249,7 +249,7 @@ def generate_invoice(request):
         logo_filename = "ijabahlogo.png"
     else:
         logo_filename = "konozlogo.jpeg"
-    logo_path = f"/media/{logo_filename}"
+    logo_path = f"/static/invoices/img/{logo_filename}"
     context = {
         "company_name": invoice_data['company_name'],
         "company_city": "",
@@ -436,7 +436,7 @@ def get_logo_path(company="konoz"):
         logo_filename = "ijabahlogo.png"
     else:
         logo_filename = "logo.jpeg"
-    return f"/media/{logo_filename}"
+    return f"/static/invoices/img/{logo_filename}"
 
 
 def generate_pdf_response(context, invoice_number, company="konoz"):
