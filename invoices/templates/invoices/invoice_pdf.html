@@ -42,20 +42,21 @@ body {
 .company-text {
     display: flex;
     flex-direction: column;
-    margin-left: 0px;
+    margin-left: -20px;
+    margin-top: 10px;
 }
 .company-name {
-    font-size: 22px;
-    font-weight: 800;
+    font-size: 19px;
+    font-weight: 700;
     color: #111;
     white-space: nowrap;
 }
 .company-tagline {
     font-size: 13px;
     color: #666;
-    font-weight: 500;
-    letter-spacing: 1px;
-    margin-top: 4px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
 }
 .invoice-meta {
     text-align: right;
@@ -237,7 +238,7 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
 <div class="invoice-container">
     <div class="header">
         <div class="company-info">
-            <img src="{{ logo_path }}" class="company-logo">
+            <img src="{{ logo_rel_path }}" class="company-logo">
             <div class="company-text">
                 <div class="company-name">{{ company_name }}</div>
                 <div class="company-tagline">{{ company_tagline }}</div>
