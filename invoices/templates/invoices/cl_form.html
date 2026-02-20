@@ -223,30 +223,18 @@
                 <div class="section-title">Company</div>
                 <div class="grid">
                     <div class="field">
-                        <label>Select Company *</label>
-                        <div style="display: flex; gap: 20px; margin-top: 10px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="company" value="konoz" checked style="width: auto;">
-                                <span>Konoz United</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="company" value="ijabah" style="width: auto;">
-                                <span>Ijabah</span>
-                            </label>
-                        </div>
+                        <label for="company">Select Company *</label>
+                        <select id="company" name="company" required>
+                            <option value="konoz" selected>Konoz United</option>
+                            <option value="ijabah">Ijabah</option>
+                        </select>
                     </div>
                     <div class="field">
-                        <label>Reservation Status *</label>
-                        <div style="display: flex; gap: 20px; margin-top: 10px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="reservation_status" value="DEFINITE" checked style="width: auto;">
-                                <span>Definite</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="radio" name="reservation_status" value="TENTATIVE" style="width: auto;">
-                                <span>Tentative</span>
-                            </label>
-                        </div>
+                        <label for="reservation_status">Reservation Status *</label>
+                        <select id="reservation_status" name="reservation_status" required>
+                            <option value="DEFINITE" selected>Definite</option>
+                            <option value="TENTATIVE">Tentative</option>
+                        </select>
                     </div>
                 </div>
                 <div class="section">
