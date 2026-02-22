@@ -1,41 +1,39 @@
+{% load humanize %}
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <title></title>
 <style>
-@page { size: A4; margin: 20px; }
+@page { size: A4; margin: 0; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
-    font-family: 'Segoe UI', 'Tahoma', sans-serif;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
     padding: 20px;
-    background: #fff;
-    color: #333;
+    background: #fefefe;
+    color: #1c1c1c;
     font-size: 12px;
-    line-height: 1.6;
-    min-height: 100vh;
+    line-height: 1.5;
 }
 .invoice-container {
     max-width: 800px;
     margin: 0 auto;
     background: #fff;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 40px);
+    padding: 30px 40px;
+    border-radius: 6px;
 }
 .header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    padding-bottom: 8px;
-    margin-bottom: 12px;
-    border-bottom: 2.5px solid #0f3d1d;
+    align-items: center;
+    padding-bottom: 25px;
+    border-bottom: 3px solid #0f3d1d;
+    margin-bottom: 35px;
 }
 .company-info {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 10px;
 }
 .company-logo {
     width: 80px;
@@ -120,15 +118,16 @@ table {
     border: none;
 }
 th { 
-    background: #0f3d1d; 
-    color: #fff; 
-    font-weight: 700; 
-    font-size: 9.5px; 
-    text-transform: uppercase; 
-    padding: 14px 16px; 
+    background: #0f3d1d;
+    color: #fff;
+    font-weight: 700;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    padding: 14px 16px;
     letter-spacing: 1.2px;
     border: none;
     text-align: left;
+    white-space: nowrap;
 }
 td { 
     padding: 14px 16px; 
@@ -188,7 +187,8 @@ tfoot td.td-green {
 .balance-label { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 600; letter-spacing: 1.5px; margin-bottom: 12px; }
 .balance-amount { font-size: 28px; font-weight: 800; color: #0f3d1d; }
 .footer { 
-    padding-top: 6px;
+    margin-top: 80px;
+    padding-top: 16px;
     border-top: 1px solid #ddd;
     text-align: center;
     font-size: 10px;
@@ -203,58 +203,55 @@ tfoot td.td-green {
 <div class="invoice-container">
     <div class="header">
         <div class="company-info">
-            <img src="invoices/static/invoices/img/ijabahlogo.png" class="company-logo">
+            <img src="{{ logo_rel_path }}" class="company-logo">
             <div class="company-text">
-                <div class="company-name">iJabah Group </div>
+                <div class="company-name">iJabah Group</div>
                 <div class="company-tagline" style="white-space: nowrap;">for umrah & hajj services</div>
             </div>
         </div>
         <div class="invoice-meta">
             <div class="invoice-label">Invoice</div>
-            <div class="invoice-number">#121212</div>
+            <div class="invoice-number">#{{ invoice_number }}</div>
         </div>
     </div>
     <div style="margin-bottom: 40px; display: flex; justify-content: space-between;">
         <div>
             <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #0f3d1d; margin-bottom: 8px; letter-spacing: 1px; margin-top: 16px;">Bill To</div>
-            <div style="font-size: 12px; font-weight: 600; color: #333;">12121</div>
+            <div style="font-size: 12px; font-weight: 600; color: #333;">{{ customer_name }}</div>
         </div>
         <div style="font-size: 12px; text-align: right; line-height: 1.8; margin-top: 16px;">
-            <div>Issued Date : 20/02/2026</div>
-            <div>Due Date : 20/02/2026</div>
+            <div>Issued Date : {% if issued_date %}{{ issued_date|date:"d/m/Y" }}{% else %}-{% endif %}</div>
+            <div>Due Date : {% if due_date %}{{ due_date|date:"d/m/Y" }}{% else %}-{% endif %}</div>
         </div>
     </div>
     <div class="section" style="margin-top:12px;">
-        <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Reservations</h3>
+        <h3 style="font-size:12px; color:#666; margin-bottom:8px; text-transform:uppercase;">Visa Services</h3>
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Reservation No</th>
-                    <th>Hotel</th>
-                    <th class="text-center">Check-in</th>
-                    <th class="text-center">Check-out</th>
-                    <th class="text-right">Amount (SAR)</th>
-                    <th class="text-right">Remaining (SAR)</th>
+                    <th class="text-center">Service</th>
+                    <th class="text-center">Qty</th>
+                    <th class="text-right">Price ({{ main_currency }})</th>
+                    <th class="text-right">Total ({{ main_currency }})</th>
+                    <th class="text-right">Remaining ({{ main_currency }})</th>
                 </tr>
             </thead>
             <tbody>
-                
+                {% for service in visa_services %}
                 <tr>
-                    <td class="text-center">1212</td>
-                    <td>SNOOD</td>
-                    <td class="text-center">20/02/2026</td>
-                    <td class="text-center">25/02/2026</td>
-                    <td class="text-right amount-cell">10,000 SAR</td>
-                    <td class="text-right amount-cell remaining-paid">0 SAR</td>
+                    <td class="text-center">{{ service.product }}</td>
+                    <td class="text-center">{{ service.qty }}</td>
+                    <td class="text-right">{{ service.price|intcomma }}</td>
+                    <td class="text-right">{{ service.total|intcomma }}</td>
+                    <td class="text-right">{{ service.remaining|intcomma }}</td>
                 </tr>
-                
+                {% endfor %}
             </tbody>
             <tfoot>
                 <tr>
                     <td colspan="3"></td>
                     <td class="text-right td-green">TOTAL</td>
-                    <td class="text-right td-green">10,000 SAR</td>
-                    <td class="text-right td-green">0 SAR</td>
+                    <td class="text-right td-green">{{ total_remaining|intcomma }} {{ main_currency }}</td>
                 </tr>
             </tfoot>
         </table>
@@ -264,29 +261,27 @@ tfoot td.td-green {
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Res#</th>
                     <th class="text-center">Date</th>
                     <th>Method</th>
                     <th class="text-right">Amount</th>
-                    <th class="text-right">Amount (SAR)</th>
+                    <th class="text-right">Amount ({{ main_currency }})</th>
                     <th style="width:18%;">Note</th>
                 </tr>
             </thead>
             <tbody>
-                
+                {% for p in payments_history %}
                 <tr>
-                    <td class="text-center">1212</td>
-                    <td class="text-center">20/02/2026</td>
-                    <td>TRANSFER</td>
-                    <td class="text-right"><span style="font-size:12px;">10,000 SAR</span></td>
-                    <td class="text-right"><strong>10,000 SAR</strong></td>
-                    <td>FP</td>
+                    <td class="text-center">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+                    <td>{{ p.payment_method }}</td>
+                    <td class="text-right"><span style="font-size:12px;">{{ p.payment_amount|floatformat:2|intcomma }} {{ p.payment_currency }}</span>{% if p.payment_currency != main_currency %}<br><small style="color:#999;font-size:11px;">@ {{ p.payment_exchange }}</small>{% endif %}</td>
+                    <td class="text-right"><strong>{{ p.payment_amount_main|intcomma }} {{ main_currency }}</strong></td>
+                    <td>{{ p.payment_note }}</td>
                 </tr>
-                
+                {% endfor %}
             </tbody>
         </table>
     </div>
-    <div style="margin-top: 40px; border-top: 1px solid #ddd; padding-top: 25px;">
+    <div style="margin-top: 80px; border-top: 1px solid #ddd; padding-top: 35px;">
         <h3 style="font-size: 12px; font-weight: 700; color: #0f3d1d; margin-bottom: 20px; letter-spacing: 1px;">Kindly transfer to</h3>
         <table style="width: 100%; border: none; border-collapse: collapse;">
             <tr>
@@ -315,9 +310,17 @@ tfoot td.td-green {
         </div>
         <div style="border-top: 3px solid #0f3d1d; padding: 8px 0 0 0; max-width: 680px; padding-left: 20px; padding-right: 20px; margin: 0 auto;">
             <p>iJabah Group - Hospitality Services</p>
-            <p>This is a computer-generated invoice. Printed on </p>
+            <p>This is a computer-generated invoice. Printed on {{ 'now'|date:"d F Y - H:i" }}</p>
         </div>
     </div>
 </div>
+</body>
+</html>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Removed redundant Payments History table -->
+    </div>
 </body>
 </html>

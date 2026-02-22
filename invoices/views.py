@@ -1,3 +1,357 @@
+from django.http import HttpResponse
+def generate_services(request):
+    if request.method == "POST":
+        from django.template.loader import render_to_string
+        from weasyprint import HTML
+        import io
+
+        customer_name = request.POST.get('customer_name', '')
+        invoice_number = request.POST.get('invoice_number', '')
+        from datetime import datetime
+        issued_date_raw = request.POST.get('issued_date', '')
+        due_date_raw = request.POST.get('due_date', '')
+        issued_date = None
+        due_date = None
+        # Try to parse dates if present
+        if issued_date_raw:
+            try:
+                issued_date = datetime.strptime(issued_date_raw, "%Y-%m-%d")
+            except Exception:
+                issued_date = issued_date_raw
+        if due_date_raw:
+            try:
+                due_date = datetime.strptime(due_date_raw, "%Y-%m-%d")
+            except Exception:
+                due_date = due_date_raw
+        invoice_currency = request.POST.get('invoice_currency', '')
+
+        # Services
+        services = []
+        service_names = request.POST.getlist('service')
+        qtys = request.POST.getlist('qty')
+        amounts = request.POST.getlist('amount')
+        for idx, name in enumerate(service_names):
+            services.append({
+                'no': idx + 1,
+                'service': name,
+                'qty': qtys[idx] if idx < len(qtys) else '',
+                'amount': amounts[idx] if idx < len(amounts) else '',
+            })
+
+        # Payments
+        payments = []
+        payment_service_no = request.POST.getlist('payment_service_no')
+        payment_date = request.POST.getlist('payment_date')
+        payment_method = request.POST.getlist('payment_method')
+        payment_amount = request.POST.getlist('payment_amount')
+        payment_currency = request.POST.getlist('payment_currency')
+        payment_exchange = request.POST.getlist('payment_exchange')
+        payment_note = request.POST.getlist('payment_note')
+        for idx in range(len(payment_service_no)):
+            payments.append({
+                'service_no': payment_service_no[idx],
+                'date': payment_date[idx] if idx < len(payment_date) else '',
+                'method': payment_method[idx] if idx < len(payment_method) else '',
+                'amount': payment_amount[idx] if idx < len(payment_amount) else '',
+                'currency': payment_currency[idx] if idx < len(payment_currency) else '',
+                'exchange': payment_exchange[idx] if idx < len(payment_exchange) else '',
+                'note': payment_note[idx] if idx < len(payment_note) else '',
+            })
+
+        # Pilih template sesuai tipe invoice (visa/ijabah)
+        template_name = 'invoices/invoice_pdf_visa.html'
+        form_template_name = 'invoices/services_form.html'
+        if 'ijabah' in request.META.get('HTTP_REFERER', '') or 'ijabah' in invoice_number.lower():
+            template_name = 'invoices/invoice_pdf_ijabah.html'
+            form_template_name = 'invoices/services_form.html' # If needed for ijabah
+        if template_name == 'invoices/invoice_pdf_visa.html':
+            # Build visa_services and summary fields for visa PDF
+            products = request.POST.getlist('service')
+            qtys = request.POST.getlist('qty')
+            prices = request.POST.getlist('amount')
+            main_currency = invoice_currency or 'USD'
+            # Payment allocation per service number (convert to main_currency)
+            payments_by_service_no = {}
+            payment_service_nos = request.POST.getlist('payment_service_no')
+            payment_amounts = request.POST.getlist('payment_amount')
+            payment_currencies = request.POST.getlist('payment_currency')
+            payment_exchanges = request.POST.getlist('payment_exchange')
+            for i in range(len(payment_service_nos)):
+                try:
+                    service_no = int(payment_service_nos[i])
+                except (IndexError, ValueError):
+                    service_no = None
+                try:
+                    amt = float(payment_amounts[i])
+                except (IndexError, ValueError):
+                    amt = 0.0
+                curr = payment_currencies[i] if i < len(payment_currencies) else main_currency
+                try:
+                    exch = float(payment_exchanges[i])
+                except (IndexError, ValueError):
+                    exch = 1.0
+                # Convert payment to main_currency
+                if curr == main_currency:
+                    amt_main = amt
+                else:
+                    amt_main = amt / exch if exch else 0
+                if service_no is not None:
+                    payments_by_service_no[service_no] = payments_by_service_no.get(service_no, 0) + amt_main
+
+            visa_services = []
+            for i in range(len(products)):
+                import math
+                try:
+                    q = int(qtys[i])
+                    p = float(prices[i])
+                except (IndexError, ValueError):
+                    q = 1
+                    p = 0.0
+                total = int(q * p)
+                service_name = products[i]
+                service_no = i + 1
+                payments = int(payments_by_service_no.get(service_no, 0))
+                remaining = total - payments
+                # Remaining color class
+                if remaining == 0:
+                    remaining_class = "remaining-paid"
+                elif remaining > 0 and remaining < total:
+                    remaining_class = "remaining-partial"
+                elif remaining >= total:
+                    remaining_class = "remaining-unpaid"
+                else:
+                    remaining_class = ""
+                visa_services.append({
+                    "service_no": service_no,
+                    "product": service_name,
+                    "qty": q,
+                    "price": math.floor(p),
+                    "total": total,
+                    "remaining": remaining,
+                    "remaining_class": remaining_class
+                })
+
+            payments_history = []
+            payment_dates = request.POST.getlist("payment_date")
+            payment_methods = request.POST.getlist("payment_method")
+            payment_amounts = request.POST.getlist("payment_amount")
+            payment_currencies = request.POST.getlist("payment_currency")
+            payment_exchanges = request.POST.getlist("payment_exchange")
+            payment_notes = request.POST.getlist("payment_note")
+            for i in range(len(payment_dates)):
+                try:
+                    amt = float(payment_amounts[i])
+                    exch = float(payment_exchanges[i])
+                except (IndexError, ValueError):
+                    amt = 0.0
+                    exch = 1.0
+                # Calculate payment_amount_main (in main_currency)
+                import math
+                if payment_currencies[i] == main_currency:
+                    amt_main = amt
+                else:
+                    # Bulatkan ke bawah jika IDR ke USD
+                    if payment_currencies[i] == "IDR" and main_currency == "USD":
+                        amt_main = math.floor(amt / exch) if exch else 0
+                    else:
+                        amt_main = amt / exch if exch else 0
+                from datetime import datetime
+                date_str = payment_dates[i]
+                try:
+                    payment_date_obj = datetime.strptime(date_str, "%Y-%m-%d") if date_str else None
+                except Exception:
+                    payment_date_obj = None
+                payments_history.append({
+                    "payment_date": payment_date_obj,
+                    "payment_method": payment_methods[i],
+                    "payment_amount": amt,
+                    "payment_currency": payment_currencies[i],
+                    "payment_exchange": exch,
+                    "payment_note": payment_notes[i] if i < len(payment_notes) else "",
+                    "payment_amount_main": amt_main
+                })
+
+            import math
+            total_visa = math.floor(sum(s["total"] for s in visa_services))
+            total_payments = math.floor(sum(p["payment_amount_main"] for p in payments_history))
+            remaining_balance = math.floor(total_visa - total_payments)
+            total_remaining = remaining_balance
+
+            import os
+            from django.conf import settings
+            logo_abs_path = os.path.join(settings.BASE_DIR, "invoices/static/invoices/img/ijabahlogo.png")
+            logo_file_url = f"file://{logo_abs_path}"
+            context = {
+                "customer_name": customer_name,
+                "invoice_number": invoice_number,
+                "issued_date": issued_date,
+                "due_date": due_date,
+                "visa_services": visa_services,
+                "main_currency": main_currency,
+                "payments_history": payments_history,
+                "total_visa": total_visa,
+                "total_remaining": total_remaining,
+                "total_payments": total_payments,
+                "remaining_balance": remaining_balance,
+                "logo_rel_path": logo_file_url
+            }
+            from django.template.loader import render_to_string
+            html = render_to_string(template_name, context)
+        else:
+            # Ijabah logic as before
+            html = render_to_string(form_template_name, {
+                'customer_name': customer_name,
+                'invoice_number': invoice_number,
+                'issued_date': issued_date,
+                'due_date': due_date,
+                'invoice_currency': invoice_currency,
+                'services': services,
+                'payments': payments,
+            })
+
+        pdf_file = io.BytesIO()
+        HTML(string=html).write_pdf(pdf_file)
+        pdf_file.seek(0)
+        response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+        response['Content-Disposition'] = 'inline; filename="invoice.pdf"'
+        return response
+    return HttpResponse("Method not allowed", status=405)
+from django.template import Template, Context
+from weasyprint import HTML
+import os
+from django.conf import settings
+def generate_invoice_visa(request):
+    """
+    Generate PDF for visa invoice from form data
+    """
+    # Debug output for payment allocation (will be placed after variable initialization)
+
+    if request.method != "POST":
+        return HttpResponse("Method not allowed", status=405)
+
+    # Extract form data
+    visa_services = []
+    products = request.POST.getlist("product")
+    qtys = request.POST.getlist("qty")
+    prices = request.POST.getlist("price")
+    main_currency = request.POST.get("main_currency", "USD")
+    # Payment allocation per service number
+    payments_by_service_no = {}
+    payment_service_nos = request.POST.getlist("payment_service_no")
+    payment_amounts = request.POST.getlist("payment_amount")
+    for i in range(len(payment_service_nos)):
+        try:
+            service_no = int(payment_service_nos[i])
+        except (IndexError, ValueError):
+            service_no = None
+        try:
+            amt = float(payment_amounts[i])
+        except (IndexError, ValueError):
+            amt = 0.0
+        if service_no is not None:
+            payments_by_service_no[service_no] = payments_by_service_no.get(service_no, 0) + amt
+
+
+    visa_services = []
+    for i in range(len(products)):
+        try:
+            q = int(qtys[i])
+            p = float(prices[i])
+        except (IndexError, ValueError):
+            q = 1
+            p = 0.0
+        total = q * p
+        service_name = products[i]
+        service_no = i + 1
+        payments = payments_by_service_no.get(service_no, 0)
+        remaining = total - payments
+        # Remaining color class
+        if remaining == 0:
+            remaining_class = "remaining-paid"
+        elif remaining > 0 and remaining < total:
+            remaining_class = "remaining-partial"
+        elif remaining >= total:
+            remaining_class = "remaining-unpaid"
+        else:
+            remaining_class = ""
+        visa_services.append({
+            "service_no": service_no,
+            "product": service_name,
+            "qty": q,
+            "price": p,
+            "total": total,
+            "remaining": remaining,
+            "remaining_class": remaining_class
+        })
+
+    payments_history = []
+    payment_dates = request.POST.getlist("payment_date")
+    print("DEBUG payment_dates:", payment_dates)
+    payment_methods = request.POST.getlist("payment_method")
+    payment_amounts = request.POST.getlist("payment_amount")
+    payment_currencies = request.POST.getlist("payment_currency")
+    payment_exchanges = request.POST.getlist("payment_exchange")
+    payment_notes = request.POST.getlist("payment_note")
+    for i in range(len(payment_dates)):
+        try:
+            amt = float(payment_amounts[i])
+            exch = float(payment_exchanges[i])
+        except (IndexError, ValueError):
+            amt = 0.0
+            exch = 1.0
+        # Calculate payment_amount_main (in main_currency)
+        if payment_currencies[i] == main_currency:
+            amt_main = amt
+        else:
+            amt_main = amt / exch if exch else 0
+        # Parse payment_date to datetime object
+        from datetime import datetime
+        date_str = payment_dates[i]
+        try:
+            payment_date_obj = datetime.strptime(date_str, "%Y-%m-%d") if date_str else None
+        except Exception:
+            payment_date_obj = None
+        payments_history.append({
+            "payment_date": payment_date_obj,
+            "payment_method": payment_methods[i],
+            "payment_amount": amt,
+            "payment_currency": payment_currencies[i],
+            "payment_exchange": exch,
+            "payment_note": payment_notes[i] if i < len(payment_notes) else "",
+            "payment_amount_main": amt_main
+        })
+
+    total_visa = sum(s["total"] for s in visa_services)
+    total_remaining = sum(s["remaining"] for s in visa_services)
+    total_payments = sum(p["payment_amount_main"] for p in payments_history)
+    remaining_balance = total_visa - total_payments
+
+    context = {
+        "customer_name": request.POST.get("customer_name", ""),
+        "invoice_number": request.POST.get("invoice_number", ""),
+        "issued_date": issued_date,
+        "due_date": due_date,
+        "visa_services": visa_services,
+        "main_currency": main_currency,
+        "payments_history": payments_history,
+        "total_visa": total_visa,
+        "total_remaining": total_remaining,
+        "total_payments": total_payments,
+        "remaining_balance": remaining_balance,
+        "logo_rel_path": "invoices/static/invoices/img/ijabahlogo.png"
+    }
+
+    template_path = os.path.join(settings.BASE_DIR, "invoices/templates/invoices/invoice_pdf_visa.html")
+    with open(template_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
+    template = Template(html_template)
+    html_content = template.render(Context(context))
+
+    pdf = HTML(string=html_content, base_url=str(settings.BASE_DIR)).write_pdf()
+    filename = f"VisaInvoice_{context['invoice_number'] or 'NOINV'}.pdf"
+    response = HttpResponse(pdf, content_type="application/pdf")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
 """
 Invoice views for handling form display and PDF generation
 """
@@ -37,6 +391,17 @@ def cl_form(request):
         HttpResponse: Rendered CL form template
     """
     return render(request, "invoices/cl_form.html")
+
+
+def invoice_visa_form(request):
+    """
+    Display the invoice visa form page
+    Args:
+        request: HTTP request object
+    Returns:
+        HttpResponse: Rendered invoice visa form template
+    """
+    return render(request, "invoices/services_form.html")
 
 
 def generate_cl(request):
