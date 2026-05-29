@@ -1,7 +1,3 @@
-# CSRF Trusted Origins
-CSRF_TRUSTED_ORIGINS = [
-    'https://hms-production-0a02.up.railway.app',
-]
 """
 Django settings for config project.
 
@@ -37,6 +33,7 @@ DEBUG = get_bool_env('DEBUG', True)  # Default True for development
 
 # Restrict hosts in production
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])  # Allow all in development
+CSRF_TRUSTED_ORIGINS = get_list_env('CSRF_TRUSTED_ORIGINS', [])
 
 
 # Application definition
