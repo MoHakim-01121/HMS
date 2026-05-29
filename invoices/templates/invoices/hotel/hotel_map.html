@@ -543,7 +543,9 @@ fetch('{% url "hotel_map_data" %}')
     renderMarkers(filtered);
     updateCounter(filtered.length);
     renderSidebar(filtered);
-    if (allHotels.length > 0) {
+    if (allHotels.length === 1) {
+      map.setView([allHotels[0].lat, allHotels[0].lng], 15);
+    } else if (allHotels.length > 1) {
       var lats = allHotels.map(function(h){ return h.lat; });
       var lngs = allHotels.map(function(h){ return h.lng; });
       map.fitBounds([[Math.min.apply(null,lats),Math.min.apply(null,lngs)],[Math.max.apply(null,lats),Math.max.apply(null,lngs)]], { padding:[40,40], maxZoom:15 });

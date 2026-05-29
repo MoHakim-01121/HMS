@@ -61,7 +61,8 @@ def company_quick_set(request):
 @login_required
 def home(request):
     if not request.session.get("active_company"):
-        return redirect("company_select")
+        request.session["active_company"] = "konoz"
+        request.session.modified = True
     return render(request, "invoices/home.html")
 
 

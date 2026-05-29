@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import date
 
 from django.contrib import messages
@@ -8,7 +9,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..models import ConfirmationLetter, Invoice, Reservation, Room
+from ..models import ConfirmationLetter, Hotel, Invoice, Reservation, Room
 from .helpers import _paginated_list, _parse_date, _render_list_pdf
 
 
@@ -35,9 +36,12 @@ def cl_new(request):
 
         if check_in and check_out and check_out < check_in:
             messages.error(request, "Check-out tidak boleh sebelum check-in.")
+            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
             return render(request, "invoices/cl/cl_form.html", {
                 "suggested_number": suggested_number,
+                "default_company": request.session.get("active_company", "konoz"),
                 "form_data": request.POST,
+                "hotels": hotels,
             })
 
         cl = ConfirmationLetter.objects.create(
@@ -58,9 +62,11 @@ def cl_new(request):
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
         return redirect("cl_detail", pk=cl.pk)
 
+    hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
     return render(request, "invoices/cl/cl_form.html", {
         "suggested_number": suggested_number,
         "default_company": request.session.get("active_company", "konoz"),
+        "hotels": hotels,
     })
 
 
@@ -83,7 +89,8 @@ def cl_edit(request, pk):
 
         if check_in and check_out and check_out < check_in:
             messages.error(request, "Check-out tidak boleh sebelum check-in.")
-            return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True})
+            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
+            return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
 
         cl.company = request.POST.get("company", "konoz")
         cl.hotel_name = request.POST.get("hotel_name", "")
@@ -104,7 +111,8 @@ def cl_edit(request, pk):
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil diperbarui.")
         return redirect("cl_detail", pk=cl.pk)
 
-    return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True})
+    hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
+    return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
 
 
 @login_required
@@ -177,8 +185,8 @@ def cl_export_csv(request):
     writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total SAR', 'Status', 'Note'])
     for cl in qs:
         writer.writerow([
-            cl.confirmation_number, cl.company, cl.guest_name, cl.guest_phone,
-            cl.hotel_name, cl.check_in or '', cl.check_out or '',
+            cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
+            cl.check_in or '', cl.check_out or '',
             cl.total_price or 0, cl.reservation_status, cl.note or '',
         ])
     return response
@@ -264,6 +272,6 @@ def _save_cl_rooms(cl, request):
             cl=cl,
             room_type=rt,
             meals=room_meals[i] if i < len(room_meals) else "",
-            quantity=int(num_rooms[i]) if i < len(num_rooms) and num_rooms[i] else 1,
-            price=float(room_prices[i]) if i < len(room_prices) and room_prices[i] else 0,
+            quantity=max(1, int(num_rooms[i])) if i < len(num_rooms) and num_rooms[i] else 1,
+            price=max(0, float(room_prices[i])) if i < len(room_prices) and room_prices[i] else 0,
         )

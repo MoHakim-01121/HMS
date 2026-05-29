@@ -3,6 +3,7 @@ import json as _json
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import Hotel
@@ -98,7 +99,10 @@ def hotel_delete(request, pk):
 @login_required
 def hotel_detail(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
-    return render(request, 'invoices/hotel/hotel_detail.html', {'hotel': h})
+    return render(request, 'invoices/hotel/hotel_detail.html', {
+        'hotel': h,
+        'hotel_route_json': _json.dumps(h.route) if h.route else 'null',
+    })
 
 
 @login_required
@@ -127,6 +131,6 @@ def hotel_map_data(request):
             'ref_label': h.ref_label,
             'avg':     float(h.avg_occupancy) if h.avg_occupancy else None,
             'route':   h.route,
-            'url':     f'/hotels/{h.pk}/',
+            'url':     reverse('hotel_detail', args=[h.pk]),
         })
     return JsonResponse({'hotels': hotels})

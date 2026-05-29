@@ -3,8 +3,25 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.contrib.auth.views import LoginView
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+
+
+class CompanyLoginView(LoginView):
+    template_name = 'invoices/partials/login.html'
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        company = self.request.POST.get('company', 'konoz')
+        if company not in ('konoz', 'ijabah'):
+            company = 'konoz'
+        self.request.session['active_company'] = company
+        self.request.session.modified = True
+        return response
+
+    def get_success_url(self):
+        return '/'
 
 
 def superuser_required(view_func):

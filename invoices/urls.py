@@ -3,8 +3,6 @@ from . import views
 
 urlpatterns = [
     path('', views.home, name='home'),
-    path('company/', views.company_select, name='company_select'),
-    path('company/switch/', views.company_switch, name='company_switch'),
     path('company/set/', views.company_quick_set, name='company_quick_set'),
 
     # Confirmation Letter

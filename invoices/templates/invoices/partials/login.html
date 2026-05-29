@@ -14,6 +14,7 @@
       justify-content: center;
       min-height: 100vh;
       padding: 20px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     .hud-wrap {
@@ -45,36 +46,10 @@
       width: 100%;
       position: relative;
       padding: 32px 28px;
-    }
-    /* Corner brackets */
-    .hud-panel::before,
-    .hud-panel::after,
-    .hud-corner-bl,
-    .hud-corner-br {
-      content: '';
-      position: absolute;
-      width: 16px;
-      height: 16px;
-    }
-    .hud-panel::before {
-      top: 0; left: 0;
-      border-top: 1.5px solid var(--accent-2);
-      border-left: 1.5px solid var(--accent-2);
-    }
-    .hud-panel::after {
-      top: 0; right: 0;
-      border-top: 1.5px solid var(--accent-2);
-      border-right: 1.5px solid var(--accent-2);
-    }
-    .hud-corner-bl {
-      bottom: 0; left: 0;
-      border-bottom: 1.5px solid var(--accent-2);
-      border-left: 1.5px solid var(--accent-2);
-    }
-    .hud-corner-br {
-      bottom: 0; right: 0;
-      border-bottom: 1.5px solid var(--accent-2);
-      border-right: 1.5px solid var(--accent-2);
+      background: var(--surface, rgba(255,255,255,.03));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.35);
     }
 
     /* Fields */
@@ -140,12 +115,70 @@
       letter-spacing: 3px;
       cursor: pointer;
       transition: background .15s, color .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
     }
-    .hud-btn:hover {
-      background: var(--accent-2);
-      color: #fff;
-    }
+    .hud-btn:hover { background: var(--accent-2); color: #fff; }
     .hud-btn:active { opacity: .85; }
+    .hud-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+
+    .hud-spinner {
+      display: none;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hud-btn.loading .hud-spinner { display: block; }
+    .hud-btn.loading .hud-btn-text { letter-spacing: 2px; }
+
+    /* Company toggle — iOS style */
+    .co-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+    .co-toggle {
+      display: flex;
+      width: 100%;
+      background: rgba(255,255,255,.06);
+      border-radius: 8px;
+      padding: 3px;
+      margin-bottom: 28px;
+      gap: 2px;
+    }
+    .co-toggle-btn {
+      flex: 1;
+      height: 34px;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: var(--text-3);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .2s, color .2s, box-shadow .2s;
+    }
+    .co-toggle-btn.active-konoz {
+      background: var(--surface-3, rgba(255,255,255,.12));
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    }
+    .co-toggle-btn.active-ijabah {
+      background: var(--surface-3, rgba(255,255,255,.12));
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    }
 
     /* Status line */
     .hud-status {
@@ -180,8 +213,6 @@
     </div>
 
     <div class="hud-panel">
-      <div class="hud-corner-bl"></div>
-      <div class="hud-corner-br"></div>
 
       {% if form.errors %}
       <div class="hud-error">
@@ -192,6 +223,12 @@
 
       <form method="post">
         {% csrf_token %}
+        <input type="hidden" name="company" id="company-val" value="konoz">
+        <div class="co-label">Company</div>
+        <div class="co-toggle">
+          <button type="button" class="co-toggle-btn active-konoz" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
+          <button type="button" class="co-toggle-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+        </div>
         <div class="hud-fields">
           <div class="hud-field">
             <label for="id_username">Identifier</label>
@@ -202,7 +239,11 @@
             <input type="password" id="id_password" name="password" autocomplete="current-password" placeholder="Enter password">
           </div>
         </div>
-        <button type="submit" class="hud-btn">Authenticate</button>
+
+        <button type="submit" class="hud-btn" id="login-btn">
+          <div class="hud-spinner"></div>
+          <span class="hud-btn-text">Authenticate</span>
+        </button>
       </form>
     </div>
 
@@ -210,11 +251,34 @@
 
   </div>
 
+  <script>
+    function setCompany(val) {
+      document.getElementById('company-val').value = val;
+      var btnK = document.getElementById('btn-konoz');
+      var btnI = document.getElementById('btn-ijabah');
+      btnK.className = 'co-toggle-btn' + (val === 'konoz' ? ' active-konoz' : '');
+      btnI.className = 'co-toggle-btn' + (val === 'ijabah' ? ' active-ijabah' : '');
+    }
+
+    document.querySelector('form').addEventListener('submit', function() {
+      var btn = document.getElementById('login-btn');
+      btn.classList.add('loading');
+      btn.disabled = true;
+      btn.querySelector('.hud-btn-text').textContent = 'Authenticating';
+    });
+  </script>
+
   {% if request.GET.logged_out %}
   <div class="toast-container">
     <div id="logout-toast" class="toast toast-success">Berhasil logout</div>
   </div>
-  <script>setTimeout(function(){var t=document.getElementById('logout-toast');if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove()},300);}},3000);</script>
+  <script>
+    history.replaceState(null, '', '/login/');
+    setTimeout(function(){
+      var t=document.getElementById('logout-toast');
+      if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove()},300);}
+    },3000);
+  </script>
   {% endif %}
 </body>
 </html>

@@ -155,8 +155,10 @@
 {% endblock %}
 
 {% if hotel.lat and hotel.lng %}
-{% block extra_js %}
+{% block extra_css %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+{% endblock %}
+{% block extra_js %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 .route-dist-tip { background: var(--surface-3) !important; border: 1px solid var(--border) !important; color: var(--text) !important; font-size: 12px !important; font-weight: 600 !important; padding: 4px 9px !important; border-radius: 6px !important; box-shadow: 0 4px 14px rgba(0,0,0,.45) !important; white-space: nowrap; pointer-events: none; }
@@ -189,7 +191,7 @@
     className: '',
     html: '<div style="width:12px;height:12px;border-radius:50%;background:#F0A429;border:2px solid #fff;box-shadow:0 0 6px #F0A42999;"></div>',
     iconSize:[12,12], iconAnchor:[6,6]
-  })}).bindTooltip('{{ hotel.ref_label }}').addTo(map);
+  })}).bindTooltip('{{ hotel.ref_label|escapejs }}').addTo(map);
   {% if hotel.city != 'madinah' %}
   L.marker([21.4225, 39.8262], { icon: L.divIcon({
     className: '',
@@ -215,7 +217,7 @@
   }
 
   {% if hotel.route %}
-  var customRoute = {{ hotel.route|safe }};
+  var customRoute = {{ hotel_route_json|safe }};
   attachRoute(customRoute, customRoute);
   {% else %}
   attachRoute([refLL, hotelLL], [refLL, hotelLL]);

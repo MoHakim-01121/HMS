@@ -89,7 +89,9 @@
         <div class="grid-2">
           <div class="field">
             <label>Hotel Name *</label>
-            <input type="text" name="hotel_name" required value="{% if edit %}{{ cl.hotel_name }}{% endif %}">
+            <input type="text" id="hotel_search" autocomplete="off" placeholder="Ketik nama hotel…" style="width:100%;">
+            <input type="hidden" name="hotel_name" id="hotel_name_hidden" required value="{% if edit %}{{ cl.hotel_name }}{% elif form_data %}{{ form_data.hotel_name }}{% endif %}">
+            <script id="hotels-data" type="application/json">{{ hotels|safe }}</script>
           </div>
           <div class="field">
             <label>Confirmation Number *</label>
@@ -121,11 +123,11 @@
         <div class="grid-2">
           <div class="field">
             <label>Check-in *</label>
-            <input type="date" id="check_in" name="check_in" required value="{% if edit and cl.check_in %}{{ cl.check_in|date:'Y-m-d' }}{% endif %}">
+            <input type="date" id="check_in" name="check_in" required value="{% if edit and cl.check_in %}{{ cl.check_in|date:'Y-m-d' }}{% elif form_data %}{{ form_data.check_in }}{% endif %}">
           </div>
           <div class="field">
             <label>Check-out *</label>
-            <input type="date" id="check_out" name="check_out" required value="{% if edit and cl.check_out %}{{ cl.check_out|date:'Y-m-d' }}{% endif %}">
+            <input type="date" id="check_out" name="check_out" required value="{% if edit and cl.check_out %}{{ cl.check_out|date:'Y-m-d' }}{% elif form_data %}{{ form_data.check_out }}{% endif %}">
             <span id="date-error" style="color:var(--red);font-size:12px;display:none;">Check-out tidak boleh sebelum check-in.</span>
           </div>
         </div>
@@ -236,7 +238,17 @@
   });
   checkOut.addEventListener('change', validateDates);
   document.getElementById('cl-form').addEventListener('submit', e => {
-    if (!validateDates()) { checkOut.focus(); e.preventDefault(); }
+    let valid = true;
+    if (!validateDates()) { checkOut.focus(); valid = false; }
+    if (!hotelHidden.value.trim()) {
+      hotelSearch.focus();
+      hotelSearch.style.borderColor = 'var(--red)';
+      valid = false;
+    }
+    if (!valid) { e.preventDefault(); return; }
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan…';
   });
 
   function roomTemplate() {
@@ -262,10 +274,84 @@
     if (container.querySelectorAll('.room-row').length > 1) btn.closest('.room-row').remove();
   }
 
-  document.querySelector('form').addEventListener('submit', function() {
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = true;
-    btn.textContent = 'Menyimpan…';
+  // Searchable hotel dropdown — appended to body to avoid overflow:hidden clipping
+  const hotelsData   = JSON.parse(document.getElementById('hotels-data').textContent);
+  const hotelSearch  = document.getElementById('hotel_search');
+  const hotelHidden  = document.getElementById('hotel_name_hidden');
+  const companySelect = document.querySelector('select[name="company"]');
+
+  // Create dropdown and attach to body
+  const hotelDropdown = document.createElement('div');
+  hotelDropdown.id = 'hotel_dropdown';
+  hotelDropdown.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.25);min-width:240px;';
+  document.body.appendChild(hotelDropdown);
+
+  hotelSearch.value = hotelHidden.value;
+
+  function positionDropdown() {
+    const rect = hotelSearch.getBoundingClientRect();
+    hotelDropdown.style.top  = (rect.bottom + 4) + 'px';
+    hotelDropdown.style.left = rect.left + 'px';
+    hotelDropdown.style.width = rect.width + 'px';
+  }
+
+  function getFiltered(query) {
+    const company = companySelect.value;
+    const q = query.toLowerCase();
+    return hotelsData.filter(h => h.company === company && h.name.toLowerCase().includes(q));
+  }
+
+  function selectHotel(name) {
+    hotelSearch.value = name;
+    hotelHidden.value = name;
+    hotelDropdown.style.display = 'none';
+  }
+
+  function openDropdown(hotels) {
+    hotelDropdown.innerHTML = '';
+    if (!hotels.length) {
+      hotelDropdown.innerHTML = `<div style="padding:10px 14px;color:var(--text-muted);font-size:13px;">Tidak ada hotel ditemukan</div>
+        <a href="/hotels/new/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--accent);text-decoration:none;border-top:1px solid var(--border);">
+          <span style="font-size:16px;line-height:1;">+</span> Buat hotel baru
+        </a>`;
+    } else {
+      hotels.forEach(h => {
+        const item = document.createElement('div');
+        item.textContent = h.name;
+        item.dataset.hotel = h.name;
+        item.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;transition:background .1s;';
+        item.addEventListener('mouseenter', () => item.style.background = 'var(--surface-3,rgba(255,255,255,.08))');
+        item.addEventListener('mouseleave', () => item.style.background = '');
+        hotelDropdown.appendChild(item);
+      });
+    }
+    positionDropdown();
+    hotelDropdown.style.display = 'block';
+  }
+
+  hotelDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-hotel]');
+    if (item) selectHotel(item.dataset.hotel);
+  });
+
+  hotelSearch.addEventListener('input', () => {
+    hotelHidden.value = hotelSearch.value;
+    hotelSearch.style.borderColor = '';
+    openDropdown(getFiltered(hotelSearch.value));
+  });
+  hotelSearch.addEventListener('focus', () => openDropdown(getFiltered(hotelSearch.value)));
+
+  document.addEventListener('click', (e) => {
+    if (!hotelSearch.contains(e.target) && !hotelDropdown.contains(e.target)) {
+      hotelDropdown.style.display = 'none';
+    }
+  });
+
+  window.addEventListener('scroll', positionDropdown, true);
+
+  companySelect.addEventListener('change', () => {
+    hotelSearch.value = ''; hotelHidden.value = '';
+    openDropdown(getFiltered(''));
   });
 
   {% if not edit %}
@@ -274,6 +360,8 @@
     const roomCount = Array.isArray(roomTypes) ? roomTypes.length : (roomTypes ? 1 : 0);
     const existing = document.querySelectorAll('#rooms-container .room-row').length;
     for (let i = existing; i < roomCount; i++) addRoom();
+    // Sync visible hotel search input after draft restore
+    if (hotelHidden.value) hotelSearch.value = hotelHidden.value;
   });
   {% endif %}
 </script>

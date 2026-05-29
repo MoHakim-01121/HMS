@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Hakim Workspace{% endblock %}</title>
+  <title>{% block title %}Workspace{% endblock %}</title>
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E6AD2' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>">
   <link rel="stylesheet" href="{% static 'invoices/css/design.css' %}">
@@ -18,7 +18,7 @@
     <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor"/>
     <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor"/>
   </svg>
-  Hakim Workspace
+  Workspace
 </a>
     <div class="topbar-space"></div>
 
@@ -109,10 +109,6 @@
               {% if request.session.active_company == 'ijabah' %}<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:auto;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{% endif %}
             </button>
           </form>
-          <a href="{% url 'company_switch' %}" class="co-option co-option-muted">
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-            Pilih ulang
-          </a>
           <div class="co-dropdown-sep"></div>
           {% endif %}
 
