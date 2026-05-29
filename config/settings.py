@@ -163,7 +163,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Only enable HTTPS redirects in production
 if not DEBUG:
     # HTTPS/SSL Settings
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = get_bool_env('SECURE_SSL_REDIRECT', True)
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     
