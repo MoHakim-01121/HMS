@@ -272,9 +272,18 @@ var HARAM_INFO = [21.4225,   39.8262];
 var NABAWI     = [24.4672,   39.6112];
 var map = L.map('map', { zoomControl: false }).setView(HARAM, 14);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+
+function getTileUrl() {
+  var theme = document.documentElement.getAttribute('data-theme');
+  return 'https://{s}.basemaps.cartocdn.com/' + (theme === 'light' ? 'light_all' : 'dark_all') + '/{z}/{x}/{y}{r}.png';
+}
+var tileLayer = L.tileLayer(getTileUrl(), {
   attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19
 }).addTo(map);
+
+new MutationObserver(function() {
+  tileLayer.setUrl(getTileUrl());
+}).observe(document.documentElement, { attributeFilter: ['data-theme'] });
 
 function refIcon() {
   return L.divIcon({ className:'', html:'<div style="width:18px;height:18px;border-radius:50%;background:#F0A429;border:3px solid #fff;box-shadow:0 0 10px #F0A429AA;"></div>', iconSize:[18,18], iconAnchor:[9,9] });

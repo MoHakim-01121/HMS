@@ -173,9 +173,18 @@
 
   var map = L.map('mini-map', { zoomControl: false, scrollWheelZoom: false, dragging: true });
   L.control.zoom({ position: 'bottomright' }).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+
+  function getTileUrl() {
+    var theme = document.documentElement.getAttribute('data-theme');
+    return 'https://{s}.basemaps.cartocdn.com/' + (theme === 'light' ? 'light_all' : 'dark_all') + '/{z}/{x}/{y}{r}.png';
+  }
+  var tileLayer = L.tileLayer(getTileUrl(), {
     attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19
   }).addTo(map);
+
+  new MutationObserver(function() {
+    tileLayer.setUrl(getTileUrl());
+  }).observe(document.documentElement, { attributeFilter: ['data-theme'] });
 
   function haversine(lat1, lng1, lat2, lng2) {
     var R = 6371000, p1 = lat1*Math.PI/180, p2 = lat2*Math.PI/180;
