@@ -161,9 +161,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 if not DEBUG:
     # HTTPS/SSL Settings
     SECURE_SSL_REDIRECT = get_bool_env('SECURE_SSL_REDIRECT', True)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    
+    SESSION_COOKIE_SECURE = get_bool_env('SESSION_COOKIE_SECURE', True)
+    CSRF_COOKIE_SECURE = get_bool_env('CSRF_COOKIE_SECURE', True)
+
     # HSTS Settings
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
