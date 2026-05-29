@@ -14,12 +14,16 @@ tinycss2==1.2.1
 pyphen==0.14.0
 fonttools==4.61.1
 
-# Barcode & QR Code (optional)
-python-barcode
-qrcode[pil]
 
 # Production Server
 gunicorn==23.0.0
 
 # Static files
 whitenoise==6.6.0
+
+# Database
+psycopg2-binary==2.9.10
+dj-database-url==2.3.0
+
+# Environment
+python-dotenv==1.0.1

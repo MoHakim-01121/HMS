@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page { size: A4 landscape; margin: 14mm 16mm; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
+h1 { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.meta { font-size: 10px; color: #666; margin-bottom: 14px; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  background: #1c1c1c; color: #fff;
+  padding: 6px 8px; text-align: left;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
+}
+td { padding: 6px 8px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+.mono { font-family: monospace; }
+.right { text-align: right; }
+.badge {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  font-size: 10px; font-weight: 600;
+}
+.badge-lunas  { background:#e8f5e9; color:#2e7d32; }
+.badge-partial{ background:#fff8e1; color:#f57f17; }
+.badge-unpaid { background:#fce4ec; color:#c62828; }
+tfoot td { font-weight: 700; background: #f5f5f5; padding: 7px 8px; }
+</style>
+</head>
+<body>
+<h1>Invoice Hotel</h1>
+<div class="meta">
+  Digenerate: {{ now|date:"d/m/Y H:i" }}
+  {% if q %} &nbsp;·&nbsp; Filter: "{{ q }}"{% endif %}
+  {% if company_filter %} &nbsp;·&nbsp; Company: {{ company_filter }}{% endif %}
+  &nbsp;·&nbsp; {{ invoices|length }} records
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>Invoice #</th>
+      <th>Company</th>
+      <th>Customer</th>
+      <th>Issued</th>
+      <th>Due</th>
+      <th class="right">Total SAR</th>
+      <th class="right">Paid SAR</th>
+      <th class="right">Sisa SAR</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for inv in invoices %}
+    <tr>
+      <td class="mono">{{ inv.invoice_number }}</td>
+      <td>{{ inv.company|capfirst }}</td>
+      <td>{{ inv.customer_name }}</td>
+      <td>{% if inv.issued_date %}{{ inv.issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td>{% if inv.due_date %}{{ inv.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="mono right">{{ inv.total_sar|floatformat:0 }}</td>
+      <td class="mono right">{{ inv.total_paid_sar|floatformat:0 }}</td>
+      <td class="mono right">{{ inv.remaining_sar|floatformat:0 }}</td>
+      <td>
+        {% if inv.remaining_sar == 0 %}
+          <span class="badge badge-lunas">Lunas</span>
+        {% elif inv.remaining_sar < inv.total_sar %}
+          <span class="badge badge-partial">Partial</span>
+        {% else %}
+          <span class="badge badge-unpaid">Belum Bayar</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" style="text-align:center;color:#999;padding:20px;">Tidak ada data</td></tr>
+    {% endfor %}
+  </tbody>
+  {% if invoices %}
+  <tfoot>
+    <tr>
+      <td colspan="5">Total ({{ invoices|length }} invoice)</td>
+      <td class="mono right">{{ total_sar|floatformat:0 }}</td>
+      <td class="mono right">{{ total_paid|floatformat:0 }}</td>
+      <td class="mono right">{{ total_remaining|floatformat:0 }}</td>
+      <td></td>
+    </tr>
+  </tfoot>
+  {% endif %}
+</table>
+</body>
+</html>

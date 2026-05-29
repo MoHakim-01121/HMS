@@ -1,0 +1,144 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Peta Client{% endblock %}
+
+{% block breadcrumbs %}
+<span class="topbar-sep"></span>
+<a href="{% url 'client_list' %}" class="topbar-crumb">Clients</a>
+<span class="topbar-sep"></span>
+<span class="topbar-crumb active">Peta</span>
+{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'client_list' %}" class="btn btn-secondary btn-sm">List</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  #map { height: calc(100vh - 48px); width: 100%; }
+  .leaflet-popup-content-wrapper {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    color: var(--text);
+  }
+  .leaflet-popup-tip { background: var(--surface-3); }
+  .leaflet-popup-content { margin: 12px 16px; min-width: 180px; }
+  .pop-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .pop-city { font-size: 12px; color: var(--text-3); margin-bottom: 8px; }
+  .pop-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+  .pop-label { color: var(--text-3); }
+  .pop-val { font-weight: 600; color: var(--text); }
+  .pop-val.red { color: var(--red); }
+  .pop-val.green { color: var(--green); }
+  .pop-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .pop-btn { flex: 1; padding: 5px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; text-align: center; text-decoration: none; border: none; cursor: pointer; font-family: inherit; }
+  .pop-btn-detail { background: var(--accent-muted); color: var(--accent-2); }
+  .pop-btn-wa { background: rgba(38,194,129,.15); color: var(--green); }
+  .map-legend { position: absolute; bottom: 32px; left: 16px; z-index: 999; background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; }
+  .leg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--text-2); }
+  .leg-row:last-child { margin-bottom: 0; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .map-filter { position: absolute; top: 60px; right: 16px; z-index: 999; background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; display: flex; gap: 6px; flex-direction: column; }
+  .map-filter button { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); cursor: pointer; font-family: inherit; transition: all .1s; }
+  .map-filter button.active { background: var(--accent-muted); color: var(--accent-2); border-color: rgba(94,106,210,.3); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="position:relative;">
+  <div id="map"></div>
+
+  <div class="map-filter">
+    <button class="active" data-filter="all" onclick="setFilter('all',this)">Semua</button>
+    <button data-filter="risk" onclick="setFilter('risk',this)">Risiko</button>
+    <button data-filter="outstanding" onclick="setFilter('outstanding',this)">Outstanding</button>
+    <button data-filter="dormant" onclick="setFilter('dormant',this)">Dormant</button>
+  </div>
+
+  <div class="map-legend">
+    <div class="leg-row"><div class="leg-dot" style="background:#26C281;"></div> OK / Lunas</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#F0A429;"></div> Outstanding</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#E5534B;"></div> Risiko Tinggi</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#5A5A6A;"></div> Dormant</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var map = L.map('map', { zoomControl: false }).setView([-2.5, 118], 5);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CartoDB',
+  subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+var allClients = [];
+var markers = [];
+var currentFilter = 'all';
+
+var COLORS = { ok: '#26C281', medium: '#F0A429', high: '#E5534B', dormant: '#5A5A6A' };
+
+function makeIcon(risk, score) {
+  var color = COLORS[risk] || COLORS.ok;
+  var size = Math.max(10, Math.min(22, 10 + score / 8));
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + color + ';border:2px solid rgba(255,255,255,.25);box-shadow:0 0 6px ' + color + '55;"></div>',
+    iconSize: [size, size],
+    iconAnchor: [size/2, size/2],
+  });
+}
+
+function fmtNum(n) {
+  return n ? n.toLocaleString() + ' SAR' : '—';
+}
+
+function renderMarkers(clients) {
+  markers.forEach(function(m) { map.removeLayer(m); });
+  markers = [];
+  clients.forEach(function(c) {
+    var m = L.marker([c.lat, c.lng], { icon: makeIcon(c.risk, c.score) });
+    var waBtn = c.wa ? '<a href="https://wa.me/' + c.wa + '" target="_blank" class="pop-btn pop-btn-wa">WhatsApp</a>' : '';
+    m.bindPopup(
+      '<div class="pop-name">' + c.name + '</div>' +
+      '<div class="pop-city">' + (c.city || '') + (c.province ? ', ' + c.province : '') + '</div>' +
+      '<div class="pop-row"><span class="pop-label">Outstanding</span><span class="pop-val ' + (c.outstanding > 0 ? 'red' : 'green') + '">' + fmtNum(c.outstanding) + '</span></div>' +
+      '<div class="pop-row"><span class="pop-label">Total Tagihan</span><span class="pop-val">' + fmtNum(c.total_billed) + '</span></div>' +
+      '<div class="pop-row"><span class="pop-label">Score</span><span class="pop-val">' + c.score + '/100</span></div>' +
+      (c.pic ? '<div class="pop-row"><span class="pop-label">PIC</span><span class="pop-val">' + c.pic + '</span></div>' : '') +
+      '<div class="pop-actions"><a href="' + c.url + '" class="pop-btn pop-btn-detail">Detail →</a>' + waBtn + '</div>'
+    );
+    m.addTo(map);
+    markers.push(m);
+  });
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.map-filter button').forEach(function(b) { b.classList.remove('active'); });
+  btn.classList.add('active');
+  var filtered = allClients;
+  if (f === 'risk') filtered = allClients.filter(function(c) { return c.risk === 'high' || c.risk === 'medium'; });
+  if (f === 'outstanding') filtered = allClients.filter(function(c) { return c.outstanding > 0; });
+  if (f === 'dormant') filtered = allClients.filter(function(c) { return c.risk === 'dormant'; });
+  renderMarkers(filtered);
+}
+
+fetch('{% url "client_map_data" %}')
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    allClients = data.clients;
+    renderMarkers(allClients);
+    if (allClients.length === 0) {
+      map.setView([-2.5, 118], 5);
+    }
+  });
+</script>
+{% endblock %}

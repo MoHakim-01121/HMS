@@ -1,0 +1,553 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Peta Hotel{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'hotel_list' %}" class="btn btn-secondary btn-sm">List</a>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  #map { height: calc(100vh - 48px); width: 100%; }
+
+  /* Popup */
+  .leaflet-popup-content-wrapper { background:var(--surface-3); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.5); color:var(--text); }
+  .leaflet-popup-tip { background:var(--surface-3); }
+  .leaflet-popup-content { margin:12px 16px; min-width:180px; }
+  .pop-name  { font-size:14px; font-weight:700; color:var(--text); margin-bottom:2px; }
+  .pop-stars { font-size:12px; color:#F0A429; letter-spacing:1px; margin-bottom:6px; }
+  .pop-row   { display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px; }
+  .pop-label { color:var(--text-3); }
+  .pop-val   { font-weight:600; color:var(--text); }
+  .pop-val.green  { color:#26C281; }
+  .pop-val.yellow { color:#F0A429; }
+  .pop-val.red    { color:#E5534B; }
+  .pop-actions { margin-top:10px; }
+  .pop-btn { display:block; width:100%; padding:6px 8px; border-radius:6px; font-size:12px; font-weight:600; text-align:center; text-decoration:none; background:var(--accent-muted); color:var(--accent-2); }
+
+  /* ── Top bar ── */
+  .map-topbar {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    z-index: 999; display: flex; align-items: center; gap: 8px;
+  }
+  .map-search-wrap {
+    display: flex; align-items: center; gap: 7px;
+    background: var(--surface-3); border: 1px solid var(--border);
+    border-radius: 10px; padding: 0 14px; height: 40px; min-width: 240px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  }
+  .map-search-wrap svg { color: var(--text-3); flex-shrink: 0; }
+  .map-search-wrap input { background: transparent; border: none; outline: none; color: var(--text); font-size: 13px; font-family: inherit; width: 100%; }
+  .map-search-wrap input::placeholder { color: var(--text-3); }
+  .map-filter-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 40px; padding: 0 14px;
+    background: var(--surface-3); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text-2); font-size: 12px; font-weight: 600;
+    font-family: inherit; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,.4);
+    white-space: nowrap;
+  }
+  .map-filter-btn.has-filter { color: var(--accent-2); border-color: var(--accent-2); background: var(--accent-muted); }
+  .map-counter {
+    height: 40px; padding: 0 12px;
+    display: flex; align-items: center;
+    background: var(--surface-3); border: 1px solid var(--border);
+    border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--text-3);
+    box-shadow: 0 4px 20px rgba(0,0,0,.4); white-space: nowrap;
+  }
+
+  /* ── Filter sidebar (kiri) ── */
+  .filter-panel {
+    position: absolute; top: 0; left: 0; height: 100%; width: 260px;
+    background: var(--surface-2); border-right: 1px solid var(--border);
+    z-index: 998; display: flex; flex-direction: column;
+    transform: translateX(-100%); transition: transform .2s ease;
+  }
+  .filter-panel.open { transform: translateX(0); }
+  .fp-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .fp-head-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .fp-close { background: none; border: none; color: var(--text-3); cursor: pointer; padding: 4px; font-size: 18px; line-height: 1; }
+  .fp-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .fp-section { padding: 12px 16px 4px; }
+  .fp-section-title {
+    font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-3); margin-bottom: 10px;
+  }
+  .fp-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .fp-radio, .fp-check {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 16px; cursor: pointer; font-size: 13px; color: var(--text-2);
+    transition: background .1s; border-radius: 0;
+  }
+  .fp-radio:hover, .fp-check:hover { background: var(--surface-3); color: var(--text); }
+  .fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--accent-2); width: 15px; height: 15px; cursor: pointer; }
+  .fp-radio.active, .fp-check.active { color: var(--text); font-weight: 600; }
+  .fp-toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 16px; cursor: pointer;
+  }
+  .fp-toggle-label { font-size: 13px; color: var(--text-2); }
+  .fp-toggle-switch {
+    width: 34px; height: 18px; border-radius: 9px; background: var(--border);
+    position: relative; transition: background .15s; flex-shrink: 0;
+  }
+  .fp-toggle-switch.on { background: var(--accent-2); }
+  .fp-toggle-switch::after {
+    content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; top: 3px; left: 3px; transition: left .15s;
+  }
+  .fp-toggle-switch.on::after { left: 19px; }
+  .fp-foot {
+    padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .fp-reset { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-3); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .fp-reset:hover { border-color: var(--text-2); color: var(--text-2); }
+
+  /* ── Hotel list sidebar (kanan) ── */
+  .map-sidebar { position:absolute; top:0; right:0; height:100%; width:280px; background:var(--surface-2); border-left:1px solid var(--border); z-index:998; display:flex; flex-direction:column; transform:translateX(100%); transition:transform .2s ease; }
+  .map-sidebar.open { transform:translateX(0); }
+  .sidebar-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .sidebar-head-title { font-size:13px; font-weight:700; color:var(--text); }
+  .sidebar-close { background:none; border:none; color:var(--text-3); cursor:pointer; padding:4px; line-height:1; font-size:16px; }
+  .sidebar-list { overflow-y:auto; flex:1; }
+  .sidebar-item { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+  .sidebar-item:hover { background:var(--surface-3); }
+  .sidebar-item.active { background:var(--accent-muted); }
+  .sidebar-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .sidebar-name { font-size:12px; font-weight:600; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sidebar-dist { font-size:11px; font-weight:600; flex-shrink:0; }
+  .sidebar-dist.green  { color:#26C281; }
+  .sidebar-dist.yellow { color:#F0A429; }
+  .sidebar-dist.red    { color:#E5534B; }
+  .sidebar-dist.dim    { color:var(--text-3); }
+  .map-sidebar-btn { position:absolute; bottom:32px; right:16px; z-index:999; background:var(--surface-3); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:12px; font-weight:600; color:var(--text-2); cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 4px 20px rgba(0,0,0,.4); }
+
+  /* Legend */
+  .map-legend { position:absolute; bottom:32px; left:16px; z-index:999; background:var(--surface-3); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:11px; min-width:150px; }
+  .leg-section { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; margin-top:8px; }
+  .leg-section:first-child { margin-top:0; }
+  .leg-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; color:var(--text-2); }
+  .leg-row:last-child { margin-bottom:0; }
+  .leg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+  /* Tooltip rute */
+  .route-dist-tip { background:var(--surface-3) !important; border:1px solid var(--border) !important; color:var(--text) !important; font-size:12px !important; font-weight:600 !important; padding:4px 9px !important; border-radius:6px !important; box-shadow:0 4px 14px rgba(0,0,0,.45) !important; white-space:nowrap; pointer-events:none; }
+  .route-dist-tip::before { display:none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="position:relative;">
+  <div id="map"></div>
+
+  <!-- Top bar -->
+  <div class="map-topbar">
+    <button class="map-filter-btn" id="filter-open-btn" onclick="toggleFilterPanel()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/></svg>
+      Filter
+      <span id="filter-badge" style="display:none;background:var(--accent-2);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;"></span>
+    </button>
+    <div class="map-search-wrap">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="hotel-search" placeholder="Cari nama hotel…" oninput="applyFilters()">
+    </div>
+    <div class="map-counter" id="hotel-counter"></div>
+  </div>
+
+  <!-- Filter panel (kiri) -->
+  <div id="filter-panel" class="filter-panel">
+    <div class="fp-head">
+      <span class="fp-head-title">Filter</span>
+      <button class="fp-close" onclick="toggleFilterPanel()">×</button>
+    </div>
+    <div class="fp-body">
+
+      <div class="fp-section">
+        <div class="fp-section-title">Kota</div>
+      </div>
+      <label class="fp-radio active" id="fp-city-all">
+        <input type="radio" name="fp-city" value="all" checked onchange="applyFilters()"> Semua Kota
+      </label>
+      <label class="fp-radio" id="fp-city-makkah">
+        <input type="radio" name="fp-city" value="makkah" onchange="applyFilters()"> Makkah
+      </label>
+      <label class="fp-radio" id="fp-city-madinah">
+        <input type="radio" name="fp-city" value="madinah" onchange="applyFilters()"> Madinah
+      </label>
+
+      <div class="fp-divider" style="margin:8px 0;"></div>
+
+      <div class="fp-section">
+        <div class="fp-section-title">Jarak ke Masjid</div>
+      </div>
+      <label class="fp-check" id="fp-dist-dekat">
+        <input type="checkbox" value="dekat" onchange="applyFilters()">
+        <span style="width:10px;height:10px;border-radius:50%;background:#26C281;display:inline-block;flex-shrink:0;"></span>
+        ≤ 500m
+      </label>
+      <label class="fp-check" id="fp-dist-sedang">
+        <input type="checkbox" value="sedang" onchange="applyFilters()">
+        <span style="width:10px;height:10px;border-radius:50%;background:#F0A429;display:inline-block;flex-shrink:0;"></span>
+        500m – 1.5km
+      </label>
+      <label class="fp-check" id="fp-dist-jauh">
+        <input type="checkbox" value="jauh" onchange="applyFilters()">
+        <span style="width:10px;height:10px;border-radius:50%;background:#E5534B;display:inline-block;flex-shrink:0;"></span>
+        &gt; 1.5km
+      </label>
+
+      <div class="fp-divider" style="margin:8px 0;"></div>
+
+      <div class="fp-section">
+        <div class="fp-section-title">Bintang</div>
+      </div>
+      <label class="fp-check">
+        <input type="checkbox" name="fp-stars" value="3" onchange="applyFilters()">
+        <span style="color:#F0A429;font-size:12px;">★★★</span>
+      </label>
+      <label class="fp-check">
+        <input type="checkbox" name="fp-stars" value="4" onchange="applyFilters()">
+        <span style="color:#F0A429;font-size:12px;">★★★★</span>
+      </label>
+      <label class="fp-check">
+        <input type="checkbox" name="fp-stars" value="5" onchange="applyFilters()">
+        <span style="color:#F0A429;font-size:12px;">★★★★★</span>
+      </label>
+
+      <div class="fp-divider" style="margin:8px 0;"></div>
+
+      <div class="fp-toggle-row" onclick="toggleAvg()">
+        <span class="fp-toggle-label">Ada Avg / Kapasitas</span>
+        <div id="sw-avg" class="fp-toggle-switch"></div>
+      </div>
+      <div class="fp-toggle-row" onclick="toggleRoutes()">
+        <span class="fp-toggle-label">Tampilkan Rute</span>
+        <div id="sw-route" class="fp-toggle-switch on"></div>
+      </div>
+
+    </div>
+    <div class="fp-foot">
+      <button class="fp-reset" onclick="resetFilters()">Reset semua filter</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="map-legend">
+    <div class="leg-section">Jarak Hotel</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#26C281;"></div> ≤ 500m</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#F0A429;"></div> 500m – 1.5km</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#E5534B;"></div> &gt; 1.5km</div>
+    <div class="leg-section">Referensi</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#F0A429;border:2px solid rgba(255,255,255,.4);"></div> Pelataran Al-Haram</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#E5534B;border:2px solid rgba(255,255,255,.4);"></div> Masjid / Nabawi</div>
+  </div>
+
+  <!-- Sidebar toggle button (kanan bawah) -->
+  <button class="map-sidebar-btn" onclick="toggleSidebar()">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <span id="sidebar-btn-label">List Hotel</span>
+  </button>
+
+  <!-- Hotel list sidebar (kanan) -->
+  <div id="sidebar" class="map-sidebar">
+    <div class="sidebar-head">
+      <span class="sidebar-head-title">Hotel <span id="sidebar-count" style="color:var(--text-3);font-weight:400;"></span></span>
+      <button class="sidebar-close" onclick="toggleSidebar()">×</button>
+    </div>
+    <div id="sidebar-list" class="sidebar-list"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+var HARAM      = [21.420324, 39.826485];
+var HARAM_INFO = [21.4225,   39.8262];
+var NABAWI     = [24.4672,   39.6112];
+var map = L.map('map', { zoomControl: false }).setView(HARAM, 14);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+function refIcon() {
+  return L.divIcon({ className:'', html:'<div style="width:18px;height:18px;border-radius:50%;background:#F0A429;border:3px solid #fff;box-shadow:0 0 10px #F0A429AA;"></div>', iconSize:[18,18], iconAnchor:[9,9] });
+}
+function mosqueIcon() {
+  return L.divIcon({ className:'', html:'<div style="width:14px;height:14px;border-radius:50%;background:#E5534B;border:2px solid #fff;box-shadow:0 0 8px #E5534BAA;"></div>', iconSize:[14,14], iconAnchor:[7,7] });
+}
+L.marker(HARAM,      { icon: refIcon() }).bindTooltip('Pelataran Al-Haram').addTo(map);
+L.marker(HARAM_INFO, { icon: mosqueIcon() }).bindTooltip('Masjid Al-Haram').addTo(map);
+L.marker(NABAWI,     { icon: mosqueIcon() }).bindTooltip('Masjid Nabawi').addTo(map);
+
+var allHotels    = [];
+var markerGroup  = L.layerGroup().addTo(map);
+var routeGroup   = L.layerGroup().addTo(map);
+var _renderCycle = 0;
+var routeTip     = L.tooltip({ permanent:false, opacity:1, className:'route-dist-tip', direction:'top', offset:[0,-8] });
+var routesVisible = true;
+var avgOnly       = false;
+var activeMarker  = null;
+var markerMap     = {};
+
+function haversine(lat1, lng1, lat2, lng2) {
+  var R=6371000, p1=lat1*Math.PI/180, p2=lat2*Math.PI/180;
+  var dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(p1)*Math.cos(p2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function fmtDist(m) { return m<1000 ? Math.round(m)+' m' : (m/1000).toFixed(2)+' km'; }
+function distColor(d) {
+  if (d===null) return '#5A5A6A';
+  if (d<500)  return '#26C281';
+  if (d<1500) return '#F0A429';
+  return '#E5534B';
+}
+function distClass(d) {
+  if (d===null) return 'dim';
+  if (d<500)  return 'green';
+  if (d<1500) return 'yellow';
+  return 'red';
+}
+function starsHtml(n) { return '★'.repeat(n)+'☆'.repeat(5-n); }
+function hotelIcon(color, size) {
+  return L.divIcon({ className:'', html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';border:2px solid rgba(255,255,255,.35);box-shadow:0 0 6px '+color+'88;"></div>', iconSize:[size,size], iconAnchor:[size/2,size/2] });
+}
+
+function buildPopup(h) {
+  var avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">'+h.avg+' org/kamar</span></div>' : '';
+  return (
+    '<div class="pop-name">'+h.name+'</div>'+
+    '<div class="pop-stars">'+starsHtml(h.stars)+'</div>'+
+    (h.area?'<div style="font-size:11px;color:var(--text-3);margin-bottom:6px;">'+h.area+'</div>':'')+
+    '<div class="pop-row"><span class="pop-label">Jarak ke Masjid</span><span class="pop-val '+distClass(h.distance)+'">'+h.distance_label+'</span></div>'+
+    avgRow+
+    '<div class="pop-actions"><a href="'+h.url+'" class="pop-btn">Detail →</a></div>'
+  );
+}
+
+/* ── Filter state helpers ── */
+function getCityFilter() {
+  var el = document.querySelector('input[name="fp-city"]:checked');
+  return el ? el.value : 'all';
+}
+function getDistFilters() {
+  return Array.from(document.querySelectorAll('#filter-panel input[type=checkbox][value=dekat], #filter-panel input[type=checkbox][value=sedang], #filter-panel input[type=checkbox][value=jauh]'))
+    .filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.value; });
+}
+function getStarsFilters() {
+  return Array.from(document.querySelectorAll('input[name="fp-stars"]:checked'))
+    .map(function(cb){ return parseInt(cb.value); });
+}
+
+function countActiveFilters() {
+  var n = 0;
+  if (getCityFilter() !== 'all') n++;
+  if (getDistFilters().length > 0) n++;
+  if (getStarsFilters().length > 0) n++;
+  if (avgOnly) n++;
+  return n;
+}
+
+function updateFilterBadge() {
+  var n = countActiveFilters();
+  var badge = document.getElementById('filter-badge');
+  var btn   = document.getElementById('filter-open-btn');
+  if (n > 0) {
+    badge.style.display = '';
+    badge.textContent   = n;
+    btn.classList.add('has-filter');
+  } else {
+    badge.style.display = 'none';
+    btn.classList.remove('has-filter');
+  }
+}
+
+function getFiltered() {
+  var q      = (document.getElementById('hotel-search').value||'').toLowerCase().trim();
+  var city   = getCityFilter();
+  var dists  = getDistFilters();
+  var stars  = getStarsFilters();
+  return allHotels.filter(function(h) {
+    if (q && h.name.toLowerCase().indexOf(q)===-1 && !(h.area&&h.area.toLowerCase().indexOf(q)!==-1)) return false;
+    if (city!=='all' && h.city!==city) return false;
+    if (dists.length > 0) {
+      var ok = false;
+      if (dists.indexOf('dekat')  !==-1 && h.distance!==null && h.distance<=500)  ok=true;
+      if (dists.indexOf('sedang') !==-1 && h.distance!==null && h.distance>500 && h.distance<=1500) ok=true;
+      if (dists.indexOf('jauh')   !==-1 && h.distance!==null && h.distance>1500) ok=true;
+      if (!ok) return false;
+    }
+    if (stars.length > 0 && stars.indexOf(h.stars)===-1) return false;
+    if (avgOnly && !h.avg) return false;
+    return true;
+  });
+}
+
+function applyFilters() {
+  var city = getCityFilter();
+  if (city==='makkah')       map.flyTo(HARAM,  14, { duration:1 });
+  else if (city==='madinah') map.flyTo(NABAWI, 14, { duration:1 });
+  var filtered = getFiltered();
+  renderMarkers(filtered);
+  updateCounter(filtered.length);
+  renderSidebar(filtered);
+  updateFilterBadge();
+  syncRadioStyles();
+}
+
+function syncRadioStyles() {
+  ['all','makkah','madinah'].forEach(function(v) {
+    var label = document.getElementById('fp-city-'+v);
+    if (label) label.classList.toggle('active', document.querySelector('input[name="fp-city"][value="'+v+'"]').checked);
+  });
+}
+
+function updateCounter(n) {
+  document.getElementById('hotel-counter').textContent = n + ' hotel';
+}
+
+/* ── Toggle filter panel ── */
+var filterPanelOpen = false;
+window.toggleFilterPanel = function() {
+  filterPanelOpen = !filterPanelOpen;
+  document.getElementById('filter-panel').classList.toggle('open', filterPanelOpen);
+};
+
+/* ── Toggle routes ── */
+window.toggleRoutes = function() {
+  routesVisible = !routesVisible;
+  var sw = document.getElementById('sw-route');
+  sw.classList.toggle('on', routesVisible);
+  if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup);
+};
+
+/* ── Toggle avg filter ── */
+window.toggleAvg = function() {
+  avgOnly = !avgOnly;
+  document.getElementById('sw-avg').classList.toggle('on', avgOnly);
+  applyFilters();
+};
+
+/* ── Reset ── */
+window.resetFilters = function() {
+  document.querySelector('input[name="fp-city"][value="all"]').checked = true;
+  document.querySelectorAll('#filter-panel input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
+  avgOnly = false;
+  document.getElementById('sw-avg').classList.remove('on');
+  document.getElementById('hotel-search').value = '';
+  applyFilters();
+};
+
+/* ── Sidebar (kanan) ── */
+var sidebarOpen = false;
+window.toggleSidebar = function() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('open', sidebarOpen);
+  document.getElementById('sidebar-btn-label').textContent = sidebarOpen ? 'Tutup List' : 'List Hotel';
+};
+
+function renderSidebar(hotels) {
+  var list = document.getElementById('sidebar-list');
+  document.getElementById('sidebar-count').textContent = '('+hotels.length+')';
+  if (hotels.length===0) {
+    list.innerHTML = '<div style="padding:24px 16px;text-align:center;font-size:12px;color:var(--text-3);">Tidak ada hotel</div>';
+    return;
+  }
+  list.innerHTML = hotels.map(function(h) {
+    var color = distColor(h.distance);
+    var dc    = distClass(h.distance);
+    return '<div class="sidebar-item" data-pk="'+h.pk+'" onclick="focusHotel('+h.pk+')">'+
+      '<div class="sidebar-dot" style="background:'+color+';flex-shrink:0;"></div>'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div class="sidebar-name">'+h.name+'</div>'+
+        '<div style="font-size:10px;color:var(--text-3);margin-top:1px;">'+starsHtml(h.stars)+(h.area?' · '+h.area:'')+'</div>'+
+      '</div>'+
+      '<div class="sidebar-dist '+dc+'">'+h.distance_label+'</div>'+
+    '</div>';
+  }).join('');
+}
+
+window.focusHotel = function(pk) {
+  var entry = markerMap[pk];
+  if (!entry) return;
+  map.flyTo([entry.h.lat, entry.h.lng], 17, { duration:0.8 });
+  setTimeout(function(){ entry.marker.openPopup(); }, 850);
+  document.querySelectorAll('.sidebar-item').forEach(function(el){ el.classList.remove('active'); });
+  var el = document.querySelector('.sidebar-item[data-pk="'+pk+'"]');
+  if (el) el.classList.add('active');
+};
+
+/* ── Render markers ── */
+function renderMarkers(hotels) {
+  routeTip.remove();
+  markerGroup.clearLayers();
+  routeGroup.clearLayers();
+  markerMap = {};
+  activeMarker = null;
+  var cycle = ++_renderCycle;
+
+  hotels.forEach(function(h) {
+    var color = distColor(h.distance);
+    var refLL = h.city==='madinah' ? NABAWI : HARAM;
+
+    var m = L.marker([h.lat, h.lng], { icon: hotelIcon(color, 12) });
+    m.bindTooltip(h.name, { permanent:false, direction:'top', offset:[0,-8], opacity:0.95 });
+    m.bindPopup(buildPopup(h), { maxWidth:240 });
+    m.on('click', function() {
+      if (activeMarker && activeMarker!==m) {
+        activeMarker.setIcon(hotelIcon(distColor(activeMarker._hotelData.distance), 12));
+      }
+      m.setIcon(hotelIcon(color, 16));
+      activeMarker = m;
+      document.querySelectorAll('.sidebar-item').forEach(function(i){ i.classList.remove('active'); });
+      var el = document.querySelector('.sidebar-item[data-pk="'+h.pk+'"]');
+      if (el) { el.classList.add('active'); el.scrollIntoView({ block:'nearest' }); }
+    });
+    m.on('popupclose', function() {
+      m.setIcon(hotelIcon(color, 12));
+      if (activeMarker===m) activeMarker = null;
+    });
+    m._hotelData = h;
+    markerMap[h.pk] = { marker:m, h:h };
+    markerGroup.addLayer(m);
+
+    function addRouteLine(coords) {
+      if (_renderCycle!==cycle) return;
+      var line = L.polyline(coords, { color:color, weight:2, opacity:.6, dashArray:'8,5' });
+      line.on('mousemove', function(e) {
+        routeTip.setLatLng(e.latlng).setContent(fmtDist(haversine(refLL[0],refLL[1],e.latlng.lat,e.latlng.lng))).addTo(map);
+      });
+      line.on('mouseout', function() { routeTip.remove(); });
+      routeGroup.addLayer(line);
+    }
+
+    var coords = (h.route&&h.route.length>=2) ? h.route : [refLL,[h.lat,h.lng]];
+    addRouteLine(coords);
+  });
+
+  if (!routesVisible) map.removeLayer(routeGroup);
+}
+
+fetch('{% url "hotel_map_data" %}')
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    allHotels = data.hotels;
+    var filtered = getFiltered();
+    renderMarkers(filtered);
+    updateCounter(filtered.length);
+    renderSidebar(filtered);
+    if (allHotels.length > 0) {
+      var lats = allHotels.map(function(h){ return h.lat; });
+      var lngs = allHotels.map(function(h){ return h.lng; });
+      map.fitBounds([[Math.min.apply(null,lats),Math.min.apply(null,lngs)],[Math.max.apply(null,lats),Math.max.apply(null,lngs)]], { padding:[40,40], maxZoom:15 });
+    }
+  });
+</script>
+{% endblock %}

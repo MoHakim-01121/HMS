@@ -1,0 +1,149 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Profil — Hakim Workspace{% endblock %}
+
+{% block content %}
+<div class="page-sm">
+
+  <button class="page-back" onclick="history.back()">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7-7l-7 7 7 7"/></svg>
+    Kembali
+  </button>
+
+  <div style="display:grid;grid-template-columns:180px 1fr;gap:16px;align-items:start;margin-top:20px;">
+
+    <!-- Left: identity -->
+    <div class="card" style="margin-bottom:0;text-align:center;">
+      <div class="card-body" style="padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+
+        <div class="pf-avatar-wrap">
+          {% if profile.avatar %}
+          <img src="{{ profile.avatar.url }}" class="pf-avatar" alt="avatar">
+          {% else %}
+          <div class="pf-avatar pf-avatar-blank">
+            <svg width="38" height="38" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="7.5" r="3.5" fill="currentColor"/>
+              <path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" fill="currentColor"/>
+            </svg>
+          </div>
+          {% endif %}
+          <span class="pf-c pf-tl"></span>
+          <span class="pf-c pf-tr"></span>
+          <span class="pf-c pf-bl"></span>
+          <span class="pf-c pf-br"></span>
+        </div>
+
+        <div style="font-size:10px;font-weight:600;letter-spacing:2px;color:var(--text-3);">UID-{{ user.pk|stringformat:"04d" }}</div>
+
+        <form method="post" action="{% url 'avatar_upload' %}" enctype="multipart/form-data" style="width:100%;">
+          {% csrf_token %}
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer;width:100%;justify-content:center;">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Ubah Foto
+            <input type="file" name="avatar" accept="image/*" style="opacity:0;position:absolute;width:0;height:0;" onchange="this.form.submit()">
+          </label>
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Right: data -->
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-header">
+        <span class="card-title">Informasi Akun</span>
+      </div>
+      <div class="card-body" style="padding:0 20px;">
+
+        <div class="pf-row">
+          <span class="pf-key">Username</span>
+          <span class="pf-val">{{ user.username }}</span>
+        </div>
+        <div class="pf-row">
+          <span class="pf-key">Clearance</span>
+          <span class="pf-val">
+            {% if user.is_superuser %}<span class="badge badge-blue">Admin</span>
+            {% elif user.is_staff %}<span class="badge badge-green">Staff</span>
+            {% else %}<span class="badge badge-gray">User</span>{% endif %}
+          </span>
+        </div>
+        <div class="pf-row">
+          <span class="pf-key">Email</span>
+          <span class="pf-val {% if not user.email %}pf-empty{% endif %}">
+            {% if user.email %}{{ user.email }}{% else %}Belum diisi{% endif %}
+          </span>
+        </div>
+        <div class="pf-row">
+          <span class="pf-key">Status</span>
+          <span class="pf-val" style="display:flex;align-items:center;gap:7px;">
+            <span style="width:6px;height:6px;border-radius:50%;flex-shrink:0;{% if user.is_active %}background:var(--green);box-shadow:0 0 5px var(--green);{% else %}background:var(--red);{% endif %}"></span>
+            <span style="{% if user.is_active %}color:var(--green);{% else %}color:var(--red);{% endif %}font-weight:600;">
+              {% if user.is_active %}Aktif{% else %}Nonaktif{% endif %}
+            </span>
+          </span>
+        </div>
+        <div class="pf-row">
+          <span class="pf-key">Enrolled</span>
+          <span class="pf-val">{{ user.date_joined|date:"d M Y" }}</span>
+        </div>
+        <div class="pf-row pf-row-last">
+          <span class="pf-key">Last Login</span>
+          <span class="pf-val">
+            {% if user.last_login %}{{ user.last_login|date:"d M Y, H:i" }}{% else %}<span style="color:var(--text-3);">—</span>{% endif %}
+          </span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<style>
+.pf-avatar-wrap { position:relative; }
+.pf-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.pf-avatar-blank {
+  background: var(--surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+.pf-c { position:absolute; width:9px; height:9px; }
+.pf-tl { top:-4px;    left:-4px;  border-top:1.5px solid var(--accent-2); border-left:1.5px solid var(--accent-2); }
+.pf-tr { top:-4px;    right:-4px; border-top:1.5px solid var(--accent-2); border-right:1.5px solid var(--accent-2); }
+.pf-bl { bottom:-4px; left:-4px;  border-bottom:1.5px solid var(--accent-2); border-left:1.5px solid var(--accent-2); }
+.pf-br { bottom:-4px; right:-4px; border-bottom:1.5px solid var(--accent-2); border-right:1.5px solid var(--accent-2); }
+
+.pf-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pf-row-last { border-bottom: none; }
+.pf-key {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-3);
+  min-width: 88px;
+  flex-shrink: 0;
+}
+.pf-val  { font-size:13px; font-weight:500; color:var(--text); }
+.pf-empty { color:var(--text-3); }
+
+@media (max-width:600px) {
+  div[style*="grid-template-columns:180px"] { grid-template-columns:1fr !important; }
+}
+</style>
+{% endblock %}

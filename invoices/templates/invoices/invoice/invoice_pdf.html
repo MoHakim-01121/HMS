@@ -8,7 +8,7 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body {
     font-family: 'Inter', 'Segoe UI', sans-serif;
-    padding: 20px;
+    padding: 28px 36px;
     background: #fff;
     color: #1c1c1c;
     font-size: 13px;
@@ -62,12 +62,13 @@ body {
     text-align: right;
 }
 .invoice-label {
-    font-size: 18px;
+    font-size: 26px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: -.3px;
     color: #111;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
+    line-height: 1.1;
 }
 .invoice-number {
     font-size: 14px;
@@ -175,13 +176,32 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
 }
 .balance-label { font-size: 11px; text-transform: uppercase; color: #666; }
 .balance-amount { font-size: 28px; font-weight: 800; color: #111; }
-.footer { 
-    margin-top: 25px; 
-    padding-top: 15px; 
-    border-top: 1px solid #e0e0e0; 
-    text-align: center; 
-    font-size: 10px; 
-    color: #999; 
+.stamp {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font-size: 68px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 10px;
+    opacity: 0.07;
+    border: 7px solid;
+    padding: 8px 24px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+}
+.stamp-paid    { color: #15803d; border-color: #15803d; }
+.stamp-partial { color: #b45309; border-color: #b45309; }
+.stamp-unpaid  { color: #991b1b; border-color: #991b1b; }
+.footer {
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+    text-align: center;
+    font-size: 10px;
+    color: #999;
 }
 .terms-container {
     page-break-before: always;
@@ -235,7 +255,32 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
 </head>
 <body>
 <!-- Updated: 2025-12-06 margin-left-60px -->
+<div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
+    <g transform="rotate(-35, 300, 420)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100"  y="-140">KONOZ UNITED</text><text x="300"  y="-140">KONOZ UNITED</text><text x="500"  y="-140">KONOZ UNITED</text><text x="700"  y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text>  <text x="-100" y="0">KONOZ UNITED</text>  <text x="100"  y="0">KONOZ UNITED</text>  <text x="300"  y="0">KONOZ UNITED</text>  <text x="500"  y="0">KONOZ UNITED</text>  <text x="700"  y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text> <text x="-100" y="140">KONOZ UNITED</text> <text x="100"  y="140">KONOZ UNITED</text> <text x="300"  y="140">KONOZ UNITED</text> <text x="500"  y="140">KONOZ UNITED</text> <text x="700"  y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text> <text x="-100" y="280">KONOZ UNITED</text> <text x="100"  y="280">KONOZ UNITED</text> <text x="300"  y="280">KONOZ UNITED</text> <text x="500"  y="280">KONOZ UNITED</text> <text x="700"  y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text> <text x="-100" y="420">KONOZ UNITED</text> <text x="100"  y="420">KONOZ UNITED</text> <text x="300"  y="420">KONOZ UNITED</text> <text x="500"  y="420">KONOZ UNITED</text> <text x="700"  y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text> <text x="-100" y="560">KONOZ UNITED</text> <text x="100"  y="560">KONOZ UNITED</text> <text x="300"  y="560">KONOZ UNITED</text> <text x="500"  y="560">KONOZ UNITED</text> <text x="700"  y="560">KONOZ UNITED</text>
+      <text x="-300" y="700">KONOZ UNITED</text> <text x="-100" y="700">KONOZ UNITED</text> <text x="100"  y="700">KONOZ UNITED</text> <text x="300"  y="700">KONOZ UNITED</text> <text x="500"  y="700">KONOZ UNITED</text> <text x="700"  y="700">KONOZ UNITED</text>
+      <text x="-300" y="840">KONOZ UNITED</text> <text x="-100" y="840">KONOZ UNITED</text> <text x="100"  y="840">KONOZ UNITED</text> <text x="300"  y="840">KONOZ UNITED</text> <text x="500"  y="840">KONOZ UNITED</text> <text x="700"  y="840">KONOZ UNITED</text>
+      <text x="-300" y="980">KONOZ UNITED</text> <text x="-100" y="980">KONOZ UNITED</text> <text x="100"  y="980">KONOZ UNITED</text> <text x="300"  y="980">KONOZ UNITED</text> <text x="500"  y="980">KONOZ UNITED</text> <text x="700"  y="980">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+
 <div class="invoice-container">
+
+    {% if remaining_int == 0 %}
+    <div class="stamp stamp-paid">PAID</div>
+    {% elif payments %}
+    <div class="stamp stamp-partial">PARTIAL</div>
+    {% else %}
+    <div class="stamp stamp-unpaid">UNPAID</div>
+    {% endif %}
+
     <div class="header">
         <div class="company-info">
             <img src="{{ logo_rel_path }}" class="company-logo">
@@ -246,7 +291,7 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
         </div>
         <div class="invoice-meta">
             <div class="invoice-label">Invoice</div>
-            <div class="invoice-number">#{{ invoice_number }}</div>
+            <div class="invoice-number">#{{ invoice_number|cut:"INV-" }}</div>
         </div>
     </div>
     <div class="info-section" style="margin-bottom: 40px;">
@@ -280,7 +325,7 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Reservation No</th>
+                    <th class="text-center">Res No</th>
                     <th>Hotel</th>
                     <th class="text-center">Check-in</th>
                     <th class="text-center">Check-out</th>
@@ -314,7 +359,7 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
         <table>
             <thead>
                 <tr>
-                    <th class="text-center">Res#</th>
+                    <th class="text-center">#Res</th>
                     <th class="text-center">Date</th>
                     <th>Method</th>
                     <th class="text-right">Amount</th>
@@ -337,10 +382,7 @@ tfoot tr:last-child td:last-child { border-bottom-right-radius: 12px; }
         </table>
     </div>
     <div class="balance-section">
-        <div style="padding: 10px 16px; border-radius: 6px; font-weight: 700; font-size: 14px; {% if remaining_int == 0 %}background-color: #1f7a1f; color:#fff;{% else %}background-color: #d49a00; color:#fff;{% endif %}">
-            {% if remaining_int == 0 %}✓ PAID IN FULL{% else %}• REMAINING{% endif %}
-        </div>
-        <div style="text-align:right;">
+        <div style="text-align:right;width:100%;">
             <div class="balance-label">Outstanding Balance</div>
             <div class="balance-amount">{{ remaining }} SAR</div>
         </div>

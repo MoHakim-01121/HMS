@@ -1,0 +1,330 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Kalender Reservasi{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">Kalender</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cal-page {
+    padding: 20px 16px 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  /* Header */
+  .cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .cal-nav { display: flex; align-items: center; gap: 6px; }
+  .cal-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: var(--r); border: 1px solid var(--border);
+    color: var(--text-2); text-decoration: none; font-size: 14px;
+    transition: background .12s, color .12s;
+  }
+  .cal-nav a:hover { background: var(--surface-2); color: var(--text); }
+  .cal-month { font-size: 16px; font-weight: 700; color: var(--text); min-width: 130px; text-align: center; }
+
+  /* Legend */
+  .cal-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Summary bar */
+  .cal-summary { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .sum-pill {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-2);
+  }
+  .sum-pill .sum-val { font-weight: 700; color: var(--text); }
+  .sum-pill.red   { background: var(--red-muted);    border-color: var(--red);     color: var(--red); }
+  .sum-pill.green { background: var(--green-muted);  border-color: var(--green);   color: var(--green); }
+  .sum-pill.blue  { background: var(--accent-muted); border-color: var(--accent-2);color: var(--accent-2); }
+
+  /* Wrapper — no scrollbar */
+  .cal-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+    width: 100%;
+  }
+
+  /* Grid — 1fr per day so it auto-fits */
+  .cal-grid-template {
+    display: grid;
+    grid-template-columns: 130px repeat({{ days_in_month }}, 1fr);
+    width: 100%;
+  }
+
+  /* Header cells */
+  .cal-hotel-th {
+    padding: 7px 10px;
+    font-size: 10px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: .4px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    position: sticky; left: 0; z-index: 2;
+  }
+  .cal-day-th {
+    padding: 5px 0;
+    font-size: 10px; font-weight: 600; color: var(--text-3);
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,.04);
+    background: var(--surface-2);
+  }
+  .cal-day-th.today { color: var(--accent-2); background: var(--accent-muted); }
+
+  /* Row */
+  .cal-row {
+    display: grid;
+    grid-template-columns: 130px repeat({{ days_in_month }}, 1fr);
+    border-bottom: 1px solid rgba(255,255,255,.05);
+    width: 100%;
+    position: relative;
+  }
+  .cal-row:last-child { border-bottom: none; }
+  .cal-row:hover { background: rgba(255,255,255,.015); }
+
+  .cal-hotel-name {
+    padding: 0 8px;
+    font-size: 11px; font-weight: 500; color: var(--text);
+    display: flex; align-items: center;
+    border-right: 1px solid var(--border);
+    position: sticky; left: 0;
+    background: var(--surface); z-index: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cal-row:hover .cal-hotel-name { background: var(--surface-2); }
+
+  /* Day cells */
+  .cal-cell { border-right: 1px solid rgba(255,255,255,.03); }
+  .cal-cell.today-col { background: rgba(99,102,241,.05); }
+
+  /* Blocks overlay — uses same grid */
+  .cal-blocks {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: repeat({{ days_in_month }}, 1fr);
+    align-items: center;
+    padding: 7px 0;
+    position: relative;
+    min-height: 44px;
+  }
+
+  .cal-block {
+    grid-row: 1;
+    height: 26px;
+    border-radius: 4px;
+    display: flex; align-items: center;
+    padding: 0 6px;
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-decoration: none;
+    transition: opacity .12s, filter .12s;
+    margin: 0 1px;
+    min-width: 0;
+  }
+  .cal-block:hover { opacity: .85; filter: brightness(1.1); z-index: 5; }
+
+  /* Colors */
+  .block-blue   { background: var(--accent-muted); color: var(--accent-2); border-left: 3px solid var(--accent-2); }
+  .block-green  { background: var(--green-muted);  color: var(--green);    border-left: 3px solid var(--green); }
+  .block-yellow { background: var(--yellow-muted); color: var(--yellow);   border-left: 3px solid var(--yellow); }
+  .block-red    { background: var(--red-muted);    color: var(--red);      border-left: 3px solid var(--red); }
+
+  /* Today line */
+  .today-line {
+    position: absolute; top: 0; bottom: 0; width: 2px;
+    background: var(--accent-2); opacity: .4;
+    pointer-events: none; z-index: 4;
+  }
+
+  /* Tooltip */
+  .cal-tooltip {
+    position: fixed;
+    background: var(--surface-3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: 12px; color: var(--text);
+    z-index: 100; pointer-events: none; display: none;
+    min-width: 180px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    line-height: 1.6;
+  }
+  .tooltip-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .tooltip-row { color: var(--text-2); }
+  .tooltip-row span { color: var(--text); font-weight: 500; }
+
+  /* Empty */
+  .cal-empty { padding: 48px 20px; text-align: center; color: var(--text-3); font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .cal-page { padding: 12px 8px 48px; }
+    .cal-month { font-size: 14px; min-width: 110px; }
+    .cal-legend { display: none; }
+    .cal-hotel-th, .cal-hotel-name { display: none; }
+    .cal-grid-template { grid-template-columns: repeat({{ days_in_month }}, 1fr); }
+    .cal-row { grid-template-columns: repeat({{ days_in_month }}, 1fr); }
+    .cal-blocks { grid-column: 1 / -1; grid-template-columns: repeat({{ days_in_month }}, 1fr); }
+    .cal-block { font-size: 9px; height: 22px; padding: 0 3px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cal-page">
+
+  <!-- Header -->
+  <div class="cal-header">
+    <div class="cal-nav">
+      <a href="?year={{ prev_year }}&month={{ prev_month }}" title="Bulan sebelumnya">‹</a>
+      <span class="cal-month">{{ month_name }} {{ year }}</span>
+      <a href="?year={{ next_year }}&month={{ next_month }}" title="Bulan berikutnya">›</a>
+    </div>
+    <div class="cal-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent-2)"></div>CL Definite</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>Tentative / Partial</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Lunas</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Belum Bayar</div>
+    </div>
+  </div>
+
+  <!-- Summary pills -->
+  {% if today_day %}
+  <div class="cal-summary">
+    {% if active_today %}<div class="sum-pill blue">Aktif hari ini <span class="sum-val">{{ active_today }}</span></div>{% endif %}
+    {% if checkins_today %}<div class="sum-pill green">Check-in <span class="sum-val">{{ checkins_today }}</span></div>{% endif %}
+    {% if checkouts_today %}<div class="sum-pill">Check-out <span class="sum-val">{{ checkouts_today }}</span></div>{% endif %}
+    {% if unpaid_count %}<div class="sum-pill red">Belum bayar <span class="sum-val">{{ unpaid_count }}</span></div>{% endif %}
+    {% if not active_today and not checkins_today and not checkouts_today and not unpaid_count %}
+    <div class="sum-pill">{{ total_reservations }} reservasi bulan ini</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if hotels %}
+  <div class="cal-wrap">
+
+    <!-- Header hari -->
+    <div class="cal-grid-template" style="border-bottom:1px solid var(--border);">
+      <div class="cal-hotel-th">Hotel</div>
+      {% for d in days %}
+      <div class="cal-day-th{% if d == today_day %} today{% endif %}">{{ d }}</div>
+      {% endfor %}
+    </div>
+
+    <!-- Baris per hotel -->
+    {% for hotel in hotels %}
+    <div class="cal-row">
+      <div class="cal-hotel-name" title="{{ hotel.name }}">{{ hotel.name }}</div>
+
+      {% for d in days %}
+      <div class="cal-cell{% if d == today_day %} today-col{% endif %}"></div>
+      {% endfor %}
+
+      <div class="cal-blocks" id="blocks-{{ forloop.counter }}">
+        {% for res in hotel.reservations %}
+        <a href="{{ res.url }}"
+           class="cal-block block-{{ res.color }}"
+           style="grid-column: {{ res.start }} / {{ res.end|add:1 }};"
+           data-guest="{{ res.guest }}"
+           data-ref="{{ res.ref }}"
+           data-type="{{ res.type }}"
+           data-status="{{ res.status }}"
+           data-total="{{ res.total }}"
+           data-nights="{{ res.nights }}"
+           data-start="{{ res.start }}"
+           data-end="{{ res.end }}">
+          {{ res.guest }}
+        </a>
+        {% endfor %}
+
+        {% if today_day %}
+        <div class="today-line" id="tline-{{ forloop.counter }}"></div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  {% else %}
+  <div class="cal-wrap">
+    <div class="cal-empty">
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+      Tidak ada reservasi di {{ month_name }} {{ year }}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Tooltip -->
+<div class="cal-tooltip" id="cal-tooltip">
+  <div class="tooltip-title" id="tt-guest"></div>
+  <div class="tooltip-row">Ref: <span id="tt-ref"></span></div>
+  <div class="tooltip-row">Tipe: <span id="tt-type"></span></div>
+  <div class="tooltip-row">Status: <span id="tt-status"></span></div>
+  <div class="tooltip-row">Total: <span id="tt-total"></span></div>
+  <div class="tooltip-row">Malam: <span id="tt-nights"></span></div>
+  <div class="tooltip-row">Tgl: <span id="tt-dates"></span></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // Posisi today-line berdasarkan posisi kolom yang aktual
+  {% if today_day %}
+  var todayTh = document.querySelector('.cal-day-th.today');
+  if (todayTh) {
+    var wrapRect = document.querySelector('.cal-wrap').getBoundingClientRect();
+    var thRect   = todayTh.getBoundingClientRect();
+    var lineLeft = thRect.left - wrapRect.left + thRect.width / 2;
+    document.querySelectorAll('.today-line').forEach(function(el) {
+      el.style.left = lineLeft + 'px';
+    });
+  }
+  {% endif %}
+
+  // Tooltip
+  var tooltip = document.getElementById('cal-tooltip');
+  document.querySelectorAll('.cal-block').forEach(function(block) {
+    block.addEventListener('mouseenter', function() {
+      document.getElementById('tt-guest').textContent  = block.dataset.guest;
+      document.getElementById('tt-ref').textContent    = block.dataset.ref;
+      document.getElementById('tt-type').textContent   = block.dataset.type;
+      document.getElementById('tt-status').textContent = block.dataset.status;
+      document.getElementById('tt-total').textContent  = block.dataset.total;
+      document.getElementById('tt-nights').textContent = block.dataset.nights + ' malam';
+      document.getElementById('tt-dates').textContent  = block.dataset.start + '–' + block.dataset.end;
+      tooltip.style.display = 'block';
+    });
+    block.addEventListener('mousemove', function(e) {
+      var x = e.clientX + 14, y = e.clientY + 14;
+      if (x + 200 > window.innerWidth)  x = e.clientX - 210;
+      if (y + 140 > window.innerHeight) y = e.clientY - 150;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top  = y + 'px';
+    });
+    block.addEventListener('mouseleave', function() {
+      tooltip.style.display = 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

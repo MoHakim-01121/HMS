@@ -1,0 +1,101 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}Services — {{ invoice.invoice_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'services_list' %}" class="topbar-crumb" data-shortcut="back">Invoice Services</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{{ invoice.invoice_number }}</span>
+{% endblock %}
+
+
+{% block content %}
+<a href="{% url 'services_edit' invoice.pk %}" data-shortcut="edit" style="display:none" aria-hidden="true"></a>
+<a href="{% url 'services_pdf' invoice.pk %}" data-shortcut="pdf" target="_blank" style="display:none" aria-hidden="true"></a>
+<div class="page">
+  <div class="page-header" style="margin-bottom:20px;">
+    <div>
+      <div class="page-title">{{ invoice.invoice_number }}</div>
+      <div class="page-sub">{{ invoice.customer_name }} · {{ invoice.created_at|date:"d/m/Y H:i" }}</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span class="badge badge-gray">{{ invoice.currency }}</span>
+      {% if invoice.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
+      {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Info Invoice</span></div>
+    <div class="card-body">
+      <div class="grid-3">
+        <div class="field"><div class="field-label">Customer</div><div class="field-value">{{ invoice.customer_name }}</div></div>
+        <div class="field"><div class="field-label">Invoice #</div><div class="field-value copyable" style="font-family:monospace;" onclick="copyText('{{ invoice.invoice_number }}')" title="Klik untuk menyalin">{{ invoice.invoice_number }}</div></div>
+        <div class="field"><div class="field-label">Currency</div><div class="field-value">{{ invoice.currency }}</div></div>
+        <div class="field"><div class="field-label">Issued Date</div><div class="field-value">{% if invoice.issued_date %}{{ invoice.issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+        <div class="field"><div class="field-label">Due Date</div><div class="field-value">{% if invoice.due_date %}{{ invoice.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Services</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Layanan</th><th>Qty</th><th>Harga</th><th>Total</th><th>Sisa</th></tr>
+        </thead>
+        <tbody>
+          {% for svc in visa_services %}
+          <tr>
+            <td style="color:var(--text-2);">{{ svc.service_no }}</td>
+            <td>{{ svc.product }}</td>
+            <td>{{ svc.qty }}</td>
+            <td class="mono">{{ svc.price|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+            <td class="mono" style="font-weight:600;">{{ svc.total|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+            <td class="{{ svc.remaining_class }} mono">{{ svc.remaining|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" style="text-align:center;color:var(--text-3);">Tidak ada data layanan</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Pembayaran</span>
+      <button class="btn btn-ghost btn-sm" onclick="openDraftModal('services', {{ invoice.pk }})">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.127 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+        Buat Pesan
+      </button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Svc#</th><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Mata Uang</th><th>Rate</th><th>Catatan</th><th>Bukti</th></tr>
+        </thead>
+        <tbody>
+          {% for p in payments_history %}
+          <tr>
+            <td>—</td>
+            <td style="color:var(--text-2);">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td>{{ p.payment_method|default:"—" }}</td>
+            <td class="mono">{{ p.payment_amount|floatformat:0|intcomma }}</td>
+            <td><span class="badge badge-gray">{{ p.payment_currency }}</span></td>
+            <td style="color:var(--text-2);">{{ p.payment_exchange|floatformat:2 }}</td>
+            <td style="color:var(--text-2);">{{ p.payment_note|default:"—" }}</td>
+            <td>{% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" title="Lihat bukti" style="color:var(--accent-2);text-decoration:none;display:inline-flex;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% else %}<span class="col-dim">—</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" style="text-align:center;color:var(--text-3);">Tidak ada data pembayaran</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,173 +1,360 @@
+{% extends 'invoices/partials/_base.html' %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home - Document Generator</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: linear-gradient(120deg, #e0e7ef 0%, #f1f5f9 100%);
-            color: #23272f;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        .container {
-            max-width: 600px;
-            width: 100%;
-            background: #fff;
-            padding: 54px 40px 48px 40px;
-            border-radius: 22px;
-            box-shadow: 0 8px 32px 0 rgba(30,64,175,0.10), 0 1.5px 12px 0 rgba(30,64,175,0.06) inset;
-            border: 2px solid #e5e7eb;
-            position: relative;
-            overflow: hidden;
-        }
-        h1 {
-            font-size: 2.1rem;
-            margin-bottom: 10px;
-            color: #23272f;
-            font-weight: 900;
-            letter-spacing: 1.2px;
-        }
-        .subtitle {
-            color: #64748b;
-            font-size: 1.12rem;
-            margin-bottom: 38px;
-            font-weight: 500;
-        }
-        .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 22px;
-        }
-        .btn {
-            padding: 18px 24px;
-            border: 2px solid #cbd5e1;
-            border-radius: 12px;
-            background: #f8fafc;
-            color: #23272f;
-            text-decoration: none;
-            font-size: 1.08rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 18px;
-            box-shadow: 0 2px 12px #e0e7ef33;
-            transition: background 0.2s, box-shadow 0.2s, color 0.2s, border 0.2s;
-            position: relative;
-            overflow: hidden;
-        }
-        .btn:hover {
-            background: #e0e7ef;
-            color: #2563eb;
-            border-color: #2563eb;
-            box-shadow: 0 6px 24px #60a5fa33;
-        }
-        .btn .icon {
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        .btn .icon svg {
-            width: 28px;
-            height: 28px;
-            stroke: #2563eb;
-            stroke-width: 2.2;
-        }
-        .btn:hover .icon svg {
-            stroke: #2563eb;
-        }
-        .btn .text {
-            flex: 1;
-        }
-        .btn .label {
-            font-weight: 800;
-            display: block;
-            margin-bottom: 4px;
-            color: #23272f;
-            letter-spacing: 0.2px;
-        }
-        .btn .description {
-            font-size: 0.98rem;
-            color: #64748b;
-            font-weight: 400;
-        }
-        .btn:hover .label {
-            color: #181a1b;
-        }
-        .btn:hover .description {
-            color: #23272f;
-        }
-        .btn-disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        .btn-disabled:hover {
-            background: rgba(24,26,27,0.92);
-            border-color: #00ffe733;
-            color: #f4f6fb;
-            box-shadow: none;
-        }
-        .btn-disabled .icon svg {
-            stroke: #6c757d;
-        }
-        @media (max-width: 600px) {
-            .container {
-                padding: 32px 10px;
-            }
-            h1 {
-                font-size: 1.5rem;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Document Generator</h1>
-        <p class="subtitle">Pilih jenis dokumen yang ingin Anda buat</p>
-        <div class="button-group">
-            <a href="{% url 'cl_form' %}" class="btn">
-                <span class="icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                </span>
-                <div class="text">
-                    <span class="label">Confirmation Letter</span>
-                    <span class="description">Buat surat konfirmasi reservasi hotel</span>
-                </div>
-            </a>
-            <a href="{% url 'invoice_form' %}" class="btn">
-                <span class="icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                    </svg>
-                </span>
-                <div class="text">
-                    <span class="label">Invoice Hotel</span>
-                    <span class="description">Generate invoice dalam format PDF</span>
-                </div>
-            </a>
-            <a href="{% url 'services_form' %}" class="btn">
-                <span class="icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="10" stroke="#2563eb" stroke-width="2.2" fill="none"/>
-                        <path d="M8 12h8M12 8v8" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </span>
-                <div class="text">
-                    <span class="label">Invoice Services</span>
-                    <span class="description">Buat invoice layanan dengan format PDF</span>
-                </div>
-            </a>
+
+{% block title %}HMS Docs{% endblock %}
+
+{% block extra_css %}
+<style>
+  body { display: flex; flex-direction: column; }
+  .center-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 10px;
+  }
+  .panel-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .panel {
+    width: 100%;
+    max-width: 400px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 24px 48px rgba(0,0,0,.4);
+  }
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .doc-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 32px 12px;
+    text-decoration: none;
+    color: var(--text);
+    border-right: 1px solid var(--border);
+    border-top: 2px solid transparent;
+    transition: background .12s, border-top-color .12s;
+  }
+  .doc-tile:last-child { border-right: none; }
+  .doc-tile:hover .tile-icon { transform: scale(1.1); }
+  .doc-tile.cl:hover  { background: var(--surface-2); border-top-color: var(--accent-2); }
+  .doc-tile.inv:hover { background: var(--surface-2); border-top-color: var(--purple); }
+  .doc-tile.svc:hover { background: var(--surface-2); border-top-color: var(--green); }
+  .doc-tile.cal:hover { background: var(--surface-2); border-top-color: var(--yellow); }
+  .doc-tile.cli:hover { background: var(--surface-2); border-top-color: var(--green); }
+  .doc-tile.htl:hover { background: var(--surface-2); border-top-color: var(--accent-2); }
+  .doc-tile.cl:active  { background: var(--surface-3); }
+  .doc-tile.inv:active { background: var(--surface-3); }
+  .doc-tile.svc:active { background: var(--surface-3); }
+  .doc-tile.cal:active { background: var(--surface-3); }
+  .doc-tile.cli:active { background: var(--surface-3); }
+  .doc-tile.htl:active { background: var(--surface-3); }
+  .tile-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .15s cubic-bezier(.34,1.56,.64,1);
+  }
+  .tile-icon svg { width: 18px; height: 18px; }
+  .icon-cl   { background: var(--accent-muted);  color: var(--accent-2); }
+  .icon-inv  { background: var(--purple-muted);  color: var(--purple); }
+  .icon-svc  { background: var(--green-muted);   color: var(--green); }
+  .icon-cal  { background: var(--yellow-muted);  color: var(--yellow); }
+  .icon-cli  { background: var(--green-muted);   color: var(--green); }
+  .icon-htl  { background: var(--accent-muted);  color: var(--accent-2); }
+  .icon-usr  { background: var(--red-muted);     color: var(--red); }
+  .doc-tile.usr:hover { background: var(--surface-2); border-top-color: var(--red); }
+  .doc-tile.usr:active { background: var(--surface-3); }
+  .admin-row {
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+  }
+  .admin-row .doc-tile {
+    flex: 0 0 33.333%;
+    border-right: none;
+  }
+  .tile-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-align: center;
+    line-height: 1.3;
+  }
+  .chat-wrap {
+    width: 100%;
+    max-width: 400px;
+  }
+  .chat-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .chat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.03), 0 24px 48px rgba(0,0,0,.4);
+  }
+  .chat-messages {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 240px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .chat-messages:empty { display: none; }
+  .chat-bubble {
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    max-width: 90%;
+    word-break: break-word;
+  }
+  .bubble-user {
+    background: var(--accent-muted);
+    color: var(--accent-2);
+    align-self: flex-end;
+    border-bottom-right-radius: 3px;
+  }
+  .bubble-ai {
+    background: var(--surface-2);
+    color: var(--text);
+    align-self: flex-start;
+    border-bottom-left-radius: 3px;
+  }
+  .bubble-typing {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 10px 14px;
+  }
+  .bubble-typing span {
+    width: 6px; height: 6px;
+    background: var(--text-3);
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .bubble-typing span:nth-child(2) { animation-delay: .2s; }
+  .bubble-typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-5px); }
+  }
+  .chat-input-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-top: 1px solid var(--border);
+    padding: 8px 10px;
+  }
+  .chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    color: var(--text);
+    padding: 4px 6px;
+  }
+  .chat-input::placeholder { color: var(--text-3); }
+  .chat-send {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity .15s;
+    flex-shrink: 0;
+  }
+  .chat-send:hover { opacity: .85; }
+  .chat-send:disabled { opacity: .4; cursor: not-allowed; }
+  .chat-send svg { width: 14px; height: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="center-wrap">
+  <span class="panel-label">Document Generator</span>
+  <div class="panel">
+    <div class="doc-grid">
+      <a href="{% url 'cl_list' %}" class="doc-tile cl">
+        <div class="tile-icon icon-cl">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
         </div>
+        <span class="tile-name">Confirmation<br>Letter</span>
+      </a>
+      <a href="{% url 'invoice_list' %}" class="doc-tile inv">
+        <div class="tile-icon icon-inv">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/>
+          </svg>
+        </div>
+        <span class="tile-name">Invoice<br>Hotel</span>
+      </a>
+      <a href="{% url 'services_list' %}" class="doc-tile svc">
+        <div class="tile-icon icon-svc">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+          </svg>
+        </div>
+        <span class="tile-name">Invoice<br>Services</span>
+      </a>
+      <a href="{% url 'calendar' %}" class="doc-tile cal">
+        <div class="tile-icon icon-cal">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/>
+          </svg>
+        </div>
+        <span class="tile-name">Kalender<br>Reservasi</span>
+      </a>
+      <a href="{% url 'client_list' %}" class="doc-tile cli">
+        <div class="tile-icon icon-cli">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/>
+          </svg>
+        </div>
+        <span class="tile-name">Clients</span>
+      </a>
+      <a href="{% url 'hotel_list' %}" class="doc-tile htl">
+        <div class="tile-icon icon-htl">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M12 3.75h.008v.008H12V3.75z"/>
+          </svg>
+        </div>
+        <span class="tile-name">Hotels</span>
+      </a>
     </div>
-</body>
-</html>
+    {% if user.is_superuser %}
+    <div class="admin-row">
+      <a href="{% url 'user_list' %}" class="doc-tile usr">
+        <div class="tile-icon icon-usr">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </div>
+        <span class="tile-name">Kelola<br>User</span>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="chat-wrap">
+    <div class="chat-label">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+      </svg>
+      Tanya AI
+    </div>
+    <div class="chat-box">
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <input type="text" class="chat-input" id="chat-input" placeholder="Contoh: invoice mana yang belum lunas?" autocomplete="off">
+        <button class="chat-send" id="chat-send" title="Kirim">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const input = document.getElementById('chat-input');
+  const send = document.getElementById('chat-send');
+  const messages = document.getElementById('chat-messages');
+  const csrfToken = '{{ csrf_token }}';
+
+  function addBubble(text, type) {
+    const el = document.createElement('div');
+    el.className = 'chat-bubble bubble-' + type;
+    el.textContent = text;
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
+  function addTyping() {
+    const el = document.createElement('div');
+    el.className = 'chat-bubble bubble-ai bubble-typing';
+    el.innerHTML = '<span></span><span></span><span></span>';
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+    return el;
+  }
+
+  async function sendMessage() {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    send.disabled = true;
+    addBubble(text, 'user');
+    const typing = addTyping();
+    try {
+      const res = await fetch('{% url "ai_chat" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      typing.remove();
+      addBubble(data.reply, 'ai');
+    } catch {
+      typing.remove();
+      addBubble('Gagal menghubungi server.', 'ai');
+    } finally {
+      send.disabled = false;
+      input.focus();
+    }
+  }
+
+  send.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') sendMessage();
+  });
+})();
+</script>
+{% if request.GET.logged_in %}
+<div class="toast-container" style="pointer-events:none;">
+  <div id="login-toast" class="toast toast-success">Selamat datang, {{ user.username }}!</div>
+</div>
+<script>setTimeout(function(){var t=document.getElementById('login-toast');if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove()},300);}},3000);</script>
+{% endif %}
+{% endblock %}

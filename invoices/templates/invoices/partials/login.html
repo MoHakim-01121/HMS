@@ -1,0 +1,220 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Hakim Workspace</title>
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="{% static 'invoices/css/design.css' %}">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .hud-wrap {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    /* Brand */
+    .hud-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+    .hud-app-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 3px;
+    }
+
+    /* HUD Panel */
+    .hud-panel {
+      width: 100%;
+      position: relative;
+      padding: 32px 28px;
+    }
+    /* Corner brackets */
+    .hud-panel::before,
+    .hud-panel::after,
+    .hud-corner-bl,
+    .hud-corner-br {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+    }
+    .hud-panel::before {
+      top: 0; left: 0;
+      border-top: 1.5px solid var(--accent-2);
+      border-left: 1.5px solid var(--accent-2);
+    }
+    .hud-panel::after {
+      top: 0; right: 0;
+      border-top: 1.5px solid var(--accent-2);
+      border-right: 1.5px solid var(--accent-2);
+    }
+    .hud-corner-bl {
+      bottom: 0; left: 0;
+      border-bottom: 1.5px solid var(--accent-2);
+      border-left: 1.5px solid var(--accent-2);
+    }
+    .hud-corner-br {
+      bottom: 0; right: 0;
+      border-bottom: 1.5px solid var(--accent-2);
+      border-right: 1.5px solid var(--accent-2);
+    }
+
+    /* Fields */
+    .hud-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .hud-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .hud-field label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--accent-2);
+    }
+    .hud-field input {
+      height: 38px;
+      padding: 0 0 8px;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border-2);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color .15s;
+    }
+    .hud-field input:focus {
+      outline: none;
+      border-bottom-color: var(--accent-2);
+    }
+    .hud-field input::placeholder { color: var(--text-3); font-size: 13px; }
+
+    /* Error */
+    .hud-error {
+      font-size: 11px;
+      color: var(--red);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Button */
+    .hud-btn {
+      width: 100%;
+      height: 42px;
+      background: transparent;
+      color: var(--accent-2);
+      border: 1px solid var(--accent-2);
+      border-radius: var(--r);
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .hud-btn:hover {
+      background: var(--accent-2);
+      color: #fff;
+    }
+    .hud-btn:active { opacity: .85; }
+
+    /* Status line */
+    .hud-status {
+      font-size: 9px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      text-align: center;
+    }
+
+    input[type="password"]::-ms-reveal,
+    input[type="password"]::-ms-clear { filter: invert(100%); }
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 100px var(--bg) inset !important;
+      -webkit-text-fill-color: var(--text) !important;
+      caret-color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="hud-wrap">
+
+    <div class="hud-brand">
+      <svg width="52" height="52" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="3" y="2" width="4.5" height="22" fill="#fff"/>
+        <rect x="18.5" y="2" width="4.5" height="22" fill="#fff"/>
+        <rect x="7.5" y="11" width="11" height="2.5" fill="#fff"/>
+      </svg>
+      <div class="hud-app-name">Hakim Workspace</div>
+    </div>
+
+    <div class="hud-panel">
+      <div class="hud-corner-bl"></div>
+      <div class="hud-corner-br"></div>
+
+      {% if form.errors %}
+      <div class="hud-error">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Access denied — invalid credentials
+      </div>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="hud-fields">
+          <div class="hud-field">
+            <label for="id_username">Identifier</label>
+            <input type="text" id="id_username" name="username" autofocus autocomplete="username" placeholder="Enter username">
+          </div>
+          <div class="hud-field">
+            <label for="id_password">Auth Key</label>
+            <input type="password" id="id_password" name="password" autocomplete="current-password" placeholder="Enter password">
+          </div>
+        </div>
+        <button type="submit" class="hud-btn">Authenticate</button>
+      </form>
+    </div>
+
+    <div class="hud-status">Secure access only</div>
+
+  </div>
+
+  {% if request.GET.logged_out %}
+  <div class="toast-container">
+    <div id="logout-toast" class="toast toast-success">Berhasil logout</div>
+  </div>
+  <script>setTimeout(function(){var t=document.getElementById('logout-toast');if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove()},300);}},3000);</script>
+  {% endif %}
+</body>
+</html>

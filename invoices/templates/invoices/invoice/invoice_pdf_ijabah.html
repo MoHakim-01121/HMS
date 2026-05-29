@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title></title>
+<style>
+@page { size: A4; margin: 0; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    padding: 28px 36px;
+    background: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='140'%3E%3Ctext transform='rotate(-35 110 70)' x='5' y='78' font-size='13' font-family='Arial' fill='%230f3d1d' opacity='0.03'%3EiJabah Group%3C/text%3E%3C/svg%3E");
+    background-repeat: repeat;
+    color: #1a1a1a;
+    font-size: 11.5px;
+    line-height: 1.5;
+}
+
+/* ── HEADER ── */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 24px;
+    border-bottom: 2px solid #0f3d1d;
+    margin-bottom: 28px;
+}
+.company-info {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+}
+.company-logo {
+    width: 80px;
+    height: 80px;
+    object-fit: contain;
+}
+.company-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f3d1d;
+    letter-spacing: -.2px;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+.company-tagline {
+    font-size: 12px;
+    color: #888;
+    margin-top: 3px;
+    letter-spacing: .3px;
+    white-space: nowrap;
+}
+.invoice-meta {
+    text-align: right;
+}
+.invoice-label {
+    font-size: 26px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: -.3px;
+    color: #0f3d1d;
+    display: block;
+    line-height: 1.1;
+    margin-bottom: 4px;
+}
+.invoice-number {
+    font-size: 13px;
+    color: #888;
+    font-weight: 600;
+    letter-spacing: .3px;
+    display: block;
+}
+
+/* ── STAMP ── */
+.stamp {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-35deg);
+    font-size: 68px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 10px;
+    opacity: 0.07;
+    border: 7px solid;
+    padding: 8px 24px;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 100;
+}
+.stamp-paid    { color: #15803d; border-color: #15803d; }
+.stamp-partial { color: #b45309; border-color: #b45309; }
+.stamp-unpaid  { color: #991b1b; border-color: #991b1b; }
+
+/* ── BILL TO + DATES ── */
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    gap: 20px;
+}
+.bill-block {
+    flex: 1;
+}
+.meta-lbl {
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #0f3d1d;
+    margin-bottom: 4px;
+}
+.bill-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+.dates-block {
+    text-align: right;
+}
+.date-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-bottom: 3px;
+}
+.date-lbl {
+    font-size: 10.5px;
+    color: #888;
+    min-width: 72px;
+    text-align: right;
+}
+.date-val {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #1a1a1a;
+    min-width: 76px;
+    text-align: right;
+}
+
+/* ── SECTION LABEL ── */
+.section-lbl {
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #555;
+    margin-bottom: 10px;
+    margin-top: 24px;
+}
+
+/* ── TABLE ── */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 11px;
+    margin-bottom: 8px;
+}
+th {
+    background: #0f3d1d;
+    color: #fff;
+    font-weight: 700;
+    font-size: 8.5px;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    letter-spacing: .7px;
+    border-bottom: none;
+    text-align: left;
+    white-space: nowrap;
+}
+td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #ebebeb;
+    color: #2d2d2d;
+    font-size: 11px;
+    background: #fff;
+}
+tbody tr:nth-child(even) td { background: #f4f6f5; }
+tbody tr:last-child td { border-bottom: 1px solid #ebebeb; }
+.text-right { text-align: right; font-variant-numeric: tabular-nums; }
+.text-center { text-align: center; }
+.amount-cell { color: #0f3d1d; font-weight: 800; font-size: 12px; }
+.remaining-paid    { color: #15803d; font-weight: 700; }
+.remaining-partial { color: #92400e; font-weight: 700; }
+.remaining-unpaid  { color: #991b1b; font-weight: 700; }
+
+
+/* ── BANK INFO ── */
+.bank-section {
+    border-top: 1px solid #e8e8e8;
+    padding-top: 14px;
+    margin-top: 80px;
+}
+.bank-grid {
+    display: flex;
+    gap: 0;
+    margin-top: 10px;
+}
+.bank-card {
+    flex: 1;
+    padding: 12px 20px;
+    border-right: 1px solid #e8e8e8;
+}
+.bank-card:last-child { border-right: none; }
+.bank-title {
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #0f3d1d;
+    margin-bottom: 8px;
+}
+.bank-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+.bank-key { font-size: 10px; color: #999; min-width: 52px; }
+.bank-val { font-size: 10px; font-weight: 600; color: #1a1a1a; }
+.bank-acc { font-size: 12px; font-weight: 700; color: #0f3d1d; letter-spacing: .5px; }
+
+/* ── FOOTER ── */
+.footer {
+    margin-top: 32px;
+    padding-top: 14px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.footer-social {
+    display: flex;
+    gap: 18px;
+}
+.footer-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9.5px;
+    color: #666;
+}
+.footer-item strong { color: #0f3d1d; font-weight: 600; }
+.footer-note {
+    font-size: 11px;
+    color: #bbb;
+    text-align: right;
+    line-height: 1.6;
+}
+</style>
+</head>
+<body>
+
+<!-- STAMP -->
+{% if remaining_int <= 0 %}
+<div class="stamp stamp-paid">Paid</div>
+{% elif payments %}
+<div class="stamp stamp-partial">Partial</div>
+{% else %}
+<div class="stamp stamp-unpaid">Unpaid</div>
+{% endif %}
+
+<!-- HEADER -->
+<div class="header">
+    <div class="company-info">
+        <img src="{{ logo_rel_path }}" class="company-logo">
+        <div>
+            <div class="company-name">{{ company_name }}</div>
+            <div class="company-tagline">for umrah &amp; hajj services</div>
+        </div>
+    </div>
+    <div class="invoice-meta">
+        <div class="invoice-label">Invoice</div>
+        <span class="invoice-number">{{ invoice_number }}</span>
+    </div>
+</div>
+
+<!-- BILL TO + DATES -->
+<div class="meta-row">
+    <div class="bill-block">
+        <div class="meta-lbl">Bill To</div>
+        <div class="bill-name">{{ customer_name }}</div>
+    </div>
+    <div class="dates-block">
+        <div class="date-row">
+            <span class="date-lbl">Issued Date</span>
+            <span class="date-val">{% if issued_date %}{{ issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+        </div>
+        <div class="date-row">
+            <span class="date-lbl">Due Date</span>
+            <span class="date-val">{% if due_date %}{{ due_date|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+        </div>
+    </div>
+</div>
+
+<!-- RESERVATIONS -->
+<div class="section-lbl">Reservations</div>
+<table>
+    <thead>
+        <tr>
+            <th class="text-center">Res No</th>
+            <th>Hotel</th>
+            <th class="text-center">Check-in</th>
+            <th class="text-center">Check-out</th>
+            <th class="text-right">Amount (SAR)</th>
+            <th class="text-right">Remaining (SAR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in reservations %}
+        <tr>
+            <td class="text-center" style="font-weight:600;">{{ r.number }}</td>
+            <td>{{ r.hotel }}</td>
+            <td class="text-center" style="color:#777;">{% if r.check_in %}{{ r.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="text-center" style="color:#777;">{% if r.check_out %}{{ r.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="text-right amount-cell">{{ r.total }} SAR</td>
+            <td class="text-right {{ r.remaining_class }}">{% if r.remaining %}{{ r.remaining }} SAR{% else %}0 SAR{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="text-right" style="font-weight:700;font-size:11px;color:#555;border-top:1px solid #0f3d1d;padding-top:10px;">Total</td>
+            <td class="text-right" style="font-weight:800;font-size:12px;color:#0f3d1d;border-top:1px solid #0f3d1d;padding-top:10px;">{{ total_reservation_sar }} SAR</td>
+            <td class="text-right" style="font-weight:800;font-size:12px;border-top:1px solid #0f3d1d;padding-top:10px;" class="{% if remaining_int <= 0 %}remaining-paid{% else %}remaining-partial{% endif %}">{% if total_remaining_sar %}{{ total_remaining_sar }}{% else %}0{% endif %} SAR</td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- PAYMENT HISTORY -->
+<div class="section-lbl" style="margin-top:20px;">Payment History</div>
+<table>
+    <thead>
+        <tr>
+            <th class="text-center">#Res</th>
+            <th class="text-center">Date</th>
+            <th>Method</th>
+            <th class="text-right">Amount</th>
+            <th class="text-right">Amount (SAR)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in payments %}
+        <tr>
+            <td class="text-center" style="font-weight:600;">{{ p.reservation_no }}</td>
+            <td class="text-center" style="color:#777;">{% if p.date %}{{ p.date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td>{{ p.method }}</td>
+            <td class="text-right">{{ p.amount }} {{ p.currency }}{% if p.currency != 'SAR' %}<br><span style="color:#bbb;font-size:10px;">@ {{ p.exchange }}</span>{% endif %}</td>
+            <td class="text-right" style="font-weight:700;">{{ p.amount_sar }} SAR</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="text-right" style="font-weight:700;font-size:11px;color:#555;border-top:1px solid #0f3d1d;padding-top:10px;">Total Paid</td>
+            <td class="text-right" style="font-weight:800;font-size:12px;color:#15803d;border-top:1px solid #0f3d1d;padding-top:10px;">{{ total_paid_sar }} SAR</td>
+        </tr>
+    </tfoot>
+</table>
+
+<!-- BANK INFO -->
+<div class="bank-section">
+    <div class="section-lbl" style="margin-top:0;">Kindly Transfer To</div>
+    <div class="bank-grid">
+        <div class="bank-card">
+            <div class="bank-title">IDR Account</div>
+            <div class="bank-row"><span class="bank-key">Bank</span><span class="bank-val">Bank Mandiri</span></div>
+            <div class="bank-row"><span class="bank-key">Account</span><span class="bank-acc">1400550011119</span></div>
+            <div class="bank-row"><span class="bank-key">Name</span><span class="bank-val">PT Gema Ijabah Sejahtera</span></div>
+        </div>
+        <div class="bank-card">
+            <div class="bank-title">USD Account</div>
+            <div class="bank-row"><span class="bank-key">Bank</span><span class="bank-val">Bank Mandiri</span></div>
+            <div class="bank-row"><span class="bank-key">Account</span><span class="bank-acc">1400560011117</span></div>
+            <div class="bank-row"><span class="bank-key">Name</span><span class="bank-val">PT Gema Ijabah Sejahtera</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+    <div class="footer-social">
+        <div class="footer-item">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="18.5" cy="5.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+            <strong>@ijabahgroup</strong>
+        </div>
+        <div class="footer-item">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 2L5 6V22L9 18L15 22L19 18V2L15 6L9 2Z"/></svg>
+            <strong>@ijabahgroup</strong>
+        </div>
+        <div class="footer-item">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2c0 0-4 4-4 10s4 10 4 10"/><path d="M12 2c0 0 4 4 4 10s-4 10-4 10"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+            <strong>www.ijabahgroup.com</strong>
+        </div>
+    </div>
+    <div class="footer-note">
+        <div>{% now "d F Y, H:i" %}</div>
+        <div style="margin-top:3px;letter-spacing:.5px;">DOC-HASH: {{ doc_hash }}</div>
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Hotels{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Hotels</div>
+      <div class="page-sub">{{ hotels|length }} hotel terdaftar</div>
+    </div>
+    <div class="page-actions">
+      <a href="{% url 'hotel_map' %}" class="btn btn-secondary">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        Peta
+      </a>
+      <a href="{% url 'hotel_new' %}" class="btn btn-primary" data-shortcut="new">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Hotel baru
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <form method="get" id="filter-form" style="margin-bottom:16px;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <!-- Baris 1: search + area -->
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0 12px;height:36px;flex:1;min-width:180px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text-3);flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Cari nama hotel…"
+            style="background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:inherit;width:100%;"
+            oninput="debounceSubmit()">
+        </div>
+        <select name="area" onchange="this.form.submit()"
+          style="height:36px;padding:0 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;outline:none;">
+          <option value="">Semua Area</option>
+          {% for a in areas %}
+          <option value="{{ a }}" {% if area_filter == a %}selected{% endif %}>{{ a }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Baris 2: chip filters -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <!-- Kota chips -->
+        <div style="display:flex;gap:4px;">
+          {% url 'hotel_list' as list_url %}
+          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}"
+            class="filter-chip {% if not city_filter %}filter-chip-active{% endif %}">Semua Kota</a>
+          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}&city=makkah"
+            class="filter-chip {% if city_filter == 'makkah' %}filter-chip-active{% endif %}">Makkah</a>
+          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}&city=madinah"
+            class="filter-chip {% if city_filter == 'madinah' %}filter-chip-active{% endif %}">Madinah</a>
+        </div>
+
+        <div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
+
+        <!-- Bintang chips -->
+        <div style="display:flex;gap:4px;">
+          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}"
+            class="filter-chip {% if not stars_filter %}filter-chip-active{% endif %}">Semua ★</a>
+          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=3"
+            class="filter-chip {% if stars_filter == '3' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '3' %}inherit{% else %}var(--yellow){% endif %};">★★★</a>
+          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=4"
+            class="filter-chip {% if stars_filter == '4' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '4' %}inherit{% else %}var(--yellow){% endif %};">★★★★</a>
+          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=5"
+            class="filter-chip {% if stars_filter == '5' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '5' %}inherit{% else %}var(--yellow){% endif %};">★★★★★</a>
+        </div>
+
+        <!-- Clear filter -->
+        {% if q or city_filter or area_filter or stars_filter %}
+        <a href="{% url 'hotel_list' %}" style="margin-left:4px;font-size:11px;color:var(--text-3);text-decoration:none;display:flex;align-items:center;gap:3px;" title="Reset filter">
+          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+          Reset
+        </a>
+        {% endif %}
+      </div>
+
+    </div>
+    <!-- preserve hidden fields for debounce submit -->
+    <input type="hidden" name="city"  value="{{ city_filter }}">
+    <input type="hidden" name="stars" value="{{ stars_filter }}">
+    <input type="hidden" name="area"  id="hid-area"  value="{{ area_filter }}">
+  </form>
+
+  {% if hotels %}
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nama Hotel</th>
+            <th>Kota</th>
+            <th>Area</th>
+            <th>Bintang</th>
+            <th>Jarak ke Masjid</th>
+            <th>Avg</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in hotels %}
+          <tr class="row-link" onclick="window.location='{% url 'hotel_detail' h.pk %}'" style="cursor:pointer;">
+            <td>
+              <a href="{% url 'hotel_detail' h.pk %}" style="font-weight:600;color:var(--text);text-decoration:none;">{{ h.name }}</a>
+            </td>
+            <td><span class="badge {% if h.city == 'makkah' %}badge-blue{% else %}badge-green{% endif %}">{{ h.get_city_display }}</span></td>
+            <td class="col-muted">{{ h.area|default:"—" }}</td>
+            <td><span style="color:var(--yellow);letter-spacing:1px;font-size:12px;">{{ h.stars_display }}</span></td>
+            <td>
+              {% with d=h.distance_to_haram %}
+              {% if d is not None %}
+              <span class="badge {% if d < 500 %}badge-green{% elif d < 1500 %}badge-yellow{% else %}badge-red{% endif %}">{{ h.distance_label }}</span>
+              {% else %}<span class="col-dim">—</span>{% endif %}
+              {% endwith %}
+            </td>
+            <td class="mono">{% if h.avg_occupancy %}{{ h.avg_occupancy }}{% else %}<span class="col-dim">—</span>{% endif %}</td>
+            <td>{% if h.is_active %}<span class="badge badge-green">Aktif</span>{% else %}<span class="badge badge-gray">Nonaktif</span>{% endif %}</td>
+            <td>
+              <div style="display:flex;gap:4px;justify-content:flex-end;" onclick="event.stopPropagation()">
+                <a href="{% url 'hotel_edit' h.pk %}" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;" title="Edit"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>
+                <button type="button" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--red);" title="Hapus" onclick="confirmDelete({{ h.pk }},'{{ h.name|escapejs }}')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-title">
+      {% if q or city_filter or area_filter or stars_filter %}Tidak ada hotel yang cocok{% else %}Belum ada hotel{% endif %}
+    </div>
+    <div class="empty-sub">
+      {% if q or city_filter or area_filter or stars_filter %}
+        <a href="{% url 'hotel_list' %}" style="color:var(--accent-2);">Reset filter</a>
+      {% else %}
+        Tambah hotel Makkah pertama
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.filter-chip {
+  display: inline-flex; align-items: center;
+  height: 28px; padding: 0 12px;
+  border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); text-decoration: none; white-space: nowrap;
+  transition: background .1s, color .1s, border-color .1s;
+}
+.filter-chip:hover { background: var(--surface-3); color: var(--text); }
+.filter-chip-active {
+  background: var(--accent-muted); border-color: var(--accent-2);
+  color: var(--accent-2) !important;
+}
+</style>
+
+<div class="modal-overlay" id="del-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-warn-icon">!</div>
+      <div>
+        <div style="font-weight:600;font-size:15px;">Hapus Hotel</div>
+        <div style="font-size:13px;color:var(--text-2);margin-top:2px;">Tindakan ini tidak bisa dibatalkan</div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-detail">Hotel <strong id="del-name"></strong> akan dihapus permanen.</div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="document.getElementById('del-modal').classList.remove('open')" class="btn btn-ghost">Batal</button>
+      <form method="post" id="delete-form" action="">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Hapus</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var _debTimer;
+function debounceSubmit() {
+  clearTimeout(_debTimer);
+  _debTimer = setTimeout(function() {
+    document.getElementById('filter-form').submit();
+  }, 350);
+}
+
+function confirmDelete(pk, name) {
+  document.getElementById('del-name').textContent = name;
+  document.getElementById('delete-form').action = '/hotels/' + pk + '/delete/';
+  document.getElementById('del-modal').classList.add('open');
+}
+</script>
+{% endblock %}

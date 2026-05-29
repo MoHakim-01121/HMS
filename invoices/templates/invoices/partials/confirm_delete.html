@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hapus {{ type }}</title>
+  <link rel="stylesheet" href="{% static 'invoices/css/design.css' %}">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .shell {
+      width: 100%; max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      overflow: hidden;
+    }
+    .shell-warn {
+      padding: 24px 24px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+    .warn-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: var(--red-muted);
+      border-radius: var(--r);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--red); font-size: 18px;
+    }
+    .warn-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .warn-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+    .shell-body { padding: 20px 24px; }
+    .detail-box {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text-2);
+      margin-bottom: 20px;
+    }
+    .detail-box strong { color: var(--text); }
+    .shell-footer {
+      padding: 0 24px 24px;
+      display: flex; gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="shell-warn">
+      <div class="warn-icon">⚠</div>
+      <div>
+        <div class="warn-title">Hapus {{ type }}</div>
+        <div class="warn-sub">Tindakan ini tidak dapat dibatalkan</div>
+      </div>
+    </div>
+    <div class="shell-body">
+      <div class="detail-box">
+        <strong>{{ object }}</strong> akan dihapus permanen beserta semua data yang terkait.
+      </div>
+    </div>
+    <div class="shell-footer">
+      <a href="javascript:history.back()" class="btn btn-secondary" style="flex:1;justify-content:center;">Batal</a>
+      <form method="post" style="flex:1;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" style="width:100%;justify-content:center;height:32px;">Ya, Hapus</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

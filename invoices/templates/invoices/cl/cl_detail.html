@@ -1,0 +1,87 @@
+{% extends 'invoices/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}CL — {{ cl.confirmation_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'cl_list' %}" class="topbar-crumb" data-shortcut="back">Confirmation Letter</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{{ cl.confirmation_number }}</span>
+{% endblock %}
+
+
+{% block content %}
+<a href="{% url 'cl_edit' cl.pk %}" data-shortcut="edit" style="display:none" aria-hidden="true"></a>
+<a href="{% url 'cl_pdf' cl.pk %}" data-shortcut="pdf" target="_blank" style="display:none" aria-hidden="true"></a>
+<div class="page-sm">
+  <div class="page-header" style="margin-bottom:20px;">
+    <div>
+      <div class="page-title">{{ cl.confirmation_number }}</div>
+      <div class="page-sub">{{ cl.guest_name }} · {{ cl.hotel_name }}</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      {% if cl.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
+      {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
+      {% if cl.reservation_status == 'DEFINITE' %}<span class="badge badge-green">Definite</span>
+      {% else %}<span class="badge badge-yellow">Tentative</span>{% endif %}
+      {% if cl.invoice %}
+      <a href="{% url 'invoice_detail' cl.invoice.pk %}" class="badge badge-blue" style="text-decoration:none;" title="Ditagih dalam invoice ini">
+        Ditagih → {{ cl.invoice.invoice_number }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Detail</span></div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div class="field"><div class="field-label">Hotel</div><div class="field-value">{{ cl.hotel_name }}</div></div>
+        <div class="field"><div class="field-label">Confirmation #</div><div class="field-value copyable" style="font-family:monospace;" onclick="copyText('{{ cl.confirmation_number }}')" title="Klik untuk menyalin">{{ cl.confirmation_number }}</div></div>
+        <div class="field"><div class="field-label">Tamu</div><div class="field-value">{{ cl.guest_name }}</div></div>
+        <div class="field"><div class="field-label">Telepon</div><div class="field-value">{{ cl.guest_phone|default:"—" }}</div></div>
+        <div class="field"><div class="field-label">Check-in</div><div class="field-value">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+        <div class="field"><div class="field-label">Check-out</div><div class="field-value">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+        <div class="field"><div class="field-label">Jumlah Malam</div><div class="field-value">{{ cl.num_nights }} malam</div></div>
+        <div class="field"><div class="field-label">Jumlah Tamu</div><div class="field-value">{{ cl.num_guests }} orang</div></div>
+      </div>
+      {% if cl.note %}
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+        <div class="field-label" style="margin-bottom:6px;">Catatan</div>
+        <div class="field-value">{{ cl.note }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% include 'invoices/partials/_attachments.html' with target_type="cl" target_id=cl.pk attachments=cl.attachments.all %}
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Kamar</span>
+      <span style="font-size:13px;font-weight:600;color:var(--text);">{{ cl.total_price|floatformat:0|intcomma }} SAR</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Tipe</th><th>Meals</th><th>Qty</th><th>Harga/Malam</th><th>Subtotal</th></tr>
+        </thead>
+        <tbody>
+          {% for room in cl.rooms.all %}
+          <tr>
+            <td>{{ room.room_type }}</td>
+            <td style="color:var(--text-2);">{{ room.meals|default:"—" }}</td>
+            <td>{{ room.quantity }}</td>
+            <td class="mono">{{ room.price|floatformat:0|intcomma }}</td>
+            <td class="mono" style="font-weight:600;">{{ room.subtotal|floatformat:0|intcomma }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" style="text-align:center;color:var(--text-3);">Tidak ada data kamar</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
