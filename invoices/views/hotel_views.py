@@ -47,7 +47,8 @@ def hotel_list(request):
     city_filter  = request.GET.get('city', '').strip()
     stars_filter = request.GET.get('stars', '').strip()
     if q:
-        qs = qs.filter(name__icontains=q)
+        from django.db.models import Q
+        qs = qs.filter(Q(name__icontains=q) | Q(area__icontains=q))
     if area_filter:
         qs = qs.filter(area__icontains=area_filter)
     if city_filter in ('makkah', 'madinah'):

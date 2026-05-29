@@ -24,66 +24,61 @@
 
   <!-- Filter bar -->
   <form method="get" id="filter-form" style="margin-bottom:16px;">
-    <div style="display:flex;flex-direction:column;gap:10px;">
+    <div style="display:flex;gap:8px;align-items:center;">
 
-      <!-- Baris 1: search + area -->
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0 12px;height:36px;flex:1;min-width:180px;">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text-3);flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-          <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Cari nama hotel…"
-            style="background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:inherit;width:100%;"
-            oninput="debounceSubmit()">
-        </div>
-        <select name="area" onchange="this.form.submit()"
-          style="height:36px;padding:0 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;outline:none;">
-          <option value="">Semua Area</option>
-          {% for a in areas %}
-          <option value="{{ a }}" {% if area_filter == a %}selected{% endif %}>{{ a }}</option>
-          {% endfor %}
-        </select>
+      <!-- Search -->
+      <div style="display:flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:0 12px;height:36px;flex:1;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text-3);flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Cari nama atau area…"
+          style="background:transparent;border:none;outline:none;color:var(--text);font-size:13px;font-family:inherit;width:100%;"
+          oninput="debounceSubmit()">
+        {% if q %}<button type="button" onclick="clearSearch()" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:0;line-height:1;flex-shrink:0;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>{% endif %}
       </div>
 
-      <!-- Baris 2: chip filters -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <!-- Kota chips -->
-        <div style="display:flex;gap:4px;">
-          {% url 'hotel_list' as list_url %}
-          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}"
-            class="filter-chip {% if not city_filter %}filter-chip-active{% endif %}">Semua Kota</a>
-          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}&city=makkah"
-            class="filter-chip {% if city_filter == 'makkah' %}filter-chip-active{% endif %}">Makkah</a>
-          <a href="?q={{ q }}&area={{ area_filter }}&stars={{ stars_filter }}&city=madinah"
-            class="filter-chip {% if city_filter == 'madinah' %}filter-chip-active{% endif %}">Madinah</a>
+      <!-- Filter button + popover -->
+      <div style="position:relative;">
+        <button type="button" id="filter-btn" onclick="toggleFilterPopover()"
+          style="height:36px;padding:0 14px;display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid {% if city_filter or stars_filter %}var(--accent-2){% else %}var(--border){% endif %};border-radius:8px;color:{% if city_filter or stars_filter %}var(--accent-2){% else %}var(--text-2){% endif %};font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;white-space:nowrap;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/></svg>
+          Filter{% if city_filter or stars_filter %} <span style="background:var(--accent-2);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;">{{ city_filter|yesno:",0"|add:"0"|add:stars_filter|yesno:",0" }}{% if city_filter and stars_filter %}2{% elif city_filter or stars_filter %}1{% endif %}</span>{% endif %}
+        </button>
+
+        <!-- Popover -->
+        <div id="filter-popover" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:200px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:200;padding:12px 0;">
+          <div style="padding:4px 14px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-3);">Kota</div>
+          <label style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--text-2);">
+            <input type="radio" name="city" value="" {% if not city_filter %}checked{% endif %} onchange="submitFilter()" style="accent-color:var(--accent-2);"> Semua Kota
+          </label>
+          <label style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--text-2);">
+            <input type="radio" name="city" value="makkah" {% if city_filter == 'makkah' %}checked{% endif %} onchange="submitFilter()" style="accent-color:var(--accent-2);"> Makkah
+          </label>
+          <label style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--text-2);">
+            <input type="radio" name="city" value="madinah" {% if city_filter == 'madinah' %}checked{% endif %} onchange="submitFilter()" style="accent-color:var(--accent-2);"> Madinah
+          </label>
+          <div style="height:1px;background:var(--border);margin:8px 0;"></div>
+          <div style="padding:4px 14px 8px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-3);">Bintang</div>
+          {% for s in "345" %}
+          <label style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--yellow);">
+            <input type="radio" name="stars" value="{{ s }}" {% if stars_filter == s %}checked{% endif %} onchange="submitFilter()" style="accent-color:var(--yellow);">
+            {{ s }}★
+          </label>
+          {% endfor %}
+          <label style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;font-size:13px;color:var(--text-2);">
+            <input type="radio" name="stars" value="" {% if not stars_filter %}checked{% endif %} onchange="submitFilter()" style="accent-color:var(--accent-2);"> Semua ★
+          </label>
+          {% if city_filter or stars_filter %}
+          <div style="height:1px;background:var(--border);margin:8px 0;"></div>
+          <a href="?q={{ q }}" style="display:flex;align-items:center;gap:6px;padding:7px 14px;font-size:12px;color:var(--text-3);text-decoration:none;">
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg> Reset filter
+          </a>
+          {% endif %}
         </div>
-
-        <div style="width:1px;height:20px;background:var(--border);margin:0 2px;"></div>
-
-        <!-- Bintang chips -->
-        <div style="display:flex;gap:4px;">
-          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}"
-            class="filter-chip {% if not stars_filter %}filter-chip-active{% endif %}">Semua ★</a>
-          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=3"
-            class="filter-chip {% if stars_filter == '3' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '3' %}inherit{% else %}var(--yellow){% endif %};">★★★</a>
-          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=4"
-            class="filter-chip {% if stars_filter == '4' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '4' %}inherit{% else %}var(--yellow){% endif %};">★★★★</a>
-          <a href="?q={{ q }}&area={{ area_filter }}&city={{ city_filter }}&stars=5"
-            class="filter-chip {% if stars_filter == '5' %}filter-chip-active{% endif %}" style="color:{% if stars_filter == '5' %}inherit{% else %}var(--yellow){% endif %};">★★★★★</a>
-        </div>
-
-        <!-- Clear filter -->
-        {% if q or city_filter or area_filter or stars_filter %}
-        <a href="{% url 'hotel_list' %}" style="margin-left:4px;font-size:11px;color:var(--text-3);text-decoration:none;display:flex;align-items:center;gap:3px;" title="Reset filter">
-          <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
-          Reset
-        </a>
-        {% endif %}
       </div>
 
     </div>
-    <!-- preserve hidden fields for debounce submit -->
-    <input type="hidden" name="city"  value="{{ city_filter }}">
-    <input type="hidden" name="stars" value="{{ stars_filter }}">
-    <input type="hidden" name="area"  id="hid-area"  value="{{ area_filter }}">
+    <input type="hidden" name="area" value="{{ area_filter }}">
   </form>
 
   {% if hotels %}
@@ -110,7 +105,7 @@
             </td>
             <td><span class="badge {% if h.city == 'makkah' %}badge-blue{% else %}badge-green{% endif %}">{{ h.get_city_display }}</span></td>
             <td class="col-muted">{{ h.area|default:"—" }}</td>
-            <td><span style="color:var(--yellow);letter-spacing:1px;font-size:12px;">{{ h.stars_display }}</span></td>
+            <td><span style="color:var(--yellow);font-size:12px;font-weight:600;">{{ h.stars }}★</span></td>
             <td>
               {% with d=h.distance_to_haram %}
               {% if d is not None %}
@@ -148,21 +143,6 @@
   {% endif %}
 </div>
 
-<style>
-.filter-chip {
-  display: inline-flex; align-items: center;
-  height: 28px; padding: 0 12px;
-  border-radius: 20px; font-size: 12px; font-weight: 600;
-  background: var(--surface-2); border: 1px solid var(--border);
-  color: var(--text-2); text-decoration: none; white-space: nowrap;
-  transition: background .1s, color .1s, border-color .1s;
-}
-.filter-chip:hover { background: var(--surface-3); color: var(--text); }
-.filter-chip-active {
-  background: var(--accent-muted); border-color: var(--accent-2);
-  color: var(--accent-2) !important;
-}
-</style>
 
 <div class="modal-overlay" id="del-modal">
   <div class="modal-box">
@@ -192,10 +172,27 @@
 var _debTimer;
 function debounceSubmit() {
   clearTimeout(_debTimer);
-  _debTimer = setTimeout(function() {
-    document.getElementById('filter-form').submit();
-  }, 350);
+  _debTimer = setTimeout(function() { document.getElementById('filter-form').submit(); }, 350);
 }
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('filter-form').submit();
+}
+function submitFilter() {
+  document.getElementById('filter-form').submit();
+}
+var _popoverOpen = false;
+function toggleFilterPopover() {
+  _popoverOpen = !_popoverOpen;
+  document.getElementById('filter-popover').style.display = _popoverOpen ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('filter-btn').contains(e.target) &&
+      !document.getElementById('filter-popover').contains(e.target)) {
+    document.getElementById('filter-popover').style.display = 'none';
+    _popoverOpen = false;
+  }
+});
 
 function confirmDelete(pk, name) {
   document.getElementById('del-name').textContent = name;
