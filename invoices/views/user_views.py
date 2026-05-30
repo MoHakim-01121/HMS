@@ -21,7 +21,7 @@ class CompanyLoginView(LoginView):
         return response
 
     def get_success_url(self):
-        return '/'
+        return '/?logged_in=1'
 
 
 def superuser_required(view_func):
@@ -108,9 +108,10 @@ def user_edit(request, pk):
 
 @login_required
 def account_profile(request):
-    from ..models import UserProfile
+    from ..models import UserProfile, ActivityLog
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    return render(request, 'invoices/account/profile.html', {'profile': profile})
+    activities = ActivityLog.objects.filter(user=request.user)[:20]
+    return render(request, 'invoices/account/profile.html', {'profile': profile, 'activities': activities})
 
 
 @login_required

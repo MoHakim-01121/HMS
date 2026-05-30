@@ -59,6 +59,8 @@ def cl_new(request):
 
         from ..ai import generate_cl_summary
         generate_cl_summary(cl)
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number, cl.company)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
         return redirect("cl_detail", pk=cl.pk)
 
@@ -92,6 +94,25 @@ def cl_edit(request, pk):
             hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
             return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
 
+        from ..models import log_activity, ActivityLog
+
+        def _room_snapshot(rooms_qs):
+            rows = []
+            for r in rooms_qs.order_by('id'):
+                rows.append(f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}")
+            return ' | '.join(rows) if rows else '—'
+
+        _before = {
+            'Hotel':       cl.hotel_name,
+            'Tamu':        cl.guest_name,
+            'No. Telp':    cl.guest_phone,
+            'Check-in':    str(cl.check_in or ''),
+            'Check-out':   str(cl.check_out or ''),
+            'Status':      cl.reservation_status,
+            'Company':     cl.company,
+            'Kamar':       _room_snapshot(cl.rooms.all()),
+        }
+
         cl.company = request.POST.get("company", "konoz")
         cl.hotel_name = request.POST.get("hotel_name", "")
         cl.guest_name = request.POST.get("guest_name", "")
@@ -108,6 +129,19 @@ def cl_edit(request, pk):
 
         from ..ai import generate_cl_summary
         generate_cl_summary(cl)
+
+        _after = {
+            'Hotel':       cl.hotel_name,
+            'Tamu':        cl.guest_name,
+            'No. Telp':    cl.guest_phone,
+            'Check-in':    str(cl.check_in or ''),
+            'Check-out':   str(cl.check_out or ''),
+            'Status':      cl.reservation_status,
+            'Company':     cl.company,
+            'Kamar':       _room_snapshot(cl.rooms.all()),
+        }
+        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, cl.company, changes)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil diperbarui.")
         return redirect("cl_detail", pk=cl.pk)
 
@@ -121,6 +155,8 @@ def cl_delete(request, pk):
     if request.method == "POST":
         num = cl.confirmation_number
         cl.delete()
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num, cl.company)
         messages.success(request, f"Confirmation Letter {num} berhasil dihapus.")
         return redirect("cl_list")
     return render(request, "invoices/partials/confirm_delete.html", {"object": cl, "type": "Confirmation Letter"})

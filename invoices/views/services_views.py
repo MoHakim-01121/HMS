@@ -42,6 +42,8 @@ def services_new(request):
         _save_service_payments(invoice, request)
         from ..ai import generate_services_summary
         generate_services_summary(invoice)
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil dibuat.")
         return redirect("services_detail", pk=invoice.pk)
 
@@ -69,6 +71,15 @@ def services_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
 
     if request.method == "POST":
+        from ..models import log_activity, ActivityLog
+        _before = {
+            'Nama Customer': invoice.customer_name,
+            'No. Invoice':   invoice.invoice_number,
+            'Tgl. Terbit':   str(invoice.issued_date or ''),
+            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Mata Uang':     invoice.currency,
+            'Company':       invoice.company,
+        }
         invoice.company = request.POST.get("company", "ijabah")
         invoice.invoice_number = request.POST.get("invoice_number", "")
         invoice.customer_name = request.POST.get("customer_name", "")
@@ -83,6 +94,16 @@ def services_edit(request, pk):
         _save_service_payments(invoice, request)
         from ..ai import generate_services_summary
         generate_services_summary(invoice)
+        _after = {
+            'Nama Customer': invoice.customer_name,
+            'No. Invoice':   invoice.invoice_number,
+            'Tgl. Terbit':   str(invoice.issued_date or ''),
+            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Mata Uang':     invoice.currency,
+            'Company':       invoice.company,
+        }
+        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Services', invoice.invoice_number, invoice.company, changes)
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil diperbarui.")
         return redirect("services_detail", pk=invoice.pk)
 
@@ -95,6 +116,8 @@ def services_delete(request, pk):
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
         messages.success(request, f"Invoice Services {num} berhasil dihapus.")
         return redirect("services_list")
     return render(request, "invoices/partials/confirm_delete.html", {"object": invoice, "type": "Invoice Services"})

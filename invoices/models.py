@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.contrib.auth.models import User
+from django.contrib.auth.signals import user_logged_in
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -21,6 +22,61 @@ class UserProfile(models.Model):
 def _ensure_profile(sender, instance, created, **kwargs):
     if created:
         UserProfile.objects.get_or_create(user=instance)
+
+
+class ActivityLog(models.Model):
+    ACTION_LOGIN  = 'login'
+    ACTION_CREATE = 'create'
+    ACTION_EDIT   = 'edit'
+    ACTION_DELETE = 'delete'
+    ACTION_PDF    = 'pdf'
+
+    ACTION_CHOICES = [
+        (ACTION_LOGIN,  'Login'),
+        (ACTION_CREATE, 'Dibuat'),
+        (ACTION_EDIT,   'Diedit'),
+        (ACTION_DELETE, 'Dihapus'),
+        (ACTION_PDF,    'Export PDF'),
+    ]
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activity_logs')
+    action     = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    model_name = models.CharField(max_length=50, blank=True)
+    object_ref = models.CharField(max_length=200, blank=True)
+    company    = models.CharField(max_length=20, blank=True)
+    changes    = models.JSONField(default=list, blank=True)
+    timestamp  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.user.username} {self.action} {self.object_ref}"
+
+
+def diff_fields(old, new, fields):
+    """Compare old/new dict values, return list of {label, before, after}."""
+    result = []
+    for key, label in fields.items():
+        b, a = str(old.get(key, '') or ''), str(new.get(key, '') or '')
+        if b != a:
+            result.append({'label': label, 'before': b, 'after': a})
+    return result
+
+
+def log_activity(user, action, model_name='', object_ref='', company='', changes=None):
+    ActivityLog.objects.create(
+        user=user, action=action, model_name=model_name,
+        object_ref=object_ref, company=company, changes=changes or [],
+    )
+    old_ids = list(ActivityLog.objects.filter(user=user).order_by('-timestamp').values_list('id', flat=True)[50:])
+    if old_ids:
+        ActivityLog.objects.filter(id__in=old_ids).delete()
+
+
+@receiver(user_logged_in)
+def _record_login(sender, request, user, **kwargs):
+    log_activity(user, ActivityLog.ACTION_LOGIN)
 
 
 class Client(models.Model):

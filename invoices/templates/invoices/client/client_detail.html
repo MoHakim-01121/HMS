@@ -23,7 +23,7 @@
 <div class="page">
 
   <!-- Stats -->
-  <div class="stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+  <div class="stats" style="margin-bottom:20px;">
     <div class="stat">
       <div class="stat-label">Total Tagihan</div>
       <div class="stat-value blue mono">{{ client.total_billed|floatformat:0 }}</div>
@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 2fr;gap:16px;align-items:start;">
+  <div class="detail-grid">
 
     <!-- Left: info -->
     <div>
@@ -132,13 +132,13 @@
             <thead><tr><th>Nomor</th><th>Tipe</th><th>Tagihan</th><th>Sisa</th><th>Tanggal</th><th></th></tr></thead>
             <tbody>
               {% for inv in invoices|slice:":10" %}
-              <tr>
-                <td><a href="{% url 'invoice_detail' inv.pk %}" class="col-bold" style="color:var(--accent-2);text-decoration:none;">{{ inv.invoice_number }}</a></td>
-                <td><span class="badge {% if inv.invoice_type == 'hotel' %}badge-blue{% else %}badge-purple{% endif %}">{{ inv.get_invoice_type_display }}</span></td>
-                <td class="mono">{{ inv.total_sar|floatformat:0 }}</td>
-                <td class="mono {% if inv.remaining_sar > 0 %}remaining-unpaid{% else %}remaining-paid{% endif %}">{{ inv.remaining_sar|floatformat:0 }}</td>
-                <td class="col-muted">{{ inv.issued_date|default:"—" }}</td>
-                <td><a href="{% url 'invoice_detail' inv.pk %}" class="btn btn-ghost btn-sm">→</a></td>
+              <tr style="cursor:pointer;" onclick="location.href='{% url 'invoice_detail' inv.pk %}'">
+                <td class="col-m-primary"><a href="{% url 'invoice_detail' inv.pk %}" class="col-bold" style="color:var(--accent-2);text-decoration:none;">{{ inv.invoice_number }}</a></td>
+                <td class="col-m-secondary"><span class="badge {% if inv.invoice_type == 'hotel' %}badge-blue{% else %}badge-purple{% endif %}">{{ inv.get_invoice_type_display }}</span></td>
+                <td class="mono col-m-hide">{{ inv.total_sar|floatformat:0 }}</td>
+                <td class="mono col-m-amount {% if inv.remaining_sar > 0 %}remaining-unpaid{% else %}remaining-paid{% endif %}">{{ inv.remaining_sar|floatformat:0 }} SAR</td>
+                <td class="col-muted col-m-hide">{{ inv.issued_date|default:"—" }}</td>
+                <td class="col-m-actions" onclick="event.stopPropagation()"><a href="{% url 'invoice_detail' inv.pk %}" class="btn btn-ghost btn-sm">→</a></td>
               </tr>
               {% endfor %}
             </tbody>
@@ -157,12 +157,12 @@
             <thead><tr><th>Nomor</th><th>Tamu</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
             <tbody>
               {% for cl in cls|slice:":8" %}
-              <tr>
-                <td><a href="{% url 'cl_detail' cl.pk %}" class="col-bold" style="color:var(--accent-2);text-decoration:none;">{{ cl.confirmation_number }}</a></td>
-                <td class="col-ellipsis">{{ cl.guest_name }}</td>
-                <td class="col-ellipsis col-muted">{{ cl.hotel_name }}</td>
-                <td class="col-muted">{{ cl.check_in|default:"—" }}</td>
-                <td><a href="{% url 'cl_detail' cl.pk %}" class="btn btn-ghost btn-sm">→</a></td>
+              <tr style="cursor:pointer;" onclick="location.href='{% url 'cl_detail' cl.pk %}'">
+                <td class="col-m-primary"><a href="{% url 'cl_detail' cl.pk %}" class="col-bold" style="color:var(--accent-2);text-decoration:none;">{{ cl.confirmation_number }}</a></td>
+                <td class="col-m-secondary col-ellipsis">{{ cl.guest_name }}</td>
+                <td class="col-ellipsis col-muted col-m-hide">{{ cl.hotel_name }}</td>
+                <td class="col-muted col-m-hide">{{ cl.check_in|default:"—" }}</td>
+                <td class="col-m-actions" onclick="event.stopPropagation()"><a href="{% url 'cl_detail' cl.pk %}" class="btn btn-ghost btn-sm">→</a></td>
               </tr>
               {% endfor %}
             </tbody>

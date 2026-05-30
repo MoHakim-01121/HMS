@@ -41,6 +41,8 @@ def client_new(request):
     if request.method == 'POST':
         c = Client(company=company or 'konoz')
         _save_client(c, request.POST)
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
         messages.success(request, f'Client "{c.name}" berhasil ditambahkan.')
         return redirect('client_detail', pk=c.pk)
     return render(request, 'invoices/client/client_form.html', {'edit': False})
@@ -50,7 +52,12 @@ def client_new(request):
 def client_edit(request, pk):
     c = get_object_or_404(Client, pk=pk)
     if request.method == 'POST':
+        from ..models import log_activity, ActivityLog
+        _before = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
+        _after  = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
         messages.success(request, f'Client "{c.name}" berhasil diupdate.')
         return redirect('client_detail', pk=c.pk)
     return render(request, 'invoices/client/client_form.html', {'edit': True, 'client': c})
@@ -62,6 +69,8 @@ def client_delete(request, pk):
     c = get_object_or_404(Client, pk=pk)
     name = c.name
     c.delete()
+    from ..models import log_activity, ActivityLog
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
     messages.success(request, f'Client "{name}" dihapus.')
     return redirect('client_list')
 

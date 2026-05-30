@@ -10,17 +10,12 @@
 <span class="topbar-crumb active">{{ cl.confirmation_number }}</span>
 {% endblock %}
 
-
 {% block content %}
 <a href="{% url 'cl_edit' cl.pk %}" data-shortcut="edit" style="display:none" aria-hidden="true"></a>
 <a href="{% url 'cl_pdf' cl.pk %}" data-shortcut="pdf" target="_blank" style="display:none" aria-hidden="true"></a>
 <div class="page-sm">
-  <div class="page-header" style="margin-bottom:20px;">
-    <div>
-      <div class="page-title">{{ cl.confirmation_number }}</div>
-      <div class="page-sub">{{ cl.guest_name }} · {{ cl.hotel_name }}</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+  <div class="page-header" style="margin-bottom:16px;justify-content:flex-end;align-items:flex-end;">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;width:100%;">
       {% if cl.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
       {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
       {% if cl.reservation_status == 'DEFINITE' %}<span class="badge badge-green">Definite</span>
@@ -65,19 +60,22 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Tipe</th><th>Meals</th><th>Qty</th><th>Harga/Malam</th><th>Subtotal</th></tr>
+          <tr><th>Tipe</th><th class="col-m-hide">Meals</th><th class="col-m-hide">Qty</th><th class="col-m-hide">Harga/Malam</th><th style="text-align:right;">Subtotal</th></tr>
         </thead>
         <tbody>
           {% for room in cl.rooms.all %}
           <tr>
-            <td>{{ room.room_type }}</td>
-            <td style="color:var(--text-2);">{{ room.meals|default:"—" }}</td>
-            <td>{{ room.quantity }}</td>
-            <td class="mono">{{ room.price|floatformat:0|intcomma }}</td>
-            <td class="mono" style="font-weight:600;">{{ room.subtotal|floatformat:0|intcomma }}</td>
+            <td class="col-m-primary">
+              {{ room.room_type }}
+              <span class="m-sub">{{ room.quantity }} × {{ room.price|floatformat:0|intcomma }} SAR/malam</span>
+            </td>
+            <td class="col-m-hide" style="color:var(--text-2);">{{ room.meals|default:"—" }}</td>
+            <td class="mono col-m-hide">{{ room.quantity }}</td>
+            <td class="mono col-m-hide">{{ room.price|floatformat:0|intcomma }}</td>
+            <td class="mono col-m-amount" style="font-weight:600;text-align:right;">{{ room.subtotal|floatformat:0|intcomma }} SAR</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;color:var(--text-3);">Tidak ada data kamar</td></tr>
+          <tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data kamar</td></tr>
           {% endfor %}
         </tbody>
       </table>

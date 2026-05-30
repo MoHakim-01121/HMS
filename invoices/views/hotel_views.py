@@ -72,6 +72,8 @@ def hotel_new(request):
     if request.method == 'POST':
         h = Hotel(company=company)
         _save_hotel(h, request.POST)
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name, h.company)
         return redirect('hotel_detail', pk=h.pk)
     return render(request, 'invoices/hotel/hotel_form.html', {'edit': False})
 
@@ -80,7 +82,12 @@ def hotel_new(request):
 def hotel_edit(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
     if request.method == 'POST':
+        from ..models import log_activity, ActivityLog
+        _before = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
         _save_hotel(h, request.POST)
+        _after  = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
+        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name, h.company, changes)
         return redirect('hotel_detail', pk=h.pk)
     return render(request, 'invoices/hotel/hotel_form.html', {
         'hotel': h,
@@ -93,7 +100,10 @@ def hotel_edit(request, pk):
 @require_POST
 def hotel_delete(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
+    name = h.name
     h.delete()
+    from ..models import log_activity, ActivityLog
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name, h.company)
     return redirect('hotel_list')
 
 

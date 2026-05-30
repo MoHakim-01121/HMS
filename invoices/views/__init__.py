@@ -55,7 +55,9 @@ def company_quick_set(request):
     if company in ("konoz", "ijabah"):
         request.session["active_company"] = company
         request.session.modified = True
-    return redirect(request.META.get("HTTP_REFERER", "/"))
+    referer = request.META.get("HTTP_REFERER", "/")
+    sep = "&" if "?" in referer else "?"
+    return redirect(f"{referer}{sep}company_changed={company}")
 
 
 @login_required

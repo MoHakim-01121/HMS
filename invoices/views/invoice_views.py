@@ -58,6 +58,8 @@ def invoice_new(request):
 
         from ..ai import generate_invoice_summary
         generate_invoice_summary(invoice)
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat.")
         return redirect("invoice_detail", pk=invoice.pk)
 
@@ -109,6 +111,22 @@ def invoice_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
 
     if request.method == "POST":
+        from ..models import log_activity, ActivityLog
+
+        def _res_snapshot(inv):
+            rows = []
+            for r in inv.reservations.order_by('id'):
+                rows.append(f"{r.hotel} {r.check_in}–{r.check_out} ({int(r.total_sar or 0)} SAR)")
+            return ' | '.join(rows) if rows else '—'
+
+        _before = {
+            'Nama Customer':    invoice.customer_name,
+            'No. Invoice':      invoice.invoice_number,
+            'Tgl. Terbit':      str(invoice.issued_date or ''),
+            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Company':          invoice.company,
+            'Reservasi':        _res_snapshot(invoice),
+        }
         invoice.company = request.POST.get("company", "konoz")
         invoice.invoice_number = request.POST.get("invoice_number", "")
         invoice.customer_name = request.POST.get("customer_name", "")
@@ -122,6 +140,16 @@ def invoice_edit(request, pk):
         _save_hotel_payments(invoice, request)
         from ..ai import generate_invoice_summary
         generate_invoice_summary(invoice)
+        _after = {
+            'Nama Customer':    invoice.customer_name,
+            'No. Invoice':      invoice.invoice_number,
+            'Tgl. Terbit':      str(invoice.issued_date or ''),
+            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Company':          invoice.company,
+            'Reservasi':        _res_snapshot(invoice),
+        }
+        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, invoice.company, changes)
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil diperbarui.")
         return redirect("invoice_detail", pk=invoice.pk)
 
@@ -134,6 +162,8 @@ def invoice_delete(request, pk):
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
+        from ..models import log_activity, ActivityLog
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
         messages.success(request, f"Invoice {num} berhasil dihapus.")
         return redirect("invoice_list")
     return render(request, "invoices/partials/confirm_delete.html", {"object": invoice, "type": "Invoice Hotel"})

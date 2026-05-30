@@ -15,7 +15,9 @@
       <div class="page-title">Manajemen User</div>
       <div class="page-sub">{{ users.count }} user terdaftar</div>
     </div>
-    <a href="{% url 'user_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;" data-shortcut="new">+ Buat User</a>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <a href="{% url 'user_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;" data-shortcut="new">+ Buat User</a>
+    </div>
   </div>
 
   <div class="card">
@@ -32,12 +34,12 @@
         </thead>
         <tbody>
           {% for u in users %}
-          <tr>
-            <td style="font-weight:600;">
+          <tr style="cursor:pointer;" onclick="location.href='{% url 'user_edit' u.pk %}'">
+            <td class="col-m-primary" style="font-weight:600;">
               {{ u.username }}
               {% if u == request.user %}<span style="font-size:11px;color:var(--text-3);font-weight:400;"> (kamu)</span>{% endif %}
             </td>
-            <td>
+            <td class="col-m-secondary">
               {% if u.is_superuser %}<span class="badge badge-yellow">Superuser</span>
               {% elif u.is_staff %}<span class="badge badge-blue">Staff</span>
               {% else %}<span class="badge badge-gray">User</span>{% endif %}
@@ -46,10 +48,10 @@
               {% if u.is_active %}<span class="badge badge-green">Aktif</span>
               {% else %}<span class="badge badge-red">Nonaktif</span>{% endif %}
             </td>
-            <td style="color:var(--text-2);font-size:13px;">
+            <td class="col-m-hide" style="color:var(--text-2);font-size:13px;">
               {% if u.last_login %}{{ u.last_login|date:"d/m/Y H:i" }}{% else %}—{% endif %}
             </td>
-            <td>
+            <td class="col-m-actions" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
                 {% if not u.is_superuser %}
                 <a href="{% url 'user_edit' u.pk %}" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;" title="Edit"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>

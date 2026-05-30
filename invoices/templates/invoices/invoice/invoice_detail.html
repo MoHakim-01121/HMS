@@ -11,22 +11,51 @@
 {% endblock %}
 
 
+{% block extra_css %}
+<style>
+.m-hide { display: inline; }
+@media (max-width: 600px) {
+  .m-hide { display: none; }
+  .inv-info-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; }
+  .stats {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    gap: 0;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+  .stats .stat {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    padding: 10px 6px;
+    text-align: center;
+  }
+  .stats .stat:last-child { border-right: none; }
+  .stats .stat-value { font-size: 13px; }
+  .stats .stat-value span { font-size: 10px; }
+  .stats .stat-label { font-size: 10px; letter-spacing: 0; }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <a href="{% url 'invoice_edit' invoice.pk %}" data-shortcut="edit" style="display:none" aria-hidden="true"></a>
 <a href="{% url 'invoice_pdf' invoice.pk %}" data-shortcut="pdf" target="_blank" style="display:none" aria-hidden="true"></a>
 <div class="page">
-  <div class="page-header" style="margin-bottom:20px;">
-    <div>
-      <div class="page-title">{{ invoice.invoice_number }}</div>
-      <div class="page-sub">{{ invoice.customer_name }} · {{ invoice.created_at|date:"d/m/Y H:i" }}</div>
-    </div>
-    <div style="display:flex;gap:6px;align-items:center;">
+  <div class="page-header" style="margin-bottom:16px;justify-content:flex-end;align-items:flex-end;">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;width:100%;">
       {% if invoice.remaining_sar == 0 %}
-        <span class="badge badge-green">Lunas</span>
+        <span class="badge badge-green">Paid</span>
       {% elif invoice.remaining_sar < invoice.total_sar %}
         <span class="badge badge-yellow">Partial</span>
       {% else %}
-        <span class="badge badge-red">Belum Bayar</span>
+        <span class="badge badge-red">Unpaid</span>
       {% endif %}
       {% if invoice.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
       {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
@@ -39,15 +68,15 @@
 
   <div class="stats">
     <div class="stat">
-      <div class="stat-label">Total Reservasi</div>
+      <div class="stat-label"><span class="m-hide">Total </span>Reservation</div>
       <div class="stat-value mono">{{ invoice.total_sar|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;color:var(--text-2);">SAR</span></div>
     </div>
     <div class="stat">
-      <div class="stat-label">Total Terbayar</div>
+      <div class="stat-label"><span class="m-hide">Total </span>Paid</div>
       <div class="stat-value green mono">{{ invoice.total_paid_sar|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
     </div>
     <div class="stat">
-      <div class="stat-label">Sisa</div>
+      <div class="stat-label">Remaining</div>
       <div class="stat-value {% if invoice.remaining_sar == 0 %}green{% else %}red{% endif %} mono">{{ invoice.remaining_sar|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
     </div>
   </div>
@@ -55,38 +84,46 @@
   <div class="card">
     <div class="card-header"><span class="card-title">Info Invoice</span></div>
     <div class="card-body">
-      <div class="grid-3">
+      <div class="grid-3 inv-info-grid">
         <div class="field"><div class="field-label">Customer</div><div class="field-value">{{ invoice.customer_name }}</div></div>
-        <div class="field"><div class="field-label">Invoice #</div><div class="field-value copyable" style="font-family:monospace;" onclick="copyText('{{ invoice.invoice_number }}')" title="Klik untuk menyalin">{{ invoice.invoice_number }}</div></div>
+        <div class="field"><div class="field-label">Invoice #</div><div class="field-value copyable" style="font-family:monospace;" onclick="copyText('{{ invoice.invoice_number }}')" title="Click to copy">{{ invoice.invoice_number }}</div></div>
         <div class="field"><div class="field-label">Company</div><div class="field-value">{{ invoice.get_company_display }}</div></div>
         <div class="field"><div class="field-label">Issued Date</div><div class="field-value">{% if invoice.issued_date %}{{ invoice.issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
         <div class="field"><div class="field-label">Due Date</div><div class="field-value">{% if invoice.due_date %}{{ invoice.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+        <div class="field"><div class="field-label">Created</div><div class="field-value">{{ invoice.created_at|date:"d/m/Y H:i" }}</div></div>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-header"><span class="card-title">Reservasi</span></div>
+    <div class="card-header"><span class="card-title">Reservations</span></div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Res#</th><th>Hotel</th><th>Check-in</th><th>Check-out</th><th>Total SAR</th><th>Sisa</th></tr>
+          <tr><th>Res#</th><th>Hotel</th><th>Check-in</th><th>Check-out</th><th>Total SAR</th><th>Remaining</th></tr>
         </thead>
         <tbody>
           {% for res in reservations %}
           <tr>
-            <td style="font-family:monospace;font-weight:600;">
-              {{ res.number }}
-              {% if res.cl_pk %}<a href="{% url 'cl_detail' res.cl_pk %}" style="margin-left:5px;font-size:10px;color:var(--accent-2);text-decoration:none;" title="Lihat CL">↗ CL</a>{% endif %}
+            <td class="col-m-primary" style="font-family:monospace;font-weight:600;justify-content:space-between;align-items:flex-start;">
+              <span>{{ res.number }}{% if res.cl_pk %}&nbsp;&nbsp;<a href="{% url 'cl_detail' res.cl_pk %}" style="font-size:11px;color:var(--accent-2);text-decoration:none;font-family:inherit;font-weight:500;">(CL ↗)</a>{% endif %}</span>
+              <span class="m-only mono" style="font-weight:600;color:var(--text);font-family:inherit;">{{ res.total }} SAR</span>
+              <span class="m-sub" style="font-family:inherit;">
+                <span style="display:block;">{{ res.hotel }}</span>
+                <span style="display:flex;justify-content:space-between;align-items:baseline;">
+                  <span>{% if res.check_in %}{{ res.check_in|date:"d/m/Y" }}{% else %}—{% endif %} → {% if res.check_out %}{{ res.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</span>
+                  <span class="{{ res.remaining_class }}" style="margin-left:12px;white-space:nowrap;">{{ res.remaining }} SAR</span>
+                </span>
+              </span>
             </td>
-            <td>{{ res.hotel }}</td>
-            <td style="color:var(--text-2);">{% if res.check_in %}{{ res.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td style="color:var(--text-2);">{% if res.check_out %}{{ res.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td class="mono">{{ res.total }}</td>
-            <td class="{{ res.remaining_class }} mono">{{ res.remaining }}</td>
+            <td class="col-m-hide">{{ res.hotel }}</td>
+            <td class="col-m-hide" style="color:var(--text-2);">{% if res.check_in %}{{ res.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-m-hide" style="color:var(--text-2);">{% if res.check_out %}{{ res.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="mono col-m-hide">{{ res.total }}</td>
+            <td class="{{ res.remaining_class }} mono col-m-hide">{{ res.remaining }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" style="text-align:center;color:var(--text-3);">Tidak ada data reservasi</td></tr>
+          <tr><td colspan="6" style="text-align:center;color:var(--text-3);">No reservations</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -95,34 +132,40 @@
 
   <div class="card">
     <div class="card-header">
-      <span class="card-title">Pembayaran</span>
+      <span class="card-title">Payments</span>
       {% if invoice.remaining_sar > 0 %}
       <button class="btn btn-ghost btn-sm" id="btn-draft-msg" onclick="openDraftModal('invoice', {{ invoice.pk }})">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.127 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
-        Buat Pesan
+        Draft Message
       </button>
       {% endif %}
     </div>
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Res#</th><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Mata Uang</th><th>Rate</th><th>SAR</th><th>Catatan</th><th>Bukti</th></tr>
+          <tr><th>Res#</th><th>Date</th><th>Method</th><th>Amount</th><th>Currency</th><th>Rate</th><th>SAR</th><th>Note</th><th>Proof</th></tr>
         </thead>
         <tbody>
           {% for p in invoice.payments.all %}
           <tr>
-            <td style="font-family:monospace;">{{ p.linked_number|default:"—" }}</td>
-            <td style="color:var(--text-2);">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td>{{ p.method|default:"—" }}</td>
-            <td class="mono">{{ p.amount|floatformat:0|intcomma }}</td>
-            <td><span class="badge badge-gray">{{ p.currency }}</span></td>
-            <td style="color:var(--text-2);">{% if p.currency != "SAR" %}{{ p.exchange_rate|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="mono" style="font-weight:600;">{{ p.amount_sar|floatformat:0|intcomma }}</td>
-            <td style="color:var(--text-2);">{{ p.note|default:"—" }}</td>
-            <td>{% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" title="Lihat bukti" style="color:var(--accent-2);text-decoration:none;display:inline-flex;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% else %}<span class="col-dim">—</span>{% endif %}</td>
+            <td class="col-m-hide" style="font-family:monospace;">{{ p.linked_number|default:"—" }}</td>
+            <td class="col-m-hide">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-m-primary" style="font-family:monospace;">
+              {{ p.linked_number|default:"—" }}{% if p.proof %}&nbsp;&nbsp;<a href="{{ p.proof.url }}" target="_blank" style="font-family:inherit;font-size:11px;color:var(--accent-2);text-decoration:none;font-weight:500;">(Proof ↗)</a>{% endif %}
+              <span class="m-sub" style="font-family:inherit;">
+                {% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %} · {{ p.method|default:"—" }}
+                {% if p.currency != "SAR" %}<span style="display:block;">{{ p.amount|floatformat:0|intcomma }} {{ p.currency }} ÷ {{ p.exchange_rate|floatformat:0|intcomma }}</span>{% endif %}
+              </span>
+            </td>
+            <td class="mono col-m-hide">{{ p.amount|floatformat:0|intcomma }}</td>
+            <td class="col-m-hide"><span class="badge badge-gray">{{ p.currency }}</span></td>
+            <td class="col-m-hide" style="color:var(--text-2);">{% if p.currency != "SAR" %}{{ p.exchange_rate|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="mono col-m-amount" style="font-weight:600;">{{ p.amount_sar|floatformat:0|intcomma }} SAR</td>
+            <td class="col-m-hide" style="color:var(--text-2);">{{ p.note|default:"—" }}</td>
+            <td class="col-m-hide">{% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" title="View proof" style="color:var(--accent-2);text-decoration:none;display:inline-flex;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% else %}—{% endif %}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="8" style="text-align:center;color:var(--text-3);">Tidak ada data pembayaran</td></tr>
+          <tr><td colspan="9" style="text-align:center;color:var(--text-3);padding:20px;">No payments</td></tr>
           {% endfor %}
         </tbody>
       </table>

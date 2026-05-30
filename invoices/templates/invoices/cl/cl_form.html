@@ -283,7 +283,7 @@
   // Create dropdown and attach to body
   const hotelDropdown = document.createElement('div');
   hotelDropdown.id = 'hotel_dropdown';
-  hotelDropdown.style.cssText = 'display:none;position:fixed;z-index:9999;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.25);min-width:240px;';
+  hotelDropdown.style.cssText = 'display:none;position:fixed;z-index:var(--z-top);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.25);min-width:240px;';
   document.body.appendChild(hotelDropdown);
 
   hotelSearch.value = hotelHidden.value;
