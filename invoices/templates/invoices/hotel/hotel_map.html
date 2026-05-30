@@ -138,6 +138,48 @@
   /* Tooltip rute */
   .route-dist-tip { background:var(--surface-3) !important; border:1px solid var(--border) !important; color:var(--text) !important; font-size:12px !important; font-weight:600 !important; padding:4px 9px !important; border-radius:6px !important; box-shadow:0 4px 14px rgba(0,0,0,.45) !important; white-space:nowrap; pointer-events:none; }
   .route-dist-tip::before { display:none !important; }
+
+  @media (max-width: 600px) {
+    #map { height: calc(100vh - 60px); }
+    .map-topbar { left: 10px; right: 10px; transform: none; width: auto; }
+    .map-search-wrap { min-width: 0; flex: 1; }
+    .map-counter { display: none; }
+    .map-legend { bottom: 72px; }
+    .map-sidebar-btn { bottom: 72px; }
+    .filter-panel { width: 85%; }
+    .map-sidebar { width: 85%; }
+  }
+
+  .map-sheet {
+    display: none;
+    position: fixed;
+    bottom: 60px; left: 0; right: 0;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    z-index: 9999;
+    transform: translateY(110%);
+    transition: transform .28s cubic-bezier(.32,.72,0,1);
+    box-shadow: 0 -12px 40px rgba(0,0,0,.6);
+  }
+  .map-sheet.open { transform: translateY(0); }
+  .map-sheet-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 12px auto;
+    cursor: pointer;
+  }
+  .map-sheet-body { padding: 0 20px 24px; }
+  .map-sheet-overlay {
+    display: none;
+    position: fixed;
+    inset: 0; z-index: 9998;
+    background: rgba(0,0,0,.4);
+  }
+  .map-sheet-overlay.open { display: block; }
+  @media (max-width: 600px) { .map-sheet { display: block; } }
 </style>
 {% endblock %}
 
@@ -247,6 +289,12 @@
     <div class="leg-row"><div class="leg-dot" style="background:#E5534B;border:2px solid rgba(255,255,255,.4);"></div> Masjid / Nabawi</div>
   </div>
 
+  <div id="map-sheet-overlay" class="map-sheet-overlay" onclick="closeSheet()"></div>
+  <div id="map-sheet" class="map-sheet">
+    <div class="map-sheet-handle" onclick="closeSheet()"></div>
+    <div id="map-sheet-body" class="map-sheet-body"></div>
+  </div>
+
   <!-- Sidebar toggle button (kanan bawah) -->
   <button class="map-sidebar-btn" onclick="toggleSidebar()">
     <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -272,6 +320,18 @@ var HARAM_INFO = [21.4225,   39.8262];
 var NABAWI     = [24.4672,   39.6112];
 var map = L.map('map', { zoomControl: false }).setView(HARAM, 14);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+map.on('click', function() { if (window.innerWidth <= 600) closeSheet(); });
+
+function isMobile() { return window.innerWidth <= 600; }
+function openSheet(html) {
+  document.getElementById('map-sheet-body').innerHTML = html;
+  document.getElementById('map-sheet').classList.add('open');
+  document.getElementById('map-sheet-overlay').classList.add('open');
+}
+window.closeSheet = function() {
+  document.getElementById('map-sheet').classList.remove('open');
+  document.getElementById('map-sheet-overlay').classList.remove('open');
+};
 
 function getTileUrl() {
   var theme = document.documentElement.getAttribute('data-theme');
@@ -508,8 +568,8 @@ function renderMarkers(hotels) {
 
     var m = L.marker([h.lat, h.lng], { icon: hotelIcon(color, 12) });
     m.bindTooltip(h.name, { permanent:false, direction:'top', offset:[0,-8], opacity:0.95 });
-    m.bindPopup(buildPopup(h), { maxWidth:240 });
-    m.on('click', function() {
+    if (!isMobile()) m.bindPopup(buildPopup(h), { maxWidth:240 });
+    m.on('click', function(e) {
       if (activeMarker && activeMarker!==m) {
         activeMarker.setIcon(hotelIcon(distColor(activeMarker._hotelData.distance), 12));
       }
@@ -518,6 +578,7 @@ function renderMarkers(hotels) {
       document.querySelectorAll('.sidebar-item').forEach(function(i){ i.classList.remove('active'); });
       var el = document.querySelector('.sidebar-item[data-pk="'+h.pk+'"]');
       if (el) { el.classList.add('active'); el.scrollIntoView({ block:'nearest' }); }
+      if (isMobile()) { L.DomEvent.stopPropagation(e); openSheet(buildPopup(h)); }
     });
     m.on('popupclose', function() {
       m.setIcon(hotelIcon(color, 12));

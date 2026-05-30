@@ -45,6 +45,43 @@
   .map-filter { position: absolute; top: 60px; right: 16px; z-index: var(--z-overlay); background: var(--surface-3); border: 1px solid var(--border); border-radius: 8px; padding: 8px; display: flex; gap: 6px; flex-direction: column; }
   .map-filter button { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); cursor: pointer; font-family: inherit; transition: all .1s; }
   .map-filter button.active { background: var(--accent-muted); color: var(--accent-2); border-color: rgba(94,106,210,.3); }
+
+  @media (max-width: 600px) {
+    #map { height: calc(100vh - 60px); }
+    .map-filter { top: 10px; right: 10px; gap: 4px; }
+    .map-legend { bottom: 72px; }
+  }
+
+  .map-sheet {
+    display: none;
+    position: fixed;
+    bottom: 60px; left: 0; right: 0;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    z-index: 9999;
+    transform: translateY(110%);
+    transition: transform .28s cubic-bezier(.32,.72,0,1);
+    box-shadow: 0 -12px 40px rgba(0,0,0,.6);
+  }
+  .map-sheet.open { transform: translateY(0); }
+  .map-sheet-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 12px auto;
+    cursor: pointer;
+  }
+  .map-sheet-body { padding: 0 20px 24px; }
+  .map-sheet-overlay {
+    display: none;
+    position: fixed;
+    inset: 0; z-index: 9998;
+    background: rgba(0,0,0,.4);
+  }
+  .map-sheet-overlay.open { display: block; }
+  @media (max-width: 600px) { .map-sheet { display: block; } }
 </style>
 {% endblock %}
 
@@ -65,6 +102,12 @@
     <div class="leg-row"><div class="leg-dot" style="background:#E5534B;"></div> Risiko Tinggi</div>
     <div class="leg-row"><div class="leg-dot" style="background:#5A5A6A;"></div> Dormant</div>
   </div>
+
+  <div id="map-sheet-overlay" class="map-sheet-overlay" onclick="closeSheet()"></div>
+  <div id="map-sheet" class="map-sheet">
+    <div class="map-sheet-handle" onclick="closeSheet()"></div>
+    <div id="map-sheet-body" class="map-sheet-body"></div>
+  </div>
 </div>
 {% endblock %}
 
@@ -73,6 +116,18 @@
 <script>
 var map = L.map('map', { zoomControl: false }).setView([-2.5, 118], 5);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+map.on('click', function() { if (window.innerWidth <= 600) closeSheet(); });
+
+function isMobile() { return window.innerWidth <= 600; }
+function openSheet(html) {
+  document.getElementById('map-sheet-body').innerHTML = html;
+  document.getElementById('map-sheet').classList.add('open');
+  document.getElementById('map-sheet-overlay').classList.add('open');
+}
+window.closeSheet = function() {
+  document.getElementById('map-sheet').classList.remove('open');
+  document.getElementById('map-sheet-overlay').classList.remove('open');
+};
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
   attribution: '© OpenStreetMap © CartoDB',
@@ -106,15 +161,19 @@ function renderMarkers(clients) {
   clients.forEach(function(c) {
     var m = L.marker([c.lat, c.lng], { icon: makeIcon(c.risk, c.score) });
     var waBtn = c.wa ? '<a href="https://wa.me/' + c.wa + '" target="_blank" class="pop-btn pop-btn-wa">WhatsApp</a>' : '';
-    m.bindPopup(
+    var popHtml =
       '<div class="pop-name">' + c.name + '</div>' +
       '<div class="pop-city">' + (c.city || '') + (c.province ? ', ' + c.province : '') + '</div>' +
       '<div class="pop-row"><span class="pop-label">Outstanding</span><span class="pop-val ' + (c.outstanding > 0 ? 'red' : 'green') + '">' + fmtNum(c.outstanding) + '</span></div>' +
       '<div class="pop-row"><span class="pop-label">Total Tagihan</span><span class="pop-val">' + fmtNum(c.total_billed) + '</span></div>' +
       '<div class="pop-row"><span class="pop-label">Score</span><span class="pop-val">' + c.score + '/100</span></div>' +
       (c.pic ? '<div class="pop-row"><span class="pop-label">PIC</span><span class="pop-val">' + c.pic + '</span></div>' : '') +
-      '<div class="pop-actions"><a href="' + c.url + '" class="pop-btn pop-btn-detail">Detail →</a>' + waBtn + '</div>'
-    );
+      '<div class="pop-actions"><a href="' + c.url + '" class="pop-btn pop-btn-detail">Detail →</a>' + waBtn + '</div>';
+    if (isMobile()) {
+      m.on('click', function(e) { L.DomEvent.stopPropagation(e); openSheet(popHtml); });
+    } else {
+      m.bindPopup(popHtml);
+    }
     m.addTo(map);
     markers.push(m);
   });

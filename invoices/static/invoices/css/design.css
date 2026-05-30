@@ -652,7 +652,7 @@ tbody tr:hover td { background: var(--surface-2); }
   padding: 56px 20px;
   color: var(--text-2);
 }
-.empty svg { opacity: .55; }
+.empty svg { opacity: .7; color: var(--text-2) !important; }
 .empty-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
 .empty-sub { font-size: 13px; color: var(--text-2); }
 
