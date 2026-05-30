@@ -101,7 +101,7 @@ def _render_invoice_pdf(invoice):
         "customer_name": invoice.customer_name,
         "issued_date": datetime.combine(invoice.issued_date, datetime.min.time()) if invoice.issued_date else None,
         "due_date": datetime.combine(invoice.due_date, datetime.min.time()) if invoice.due_date else None,
-        "invoice_number": invoice.invoice_number,
+        "invoice_number": ('#' + invoice.invoice_number.split('-', 1)[1]) if invoice.company == 'ijabah' and '-' in invoice.invoice_number else invoice.invoice_number,
         "reservations": reservations,
         "payments": payments_ctx,
         "total_reservation_sar": format_currency(total_sar),
