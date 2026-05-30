@@ -5,7 +5,8 @@
 
 {% block extra_css %}
 <style>
-  body { display: flex; flex-direction: column; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
   .center-wrap {
     flex: 1;
     display: flex;
@@ -15,6 +16,7 @@
     padding: 20px;
     padding-bottom: 80px;
     gap: 16px;
+    overflow: hidden;
   }
   .panel-label {
     position: absolute;
@@ -44,9 +46,10 @@
   /* Tile sendirian di baris terakhir → di tengah */
   .doc-tile:last-child:nth-child(3n+1) { grid-column: 2; }
   @media (max-width: 600px) {
-    .center-wrap { padding: 20px 72px; }
-    .doc-grid { grid-template-columns: repeat(2, 1fr); max-width: 100%; }
-    .doc-tile { padding: 20px 10px; }
+    html, body { overflow: hidden; }
+    .center-wrap { padding: 8px 72px 100px; gap: 12px; }
+    .doc-grid { grid-template-columns: repeat(2, 1fr); max-width: 100%; gap: 8px; }
+    .doc-tile { padding: 16px 8px; gap: 8px; }
     .doc-tile:last-child:nth-child(3n+1) { grid-column: unset; }
     .doc-tile:last-child:nth-child(odd) { grid-column: 1 / span 2; justify-self: center; width: calc(50% - 5px); }
   }
