@@ -12,14 +12,14 @@ let paymentCount = 1;
 function updatePaymentReservationDropdowns() {
     const reservationInputs = document.querySelectorAll('input[name="reservation_number"]');
     let resOptions = '<option value="">Res#</option>';
-    
+
     reservationInputs.forEach(input => {
         if (input.value && input.value.trim()) {
             const val = input.value.trim();
             resOptions += `<option value="${val}">${val}</option>`;
         }
     });
-    
+
     const paymentSelects = document.querySelectorAll('select[name="payment_reservation_no"]');
     paymentSelects.forEach(select => {
         const currentValue = select.value;
@@ -62,7 +62,7 @@ function recalculate() {
     // Calculate total payments (convert to SAR)
     const payments = Array.from(document.querySelectorAll('.payment-item'));
     let totalPaidSar = 0;
-    
+
     payments.forEach(p => {
         const amtEl = p.querySelector('input[name="payment_amount"]');
         const curEl = p.querySelector('select[name="payment_currency"]');
@@ -87,18 +87,12 @@ function recalculate() {
     // Update UI
     document.getElementById('total-reservations').textContent = formatNumber(totalRes) + ' SAR';
     document.getElementById('total-payments').textContent = formatNumber(Math.round(totalPaidSar)) + ' SAR';
-    
+
     const remainingEl = document.getElementById('remaining-balance');
     remainingEl.textContent = formatNumber(Math.round(remaining)) + ' SAR';
-    
+
     // Color code remaining balance
-    if (remaining === 0) {
-        remainingEl.style.color = '#16a34a'; // green - paid
-    } else if (remaining < 0) {
-        remainingEl.style.color = '#dc2626'; // red - overpaid
-    } else {
-        remainingEl.style.color = '#1a1a1a'; // black - unpaid
-    }
+    remainingEl.className = 'val' + (remaining === 0 ? ' green' : remaining < 0 ? ' red' : '');
 }
 
 /**
@@ -110,15 +104,15 @@ function addReservation() {
     const div = document.createElement('div');
     div.className = 'item';
     div.innerHTML = `
-        <input class="compact-res-no" aria-label="Reservation Number" type="text" name="reservation_number" placeholder="0001" required maxlength="6" minlength="4" pattern="[0-9]{4,6}" inputmode="numeric" title="4-6 digit reservation number" oninput="updatePaymentReservationDropdowns()">
+        <input class="compact-res-no" aria-label="Reservation Number" type="text" name="reservation_number" placeholder="0001" required inputmode="numeric" oninput="updatePaymentReservationDropdowns()">
         <input class="compact-hotel" aria-label="Hotel Name" type="text" name="hotel" placeholder="Hotel Name">
         <input aria-label="Check In" type="date" name="check_in" placeholder="Check In">
         <input aria-label="Check Out" type="date" name="check_out" placeholder="Check Out">
         <input aria-label="Reservation Total" type="number" name="reservation_total" placeholder="Total SAR" step="0.01" required oninput="recalculate()">
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); recalculate(); updatePaymentReservationDropdowns();" aria-label="Remove reservation">×</button>
+        <button type="button" class="remove-btn" onclick="this.closest('.item').remove(); recalculate(); updatePaymentReservationDropdowns();" aria-label="Remove reservation">×</button>
     `;
     container.appendChild(div);
-    
+
     // Focus first input for convenience
     const first = div.querySelector('input[name="reservation_number"]');
     if (first) first.focus();
@@ -146,11 +140,11 @@ function addPayment() {
         </select>
         <input aria-label="Exchange Rate" type="number" step="0.0001" name="payment_exchange" placeholder="Rate" value="1" readonly oninput="recalculate()">
         <textarea aria-label="Payment Note" name="payment_note" placeholder="Note (optional)"></textarea>
-        <button type="button" class="remove-btn" onclick="this.parentElement.remove(); recalculate();" aria-label="Remove payment">×</button>
+        <button type="button" class="remove-btn" onclick="this.closest('.payment-item').remove(); recalculate();" aria-label="Remove payment">×</button>
     `;
     container.appendChild(div);
     updatePaymentReservationDropdowns();
-    
+
     // Focus first input for convenience
     const first = div.querySelector('input[name="payment_date"]');
     if (first) first.focus();
@@ -162,7 +156,7 @@ function addPayment() {
 function toggleExchange(sel) {
     const exchange = sel.parentNode.querySelector('input[name="payment_exchange"]');
     if (!exchange) return;
-    
+
     if (sel.value === 'SAR') {
         exchange.readOnly = true;
         exchange.value = '1';
@@ -173,6 +167,7 @@ function toggleExchange(sel) {
         }
     }
 }
+
 
 /**
  * Initialize on page load

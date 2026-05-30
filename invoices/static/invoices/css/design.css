@@ -650,10 +650,11 @@ tbody tr:hover td { background: var(--surface-2); }
 .empty {
   text-align: center;
   padding: 56px 20px;
-  color: var(--text-3);
+  color: var(--text-2);
 }
-.empty-title { font-size: 14px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
-.empty-sub { font-size: 13px; }
+.empty svg { opacity: .55; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+.empty-sub { font-size: 13px; color: var(--text-2); }
 
 /* ── Divider ── */
 .divider { height: 1px; background: var(--border); margin: 20px 0; }
