@@ -1,4 +1,5 @@
 from functools import wraps
+from urllib.parse import urlparse
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -6,6 +7,8 @@ from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+
+from ..models import ActivityLog, UserProfile
 
 
 class CompanyLoginView(LoginView):
@@ -35,6 +38,18 @@ def superuser_required(view_func):
     return wrapper
 
 
+def _safe_redirect(request):
+    """Return a same-host redirect target from HTTP_REFERER, falling back to '/'."""
+    referer = request.META.get('HTTP_REFERER', '/')
+    try:
+        parsed = urlparse(referer)
+        if parsed.netloc and parsed.netloc != request.get_host():
+            return '/'
+        return parsed.path + (f'?{parsed.query}' if parsed.query else '')
+    except Exception:
+        return '/'
+
+
 @superuser_required
 def user_list(request):
     users = User.objects.all().order_by('username')
@@ -46,7 +61,7 @@ def user_new(request):
     if request.method == 'POST':
         username = request.POST.get('username', '').strip()
         password = request.POST.get('password', '')
-        confirm = request.POST.get('password_confirm', '')
+        confirm  = request.POST.get('password_confirm', '')
         is_staff = request.POST.get('is_staff') == 'on'
 
         if not username or not password:
@@ -75,7 +90,7 @@ def user_edit(request, pk):
 
         if action == 'reset_password':
             password = request.POST.get('password', '')
-            confirm = request.POST.get('password_confirm', '')
+            confirm  = request.POST.get('password_confirm', '')
             if not password:
                 messages.error(request, "Password baru wajib diisi.")
             elif password != confirm:
@@ -105,41 +120,6 @@ def user_edit(request, pk):
     return render(request, 'invoices/users/user_form.html', {'edit_user': edit_user, 'edit': True})
 
 
-
-@login_required
-def account_profile(request):
-    from ..models import UserProfile, ActivityLog
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    activities = ActivityLog.objects.filter(user=request.user)[:20]
-    return render(request, 'invoices/account/profile.html', {'profile': profile, 'activities': activities})
-
-
-@login_required
-@require_POST
-def avatar_upload(request):
-    from ..models import UserProfile
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    f = request.FILES.get('avatar')
-    if f:
-        if profile.avatar:
-            profile.avatar.delete(save=False)
-        profile.avatar = f
-        profile.save()
-    return redirect(request.META.get('HTTP_REFERER', '/'))
-
-
-@login_required
-@require_POST
-def avatar_delete(request):
-    from ..models import UserProfile
-    profile = UserProfile.objects.filter(user=request.user).first()
-    if profile and profile.avatar:
-        profile.avatar.delete(save=False)
-        profile.avatar = None
-        profile.save()
-    return redirect(request.META.get('HTTP_REFERER', '/'))
-
-
 @superuser_required
 def user_delete(request, pk):
     target = get_object_or_404(User, pk=pk)
@@ -154,4 +134,37 @@ def user_delete(request, pk):
         target.delete()
         messages.success(request, f"User '{username}' berhasil dihapus.")
         return redirect('user_list')
-    return redirect('user_list')
+    return render(request, 'invoices/partials/confirm_delete.html', {
+        'object': target, 'type': 'User',
+    })
+
+
+@login_required
+def account_profile(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    activities  = ActivityLog.objects.filter(user=request.user)[:20]
+    return render(request, 'invoices/account/profile.html', {'profile': profile, 'activities': activities})
+
+
+@login_required
+@require_POST
+def avatar_upload(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    f = request.FILES.get('avatar')
+    if f:
+        if profile.avatar:
+            profile.avatar.delete(save=False)
+        profile.avatar = f
+        profile.save()
+    return redirect(_safe_redirect(request))
+
+
+@login_required
+@require_POST
+def avatar_delete(request):
+    profile = UserProfile.objects.filter(user=request.user).first()
+    if profile and profile.avatar:
+        profile.avatar.delete(save=False)
+        profile.avatar = None
+        profile.save()
+    return redirect(_safe_redirect(request))

@@ -94,6 +94,8 @@
     transition: transform .15s cubic-bezier(.34,1.56,.64,1), color .15s;
   }
   .tile-icon svg { width: 22px; height: 22px; }
+  [data-theme="light"] .panel-label { color: var(--text-2); }
+  [data-theme="light"] .tile-name { color: var(--text-2); }
   .doc-tile.cl:hover  .icon-cl  { color: var(--accent-2); }
   .doc-tile.inv:hover .icon-inv { color: var(--purple); }
   .doc-tile.svc:hover .icon-svc { color: var(--green); }
@@ -278,6 +280,26 @@
   .chat-send:hover { opacity: .85; }
   .chat-send:disabled { opacity: .4; cursor: not-allowed; }
   .chat-send svg { width: 14px; height: 14px; }
+  .bubble-ai .ai-ul { margin: 4px 0 2px 4px; padding-left: 14px; display: flex; flex-direction: column; gap: 3px; }
+  .bubble-ai .ai-ul li { font-size: 13px; line-height: 1.5; }
+  .bubble-ai strong { font-weight: 600; color: var(--text); }
+  .ai-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 3px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .ai-card-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ai-card-num { font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700; color: var(--text); }
+  .ai-card-badge { font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 9999px; flex-shrink: 0; }
+  .ai-badge-green { background: var(--green-muted); color: var(--green); }
+  .ai-badge-red   { background: var(--red-muted);   color: var(--red);   }
+  .ai-card-name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .ai-card-meta { font-size: 11px; color: var(--text-2); }
 </style>
 {% endblock %}
 
@@ -323,7 +345,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/>
           </svg>
         </div>
-        <span class="tile-name">Clients</span>
+        <span class="tile-name">Klien</span>
       </a>
       <a href="{% url 'hotel_list' %}" class="doc-tile htl">
         <div class="tile-icon icon-htl">
@@ -331,7 +353,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M12 3.75h.008v.008H12V3.75z"/>
           </svg>
         </div>
-        <span class="tile-name">Hotels</span>
+        <span class="tile-name">Hotel</span>
       </a>
       {% if user.is_superuser %}
       <a href="{% url 'user_list' %}" class="doc-tile usr">
@@ -340,7 +362,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
           </svg>
         </div>
-        <span class="tile-name">Kelola<br>User</span>
+        <span class="tile-name">Kelola<br>Pengguna</span>
       </a>
       {% endif %}
   </div>
@@ -401,10 +423,49 @@
   closeBtn.addEventListener('click', closePanel);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
+  function formatAI(text) {
+    function esc(s) {
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+    function bold(s) { return s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>'); }
+    function makeCard(raw) {
+      const p = raw.split('|').map(s => s.trim());
+      const [nomor='',nama='',total='',sisa='',status=''] = p;
+      const lunas = /^lunas$/i.test(status);
+      return '<div class="ai-card">' +
+        '<div class="ai-card-head">' +
+          '<span class="ai-card-num">' + esc(nomor) + '</span>' +
+          '<span class="ai-card-badge ' + (lunas ? 'ai-badge-green' : 'ai-badge-red') + '">' + esc(status) + '</span>' +
+        '</div>' +
+        '<div class="ai-card-name">' + esc(nama) + '</div>' +
+        '<div class="ai-card-meta">' + esc(total) + ' &middot; Sisa ' + esc(sisa) + '</div>' +
+      '</div>';
+    }
+    const lines = text.split('\n');
+    let html = '', inList = false;
+    for (const line of lines) {
+      const cardMatch = line.match(/\[inv:\s*([^\]]+)\]/);
+      if (cardMatch) {
+        if (inList) { html += '</ul>'; inList = false; }
+        html += makeCard(cardMatch[1]);
+      } else if (/^[-•]\s+/.test(line)) {
+        if (!inList) { html += '<ul class="ai-ul">'; inList = true; }
+        html += '<li>' + bold(esc(line.replace(/^[-•]\s+/,''))) + '</li>';
+      } else {
+        if (inList) { html += '</ul>'; inList = false; }
+        const e = bold(esc(line));
+        html += e ? '<span>' + e + '</span><br>' : '<br>';
+      }
+    }
+    if (inList) html += '</ul>';
+    return html;
+  }
+
   function addBubble(text, type) {
     const el = document.createElement('div');
     el.className = 'chat-bubble bubble-' + type;
-    el.textContent = text;
+    if (type === 'ai') el.innerHTML = formatAI(text);
+    else el.textContent = text;
     messages.appendChild(el);
     messages.scrollTop = messages.scrollHeight;
     return el;

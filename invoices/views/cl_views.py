@@ -9,8 +9,10 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..models import ConfirmationLetter, Hotel, Invoice, Reservation, Room
+from ..ai import generate_cl_summary
+from ..models import ActivityLog, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
 from .helpers import _paginated_list, _parse_date, _render_list_pdf
+from .pdf import _logo_file_url, _render_cl_pdf
 
 
 @login_required
@@ -56,10 +58,7 @@ def cl_new(request):
             note=request.POST.get("note", ""),
         )
         _save_cl_rooms(cl, request)
-
-        from ..ai import generate_cl_summary
         generate_cl_summary(cl)
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number, cl.company)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
         return redirect("cl_detail", pk=cl.pk)
@@ -94,12 +93,8 @@ def cl_edit(request, pk):
             hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
             return render(request, "invoices/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
 
-        from ..models import log_activity, ActivityLog
-
         def _room_snapshot(rooms_qs):
-            rows = []
-            for r in rooms_qs.order_by('id'):
-                rows.append(f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}")
+            rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
             return ' | '.join(rows) if rows else '—'
 
         _before = {
@@ -126,8 +121,6 @@ def cl_edit(request, pk):
 
         cl.rooms.all().delete()
         _save_cl_rooms(cl, request)
-
-        from ..ai import generate_cl_summary
         generate_cl_summary(cl)
 
         _after = {
@@ -155,7 +148,6 @@ def cl_delete(request, pk):
     if request.method == "POST":
         num = cl.confirmation_number
         cl.delete()
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num, cl.company)
         messages.success(request, f"Confirmation Letter {num} berhasil dihapus.")
         return redirect("cl_list")
@@ -164,7 +156,6 @@ def cl_delete(request, pk):
 
 @login_required
 def cl_pdf(request, pk):
-    from .pdf import _render_cl_pdf
     cl = get_object_or_404(ConfirmationLetter, pk=pk)
     return _render_cl_pdf(cl)
 
@@ -180,7 +171,6 @@ def cl_list_pdf(request):
             Q(hotel_name__icontains=q) |
             Q(confirmation_number__icontains=q)
         )
-    from .pdf import _logo_file_url
     letters = list(qs)
     total_rooms  = sum(cl.total_rooms for cl in letters)
     total_nights = sum(cl.num_nights for cl in letters)
@@ -269,7 +259,6 @@ def invoice_from_cls(request):
         messages.error(request, "CL tidak ditemukan.")
         return redirect("cl_list")
 
-    # Use company + guest_name from first CL as defaults
     first_cl = cls.order_by('created_at').first()
     invoice = Invoice.objects.create(
         company=first_cl.company,

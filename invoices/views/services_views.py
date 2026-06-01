@@ -7,7 +7,8 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from ..models import Invoice, ServiceItem
+from ..ai import generate_services_summary
+from ..models import ActivityLog, Invoice, ServiceItem, log_activity
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_service_payments
 from .pdf import _render_services_pdf
@@ -40,9 +41,7 @@ def services_new(request):
         )
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
-        from ..ai import generate_services_summary
         generate_services_summary(invoice)
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil dibuat.")
         return redirect("services_detail", pk=invoice.pk)
@@ -71,7 +70,6 @@ def services_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
 
     if request.method == "POST":
-        from ..models import log_activity, ActivityLog
         _before = {
             'Nama Customer': invoice.customer_name,
             'No. Invoice':   invoice.invoice_number,
@@ -92,7 +90,6 @@ def services_edit(request, pk):
         invoice.payments.all().delete()
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
-        from ..ai import generate_services_summary
         generate_services_summary(invoice)
         _after = {
             'Nama Customer': invoice.customer_name,
@@ -116,7 +113,6 @@ def services_delete(request, pk):
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
         messages.success(request, f"Invoice Services {num} berhasil dihapus.")
         return redirect("services_list")

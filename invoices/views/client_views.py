@@ -5,9 +5,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from ..models import Client, Invoice, ConfirmationLetter
+from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, log_activity
 
 
 def _company(request):
@@ -29,7 +30,10 @@ def client_list(request):
     elif status == 'inactive':
         qs = qs.filter(is_active=False)
 
-    clients = list(qs.order_by('name'))
+    clients = list(
+        qs.order_by('name')
+        .prefetch_related('invoices__payments', 'invoices__reservations', 'cls')
+    )
     return render(request, 'invoices/client/client_list.html', {
         'clients': clients, 'q': q, 'status': status,
     })
@@ -41,7 +45,6 @@ def client_new(request):
     if request.method == 'POST':
         c = Client(company=company or 'konoz')
         _save_client(c, request.POST)
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
         messages.success(request, f'Client "{c.name}" berhasil ditambahkan.')
         return redirect('client_detail', pk=c.pk)
@@ -52,7 +55,6 @@ def client_new(request):
 def client_edit(request, pk):
     c = get_object_or_404(Client, pk=pk)
     if request.method == 'POST':
-        from ..models import log_activity, ActivityLog
         _before = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
         _after  = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
@@ -69,7 +71,6 @@ def client_delete(request, pk):
     c = get_object_or_404(Client, pk=pk)
     name = c.name
     c.delete()
-    from ..models import log_activity, ActivityLog
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
     messages.success(request, f'Client "{name}" dihapus.')
     return redirect('client_list')
@@ -77,7 +78,10 @@ def client_delete(request, pk):
 
 @login_required
 def client_detail(request, pk):
-    c = get_object_or_404(Client, pk=pk)
+    c = get_object_or_404(
+        Client.objects.prefetch_related('invoices', 'cls'),
+        pk=pk,
+    )
     invoices = c.invoices.order_by('-created_at')
     cls = c.cls.order_by('-created_at')
     return render(request, 'invoices/client/client_detail.html', {
@@ -98,12 +102,15 @@ def client_map(request):
 @login_required
 def client_map_data(request):
     company = _company(request)
-    qs = Client.objects.filter(company=company) if company else Client.objects.all()
+    qs = (
+        Client.objects
+        .filter(company=company) if company else Client.objects.all()
+    )
     qs = qs.filter(lat__isnull=False, lng__isnull=False)
+    qs = qs.prefetch_related('invoices__payments', 'invoices__reservations')
 
-    data = []
-    for c in qs:
-        data.append({
+    data = [
+        {
             'id': c.pk,
             'name': c.name,
             'city': c.city,
@@ -114,10 +121,12 @@ def client_map_data(request):
             'total_billed': c.total_billed,
             'score': c.score,
             'risk': c.risk_label,
-            'url': f'/clients/{c.pk}/',
+            'url': reverse('client_detail', args=[c.pk]),
             'wa': c.wa,
             'pic': c.pic,
-        })
+        }
+        for c in qs
+    ]
     return JsonResponse({'clients': data})
 
 

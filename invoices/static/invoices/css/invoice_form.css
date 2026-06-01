@@ -93,6 +93,8 @@
   cursor: pointer;
   flex-shrink: 0;
   transition: background .12s, color .12s;
+  position: relative;
+  overflow: hidden;
 }
 .proof-btn:hover { background: var(--accent-muted); color: var(--accent-2); }
 .proof-fname {

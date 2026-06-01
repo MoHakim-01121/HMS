@@ -12,13 +12,19 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+
+import dj_database_url
 from dotenv import load_dotenv
-from .env_config import get_env_variable, get_bool_env, get_list_env
+
+from .env_config import get_bool_env, get_env_variable, get_list_env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
+
+# Ensure logs directory exists so the file handler doesn't crash on startup
+(BASE_DIR / 'logs').mkdir(exist_ok=True)
 
 
 # Quick-start development settings - unsuitable for production
@@ -26,7 +32,13 @@ load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Generate new key: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
-SECRET_KEY = get_env_variable('SECRET_KEY', 'default-secret-key')  
+_secret = get_env_variable('SECRET_KEY')
+if not _secret:
+    raise RuntimeError(
+        "SECRET_KEY is not set. Add it to your .env file. "
+        "Generate one with: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
+SECRET_KEY = _secret
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = get_bool_env('DEBUG', True)  # Default True for development
@@ -39,6 +51,7 @@ CSRF_TRUSTED_ORIGINS = get_list_env('CSRF_TRUSTED_ORIGINS', [])
 # Application definition
 
 INSTALLED_APPS = [
+    'django.contrib.admin',
     'django.contrib.staticfiles',
     'django.contrib.contenttypes',
     'django.contrib.auth',
@@ -85,8 +98,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database
-import dj_database_url
-
 DATABASE_URL = get_env_variable('DATABASE_URL')
 if DATABASE_URL:
     DATABASES = {
@@ -125,7 +136,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Jakarta'
 
 USE_I18N = True
 
@@ -186,7 +197,6 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Strict'
 SESSION_COOKIE_AGE = 3600  # 1 hour
-SESSION_SAVE_EVERY_REQUEST = True
 
 # Password Security - Already configured above in AUTH_PASSWORD_VALIDATORS
 
@@ -213,7 +223,7 @@ LOGGING = {
         'file': {
             'level': 'WARNING',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': str(BASE_DIR / 'logs' / 'django.log'),
             'formatter': 'verbose',
         },
         'console': {

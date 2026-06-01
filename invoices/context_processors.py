@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 
+from django.urls import reverse
+
 from .models import Invoice
 
 
@@ -9,7 +11,11 @@ def due_soon(request):
     active_company = request.session.get("active_company")
     today = date.today()
     threshold = today + timedelta(days=7)
-    qs = Invoice.objects.filter(due_date__lte=threshold, due_date__gte=today)
+    qs = (
+        Invoice.objects
+        .filter(due_date__lte=threshold, due_date__gte=today)
+        .prefetch_related('reservations', 'payments')
+    )
     if active_company:
         qs = qs.filter(company=active_company)
 
@@ -30,7 +36,7 @@ def due_soon(request):
             "remaining": inv.remaining_sar,
             "days": days,
             "label": label,
-            "url": f"/invoice/{inv.pk}/",
+            "url": reverse("invoice_detail", args=[inv.pk]),
         })
 
     return {

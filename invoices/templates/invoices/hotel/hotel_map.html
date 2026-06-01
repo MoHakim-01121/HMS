@@ -10,305 +10,393 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-  #map { height: calc(100vh - 48px); width: 100%; }
+  /* ── Layout utama ── */
+  #map-wrap { position: relative; height: calc(100vh - 48px); overflow: hidden; }
+  #map { position: absolute; inset: 0; isolation: isolate; }
+
+  /* ── Panel kanan — overlay di atas map ── */
+  .hotel-panel {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    width: 300px;
+    background: rgba(10,10,14,.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-left: 1px solid rgba(255,255,255,.07);
+    display: flex; flex-direction: column;
+    overflow: visible;
+    z-index: var(--z-dropdown);
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  .hotel-panel.collapsed { transform: translateX(300px); }
+  .hotel-panel-inner { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  /* Tab toggle di tepi kiri panel */
+  .panel-toggle {
+    position: absolute; left: -26px; top: 50%; transform: translateY(-50%);
+    width: 26px; height: 52px;
+    background: rgba(10,10,14,.88); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,.07); border-right: none;
+    border-radius: 8px 0 0 8px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,.4); transition: color .15s;
+    z-index: 1;
+  }
+  .panel-toggle:hover { color: rgba(255,255,255,.9); }
+  .panel-toggle svg { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+  .hotel-panel.collapsed .panel-toggle svg { transform: rotate(180deg); }
+
+  /* Header panel */
+  .hp-header {
+    padding: 14px 14px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    flex-shrink: 0;
+  }
+  .hp-search-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 8px; padding: 0 12px; height: 36px; margin-bottom: 10px;
+  }
+  .hp-search-wrap svg { color: rgba(255,255,255,.35); flex-shrink: 0; }
+  .hp-search-wrap input {
+    background: transparent; border: none; outline: none;
+    color: #EDEDEF; font-size: 13px; font-family: inherit; width: 100%;
+  }
+  .hp-search-wrap input::placeholder { color: rgba(255,255,255,.25); }
+
+  .hp-meta { display: flex; align-items: center; justify-content: space-between; }
+  .hp-count {
+    font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; color: rgba(255,255,255,.3); text-transform: uppercase;
+  }
+  .hp-filter-btn {
+    display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 6px;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09);
+    color: rgba(255,255,255,.55); font-size: 11px; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all .15s;
+  }
+  .hp-filter-btn:hover { background: rgba(255,255,255,.09); color: rgba(255,255,255,.8); }
+  .hp-filter-btn.has-filter { color: #D4A017; border-color: rgba(212,160,23,.35); background: rgba(212,160,23,.08); }
+
+  /* Filter accordion (di dalam panel) */
+  .filter-dropdown {
+    background: #0E0E11;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    max-height: 0; overflow: hidden;
+    transition: max-height .28s ease;
+    flex-shrink: 0;
+  }
+  .filter-dropdown.open { max-height: 420px; }
+  .fp-section { padding: 10px 14px 2px; }
+  .fp-section-title {
+    font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    font-family: 'Courier New', monospace; color: rgba(255,255,255,.25); margin-bottom: 6px;
+  }
+  .fp-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
+  .fp-radio, .fp-check {
+    display: flex; align-items: center; gap: 9px; padding: 6px 14px;
+    cursor: pointer; font-size: 13px; color: rgba(255,255,255,.5); transition: background .1s;
+  }
+  .fp-radio:hover, .fp-check:hover { background: rgba(255,255,255,.04); color: rgba(255,255,255,.85); }
+  .fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: #D4A017; width: 14px; height: 14px; cursor: pointer; }
+  .fp-radio.active { color: rgba(255,255,255,.9); font-weight: 600; }
+  .fp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; }
+  .fp-toggle-label { font-size: 13px; color: rgba(255,255,255,.5); }
+  .fp-toggle-switch { width: 32px; height: 17px; border-radius: 9px; background: rgba(255,255,255,.12); position: relative; transition: background .15s; flex-shrink: 0; }
+  .fp-toggle-switch.on { background: #D4A017; }
+  .fp-toggle-switch::after { content:''; position:absolute; width:11px; height:11px; border-radius:50%; background:#fff; top:3px; left:3px; transition:left .15s; }
+  .fp-toggle-switch.on::after { left: 18px; }
+  .fp-reset-wrap { padding: 10px 14px 12px; }
+  .fp-reset {
+    width: 100%; padding: 7px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,.08); background: transparent;
+    color: rgba(255,255,255,.3); font-size: 11px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase; font-family: 'Courier New', monospace; cursor: pointer;
+    transition: all .15s;
+  }
+  .fp-reset:hover { border-color: rgba(255,255,255,.2); color: rgba(255,255,255,.6); }
+
+  /* Hotel card list */
+  .hp-list { flex: 1; overflow-y: auto; min-height: 0; }
+  .hp-list::-webkit-scrollbar { width: 3px; }
+  .hp-list::-webkit-scrollbar-track { background: transparent; }
+  .hp-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+
+  /* ── Hotel cards ── */
+  .hp-card {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255,255,255,.04);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background .12s, border-color .12s;
+  }
+  .hp-card:hover { background: rgba(255,255,255,.04); }
+  .hp-card.active { background: rgba(212,160,23,.07); border-left-color: #D4A017; }
+
+  /* Baris utama: dot + nama + jarak */
+  .hp-card-top { display: flex; align-items: center; gap: 9px; }
+  .hp-dot {
+    width: 8px; height: 8px; border-radius: 1px;
+    transform: rotate(45deg); flex-shrink: 0;
+    transition: box-shadow .15s;
+  }
+  .hp-card:hover .hp-dot, .hp-card.active .hp-dot { box-shadow: 0 0 6px currentColor; }
+  .hp-card-name {
+    font-size: 13px; font-weight: 600; color: #EDEDEF; line-height: 1.3;
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .hp-card-dist {
+    font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700;
+    flex-shrink: 0; letter-spacing: .3px;
+  }
+  .hp-card-dist.green  { color: #26C281; }
+  .hp-card-dist.yellow { color: #F0A429; }
+  .hp-card-dist.red    { color: #E5534B; }
+  .hp-card-dist.dim    { color: rgba(255,255,255,.25); }
+
+  /* Baris sub: bintang + area */
+  .hp-card-sub {
+    font-size: 10px; color: rgba(255,255,255,.28);
+    padding-left: 17px; margin-top: 2px; letter-spacing: .4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Detail expand (smooth) */
+  .hp-card-details {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height .24s cubic-bezier(.4,0,.2,1), opacity .2s;
+  }
+  .hp-card.active .hp-card-details {
+    max-height: 120px; opacity: 1; margin-top: 10px;
+  }
+  .hp-detail-divider {
+    height: 1px; background: rgba(255,255,255,.07);
+    margin-bottom: 10px; margin-left: 17px;
+  }
+  .hp-detail-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px; padding-left: 17px; margin-bottom: 10px;
+  }
+  .hp-detail-label {
+    font-size: 8px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    font-family: 'Courier New', monospace; color: rgba(255,255,255,.22); margin-bottom: 3px;
+  }
+  .hp-detail-val {
+    font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: #EDEDEF;
+  }
+  .hp-detail-val.green  { color: #26C281; }
+  .hp-detail-val.yellow { color: #F0A429; }
+  .hp-detail-val.red    { color: #E5534B; }
+  .hp-detail-val.amber  { color: #D4A017; }
+  .hp-detail-link {
+    display: inline-flex; align-items: center; gap: 4px; padding-left: 17px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: #D4A017; text-decoration: none; font-family: 'Courier New', monospace;
+    opacity: .8; transition: opacity .15s;
+  }
+  .hp-detail-link:hover { opacity: 1; }
+
+  /* ── Elemen di atas map (glassmorphism, selalu gelap) ── */
+  .map-legend {
+    position: absolute; top: 12px; right: 12px;
+    z-index: var(--z-overlay);
+    background: rgba(10,10,14,.80); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px; padding: 10px 14px; font-size: 11px; min-width: 140px;
+    color: rgba(255,255,255,.7);
+  }
+  .leg-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; margin-bottom:8px; }
+  .leg-toggle-title { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; font-family:'Courier New',monospace; color:rgba(255,255,255,.35); }
+  .leg-arrow { color:rgba(255,255,255,.35); transition:transform .2s; }
+  .leg-arrow.up { transform:rotate(-180deg); }
+  #leg-body { overflow:hidden; max-height:200px; transition:max-height .25s ease, opacity .2s; opacity:1; }
+  #leg-body.hidden { max-height:0; opacity:0; }
+  .leg-section { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; font-family:'Courier New',monospace; color:rgba(255,255,255,.25); margin-bottom:5px; margin-top:9px; }
+  .leg-section:first-child { margin-top:0; }
+  .leg-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .leg-row:last-child { margin-bottom:0; }
+  .leg-dot { width:7px; height:7px; border-radius:1px; transform:rotate(45deg); flex-shrink:0; }
+
+  /* ── Topbar floating di atas map ── */
+  .map-topbar {
+    position: absolute; top: 12px; left: 12px;
+    z-index: var(--z-overlay);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .filter-btn-wrap { position: relative; }
+  .map-tb-btn {
+    display: flex; align-items: center; gap: 6px;
+    height: 36px; padding: 0 14px;
+    background: rgba(10,10,14,.82); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+    color: rgba(255,255,255,.7); font-size: 11px; font-weight: 700;
+    letter-spacing: .8px; text-transform: uppercase;
+    font-family: 'Courier New', monospace;
+    cursor: pointer; white-space: nowrap;
+    box-shadow: 0 2px 12px rgba(0,0,0,.4);
+    transition: all .15s;
+  }
+  .map-tb-btn:hover { background: rgba(10,10,14,.95); color: #fff; }
+  .map-tb-btn.has-filter { color: #D4A017; border-color: rgba(212,160,23,.4); }
+
+  .map-search-wrap {
+    display: flex; align-items: center; gap: 8px;
+    height: 36px; padding: 0 14px; min-width: 220px;
+    background: rgba(10,10,14,.82); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.4);
+  }
+  .map-search-wrap svg { color: rgba(255,255,255,.4); flex-shrink: 0; }
+  .map-search-wrap input {
+    background: transparent; border: none; outline: none;
+    color: #EDEDEF; font-size: 13px; font-family: inherit; width: 100%;
+  }
+  .map-search-wrap input::placeholder { color: rgba(255,255,255,.25); }
+
+  /* Filter dropdown (muncul di bawah filter button) */
+  .map-filter-dropdown {
+    position: absolute; top: calc(100% + 6px); left: 0;
+    width: 240px;
+    background: rgba(10,10,14,.95); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,.1); border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    z-index: var(--z-overlay);
+    opacity: 0; pointer-events: none;
+    transform: translateY(-6px) scale(.98);
+    transform-origin: top left;
+    transition: opacity .18s, transform .18s;
+    overflow: hidden;
+  }
+  .map-filter-dropdown.open { opacity: 1; pointer-events: all; transform: none; }
+
+  /* Header panel kanan */
+  .hp-header {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    flex-shrink: 0;
+  }
+
+  /* HUD koordinat */
+  .hud-coords {
+    position: absolute; bottom: 20px; left: 12px;
+    z-index: var(--z-overlay);
+    font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: .8px;
+    color: rgba(255,255,255,.55);
+    background: rgba(10,10,14,.75); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 6px; padding: 5px 10px;
+    pointer-events: none; transition: color .2s;
+  }
+  .hud-coords.active { color: #D4A017; border-color: rgba(212,160,23,.3); }
+
+  /* Route tooltip */
+  .route-dist-tip { background:rgba(10,10,14,.9) !important; border:1px solid rgba(255,255,255,.1) !important; color:#EDEDEF !important; font-size:11px !important; font-weight:700 !important; font-family:'Courier New',monospace !important; letter-spacing:.5px !important; padding:4px 9px !important; border-radius:6px !important; white-space:nowrap; pointer-events:none; }
+  .route-dist-tip::before { display:none !important; }
 
   /* Popup */
-  .leaflet-popup-content-wrapper { background:var(--surface-3); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.5); color:var(--text); }
-  .leaflet-popup-tip { background:var(--surface-3); }
-  .leaflet-popup-content { margin:12px 16px; min-width:180px; }
-  .pop-name  { font-size:14px; font-weight:700; color:var(--text); margin-bottom:2px; }
-  .pop-stars { font-size:12px; color:#F0A429; letter-spacing:1px; margin-bottom:6px; }
-  .pop-row   { display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px; }
-  .pop-label { color:var(--text-3); }
-  .pop-val   { font-weight:600; color:var(--text); }
+  .leaflet-popup-content-wrapper { background:rgba(10,10,14,.92); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.1); border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,.6); color:#EDEDEF; }
+  .leaflet-popup-tip { background:rgba(10,10,14,.92); }
+  .leaflet-popup-content { margin:12px 16px; min-width:160px; }
+  .pop-name  { font-size:13px; font-weight:700; color:#EDEDEF; margin-bottom:2px; }
+  .pop-stars { font-size:11px; color:#D4A017; letter-spacing:2px; margin-bottom:6px; }
+  .pop-row   { display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px; }
+  .pop-label { font-family:'Courier New',monospace; font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,.3); }
+  .pop-val   { font-family:'Courier New',monospace; font-weight:700; color:#EDEDEF; }
   .pop-val.green  { color:#26C281; }
   .pop-val.yellow { color:#F0A429; }
   .pop-val.red    { color:#E5534B; }
-  .pop-actions { margin-top:10px; }
-  .pop-btn { display:block; width:100%; padding:6px 8px; border-radius:6px; font-size:12px; font-weight:600; text-align:center; text-decoration:none; background:var(--accent-muted); color:var(--accent-2); }
 
-  /* ── Top bar ── */
-  .map-topbar {
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    z-index: var(--z-overlay); display: flex; align-items: center; gap: 8px;
-  }
-  .map-search-wrap {
-    display: flex; align-items: center; gap: 7px;
-    background: var(--surface-3); border: 1px solid var(--border);
-    border-radius: 10px; padding: 0 14px; height: 40px; min-width: 240px;
-    box-shadow: 0 4px 20px rgba(0,0,0,.4);
-  }
-  .map-search-wrap svg { color: var(--text-3); flex-shrink: 0; }
-  .map-search-wrap input { background: transparent; border: none; outline: none; color: var(--text); font-size: 13px; font-family: inherit; width: 100%; }
-  .map-search-wrap input::placeholder { color: var(--text-3); }
-  .map-filter-btn {
-    display: flex; align-items: center; gap: 6px;
-    height: 40px; padding: 0 14px;
-    background: var(--surface-3); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text-2); font-size: 12px; font-weight: 600;
-    font-family: inherit; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,.4);
-    white-space: nowrap;
-  }
-  .map-filter-btn.has-filter { color: var(--accent-2); border-color: var(--accent-2); background: var(--accent-muted); }
-  .map-counter {
-    height: 40px; padding: 0 12px;
-    display: flex; align-items: center;
-    background: var(--surface-3); border: 1px solid var(--border);
-    border-radius: 10px; font-size: 11px; font-weight: 600; color: var(--text-3);
-    box-shadow: 0 4px 20px rgba(0,0,0,.4); white-space: nowrap;
-  }
+  /* Pulse animation */
+  @keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.6);opacity:0} }
 
-  /* ── Filter sidebar (kiri) ── */
-  .filter-panel {
-    position: absolute; top: 0; left: 0; height: 100%; width: 260px;
-    background: var(--surface-2); border-right: 1px solid var(--border);
-    z-index: var(--z-dropdown); display: flex; flex-direction: column;
-    transform: translateX(-100%); transition: transform .2s ease;
-  }
-  .filter-panel.open { transform: translateX(0); }
-  .fp-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-  }
-  .fp-head-title { font-size: 13px; font-weight: 700; color: var(--text); }
-  .fp-close { background: none; border: none; color: var(--text-3); cursor: pointer; padding: 4px; font-size: 18px; line-height: 1; }
-  .fp-body { flex: 1; overflow-y: auto; padding: 8px 0; }
-  .fp-section { padding: 12px 16px 4px; }
-  .fp-section-title {
-    font-size: 9px; font-weight: 700; letter-spacing: 1.5px;
-    text-transform: uppercase; color: var(--text-3); margin-bottom: 10px;
-  }
-  .fp-divider { height: 1px; background: var(--border); margin: 4px 0; }
-  .fp-radio, .fp-check {
-    display: flex; align-items: center; gap: 9px;
-    padding: 7px 16px; cursor: pointer; font-size: 13px; color: var(--text-2);
-    transition: background .1s; border-radius: 0;
-  }
-  .fp-radio:hover, .fp-check:hover { background: var(--surface-3); color: var(--text); }
-  .fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--accent-2); width: 15px; height: 15px; cursor: pointer; }
-  .fp-radio.active, .fp-check.active { color: var(--text); font-weight: 600; }
-  .fp-toggle-row {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 9px 16px; cursor: pointer;
-  }
-  .fp-toggle-label { font-size: 13px; color: var(--text-2); }
-  .fp-toggle-switch {
-    width: 34px; height: 18px; border-radius: 9px; background: var(--border);
-    position: relative; transition: background .15s; flex-shrink: 0;
-  }
-  .fp-toggle-switch.on { background: var(--accent-2); }
-  .fp-toggle-switch::after {
-    content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%;
-    background: #fff; top: 3px; left: 3px; transition: left .15s;
-  }
-  .fp-toggle-switch.on::after { left: 19px; }
-  .fp-foot {
-    padding: 12px 16px; border-top: 1px solid var(--border); flex-shrink: 0;
-  }
-  .fp-reset { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-3); font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
-  .fp-reset:hover { border-color: var(--text-2); color: var(--text-2); }
-
-  /* ── Hotel list sidebar (kanan) ── */
-  .map-sidebar { position:absolute; top:0; right:0; height:100%; width:280px; background:var(--surface-2); border-left:1px solid var(--border); z-index:var(--z-dropdown); display:flex; flex-direction:column; transform:translateX(100%); transition:transform .2s ease; }
-  .map-sidebar.open { transform:translateX(0); }
-  .sidebar-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
-  .sidebar-head-title { font-size:13px; font-weight:700; color:var(--text); }
-  .sidebar-close { background:none; border:none; color:var(--text-3); cursor:pointer; padding:4px; line-height:1; font-size:16px; }
-  .sidebar-list { overflow-y:auto; flex:1; }
-  .sidebar-item { display:flex; align-items:center; gap:10px; padding:10px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
-  .sidebar-item:hover { background:var(--surface-3); }
-  .sidebar-item.active { background:var(--accent-muted); }
-  .sidebar-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-  .sidebar-name { font-size:12px; font-weight:600; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .sidebar-dist { font-size:11px; font-weight:600; flex-shrink:0; }
-  .sidebar-dist.green  { color:#26C281; }
-  .sidebar-dist.yellow { color:#F0A429; }
-  .sidebar-dist.red    { color:#E5534B; }
-  .sidebar-dist.dim    { color:var(--text-3); }
-  .map-sidebar-btn { position:absolute; bottom:32px; right:16px; z-index:var(--z-overlay); background:var(--surface-3); border:1px solid var(--border); border-radius:8px; padding:8px 14px; font-size:12px; font-weight:600; color:var(--text-2); cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 4px 20px rgba(0,0,0,.4); }
-
-  /* Legend */
-  .map-legend { position:absolute; bottom:32px; left:16px; z-index:var(--z-overlay); background:var(--surface-3); border:1px solid var(--border); border-radius:8px; padding:10px 14px; font-size:11px; min-width:150px; }
-  .leg-section { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; margin-top:8px; }
-  .leg-section:first-child { margin-top:0; }
-  .leg-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; color:var(--text-2); }
-  .leg-row:last-child { margin-bottom:0; }
-  .leg-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-
-  /* Tooltip rute */
-  .route-dist-tip { background:var(--surface-3) !important; border:1px solid var(--border) !important; color:var(--text) !important; font-size:12px !important; font-weight:600 !important; padding:4px 9px !important; border-radius:6px !important; box-shadow:0 4px 14px rgba(0,0,0,.45) !important; white-space:nowrap; pointer-events:none; }
-  .route-dist-tip::before { display:none !important; }
-
+  /* Mobile */
   @media (max-width: 600px) {
-    #map { height: calc(100vh - 60px); }
-    .map-topbar { left: 10px; right: 10px; transform: none; width: auto; }
-    .map-search-wrap { min-width: 0; flex: 1; }
-    .map-counter { display: none; }
-    .map-legend { bottom: 72px; }
-    .map-sidebar-btn { bottom: 72px; }
-    .filter-panel { width: 85%; }
-    .map-sidebar { width: 85%; }
+    #map-wrap { height: calc(100vh - 60px); flex-direction: column; }
+    .hotel-panel { width: 100%; height: 45vh; border-left: none; border-top: 1px solid rgba(255,255,255,.06); }
+    .map-legend { top: 8px; right: 8px; }
+    .hud-coords { bottom: 8px; left: 8px; }
   }
 
-  .map-sheet {
-    display: none;
-    position: fixed;
-    bottom: 60px; left: 0; right: 0;
-    background: var(--surface-3);
-    border: 1px solid var(--border);
-    border-top-left-radius: 20px;
-    border-top-right-radius: 20px;
-    z-index: 9999;
-    transform: translateY(110%);
-    transition: transform .28s cubic-bezier(.32,.72,0,1);
-    box-shadow: 0 -12px 40px rgba(0,0,0,.6);
-  }
-  .map-sheet.open { transform: translateY(0); }
-  .map-sheet-handle {
-    width: 36px; height: 4px;
-    background: var(--border);
-    border-radius: 2px;
-    margin: 12px auto;
-    cursor: pointer;
-  }
-  .map-sheet-body { padding: 0 20px 24px; }
-  .map-sheet-overlay {
-    display: none;
-    position: fixed;
-    inset: 0; z-index: 9998;
-    background: rgba(0,0,0,.4);
-  }
-  .map-sheet-overlay.open { display: block; }
-  @media (max-width: 600px) { .map-sheet { display: block; } }
+  /* Mobile hotel detail sheet */
+  .map-sheet { display:none; position:fixed; bottom:60px; left:0; right:0; background:rgba(10,10,14,.95); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.1); border-top-left-radius:16px; border-top-right-radius:16px; z-index:9999; transform:translateY(110%); transition:transform .28s cubic-bezier(.32,.72,0,1); box-shadow:0 -12px 40px rgba(0,0,0,.6); }
+  .map-sheet.open { transform:translateY(0); }
+  .map-sheet-handle { width:36px; height:4px; background:rgba(255,255,255,.15); border-radius:2px; margin:12px auto; cursor:pointer; }
+  .map-sheet-body { padding:0 20px 24px; color:#EDEDEF; }
+  .map-sheet-overlay { display:none; position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,.5); }
+  .map-sheet-overlay.open { display:block; }
+  @media (max-width:600px) { .map-sheet { display:block; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="position:relative;">
+<div id="map-wrap">
+
   <div id="map"></div>
 
-  <!-- Top bar -->
-  <div class="map-topbar">
-    <button class="map-filter-btn" id="filter-open-btn" onclick="toggleFilterPanel()">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/></svg>
-      Filter
-      <span id="filter-badge" style="display:none;background:var(--accent-2);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;"></span>
+
+    <!-- Topbar floating di atas map -->
+    <div class="map-topbar">
+      <div class="filter-btn-wrap">
+        <button class="map-tb-btn" id="filter-open-btn" onclick="toggleFilter()">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/></svg>
+          Filter
+          <span id="filter-badge" style="display:none;background:#D4A017;color:#000;border-radius:10px;padding:1px 5px;font-size:9px;font-weight:800;"></span>
+        </button>
+
+        <!-- Filter dropdown -->
+        <div id="filter-dropdown" class="map-filter-dropdown">
+          <div class="fp-section"><div class="fp-section-title">Kota</div></div>
+          <label class="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" checked onchange="applyFilters()"> Semua Kota</label>
+          <label class="fp-radio" id="fp-city-makkah"><input type="radio" name="fp-city" value="makkah" onchange="applyFilters()"> Makkah</label>
+          <label class="fp-radio" id="fp-city-madinah"><input type="radio" name="fp-city" value="madinah" onchange="applyFilters()"> Madinah</label>
+          <div class="fp-divider" style="margin:6px 0;"></div>
+          <div class="fp-section"><div class="fp-section-title">Jarak ke Masjid</div></div>
+          <label class="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onchange="applyFilters()"><span style="width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:#26C281;display:inline-block;flex-shrink:0;"></span> ≤ 500 M</label>
+          <label class="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onchange="applyFilters()"><span style="width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:#F0A429;display:inline-block;flex-shrink:0;"></span> 500 M – 1.5 KM</label>
+          <label class="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onchange="applyFilters()"><span style="width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:#E5534B;display:inline-block;flex-shrink:0;"></span> &gt; 1.5 KM</label>
+          <div class="fp-divider" style="margin:6px 0;"></div>
+          <div class="fp-section"><div class="fp-section-title">Bintang</div></div>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="3" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★</span></label>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="4" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★★</span></label>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="5" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★★★</span></label>
+          <div class="fp-divider" style="margin:6px 0;"></div>
+          <div class="fp-toggle-row" onclick="toggleAvg()"><span class="fp-toggle-label">Ada Avg / Kapasitas</span><div id="sw-avg" class="fp-toggle-switch"></div></div>
+          <div class="fp-toggle-row" onclick="toggleRoutes()"><span class="fp-toggle-label">Tampilkan Rute</span><div id="sw-route" class="fp-toggle-switch on"></div></div>
+          <div class="fp-reset-wrap"><button class="fp-reset" onclick="resetFilters()">Reset Filter</button></div>
+        </div>
+      </div>
+
+      <div class="map-search-wrap">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+        <input type="text" id="hotel-search" placeholder="Cari nama hotel…" oninput="applyFilters()">
+      </div>
+    </div>
+
+    <!-- HUD koordinat -->
+    <div class="hud-coords" id="hud-coords">---.-°N  ---.-°E</div>
+
+    <!-- Mobile detail sheet -->
+    <div id="map-sheet-overlay" class="map-sheet-overlay" onclick="closeSheet()"></div>
+    <div id="map-sheet" class="map-sheet">
+      <div class="map-sheet-handle" onclick="closeSheet()"></div>
+      <div id="map-sheet-body" class="map-sheet-body"></div>
+    </div>
+
+  <!-- Panel kanan: list hotel + toggle tab -->
+  <div class="hotel-panel collapsed" id="hotel-panel">
+    <!-- Tab toggle di tepi kiri -->
+    <button class="panel-toggle" onclick="togglePanel()" title="Sembunyikan / tampilkan panel">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/></svg>
     </button>
-    <div class="map-search-wrap">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-      <input type="text" id="hotel-search" placeholder="Cari nama hotel…" oninput="applyFilters()">
-    </div>
-    <div class="map-counter" id="hotel-counter"></div>
-  </div>
 
-  <!-- Filter panel (kiri) -->
-  <div id="filter-panel" class="filter-panel">
-    <div class="fp-head">
-      <span class="fp-head-title">Filter</span>
-      <button class="fp-close" onclick="toggleFilterPanel()">×</button>
-    </div>
-    <div class="fp-body">
-
-      <div class="fp-section">
-        <div class="fp-section-title">Kota</div>
+    <div class="hotel-panel-inner">
+      <div class="hp-header">
+        <span class="hp-count" id="hp-count">000 POSISI</span>
       </div>
-      <label class="fp-radio active" id="fp-city-all">
-        <input type="radio" name="fp-city" value="all" checked onchange="applyFilters()"> Semua Kota
-      </label>
-      <label class="fp-radio" id="fp-city-makkah">
-        <input type="radio" name="fp-city" value="makkah" onchange="applyFilters()"> Makkah
-      </label>
-      <label class="fp-radio" id="fp-city-madinah">
-        <input type="radio" name="fp-city" value="madinah" onchange="applyFilters()"> Madinah
-      </label>
-
-      <div class="fp-divider" style="margin:8px 0;"></div>
-
-      <div class="fp-section">
-        <div class="fp-section-title">Jarak ke Masjid</div>
-      </div>
-      <label class="fp-check" id="fp-dist-dekat">
-        <input type="checkbox" value="dekat" onchange="applyFilters()">
-        <span style="width:10px;height:10px;border-radius:50%;background:#26C281;display:inline-block;flex-shrink:0;"></span>
-        ≤ 500m
-      </label>
-      <label class="fp-check" id="fp-dist-sedang">
-        <input type="checkbox" value="sedang" onchange="applyFilters()">
-        <span style="width:10px;height:10px;border-radius:50%;background:#F0A429;display:inline-block;flex-shrink:0;"></span>
-        500m – 1.5km
-      </label>
-      <label class="fp-check" id="fp-dist-jauh">
-        <input type="checkbox" value="jauh" onchange="applyFilters()">
-        <span style="width:10px;height:10px;border-radius:50%;background:#E5534B;display:inline-block;flex-shrink:0;"></span>
-        &gt; 1.5km
-      </label>
-
-      <div class="fp-divider" style="margin:8px 0;"></div>
-
-      <div class="fp-section">
-        <div class="fp-section-title">Bintang</div>
-      </div>
-      <label class="fp-check">
-        <input type="checkbox" name="fp-stars" value="3" onchange="applyFilters()">
-        <span style="color:#F0A429;font-size:12px;">★★★</span>
-      </label>
-      <label class="fp-check">
-        <input type="checkbox" name="fp-stars" value="4" onchange="applyFilters()">
-        <span style="color:#F0A429;font-size:12px;">★★★★</span>
-      </label>
-      <label class="fp-check">
-        <input type="checkbox" name="fp-stars" value="5" onchange="applyFilters()">
-        <span style="color:#F0A429;font-size:12px;">★★★★★</span>
-      </label>
-
-      <div class="fp-divider" style="margin:8px 0;"></div>
-
-      <div class="fp-toggle-row" onclick="toggleAvg()">
-        <span class="fp-toggle-label">Ada Avg / Kapasitas</span>
-        <div id="sw-avg" class="fp-toggle-switch"></div>
-      </div>
-      <div class="fp-toggle-row" onclick="toggleRoutes()">
-        <span class="fp-toggle-label">Tampilkan Rute</span>
-        <div id="sw-route" class="fp-toggle-switch on"></div>
-      </div>
-
-    </div>
-    <div class="fp-foot">
-      <button class="fp-reset" onclick="resetFilters()">Reset semua filter</button>
+      <div class="hp-list" id="hotel-list"></div>
     </div>
   </div>
 
-  <!-- Legend -->
-  <div class="map-legend">
-    <div class="leg-section">Jarak Hotel</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#26C281;"></div> ≤ 500m</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#F0A429;"></div> 500m – 1.5km</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#E5534B;"></div> &gt; 1.5km</div>
-    <div class="leg-section">Referensi</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#F0A429;border:2px solid rgba(255,255,255,.4);"></div> Pelataran Al-Haram</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#E5534B;border:2px solid rgba(255,255,255,.4);"></div> Masjid / Nabawi</div>
-  </div>
-
-  <div id="map-sheet-overlay" class="map-sheet-overlay" onclick="closeSheet()"></div>
-  <div id="map-sheet" class="map-sheet">
-    <div class="map-sheet-handle" onclick="closeSheet()"></div>
-    <div id="map-sheet-body" class="map-sheet-body"></div>
-  </div>
-
-  <!-- Sidebar toggle button (kanan bawah) -->
-  <button class="map-sidebar-btn" onclick="toggleSidebar()">
-    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-    <span id="sidebar-btn-label">List Hotel</span>
-  </button>
-
-  <!-- Hotel list sidebar (kanan) -->
-  <div id="sidebar" class="map-sidebar">
-    <div class="sidebar-head">
-      <span class="sidebar-head-title">Hotel <span id="sidebar-count" style="color:var(--text-3);font-weight:400;"></span></span>
-      <button class="sidebar-close" onclick="toggleSidebar()">×</button>
-    </div>
-    <div id="sidebar-list" class="sidebar-list"></div>
-  </div>
 </div>
 {% endblock %}
 
@@ -320,9 +408,10 @@ var HARAM_INFO = [21.4225,   39.8262];
 var NABAWI     = [24.4672,   39.6112];
 var map = L.map('map', { zoomControl: false }).setView(HARAM, 14);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
-map.on('click', function() { if (window.innerWidth <= 600) closeSheet(); });
+map.on('click', function() { closeFilter(); if (isMobile()) closeSheet(); });
 
 function isMobile() { return window.innerWidth <= 600; }
+
 function openSheet(html) {
   document.getElementById('map-sheet-body').innerHTML = html;
   document.getElementById('map-sheet').classList.add('open');
@@ -333,292 +422,245 @@ window.closeSheet = function() {
   document.getElementById('map-sheet-overlay').classList.remove('open');
 };
 
+/* Tile layer */
 function getTileUrl() {
   var theme = document.documentElement.getAttribute('data-theme');
   return 'https://{s}.basemaps.cartocdn.com/' + (theme === 'light' ? 'light_all' : 'dark_all') + '/{z}/{x}/{y}{r}.png';
 }
-var tileLayer = L.tileLayer(getTileUrl(), {
-  attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19
-}).addTo(map);
+var tileLayer = L.tileLayer(getTileUrl(), { attribution:'© OpenStreetMap © CartoDB', subdomains:'abcd', maxZoom:19 }).addTo(map);
+new MutationObserver(function() { tileLayer.setUrl(getTileUrl()); }).observe(document.documentElement, { attributeFilter:['data-theme'] });
 
-new MutationObserver(function() {
-  tileLayer.setUrl(getTileUrl());
-}).observe(document.documentElement, { attributeFilter: ['data-theme'] });
+/* Reference markers */
+function refIcon() { return L.divIcon({ className:'', html:'<div style="width:12px;height:12px;border-radius:2px;transform:rotate(45deg);background:#D4A017;border:2px solid rgba(255,255,255,.5);box-shadow:0 0 8px #D4A017AA;"></div>', iconSize:[12,12], iconAnchor:[6,6] }); }
+function mosqueIcon() { return L.divIcon({ className:'', html:'<div style="width:10px;height:10px;border-radius:2px;transform:rotate(45deg);background:#E5534B;border:2px solid rgba(255,255,255,.4);box-shadow:0 0 6px #E5534BAA;"></div>', iconSize:[10,10], iconAnchor:[5,5] }); }
+L.marker(HARAM,      { icon:refIcon()    }).bindTooltip('Pelataran Al-Haram').addTo(map);
+L.marker(HARAM_INFO, { icon:mosqueIcon() }).bindTooltip('Masjid Al-Haram').addTo(map);
+L.marker(NABAWI,     { icon:mosqueIcon() }).bindTooltip('Masjid Nabawi').addTo(map);
 
-function refIcon() {
-  return L.divIcon({ className:'', html:'<div style="width:18px;height:18px;border-radius:50%;background:#F0A429;border:3px solid #fff;box-shadow:0 0 10px #F0A429AA;"></div>', iconSize:[18,18], iconAnchor:[9,9] });
-}
-function mosqueIcon() {
-  return L.divIcon({ className:'', html:'<div style="width:14px;height:14px;border-radius:50%;background:#E5534B;border:2px solid #fff;box-shadow:0 0 8px #E5534BAA;"></div>', iconSize:[14,14], iconAnchor:[7,7] });
-}
-L.marker(HARAM,      { icon: refIcon() }).bindTooltip('Pelataran Al-Haram').addTo(map);
-L.marker(HARAM_INFO, { icon: mosqueIcon() }).bindTooltip('Masjid Al-Haram').addTo(map);
-L.marker(NABAWI,     { icon: mosqueIcon() }).bindTooltip('Masjid Nabawi').addTo(map);
+var allHotels=[], markerGroup=L.layerGroup().addTo(map), routeGroup=L.layerGroup().addTo(map);
+var _renderCycle=0, routeTip=L.tooltip({ permanent:false, opacity:1, className:'route-dist-tip', direction:'top', offset:[0,-10] });
+var routesVisible=true, avgOnly=false, activeMarker=null, markerMap={}, activeCardPk=null;
 
-var allHotels    = [];
-var markerGroup  = L.layerGroup().addTo(map);
-var routeGroup   = L.layerGroup().addTo(map);
-var _renderCycle = 0;
-var routeTip     = L.tooltip({ permanent:false, opacity:1, className:'route-dist-tip', direction:'top', offset:[0,-8] });
-var routesVisible = true;
-var avgOnly       = false;
-var activeMarker  = null;
-var markerMap     = {};
+/* Helpers */
+function haversine(lat1,lng1,lat2,lng2){var R=6371000,p1=lat1*Math.PI/180,p2=lat2*Math.PI/180,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(p1)*Math.cos(p2)*Math.sin(dLng/2)*Math.sin(dLng/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+function fmtDist(m){return m<1000?Math.round(m)+' M':(m/1000).toFixed(1)+' KM';}
+function fmtDistLabel(lbl){return lbl?(lbl.replace(/\s*km/i,' KM').replace(/\s*m\b/i,' M')):'—';}
+function padCount(n){return String(n).padStart(3,'0');}
+function distColor(d){return d===null?'#4A4A5A':d<500?'#26C281':d<1500?'#F0A429':'#E5534B';}
+function distClass(d){return d===null?'dim':d<500?'green':d<1500?'yellow':'red';}
+function starsHtml(n){return '★'.repeat(n)+'☆'.repeat(5-n);}
+function starSize(s){return s>=5?14:s>=4?12:10;}
 
-function haversine(lat1, lng1, lat2, lng2) {
-  var R=6371000, p1=lat1*Math.PI/180, p2=lat2*Math.PI/180;
-  var dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
-  var a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(p1)*Math.cos(p2)*Math.sin(dLng/2)*Math.sin(dLng/2);
-  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function fmtDist(m) { return m<1000 ? Math.round(m)+' m' : (m/1000).toFixed(2)+' km'; }
-function distColor(d) {
-  if (d===null) return '#5A5A6A';
-  if (d<500)  return '#26C281';
-  if (d<1500) return '#F0A429';
-  return '#E5534B';
-}
-function distClass(d) {
-  if (d===null) return 'dim';
-  if (d<500)  return 'green';
-  if (d<1500) return 'yellow';
-  return 'red';
-}
-function starsHtml(n) { return '★'.repeat(n)+'☆'.repeat(5-n); }
-function hotelIcon(color, size) {
-  return L.divIcon({ className:'', html:'<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';border:2px solid rgba(255,255,255,.35);box-shadow:0 0 6px '+color+'88;"></div>', iconSize:[size,size], iconAnchor:[size/2,size/2] });
+function updateHud(lat,lng){
+  var el=document.getElementById('hud-coords');
+  el.textContent=Math.abs(lat).toFixed(4)+'°'+(lat>=0?'N':'S')+'  '+Math.abs(lng).toFixed(4)+'°'+(lng>=0?'E':'W');
+  el.classList.add('active');
 }
 
-function buildPopup(h) {
-  var avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">'+h.avg+' org/kamar</span></div>' : '';
-  return (
-    '<div class="pop-name">'+h.name+'</div>'+
-    '<div class="pop-stars">'+starsHtml(h.stars)+'</div>'+
-    (h.area?'<div style="font-size:11px;color:var(--text-3);margin-bottom:6px;">'+h.area+'</div>':'')+
-    '<div class="pop-row"><span class="pop-label">Jarak ke Masjid</span><span class="pop-val '+distClass(h.distance)+'">'+h.distance_label+'</span></div>'+
-    avgRow+
-    '<div class="pop-actions"><a href="'+h.url+'" class="pop-btn">Detail →</a></div>'
-  );
-}
-
-/* ── Filter state helpers ── */
-function getCityFilter() {
-  var el = document.querySelector('input[name="fp-city"]:checked');
-  return el ? el.value : 'all';
-}
-function getDistFilters() {
-  return Array.from(document.querySelectorAll('#filter-panel input[type=checkbox][value=dekat], #filter-panel input[type=checkbox][value=sedang], #filter-panel input[type=checkbox][value=jauh]'))
-    .filter(function(cb){ return cb.checked; }).map(function(cb){ return cb.value; });
-}
-function getStarsFilters() {
-  return Array.from(document.querySelectorAll('input[name="fp-stars"]:checked'))
-    .map(function(cb){ return parseInt(cb.value); });
-}
-
-function countActiveFilters() {
-  var n = 0;
-  if (getCityFilter() !== 'all') n++;
-  if (getDistFilters().length > 0) n++;
-  if (getStarsFilters().length > 0) n++;
-  if (avgOnly) n++;
-  return n;
-}
-
-function updateFilterBadge() {
-  var n = countActiveFilters();
-  var badge = document.getElementById('filter-badge');
-  var btn   = document.getElementById('filter-open-btn');
-  if (n > 0) {
-    badge.style.display = '';
-    badge.textContent   = n;
-    btn.classList.add('has-filter');
-  } else {
-    badge.style.display = 'none';
-    btn.classList.remove('has-filter');
+/* Diamond marker */
+function hotelIcon(color,size,pulse){
+  var s=Math.round(size*.72), hs=Math.round(s/2), half=Math.round(size/2);
+  var diamond='<div style="position:absolute;top:50%;left:50%;width:'+s+'px;height:'+s+'px;margin-top:-'+hs+'px;margin-left:-'+hs+'px;transform:rotate(45deg);background:'+color+';border:1.5px solid rgba(255,255,255,.35);box-shadow:0 0 6px '+color+'99;"></div>';
+  if (pulse){
+    var cSize=size+22,cHalf=Math.round(cSize/2),cx=Math.round(cSize/2);
+    return L.divIcon({className:'',html:
+      '<div style="position:relative;width:'+cSize+'px;height:'+cSize+'px;">'+
+      '<div style="position:absolute;top:'+cx+'px;left:0;right:0;height:1px;background:'+color+';opacity:.35;"></div>'+
+      '<div style="position:absolute;left:'+cx+'px;top:0;bottom:0;width:1px;background:'+color+';opacity:.35;"></div>'+
+      '<div style="position:absolute;top:50%;left:50%;width:'+size+'px;height:'+size+'px;margin-top:-'+half+'px;margin-left:-'+half+'px;border-radius:50%;border:1.5px solid '+color+';animation:pulse-ring 1.4s ease-out infinite;"></div>'+
+      '<div style="position:absolute;top:50%;left:50%;width:'+s+'px;height:'+s+'px;margin-top:-'+hs+'px;margin-left:-'+hs+'px;transform:rotate(45deg);background:'+color+';border:1.5px solid rgba(255,255,255,.45);box-shadow:0 0 10px '+color+'BB;"></div>'+
+      '</div>',iconSize:[cSize,cSize],iconAnchor:[cHalf,cHalf]});
   }
+  return L.divIcon({className:'',html:'<div style="position:relative;width:'+size+'px;height:'+size+'px;">'+diamond+'</div>',iconSize:[size,size],iconAnchor:[half,half]});
 }
 
-function getFiltered() {
-  var q      = (document.getElementById('hotel-search').value||'').toLowerCase().trim();
-  var city   = getCityFilter();
-  var dists  = getDistFilters();
-  var stars  = getStarsFilters();
-  return allHotels.filter(function(h) {
-    if (q && h.name.toLowerCase().indexOf(q)===-1 && !(h.area&&h.area.toLowerCase().indexOf(q)!==-1)) return false;
-    if (city!=='all' && h.city!==city) return false;
-    if (dists.length > 0) {
-      var ok = false;
-      if (dists.indexOf('dekat')  !==-1 && h.distance!==null && h.distance<=500)  ok=true;
-      if (dists.indexOf('sedang') !==-1 && h.distance!==null && h.distance>500 && h.distance<=1500) ok=true;
-      if (dists.indexOf('jauh')   !==-1 && h.distance!==null && h.distance>1500) ok=true;
-      if (!ok) return false;
-    }
-    if (stars.length > 0 && stars.indexOf(h.stars)===-1) return false;
-    if (avgOnly && !h.avg) return false;
+function buildPopup(h){
+  var dist=fmtDistLabel(h.distance_label);
+  var avgRow=h.avg?'<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">'+h.avg+' org/kamar</span></div>':'';
+  return '<div class="pop-name">'+h.name+'</div><div class="pop-stars">'+starsHtml(h.stars)+'</div>'+(h.area?'<div style="font-size:10px;color:rgba(255,255,255,.35);margin-bottom:6px;">'+h.area+'</div>':'')+'<div class="pop-row"><span class="pop-label">Jarak</span><span class="pop-val '+distClass(h.distance)+'">'+dist+'</span></div>'+avgRow;
+}
+
+/* Filter helpers */
+function getCityFilter(){var el=document.querySelector('input[name="fp-city"]:checked');return el?el.value:'all';}
+function getDistFilters(){return Array.from(document.querySelectorAll('#filter-dropdown input[type=checkbox][value=dekat],#filter-dropdown input[type=checkbox][value=sedang],#filter-dropdown input[type=checkbox][value=jauh]')).filter(function(cb){return cb.checked;}).map(function(cb){return cb.value;});}
+function getStarsFilters(){return Array.from(document.querySelectorAll('input[name="fp-stars"]:checked')).map(function(cb){return parseInt(cb.value);});}
+function countActiveFilters(){var n=0;if(getCityFilter()!=='all')n++;if(getDistFilters().length>0)n++;if(getStarsFilters().length>0)n++;if(avgOnly)n++;return n;}
+function updateFilterBadge(){
+  var n=countActiveFilters(),badge=document.getElementById('filter-badge'),btn=document.getElementById('filter-open-btn');
+  badge.style.display=n>0?'':'none';if(n>0)badge.textContent=n;
+  btn.classList.toggle('has-filter',n>0);
+}
+function getFiltered(){
+  var q=(document.getElementById('hotel-search').value||'').toLowerCase().trim(),city=getCityFilter(),dists=getDistFilters(),stars=getStarsFilters();
+  return allHotels.filter(function(h){
+    if(q&&h.name.toLowerCase().indexOf(q)===-1&&!(h.area&&h.area.toLowerCase().indexOf(q)!==-1))return false;
+    if(city!=='all'&&h.city!==city)return false;
+    if(dists.length>0){var ok=false;if(dists.indexOf('dekat')!==-1&&h.distance!==null&&h.distance<=500)ok=true;if(dists.indexOf('sedang')!==-1&&h.distance!==null&&h.distance>500&&h.distance<=1500)ok=true;if(dists.indexOf('jauh')!==-1&&h.distance!==null&&h.distance>1500)ok=true;if(!ok)return false;}
+    if(stars.length>0&&stars.indexOf(h.stars)===-1)return false;
+    if(avgOnly&&!h.avg)return false;
     return true;
   });
 }
+function syncRadioStyles(){['all','makkah','madinah'].forEach(function(v){var l=document.getElementById('fp-city-'+v);if(l)l.classList.toggle('active',document.querySelector('input[name="fp-city"][value="'+v+'"]').checked);});}
 
-function applyFilters() {
-  var city = getCityFilter();
-  if (city==='makkah')       map.flyTo(HARAM,  14, { duration:1 });
-  else if (city==='madinah') map.flyTo(NABAWI, 14, { duration:1 });
-  var filtered = getFiltered();
-  renderMarkers(filtered);
-  updateCounter(filtered.length);
-  renderSidebar(filtered);
-  updateFilterBadge();
-  syncRadioStyles();
+function applyFilters(){
+  var city=getCityFilter();
+  if(city==='makkah')map.flyTo(HARAM,14,{duration:1});
+  else if(city==='madinah')map.flyTo(NABAWI,14,{duration:1});
+  var filtered=getFiltered();
+  renderMarkers(filtered); updateCounter(filtered.length); renderPanel(filtered);
+  updateFilterBadge(); syncRadioStyles();
+}
+function updateCounter(n){
+  var str=padCount(n);
+  document.getElementById('hp-count').textContent=str+' POSISI';
 }
 
-function syncRadioStyles() {
-  ['all','makkah','madinah'].forEach(function(v) {
-    var label = document.getElementById('fp-city-'+v);
-    if (label) label.classList.toggle('active', document.querySelector('input[name="fp-city"][value="'+v+'"]').checked);
-  });
+/* Filter toggle */
+var filterOpen=false;
+window.toggleFilter=function(){
+  filterOpen=!filterOpen;
+  document.getElementById('filter-dropdown').classList.toggle('open',filterOpen);
+  document.getElementById('filter-open-btn').classList.toggle('has-filter',filterOpen||countActiveFilters()>0);
+};
+function closeFilter(){
+  filterOpen=false;
+  var dd=document.getElementById('filter-dropdown');
+  if(dd) dd.classList.remove('open');
+  var btn=document.getElementById('filter-open-btn');
+  if(btn) btn.classList.toggle('has-filter',countActiveFilters()>0);
 }
 
-function updateCounter(n) {
-  document.getElementById('hotel-counter').textContent = n + ' hotel';
-}
 
-/* ── Toggle filter panel ── */
-var filterPanelOpen = false;
-window.toggleFilterPanel = function() {
-  filterPanelOpen = !filterPanelOpen;
-  document.getElementById('filter-panel').classList.toggle('open', filterPanelOpen);
+/* Toggles */
+window.toggleRoutes=function(){routesVisible=!routesVisible;document.getElementById('sw-route').classList.toggle('on',routesVisible);if(routesVisible)routeGroup.addTo(map);else map.removeLayer(routeGroup);};
+window.toggleAvg=function(){avgOnly=!avgOnly;document.getElementById('sw-avg').classList.toggle('on',avgOnly);applyFilters();};
+window.resetFilters=function(){
+  document.querySelector('input[name="fp-city"][value="all"]').checked=true;
+  document.querySelectorAll('#filter-dropdown input[type=checkbox]').forEach(function(cb){cb.checked=false;});
+  avgOnly=false;document.getElementById('sw-avg').classList.remove('on');
+  document.getElementById('hotel-search').value='';applyFilters();
 };
 
-/* ── Toggle routes ── */
-window.toggleRoutes = function() {
-  routesVisible = !routesVisible;
-  var sw = document.getElementById('sw-route');
-  sw.classList.toggle('on', routesVisible);
-  if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup);
-};
-
-/* ── Toggle avg filter ── */
-window.toggleAvg = function() {
-  avgOnly = !avgOnly;
-  document.getElementById('sw-avg').classList.toggle('on', avgOnly);
-  applyFilters();
-};
-
-/* ── Reset ── */
-window.resetFilters = function() {
-  document.querySelector('input[name="fp-city"][value="all"]').checked = true;
-  document.querySelectorAll('#filter-panel input[type=checkbox]').forEach(function(cb){ cb.checked = false; });
-  avgOnly = false;
-  document.getElementById('sw-avg').classList.remove('on');
-  document.getElementById('hotel-search').value = '';
-  applyFilters();
-};
-
-/* ── Sidebar (kanan) ── */
-var sidebarOpen = false;
-window.toggleSidebar = function() {
-  sidebarOpen = !sidebarOpen;
-  document.getElementById('sidebar').classList.toggle('open', sidebarOpen);
-  document.getElementById('sidebar-btn-label').textContent = sidebarOpen ? 'Tutup List' : 'List Hotel';
-};
-
-function renderSidebar(hotels) {
-  var list = document.getElementById('sidebar-list');
-  document.getElementById('sidebar-count').textContent = '('+hotels.length+')';
-  if (hotels.length===0) {
-    list.innerHTML = '<div style="padding:24px 16px;text-align:center;font-size:12px;color:var(--text-3);">Tidak ada hotel</div>';
+/* Render hotel panel */
+function renderPanel(hotels){
+  var list=document.getElementById('hotel-list');
+  if(hotels.length===0){
+    list.innerHTML='<div style="padding:48px 20px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-family:\'Courier New\',monospace;color:rgba(255,255,255,.18);">TIDAK ADA POSISI</div>';
     return;
   }
-  list.innerHTML = hotels.map(function(h) {
-    var color = distColor(h.distance);
-    var dc    = distClass(h.distance);
-    return '<div class="sidebar-item" data-pk="'+h.pk+'" onclick="focusHotel('+h.pk+')">'+
-      '<div class="sidebar-dot" style="background:'+color+';flex-shrink:0;"></div>'+
-      '<div style="flex:1;min-width:0;">'+
-        '<div class="sidebar-name">'+h.name+'</div>'+
-        '<div style="font-size:10px;color:var(--text-3);margin-top:1px;">'+starsHtml(h.stars)+(h.area?' · '+h.area:'')+'</div>'+
+  list.innerHTML=hotels.map(function(h){
+    var color=distColor(h.distance),dc=distClass(h.distance);
+    var dist=fmtDistLabel(h.distance_label);
+    var avgCell=h.avg
+      ? '<div><div class="hp-detail-label">Avg</div><div class="hp-detail-val">'+h.avg+'</div></div>'
+      : '<div><div class="hp-detail-label">Avg</div><div class="hp-detail-val" style="color:rgba(255,255,255,.2);">—</div></div>';
+    return '<div class="hp-card" data-pk="'+h.pk+'" onclick="selectCard('+h.pk+')" onmouseenter="hoverCard('+h.pk+')" onmouseleave="hoverCard(null)">'+
+      '<div class="hp-card-top">'+
+        '<div class="hp-dot" style="background:'+color+';"></div>'+
+        '<span class="hp-card-name">'+h.name+'</span>'+
+        '<span class="hp-card-dist '+dc+'">'+dist+'</span>'+
       '</div>'+
-      '<div class="sidebar-dist '+dc+'">'+h.distance_label+'</div>'+
+      '<div class="hp-card-sub"><span style="color:#D4A017;letter-spacing:1px;">'+starsHtml(h.stars)+'</span>'+(h.area?' · '+h.area:'')+'</div>'+
+      '<div class="hp-card-details">'+
+        '<div class="hp-detail-divider"></div>'+
+        '<div class="hp-detail-grid">'+
+          '<div><div class="hp-detail-label">Jarak</div><div class="hp-detail-val '+dc+'">'+dist+'</div></div>'+
+          '<div><div class="hp-detail-label">Bintang</div><div class="hp-detail-val amber">'+h.stars+' ★</div></div>'+
+          avgCell+
+        '</div>'+
+        '<a href="'+h.url+'" class="hp-detail-link">Detail Hotel →</a>'+
+      '</div>'+
     '</div>';
   }).join('');
 }
 
-window.focusHotel = function(pk) {
-  var entry = markerMap[pk];
-  if (!entry) return;
-  map.flyTo([entry.h.lat, entry.h.lng], 17, { duration:0.8 });
-  setTimeout(function(){ entry.marker.openPopup(); }, 850);
-  document.querySelectorAll('.sidebar-item').forEach(function(el){ el.classList.remove('active'); });
-  var el = document.querySelector('.sidebar-item[data-pk="'+pk+'"]');
-  if (el) el.classList.add('active');
+/* Toggle panel collapse */
+var panelCollapsed=true;
+window.togglePanel=function(){
+  panelCollapsed=!panelCollapsed;
+  document.getElementById('hotel-panel').classList.toggle('collapsed',panelCollapsed);
 };
 
-/* ── Render markers ── */
-function renderMarkers(hotels) {
-  routeTip.remove();
-  markerGroup.clearLayers();
-  routeGroup.clearLayers();
-  markerMap = {};
-  activeMarker = null;
-  var cycle = ++_renderCycle;
-
-  hotels.forEach(function(h) {
-    var color = distColor(h.distance);
-    var refLL = h.city==='madinah' ? NABAWI : HARAM;
-
-    var m = L.marker([h.lat, h.lng], { icon: hotelIcon(color, 12) });
-    m.bindTooltip(h.name, { permanent:false, direction:'top', offset:[0,-8], opacity:0.95 });
-    if (!isMobile()) m.bindPopup(buildPopup(h), { maxWidth:240 });
-    m.on('click', function(e) {
-      if (activeMarker && activeMarker!==m) {
-        activeMarker.setIcon(hotelIcon(distColor(activeMarker._hotelData.distance), 12));
-      }
-      m.setIcon(hotelIcon(color, 16));
-      activeMarker = m;
-      document.querySelectorAll('.sidebar-item').forEach(function(i){ i.classList.remove('active'); });
-      var el = document.querySelector('.sidebar-item[data-pk="'+h.pk+'"]');
-      if (el) { el.classList.add('active'); el.scrollIntoView({ block:'nearest' }); }
-      if (isMobile()) { L.DomEvent.stopPropagation(e); openSheet(buildPopup(h)); }
+/* Hover card → highlight marker */
+window.hoverCard=function(pk){
+  if(pk===null){
+    Object.values(markerMap).forEach(function(e){
+      if(e.marker!==activeMarker) e.marker.setOpacity(1);
     });
-    m.on('popupclose', function() {
-      m.setIcon(hotelIcon(color, 12));
-      if (activeMarker===m) activeMarker = null;
-    });
-    m._hotelData = h;
-    markerMap[h.pk] = { marker:m, h:h };
-    markerGroup.addLayer(m);
-
-    function addRouteLine(coords) {
-      if (_renderCycle!==cycle) return;
-      var line = L.polyline(coords, { color:color, weight:2, opacity:.6, dashArray:'8,5' });
-      line.on('mousemove', function(e) {
-        routeTip.setLatLng(e.latlng).setContent(fmtDist(haversine(refLL[0],refLL[1],e.latlng.lat,e.latlng.lng))).addTo(map);
-      });
-      line.on('mouseout', function() { routeTip.remove(); });
-      routeGroup.addLayer(line);
-    }
-
-    var coords = (h.route&&h.route.length>=2) ? h.route : [refLL,[h.lat,h.lng]];
-    addRouteLine(coords);
+    return;
+  }
+  Object.values(markerMap).forEach(function(e){
+    e.marker.setOpacity(e.h.pk===pk?1:.35);
   });
+};
 
-  if (!routesVisible) map.removeLayer(routeGroup);
+/* Select card (dari panel) */
+window.selectCard=function(pk){
+  var entry=markerMap[pk];
+  if(!entry)return;
+
+  /* Reset marker lama */
+  if(activeMarker&&activeMarker!==entry.marker){
+    var prev=activeMarker._hotelData;
+    activeMarker.setIcon(hotelIcon(distColor(prev.distance),activeMarker._starSize||10));
+  }
+
+  /* Aktifkan marker baru */
+  var h=entry.h,sz=entry.marker._starSize||10;
+  entry.marker.setIcon(hotelIcon(distColor(h.distance),sz+4,true));
+  activeMarker=entry.marker;
+  updateHud(h.lat,h.lng);
+  map.flyTo([h.lat,h.lng],16,{duration:0.8});
+
+  /* Toggle card: klik lagi = collapse */
+  if(activeCardPk===pk){
+    document.querySelectorAll('.hp-card').forEach(function(el){el.classList.remove('active');});
+    activeCardPk=null;
+    return;
+  }
+  document.querySelectorAll('.hp-card').forEach(function(el){el.classList.remove('active');});
+  var card=document.querySelector('.hp-card[data-pk="'+pk+'"]');
+  if(card){card.classList.add('active');card.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  activeCardPk=pk;
+};
+
+/* Render markers */
+function renderMarkers(hotels){
+  routeTip.remove();markerGroup.clearLayers();routeGroup.clearLayers();markerMap={};activeMarker=null;activeCardPk=null;
+  document.querySelectorAll('.hp-card').forEach(function(el){el.classList.remove('active');});
+  var cycle=++_renderCycle;
+  hotels.forEach(function(h){
+    var color=distColor(h.distance),refLL=h.city==='madinah'?NABAWI:HARAM,sz=starSize(h.stars);
+    var m=L.marker([h.lat,h.lng],{icon:hotelIcon(color,sz)});
+    m._starSize=sz;m._hotelData=h;
+    m.bindTooltip(h.name,{permanent:false,direction:'top',offset:[0,-10],opacity:0.95,className:'route-dist-tip'});
+    if(!isMobile())m.bindPopup(buildPopup(h),{maxWidth:220});
+    m.on('click',function(e){
+      if(isMobile()){L.DomEvent.stopPropagation(e);openSheet(buildPopup(h));}
+    });
+    markerMap[h.pk]={marker:m,h:h};markerGroup.addLayer(m);
+    function addRouteLine(coords){
+      if(_renderCycle!==cycle)return;
+      var line=L.polyline(coords,{color:color,weight:1.5,opacity:.45,dashArray:'6,4'});
+      line.on('mousemove',function(e){routeTip.setLatLng(e.latlng).setContent(fmtDist(haversine(refLL[0],refLL[1],e.latlng.lat,e.latlng.lng))).addTo(map);});
+      line.on('mouseout',function(){routeTip.remove();});routeGroup.addLayer(line);
+    }
+    addRouteLine((h.route&&h.route.length>=2)?h.route:[refLL,[h.lat,h.lng]]);
+  });
+  if(!routesVisible)map.removeLayer(routeGroup);
 }
 
 fetch('{% url "hotel_map_data" %}')
-  .then(function(r){ return r.json(); })
-  .then(function(data) {
-    allHotels = data.hotels;
-    var filtered = getFiltered();
-    renderMarkers(filtered);
-    updateCounter(filtered.length);
-    renderSidebar(filtered);
-    if (allHotels.length === 1) {
-      map.setView([allHotels[0].lat, allHotels[0].lng], 15);
-    } else if (allHotels.length > 1) {
-      var lats = allHotels.map(function(h){ return h.lat; });
-      var lngs = allHotels.map(function(h){ return h.lng; });
-      map.fitBounds([[Math.min.apply(null,lats),Math.min.apply(null,lngs)],[Math.max.apply(null,lats),Math.max.apply(null,lngs)]], { padding:[40,40], maxZoom:15 });
+  .then(function(r){return r.json();})
+  .then(function(data){
+    allHotels=data.hotels;
+    var filtered=getFiltered();
+    renderMarkers(filtered);updateCounter(filtered.length);renderPanel(filtered);
+    if(allHotels.length===1){map.setView([allHotels[0].lat,allHotels[0].lng],15);}
+    else if(allHotels.length>1){
+      var lats=allHotels.map(function(h){return h.lat;}),lngs=allHotels.map(function(h){return h.lng;});
+      map.fitBounds([[Math.min.apply(null,lats),Math.min.apply(null,lngs)],[Math.max.apply(null,lats),Math.max.apply(null,lngs)]],{padding:[40,40],maxZoom:15});
     }
   });
 </script>

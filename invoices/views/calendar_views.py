@@ -3,6 +3,7 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
+from django.urls import reverse
 
 from ..models import ConfirmationLetter, Invoice
 
@@ -63,13 +64,13 @@ def calendar_view(request):
             'color': _CL_COLORS.get(cl.reservation_status, 'blue'),
             'status': cl.reservation_status,
             'total': f"{cl.total_price:,.0f} SAR",
-            'url': f"/cl/{cl.pk}/",
+            'url': reverse('cl_detail', args=[cl.pk]),
             'type': 'CL',
             'nights': cl.num_nights,
         })
 
     # Invoice Hotel reservations
-    inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations')
+    inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations', 'payments')
     if active_company:
         inv_qs = inv_qs.filter(company=active_company)
 
@@ -98,7 +99,7 @@ def calendar_view(request):
                 'color': inv_color,
                 'status': inv_status,
                 'total': f"{res.total_sar:,.0f} SAR",
-                'url': f"/invoice/{inv.pk}/",
+                'url': reverse('invoice_detail', args=[inv.pk]),
                 'type': 'INV',
                 'nights': (res.check_out - res.check_in).days,
             })

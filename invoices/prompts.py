@@ -1,4 +1,4 @@
-def invoice_summary(invoice, total, paid, remaining, hotels):
+def invoice_summary(invoice, total, paid, remaining, hotels, res_count):
     return (
         f"Tulis ringkasan 1-2 kalimat Bahasa Indonesia untuk invoice berikut. "
         f"Fokus pada deskripsi (siapa, hotel mana, berapa reservasi). "
@@ -6,7 +6,7 @@ def invoice_summary(invoice, total, paid, remaining, hotels):
         f"Invoice #{invoice.invoice_number} - {invoice.customer_name}\n"
         f"Hotel: {hotels}\n"
         f"Total: {total:,.0f} SAR - Terbayar: {paid:,.0f} SAR - Sisa: {remaining:,.0f} SAR\n"
-        f"Jumlah reservasi: {invoice.reservations.count()}"
+        f"Jumlah reservasi: {res_count}"
     )
 
 

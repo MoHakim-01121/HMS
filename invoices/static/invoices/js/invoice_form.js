@@ -152,7 +152,7 @@ function addPayment() {
         <div class="proof-cell">
           <label class="proof-btn" title="Upload bukti">
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-            <input type="file" class="payment-proof-input" accept="image/*,.pdf" style="display:none;" onchange="showProofName(this)">
+            <input type="file" class="payment-proof-input" accept="image/*,.pdf" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;" onchange="showProofName(this)">
           </label>
           <span class="proof-fname"></span>
         </div>

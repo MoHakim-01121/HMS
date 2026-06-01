@@ -9,7 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E6AD2' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>">
   <link rel="stylesheet" href="{% static 'invoices/css/design.css' %}">
   <style>
-    .page, .page-sm, .center-wrap, .card, .modal-overlay, #search-overlay {
+    .page, .page-sm, .center-wrap, .card, .modal-overlay {
       position: relative;
       z-index: 1;
     }
@@ -172,7 +172,7 @@
     </a>
 
     <!-- Search -->
-    <button type="button" class="bnav-item" id="bnav-btn-search" title="Cari" onclick="document.getElementById('btn-search')?.click()">
+    <button type="button" class="bnav-item" id="bnav-btn-search" title="Cari" onclick="openSearch && openSearch()">
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
     </button>
 
@@ -266,7 +266,7 @@
       <div id="draft-modal-body" style="padding:20px;min-height:120px;display:flex;align-items:center;justify-content:center;">
         <span style="color:var(--text-3);font-size:13px;">Membuat pesan...</span>
       </div>
-      <div id="draft-modal-footer" style="display:none;padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;">
+      <div id="draft-modal-footer" style="display:none;padding:12px 20px;border-top:1px solid var(--border);justify-content:flex-end;gap:8px;">
         <button class="btn btn-ghost btn-sm" onclick="closeDraftModal()">Tutup</button>
         <button class="btn btn-primary btn-sm" id="btn-copy-draft" onclick="copyDraft()">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg>
@@ -293,7 +293,7 @@
       });
       const data = await res.json();
       _draftText = data.message || '';
-      body.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;color:var(--text);margin:0;">' + _draftText.replace(/</g,'&lt;') + '</pre>';
+      body.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;color:var(--text);margin:0;">' + _draftText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>';
       footer.style.display = 'flex';
     } catch {
       body.innerHTML = '<span style="color:var(--red);font-size:13px;">Gagal menghubungi server.</span>';
@@ -316,72 +316,68 @@
 
   <!-- Search overlay -->
   {% if user.is_authenticated %}
-  <div id="search-overlay" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);padding:72px 16px 0;">
-    <div style="max-width:560px;margin:0 auto;">
-      <div style="background:var(--surface);border:1px solid var(--border-2);border-radius:14px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.6);">
-
-        <!-- Input row -->
-        <div style="display:flex;align-items:center;gap:10px;padding:0 16px;">
-          <input id="search-input" type="text" placeholder="Cari nomor, tamu, hotel…" autocomplete="off"
-            style="flex:1;background:transparent;border:none;outline:none;height:48px;font-size:15px;color:var(--text);">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--text-3);flex-shrink:0;"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-        </div>
-
-        <!-- Results -->
-        <div id="search-results" style="max-height:380px;overflow-y:auto;"></div>
-
-        <!-- Footer hints -->
-        <div style="display:flex;align-items:center;gap:16px;padding:8px 16px;border-top:1px solid var(--border);background:var(--bg-2);">
-          <span style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:5px;">
-            <kbd style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:1px 4px;background:var(--surface-2);color:var(--text-3);">↑↓</kbd> navigasi
-          </span>
-          <span style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:5px;">
-            <kbd style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:1px 4px;background:var(--surface-2);color:var(--text-3);">↵</kbd> pilih
-          </span>
-          <span style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:5px;">
-            <kbd style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:1px 4px;background:var(--surface-2);color:var(--text-3);">Esc</kbd> tutup
-          </span>
-          <span style="font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:5px;">
-            <kbd style="font-size:10px;border:1px solid var(--border);border-radius:3px;padding:1px 4px;background:var(--surface-2);color:var(--text-3);">/</kbd> cari
-          </span>
-        </div>
+  <div id="search-overlay">
+    <div class="search-panel">
+      <div class="search-input-row">
+        <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+        <input id="search-input" type="text" placeholder="Cari nomor, tamu, atau hotel…" autocomplete="off">
+<button id="search-clear" class="search-clear" aria-label="Hapus" style="display:none;">
+          <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="search-results"></div>
+      <div id="search-hints">
+        <span class="search-hint-item"><kbd class="search-hint-kbd">↑↓</kbd> navigasi</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">↵</kbd> pilih</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">Esc</kbd> tutup</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">/</kbd> cari</span>
       </div>
     </div>
   </div>
   <script>
   (function() {
-    var overlay = document.getElementById('search-overlay');
-    var input   = document.getElementById('search-input');
-    var results = document.getElementById('search-results');
+    var overlay  = document.getElementById('search-overlay');
+    var input    = document.getElementById('search-input');
+    var results  = document.getElementById('search-results');
+    var clearBtn = document.getElementById('search-clear');
     var timer;
 
-    var TYPE_LABEL = { CL: 'Conf. Letter', INV: 'Invoice', SVC: 'Services' };
-    var TYPE_COLOR = { CL: 'var(--accent-2)', INV: 'var(--purple)', SVC: 'var(--green)' };
-    var TYPE_BG    = { CL: 'var(--accent-muted)', INV: 'var(--purple-muted)', SVC: 'var(--green-muted)' };
+    var TYPE_LABEL = { CL:'Conf. Letter', INV:'Invoice Hotel', SVC:'Invoice Services' };
+    var SEARCH_ICON = '<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>';
 
     function renderQuick() {
-      results.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px;">Ketik untuk mulai mencari…</div>';
+      results.innerHTML =
+        '<div class="s-empty-state">' + SEARCH_ICON +
+        '<span class="s-empty-title">Ketik untuk mencari</span>' +
+        '<span class="s-empty-sub">nomor dokumen, nama tamu, atau hotel</span>' +
+        '</div>';
+    }
+
+    function renderLoading() {
+      results.innerHTML = '<div class="search-dots"><span></span><span></span><span></span></div>';
     }
 
     function renderResults(data) {
       if (!data.results.length) {
-        results.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px;">Tidak ada hasil untuk <strong style="color:var(--text-2);">"' + data.q + '"</strong></div>';
+        results.innerHTML =
+          '<div class="s-empty-state">' + SEARCH_ICON +
+          '<span class="s-empty-title">Tidak ada hasil</span>' +
+          '<span class="s-empty-sub">untuk &ldquo;' + data.q + '&rdquo;</span>' +
+          '</div>';
         return;
       }
-      // Group by type
-      var groups = {};
-      var order  = [];
+      var groups = {}, order = [];
       data.results.forEach(function(r) {
         if (!groups[r.type]) { groups[r.type] = []; order.push(r.type); }
         groups[r.type].push(r);
       });
       var html = '';
       order.forEach(function(type) {
-        html += '<div style="padding:10px 16px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-3);">' +
-          (TYPE_LABEL[type] || type) + ' <span style="font-weight:400;color:var(--text-3);">(' + groups[type].length + ')</span></div>';
+        html += '<div class="s-section-header" data-type="' + type + '">' +
+          (TYPE_LABEL[type]||type) +
+          '<span class="s-section-count">' + groups[type].length + '</span></div>';
         groups[type].forEach(function(r) {
           html += '<a href="' + r.url + '" class="s-row">' +
-            '<span class="s-type" style="background:' + (TYPE_BG[r.type]||'var(--surface-3)') + ';color:' + (TYPE_COLOR[r.type]||'var(--text-2)') + ';">' + r.type + '</span>' +
             '<span class="s-label">' + r.label + '</span>' +
             '<span class="s-sub">' + r.sub + '</span>' +
             '<span class="s-meta">' + r.meta + '</span>' +
@@ -392,18 +388,31 @@
     }
 
     function open() {
-      overlay.style.display = 'block';
+      overlay.classList.add('open');
       input.value = '';
+      syncControls();
       renderQuick();
-      setTimeout(function(){ input.focus(); }, 30);
+      setTimeout(function(){ input.focus(); }, 50);
     }
-    function close() { overlay.style.display = 'none'; }
+    function close() { overlay.classList.remove('open'); }
+
+    function syncControls() {
+      clearBtn.style.display = input.value ? 'flex' : 'none';
+    }
+
+    clearBtn.addEventListener('click', function() {
+      input.value = '';
+      syncControls();
+      renderQuick();
+      input.focus();
+    });
 
     input.addEventListener('input', function() {
+      syncControls();
       clearTimeout(timer);
       var q = input.value.trim();
       if (q.length < 2) { renderQuick(); return; }
-      results.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:13px;">Mencari…</div>';
+      renderLoading();
       timer = setTimeout(function() {
         fetch('{% url "global_search" %}?q=' + encodeURIComponent(q))
           .then(function(r){ return r.json(); })
@@ -412,10 +421,11 @@
       }, 220);
     });
 
+    window.openSearch = open;
     document.getElementById('btn-search').addEventListener('click', open);
     overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') { if (overlay.style.display !== 'none') { close(); return; } }
+      if (e.key === 'Escape') { if (overlay.classList.contains('open')) { close(); return; } }
       if (e.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
         e.preventDefault(); open();
       }
@@ -686,7 +696,8 @@
       ctx.putImageData(fd,0,0);
     }
 
-    window.addEventListener('resize',render);
+    var _resizeTimer;
+    window.addEventListener('resize', function() { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(render, 150); });
     new MutationObserver(render).observe(document.documentElement,{attributeFilter:['data-theme']});
     render();
   })();
@@ -718,7 +729,7 @@
   {% if request.GET.company_changed %}
   <script>
   (function(){
-    var company = '{{ request.GET.company_changed }}';
+    var company = '{{ request.GET.company_changed|escapejs }}';
     var label = company === 'ijabah' ? 'Ijabah' : 'Konoz United';
     var t = document.createElement('div');
     t.className = 'toast toast-success';

@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlparse
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
@@ -30,6 +31,9 @@ from .hotel_views import (
     hotel_detail, hotel_map, hotel_map_data,
 )
 
+from ..ai import generate_draft_message, get_chat_reply
+from ..models import Invoice
+
 
 @login_required
 def company_select(request):
@@ -55,9 +59,20 @@ def company_quick_set(request):
     if company in ("konoz", "ijabah"):
         request.session["active_company"] = company
         request.session.modified = True
+
     referer = request.META.get("HTTP_REFERER", "/")
-    sep = "&" if "?" in referer else "?"
-    return redirect(f"{referer}{sep}company_changed={company}")
+    try:
+        parsed = urlparse(referer)
+        # Reject external redirects — only allow same host
+        if parsed.netloc and parsed.netloc != request.get_host():
+            safe_url = "/"
+        else:
+            safe_url = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+    except Exception:
+        safe_url = "/"
+
+    sep = "&" if "?" in safe_url else "?"
+    return redirect(f"{safe_url}{sep}company_changed={company}")
 
 
 @login_required
@@ -78,8 +93,6 @@ def ai_draft_message(request):
     except Exception:
         return JsonResponse({"error": "Request tidak valid."}, status=400)
 
-    from ..models import Invoice
-    from ..ai import generate_draft_message
     invoice = Invoice.objects.filter(pk=pk).first()
     if not invoice:
         return JsonResponse({"error": "Invoice tidak ditemukan."}, status=404)
@@ -100,7 +113,16 @@ def ai_chat(request):
     if not message:
         return JsonResponse({"reply": "Pertanyaan tidak boleh kosong."})
 
-    from ..ai import get_chat_reply
     active_company = request.session.get("active_company")
-    reply = get_chat_reply(message, company=active_company)
+    history = request.session.get("ai_history", [])
+
+    reply = get_chat_reply(message, company=active_company, history=history)
+
+    if reply:
+        history = history + [
+            {"role": "user",      "content": message},
+            {"role": "assistant", "content": reply},
+        ]
+        request.session["ai_history"] = history[-6:]  # simpan 3 exchange terakhir
+
     return JsonResponse({"reply": reply or "Maaf, tidak dapat memproses pertanyaan saat ini."})

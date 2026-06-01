@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -7,7 +8,8 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from ..models import Invoice, Reservation
+from ..ai import generate_invoice_summary
+from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
 from .context import _build_reservation_context
 from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_hotel_payments
 from .pdf import _render_invoice_pdf
@@ -15,7 +17,6 @@ from .pdf import _render_invoice_pdf
 
 @login_required
 def invoice_list(request):
-    from datetime import date as _date, timedelta
     active_company = request.session.get("active_company")
     qs = Invoice.objects.filter(invoice_type="hotel")
     if active_company:
@@ -25,16 +26,14 @@ def invoice_list(request):
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
     due_soon = request.GET.get('due_soon')
     if due_soon:
-        threshold = _date.today() + timedelta(days=7)
-        qs = qs.filter(due_date__lte=threshold, due_date__gte=_date.today())
+        threshold = date.today() + timedelta(days=7)
+        qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
     return _paginated_list(request, qs, "invoices/invoice/invoice_history.html", "invoices",
                            extra_ctx={"due_soon_filter": bool(due_soon)})
 
 
 @login_required
 def invoice_new(request):
-    import json as _json
-    from ..models import ConfirmationLetter as _CL
     suggested_number = Invoice.generate_number("hotel")
     active_company = request.session.get("active_company")
 
@@ -51,22 +50,19 @@ def invoice_new(request):
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
 
-        # Link any CLs that were imported
         cl_ids = request.POST.getlist("linked_cl_ids")
         if cl_ids:
-            _CL.objects.filter(pk__in=cl_ids).update(invoice=invoice)
+            ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
-        from ..ai import generate_invoice_summary
         generate_invoice_summary(invoice)
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat.")
         return redirect("invoice_detail", pk=invoice.pk)
 
-    cl_qs = _CL.objects.select_related("invoice")
+    cl_qs = ConfirmationLetter.objects.select_related("invoice")
     if active_company:
         cl_qs = cl_qs.filter(company=active_company)
-    cl_data = _json.dumps([{
+    cl_data = json.dumps([{
         "id": cl.pk,
         "ref": cl.confirmation_number,
         "guest": cl.guest_name,
@@ -86,12 +82,11 @@ def invoice_new(request):
 
 @login_required
 def invoice_detail(request, pk):
-    from datetime import date as _date
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
     reservations = _build_reservation_context(invoice)
     due_alert = None
     if invoice.due_date and invoice.remaining_sar > 0:
-        days = (invoice.due_date - _date.today()).days
+        days = (invoice.due_date - date.today()).days
         if days < 0:
             due_alert = {"type": "red", "msg": f"Jatuh tempo sudah lewat {abs(days)} hari yang lalu."}
         elif days == 0:
@@ -111,12 +106,11 @@ def invoice_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
 
     if request.method == "POST":
-        from ..models import log_activity, ActivityLog
-
         def _res_snapshot(inv):
-            rows = []
-            for r in inv.reservations.order_by('id'):
-                rows.append(f"{r.hotel} {r.check_in}–{r.check_out} ({int(r.total_sar or 0)} SAR)")
+            rows = [
+                f"{r.hotel} {r.check_in}–{r.check_out} ({int(r.total_sar or 0)} SAR)"
+                for r in inv.reservations.order_by('id')
+            ]
             return ' | '.join(rows) if rows else '—'
 
         _before = {
@@ -138,7 +132,6 @@ def invoice_edit(request, pk):
         invoice.payments.all().delete()
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
-        from ..ai import generate_invoice_summary
         generate_invoice_summary(invoice)
         _after = {
             'Nama Customer':    invoice.customer_name,
@@ -162,7 +155,6 @@ def invoice_delete(request, pk):
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
-        from ..models import log_activity, ActivityLog
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
         messages.success(request, f"Invoice {num} berhasil dihapus.")
         return redirect("invoice_list")
