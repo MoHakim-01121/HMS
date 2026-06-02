@@ -305,10 +305,12 @@
     html, body { overflow: hidden; height: 100%; }
 
     #map-wrap {
-      height: 100vh;           /* fallback */
-      height: 100dvh;          /* iOS Safari: dynamic viewport (excludes browser chrome) */
-      padding-bottom: env(safe-area-inset-bottom); /* notch/home indicator */
+      height: 100vh;
+      height: 100dvh;
     }
+
+    /* Sembunyikan Leaflet attribution di mobile */
+    .leaflet-control-attribution { display: none !important; }
 
     #bottom-nav { display: none !important; }
     .hotel-panel { display: none !important; }
@@ -716,6 +718,17 @@ map.on('click', function() {
 });
 
 function isMobile() { return window.innerWidth <= 600; }
+
+/* Fix tinggi map untuk Android Chrome (browser nav bar tidak di-handle dvh) */
+function fixMapHeight() {
+  if (!isMobile()) return;
+  var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  document.getElementById('map-wrap').style.height = h + 'px';
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fixMapHeight);
+}
+fixMapHeight();
 
 /* Tile layer */
 function getTileUrl() {
