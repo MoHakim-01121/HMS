@@ -1,16 +1,27 @@
 // Back button: inject above page-header on non-home pages
 (function () {
   var HOME_PATHS = ['/', '/company/'];
-  if (HOME_PATHS.indexOf(window.location.pathname) !== -1) return;
+  var LIST_ROOTS = ['/cl/', '/invoice/', '/services/', '/clients/', '/hotels/', '/users/', '/calendar/', '/search/'];
+  var path = window.location.pathname;
+  if (HOME_PATHS.indexOf(path) !== -1) return;
   var header = document.querySelector('.page-header');
   if (!header) return;
+
+  var backUrl;
+  if (LIST_ROOTS.indexOf(path) !== -1) {
+    backUrl = '/';
+  } else {
+    var base = path.split('/').filter(Boolean)[0];
+    backUrl = base ? '/' + base + '/' : '/';
+  }
+
   var btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'page-back';
   btn.title = 'Kembali (Esc)';
   btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>Kembali';
   btn.addEventListener('click', function () {
-    history.back();
+    location.href = backUrl;
   });
   header.parentNode.insertBefore(btn, header);
 })();
