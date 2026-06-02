@@ -49,11 +49,11 @@
         <thead>
           <tr>
             <th data-col="0">No CL</th>
-            <th data-col="1">Client/Travel</th>
-            <th data-col="2">Hotel</th>
-            <th data-col="3">Check-in</th>
-            <th data-col="4">Check-out</th>
-            <th data-col="5">Status</th>
+            <th data-col="1">Status</th>
+            <th data-col="2">Client/Travel</th>
+            <th data-col="3">Hotel</th>
+            <th data-col="4">Check-in</th>
+            <th data-col="5">Check-out</th>
             <th data-col="6">Total</th>
             <th></th>
           </tr>
@@ -65,10 +65,6 @@
               <span class="copyable col-bold col-nowrap" onclick="copyText('{{ cl.confirmation_number }}')" title="Klik untuk menyalin">{{ cl.confirmation_number }}</span>
               {% if cl.invoice %}<span style="font-size:10px;color:var(--accent-2);margin-left:5px;" title="Sudah ditagih: {{ cl.invoice.invoice_number }}">● INV</span>{% endif %}
             </td>
-            <td class="col-m-secondary col-ellipsis">{{ cl.guest_name }}</td>
-            <td class="col-ellipsis-sm col-muted col-m-hide">{{ cl.hotel_name }}</td>
-            <td class="col-muted col-nowrap col-m-hide">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td class="col-muted col-nowrap col-m-hide">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
             <td class="col-m-hide">
               {% if cl.reservation_status == 'DEFINITE' %}
               <span class="badge badge-green">Definite</span>
@@ -76,6 +72,10 @@
               <span class="badge badge-yellow">Tentative</span>
               {% endif %}
             </td>
+            <td class="col-m-secondary col-ellipsis">{{ cl.guest_name }}</td>
+            <td class="col-ellipsis-sm col-muted col-m-hide">{{ cl.hotel_name }}</td>
+            <td class="col-muted col-nowrap col-m-hide">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-muted col-nowrap col-m-hide">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
             <td class="mono col-nowrap col-m-amount">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }} SAR{% else %}—{% endif %}</td>
             <td class="col-m-actions" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
