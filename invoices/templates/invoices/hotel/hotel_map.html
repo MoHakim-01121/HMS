@@ -363,7 +363,7 @@
     flex-direction: column; overflow: hidden;
   }
   @media (max-width: 600px) { .mob-list-sheet { display: flex; } }
-  .mob-list-sheet.state-closed { transform: translateY(calc(100% - 56px)); }
+  .mob-list-sheet.state-closed { transform: translateY(calc(100% - 62px)); }
   .mob-list-sheet.state-half   { transform: translateY(45%); }
   .mob-list-sheet.state-full   { transform: translateY(0); }
   .mob-list-sheet.no-anim      { transition: none; }
@@ -371,11 +371,13 @@
   .mob-sheet-handle-area {
     flex-shrink: 0; padding: 10px 16px 8px;
     touch-action: none; user-select: none; cursor: row-resize;
+    border-top: 1px solid rgba(255,255,255,.18);
+    background: rgba(30,35,30,.98);
   }
-  .mob-sheet-pill { width: 36px; height: 4px; background: rgba(255,255,255,.3); border-radius: 2px; margin: 0 auto 10px; }
+  .mob-sheet-pill { width: 40px; height: 5px; background: rgba(255,255,255,.65); border-radius: 3px; margin: 0 auto 10px; }
   .mob-sheet-meta { display: flex; align-items: center; justify-content: space-between; }
-  .mob-sheet-count { font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,.3); }
-  .mob-sheet-hint  { font-size: 9px; color: rgba(255,255,255,.18); font-family: 'Courier New', monospace; letter-spacing: .5px; }
+  .mob-sheet-count { font-family: 'Courier New', monospace; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,.7); }
+  .mob-sheet-hint  { font-size: 10px; color: rgba(255,255,255,.5); font-family: 'Courier New', monospace; letter-spacing: .5px; }
   .mob-sheet-list  { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; position: relative; }
   .mob-sheet-list::-webkit-scrollbar { display: none; }
   .mob-sheet-list::after {
@@ -719,16 +721,24 @@ map.on('click', function() {
 
 function isMobile() { return window.innerWidth <= 600; }
 
-/* Fix tinggi map untuk Android Chrome (browser nav bar tidak di-handle dvh) */
+/* Fix tinggi map untuk Android Chrome */
 function fixMapHeight() {
   if (!isMobile()) return;
   var h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   document.getElementById('map-wrap').style.height = h + 'px';
+  if (typeof map !== 'undefined') map.invalidateSize();
 }
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', fixMapHeight);
 }
 fixMapHeight();
+
+/* Force-show sheet di mobile (CSS media query bisa tidak terpicu di beberapa browser) */
+(function(){
+  if (!isMobile()) return;
+  var sheet = document.getElementById('mob-list-sheet');
+  if (sheet) sheet.style.display = 'flex';
+})();
 
 /* Tile layer */
 function getTileUrl() {
@@ -1031,7 +1041,7 @@ function setSheetState(state, force) {
   _sheetStates.forEach(function(s){ sheet.classList.remove('state-'+s); });
   sheet.classList.add('state-'+state);
   var hint = document.getElementById('mob-sheet-hint');
-  if (hint) hint.textContent = state === 'closed' ? '▲ POSISI' : state === 'full' ? '▼ EXIT' : '▲▼ DRAG';
+  if (hint) hint.textContent = state === 'closed' ? '▲ BUKA DAFTAR' : state === 'full' ? '▼ TUTUP' : '▲▼ GESER';
   if ((state === 'half' || state === 'full') && activeCardPk) {
     setTimeout(function(){
       var card = document.querySelector('#mob-sheet-list .hp-card[data-pk="'+activeCardPk+'"]');
