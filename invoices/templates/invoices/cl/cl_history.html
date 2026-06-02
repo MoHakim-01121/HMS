@@ -53,7 +53,8 @@
             <th data-col="2">Hotel</th>
             <th data-col="3">Check-in</th>
             <th data-col="4">Check-out</th>
-            <th data-col="5">Total</th>
+            <th data-col="5">Status</th>
+            <th data-col="6">Total</th>
             <th></th>
           </tr>
         </thead>
@@ -68,6 +69,13 @@
             <td class="col-ellipsis-sm col-muted col-m-hide">{{ cl.hotel_name }}</td>
             <td class="col-muted col-nowrap col-m-hide">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
             <td class="col-muted col-nowrap col-m-hide">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-m-hide">
+              {% if cl.reservation_status == 'DEFINITE' %}
+              <span class="badge badge-green">Definite</span>
+              {% else %}
+              <span class="badge badge-yellow">Tentative</span>
+              {% endif %}
+            </td>
             <td class="mono col-nowrap col-m-amount">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }} SAR{% else %}—{% endif %}</td>
             <td class="col-m-actions" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
