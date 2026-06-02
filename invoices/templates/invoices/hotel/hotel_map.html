@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   /* ── Layout utama ── */
@@ -301,7 +302,14 @@
 
   /* ── Mobile ── */
   @media (max-width: 600px) {
-    #map-wrap { height: 100vh; }
+    html, body { overflow: hidden; height: 100%; }
+
+    #map-wrap {
+      height: 100vh;           /* fallback */
+      height: 100dvh;          /* iOS Safari: dynamic viewport (excludes browser chrome) */
+      padding-bottom: env(safe-area-inset-bottom); /* notch/home indicator */
+    }
+
     #bottom-nav { display: none !important; }
     .hotel-panel { display: none !important; }
     .hud-coords  { display: none; }
@@ -310,7 +318,9 @@
     /* Full-width topbar strip at top of map */
     .map-topbar {
       top: 0; left: 0; right: 0;
-      padding: 10px 12px; gap: 8px;
+      padding: 10px 12px;
+      padding-top: calc(10px + env(safe-area-inset-top)); /* status bar notch */
+      gap: 8px;
       background: rgba(10,10,14,.92);
       backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
       border-bottom: 1px solid rgba(255,255,255,.07);
@@ -320,7 +330,7 @@
     .filter-btn-wrap { position: relative; }
     .map-filter-dropdown {
       width: calc(100vw - 24px);
-      left: auto; right: 0; max-height: 55vh; overflow-y: auto;
+      left: auto; right: 0; max-height: 55dvh; overflow-y: auto;
     }
   }
 
@@ -340,7 +350,7 @@
   .mob-list-sheet {
     display: none; position: absolute;
     left: 0; right: 0; bottom: 0;
-    height: calc(100% - 56px);
+    height: calc(100% - 57px - env(safe-area-inset-top));
     background: rgba(10,10,14,.97);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-top-left-radius: 16px; border-top-right-radius: 16px;
