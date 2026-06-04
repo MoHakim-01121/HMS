@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.shortcuts import render
 
 from .models import (
     ActivityLog, Attachment, Client, ConfirmationLetter,
@@ -9,6 +10,11 @@ from .models import (
 class SuperuserOnlyAdminSite(admin.AdminSite):
     def has_permission(self, request):
         return request.user.is_active and request.user.is_superuser
+
+    def login(self, request, extra_context=None):
+        if request.user.is_authenticated:
+            return render(request, 'hw/403.html', status=403)
+        return super().login(request, extra_context)
 
 
 admin.site.__class__ = SuperuserOnlyAdminSite

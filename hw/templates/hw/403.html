@@ -1,0 +1,124 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>403 — Access Forbidden</title>
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="stylesheet" href="{% static 'hw/css/design.css' %}">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .wrap {
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+      text-align: center;
+    }
+    .code {
+      font-size: 72px;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -4px;
+      line-height: 1;
+      opacity: .15;
+    }
+    .panel {
+      width: 100%;
+      padding: 32px 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-2xl);
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .icon {
+      margin: 0 auto 12px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(239,68,68,.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--red);
+    }
+    .title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .desc {
+      font-size: 12px;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+    .btn {
+      margin-top: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 20px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r);
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      background: transparent;
+      transition: border-color .15s, color .15s;
+    }
+    .btn:hover { border-color: var(--text-2); color: var(--text); }
+    .status {
+      font-size: 9px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="code">403</div>
+    <div class="panel">
+      <div class="icon">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-11a7 7 0 100 14A7 7 0 0012 4z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-1.414 1.414M6.343 17.657l-1.414 1.414M18.364 18.364l-1.414-1.414M6.343 6.343L4.929 7.757"/>
+        </svg>
+      </div>
+      <div class="title">Access Forbidden</div>
+      <div class="desc">You do not have permission to access this page. Superuser access is required.</div>
+      <a href="/" class="btn">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Back to Home
+      </a>
+    </div>
+    <div class="status">Hakim Workspace</div>
+  </div>
+</body>
+</html>
