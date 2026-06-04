@@ -58,7 +58,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.humanize',
-    'invoices',
+    'hw',
 ]
 
 MIDDLEWARE = [
@@ -88,7 +88,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'invoices.context_processors.due_soon',
+                'hw.context_processors.due_soon',
             ],
         },
     },
