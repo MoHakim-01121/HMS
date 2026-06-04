@@ -1,0 +1,18 @@
+﻿{% load static %}
+<script src="{% static 'hw/js/utils.js' %}"></script>
+{% if messages %}
+<div class="toast-container">
+  {% for message in messages %}
+  <div class="toast toast-{{ message.tags }}">{{ message }}</div>
+  {% endfor %}
+</div>
+<script>
+  document.querySelectorAll('.toast').forEach(function(t) {
+    setTimeout(function() {
+      t.style.opacity = '0';
+      t.style.transform = 'translateX(20px)';
+      setTimeout(function() { t.remove(); }, 300);
+    }, 3500);
+  });
+</script>
+{% endif %}

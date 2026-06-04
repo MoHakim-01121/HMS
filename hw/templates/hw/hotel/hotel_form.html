@@ -1,0 +1,496 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static %}
+
+{% block title %}{% if edit %}Edit Hotel{% else %}Hotel Baru{% endif %}{% endblock %}
+
+{% block content %}
+<div class="page page-sm">
+  <div class="page-header">
+    <div class="page-title">{% if edit %}Edit — {{ hotel.name }}{% else %}Hotel Baru{% endif %}</div>
+  </div>
+
+  <form method="post" action="{% if edit %}{% url 'hotel_edit' hotel.pk %}{% else %}{% url 'hotel_new' %}{% endif %}">
+    {% csrf_token %}
+
+    <!-- ── Detail Hotel ─────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Detail Hotel</span></div>
+      <div class="card-body">
+
+        <div class="field" style="margin-bottom:14px;">
+          <label>Nama Hotel *</label>
+          <input type="text" name="name" value="{% if edit %}{{ hotel.name }}{% endif %}" required placeholder="Contoh: Hotel Sawaaed">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+          <div class="field">
+            <label>Kota *</label>
+            <select name="city">
+              <option value="makkah" {% if not edit or hotel.city == 'makkah' %}selected{% endif %}>Makkah</option>
+              <option value="madinah" {% if edit and hotel.city == 'madinah' %}selected{% endif %}>Madinah</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Bintang</label>
+            <select name="stars">
+              {% for s in "12345" %}
+              <option value="{{ s }}" {% if edit and hotel.stars == s|add:0 %}selected{% endif %}>{{ s }} ★</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Area</label>
+            <input type="text" name="area" value="{% if edit %}{{ hotel.area }}{% endif %}"
+                   placeholder="Misfalah, Ajyad…" list="area-suggestions">
+            <datalist id="area-suggestions">
+              <option value="Misfalah"><option value="Ajyad"><option value="Ajyad Selatan">
+              <option value="Ajyad Utara"><option value="Syisyah"><option value="Kudai">
+              <option value="Jarwal"><option value="Aziziyah"><option value="Ibrahim Khalil">
+              <option value="Nakasa"><option value="Bakhutmaz">
+            </datalist>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="field">
+            <label>Avg Orang/Kamar</label>
+            <input type="number" step="0.01" min="0.1" name="avg_occupancy"
+                   value="{% if edit and hotel.avg_occupancy %}{{ hotel.avg_occupancy }}{% endif %}"
+                   placeholder="3.4">
+            <div style="font-size:11px;color:var(--text-3);margin-top:4px;">35 jamaah ÷ 3.4 = 11 kamar</div>
+          </div>
+          <div class="field" style="display:flex;align-items:flex-end;padding-bottom:3px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;">
+              <input type="checkbox" name="is_active" {% if not edit or hotel.is_active %}checked{% endif %}>
+              <span>Aktif</span>
+            </label>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Peta & Rute ──────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Peta & Rute</span></div>
+      <div class="card-body" style="padding:0;">
+
+        <!-- Map wrapper -->
+        <div id="map-wrap" style="position:relative;overflow:hidden;transition:box-shadow .2s;">
+
+          <div id="pick-map" style="height:360px;display:block;"></div>
+
+          <!-- ── Route toolbar (top-right) ── -->
+          <div style="position:absolute;top:10px;right:10px;z-index:800;">
+
+            <button type="button" id="route-toggle-btn" onclick="toggleRouteMode()" style="
+              display:flex;align-items:center;gap:7px;white-space:nowrap;
+              padding:7px 12px;border-radius:8px;cursor:pointer;
+              background:rgba(13,13,15,.90);
+              backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+              border:1px solid rgba(255,255,255,.11);
+              color:var(--text-2);font-size:12px;font-weight:500;font-family:inherit;
+              transition:border-color .2s,color .2s,background .2s,box-shadow .2s;
+              box-shadow:0 2px 16px rgba(0,0,0,.45);">
+              <svg id="route-toggle-icon" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0;transition:opacity .15s;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+              <span id="route-toggle-label">Mode Gambar</span>
+              <svg id="route-exit-icon" style="display:none;margin-left:1px;opacity:.55;flex-shrink:0;" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+
+            <!-- Icon bar panel -->
+            <div id="route-controls" style="
+              display:none;flex-direction:column;gap:6px;
+              margin-top:6px;padding:8px;
+              background:rgba(12,12,14,.93);
+              backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+              border:1px solid rgba(255,255,255,.11);border-radius:10px;
+              box-shadow:0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03) inset;">
+
+              <!-- Icon row -->
+              <div style="display:flex;align-items:center;gap:3px;">
+                <button type="button" class="rib rib-amber" onclick="startFromMosque()" title="Titik awal: Pelataran Masjid">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z"/></svg>
+                </button>
+                <button type="button" class="rib rib-blue" onclick="startFromHotel()" title="Titik awal: Posisi Hotel">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 21V12h6v9"/></svg>
+                </button>
+                <div style="width:1px;height:18px;background:rgba(255,255,255,.09);margin:0 3px;flex-shrink:0;"></div>
+                <button type="button" class="rib" onclick="undoRoute()" title="Undo — hapus titik terakhir (Ctrl+Z)">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a4 4 0 010 8H7m-4-8l4-4m-4 4l4 4"/></svg>
+                </button>
+                <button type="button" class="rib rib-red" onclick="clearRoute()" title="Hapus semua titik rute">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+
+              <!-- Status row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:1px 2px 0;">
+                <span id="route-count" style="font-size:10.5px;color:var(--text-3);white-space:nowrap;line-height:1;"></span>
+                <span id="route-saved" style="display:none;align-items:center;gap:3px;font-size:10.5px;color:var(--green);font-weight:600;flex-shrink:0;white-space:nowrap;line-height:1;">
+                  <svg width="8" height="8" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  Tersimpan
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Hint pill (bottom-center) ── -->
+          <div id="route-hint" style="
+            display:none;position:absolute;bottom:30px;left:50%;transform:translateX(-50%);
+            z-index:800;pointer-events:none;white-space:nowrap;
+            background:rgba(12,12,14,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+            border:1px solid rgba(255,255,255,.09);border-radius:99px;
+            padding:5px 14px;font-size:10.5px;color:var(--text-2);letter-spacing:.01em;">
+            Klik peta = tambah &nbsp;·&nbsp; ○ putih = bengkok &nbsp;·&nbsp; seret = pindah &nbsp;·&nbsp; klik titik = hapus
+          </div>
+
+        </div>
+
+        <!-- ── Koordinat ── -->
+        <div style="padding:10px 16px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:9.5px;letter-spacing:.08em;color:var(--text-3);font-weight:700;font-family:monospace;flex-shrink:0;user-select:none;text-transform:uppercase;">Lat</span>
+            <input type="number" step="any" name="lat" id="inp-lat"
+                   value="{% if edit and hotel.lat %}{{ hotel.lat }}{% endif %}"
+                   placeholder="21.4225" style="flex:1;min-width:0;">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:9.5px;letter-spacing:.08em;color:var(--text-3);font-weight:700;font-family:monospace;flex-shrink:0;user-select:none;text-transform:uppercase;">Lng</span>
+            <input type="number" step="any" name="lng" id="inp-lng"
+                   value="{% if edit and hotel.lng %}{{ hotel.lng }}{% endif %}"
+                   placeholder="39.8262" style="flex:1;min-width:0;">
+          </div>
+        </div>
+
+        <input type="hidden" name="route" id="inp-route" value="{% if edit and hotel_route_json %}{{ hotel_route_json }}{% endif %}">
+      </div>
+    </div>
+
+    <!-- ── Catatan ──────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Catatan</span></div>
+      <div class="card-body">
+        <textarea name="note" rows="3" placeholder="Info tambahan…">{% if edit %}{{ hotel.note }}{% endif %}</textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+      <a href="{% if edit %}{% url 'hotel_detail' hotel.pk %}{% else %}{% url 'hotel_list' %}{% endif %}" class="btn btn-ghost">Batal</a>
+      <button type="submit" class="btn btn-primary">{% if edit %}Simpan{% else %}Buat Hotel{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+/* ── Route icon buttons ──────────────────────────────────── */
+.rib {
+  width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+  border-radius:7px;cursor:pointer;flex-shrink:0;font-family:inherit;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+  color:var(--text-2);transition:background .12s,border-color .12s,transform .1s;
+}
+.rib:hover  { background:rgba(255,255,255,.11); }
+.rib:active { transform:scale(.92); }
+
+.rib.rib-amber { color:#F0A429;background:rgba(240,164,41,.09);border-color:rgba(240,164,41,.26); }
+.rib.rib-amber:hover { background:rgba(240,164,41,.18); }
+
+.rib.rib-blue  { color:var(--accent-2);background:rgba(94,106,210,.09);border-color:rgba(94,106,210,.26); }
+.rib.rib-blue:hover  { background:rgba(94,106,210,.18); }
+
+.rib.rib-red   { color:var(--red);background:rgba(229,83,75,.07);border-color:rgba(229,83,75,.18); }
+.rib.rib-red:hover   { background:rgba(229,83,75,.16); }
+
+/* ── Panel open animation ────────────────────────────────── */
+@keyframes _panelIn {
+  from { opacity:0; transform:translateY(-5px) scale(.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+#route-controls { animation:_panelIn .18s cubic-bezier(.34,1.4,.64,1); }
+
+/* ── Map active glow ─────────────────────────────────────── */
+#map-wrap.route-active {
+  box-shadow:inset 0 0 0 2px rgba(94,106,210,.45);
+}
+</style>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  var HARAM  = [21.420324, 39.826485];
+  var NABAWI = [24.4672,   39.6112];
+  var inpLat = document.getElementById('inp-lat');
+  var inpLng = document.getElementById('inp-lng');
+  var inpRoute = document.getElementById('inp-route');
+  var citySelect = document.querySelector('select[name="city"]');
+  var mapWrap = document.getElementById('map-wrap');
+
+  function getRefLL() { return citySelect.value === 'madinah' ? NABAWI : HARAM; }
+
+  var initLat = parseFloat(inpLat.value) || HARAM[0];
+  var initLng = parseFloat(inpLng.value) || HARAM[1];
+
+  var map = L.map('pick-map', { zoomControl: true }).setView([initLat, initLng], 15);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19
+  }).addTo(map);
+
+  /* ── Reference markers ── */
+  function dot(size, color, glow) {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:'+color+';border:2px solid #fff;box-shadow:0 0 '+(glow||6)+'px '+color+'99;"></div>',
+      iconSize: [size,size], iconAnchor: [size/2,size/2]
+    });
+  }
+  L.marker(HARAM,           { icon: dot(14,'#F0A429',10) }).bindTooltip('Pelataran Al-Haram').addTo(map);
+  L.marker([21.4225,39.8262],{ icon: dot(10,'#E5534B') }).bindTooltip('Masjid Al-Haram').addTo(map);
+  L.marker(NABAWI,          { icon: dot(10,'#E5534B') }).bindTooltip('Masjid Nabawi').addTo(map);
+
+  /* ── Hotel marker ── */
+  var hotelMarker = null;
+  function setHotelMarker(ll) {
+    if (hotelMarker) { hotelMarker.setLatLng(ll); return; }
+    hotelMarker = L.marker(ll, { icon: dot(12,'#5E6AD2'), draggable: true }).addTo(map);
+    hotelMarker.on('dragend', function() {
+      var p = hotelMarker.getLatLng();
+      inpLat.value = p.lat.toFixed(6);
+      inpLng.value = p.lng.toFixed(6);
+      refreshRoute();
+    });
+  }
+  if (inpLat.value && inpLng.value) setHotelMarker([parseFloat(inpLat.value), parseFloat(inpLng.value)]);
+
+  /* ──────────────────────────────────────────────────────────
+     Route editing — Mapbox Draw / Leaflet.PM pattern
+     · Vertex (●) : seret = pindah, klik = hapus
+     · Midpoint (○): klik = sisip vertex baru
+     · Map click   : tambah ke akhir (route mode saja)
+  ────────────────────────────────────────────────────────── */
+  var routeMode      = false;
+  var waypoints      = [];
+  try { var _rv = JSON.parse(inpRoute.value || 'null'); waypoints = Array.isArray(_rv) ? _rv : []; } catch(e) {}
+
+  var routeLayer      = null;
+  var waypointMarkers = [];
+  var midpointMarkers = [];
+  var previewLine     = null;
+  var snapRing        = null;
+  var _suppress       = false;
+
+  function suppressNext() { _suppress = true; setTimeout(function(){ _suppress = false; }, 60); }
+
+  /* ── Distance helpers ── */
+  function haversine(a, b) {
+    var R = 6371000, dLat = (b[0]-a[0])*Math.PI/180, dLng = (b[1]-a[1])*Math.PI/180;
+    var x = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+  }
+  function routeDist(wps) { var t=0; for(var i=0;i<wps.length-1;i++) t+=haversine(wps[i],wps[i+1]); return t; }
+
+  /* ── Marker icons ── */
+  function makeVertexIcon(idx, total) {
+    var isEnd  = idx === 0 || idx === total-1;
+    var s      = isEnd ? 12 : 8;
+    var color  = idx === 0 ? '#3FB950' : idx === total-1 ? '#F0A429' : '#5E6AD2';
+    var ring   = isEnd
+      ? '<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:'+color+'22;pointer-events:none;"></div>'
+      : '';
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:grab;position:relative;">' +
+            ring +
+            '<div style="width:'+s+'px;height:'+s+'px;border-radius:50%;background:'+color+';border:2px solid #fff;box-shadow:0 0 6px '+color+'CC;pointer-events:none;position:relative;"></div>' +
+            '</div>',
+      iconSize: [28,28], iconAnchor: [14,14]
+    });
+  }
+
+  function makeMidIcon() {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:cell;">' +
+            '<div style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.25);border:1.5px solid rgba(255,255,255,.6);box-shadow:0 1px 5px rgba(0,0,0,.5);pointer-events:none;"></div>' +
+            '</div>',
+      iconSize: [24,24], iconAnchor: [12,12]
+    });
+  }
+
+  /* ── Render ── */
+  function refreshRoute() {
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    waypointMarkers.forEach(function(m){ map.removeLayer(m); });  waypointMarkers = [];
+    midpointMarkers.forEach(function(m){ map.removeLayer(m); });  midpointMarkers = [];
+
+    if (waypoints.length < 2) { updateRouteUI(); return; }
+
+    routeLayer = L.polyline(waypoints, {
+      color: '#5E6AD2', weight: 3, opacity: 0.9,
+      dashArray: '8,6', lineCap: 'round', lineJoin: 'round'
+    }).addTo(map);
+
+    if (routeMode) {
+      for (var j = 0; j < waypoints.length-1; j++) {
+        (function(si) {
+          var mLat = (waypoints[si][0]+waypoints[si+1][0])/2;
+          var mLng = (waypoints[si][1]+waypoints[si+1][1])/2;
+          var mm = L.marker([mLat,mLng], { icon: makeMidIcon(), interactive: true, zIndexOffset: -10 });
+          mm.on('click', function(e) {
+            L.DomEvent.stopPropagation(e); suppressNext();
+            waypoints.splice(si+1, 0, [parseFloat(mLat.toFixed(6)), parseFloat(mLng.toFixed(6))]);
+            refreshRoute();
+          });
+          midpointMarkers.push(mm.addTo(map));
+        })(j);
+      }
+    }
+
+    waypoints.forEach(function(wp, idx) {
+      var vm = L.marker(wp, { icon: makeVertexIcon(idx, waypoints.length), draggable: true, zIndexOffset: 10 });
+      var _dragged = false;
+      vm.on('mousedown', function(){ _dragged = false; });
+      vm.on('drag', function(){
+        _dragged = true;
+        var ll = vm.getLatLng();
+        waypoints[idx] = [ll.lat, ll.lng];
+        routeLayer.setLatLngs(waypoints);
+      });
+      vm.on('dragend', function(){
+        var ll = vm.getLatLng();
+        waypoints[idx] = [parseFloat(ll.lat.toFixed(6)), parseFloat(ll.lng.toFixed(6))];
+        refreshRoute();
+      });
+      vm.on('click', function(e){
+        L.DomEvent.stopPropagation(e);
+        if (!_dragged) { suppressNext(); waypoints.splice(idx,1); refreshRoute(); }
+      });
+      waypointMarkers.push(vm.addTo(map));
+    });
+
+    updateRouteUI();
+  }
+
+  function updateRouteUI() {
+    var count = document.getElementById('route-count');
+    var saved = document.getElementById('route-saved');
+    if (waypoints.length >= 2) {
+      var dist = routeDist(waypoints);
+      count.textContent = waypoints.length + ' titik · ' + (dist < 1000 ? Math.round(dist)+'m' : (dist/1000).toFixed(2)+'km');
+      saved.style.display = 'flex';
+      inpRoute.value = JSON.stringify(waypoints);
+    } else if (waypoints.length === 1) {
+      count.textContent = '1 titik — klik tujuan';
+      saved.style.display = 'none';
+      inpRoute.value = '';
+    } else {
+      count.textContent = '';
+      saved.style.display = 'none';
+      inpRoute.value = '';
+    }
+  }
+
+  /* ── Snap ── */
+  function snapToMarker(latlng) {
+    var targets = [HARAM, NABAWI];
+    if (inpLat.value && inpLng.value) targets.push([parseFloat(inpLat.value), parseFloat(inpLng.value)]);
+    for (var i = 0; i < targets.length; i++) {
+      var tp = map.latLngToContainerPoint(L.latLng(targets[i][0], targets[i][1]));
+      var cp = map.latLngToContainerPoint(latlng);
+      if (Math.sqrt(Math.pow(tp.x-cp.x,2)+Math.pow(tp.y-cp.y,2)) <= 24) return [targets[i][0], targets[i][1]];
+    }
+    return [parseFloat(latlng.lat.toFixed(6)), parseFloat(latlng.lng.toFixed(6))];
+  }
+
+  /* ── Mode toggle ── */
+  window.toggleRouteMode = function() {
+    routeMode = !routeMode;
+    var btn  = document.getElementById('route-toggle-btn');
+    var ctrl = document.getElementById('route-controls');
+    var hint = document.getElementById('route-hint');
+    var lbl  = document.getElementById('route-toggle-label');
+    var exit = document.getElementById('route-exit-icon');
+
+    mapWrap.classList.toggle('route-active', routeMode);
+    btn.style.borderColor = routeMode ? 'rgba(94,106,210,.55)' : '';
+    btn.style.background  = routeMode ? 'rgba(94,106,210,.18)' : '';
+    btn.style.color       = routeMode ? 'var(--accent-2)' : '';
+    btn.style.boxShadow   = routeMode ? '0 2px 16px rgba(94,106,210,.25)' : '0 2px 16px rgba(0,0,0,.45)';
+    if (lbl)  lbl.textContent    = routeMode ? 'Sedang Gambar' : 'Mode Gambar';
+    if (exit) exit.style.display = routeMode ? 'block' : 'none';
+    ctrl.style.display = routeMode ? 'flex' : 'none';
+    hint.style.display = routeMode ? 'block' : 'none';
+    document.getElementById('pick-map').style.cursor = routeMode ? 'crosshair' : '';
+
+    if (!routeMode) {
+      if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
+      if (snapRing)    { map.removeLayer(snapRing);    snapRing    = null; }
+    }
+    refreshRoute();
+  };
+
+  window.startFromMosque = function() { waypoints.unshift(getRefLL().slice()); refreshRoute(); };
+  window.startFromHotel  = function() {
+    if (!inpLat.value || !inpLng.value) return;
+    waypoints.unshift([parseFloat(parseFloat(inpLat.value).toFixed(6)), parseFloat(parseFloat(inpLng.value).toFixed(6))]);
+    refreshRoute();
+  };
+  window.undoRoute  = function() { if (waypoints.length) { waypoints.pop(); refreshRoute(); } };
+  window.clearRoute = function() {
+    waypoints = [];
+    if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
+    refreshRoute();
+    inpRoute.value = '';
+  };
+
+  /* ── Mousemove: preview + snap ring ── */
+  map.on('mousemove', function(e) {
+    if (!routeMode) return;
+    var targets = [HARAM, NABAWI];
+    if (inpLat.value && inpLng.value) targets.push([parseFloat(inpLat.value), parseFloat(inpLng.value)]);
+    var found = null;
+    for (var i = 0; i < targets.length; i++) {
+      var tp = map.latLngToContainerPoint(L.latLng(targets[i][0], targets[i][1]));
+      var cp = map.latLngToContainerPoint(e.latlng);
+      if (Math.sqrt(Math.pow(tp.x-cp.x,2)+Math.pow(tp.y-cp.y,2)) <= 24) { found = targets[i]; break; }
+    }
+    if (found) {
+      if (!snapRing) snapRing = L.circleMarker(found, { radius:14, color:'#fff', weight:1.5, fillOpacity:0, interactive:false }).addTo(map);
+      else snapRing.setLatLng(found);
+    } else {
+      if (snapRing) { map.removeLayer(snapRing); snapRing = null; }
+    }
+    if (waypoints.length > 0) {
+      var pts = [waypoints[waypoints.length-1], [e.latlng.lat, e.latlng.lng]];
+      if (previewLine) previewLine.setLatLngs(pts);
+      else previewLine = L.polyline(pts, { color:'#5E6AD2', weight:1.5, opacity:.38, dashArray:'5,5', interactive:false }).addTo(map);
+    } else {
+      if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
+    }
+  });
+
+  /* ── Map click ── */
+  map.on('click', function(e) {
+    if (_suppress || !routeMode) return;
+    waypoints.push(snapToMarker(e.latlng));
+    refreshRoute();
+  });
+
+  /* ── Coord inputs → update marker ── */
+  function syncMarker() {
+    var lat = parseFloat(inpLat.value), lng = parseFloat(inpLng.value);
+    if (!isNaN(lat) && !isNaN(lng)) { setHotelMarker([lat,lng]); map.setView([lat,lng], map.getZoom()); }
+  }
+  inpLat.addEventListener('change', syncMarker);
+  inpLng.addEventListener('change', syncMarker);
+
+  document.addEventListener('keydown', function(e) {
+    if (!routeMode) return;
+    if (e.ctrlKey && (e.key==='z'||e.key==='Z')) { e.preventDefault(); undoRoute(); }
+  });
+
+  refreshRoute();
+})();
+</script>
+{% endblock %}

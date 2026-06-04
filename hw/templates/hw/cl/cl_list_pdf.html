@@ -1,0 +1,189 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+  size: A4 landscape;
+  margin: 12mm 16mm;
+  @bottom-right {
+    content: "Page " counter(page) " / " counter(pages);
+    font-size: 9px;
+    color: #999;
+    font-family: 'Segoe UI', sans-serif;
+  }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
+
+/* Header */
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #111;
+  margin-bottom: 14px;
+}
+.doc-title { font-size: 18px; font-weight: 800; color: #111; letter-spacing: -.2px; white-space: nowrap; }
+.doc-sub { font-size: 10px; color: #888; margin-top: 3px; }
+.doc-meta { text-align: right; font-size: 12px; color: #666; line-height: 1.7; }
+.doc-meta strong { color: #111; font-weight: 700; }
+
+/* Table */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+thead tr { background: #111; }
+th {
+  color: #fff;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  white-space: nowrap;
+}
+th:first-child { border-top-left-radius: 7px; }
+th:last-child  { border-top-right-radius: 7px; }
+tbody tr:nth-child(even) td { background: #fafafa; }
+tbody tr:nth-child(odd)  td { background: #fff; }
+td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #ececec;
+  vertical-align: middle;
+  font-size: 10.5px;
+}
+tbody tr:last-child td { border-bottom: none; }
+
+/* Totals row */
+tfoot td {
+  padding: 8px 10px;
+  background: #f0f0f0;
+  color: #1c1c1c;
+  font-size: 10px;
+  font-weight: 700;
+  border-top: 1px solid #ddd;
+}
+tfoot tr:last-child td:first-child { border-bottom-left-radius: 7px; }
+tfoot tr:last-child td:last-child  { border-bottom-right-radius: 7px; }
+
+.mono { font-family: 'Courier New', monospace; font-size: 10px; }
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+.nowrap { white-space: nowrap; }
+
+.badge {
+  display: inline-block; padding: 2px 7px; border-radius: 4px;
+  font-size: 9px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
+}
+.badge-def { background: #e8f5e9; color: #2e7d32; }
+.badge-ten { background: #fff8e1; color: #b45309; }
+
+.remain-ok  { color: #15803d; font-weight: 700; }
+.remain-due { color: #b45309; font-weight: 700; }
+
+/* Summary cards below table */
+.summary-bar {
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+}
+.sum-card {
+  flex: 1;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+.sum-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #999; margin-bottom: 3px; }
+.sum-val   { font-size: 14px; font-weight: 800; color: #111; font-family: 'Courier New', monospace; }
+.sum-card.green .sum-val { color: #15803d; }
+.sum-card.amber .sum-val { color: #b45309; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <img src="{{ logo_rel_path }}" style="width:54px;height:54px;object-fit:contain;">
+    <div>
+      <div class="doc-title">Confirmation Letters</div>
+      {% if q %}<div class="doc-sub">Filter: "{{ q }}"</div>{% endif %}
+    </div>
+  </div>
+  <div class="doc-meta">
+    <div><strong>{{ letters|length }}</strong> records</div>
+    <div>{{ now|date:"d M Y, H:i" }}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>CL No</th>
+      <th>Company</th>
+      <th>Guest</th>
+      <th>Hotel</th>
+      <th class="text-center">Status</th>
+      <th class="text-center">Check-in</th>
+      <th class="text-center">Check-out</th>
+      <th class="text-right">Nights</th>
+      <th class="text-right">Rooms</th>
+      <th class="text-right">Total SAR</th>
+      <th class="text-right">Paid SAR</th>
+      <th class="text-right">Remaining SAR</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cl in letters %}
+    <tr>
+      <td class="mono nowrap">{{ cl.confirmation_number }}</td>
+      <td class="nowrap">{{ cl.company|capfirst }}</td>
+      <td>{{ cl.guest_name }}</td>
+      <td>{{ cl.hotel_name }}</td>
+      <td class="text-center">
+        {% if cl.reservation_status == 'DEFINITE' %}
+          <span class="badge badge-def">Definite</span>
+        {% else %}
+          <span class="badge badge-ten">Tentative</span>
+        {% endif %}
+      </td>
+      <td class="text-center nowrap">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="text-center nowrap">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="text-right">{{ cl.num_nights }}</td>
+      <td class="text-right">{{ cl.total_rooms }}</td>
+      <td class="text-right mono">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+      <td class="text-right mono">{{ cl.paid_sar|floatformat:0|intcomma }}</td>
+      <td class="text-right mono">
+        {% if cl.remaining_sar > 0 %}
+          <span class="remain-due">{{ cl.remaining_sar|floatformat:0|intcomma }}</span>
+        {% else %}
+          <span class="remain-ok">0</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="12" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" style="text-align:right;letter-spacing:.5px;font-size:9px;">TOTAL</td>
+      <td class="text-right">{{ total_nights }}</td>
+      <td class="text-right">{{ total_rooms }}</td>
+      <td class="text-right mono">{{ total_sar|floatformat:0|intcomma }}</td>
+      <td class="text-right mono">{{ total_paid|floatformat:0|intcomma }}</td>
+      <td class="text-right mono">{{ total_remain|floatformat:0|intcomma }}</td>
+    </tr>
+  </tfoot>
+</table>
+
+</body>
+</html>

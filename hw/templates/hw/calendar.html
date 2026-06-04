@@ -1,0 +1,455 @@
+﻿{% extends 'hw/partials/_base.html' %}
+{% load static %}
+
+{% block title %}Kalender Reservasi{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">Kalender</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cal-page {
+    padding: 24px 20px 64px;
+    max-width: 1140px;
+    margin: 0 auto;
+  }
+
+  /* ── Top bar ── */
+  .cal-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .cal-topbar-left  { display: flex; align-items: center; gap: 16px; }
+  .cal-topbar-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+  /* Navigation */
+  .cal-nav { display: flex; align-items: center; gap: 4px; }
+  .cal-nav a {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: var(--r); border: 1px solid var(--border);
+    color: var(--text-2); text-decoration: none;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .cal-nav a:hover { background: var(--surface-2); color: var(--text); border-color: var(--border-2); }
+  .cal-month {
+    font-size: 17px; font-weight: 700; color: var(--text);
+    min-width: 148px; text-align: center; letter-spacing: -.2px;
+  }
+  .cal-count {
+    font-size: 12px; color: var(--text-3); font-weight: 500;
+  }
+
+  /* Legend */
+  .cal-legend { display: flex; gap: 14px; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Summary pills */
+  .cal-summary { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sum-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 11px; border-radius: var(--r-full);
+    font-size: 11px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-2);
+  }
+  .sum-pill .sum-val { font-weight: 700; color: var(--text); }
+  .sum-pill.red    { background: var(--red-muted);    border-color: rgba(229,83,75,.3);  color: var(--red); }
+  .sum-pill.green  { background: var(--green-muted);  border-color: rgba(38,194,129,.3); color: var(--green); }
+  .sum-pill.blue   { background: var(--accent-muted); border-color: rgba(94,106,210,.3); color: var(--accent-2); }
+
+  /* Calendar card */
+  .cal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Grid columns */
+  .cal-grid-template {
+    display: grid;
+    grid-template-columns: 140px repeat({{ days_in_month }}, 1fr);
+    width: 100%;
+  }
+
+  /* Header row */
+  .cal-hotel-th {
+    padding: 8px 12px;
+    font-size: 10px; font-weight: 600; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: .5px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    position: sticky; left: 0; z-index: 2;
+  }
+  .cal-day-th {
+    padding: 8px 0;
+    font-size: 10px; font-weight: 600; color: var(--text-3);
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,.04);
+    background: var(--surface-2);
+    line-height: 1;
+  }
+  .cal-day-th.today {
+    color: var(--accent-2);
+    background: var(--accent-muted);
+    font-weight: 700;
+  }
+
+  /* Data rows */
+  .cal-row {
+    display: grid;
+    grid-template-columns: 140px repeat({{ days_in_month }}, 1fr);
+    grid-template-rows: 0 1fr;
+    border-top: 1px solid rgba(255,255,255,.045);
+    width: 100%;
+    position: relative;
+  }
+  .cal-row:hover { background: rgba(255,255,255,.012); }
+  .cal-hotel-name {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    padding: 0 12px;
+    font-size: 11px; font-weight: 500; color: var(--text);
+    display: flex; align-items: center;
+    border-right: 1px solid var(--border);
+    position: sticky; left: 0;
+    background: var(--surface); z-index: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cal-row:hover .cal-hotel-name { background: var(--surface-2); }
+  .cal-cell {
+    border-right: 1px solid rgba(255,255,255,.03);
+  }
+  .cal-cell.today-col { background: rgba(94,106,210,.04); }
+
+  /* Reservation blocks */
+  .cal-blocks {
+    grid-column: 2 / -1;
+    display: grid;
+    grid-template-columns: repeat({{ days_in_month }}, 1fr);
+    align-items: center;
+    padding: 8px 0;
+    position: relative;
+    min-height: 46px;
+  }
+  .cal-block {
+    grid-row: 1;
+    height: 28px;
+    border-radius: var(--r);
+    display: flex; align-items: center;
+    padding: 0 7px;
+    font-size: 10px; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    text-decoration: none;
+    transition: filter .12s, transform .1s;
+    margin: 0 1px;
+    min-width: 0;
+  }
+  .cal-block:hover { filter: brightness(1.15); transform: translateY(-1px); z-index: 5; }
+
+  .block-blue   { background: rgba(94,106,210,.18);  color: var(--accent-2); border-left: 3px solid var(--accent-2); }
+  .block-yellow { background: rgba(240,164,41,.15);  color: var(--yellow);   border-left: 3px solid var(--yellow); }
+  .block-red    { background: rgba(229,83,75,.15);   color: var(--red);      border-left: 3px solid var(--red); }
+  .block-green  { background: rgba(38,194,129,.15);  color: var(--green);    border-left: 3px solid var(--green); }
+  [data-theme="light"] .block-blue   { background: rgba(94,106,210,.12); }
+  [data-theme="light"] .block-yellow { background: rgba(240,164,41,.12); }
+  [data-theme="light"] .block-red    { background: rgba(229,83,75,.12);  }
+
+
+  /* Tooltip card */
+  .cal-tooltip {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-xl);
+    z-index: var(--z-overlay);
+    pointer-events: none;
+    display: none;
+    min-width: 230px;
+    max-width: 290px;
+    box-shadow: var(--shadow-xl);
+    overflow: hidden;
+  }
+  .tt-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tt-guest {
+    font-size: 13px; font-weight: 700;
+    color: var(--text); line-height: 1.3;
+  }
+  .tt-body {
+    padding: 10px 14px 12px;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 5px 8px;
+    align-items: baseline;
+  }
+  .tt-label {
+    font-size: 10px; color: var(--text-3);
+    font-weight: 600; text-transform: uppercase; letter-spacing: .4px;
+  }
+  .tt-val {
+    font-size: 12px; color: var(--text); font-weight: 500;
+  }
+  .tt-inv-section {
+    border-top: 1px solid var(--border);
+    padding: 8px 14px 11px;
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 5px 8px;
+    align-items: baseline;
+  }
+  .tt-inv-link {
+    font-size: 12px; font-weight: 600;
+    color: var(--accent-2); text-decoration: none;
+  }
+  .tt-sisa-val { font-size: 12px; font-weight: 700; }
+
+  @media (max-width: 600px) {
+    .cal-page { padding: 10px 0 80px; }
+
+    /* Top bar */
+    .cal-topbar {
+      padding: 0 12px;
+      flex-wrap: nowrap;
+      margin-bottom: 10px;
+    }
+    .cal-topbar-right { gap: 8px; }
+    .cal-legend { display: none; }
+    .cal-count { display: none; }
+    .cal-month { font-size: 15px; min-width: 110px; }
+    .sum-pill { font-size: 10px; padding: 3px 8px; }
+
+    /* Calendar card: horizontally scrollable */
+    .cal-card {
+      border-radius: 0;
+      border-left: none;
+      border-right: none;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Minimum day width = 30px so 30 days = 900px + hotel col */
+    .cal-grid-template {
+      grid-template-columns: 72px repeat({{ days_in_month }}, minmax(30px, 1fr));
+      min-width: calc(72px + {{ days_in_month }} * 30px);
+    }
+    .cal-row {
+      grid-template-columns: 72px repeat({{ days_in_month }}, minmax(30px, 1fr));
+      min-width: calc(72px + {{ days_in_month }} * 30px);
+    }
+
+    /* Hotel name: visible, smaller */
+    .cal-hotel-th { font-size: 9px; padding: 6px 8px; }
+    .cal-hotel-name {
+      font-size: 10px;
+      padding: 0 6px;
+      min-height: 0;
+    }
+
+    /* Day header */
+    .cal-day-th { padding: 6px 0; font-size: 9px; }
+
+    /* Blocks */
+    .cal-blocks {
+      grid-column: 2 / -1;
+      grid-template-columns: repeat({{ days_in_month }}, minmax(30px, 1fr));
+      min-height: 38px;
+      padding: 6px 0;
+    }
+    .cal-block { font-size: 9px; height: 22px; padding: 0 4px; border-radius: 3px; }
+
+    /* Tooltip: full width bottom sheet feel */
+    .cal-tooltip {
+      position: fixed;
+      bottom: 80px;
+      left: 12px;
+      right: 12px;
+      top: auto;
+      max-width: 100%;
+      min-width: 0;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cal-page">
+
+  <!-- Top bar -->
+  <div class="cal-topbar">
+    <div class="cal-topbar-left">
+      <div class="cal-nav">
+        <a href="?year={{ prev_year }}&month={{ prev_month }}" title="Bulan sebelumnya">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        </a>
+        <span class="cal-month">{{ month_name }} {{ year }}</span>
+        <a href="?year={{ next_year }}&month={{ next_month }}" title="Bulan berikutnya">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        </a>
+      </div>
+      <span class="cal-count">{{ total_reservations }} reservasi</span>
+    </div>
+    <div class="cal-topbar-right">
+      {% if today_day %}
+        {% if active_today %}<div class="sum-pill blue">Aktif <span class="sum-val">{{ active_today }}</span></div>{% endif %}
+        {% if checkins_today %}<div class="sum-pill green">CI <span class="sum-val">{{ checkins_today }}</span></div>{% endif %}
+        {% if checkouts_today %}<div class="sum-pill">CO <span class="sum-val">{{ checkouts_today }}</span></div>{% endif %}
+        {% if tentative_count %}<div class="sum-pill red">Tentative <span class="sum-val">{{ tentative_count }}</span></div>{% endif %}
+      {% endif %}
+      <div class="cal-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-2)"></div>Definite</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>Tentative</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Cancelled</div>
+      </div>
+    </div>
+  </div>
+
+  {% if hotels %}
+  <div class="cal-card">
+
+    <!-- Header hari -->
+    <div class="cal-grid-template" style="border-bottom:1px solid var(--border);">
+      <div class="cal-hotel-th">Hotel</div>
+      {% for d in days %}
+      <div class="cal-day-th{% if d == today_day %} today{% endif %}">{{ d }}</div>
+      {% endfor %}
+    </div>
+
+    <!-- Baris per hotel -->
+    {% for hotel in hotels %}
+    <div class="cal-row">
+      <div class="cal-hotel-name" title="{{ hotel.name }}">{{ hotel.name }}</div>
+
+      {% for d in days %}
+      <div class="cal-cell{% if d == today_day %} today-col{% endif %}"></div>
+      {% endfor %}
+
+      <div class="cal-blocks" id="blocks-{{ forloop.counter }}">
+        {% for res in hotel.reservations %}
+        <a href="{{ res.url }}"
+           class="cal-block block-{{ res.color }}"
+           style="grid-column: {{ res.start }} / {{ res.end|add:1 }};"
+           data-guest="{{ res.guest }}"
+           data-ref="{{ res.ref }}"
+           data-status="{{ res.status }}"
+           data-color="{{ res.color }}"
+           data-total="{{ res.total }}"
+           data-nights="{{ res.nights }}"
+           data-start="{{ res.start }}"
+           data-end="{{ res.end }}"
+           data-inv="{{ res.inv_number }}"
+           data-inv-remaining="{{ res.inv_remaining }}"
+           data-inv-url="{{ res.inv_url }}">
+          {{ res.guest }}
+        </a>
+        {% endfor %}
+
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  {% else %}
+  <div class="card" style="margin-top:0;">
+    <div class="empty">
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;color:var(--text-3)"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+      <div class="empty-title">Tidak ada reservasi</div>
+      <div class="empty-sub">{{ month_name }} {{ year }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Tooltip -->
+<div class="cal-tooltip" id="cal-tooltip">
+  <div class="tt-head">
+    <div class="tt-guest" id="tt-guest"></div>
+  </div>
+  <div class="tt-body">
+    <span class="tt-label">Status</span><span class="tt-val" id="tt-status"></span>
+    <span class="tt-label">CL No</span> <span class="tt-val" id="tt-ref"></span>
+    <span class="tt-label">CI/CO</span> <span class="tt-val" id="tt-dates"></span>
+    <span class="tt-label">Malam</span> <span class="tt-val" id="tt-nights"></span>
+    <span class="tt-label">Total</span> <span class="tt-val" id="tt-total"></span>
+  </div>
+  <div class="tt-inv-section" id="tt-inv-row" style="display:none;">
+    <span class="tt-label">Invoice</span><a class="tt-inv-link" id="tt-inv"></a>
+    <span class="tt-label">Sisa</span>   <span class="tt-sisa-val" id="tt-remaining"></span>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // Posisi today-line berdasarkan posisi kolom yang aktual
+  {% if today_day %}
+  var todayCell = document.querySelector('.cal-cell.today-col');
+  var blocksRef = document.querySelector('.cal-blocks');
+  if (todayCell && blocksRef) {
+    var cellRect   = todayCell.getBoundingClientRect();
+    var blocksRect = blocksRef.getBoundingClientRect();
+    var colLeft    = cellRect.left - blocksRect.left;
+    var colWidth   = cellRect.width;
+    var lineLeft   = colLeft + colWidth / 2;
+
+    // Today column highlight in each blocks row
+    document.querySelectorAll('.cal-blocks').forEach(function(blocks) {
+      var bg = document.createElement('div');
+      bg.style.cssText = 'position:absolute;top:0;bottom:0;left:' + colLeft + 'px;width:' + colWidth + 'px;background:rgba(94,106,210,.07);pointer-events:none;z-index:0;';
+      blocks.insertBefore(bg, blocks.firstChild);
+    });
+  }
+  {% endif %}
+
+  // Tooltip
+  var tooltip = document.getElementById('cal-tooltip');
+  document.querySelectorAll('.cal-block').forEach(function(block) {
+    block.addEventListener('mouseenter', function() {
+      document.getElementById('tt-guest').textContent  = block.dataset.guest;
+      document.getElementById('tt-status').textContent = block.dataset.status;
+      document.getElementById('tt-ref').textContent    = block.dataset.ref;
+      document.getElementById('tt-total').textContent  = block.dataset.total;
+      document.getElementById('tt-nights').textContent = block.dataset.nights + ' malam';
+      document.getElementById('tt-dates').textContent  = block.dataset.start + ' – ' + block.dataset.end;
+      var invRow = document.getElementById('tt-inv-row');
+      if (block.dataset.inv) {
+        var invLink = document.getElementById('tt-inv');
+        invLink.textContent = block.dataset.inv;
+        invLink.href = block.dataset.invUrl || '#';
+        var remEl = document.getElementById('tt-remaining');
+        var rem = block.dataset.invRemaining || '—';
+        remEl.textContent = rem;
+        remEl.style.color = (rem && rem !== '0 SAR' && rem !== '—') ? 'var(--red)' : 'var(--green)';
+        invRow.style.display = '';
+      } else {
+        invRow.style.display = 'none';
+      }
+      tooltip.style.display = 'block';
+    });
+    block.addEventListener('mousemove', function(e) {
+      var x = e.clientX + 14, y = e.clientY + 14;
+      if (x + 200 > window.innerWidth)  x = e.clientX - 210;
+      if (y + 140 > window.innerHeight) y = e.clientY - 150;
+      tooltip.style.left = x + 'px';
+      tooltip.style.top  = y + 'px';
+    });
+    block.addEventListener('mouseleave', function() {
+      tooltip.style.display = 'none';
+    });
+  });
+})();
+</script>
+{% endblock %}

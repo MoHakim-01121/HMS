@@ -1,0 +1,404 @@
+﻿{% extends 'hw/partials/_base.html' %}
+{% load static %}
+
+{% block title %}{% if edit %}Edit Invoice Services{% else %}Buat Invoice Services{% endif %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'hw/css/invoice_form.css' %}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'services_list' %}" class="topbar-crumb" {% if not edit %}data-shortcut="back"{% endif %}>Invoice Services</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{% if edit %}Edit{% else %}Buat Baru{% endif %}</span>
+{% endblock %}
+
+{% block topbar_actions %}
+{% if edit %}
+<a href="{% url 'services_detail' invoice.pk %}" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;" data-shortcut="back">Batal</a>
+<div class="topbar-sep"></div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">{% if edit %}Edit Invoice Services{% else %}Invoice Services / Visa{% endif %}</div>
+      <div class="page-sub">Layanan visa, umroh, dan services lainnya</div>
+    </div>
+  </div>
+
+  {% if not edit %}
+  <div class="draft-banner" id="draft-banner">
+    <span style="font-size:13px;color:var(--yellow);">Draft tersimpan dari sesi sebelumnya</span>
+    <div style="display:flex;gap:6px;">
+      <button type="button" onclick="restoreDraft()" class="btn btn-secondary" style="height:28px;padding:0 12px;font-size:12px;">Restore</button>
+      <button type="button" onclick="discardDraft()" class="btn btn-ghost" style="height:28px;padding:0 10px;font-size:12px;">Abaikan</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" action="{% if edit %}{% url 'services_edit' invoice.pk %}{% else %}{% url 'services_new' %}{% endif %}" id="services-form">
+    {% csrf_token %}
+
+    {# ── Info Invoice ─────────────────────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-header"><span class="card-title">Info Invoice</span></div>
+      <div class="card-body">
+        <div class="grid-4">
+          <div class="field">
+            <label>Company *</label>
+            <select name="company">
+              <option value="ijabah" {% if edit and invoice.company == 'ijabah' or not edit and default_company == 'ijabah' %}selected{% endif %}>Ijabah</option>
+              <option value="konoz" {% if edit and invoice.company == 'konoz' or not edit and default_company == 'konoz' %}selected{% endif %}>Konoz</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Customer *</label>
+            <input type="text" name="customer_name" required placeholder="Nama customer"
+                   value="{% if edit %}{{ invoice.customer_name }}{% endif %}">
+          </div>
+          <div class="field">
+            <label>Invoice Number *</label>
+            <input type="text" name="invoice_number" required placeholder="SVC-202505-001"
+                   value="{% if edit %}{{ invoice.invoice_number }}{% else %}{{ suggested_number }}{% endif %}">
+          </div>
+          <div class="field">
+            <label>Currency *</label>
+            <select id="invoice_currency" name="invoice_currency" required>
+              <option value="USD" {% if not edit or invoice.currency == 'USD' %}selected{% endif %}>USD</option>
+              <option value="SAR" {% if edit and invoice.currency == 'SAR' %}selected{% endif %}>SAR</option>
+              <option value="IDR" {% if edit and invoice.currency == 'IDR' %}selected{% endif %}>IDR</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Issued Date *</label>
+            <input type="date" name="issued_date" required
+                   value="{% if edit and invoice.issued_date %}{{ invoice.issued_date|date:'Y-m-d' }}{% endif %}">
+          </div>
+          <div class="field">
+            <label>Due Date *</label>
+            <input type="date" name="due_date" required
+                   value="{% if edit and invoice.due_date %}{{ invoice.due_date|date:'Y-m-d' }}{% endif %}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Services ─────────────────────────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Services</span>
+        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:12px;" onclick="addServiceItem()">+ Add</button>
+      </div>
+      <div class="card-body" style="padding-bottom:8px;">
+        <div class="svc-header">
+          <div>#</div>
+          <div>Service</div>
+          <div>Qty</div>
+          <div>Amount</div>
+          <div></div>
+        </div>
+        <div id="services-list">
+          {% if edit %}
+            {% for item in invoice.service_items.all %}
+            <div class="svc-row">
+              <div class="svc-num">{{ forloop.counter }}</div>
+              <input type="text" name="service" value="{{ item.name }}"
+                     placeholder="Service Name" required class="service-input">
+              <input type="number" name="qty" value="{{ item.qty }}"
+                     min="1" required class="qty-input">
+              <input type="number" name="amount" value="{{ item.price }}"
+                     min="0" step="0.01" required class="amount-input">
+              <button type="button" class="btn-remove"
+                      onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
+                {% include 'hw/partials/_icon_trash.html' %}
+              </button>
+            </div>
+            {% endfor %}
+          {% else %}
+          <div class="svc-row">
+            <div class="svc-num">1</div>
+            <input type="text" name="service" placeholder="Service Name" required class="service-input">
+            <input type="number" name="qty" value="1" min="1" required class="qty-input">
+            <input type="number" name="amount" min="0" step="0.01" required class="amount-input">
+            <button type="button" class="btn-remove"
+                    onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
+              {% include 'hw/partials/_icon_trash.html' %}
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Payments ─────────────────────────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Payments</span>
+        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:12px;" onclick="addPayment()">+ Add</button>
+      </div>
+      <div class="card-body" style="padding-bottom:8px;">
+        <div class="pay-header">
+          <div>SVC#</div>
+          <div>DATE</div>
+          <div>METHOD</div>
+          <div>AMOUNT</div>
+          <div>CUR</div>
+          <div>RATE</div>
+          <div>NOTE</div>
+          <div>BUKTI</div>
+          <div></div>
+        </div>
+        <div id="payments">
+          {% if edit %}
+            {% for p in invoice.payments.all %}
+            <div class="payment-item">
+              <select name="payment_service_no" required>
+                <option value="">Svc#</option>
+                {% for item in invoice.service_items.all %}
+                <option value="{{ item.service_number }}"
+                        {% if p.linked_number == item.service_number|stringformat:"s" %}selected{% endif %}>
+                  {{ item.service_number }}
+                </option>
+                {% endfor %}
+              </select>
+              <input type="date" name="payment_date" required
+                     value="{% if p.payment_date %}{{ p.payment_date|date:'Y-m-d' }}{% endif %}">
+              <input type="text" name="payment_method" value="{{ p.method }}" placeholder="Method" required>
+              <input type="number" step="0.01" name="payment_amount" value="{{ p.amount }}"
+                     placeholder="Amount" required oninput="recalculate()">
+              <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
+                <option value="SAR" {% if p.currency == 'SAR' %}selected{% endif %}>SAR</option>
+                <option value="USD" {% if p.currency == 'USD' %}selected{% endif %}>USD</option>
+                <option value="IDR" {% if p.currency == 'IDR' %}selected{% endif %}>IDR</option>
+              </select>
+              <input type="number" step="0.0001" name="payment_exchange" value="{{ p.exchange_rate }}"
+                     {% if p.currency == invoice.currency %}readonly{% endif %} oninput="recalculate()">
+              <textarea name="payment_note" placeholder="Note">{{ p.note }}</textarea>
+              <div class="proof-cell">
+                {% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" class="proof-link" title="{{ p.proof.name }}"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% endif %}
+                <input type="hidden" name="payment_proof_keep_{{ forloop.counter0 }}" value="{% if p.proof %}{{ p.proof.name }}{% endif %}">
+                <label class="proof-btn" title="Upload bukti">
+                  <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                  <input type="file" class="payment-proof-input" accept="image/*,.pdf" style="display:none;" onchange="showProofName(this)">
+                </label>
+                <span class="proof-fname"></span>
+              </div>
+              <button type="button" class="btn-remove"
+                      onclick="this.closest('.payment-item').remove();recalculate();">
+                {% include 'hw/partials/_icon_trash.html' %}
+              </button>
+            </div>
+            {% endfor %}
+          {% else %}
+          <div class="payment-item">
+            <select name="payment_service_no" required>
+              <option value="">Svc#</option>
+            </select>
+            <input type="date" name="payment_date" required>
+            <input type="text" name="payment_method" placeholder="Method" required>
+            <input type="number" step="0.01" name="payment_amount" placeholder="Amount"
+                   required oninput="recalculate()">
+            <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
+              <option value="SAR">SAR</option>
+              <option value="USD">USD</option>
+              <option value="IDR">IDR</option>
+            </select>
+            <input type="number" step="0.0001" name="payment_exchange" value="1"
+                   readonly oninput="recalculate()">
+            <textarea name="payment_note" placeholder="Note"></textarea>
+            <div class="proof-cell">
+              <label class="proof-btn" title="Upload bukti">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                <input type="file" class="payment-proof-input" accept="image/*,.pdf" style="display:none;" onchange="showProofName(this)">
+              </label>
+              <span class="proof-fname"></span>
+            </div>
+            <button type="button" class="btn-remove"
+                    onclick="this.closest('.payment-item').remove();recalculate();">
+              {% include 'hw/partials/_icon_trash.html' %}
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── Summary + Submit ─────────────────────────────────────────────────── #}
+    <div class="summary-bar">
+      <div class="summary-cell">
+        <div class="lbl">Total Services</div>
+        <div class="val" id="total-services">0</div>
+      </div>
+      <div class="summary-cell">
+        <div class="lbl">Total Payments</div>
+        <div class="val green" id="total-payments">0</div>
+      </div>
+      <div class="summary-cell">
+        <div class="lbl">Remaining</div>
+        <div class="val" id="remaining-balance">0</div>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn" class="btn btn-primary btn-full">
+      {% if edit %}Update &amp; Simpan{% else %}Simpan &amp; Buka Detail{% endif %}
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if not edit %}
+<script src="{% static 'hw/js/draft.js' %}"></script>
+{% endif %}
+<script>
+  const TRASH_ICON = `<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
+
+  function addServiceItem() {
+    const container = document.getElementById('services-list');
+    const row = document.createElement('div');
+    row.className = 'svc-row';
+    row.innerHTML = `
+      <div class="svc-num"></div>
+      <input type="text" name="service" placeholder="Service Name" required class="service-input">
+      <input type="number" name="qty" value="1" min="1" required class="qty-input">
+      <input type="number" name="amount" min="0" step="0.01" required class="amount-input">
+      <button type="button" class="btn-remove" onclick="this.closest('.svc-row').remove();updateServiceNumbers();">${TRASH_ICON}</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.qty-input').addEventListener('input', recalculate);
+    row.querySelector('.amount-input').addEventListener('input', recalculate);
+    updateServiceNumbers();
+    recalculate();
+    updatePaymentServiceOptions();
+  }
+
+  function updateServiceNumbers() {
+    document.querySelectorAll('#services-list .svc-row').forEach((row, i) => {
+      const n = row.querySelector('.svc-num'); if (n) n.textContent = i + 1;
+    });
+    updatePaymentServiceOptions();
+    recalculate();
+  }
+
+  function addPayment() {
+    const container = document.getElementById('payments');
+    const row = document.createElement('div');
+    row.className = 'payment-item';
+    row.innerHTML = `
+      <select name="payment_service_no" required><option value="">Svc#</option></select>
+      <input type="date" name="payment_date" required>
+      <input type="text" name="payment_method" placeholder="Method" required>
+      <input type="number" step="0.01" name="payment_amount" placeholder="Amount" required oninput="recalculate()">
+      <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
+        <option value="SAR">SAR</option>
+        <option value="USD">USD</option>
+        <option value="IDR">IDR</option>
+      </select>
+      <input type="number" step="0.0001" name="payment_exchange" value="1" readonly oninput="recalculate()">
+      <textarea name="payment_note" placeholder="Note"></textarea>
+      <div class="proof-cell">
+        <label class="proof-btn" title="Upload bukti">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          <input type="file" class="payment-proof-input" accept="image/*,.pdf" style="display:none;" onchange="showProofName(this)">
+        </label>
+        <span class="proof-fname"></span>
+      </div>
+      <button type="button" class="btn-remove" onclick="this.closest('.payment-item').remove();recalculate();">${TRASH_ICON}</button>
+    `;
+    container.appendChild(row);
+    updatePaymentServiceOptions();
+    recalculate();
+  }
+
+  function showProofName(input) {
+    var fname = input.files[0] ? input.files[0].name : '';
+    var span = input.closest('.proof-cell').querySelector('.proof-fname');
+    if (span) span.textContent = fname;
+  }
+
+  function updatePaymentServiceOptions() {
+    const rows = document.querySelectorAll('#services-list .svc-row');
+    const opts = Array.from(rows).map((_, i) => `<option value="${i+1}">${i+1}</option>`).join('');
+    document.querySelectorAll('select[name="payment_service_no"]').forEach(sel => {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">Svc#</option>' + opts;
+      if (cur) sel.value = cur;
+    });
+  }
+
+  function recalculate() {
+    let totalServices = 0;
+    document.querySelectorAll('#services-list .svc-row').forEach(row => {
+      const qty = parseFloat(row.querySelector('.qty-input')?.value || 0);
+      const amt = parseFloat(row.querySelector('.amount-input')?.value || 0);
+      totalServices += qty * amt;
+    });
+    totalServices = Math.floor(totalServices);
+
+    let totalPayments = 0;
+    const invoiceCurrency = document.getElementById('invoice_currency')?.value || 'SAR';
+    document.querySelectorAll('#payments .payment-item').forEach(row => {
+      const amount = parseFloat(row.querySelector('input[name="payment_amount"]')?.value || 0);
+      const currency = row.querySelector('select[name="payment_currency"]')?.value || 'SAR';
+      const rate = parseFloat(row.querySelector('input[name="payment_exchange"]')?.value || 1);
+      let converted = amount;
+      if (currency !== invoiceCurrency) {
+        if (['IDR'].includes(currency)) converted = rate ? Math.floor(amount / rate) : 0;
+        else converted = amount / (rate || 1);
+      }
+      totalPayments += converted;
+    });
+    totalPayments = Math.floor(totalPayments);
+
+    const remaining = Math.floor(totalServices - totalPayments);
+    const fmt = n => Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
+
+    document.getElementById('total-services').textContent = fmt(totalServices) + ' ' + invoiceCurrency;
+    document.getElementById('total-payments').textContent = fmt(totalPayments) + ' ' + invoiceCurrency;
+    const el = document.getElementById('remaining-balance');
+    el.textContent = fmt(remaining) + ' ' + invoiceCurrency;
+    el.className = 'val' + (remaining === 0 ? ' green' : remaining < 0 ? ' red' : '');
+  }
+
+  function toggleExchange(sel) {
+    const inp = sel.parentNode.querySelector('input[name="payment_exchange"]');
+    const invoiceCurrency = document.getElementById('invoice_currency')?.value || 'SAR';
+    if (sel.value === invoiceCurrency) { inp.value = 1; inp.readOnly = true; }
+    else { if (inp.value === '1') inp.value = ''; inp.readOnly = false; }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.qty-input, .amount-input').forEach(el => el.addEventListener('input', recalculate));
+    document.getElementById('invoice_currency').addEventListener('change', recalculate);
+    updateServiceNumbers();
+    recalculate();
+  });
+
+  document.querySelector('form').addEventListener('submit', function() {
+    document.querySelectorAll('#payments .payment-item').forEach(function(row, i) {
+      var f = row.querySelector('.payment-proof-input');
+      if (f) f.name = 'payment_proof_' + i;
+    });
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.textContent = 'Menyimpan…';
+  });
+
+  {% if not edit %}
+  initDraft('docgen_draft_services', 'services-form', function(data) {
+    const services = data['service'];
+    const svcCount = Array.isArray(services) ? services.length : (services ? 1 : 0);
+    const existingSvc = document.querySelectorAll('#services-list .svc-row').length;
+    for (let i = existingSvc; i < svcCount; i++) addServiceItem();
+    const payDates = data['payment_date'];
+    const payCount = Array.isArray(payDates) ? payDates.length : (payDates ? 1 : 0);
+    const existingPay = document.querySelectorAll('#payments .payment-item').length;
+    for (let i = existingPay; i < payCount; i++) addPayment();
+  });
+  {% endif %}
+</script>
+{% endblock %}

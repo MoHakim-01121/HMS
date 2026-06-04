@@ -1,0 +1,772 @@
+﻿{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Workspace{% endblock %}</title>
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E6AD2' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>">
+  <link rel="stylesheet" href="{% static 'hw/css/design.css' %}">
+  <style>
+    .page, .page-sm, .center-wrap, .card {
+      position: relative;
+      z-index: 1;
+    }
+    @media (max-width: 600px) {
+      nav.topbar { display: none !important; }
+    }
+    .bnav-account-dd {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow-xl);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: var(--z-overlay);
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px) scale(.97);
+      transition: opacity .18s, transform .18s cubic-bezier(.34,1.56,.64,1);
+      display: block;
+    }
+    .bnav-account-dd.open {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0) scale(1);
+    }
+    .bnav-account-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .bnav-account-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <nav class="topbar">
+    <a href="{% url 'home' %}" class="topbar-brand" data-shortcut="home">
+  <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="2" width="4.5" height="22" fill="currentColor"/>
+    <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor"/>
+    <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor"/>
+  </svg>
+  Workspace
+</a>
+    <div class="topbar-space"></div>
+
+    {% if user.is_authenticated %}
+    <div class="topbar-right">
+
+      <!-- Search -->
+      <button type="button" id="btn-search" class="topbar-icon-btn" title="Cari (/)">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+      </button>
+
+      <!-- Notification bell -->
+      <button type="button" class="topbar-icon-btn" id="btn-notif" title="Notifikasi">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        {% if due_soon_count %}<span class="notif-badge">{{ due_soon_count }}</span>{% endif %}
+      </button>
+
+      <!-- Theme toggle -->
+      <button type="button" id="btn-theme" class="topbar-icon-btn" title="Ganti tema" onclick="toggleTheme()">
+        <svg id="icon-moon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+        <svg id="icon-sun"  width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+
+      <!-- Unified account button -->
+      <div class="account-wrap" id="account-wrap">
+        <button type="button" id="btn-account" class="account-btn" aria-label="Akun">
+          {% if user.profile.avatar %}
+          <img src="{{ user.profile.avatar.url }}" class="account-avatar-img" alt="{{ user.username }}">
+          {% else %}
+          <svg class="account-avatar-default" width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="7.5" r="3.5" fill="currentColor"/>
+            <path d="M3 17c0-3.866 3.134-7 7-7s7 3.134 7 7" fill="currentColor"/>
+          </svg>
+          {% endif %}
+          <span class="account-username">{{ user.username }}</span>
+          <svg class="account-chevron" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div class="account-dropdown" id="account-dropdown">
+
+          <!-- User info -->
+          <div class="account-dd-head">
+            <span class="account-dd-name">{{ user.username }}</span>
+            {% if user.is_superuser %}<span class="account-dd-role">Admin</span>{% endif %}
+          </div>
+
+          <!-- Profile link -->
+          <a href="{% url 'account_profile' %}" class="co-option">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            Profil Saya
+          </a>
+
+          <div class="co-dropdown-sep"></div>
+
+          <!-- Company -->
+          {% if request.session.active_company %}
+          <form method="post" action="{% url 'company_quick_set' %}" data-no-loading>
+            {% csrf_token %}
+            <button type="submit" name="company" value="konoz" class="co-option {% if request.session.active_company == 'konoz' %}co-active{% endif %}">
+              <span class="co-dot co-dot-konoz"></span>Konoz United
+              {% if request.session.active_company == 'konoz' %}<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:auto;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{% endif %}
+            </button>
+            <button type="submit" name="company" value="ijabah" class="co-option {% if request.session.active_company == 'ijabah' %}co-active{% endif %}">
+              <span class="co-dot co-dot-ijabah"></span>Ijabah
+              {% if request.session.active_company == 'ijabah' %}<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:auto;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{% endif %}
+            </button>
+          </form>
+          <div class="co-dropdown-sep"></div>
+          {% endif %}
+
+          <!-- Logout -->
+          <form method="post" action="{% url 'logout' %}" style="margin:0;" data-no-loading>
+            {% csrf_token %}
+            <button type="submit" class="co-option co-option-muted">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              Keluar
+            </button>
+          </form>
+
+        </div>
+      </div>
+
+    </div>
+    {% endif %}
+  </nav>
+
+  <div style="display:none;">{% block breadcrumbs %}{% endblock %}{% block topbar_actions %}{% endblock %}</div>
+
+  <!-- Mobile bottom nav -->
+  {% if user.is_authenticated %}
+  <nav class="bottom-nav" id="bottom-nav">
+
+    <!-- Theme toggle -->
+    <button type="button" class="bnav-item" onclick="toggleTheme()" title="Ganti tema">
+      <svg id="bnav-moon" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      <svg id="bnav-sun" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+
+    <!-- Notifications -->
+    <button type="button" class="bnav-item bnav-notif-btn" id="bnav-btn-notif" title="Notifikasi">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+      {% if due_soon_count %}<span class="bnav-badge">{{ due_soon_count }}</span>{% endif %}
+    </button>
+
+    <!-- Home (center) -->
+    <a href="{% url 'home' %}" class="bnav-item bnav-home" data-path="/">
+      <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/></svg>
+    </a>
+
+    <!-- Search -->
+    <button type="button" class="bnav-item" id="bnav-btn-search" title="Cari" onclick="openSearch && openSearch()">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+    </button>
+
+    <!-- Account -->
+    <button type="button" class="bnav-item" id="bnav-btn-account" title="Akun">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0"/></svg>
+    </button>
+
+  </nav>
+
+  <!-- Mobile account dropdown -->
+  <div class="bnav-account-dd" id="bnav-account-dd">
+    <div class="bnav-account-head">
+      <span class="bnav-account-name">{{ user.username }}</span>
+      {% if user.is_superuser %}<span class="badge badge-blue" style="font-size:9px;">Admin</span>
+      {% elif user.is_staff %}<span class="badge badge-green" style="font-size:9px;">Staff</span>{% endif %}
+    </div>
+    <a href="{% url 'account_profile' %}" class="co-option">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      Profil Saya
+    </a>
+    {% if request.session.active_company %}
+    <div class="co-dropdown-sep"></div>
+    <form method="post" action="{% url 'company_quick_set' %}" data-no-loading>
+      {% csrf_token %}
+      <button type="submit" name="company" value="konoz" class="co-option {% if request.session.active_company == 'konoz' %}co-active{% endif %}">
+        <span class="co-dot co-dot-konoz"></span>Konoz United
+        {% if request.session.active_company == 'konoz' %}<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:auto;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{% endif %}
+      </button>
+      <button type="submit" name="company" value="ijabah" class="co-option {% if request.session.active_company == 'ijabah' %}co-active{% endif %}">
+        <span class="co-dot co-dot-ijabah"></span>Ijabah
+        {% if request.session.active_company == 'ijabah' %}<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:auto;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>{% endif %}
+      </button>
+    </form>
+    <div class="co-dropdown-sep"></div>
+    {% endif %}
+    <form method="post" action="{% url 'logout' %}" style="margin:0;" data-no-loading>
+      {% csrf_token %}
+      <button type="submit" class="co-option co-option-muted">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        Keluar
+      </button>
+    </form>
+  </div>
+
+  {% endif %}
+
+  <!-- Standalone notification dropdown (shared desktop + mobile) -->
+  {% if user.is_authenticated %}
+  <div class="notif-dropdown" id="notif-dropdown" style="position:fixed;z-index:var(--z-overlay);">
+    <div class="notif-head">
+      <span>Notifikasi</span>
+      {% if due_soon_count %}<span class="notif-head-count">{{ due_soon_count }} jatuh tempo</span>{% endif %}
+    </div>
+    {% if due_soon_notifs %}
+      {% for n in due_soon_notifs %}
+      <a href="{{ n.url }}" class="notif-item">
+        <div class="notif-item-top">
+          <span class="notif-ref">{{ n.inv_number }}</span>
+          <span class="notif-days {% if n.days == 0 %}notif-today{% elif n.days <= 2 %}notif-urgent{% endif %}">{{ n.label }}</span>
+        </div>
+        <div class="notif-item-bot">
+          <span class="notif-customer">{{ n.customer }}</span>
+          <span class="notif-amount">{{ n.remaining|floatformat:0 }} SAR</span>
+        </div>
+      </a>
+      {% endfor %}
+    {% else %}
+      <div class="notif-empty">Tidak ada notifikasi</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <canvas id="bg-canvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+  {% block content %}{% endblock %}
+
+  {% include 'hw/partials/_toast.html' %}
+
+  <!-- Draft Message Modal -->
+  <div id="draft-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);align-items:center;justify-content:center;padding:20px;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:480px;overflow:hidden;box-shadow:0 24px 48px rgba(0,0,0,.4);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text);">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.127 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>
+          Pesan Tagihan
+        </div>
+        <button onclick="closeDraftModal()" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:4px;">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="draft-modal-body" style="padding:20px;min-height:120px;display:flex;align-items:center;justify-content:center;">
+        <span style="color:var(--text-3);font-size:13px;">Membuat pesan...</span>
+      </div>
+      <div id="draft-modal-footer" style="display:none;padding:12px 20px;border-top:1px solid var(--border);justify-content:flex-end;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="closeDraftModal()">Tutup</button>
+        <button class="btn btn-primary btn-sm" id="btn-copy-draft" onclick="copyDraft()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg>
+          Copy
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let _draftText = '';
+  async function openDraftModal(type, pk) {
+    const modal = document.getElementById('draft-modal');
+    const body = document.getElementById('draft-modal-body');
+    const footer = document.getElementById('draft-modal-footer');
+    body.innerHTML = '<span style="color:var(--text-3);font-size:13px;">Membuat pesan...</span>';
+    footer.style.display = 'none';
+    modal.style.display = 'flex';
+    try {
+      const res = await fetch('{% url "ai_draft_message" %}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ type, pk }),
+      });
+      const data = await res.json();
+      _draftText = data.message || '';
+      body.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.7;color:var(--text);margin:0;">' + _draftText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>';
+      footer.style.display = 'flex';
+    } catch {
+      body.innerHTML = '<span style="color:var(--red);font-size:13px;">Gagal menghubungi server.</span>';
+    }
+  }
+  function closeDraftModal() {
+    document.getElementById('draft-modal').style.display = 'none';
+  }
+  function copyDraft() {
+    navigator.clipboard.writeText(_draftText).then(() => {
+      const btn = document.getElementById('btn-copy-draft');
+      btn.textContent = 'Tersalin!';
+      setTimeout(() => { btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg> Copy'; }, 2000);
+    });
+  }
+  document.getElementById('draft-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDraftModal();
+  });
+  </script>
+
+  <!-- Search overlay -->
+  {% if user.is_authenticated %}
+  <div id="search-overlay">
+    <div class="search-panel">
+      <div class="search-input-row">
+        <svg class="search-icon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+        <input id="search-input" type="text" placeholder="Cari nomor, tamu, atau hotel…" autocomplete="off">
+<button id="search-clear" class="search-clear" aria-label="Hapus" style="display:none;">
+          <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="search-results"></div>
+      <div id="search-hints">
+        <span class="search-hint-item"><kbd class="search-hint-kbd">↑↓</kbd> navigasi</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">↵</kbd> pilih</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">Esc</kbd> tutup</span>
+        <span class="search-hint-item"><kbd class="search-hint-kbd">/</kbd> cari</span>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function() {
+    var overlay  = document.getElementById('search-overlay');
+    var input    = document.getElementById('search-input');
+    var results  = document.getElementById('search-results');
+    var clearBtn = document.getElementById('search-clear');
+    var timer;
+
+    var TYPE_LABEL = { CL:'Conf. Letter', INV:'Invoice Hotel', SVC:'Invoice Services' };
+    var SEARCH_ICON = '<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>';
+
+    function renderQuick() {
+      results.innerHTML =
+        '<div class="s-empty-state">' + SEARCH_ICON +
+        '<span class="s-empty-title">Ketik untuk mencari</span>' +
+        '<span class="s-empty-sub">nomor dokumen, nama tamu, atau hotel</span>' +
+        '</div>';
+    }
+
+    function renderLoading() {
+      results.innerHTML = '<div class="search-dots"><span></span><span></span><span></span></div>';
+    }
+
+    function renderResults(data) {
+      if (!data.results.length) {
+        results.innerHTML =
+          '<div class="s-empty-state">' + SEARCH_ICON +
+          '<span class="s-empty-title">Tidak ada hasil</span>' +
+          '<span class="s-empty-sub">untuk &ldquo;' + data.q + '&rdquo;</span>' +
+          '</div>';
+        return;
+      }
+      var groups = {}, order = [];
+      data.results.forEach(function(r) {
+        if (!groups[r.type]) { groups[r.type] = []; order.push(r.type); }
+        groups[r.type].push(r);
+      });
+      var html = '';
+      order.forEach(function(type) {
+        html += '<div class="s-section-header" data-type="' + type + '">' +
+          (TYPE_LABEL[type]||type) +
+          '<span class="s-section-count">' + groups[type].length + '</span></div>';
+        groups[type].forEach(function(r) {
+          html += '<a href="' + r.url + '" class="s-row">' +
+            '<span class="s-label">' + r.label + '</span>' +
+            '<span class="s-sub">' + r.sub + '</span>' +
+            '<span class="s-meta">' + r.meta + '</span>' +
+            '</a>';
+        });
+      });
+      results.innerHTML = html;
+    }
+
+    function open() {
+      overlay.classList.add('open');
+      input.value = '';
+      syncControls();
+      renderQuick();
+      setTimeout(function(){ input.focus(); }, 50);
+    }
+    function close() { overlay.classList.remove('open'); }
+
+    function syncControls() {
+      clearBtn.style.display = input.value ? 'flex' : 'none';
+    }
+
+    clearBtn.addEventListener('click', function() {
+      input.value = '';
+      syncControls();
+      renderQuick();
+      input.focus();
+    });
+
+    input.addEventListener('input', function() {
+      syncControls();
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < 2) { renderQuick(); return; }
+      renderLoading();
+      timer = setTimeout(function() {
+        fetch('{% url "global_search" %}?q=' + encodeURIComponent(q))
+          .then(function(r){ return r.json(); })
+          .then(renderResults)
+          .catch(function(){ results.innerHTML = '<div style="padding:16px;text-align:center;color:var(--red);font-size:13px;">Gagal mencari.</div>'; });
+      }, 220);
+    });
+
+    window.openSearch = open;
+    document.getElementById('btn-search').addEventListener('click', open);
+    overlay.addEventListener('click', function(e){ if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { if (overlay.classList.contains('open')) { close(); return; } }
+      if (e.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) {
+        e.preventDefault(); open();
+      }
+    });
+    results.addEventListener('keydown', function(e) {
+      var links = results.querySelectorAll('a');
+      if (!links.length) return;
+      var idx = Array.from(links).indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') { e.preventDefault(); links[Math.min(idx+1,links.length-1)].focus(); }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); if (idx <= 0) input.focus(); else links[idx-1].focus(); }
+    });
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'ArrowDown') { var f = results.querySelector('a'); if (f) { e.preventDefault(); f.focus(); } }
+      if (e.key === 'Enter') { var f = results.querySelector('a'); if (f) f.click(); }
+    });
+  })();
+  </script>
+  {% endif %}
+
+  <!-- Notification dropdown -->
+  <script>
+  (function() {
+    var dd = document.getElementById('notif-dropdown');
+    if (!dd) return;
+
+    function positionDropdown(trigger) {
+      var r = trigger.getBoundingClientRect();
+      var isMobile = window.innerWidth <= 600;
+      if (isMobile) {
+        dd.style.bottom = (window.innerHeight - r.top + 10) + 'px';
+        dd.style.top    = 'auto';
+        dd.style.left   = '16px';
+        dd.style.right  = '16px';
+        dd.style.width  = '';
+        dd.style.transform = 'translateY(8px) scale(.97)';
+        requestAnimationFrame(function(){
+          dd.style.transform = '';
+        });
+      } else {
+        dd.style.top    = (r.bottom + 8) + 'px';
+        dd.style.bottom = 'auto';
+        dd.style.right  = (window.innerWidth - r.right) + 'px';
+        dd.style.left   = 'auto';
+        dd.style.width  = '300px';
+      }
+    }
+
+    function toggleNotif(e, trigger) {
+      e.stopPropagation();
+      positionDropdown(trigger);
+      dd.classList.toggle('open');
+    }
+
+    var btnDesktop = document.getElementById('btn-notif');
+    var btnMobile  = document.getElementById('bnav-btn-notif');
+    if (btnDesktop) btnDesktop.addEventListener('click', function(e){ toggleNotif(e, btnDesktop); });
+    if (btnMobile)  btnMobile.addEventListener('click',  function(e){ toggleNotif(e, btnMobile); });
+
+    document.addEventListener('click', function(e) {
+      if (!dd.contains(e.target)) dd.classList.remove('open');
+    });
+  })();
+  </script>
+
+  <!-- Account dropdown -->
+  <script>
+  (function() {
+    var btn  = document.getElementById('btn-account');
+    var dd   = document.getElementById('account-dropdown');
+    var wrap = document.getElementById('account-wrap');
+    if (!btn || !dd) return;
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dd.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (!wrap.contains(e.target)) dd.classList.remove('open');
+    });
+  })();
+  </script>
+
+  <!-- Attachment upload/delete JS -->
+  <script>
+  var _csrfToken = '{{ csrf_token }}';
+  function _attIcon(icon) {
+    if (icon==='pdf') return '<svg width="14" height="14" fill="none" stroke="var(--red)" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>';
+    if (icon==='image') return '<svg width="14" height="14" fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>';
+    return '<svg width="14" height="14" fill="none" stroke="var(--text-2)" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>';
+  }
+  function _fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/1048576).toFixed(1) + ' MB';
+  }
+  function uploadAttachments(input, type, id) {
+    var files = Array.from(input.files);
+    if (!files.length) return;
+    var list = document.getElementById('att-list-'+type+'-'+id);
+    var empty = document.getElementById('att-empty-'+type+'-'+id);
+    files.forEach(function(file) {
+      var fd = new FormData();
+      fd.append('file', file);
+      fd.append(type+'_id', id);
+      fetch('/attachments/upload/', { method:'POST', headers:{'X-CSRFToken':_csrfToken}, body:fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          if (d.error) { alert(d.error); return; }
+          if (empty) empty.remove();
+          var row = document.createElement('div');
+          row.className = 'att-row'; row.id = 'att-'+d.id;
+          row.innerHTML = '<div class="att-icon">'+_attIcon(d.icon)+'</div>' +
+            '<a href="'+d.url+'" target="_blank" class="att-name" title="'+d.name+'">'+d.name+'</a>' +
+            '<span class="att-size">'+_fmtSize(d.size)+'</span>' +
+            '<button type="button" class="btn btn-ghost att-del" style="width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);" onclick="deleteAttachment('+d.id+',\''+type+'\',\''+id+'\')" title="Hapus"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+          if (list.style.padding) list.style.padding = '';
+          list.appendChild(row);
+        }).catch(function(){ alert('Gagal upload'); });
+    });
+    input.value = '';
+  }
+  function deleteAttachment(pk, type, id) {
+    if (!confirm('Hapus lampiran ini?')) return;
+    fetch('/attachments/'+pk+'/delete/', { method:'POST', headers:{'X-CSRFToken':_csrfToken} })
+      .then(function(r){ return r.json(); })
+      .then(function(d) {
+        if (!d.ok) return;
+        var row = document.getElementById('att-'+pk);
+        if (row) row.remove();
+        var list = document.getElementById('att-list-'+type+'-'+id);
+        if (list && !list.querySelector('.att-row')) {
+          var empty = document.createElement('div');
+          empty.style.cssText = 'color:var(--text-3);font-size:12px;text-align:center;padding:16px;';
+          empty.id = 'att-empty-'+type+'-'+id;
+          empty.textContent = 'Belum ada lampiran';
+          list.appendChild(empty);
+        }
+      });
+  }
+  </script>
+
+  <script src="{% static 'hw/js/polish.js' %}"></script>
+
+  <script>
+  /* ── Greek Doric columns background ── */
+  (function(){
+    var canvas = document.getElementById('bg-canvas');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    function hGrad(oc, x0, x1) {
+      var g = oc.createLinearGradient(x0,0,x1,0);
+      g.addColorStop(0,'#2e2e2e'); g.addColorStop(0.18,'#7a7a7a');
+      g.addColorStop(0.5,'#b4b4b4'); g.addColorStop(0.82,'#7a7a7a'); g.addColorStop(1,'#2e2e2e');
+      return g;
+    }
+    function flatGrad(oc, x0, x1, mid) {
+      var g = oc.createLinearGradient(x0,0,x1,0);
+      g.addColorStop(0,'#383838'); g.addColorStop(0.2,'#888888');
+      g.addColorStop(0.5,mid); g.addColorStop(0.8,'#888888'); g.addColorStop(1,'#383838');
+      return g;
+    }
+
+    function drawColumn(oc, cx, baseY, shaftH, shaftW) {
+      var baseH  = shaftH * 0.045;
+      var capH   = shaftH * 0.085;
+      var echH   = capH * 0.52;
+      var capW   = shaftW * 1.40;
+      var baseW  = shaftW * 1.52;
+      var topW   = shaftW * 0.88;
+      var sTop   = baseY - baseH - shaftH;
+
+      // Stylobate
+      oc.fillStyle = flatGrad(oc, cx-baseW/2, cx+baseW/2, '#ababab');
+      oc.fillRect(cx-baseW/2, baseY-baseH, baseW, baseH);
+
+      // Shaft (tapered trapezoid)
+      oc.fillStyle = hGrad(oc, cx-shaftW/2, cx+shaftW/2);
+      oc.beginPath();
+      oc.moveTo(cx-shaftW/2, baseY-baseH);
+      oc.lineTo(cx+shaftW/2, baseY-baseH);
+      oc.lineTo(cx+topW/2,   sTop);
+      oc.lineTo(cx-topW/2,   sTop);
+      oc.closePath();
+      oc.fill();
+
+      // Echinus
+      oc.fillStyle = flatGrad(oc, cx-capW/2, cx+capW/2, '#a8a8a8');
+      oc.beginPath();
+      oc.moveTo(cx-topW/2, sTop);
+      oc.lineTo(cx+topW/2, sTop);
+      oc.lineTo(cx+capW/2, sTop-echH);
+      oc.lineTo(cx-capW/2, sTop-echH);
+      oc.closePath();
+      oc.fill();
+
+      // Abacus
+      oc.fillStyle = flatGrad(oc, cx-capW/2, cx+capW/2, '#b0b0b0');
+      oc.fillRect(cx-capW/2, sTop-capH, capW, capH-echH);
+    }
+
+    function drawColomnade(oc, startX, baseY, n, spacing, shaftH, shaftW) {
+      var capW  = shaftW * 1.40;
+      var capH  = shaftH * 0.085;
+      var baseH = shaftH * 0.045;
+      var entH  = shaftH * 0.095;
+      var sTop  = baseY - baseH - shaftH - capH;
+      var totalW = (n-1)*spacing + capW*1.05;
+      var entX   = startX - capW*0.525;
+
+      for (var i = 0; i < n; i++) drawColumn(oc, startX + i*spacing, baseY, shaftH, shaftW);
+
+      // Entablature
+      var eg = oc.createLinearGradient(entX, sTop-entH, entX, sTop);
+      eg.addColorStop(0,'#a0a0a0'); eg.addColorStop(1,'#707070');
+      oc.fillStyle = eg;
+      oc.fillRect(entX, sTop-entH, totalW, entH);
+    }
+
+    function drawScene(oc, W, H) {
+      oc.fillStyle = '#fff';
+      oc.fillRect(0, 0, W, H);
+
+      var isMobile = W <= 640;
+      var GROUPS = isMobile ? [
+        { x:0.08, n:2, sp:0.14, h:0.65, w:0.09 },
+        { x:0.76, n:2, sp:0.14, h:0.65, w:0.09 },
+      ] : [
+        { x:0.06, n:2, sp:0.072, h:0.72, w:0.044 },
+        { x:0.84, n:2, sp:0.072, h:0.72, w:0.044 },
+      ];
+
+      GROUPS.forEach(function(g) {
+        drawColomnade(oc, g.x*W, H, g.n, g.sp*W, g.h*H, g.w*W);
+      });
+    }
+
+    function render(){
+      var W=window.innerWidth, H=window.innerHeight;
+      canvas.width=W; canvas.height=H;
+      var sc=0.4, oW=Math.ceil(W*sc), oH=Math.ceil(H*sc);
+      var off=document.createElement('canvas'); off.width=oW; off.height=oH;
+      var oc=off.getContext('2d'); oc.scale(sc,sc);
+      drawScene(oc,W,H);
+      var img=oc.getImageData(0,0,oW,oH), d2=img.data;
+      function cl(v){return v<0?0:v>255?255:v;}
+      for(var y=0;y<oH;y++){for(var x=0;x<oW;x++){
+        var i=(y*oW+x)*4,o=d2[i],n=o<145?0:255,e=o-n;
+        d2[i]=d2[i+1]=d2[i+2]=n;
+        if(x+1<oW){var r=i+4;d2[r]=cl(d2[r]+e*7/16);d2[r+1]=d2[r];d2[r+2]=d2[r];}
+        if(y+1<oH){ 
+          if(x>0){var bl=i+oW*4-4;d2[bl]=cl(d2[bl]+e*3/16);d2[bl+1]=d2[bl];d2[bl+2]=d2[bl];}
+          var bm=i+oW*4;d2[bm]=cl(d2[bm]+e*5/16);d2[bm+1]=d2[bm];d2[bm+2]=d2[bm];
+          if(x+1<oW){var br=i+oW*4+4;d2[br]=cl(d2[br]+e*1/16);d2[br+1]=d2[br];d2[br+2]=d2[br];}
+        }
+      }}
+      var tmp=document.createElement('canvas'); tmp.width=oW; tmp.height=oH;
+      tmp.getContext('2d').putImageData(img,0,0);
+      ctx.clearRect(0,0,W,H); ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(tmp,0,0,W,H);
+      var fd=ctx.getImageData(0,0,W,H), px=fd.data;
+      var isDark=document.documentElement.getAttribute('data-theme')!=='light';
+      var isMob=W<=600;
+      var dc=isDark?255:18, da=isDark?(isMob?75:118):(isMob?90:138);
+      for(var i=0;i<px.length;i+=4){
+        if(px[i]<128){px[i]=dc;px[i+1]=dc;px[i+2]=dc;px[i+3]=da;}
+        else{px[i+3]=0;}
+      }
+      ctx.putImageData(fd,0,0);
+    }
+
+    var _resizeTimer;
+    window.addEventListener('resize', function() { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(render, 150); });
+    new MutationObserver(render).observe(document.documentElement,{attributeFilter:['data-theme']});
+    render();
+  })();
+  </script>
+
+  {% block extra_js %}{% endblock %}
+
+  <script>
+  (function(){
+    var btn = document.getElementById('bnav-btn-account');
+    var dd  = document.getElementById('bnav-account-dd');
+    if (!btn || !dd) return;
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var nav = document.getElementById('bottom-nav');
+      var navR = nav ? nav.getBoundingClientRect() : null;
+      if (navR) {
+        dd.style.bottom = (window.innerHeight - navR.top + 8) + 'px';
+      }
+      dd.classList.toggle('open');
+    });
+    document.addEventListener('click', function(e) {
+      if (!dd.contains(e.target) && e.target !== btn) dd.classList.remove('open');
+    });
+  })();
+  </script>
+
+
+  {% if request.GET.company_changed %}
+  <script>
+  (function(){
+    var company = '{{ request.GET.company_changed|escapejs }}';
+    var label = company === 'ijabah' ? 'Ijabah' : 'Konoz United';
+    var t = document.createElement('div');
+    t.className = 'toast toast-success';
+    t.textContent = 'Beralih ke ' + label;
+    var c = document.querySelector('.toast-container');
+    if (!c) { c = document.createElement('div'); c.className = 'toast-container'; document.body.appendChild(c); }
+    c.appendChild(t);
+    history.replaceState(null,'',location.pathname);
+    setTimeout(function(){ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(function(){ t.remove(); },300); }, 3000);
+  })();
+  </script>
+  {% endif %}
+
+  <script>
+  (function() {
+    var html = document.documentElement;
+    var moon = document.getElementById('icon-moon');
+    var sun  = document.getElementById('icon-sun');
+    var bnavMoon = document.getElementById('bnav-moon');
+    var bnavSun  = document.getElementById('bnav-sun');
+    function applyTheme(t) {
+      html.setAttribute('data-theme', t);
+      localStorage.setItem('theme', t);
+      if (moon && sun) {
+        moon.style.display = t === 'light' ? 'none' : '';
+        sun.style.display  = t === 'light' ? '' : 'none';
+      }
+      if (bnavMoon && bnavSun) {
+        bnavMoon.style.display = t === 'light' ? 'none' : '';
+        bnavSun.style.display  = t === 'light' ? '' : 'none';
+      }
+    }
+    applyTheme(localStorage.getItem('theme') || 'dark');
+    window.toggleTheme = function() {
+      applyTheme(html.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    };
+  })();
+  </script>
+</body>
+</html>
