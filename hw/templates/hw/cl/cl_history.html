@@ -8,6 +8,107 @@
 <span class="topbar-crumb active">Confirmation Letter</span>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+/* ── Filter panel ── */
+.filter-panel-wrap { position: relative; display: inline-block; }
+
+.filter-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-dropdown);
+  display: none;
+  overflow: hidden;
+}
+.filter-panel.open { display: block; }
+
+.fp-head {
+  padding: 16px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fp-title { font-size: 14px; font-weight: 700; color: var(--text); }
+
+.fp-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.fp-section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.fp-section-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.fp-reset {
+  font-size: 12px; font-weight: 500;
+  color: var(--accent-2); cursor: pointer;
+  background: none; border: none; font-family: inherit;
+  transition: opacity .12s;
+}
+.fp-reset:hover { opacity: .7; }
+
+/* Date inputs */
+.fp-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fp-date-field { display: flex; flex-direction: column; gap: 5px; }
+.fp-date-field label { font-size: 11px; color: var(--text-3); font-weight: 500; }
+.fp-date-field input[type="date"] {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+  font-family: inherit;
+  transition: border-color .12s;
+}
+.fp-date-field input[type="date"]:focus { outline: none; border-color: var(--accent); }
+
+/* Status radio group */
+.fp-status-group { display: flex; flex-direction: column; gap: 2px; }
+.fp-status-opt {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-lg);
+  cursor: pointer; transition: background .1s;
+  border: 1px solid transparent;
+}
+.fp-status-opt:hover { background: var(--surface-2); }
+.fp-status-opt.selected { background: var(--surface-2); border-color: var(--border); }
+.fp-status-opt input[type="radio"] { display: none; }
+.fp-status-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border-2);
+  transition: background .1s, border-color .1s;
+}
+.fp-status-opt.selected .fp-status-dot { border-color: currentColor; background: currentColor; }
+.fp-status-opt-label { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; }
+.fp-status-count { font-size: 11px; color: var(--text-3); }
+.fp-status-opt.c-def { color: var(--green); }
+.fp-status-opt.c-ten { color: var(--yellow); }
+.fp-status-opt.c-can { color: var(--red); }
+.fp-status-opt.c-all .fp-status-dot { border-color: var(--border-2); }
+.fp-status-opt.c-all.selected .fp-status-dot { border-color: var(--accent-2); background: var(--accent-2); }
+
+/* Footer */
+.fp-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.fp-apply {
+  background: var(--accent); color: #fff; border: 1px solid var(--accent);
+  border-radius: var(--r-lg); padding: 8px 20px;
+  font-size: 12px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: opacity .12s;
+}
+.fp-apply:hover { opacity: .88; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page">
   <div class="page-header">
@@ -33,13 +134,96 @@
     </div>
   </div>
 
-  <form method="get" class="filter-bar">
+  <!-- Filter bar -->
+  <form method="get" id="cl-filter-form" class="filter-bar">
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-      <input type="text" name="q" value="{{ q }}" placeholder="Cari tamu, hotel, nomor konfirmasi…">
+      <input type="text" name="q" value="{{ q }}" placeholder="Cari tamu, hotel, nomor konfirmasi…" id="cl-search-input">
     </div>
-    <button type="submit" class="btn btn-secondary">Cari</button>
-    {% if q %}<a href="{% url 'cl_list' %}" class="btn btn-ghost search-reset" title="Reset pencarian"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></a>{% endif %}
+
+    <!-- Hidden inputs untuk filter aktif -->
+    <input type="hidden" name="status"    id="fp-hidden-status"    value="{{ status_filter|lower }}">
+    <input type="hidden" name="date_from" id="fp-hidden-date-from" value="{{ date_from }}">
+    <input type="hidden" name="date_to"   id="fp-hidden-date-to"   value="{{ date_to }}">
+
+    <!-- Filter button -->
+    <div class="filter-panel-wrap">
+      <button type="button" class="btn btn-secondary" id="fp-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M11 12h2M15 16H9"/></svg>
+        Filter
+        {% if active_filters %}<span style="background:var(--accent);color:#fff;border-radius:9999px;padding:1px 6px;font-size:10px;font-weight:700;">{{ active_filters }}</span>{% endif %}
+      </button>
+
+      <!-- Filter panel -->
+      <div class="filter-panel" id="filter-panel">
+        <div class="fp-head">
+          <span class="fp-title">Filter</span>
+        </div>
+
+        <!-- Date range -->
+        <div class="fp-section">
+          <div class="fp-section-head">
+            <span class="fp-section-label">Check-in</span>
+            <button type="button" class="fp-reset" data-reset="date">Reset</button>
+          </div>
+          <div class="fp-date-row">
+            <div class="fp-date-field">
+              <label>Dari</label>
+              <input type="date" id="fp-date-from" value="{{ date_from }}">
+            </div>
+            <div class="fp-date-field">
+              <label>Sampai</label>
+              <input type="date" id="fp-date-to" value="{{ date_to }}">
+            </div>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="fp-section">
+          <div class="fp-section-head">
+            <span class="fp-section-label">Status</span>
+            <button type="button" class="fp-reset" data-reset="status">Reset</button>
+          </div>
+          <div class="fp-status-group">
+            <label class="fp-status-opt c-all {% if not status_filter %}selected{% endif %}" data-val="">
+              <input type="radio" name="fp-status" value="">
+              <span class="fp-status-dot"></span>
+              <span class="fp-status-opt-label">Semua</span>
+              <span class="fp-status-count">{{ counts.all }}</span>
+            </label>
+            <label class="fp-status-opt c-def {% if status_filter == 'DEFINITE' %}selected{% endif %}" data-val="definite">
+              <input type="radio" name="fp-status" value="definite">
+              <span class="fp-status-dot"></span>
+              <span class="fp-status-opt-label">Definite</span>
+              <span class="fp-status-count">{{ counts.definite }}</span>
+            </label>
+            <label class="fp-status-opt c-ten {% if status_filter == 'TENTATIVE' %}selected{% endif %}" data-val="tentative">
+              <input type="radio" name="fp-status" value="tentative">
+              <span class="fp-status-dot"></span>
+              <span class="fp-status-opt-label">Tentative</span>
+              <span class="fp-status-count">{{ counts.tentative }}</span>
+            </label>
+            <label class="fp-status-opt c-can {% if status_filter == 'CANCELLED' %}selected{% endif %}" data-val="cancelled">
+              <input type="radio" name="fp-status" value="cancelled">
+              <span class="fp-status-dot"></span>
+              <span class="fp-status-opt-label">Cancelled</span>
+              <span class="fp-status-count">{{ counts.cancelled }}</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="fp-footer">
+          <button type="button" class="btn btn-ghost" id="fp-reset-all" style="font-size:12px;">Reset semua</button>
+          <button type="button" class="fp-apply" id="fp-apply">Terapkan</button>
+        </div>
+      </div>
+    </div>
+
+    {% if q or active_filters %}
+    <a href="{% url 'cl_list' %}" class="btn btn-ghost search-reset" title="Reset semua filter">
+      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
+    </a>
+    {% endif %}
   </form>
 
   <div class="card">
@@ -81,9 +265,9 @@
             <td class="mono col-nowrap col-m-amount">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }} SAR{% else %}—{% endif %}</td>
             <td class="col-m-actions" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
-                <a href="{% url 'cl_pdf' cl.pk %}" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--green);" title="Download PDF" target="_blank"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></a>
-                <a href="{% url 'cl_edit' cl.pk %}" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;" title="Edit"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>
-                <button type="button" class="btn btn-ghost" style="width:30px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--red);" title="Hapus" onclick="showDeleteModal('{% url 'cl_delete' cl.pk %}', '{{ cl.confirmation_number|escapejs }}')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                <a href="{% url 'cl_pdf' cl.pk %}" class="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></a>
+                <a href="{% url 'cl_edit' cl.pk %}" class="btn btn-ghost btn-icon" title="Edit"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></a>
+                <button type="button" class="btn btn-ghost btn-icon btn-icon-red" title="Hapus" onclick="showDeleteModal('{% url 'cl_delete' cl.pk %}', '{{ cl.confirmation_number|escapejs }}')"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
               </div>
             </td>
           </tr>
@@ -94,13 +278,14 @@
 
     {% if page_obj.has_other_pages %}
     <div class="pagination">
-      {% if page_obj.has_previous %}
-      <a href="?q={{ q }}&page={{ page_obj.previous_page_number }}" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;">← Prev</a>
-      {% endif %}
-      <span class="pagination-info">Halaman {{ page_obj.number }} dari {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-      <a href="?q={{ q }}&page={{ page_obj.next_page_number }}" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;">Next →</a>
-      {% endif %}
+      <a href="?{{ params_str }}&page={{ page_obj.previous_page_number }}" class="pag-btn {% if not page_obj.has_previous %}pag-disabled{% endif %}">‹</a>
+      {% for p in page_range_display %}
+        {% if p is None %}<span class="pag-ellipsis">…</span>
+        {% elif p == page_obj.number %}<span class="pag-btn pag-active">{{ p }}</span>
+        {% else %}<a href="?{{ params_str }}&page={{ p }}" class="pag-btn">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+      <a href="?{{ params_str }}&page={{ page_obj.next_page_number }}" class="pag-btn {% if not page_obj.has_next %}pag-disabled{% endif %}">›</a>
     </div>
     {% endif %}
 
@@ -124,4 +309,61 @@
 
 {% block extra_js %}
 <script src="{% static 'hw/js/list.js' %}"></script>
+<script>
+(function () {
+  var btn    = document.getElementById('fp-toggle-btn');
+  var panel  = document.getElementById('filter-panel');
+  var form   = document.getElementById('cl-filter-form');
+
+  // Toggle panel
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    panel.classList.toggle('open');
+  });
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target) && e.target !== btn) {
+      panel.classList.remove('open');
+    }
+  });
+
+  // Status radio click
+  document.querySelectorAll('.fp-status-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+    });
+  });
+
+  // Reset per-section
+  document.querySelectorAll('.fp-reset').forEach(function (resetBtn) {
+    resetBtn.addEventListener('click', function () {
+      var target = resetBtn.getAttribute('data-reset');
+      if (target === 'date') {
+        document.getElementById('fp-date-from').value = '';
+        document.getElementById('fp-date-to').value   = '';
+      } else if (target === 'status') {
+        document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+        document.querySelector('.fp-status-opt.c-all').classList.add('selected');
+      }
+    });
+  });
+
+  // Reset all
+  document.getElementById('fp-reset-all').addEventListener('click', function () {
+    document.getElementById('fp-date-from').value = '';
+    document.getElementById('fp-date-to').value   = '';
+    document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+    document.querySelector('.fp-status-opt.c-all').classList.add('selected');
+  });
+
+  // Apply
+  document.getElementById('fp-apply').addEventListener('click', function () {
+    var selected = document.querySelector('.fp-status-opt.selected');
+    document.getElementById('fp-hidden-status').value    = selected ? selected.getAttribute('data-val') : '';
+    document.getElementById('fp-hidden-date-from').value = document.getElementById('fp-date-from').value;
+    document.getElementById('fp-hidden-date-to').value   = document.getElementById('fp-date-to').value;
+    form.submit();
+  });
+})();
+</script>
 {% endblock %}

@@ -4,7 +4,8 @@ from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import ExpressionWrapper, F, FloatField, Q, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -18,18 +19,37 @@ from .pdf import _render_invoice_pdf
 @login_required
 def invoice_list(request):
     active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="hotel")
+    base_qs = Invoice.objects.filter(invoice_type="hotel")
     if active_company:
-        qs = qs.filter(company=active_company)
+        base_qs = base_qs.filter(company=active_company)
+
     q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '')
+    due_soon = request.GET.get('due_soon')
+
+    qs = base_qs
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    due_soon = request.GET.get('due_soon')
     if due_soon:
         threshold = date.today() + timedelta(days=7)
         qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
+    if status in ('lunas', 'belum', 'partial'):
+        qs = qs.annotate(
+            _res=Coalesce(Sum('reservations__total_sar'), 0),
+            _paid=Coalesce(Sum(ExpressionWrapper(
+                F('payments__amount') * F('payments__exchange_rate'),
+                output_field=FloatField()
+            )), 0.0),
+        )
+        if status == 'lunas':
+            qs = qs.filter(_paid__gte=F('_res'))
+        elif status == 'belum':
+            qs = qs.filter(_paid__lt=1)
+        elif status == 'partial':
+            qs = qs.filter(_paid__gte=1).exclude(_paid__gte=F('_res'))
+
     return _paginated_list(request, qs, "hw/invoice/invoice_history.html", "invoices",
-                           extra_ctx={"due_soon_filter": bool(due_soon)})
+                           extra_ctx={"due_soon_filter": bool(due_soon), "status_filter": status})
 
 
 @login_required
@@ -38,10 +58,31 @@ def invoice_new(request):
     active_company = request.session.get("active_company")
 
     if request.method == "POST":
+        invoice_number = request.POST.get("invoice_number", "")
+        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+            messages.error(request, f"Nomor Invoice '{invoice_number}' sudah digunakan.")
+            cl_qs = ConfirmationLetter.objects.select_related("invoice")
+            if active_company:
+                cl_qs = cl_qs.filter(company=active_company)
+            cl_data = json.dumps([{
+                "id": cl.pk, "ref": cl.confirmation_number, "guest": cl.guest_name,
+                "hotel": cl.hotel_name or "-",
+                "check_in": cl.check_in.isoformat() if cl.check_in else "",
+                "check_out": cl.check_out.isoformat() if cl.check_out else "",
+                "total": int(round(cl.total_price)) if cl.total_price else 0,
+                "inv": cl.invoice.invoice_number if cl.invoice_id else "",
+            } for cl in cl_qs.order_by("-created_at")[:100]])
+            return render(request, "hw/invoice/invoice_form.html", {
+                "suggested_number": invoice_number,
+                "default_company": active_company or "konoz",
+                "cl_data_json": cl_data,
+                "form_data": request.POST,
+            })
+
         invoice = Invoice.objects.create(
             company=request.POST.get("company", "konoz"),
             invoice_type="hotel",
-            invoice_number=request.POST.get("invoice_number", ""),
+            invoice_number=invoice_number,
             customer_name=request.POST.get("customer_name", ""),
             issued_date=_parse_date(request.POST.get("issued_date")),
             due_date=_parse_date(request.POST.get("due_date")),
@@ -82,7 +123,11 @@ def invoice_new(request):
 
 @login_required
 def invoice_detail(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
+    active_company = request.session.get('active_company')
+    filters = {'pk': pk, 'invoice_type': 'hotel'}
+    if active_company:
+        filters['company'] = active_company
+    invoice = get_object_or_404(Invoice, **filters)
     reservations = _build_reservation_context(invoice)
     due_alert = None
     if invoice.due_date and invoice.remaining_sar > 0:
@@ -103,7 +148,11 @@ def invoice_detail(request, pk):
 
 @login_required
 def invoice_edit(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
+    active_company = request.session.get('active_company')
+    filters = {'pk': pk, 'invoice_type': 'hotel'}
+    if active_company:
+        filters['company'] = active_company
+    invoice = get_object_or_404(Invoice, **filters)
 
     if request.method == "POST":
         def _res_snapshot(inv):
@@ -121,8 +170,13 @@ def invoice_edit(request, pk):
             'Company':          invoice.company,
             'Reservasi':        _res_snapshot(invoice),
         }
+        new_number = request.POST.get("invoice_number", "")
+        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+            messages.error(request, f"Nomor Invoice '{new_number}' sudah digunakan.")
+            return render(request, "hw/invoice/invoice_form.html", {"invoice": invoice, "edit": True, "form_data": request.POST})
+
         invoice.company = request.POST.get("company", "konoz")
-        invoice.invoice_number = request.POST.get("invoice_number", "")
+        invoice.invoice_number = new_number
         invoice.customer_name = request.POST.get("customer_name", "")
         invoice.issued_date = _parse_date(request.POST.get("issued_date"))
         invoice.due_date = _parse_date(request.POST.get("due_date"))
@@ -151,7 +205,11 @@ def invoice_edit(request, pk):
 
 @login_required
 def invoice_delete(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
+    active_company = request.session.get('active_company')
+    filters = {'pk': pk, 'invoice_type': 'hotel'}
+    if active_company:
+        filters['company'] = active_company
+    invoice = get_object_or_404(Invoice, **filters)
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
@@ -163,7 +221,11 @@ def invoice_delete(request, pk):
 
 @login_required
 def invoice_pdf(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
+    active_company = request.session.get('active_company')
+    filters = {'pk': pk, 'invoice_type': 'hotel'}
+    if active_company:
+        filters['company'] = active_company
+    invoice = get_object_or_404(Invoice, **filters)
     return _render_invoice_pdf(invoice)
 
 
@@ -217,7 +279,11 @@ def invoice_export_csv(request):
 
 @login_required
 def invoice_duplicate(request, pk):
-    original = get_object_or_404(Invoice, pk=pk, invoice_type="hotel")
+    active_company = request.session.get('active_company')
+    filters = {'pk': pk, 'invoice_type': 'hotel'}
+    if active_company:
+        filters['company'] = active_company
+    original = get_object_or_404(Invoice, **filters)
     new_num = Invoice.generate_number("hotel")
     today = date.today()
     new_inv = Invoice.objects.create(

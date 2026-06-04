@@ -79,7 +79,11 @@ def hotel_new(request):
 
 @login_required
 def hotel_edit(request, pk):
-    h = get_object_or_404(Hotel, pk=pk)
+    company = request.session.get('active_company')
+    filters = {'pk': pk}
+    if company:
+        filters['company'] = company
+    h = get_object_or_404(Hotel, **filters)
     if request.method == 'POST':
         _before = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
         _save_hotel(h, request.POST)
@@ -97,7 +101,11 @@ def hotel_edit(request, pk):
 @login_required
 @require_POST
 def hotel_delete(request, pk):
-    h = get_object_or_404(Hotel, pk=pk)
+    company = request.session.get('active_company')
+    filters = {'pk': pk}
+    if company:
+        filters['company'] = company
+    h = get_object_or_404(Hotel, **filters)
     name = h.name
     h.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name, h.company)
@@ -106,7 +114,11 @@ def hotel_delete(request, pk):
 
 @login_required
 def hotel_detail(request, pk):
-    h = get_object_or_404(Hotel, pk=pk)
+    company = request.session.get('active_company')
+    filters = {'pk': pk}
+    if company:
+        filters['company'] = company
+    h = get_object_or_404(Hotel, **filters)
     return render(request, 'hw/hotel/hotel_detail.html', {
         'hotel': h,
         'hotel_route_json': _json.dumps(h.route) if h.route else 'null',

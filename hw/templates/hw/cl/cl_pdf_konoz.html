@@ -19,6 +19,14 @@
                     border-radius: 6px;
                     padding: 10px 20px;
                 }
+                .reservation-status.cancelled {
+                    display: inline-block;
+                    border: 3px solid #e5534b;
+                    border-radius: 6px;
+                    padding: 10px 20px;
+                    color: #e5534b;
+                    text-decoration: line-through;
+                }
         @page { size: A4; margin: 0; }
         
         * {
@@ -362,7 +370,7 @@
         <!-- Summary -->
         <div style="display: flex; align-items: flex-start; gap: 15px;">
             <div style="flex: 1; text-align: right; padding-right: 70px;">
-                <div style="display: inline-block; border: 3px solid {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; border-radius: 6px; padding: 10px 20px; transform: rotate(-8deg); font-weight: 800; font-size: 16px; letter-spacing: 1.5px; text-align: center; color: {% if reservation_status == 'TENTATIVE' %}#f59e0b{% else %}#10b981{% endif %}; margin-top: 60px;">{{ reservation_status }}</div>
+                <div style="display: inline-block; border: 3px solid {% if reservation_status == 'TENTATIVE' %}#f59e0b{% elif reservation_status == 'CANCELLED' %}#e5534b{% else %}#10b981{% endif %}; border-radius: 6px; padding: 10px 20px; transform: rotate(-8deg); font-weight: 800; font-size: 16px; letter-spacing: 1.5px; text-align: center; color: {% if reservation_status == 'TENTATIVE' %}#f59e0b{% elif reservation_status == 'CANCELLED' %}#e5534b{% else %}#10b981{% endif %}; margin-top: 60px;">{{ reservation_status }}</div>
             </div>
             <div style="width: 350px;">
                 <div class="summary-box">

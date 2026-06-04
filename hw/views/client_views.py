@@ -53,7 +53,11 @@ def client_new(request):
 
 @login_required
 def client_edit(request, pk):
-    c = get_object_or_404(Client, pk=pk)
+    company = _company(request)
+    filters = {'pk': pk}
+    if company:
+        filters['company'] = company
+    c = get_object_or_404(Client, **filters)
     if request.method == 'POST':
         _before = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
@@ -68,7 +72,11 @@ def client_edit(request, pk):
 @login_required
 @require_POST
 def client_delete(request, pk):
-    c = get_object_or_404(Client, pk=pk)
+    company = _company(request)
+    filters = {'pk': pk}
+    if company:
+        filters['company'] = company
+    c = get_object_or_404(Client, **filters)
     name = c.name
     c.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
@@ -78,10 +86,15 @@ def client_delete(request, pk):
 
 @login_required
 def client_detail(request, pk):
-    c = get_object_or_404(
-        Client.objects.prefetch_related('invoices', 'cls'),
-        pk=pk,
+    company = _company(request)
+    qs = Client.objects.prefetch_related(
+        'invoices__payments',
+        'invoices__reservations',
+        'cls__rooms',
     )
+    if company:
+        qs = qs.filter(company=company)
+    c = get_object_or_404(qs, pk=pk)
     invoices = c.invoices.order_by('-created_at')
     cls = c.cls.order_by('-created_at')
     return render(request, 'hw/client/client_detail.html', {

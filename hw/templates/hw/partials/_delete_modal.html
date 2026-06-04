@@ -2,43 +2,48 @@
   <div class="modal-box">
     <div class="modal-header">
       <div class="modal-warn-icon">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
         </svg>
       </div>
-      <div>
-        <div class="modal-title">Hapus {{ delete_modal_title }}</div>
-        <div class="modal-subtitle">Tindakan ini tidak dapat dibatalkan</div>
-      </div>
+      <div class="modal-title">Hapus {{ delete_modal_title }}</div>
     </div>
     <div class="modal-body">
-      <div class="modal-detail"><strong id="delete-obj-name"></strong> akan dihapus permanen.</div>
+      <p class="modal-desc">Apakah Anda yakin ingin menghapus <strong id="delete-obj-name" class="modal-obj-name"></strong>? Data tidak dapat dipulihkan setelah dihapus.</p>
     </div>
     <div class="modal-footer">
-      <button type="button" class="btn btn-secondary modal-btn-cancel" onclick="closeDeleteModal()">Batal</button>
+      <button type="button" id="delete-cancel-btn" class="btn btn-secondary modal-btn-cancel" onclick="closeDeleteModal()">Tidak, Batal</button>
       <form method="post" id="delete-form" style="flex:1;">
         {% csrf_token %}
-        <button type="submit" class="btn btn-danger-solid modal-btn-confirm">
-          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-          </svg>
-          Ya, Hapus
-        </button>
+        <button type="submit" id="delete-submit-btn" class="btn btn-danger-solid modal-btn-confirm">Ya, Hapus!</button>
       </form>
     </div>
   </div>
 </div>
 <script>
+  var _deleteSubmitOrigHTML = null;
+
   function showDeleteModal(url, name) {
-    var overlay = document.getElementById('delete-modal');
+    var overlay   = document.getElementById('delete-modal');
+    var submitBtn = document.getElementById('delete-submit-btn');
     document.getElementById('delete-form').action = url;
     document.getElementById('delete-obj-name').textContent = name;
+    if (!_deleteSubmitOrigHTML) _deleteSubmitOrigHTML = submitBtn.innerHTML;
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('btn-loading');
+    submitBtn.innerHTML = _deleteSubmitOrigHTML;
     overlay.classList.remove('closing');
     overlay.classList.add('open');
+    setTimeout(function() {
+      var cancelBtn = document.getElementById('delete-cancel-btn');
+      if (cancelBtn) cancelBtn.focus();
+    }, 60);
   }
+
   function closeDeleteModal() {
     document.getElementById('delete-modal').classList.add('closing');
   }
+
   (function() {
     var overlay = document.getElementById('delete-modal');
     overlay.addEventListener('animationend', function(e) {
@@ -51,6 +56,13 @@
     });
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape' && overlay.classList.contains('open')) closeDeleteModal();
+    });
+    document.getElementById('delete-form').addEventListener('submit', function() {
+      var btn = document.getElementById('delete-submit-btn');
+      if (!_deleteSubmitOrigHTML) _deleteSubmitOrigHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.classList.add('btn-loading');
+      btn.innerHTML = _deleteSubmitOrigHTML.replace('Ya, Hapus', 'Menghapus...');
     });
   })();
 </script>

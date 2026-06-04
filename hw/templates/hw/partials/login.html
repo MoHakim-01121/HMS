@@ -53,7 +53,7 @@
     .hud-app-name {
       font-size: 13px;
       font-weight: 700;
-      color: var(--text-2);
+      color: #fff;
       text-transform: uppercase;
       letter-spacing: 3px;
     }
@@ -225,10 +225,14 @@
     </div>
 
     <div class="hud-panel">
-      {% if form.errors %}
+      {% if request.GET.locked %}
+      <div class="hud-error">
+        Account locked. Too many failed attempts. Try again in 1 hour.
+      </div>
+      {% elif form.errors %}
       <div class="hud-error">
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        Access denied — invalid credentials
+        Access denied. Invalid credentials.
       </div>
       {% endif %}
 
@@ -243,11 +247,11 @@
         <div class="hud-fields">
           <div class="hud-field">
             <label for="id_username">Identifier</label>
-            <input type="text" id="id_username" name="username" autofocus autocomplete="username" placeholder="Enter username">
+            <input type="text" id="id_username" name="username" autofocus autocomplete="username" placeholder="Enter identifier">
           </div>
           <div class="hud-field">
             <label for="id_password">Auth Key</label>
-            <input type="password" id="id_password" name="password" autocomplete="current-password" placeholder="Enter password">
+            <input type="password" id="id_password" name="password" autocomplete="current-password" placeholder="Enter auth key">
           </div>
         </div>
         <button type="submit" class="hud-btn" id="login-btn">

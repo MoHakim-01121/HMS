@@ -30,10 +30,19 @@ def services_list(request):
 def services_new(request):
     suggested_number = Invoice.generate_number("visa")
     if request.method == "POST":
+        invoice_number = request.POST.get("invoice_number", "")
+        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+            messages.error(request, f"Nomor Invoice '{invoice_number}' sudah digunakan.")
+            return render(request, "hw/services/services_form.html", {
+                "suggested_number": invoice_number,
+                "default_company": request.session.get("active_company", "ijabah"),
+                "form_data": request.POST,
+            })
+
         invoice = Invoice.objects.create(
             company=request.POST.get("company", "ijabah"),
             invoice_type="visa",
-            invoice_number=request.POST.get("invoice_number", ""),
+            invoice_number=invoice_number,
             customer_name=request.POST.get("customer_name", ""),
             issued_date=_parse_date(request.POST.get("issued_date")),
             due_date=_parse_date(request.POST.get("due_date")),
@@ -78,8 +87,13 @@ def services_edit(request, pk):
             'Mata Uang':     invoice.currency,
             'Company':       invoice.company,
         }
+        new_number = request.POST.get("invoice_number", "")
+        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+            messages.error(request, f"Nomor Invoice '{new_number}' sudah digunakan.")
+            return render(request, "hw/services/services_form.html", {"invoice": invoice, "edit": True, "form_data": request.POST})
+
         invoice.company = request.POST.get("company", "ijabah")
-        invoice.invoice_number = request.POST.get("invoice_number", "")
+        invoice.invoice_number = new_number
         invoice.customer_name = request.POST.get("customer_name", "")
         invoice.issued_date = _parse_date(request.POST.get("issued_date"))
         invoice.due_date = _parse_date(request.POST.get("due_date"))

@@ -1,4 +1,5 @@
 from datetime import datetime
+import urllib.parse
 
 from django.core.paginator import Paginator
 from django.http import HttpResponse
@@ -7,15 +8,30 @@ from django.shortcuts import render
 from ..models import ConfirmationLetter, Payment
 
 
+def _page_range_display(page_obj):
+    current = page_obj.number
+    last = page_obj.paginator.num_pages
+    result = []
+    for i in range(1, last + 1):
+        if i == 1 or i == last or abs(i - current) <= 2:
+            result.append(i)
+        elif result and result[-1] is not None:
+            result.append(None)
+    return result
+
+
 def _paginated_list(request, qs, template, context_key, extra_ctx=None):
     q = request.GET.get('q', '').strip()
     paginator = Paginator(qs, 20)
     page_obj = paginator.get_page(request.GET.get('page'))
+    params_str = urllib.parse.urlencode({k: v for k, v in request.GET.items() if k != 'page'})
     ctx = {
         context_key: page_obj,
         "page_obj": page_obj,
         "q": q,
-        "total_count": paginator.count,  # reuse Paginator's cached count, not a second query
+        "total_count": paginator.count,
+        "page_range_display": _page_range_display(page_obj),
+        "params_str": params_str,
     }
     if extra_ctx:
         ctx.update(extra_ctx)

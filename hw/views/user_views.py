@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -25,6 +26,10 @@ class CompanyLoginView(LoginView):
 
     def get_success_url(self):
         return '/?logged_in=1'
+
+
+def axes_lockout(request, credentials, *args, **kwargs):
+    return HttpResponseRedirect('/login/?locked=1')
 
 
 def superuser_required(view_func):

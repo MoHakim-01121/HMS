@@ -27,3 +27,6 @@ dj-database-url==2.3.0
 
 # Environment
 python-dotenv==1.0.1
+
+# Security
+django-axes==7.0.1

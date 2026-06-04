@@ -6,6 +6,14 @@ from .models import (
 )
 
 
+class SuperuserOnlyAdminSite(admin.AdminSite):
+    def has_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+
+
+admin.site.__class__ = SuperuserOnlyAdminSite
+
+
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     list_display  = ('invoice_number', 'customer_name', 'company', 'invoice_type', 'issued_date', 'due_date')
