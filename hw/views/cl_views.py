@@ -55,7 +55,7 @@ def cl_list(request):
 
     qs = qs.order_by(_sort_map.get(sort, '-check_in'))
 
-    active_filters = sum(bool(x) for x in [status_list, date_from, date_to])
+    active_filters = len(status_list) + bool(date_from) + bool(date_to)
     counts = {
         'all':       base_qs.count(),
         'definite':  base_qs.filter(reservation_status='DEFINITE').count(),

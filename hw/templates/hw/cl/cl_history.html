@@ -229,24 +229,18 @@
             <button type="button" class="fp-reset" data-reset="status">Reset</button>
           </div>
           <div class="fp-status-group">
-            <label class="fp-status-opt c-def {% if 'DEFINITE' in status_list %}selected{% endif %}" data-val="definite">
-              <input type="checkbox" name="fp-status" value="definite" {% if 'DEFINITE' in status_list %}checked{% endif %}>
-
+            <div class="fp-status-opt c-def {% if 'DEFINITE' in status_list %}selected{% endif %}" data-val="definite">
               <span class="fp-status-opt-label">Definite</span>
               <span class="fp-status-count">{{ counts.definite }}</span>
-            </label>
-            <label class="fp-status-opt c-ten {% if 'TENTATIVE' in status_list %}selected{% endif %}" data-val="tentative">
-              <input type="checkbox" name="fp-status" value="tentative" {% if 'TENTATIVE' in status_list %}checked{% endif %}>
-
+            </div>
+            <div class="fp-status-opt c-ten {% if 'TENTATIVE' in status_list %}selected{% endif %}" data-val="tentative">
               <span class="fp-status-opt-label">Tentative</span>
               <span class="fp-status-count">{{ counts.tentative }}</span>
-            </label>
-            <label class="fp-status-opt c-can {% if 'CANCELLED' in status_list %}selected{% endif %}" data-val="cancelled">
-              <input type="checkbox" name="fp-status" value="cancelled" {% if 'CANCELLED' in status_list %}checked{% endif %}>
-
+            </div>
+            <div class="fp-status-opt c-can {% if 'CANCELLED' in status_list %}selected{% endif %}" data-val="cancelled">
               <span class="fp-status-opt-label">Cancelled</span>
               <span class="fp-status-count">{{ counts.cancelled }}</span>
-            </label>
+            </div>
           </div>
         </div>
 
@@ -257,11 +251,6 @@
       </div>
     </div>
 
-    {% if q or active_filters %}
-    <a href="{% url 'cl_list' %}" class="btn btn-ghost search-reset" title="Reset semua filter">
-      <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg>
-    </a>
-    {% endif %}
   </form>
 
   <div class="card">
@@ -393,11 +382,12 @@
     });
   });
 
-  // Reset all
+  // Reset all — clear UI dan submit form
   document.getElementById('fp-reset-all').addEventListener('click', function () {
-    document.getElementById('fp-date-from').value = '';
-    document.getElementById('fp-date-to').value   = '';
-    document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+    document.querySelectorAll('.fp-hidden-status').forEach(function (el) { el.remove(); });
+    document.getElementById('fp-hidden-date-from').value = '';
+    document.getElementById('fp-hidden-date-to').value   = '';
+    form.submit();
   });
 
   // Apply — buat multiple hidden status inputs
