@@ -231,19 +231,19 @@
           <div class="fp-status-group">
             <label class="fp-status-opt c-def {% if 'DEFINITE' in status_list %}selected{% endif %}" data-val="definite">
               <input type="checkbox" name="fp-status" value="definite" {% if 'DEFINITE' in status_list %}checked{% endif %}>
-              <span class="fp-status-dot"></span>
+
               <span class="fp-status-opt-label">Definite</span>
               <span class="fp-status-count">{{ counts.definite }}</span>
             </label>
             <label class="fp-status-opt c-ten {% if 'TENTATIVE' in status_list %}selected{% endif %}" data-val="tentative">
               <input type="checkbox" name="fp-status" value="tentative" {% if 'TENTATIVE' in status_list %}checked{% endif %}>
-              <span class="fp-status-dot"></span>
+
               <span class="fp-status-opt-label">Tentative</span>
               <span class="fp-status-count">{{ counts.tentative }}</span>
             </label>
             <label class="fp-status-opt c-can {% if 'CANCELLED' in status_list %}selected{% endif %}" data-val="cancelled">
               <input type="checkbox" name="fp-status" value="cancelled" {% if 'CANCELLED' in status_list %}checked{% endif %}>
-              <span class="fp-status-dot"></span>
+
               <span class="fp-status-opt-label">Cancelled</span>
               <span class="fp-status-count">{{ counts.cancelled }}</span>
             </label>
