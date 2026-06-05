@@ -1430,6 +1430,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent-2);
 /* ── Mobile ── */
 .m-sub { display: none; }
 .m-only { display: none; }
+.m-hide { display: inline; }
 @media (max-width: 600px) {
   /* Topbar — hidden on mobile, replaced by bottom-nav */
   .topbar { display: none !important; }
@@ -1535,6 +1536,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent-2);
     line-height: 1.4;
   }
   .col-m-hide { display: none !important; }
+  .m-hide { display: none !important; }
   .m-sub { display: block; width: 100%; color: var(--text-2); font-size: 12px; font-weight: 400; margin-top: 4px; }
   .m-only { display: inline-flex; }
   .col-m-primary { width: 100%; font-size: 13px !important; font-weight: 600; margin-bottom: 2px; flex-wrap: wrap; }

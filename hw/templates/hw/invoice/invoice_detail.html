@@ -150,11 +150,12 @@
           <tr>
             <td class="col-m-hide" style="font-family:monospace;">{{ p.linked_number|default:"—" }}</td>
             <td class="col-m-hide">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td class="col-m-primary" style="font-family:monospace;">
-              {{ p.linked_number|default:"—" }}{% if p.proof %}&nbsp;&nbsp;<a href="{{ p.proof.url }}" target="_blank" style="font-family:inherit;font-size:11px;color:var(--accent-2);text-decoration:none;font-weight:500;">(Proof ↗)</a>{% endif %}
+            <td class="col-m-primary">
+              <span class="m-hide">{{ p.method|default:"—" }}</span>
+              <span class="m-only" style="font-family:monospace;">{{ p.linked_number|default:"—" }}{% if p.proof %}&nbsp;&nbsp;<a href="{{ p.proof.url }}" target="_blank" style="font-family:inherit;font-size:11px;color:var(--accent-2);text-decoration:none;font-weight:500;">(Proof ↗)</a>{% endif %}</span>
               <span class="m-sub" style="font-family:inherit;">
-                {% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %} · {{ p.method|default:"—" }}
-                {% if p.currency != "SAR" %}<span style="display:block;">{{ p.amount|floatformat:0|intcomma }} {{ p.currency }} ÷ {{ p.exchange_rate|floatformat:0|intcomma }}</span>{% endif %}
+                {{ p.method|default:"—" }} · {% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}
+                {% if p.currency != "SAR" %}<span style="font-family:monospace;display:block;">{{ p.amount|floatformat:0|intcomma }} {{ p.currency }} ÷ {{ p.exchange_rate|floatformat:0|intcomma }}</span>{% endif %}
               </span>
             </td>
             <td class="mono col-m-hide">{{ p.amount|floatformat:0|intcomma }}</td>

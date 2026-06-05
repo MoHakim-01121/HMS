@@ -17,10 +17,8 @@
 .mob-backdrop {
   display: none;
   position: fixed; inset: 0;
-  background: rgba(0,0,0,.45);
+  background: rgba(0,0,0,.5);
   z-index: calc(var(--z-dropdown) - 1);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
 }
 .mob-backdrop.open { display: block; }
 
@@ -31,26 +29,31 @@
   .cl-filter-actions .sort-wrap .btn,
   .cl-filter-actions .filter-panel-wrap .btn { width: 100%; justify-content: center; }
 
-  .mob-backdrop { z-index: 250 !important; }
+  .mob-backdrop { z-index: 9998 !important; }
 
   .filter-panel {
     position: fixed !important;
-    left: 0; right: 0; bottom: 0; top: auto;
-    width: 100%;
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
-    max-height: 85vh;
-    overflow-y: auto;
-    z-index: 300 !important;
-    padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+    z-index: 9999 !important;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom)) !important;
+    background: var(--surface) !important;
   }
+  .filter-panel.open { display: block !important; }
+
   .sort-menu {
     position: fixed !important;
-    left: 0; right: 0; bottom: 0; top: auto;
-    width: 100%;
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
-    padding: 8px calc(8px) calc(90px + env(safe-area-inset-bottom));
-    z-index: 300 !important;
+    left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding: 8px 8px calc(90px + env(safe-area-inset-bottom)) !important;
+    z-index: 9999 !important;
+    background: var(--surface) !important;
   }
+  .sort-menu.open { display: block !important; }
 }
 
 /* ── Sort dropdown ── */
@@ -392,6 +395,15 @@
   var sortMenu  = document.getElementById('sort-menu');
   var backdrop  = document.getElementById('mob-backdrop');
 
+  function isMobile() { return window.innerWidth <= 600; }
+
+  // Pada mobile, pindahkan panel ke body agar bebas dari parent constraints
+  if (isMobile()) {
+    document.body.appendChild(backdrop);
+    document.body.appendChild(panel);
+    document.body.appendChild(sortMenu);
+  }
+
   function closeAll() {
     panel.classList.remove('open');
     sortMenu.classList.remove('open');
@@ -403,7 +415,10 @@
     e.stopPropagation();
     var opening = !sortMenu.classList.contains('open');
     closeAll();
-    if (opening) { sortMenu.classList.add('open'); backdrop.classList.add('open'); }
+    if (opening) {
+      sortMenu.classList.add('open');
+      if (isMobile()) backdrop.classList.add('open');
+    }
   });
 
   // Filter panel toggle
@@ -411,10 +426,13 @@
     e.stopPropagation();
     var opening = !panel.classList.contains('open');
     closeAll();
-    if (opening) { panel.classList.add('open'); backdrop.classList.add('open'); }
+    if (opening) {
+      panel.classList.add('open');
+      if (isMobile()) backdrop.classList.add('open');
+    }
   });
 
-  // Close on backdrop click or outside click
+  // Close on backdrop click or outside click (desktop)
   backdrop.addEventListener('click', closeAll);
   document.addEventListener('click', function (e) {
     if (!panel.contains(e.target) && e.target !== btn &&
