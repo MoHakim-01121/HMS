@@ -24,6 +24,20 @@ def cl_list(request):
     status_filter = request.GET.get('status', '').upper()
     date_from     = request.GET.get('date_from', '').strip()
     date_to       = request.GET.get('date_to', '').strip()
+    sort          = request.GET.get('sort', '-check_in')
+
+    _sort_map = {
+        '-check_in':   '-check_in',
+        'check_in':    'check_in',
+        'guest_name':  'guest_name',
+        '-created_at': '-created_at',
+    }
+    _sort_labels = {
+        '-check_in':   'Check-in (terbaru)',
+        'check_in':    'Check-in (terlama)',
+        'guest_name':  'Nama tamu (A–Z)',
+        '-created_at': 'Dibuat (terbaru)',
+    }
 
     qs = base_qs
     if q:
@@ -39,6 +53,8 @@ def cl_list(request):
     if date_to:
         qs = qs.filter(check_in__lte=date_to)
 
+    qs = qs.order_by(_sort_map.get(sort, '-check_in'))
+
     active_filters = sum(bool(x) for x in [status_filter, date_from, date_to])
     counts = {
         'all':       base_qs.count(),
@@ -51,6 +67,9 @@ def cl_list(request):
                                'status_filter':  status_filter,
                                'date_from':      date_from,
                                'date_to':        date_to,
+                               'sort':           sort,
+                               'sort_label':     _sort_labels.get(sort, 'Check-in (terbaru)'),
+                               'sort_labels':    _sort_labels,
                                'active_filters': active_filters,
                                'counts':         counts,
                            })

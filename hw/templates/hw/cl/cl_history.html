@@ -10,6 +10,35 @@
 
 {% block extra_css %}
 <style>
+/* ── Sort dropdown ── */
+.sort-wrap { position: relative; display: inline-block; }
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-dropdown);
+  display: none;
+  overflow: hidden;
+  padding: 4px;
+}
+.sort-menu.open { display: block; }
+.sort-opt {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--r-lg);
+  font-size: 12px; font-weight: 500; color: var(--text-2);
+  cursor: pointer; text-decoration: none;
+  transition: background .1s, color .1s;
+}
+.sort-opt:hover { background: var(--surface-2); color: var(--text); }
+.sort-opt.active { color: var(--accent-2); font-weight: 600; }
+.sort-opt.active::after { content: '✓'; font-size: 11px; }
+
 /* ── Filter panel ── */
 .filter-panel-wrap { position: relative; display: inline-block; }
 
@@ -145,6 +174,21 @@
     <input type="hidden" name="status"    id="fp-hidden-status"    value="{{ status_filter|lower }}">
     <input type="hidden" name="date_from" id="fp-hidden-date-from" value="{{ date_from }}">
     <input type="hidden" name="date_to"   id="fp-hidden-date-to"   value="{{ date_to }}">
+    <input type="hidden" name="sort"      value="{{ sort }}">
+
+    <!-- Sort by button -->
+    <div class="sort-wrap">
+      <button type="button" class="btn btn-secondary" id="sort-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M6 12h12M10 17h4"/></svg>
+        {{ sort_label }}
+      </button>
+      <div class="sort-menu" id="sort-menu">
+        {% for val, label in sort_labels.items %}
+        <a class="sort-opt {% if sort == val %}active{% endif %}"
+           href="?q={{ q }}&status={{ status_filter|lower }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ val }}">{{ label }}</a>
+        {% endfor %}
+      </div>
+    </div>
 
     <!-- Filter button -->
     <div class="filter-panel-wrap">
@@ -314,16 +358,25 @@
   var btn    = document.getElementById('fp-toggle-btn');
   var panel  = document.getElementById('filter-panel');
   var form   = document.getElementById('cl-filter-form');
+  var sortBtn  = document.getElementById('sort-toggle-btn');
+  var sortMenu = document.getElementById('sort-menu');
 
-  // Toggle panel
+  // Sort menu toggle
+  sortBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    sortMenu.classList.toggle('open');
+    panel.classList.remove('open');
+  });
+
+  // Toggle filter panel
   btn.addEventListener('click', function (e) {
     e.stopPropagation();
     panel.classList.toggle('open');
+    sortMenu.classList.remove('open');
   });
   document.addEventListener('click', function (e) {
-    if (!panel.contains(e.target) && e.target !== btn) {
-      panel.classList.remove('open');
-    }
+    if (!panel.contains(e.target) && e.target !== btn) panel.classList.remove('open');
+    if (!sortMenu.contains(e.target) && e.target !== sortBtn) sortMenu.classList.remove('open');
   });
 
   // Status radio click
