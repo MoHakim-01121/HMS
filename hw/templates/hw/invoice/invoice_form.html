@@ -235,7 +235,12 @@
               </select>
               <input type="date" name="payment_date" required
                      value="{% if p.payment_date %}{{ p.payment_date|date:'Y-m-d' }}{% endif %}">
-              <input type="text" name="payment_method" value="{{ p.method }}" placeholder="Method" required>
+              <select name="payment_method" required>
+                <option value="Cash" {% if p.method == 'Cash' or not p.method %}selected{% endif %}>Cash</option>
+                <option value="Bank Transfer" {% if p.method == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                <option value="Direct" {% if p.method == 'Direct' %}selected{% endif %}>Direct</option>
+                <option value="Deposit" {% if p.method == 'Deposit' %}selected{% endif %}>Deposit</option>
+              </select>
               <input type="number" step="0.01" name="payment_amount" value="{{ p.amount }}"
                      placeholder="Amount" required oninput="recalculate()">
               <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
@@ -268,7 +273,12 @@
               <option value="">Res#</option>
             </select>
             <input type="date" name="payment_date" required>
-            <input type="text" name="payment_method" placeholder="Method" required>
+            <select name="payment_method" required>
+              <option value="Cash">Cash</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Direct">Direct</option>
+              <option value="Deposit">Deposit</option>
+            </select>
             <input type="number" step="0.01" name="payment_amount" placeholder="Amount"
                    required oninput="recalculate()">
             <select name="payment_currency" onchange="toggleExchange(this);recalculate()">

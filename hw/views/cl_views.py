@@ -223,17 +223,35 @@ def cl_pdf(request, pk):
     return _render_cl_pdf(cl)
 
 
+_SORT_MAP = {
+    '-check_in':   '-check_in',
+    'check_in':    'check_in',
+    'guest_name':  'guest_name',
+    '-created_at': '-created_at',
+}
+
+def _filter_cl_qs(qs, request):
+    q           = request.GET.get('q', '').strip()
+    status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
+    date_from   = request.GET.get('date_from', '').strip()
+    date_to     = request.GET.get('date_to', '').strip()
+    sort        = request.GET.get('sort', '-check_in')
+    if q:
+        qs = qs.filter(Q(guest_name__icontains=q) | Q(hotel_name__icontains=q) | Q(confirmation_number__icontains=q))
+    if status_list:
+        qs = qs.filter(reservation_status__in=status_list)
+    if date_from:
+        qs = qs.filter(check_in__gte=date_from)
+    if date_to:
+        qs = qs.filter(check_in__lte=date_to)
+    return qs.order_by(_SORT_MAP.get(sort, '-check_in'))
+
+
 @login_required
 def cl_list_pdf(request):
     active_company = request.session.get("active_company")
     qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
-    q = request.GET.get('q', '').strip()
-    if q:
-        qs = qs.filter(
-            Q(guest_name__icontains=q) |
-            Q(hotel_name__icontains=q) |
-            Q(confirmation_number__icontains=q)
-        )
+    qs = _filter_cl_qs(qs, request)
     letters = list(qs)
     total_rooms  = sum(cl.total_rooms for cl in letters)
     total_nights = sum(cl.num_nights for cl in letters)
@@ -260,13 +278,7 @@ def cl_list_pdf(request):
 def cl_export_csv(request):
     active_company = request.session.get("active_company")
     qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
-    q = request.GET.get('q', '').strip()
-    if q:
-        qs = qs.filter(
-            Q(guest_name__icontains=q) |
-            Q(hotel_name__icontains=q) |
-            Q(confirmation_number__icontains=q)
-        )
+    qs = _filter_cl_qs(qs, request)
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="confirmation_letters.csv"'
     response.write('﻿')

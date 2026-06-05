@@ -140,7 +140,12 @@ function addPayment() {
             <option value="">Res#</option>
         </select>
         <input aria-label="Payment Date" type="date" name="payment_date" required onchange="recalculate()">
-        <input class="compact-method" aria-label="Payment Method" type="text" name="payment_method" placeholder="Method" required>
+        <select aria-label="Payment Method" name="payment_method" required>
+            <option value="Cash">Cash</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Direct">Direct</option>
+            <option value="Deposit">Deposit</option>
+        </select>
         <input aria-label="Payment Amount" type="number" step="0.01" name="payment_amount" placeholder="Amount" required oninput="recalculate()">
         <select aria-label="Payment Currency" name="payment_currency" onchange="toggleExchange(this); recalculate()">
             <option value="SAR">SAR</option>
