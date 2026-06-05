@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from ..ai import generate_invoice_summary
 from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..utils import convert_to_sar
 from .context import _build_reservation_context
 from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_hotel_payments
 from .pdf import _render_invoice_pdf
@@ -48,8 +49,52 @@ def invoice_list(request):
         elif status == 'partial':
             qs = qs.filter(_paid__gte=1).exclude(_paid__gte=F('_res'))
 
-    return _paginated_list(request, qs, "hw/invoice/invoice_history.html", "invoices",
-                           extra_ctx={"due_soon_filter": bool(due_soon), "status_filter": status})
+    extra = {"due_soon_filter": bool(due_soon), "status_filter": status}
+
+    # Stats bar — hanya untuk Konoz
+    if active_company == 'konoz':
+        extra['remit_stats'] = _compute_invoice_stats(qs, active_company)
+
+    return _paginated_list(request, qs, "hw/invoice/invoice_history.html", "invoices", extra_ctx=extra)
+
+
+def _compute_invoice_stats(invoice_qs, company):
+    from ..models import Payment, RemittanceLine
+    from django.db.models import Sum as _Sum
+
+    total_tagihan = int(invoice_qs.aggregate(
+        t=Coalesce(Sum('reservations__total_sar'), 0)
+    )['t'])
+
+    invoice_ids = invoice_qs.values_list('id', flat=True)
+    payments = Payment.objects.filter(invoice_id__in=invoice_ids).values(
+        'method', 'amount', 'currency', 'exchange_rate'
+    )
+
+    terbayar_surabaya = 0
+    terbayar_pusat = 0
+    for p in payments:
+        sar = int(round(convert_to_sar(float(p['amount']), p['currency'], float(p['exchange_rate']))))
+        m = (p['method'] or '').lower()
+        if m == 'direct':
+            terbayar_pusat += sar
+        elif m in ('cash', 'bank transfer', 'deposit'):
+            terbayar_surabaya += sar
+
+    sudah_dikirim = int(RemittanceLine.objects.filter(
+        remittance__company=company, invoice_id__in=invoice_ids
+    ).aggregate(t=Coalesce(_Sum('amount_sar'), 0))['t'])
+
+    mengendap = max(0, terbayar_surabaya - sudah_dikirim)
+    belum_terbayar = max(0, total_tagihan - terbayar_surabaya - terbayar_pusat)
+
+    return {
+        'total_tagihan': total_tagihan,
+        'belum_terbayar': belum_terbayar,
+        'mengendap': mengendap,
+        'terbayar_surabaya': terbayar_surabaya,
+        'terbayar_pusat': terbayar_pusat,
+    }
 
 
 @login_required

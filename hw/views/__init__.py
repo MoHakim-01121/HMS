@@ -30,6 +30,9 @@ from .hotel_views import (
     hotel_list, hotel_new, hotel_edit, hotel_delete,
     hotel_detail, hotel_map, hotel_map_data,
 )
+from .remittance_views import (
+    remittance_list, remittance_new, remittance_detail, remittance_delete,
+)
 
 from ..ai import generate_draft_message, get_chat_reply
 from ..models import Invoice

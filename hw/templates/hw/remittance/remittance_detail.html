@@ -1,0 +1,94 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}Remittance {{ rem.date|date:"d/m/Y" }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'remittance_list' %}" class="topbar-crumb" data-shortcut="back">Remittance</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{{ rem.date|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page page-sm">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Remittance {{ rem.date|date:"d/m/Y" }}</div>
+      <div class="page-sub">{{ rem.total_sar|floatformat:0|intcomma }} SAR dikirim ke Pusat</div>
+    </div>
+    <form method="post" action="{% url 'remittance_delete' rem.pk %}" style="margin:0;">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-ghost btn-icon btn-icon-red"
+              onclick="return confirm('Hapus remittance ini?')" title="Hapus">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+      </button>
+    </form>
+  </div>
+
+  <!-- Info header -->
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-body">
+      <div class="inv-info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Tanggal</div>
+          <div style="font-size:14px;font-weight:600;">{{ rem.date|date:"d/m/Y" }}</div>
+        </div>
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Total Dikirim</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--accent-2);">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
+        </div>
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Note</div>
+          <div style="font-size:13px;color:var(--text-2);">{{ rem.note|default:"—" }}</div>
+        </div>
+      </div>
+      {% if rem.proof %}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <a href="{{ rem.proof.url }}" target="_blank" class="btn btn-ghost" style="font-size:12px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+          Lihat Bukti Transfer
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Detail per reservasi -->
+  <div class="card">
+    <div class="card-header"><span class="card-title">Detail per Reservasi</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Res#</th>
+            <th>Invoice</th>
+            <th>Client</th>
+            <th>Dikirim (SAR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          <tr>
+            <td class="col-m-primary" style="font-family:monospace;font-weight:600;">{{ line.linked_number }}</td>
+            <td class="col-m-hide">
+              {% if line.invoice %}
+              <a href="{% url 'invoice_detail' line.invoice.pk %}" style="color:var(--accent-2);text-decoration:none;font-size:12px;">
+                {{ line.invoice.invoice_number }}
+              </a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="col-muted col-ellipsis-sm col-m-hide">
+              {{ line.invoice.customer_name|default:"—" }}
+            </td>
+            <td class="mono col-m-amount" style="font-weight:600;">{{ line.amount_sar|floatformat:0|intcomma }} SAR</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

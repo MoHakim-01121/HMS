@@ -1,7 +1,7 @@
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company, InvoiceType
+from .choices import Company, InvoiceType  # noqa: F401 — Company used in Remittance
 from ..utils import convert_to_sar, next_sequence_number
 
 
@@ -115,6 +115,40 @@ class Payment(models.Model):
     @property
     def amount_sar(self):
         return int(round(convert_to_sar(float(self.amount), self.currency, float(self.exchange_rate))))
+
+
+class Remittance(models.Model):
+    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    date       = models.DateField()
+    note       = models.TextField(blank=True)
+    proof      = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering            = ['-date', '-created_at']
+        verbose_name        = 'Remittance'
+        verbose_name_plural = 'Remittances'
+
+    def __str__(self):
+        return f"Remittance {self.date} | {self.total_sar} SAR"
+
+    @property
+    def total_sar(self):
+        return int(sum(line.amount_sar for line in self.lines.all()))
+
+
+class RemittanceLine(models.Model):
+    remittance    = models.ForeignKey(Remittance, on_delete=models.CASCADE, related_name='lines')
+    invoice       = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.SET_NULL, related_name='remittance_lines')
+    linked_number = models.CharField(max_length=100)
+    amount_sar    = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        verbose_name        = 'Remittance Line'
+        verbose_name_plural = 'Remittance Lines'
+
+    def __str__(self):
+        return f"Res {self.linked_number} → {self.amount_sar} SAR"
 
 
 def _attachment_path(instance, filename):

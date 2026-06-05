@@ -71,6 +71,12 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('hotels/<int:pk>/edit/', views.hotel_edit, name='hotel_edit'),
     path('hotels/<int:pk>/delete/', views.hotel_delete, name='hotel_delete'),
 
+    # Remittance (Konoz only)
+    path('remittance/', views.remittance_list, name='remittance_list'),
+    path('remittance/new/', views.remittance_new, name='remittance_new'),
+    path('remittance/<int:pk>/', views.remittance_detail, name='remittance_detail'),
+    path('remittance/<int:pk>/delete/', views.remittance_delete, name='remittance_delete'),
+
     # User management (superuser only)
     path('users/', views.user_list, name='user_list'),
     path('users/new/', views.user_new, name='user_new'),

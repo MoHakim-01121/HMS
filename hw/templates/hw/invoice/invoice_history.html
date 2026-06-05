@@ -50,6 +50,31 @@
     {% if q %}<a href="?status={{ status_filter }}" class="btn btn-ghost search-reset" title="Reset pencarian"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></a>{% endif %}
   </form>
 
+  {% if remit_stats %}
+  <div class="stats" style="margin-bottom:16px;">
+    <div class="stat">
+      <div class="stat-label">Total Tagihan</div>
+      <div class="stat-value mono">{{ remit_stats.total_tagihan|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;color:var(--text-2);">SAR</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Belum Terbayar</div>
+      <div class="stat-value {% if remit_stats.belum_terbayar > 0 %}red{% else %}green{% endif %} mono">{{ remit_stats.belum_terbayar|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Mengendap Sby</div>
+      <div class="stat-value {% if remit_stats.mengendap > 0 %}yellow{% else %}green{% endif %} mono">{{ remit_stats.mengendap|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Terbayar Sby</div>
+      <div class="stat-value green mono">{{ remit_stats.terbayar_surabaya|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Terbayar Pusat</div>
+      <div class="stat-value blue mono">{{ remit_stats.terbayar_pusat|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card">
     {% if invoices %}
     <div class="table-wrap">

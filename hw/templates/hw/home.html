@@ -102,6 +102,7 @@
   .doc-tile.cal:hover .icon-cal { color: var(--yellow); }
   .doc-tile.cli:hover .icon-cli { color: var(--green); }
   .doc-tile.htl:hover .icon-htl { color: var(--accent-2); }
+  .doc-tile.rem:hover .icon-rem { color: var(--yellow); }
   .doc-tile.usr:hover .icon-usr { color: var(--red); }
   .tile-name {
     font-size: 11px;
@@ -355,6 +356,14 @@
         </div>
         <span class="tile-name">Hotel</span>
       </a>
+      {% if request.session.active_company == 'konoz' %}
+      <a href="{% url 'remittance_list' %}" class="doc-tile rem">
+        <div class="tile-icon icon-rem">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <span class="tile-name">Remittance</span>
+      </a>
+      {% endif %}
       {% if user.is_superuser %}
       <a href="{% url 'user_list' %}" class="doc-tile usr">
         <div class="tile-icon icon-usr">
