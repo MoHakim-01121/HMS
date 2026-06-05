@@ -83,7 +83,7 @@ def _compute_invoice_stats(invoice_qs, company):
 
     sudah_dikirim = int(RemittanceLine.objects.filter(
         remittance__company=company, invoice_id__in=invoice_ids
-    ).aggregate(t=Coalesce(_Sum('amount_sar'), 0))['t'])
+    ).aggregate(t=_Sum('amount_sar'))['t'] or 0)
 
     mengendap = max(0, terbayar_surabaya - sudah_dikirim)
     belum_terbayar = max(0, total_tagihan - terbayar_surabaya - terbayar_pusat)
