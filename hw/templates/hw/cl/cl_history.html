@@ -10,6 +10,44 @@
 
 {% block extra_css %}
 <style>
+/* ── Sort + Filter actions wrapper ── */
+.cl-filter-actions { display: flex; gap: 6px; }
+
+/* Backdrop mobile */
+.mob-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: calc(var(--z-dropdown) - 1);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.mob-backdrop.open { display: block; }
+
+@media (max-width: 600px) {
+  .cl-filter-actions { width: 100%; margin-top: 8px; }
+  .cl-filter-actions .sort-wrap,
+  .cl-filter-actions .filter-panel-wrap { flex: 1; }
+  .cl-filter-actions .sort-wrap .btn,
+  .cl-filter-actions .filter-panel-wrap .btn { width: 100%; justify-content: center; }
+
+  .filter-panel {
+    position: fixed !important;
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .sort-menu {
+    position: fixed !important;
+    left: 0; right: 0; bottom: 0; top: auto;
+    width: 100%;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding: 8px;
+  }
+}
+
 /* ── Sort dropdown ── */
 .sort-wrap { position: relative; display: inline-block; }
 .sort-menu {
@@ -163,6 +201,8 @@
     </div>
   </div>
 
+  <div class="mob-backdrop" id="mob-backdrop"></div>
+
   <!-- Filter bar -->
   <form method="get" id="cl-filter-form" class="filter-bar">
     <div class="search-wrap">
@@ -176,7 +216,8 @@
     <input type="hidden" name="date_to"   id="fp-hidden-date-to"   value="{{ date_to }}">
     <input type="hidden" name="sort"      value="{{ sort }}">
 
-    <!-- Sort by button -->
+    <!-- Sort + Filter buttons -->
+    <div class="cl-filter-actions">
     <div class="sort-wrap">
       <button type="button" class="btn btn-secondary" id="sort-toggle-btn" style="display:flex;align-items:center;gap:6px;">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M6 12h12M10 17h4"/></svg>
@@ -250,6 +291,7 @@
         </div>
       </div>
     </div>
+    </div>{# end cl-filter-actions #}
 
   </form>
 
@@ -341,25 +383,37 @@
   var btn    = document.getElementById('fp-toggle-btn');
   var panel  = document.getElementById('filter-panel');
   var form   = document.getElementById('cl-filter-form');
-  var sortBtn  = document.getElementById('sort-toggle-btn');
-  var sortMenu = document.getElementById('sort-menu');
+  var sortBtn   = document.getElementById('sort-toggle-btn');
+  var sortMenu  = document.getElementById('sort-menu');
+  var backdrop  = document.getElementById('mob-backdrop');
+
+  function closeAll() {
+    panel.classList.remove('open');
+    sortMenu.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
 
   // Sort menu toggle
   sortBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    sortMenu.classList.toggle('open');
-    panel.classList.remove('open');
+    var opening = !sortMenu.classList.contains('open');
+    closeAll();
+    if (opening) { sortMenu.classList.add('open'); backdrop.classList.add('open'); }
   });
 
-  // Toggle filter panel
+  // Filter panel toggle
   btn.addEventListener('click', function (e) {
     e.stopPropagation();
-    panel.classList.toggle('open');
-    sortMenu.classList.remove('open');
+    var opening = !panel.classList.contains('open');
+    closeAll();
+    if (opening) { panel.classList.add('open'); backdrop.classList.add('open'); }
   });
+
+  // Close on backdrop click or outside click
+  backdrop.addEventListener('click', closeAll);
   document.addEventListener('click', function (e) {
-    if (!panel.contains(e.target) && e.target !== btn) panel.classList.remove('open');
-    if (!sortMenu.contains(e.target) && e.target !== sortBtn) sortMenu.classList.remove('open');
+    if (!panel.contains(e.target) && e.target !== btn &&
+        !sortMenu.contains(e.target) && e.target !== sortBtn) closeAll();
   });
 
   // Status checkbox — toggle per item
