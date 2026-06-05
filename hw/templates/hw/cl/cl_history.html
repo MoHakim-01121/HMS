@@ -171,7 +171,7 @@
     </div>
 
     <!-- Hidden inputs untuk filter aktif -->
-    <input type="hidden" name="status"    id="fp-hidden-status"    value="{{ status_filter|lower }}">
+    {% for s in status_list %}<input type="hidden" name="status" class="fp-hidden-status" value="{{ s|lower }}">{% endfor %}
     <input type="hidden" name="date_from" id="fp-hidden-date-from" value="{{ date_from }}">
     <input type="hidden" name="date_to"   id="fp-hidden-date-to"   value="{{ date_to }}">
     <input type="hidden" name="sort"      value="{{ sort }}">
@@ -185,7 +185,7 @@
       <div class="sort-menu" id="sort-menu">
         {% for val, label in sort_labels.items %}
         <a class="sort-opt {% if sort == val %}active{% endif %}"
-           href="?q={{ q }}&status={{ status_filter|lower }}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ val }}">{{ label }}</a>
+           href="?q={{ q }}{% for s in status_list %}&status={{ s|lower }}{% endfor %}&date_from={{ date_from }}&date_to={{ date_to }}&sort={{ val }}">{{ label }}</a>
         {% endfor %}
       </div>
     </div>
@@ -229,26 +229,20 @@
             <button type="button" class="fp-reset" data-reset="status">Reset</button>
           </div>
           <div class="fp-status-group">
-            <label class="fp-status-opt c-all {% if not status_filter %}selected{% endif %}" data-val="">
-              <input type="radio" name="fp-status" value="">
-              <span class="fp-status-dot"></span>
-              <span class="fp-status-opt-label">Semua</span>
-              <span class="fp-status-count">{{ counts.all }}</span>
-            </label>
-            <label class="fp-status-opt c-def {% if status_filter == 'DEFINITE' %}selected{% endif %}" data-val="definite">
-              <input type="radio" name="fp-status" value="definite">
+            <label class="fp-status-opt c-def {% if 'DEFINITE' in status_list %}selected{% endif %}" data-val="definite">
+              <input type="checkbox" name="fp-status" value="definite" {% if 'DEFINITE' in status_list %}checked{% endif %}>
               <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Definite</span>
               <span class="fp-status-count">{{ counts.definite }}</span>
             </label>
-            <label class="fp-status-opt c-ten {% if status_filter == 'TENTATIVE' %}selected{% endif %}" data-val="tentative">
-              <input type="radio" name="fp-status" value="tentative">
+            <label class="fp-status-opt c-ten {% if 'TENTATIVE' in status_list %}selected{% endif %}" data-val="tentative">
+              <input type="checkbox" name="fp-status" value="tentative" {% if 'TENTATIVE' in status_list %}checked{% endif %}>
               <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Tentative</span>
               <span class="fp-status-count">{{ counts.tentative }}</span>
             </label>
-            <label class="fp-status-opt c-can {% if status_filter == 'CANCELLED' %}selected{% endif %}" data-val="cancelled">
-              <input type="radio" name="fp-status" value="cancelled">
+            <label class="fp-status-opt c-can {% if 'CANCELLED' in status_list %}selected{% endif %}" data-val="cancelled">
+              <input type="checkbox" name="fp-status" value="cancelled" {% if 'CANCELLED' in status_list %}checked{% endif %}>
               <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Cancelled</span>
               <span class="fp-status-count">{{ counts.cancelled }}</span>
@@ -379,11 +373,10 @@
     if (!sortMenu.contains(e.target) && e.target !== sortBtn) sortMenu.classList.remove('open');
   });
 
-  // Status radio click
+  // Status checkbox — toggle per item
   document.querySelectorAll('.fp-status-opt').forEach(function (opt) {
     opt.addEventListener('click', function () {
-      document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
-      opt.classList.add('selected');
+      opt.classList.toggle('selected');
     });
   });
 
@@ -396,7 +389,6 @@
         document.getElementById('fp-date-to').value   = '';
       } else if (target === 'status') {
         document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
-        document.querySelector('.fp-status-opt.c-all').classList.add('selected');
       }
     });
   });
@@ -406,13 +398,17 @@
     document.getElementById('fp-date-from').value = '';
     document.getElementById('fp-date-to').value   = '';
     document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
-    document.querySelector('.fp-status-opt.c-all').classList.add('selected');
   });
 
-  // Apply
+  // Apply — buat multiple hidden status inputs
   document.getElementById('fp-apply').addEventListener('click', function () {
-    var selected = document.querySelector('.fp-status-opt.selected');
-    document.getElementById('fp-hidden-status').value    = selected ? selected.getAttribute('data-val') : '';
+    document.querySelectorAll('.fp-hidden-status').forEach(function (el) { el.remove(); });
+    document.querySelectorAll('.fp-status-opt.selected').forEach(function (opt) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'status'; inp.className = 'fp-hidden-status';
+      inp.value = opt.getAttribute('data-val');
+      form.appendChild(inp);
+    });
     document.getElementById('fp-hidden-date-from').value = document.getElementById('fp-date-from').value;
     document.getElementById('fp-hidden-date-to').value   = document.getElementById('fp-date-to').value;
     form.submit();

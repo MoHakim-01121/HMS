@@ -20,11 +20,11 @@ def cl_list(request):
     active_company = request.session.get("active_company")
     base_qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
 
-    q             = request.GET.get('q', '').strip()
-    status_filter = request.GET.get('status', '').upper()
-    date_from     = request.GET.get('date_from', '').strip()
-    date_to       = request.GET.get('date_to', '').strip()
-    sort          = request.GET.get('sort', '-check_in')
+    q           = request.GET.get('q', '').strip()
+    status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
+    date_from   = request.GET.get('date_from', '').strip()
+    date_to     = request.GET.get('date_to', '').strip()
+    sort        = request.GET.get('sort', '-check_in')
 
     _sort_map = {
         '-check_in':   '-check_in',
@@ -46,8 +46,8 @@ def cl_list(request):
             Q(hotel_name__icontains=q) |
             Q(confirmation_number__icontains=q)
         )
-    if status_filter in ('DEFINITE', 'TENTATIVE', 'CANCELLED'):
-        qs = qs.filter(reservation_status=status_filter)
+    if status_list:
+        qs = qs.filter(reservation_status__in=status_list)
     if date_from:
         qs = qs.filter(check_in__gte=date_from)
     if date_to:
@@ -55,7 +55,7 @@ def cl_list(request):
 
     qs = qs.order_by(_sort_map.get(sort, '-check_in'))
 
-    active_filters = sum(bool(x) for x in [status_filter, date_from, date_to])
+    active_filters = sum(bool(x) for x in [status_list, date_from, date_to])
     counts = {
         'all':       base_qs.count(),
         'definite':  base_qs.filter(reservation_status='DEFINITE').count(),
@@ -64,7 +64,7 @@ def cl_list(request):
     }
     return _paginated_list(request, qs, "hw/cl/cl_history.html", "letters",
                            extra_ctx={
-                               'status_filter':  status_filter,
+                               'status_list':    status_list,
                                'date_from':      date_from,
                                'date_to':        date_to,
                                'sort':           sort,
