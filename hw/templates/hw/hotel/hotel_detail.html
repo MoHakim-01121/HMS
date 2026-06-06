@@ -161,6 +161,7 @@
 .route-dist-tip { background: var(--surface-3) !important; border: 1px solid var(--border) !important; color: var(--text) !important; font-size: 12px !important; font-weight: 600 !important; padding: 4px 9px !important; border-radius: 6px !important; box-shadow: 0 4px 14px rgba(0,0,0,.45) !important; white-space: nowrap; pointer-events: none; }
 .route-dist-tip::before { display: none !important; }
 </style>
+{% if hotel.route %}{{ hotel_route_json|json_script:"hotel-route-data" }}{% endif %}
 <script>
 (function () {
   var refLL   = [{% if hotel.city == 'madinah' %}24.4672, 39.6112{% else %}21.420324, 39.826485{% endif %}];
@@ -223,7 +224,7 @@
   }
 
   {% if hotel.route %}
-  var customRoute = {{ hotel_route_json|safe }};
+  var customRoute = JSON.parse(document.getElementById('hotel-route-data').textContent);
   attachRoute(customRoute, customRoute);
   {% else %}
   attachRoute([refLL, hotelLL], [refLL, hotelLL]);

@@ -41,10 +41,9 @@ if not _secret:
 SECRET_KEY = _secret
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = get_bool_env('DEBUG', True)  # Default True for development
+DEBUG = get_bool_env('DEBUG', False)
 
-# Restrict hosts in production
-ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])  # Allow all in development
+ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['localhost', '127.0.0.1'])
 CSRF_TRUSTED_ORIGINS = get_list_env('CSRF_TRUSTED_ORIGINS', [])
 
 

@@ -344,6 +344,7 @@
 
     var TYPE_LABEL = { CL:'Conf. Letter', INV:'Invoice Hotel', SVC:'Invoice Services' };
     var SEARCH_ICON = '<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>';
+    function _esc(s) { var d = document.createElement('div'); d.textContent = String(s||''); return d.innerHTML; }
 
     function renderQuick() {
       results.innerHTML =
@@ -362,7 +363,7 @@
         results.innerHTML =
           '<div class="s-empty-state">' + SEARCH_ICON +
           '<span class="s-empty-title">Tidak ada hasil</span>' +
-          '<span class="s-empty-sub">untuk &ldquo;' + data.q + '&rdquo;</span>' +
+          '<span class="s-empty-sub">untuk &ldquo;' + _esc(data.q) + '&rdquo;</span>' +
           '</div>';
         return;
       }
@@ -373,14 +374,14 @@
       });
       var html = '';
       order.forEach(function(type) {
-        html += '<div class="s-section-header" data-type="' + type + '">' +
-          (TYPE_LABEL[type]||type) +
+        html += '<div class="s-section-header" data-type="' + _esc(type) + '">' +
+          (TYPE_LABEL[type]||_esc(type)) +
           '<span class="s-section-count">' + groups[type].length + '</span></div>';
         groups[type].forEach(function(r) {
-          html += '<a href="' + r.url + '" class="s-row">' +
-            '<span class="s-label">' + r.label + '</span>' +
-            '<span class="s-sub">' + r.sub + '</span>' +
-            '<span class="s-meta">' + r.meta + '</span>' +
+          html += '<a href="' + _esc(r.url) + '" class="s-row">' +
+            '<span class="s-label">' + _esc(r.label) + '</span>' +
+            '<span class="s-sub">' + _esc(r.sub) + '</span>' +
+            '<span class="s-meta">' + _esc(r.meta) + '</span>' +
             '</a>';
         });
       });
@@ -536,10 +537,20 @@
           if (empty) empty.remove();
           var row = document.createElement('div');
           row.className = 'att-row'; row.id = 'att-'+d.id;
-          row.innerHTML = '<div class="att-icon">'+_attIcon(d.icon)+'</div>' +
-            '<a href="'+d.url+'" target="_blank" class="att-name" title="'+d.name+'">'+d.name+'</a>' +
-            '<span class="att-size">'+_fmtSize(d.size)+'</span>' +
-            '<button type="button" class="btn btn-ghost att-del" style="width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);" onclick="deleteAttachment('+d.id+',\''+type+'\',\''+id+'\')" title="Hapus"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>';
+          var iconDiv = document.createElement('div');
+          iconDiv.className = 'att-icon'; iconDiv.innerHTML = _attIcon(d.icon);
+          var link = document.createElement('a');
+          link.href = d.url; link.target = '_blank'; link.className = 'att-name';
+          link.title = d.name; link.textContent = d.name;
+          var sizeSpan = document.createElement('span');
+          sizeSpan.className = 'att-size'; sizeSpan.textContent = _fmtSize(d.size);
+          var delBtn = document.createElement('button');
+          delBtn.type = 'button'; delBtn.className = 'btn btn-ghost att-del';
+          delBtn.title = 'Hapus';
+          delBtn.style.cssText = 'width:24px;height:24px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);';
+          delBtn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>';
+          delBtn.addEventListener('click', function(){ deleteAttachment(d.id, type, id); });
+          row.appendChild(iconDiv); row.appendChild(link); row.appendChild(sizeSpan); row.appendChild(delBtn);
           if (list.style.padding) list.style.padding = '';
           list.appendChild(row);
         }).catch(function(){ alert('Gagal upload'); });

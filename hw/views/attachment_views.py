@@ -7,6 +7,14 @@ from django.views.decorators.http import require_POST
 
 from ..models import Attachment, ConfirmationLetter, Invoice
 
+_ALLOWED_MIME = {
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv', 'text/plain',
+}
+
 
 @login_required
 @require_POST
@@ -22,6 +30,9 @@ def attachment_upload(request):
 
     if f.size > 10 * 1024 * 1024:
         return JsonResponse({"error": "File terlalu besar (maks 10 MB)"}, status=400)
+
+    if f.content_type not in _ALLOWED_MIME:
+        return JsonResponse({"error": "Tipe file tidak diizinkan. Gunakan PDF, gambar, Excel, atau CSV."}, status=400)
 
     att = Attachment(name=f.name, size=f.size)
     if invoice_id:

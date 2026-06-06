@@ -372,9 +372,10 @@
 {% block extra_js %}
 <script src="{% static 'hw/js/invoice_form.js' %}"></script>
 {% if not edit and cl_data_json %}
+{{ cl_data_json|json_script:"cl-data" }}
 <script>
 (function() {
-  var CL_DATA = {{ cl_data_json|safe }};
+  var CL_DATA = JSON.parse(document.getElementById('cl-data').textContent);
   var selected = {};  // id -> cl object
 
   var overlay   = document.getElementById('cl-modal-overlay');

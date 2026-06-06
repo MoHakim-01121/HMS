@@ -92,7 +92,7 @@
             <label>Hotel Name *</label>
             <input type="text" id="hotel_search" autocomplete="off" placeholder="Ketik nama hotel…" style="width:100%;">
             <input type="hidden" name="hotel_name" id="hotel_name_hidden" required value="{% if edit %}{{ cl.hotel_name }}{% elif form_data %}{{ form_data.hotel_name }}{% endif %}">
-            <script id="hotels-data" type="application/json">{{ hotels|safe }}</script>
+            {{ hotels|json_script:"hotels-data" }}
           </div>
           <div class="field">
             <label>Confirmation Number *</label>
