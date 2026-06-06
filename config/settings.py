@@ -60,7 +60,6 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'axes',
     'hw',
-    'invoices',
 ]
 
 MIDDLEWARE = [
