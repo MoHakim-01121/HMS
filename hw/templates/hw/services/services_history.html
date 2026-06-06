@@ -79,14 +79,14 @@
 
     {% if page_obj.has_other_pages %}
     <div class="pagination">
-      <a href="?{{ params_str }}&page={{ page_obj.previous_page_number }}" class="pag-btn {% if not page_obj.has_previous %}pag-disabled{% endif %}">‹</a>
+      {% if page_obj.has_previous %}<a href="?{{ params_str }}&page={{ page_obj.previous_page_number }}" class="pag-btn">‹</a>{% else %}<span class="pag-btn pag-disabled">‹</span>{% endif %}
       {% for p in page_range_display %}
         {% if p is None %}<span class="pag-ellipsis">…</span>
         {% elif p == page_obj.number %}<span class="pag-btn pag-active">{{ p }}</span>
         {% else %}<a href="?{{ params_str }}&page={{ p }}" class="pag-btn">{{ p }}</a>
         {% endif %}
       {% endfor %}
-      <a href="?{{ params_str }}&page={{ page_obj.next_page_number }}" class="pag-btn {% if not page_obj.has_next %}pag-disabled{% endif %}">›</a>
+      {% if page_obj.has_next %}<a href="?{{ params_str }}&page={{ page_obj.next_page_number }}" class="pag-btn">›</a>{% else %}<span class="pag-btn pag-disabled">›</span>{% endif %}
     </div>
     {% endif %}
 
