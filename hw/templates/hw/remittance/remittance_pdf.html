@@ -40,29 +40,34 @@ tbody tr:last-child td { border-bottom:none; }
 <body>
 
 <div class="doc-header">
-  <div>
-    <div class="doc-title">Remittance</div>
-    <div class="doc-sub">Pengiriman Surabaya → Pusat</div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <img src="{{ logo_url }}" style="height:40px;width:auto;object-fit:contain;">
+    <div>
+      <div style="font-size:14px;font-weight:800;color:#111;">Konoz United Surabaya</div>
+      <div style="font-size:10px;color:#888;margin-top:2px;">Surabaya → Pusat Transfer</div>
+    </div>
   </div>
   <div class="doc-meta">
-    <div>Tanggal: <strong>{{ rem.date|date:"d/m/Y" }}</strong></div>
+    <div class="doc-title">Remittance</div>
+    <div style="font-size:12px;font-weight:700;color:#555;margin-top:2px;">{{ rem.remittance_number }}</div>
+    <div style="margin-top:6px;">Date: <strong>{{ rem.date|date:"d/m/Y" }}</strong></div>
     {% if rem.note %}<div>Note: {{ rem.note }}</div>{% endif %}
-    <div>Dicetak: {{ now|date:"d/m/Y H:i" }}</div>
+    <div>Printed: {{ now|date:"d/m/Y H:i" }}</div>
   </div>
 </div>
 
 <div class="info-grid">
   <div>
-    <div class="info-label">Tanggal Kirim</div>
+    <div class="info-label">Transfer Date</div>
     <div class="info-val">{{ rem.date|date:"d F Y" }}</div>
   </div>
   <div>
-    <div class="info-label">Total Dikirim</div>
+    <div class="info-label">Total Amount</div>
     <div class="info-val accent">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
   </div>
   <div>
     <div class="info-label">Status</div>
-    <div class="info-val">{% if rem.proof %}Kwitansi Diterima{% else %}Menunggu Kwitansi{% endif %}</div>
+    <div class="info-val">{% if rem.proof %}Receipt Received{% else %}Pending Receipt{% endif %}</div>
   </div>
 </div>
 
@@ -73,7 +78,7 @@ tbody tr:last-child td { border-bottom:none; }
       <th>Res#</th>
       <th>Invoice</th>
       <th>Client</th>
-      <th class="r">Dikirim (SAR)</th>
+      <th class="r">Amount (SAR)</th>
     </tr>
   </thead>
   <tbody>

@@ -230,13 +230,14 @@ def remittance_edit(request, pk):
 @login_required
 def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
+    from .pdf import _logo_file_url
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
     lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
     return _render_list_pdf(
         request, rem.lines.none(),
         template='hw/remittance/remittance_pdf.html',
         filename=f'remittance_{rem.date}.pdf',
-        extra_ctx={'rem': rem, 'lines': lines},
+        extra_ctx={'rem': rem, 'lines': lines, 'logo_url': _logo_file_url('konoz')},
     )
 
 
