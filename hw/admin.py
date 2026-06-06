@@ -3,7 +3,8 @@ from django.shortcuts import render
 
 from .models import (
     ActivityLog, Attachment, Client, ConfirmationLetter,
-    Hotel, Invoice, Payment, Reservation, Room, ServiceItem, UserProfile,
+    Hotel, Invoice, Payment, Remittance, RemittanceLine,
+    Reservation, Room, ServiceItem, UserProfile,
 )
 
 
@@ -69,6 +70,25 @@ class ActivityLogAdmin(admin.ModelAdmin):
 class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user',)
     search_fields = ('user__username',)
+
+
+class RemittanceLineInline(admin.TabularInline):
+    model = RemittanceLine
+    extra = 0
+    readonly_fields = ('linked_number', 'invoice', 'amount_sar')
+
+
+@admin.register(Remittance)
+class RemittanceAdmin(admin.ModelAdmin):
+    list_display  = ('remittance_number', 'date', 'company', 'total_sar', 'note', 'has_proof')
+    list_filter   = ('company',)
+    search_fields = ('note',)
+    date_hierarchy = 'date'
+    inlines       = [RemittanceLineInline]
+
+    @admin.display(boolean=True, description='Kwitansi')
+    def has_proof(self, obj):
+        return bool(obj.proof)
 
 
 admin.site.register(Reservation)

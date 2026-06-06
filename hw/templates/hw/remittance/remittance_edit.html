@@ -1,0 +1,43 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}Edit Remittance {{ rem.date|date:"d/m/Y" }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'remittance_list' %}" class="topbar-crumb" data-shortcut="back">Remittance</a>
+<div class="topbar-sep"></div>
+<a href="{% url 'remittance_detail' rem.pk %}" class="topbar-crumb">{{ rem.date|date:"d/m/Y" }}</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">Edit</span>
+{% endblock %}
+
+{% block content %}
+<div class="page page-sm">
+  <div class="page-header">
+    <div class="page-title">Edit Remittance</div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="card">
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <label class="field-label">Tanggal</label>
+          <input type="date" name="date" value="{{ rem.date|date:'Y-m-d' }}" required
+                 style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit;">
+        </div>
+        <div>
+          <label class="field-label">Note</label>
+          <input type="text" name="note" value="{{ rem.note|default:'' }}" placeholder="Misal: Transfer BCA 01/06"
+                 style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit;">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+      <a href="{% url 'remittance_detail' rem.pk %}" class="btn btn-secondary">Batal</a>
+      <button type="submit" class="btn btn-primary">Simpan</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -46,12 +46,21 @@ class Invoice(models.Model):
 
     @classmethod
     def generate_number(cls, invoice_type):
+        from django.db import transaction
         prefix = 'INV' if invoice_type == InvoiceType.HOTEL else 'SVC'
-        return next_sequence_number(
-            cls.objects.filter(invoice_type=invoice_type),
-            'invoice_number',
-            prefix,
-        )
+        with transaction.atomic():
+            nums = []
+            for obj in cls.objects.select_for_update().filter(
+                invoice_type=invoice_type,
+                invoice_number__startswith=f'{prefix}-',
+            ):
+                parts = obj.invoice_number.split('-')
+                if len(parts) == 2:
+                    try:
+                        nums.append(int(parts[1]))
+                    except ValueError:
+                        pass
+            return f"{prefix}-{(max(nums) + 1 if nums else 1):03d}"
 
 
 class Reservation(models.Model):
@@ -118,6 +127,7 @@ class Payment(models.Model):
 
 
 class Remittance(models.Model):
+    remittance_number = models.CharField(max_length=20, unique=True, blank=True)
     company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     date       = models.DateField()
     note       = models.TextField(blank=True)
@@ -130,7 +140,19 @@ class Remittance(models.Model):
         verbose_name_plural = 'Remittances'
 
     def __str__(self):
-        return f"Remittance {self.date} | {self.total_sar} SAR"
+        return f"{self.remittance_number} | {self.date} | {self.total_sar} SAR"
+
+    @classmethod
+    def generate_number(cls):
+        from django.db import transaction
+        with transaction.atomic():
+            nums = []
+            for obj in cls.objects.select_for_update().filter(remittance_number__startswith='RMT-'):
+                try:
+                    nums.append(int(obj.remittance_number.split('-')[-1]))
+                except (ValueError, IndexError):
+                    pass
+            return f"RMT-{(max(nums) + 1 if nums else 1):03d}"
 
     @property
     def total_sar(self):

@@ -72,7 +72,17 @@ class ConfirmationLetter(models.Model):
 
     @classmethod
     def generate_number(cls):
-        return next_sequence_number(cls.objects, 'confirmation_number', 'CL')
+        from django.db import transaction
+        with transaction.atomic():
+            nums = []
+            for obj in cls.objects.select_for_update().filter(confirmation_number__startswith='CL-'):
+                parts = obj.confirmation_number.split('-')
+                if len(parts) == 2:
+                    try:
+                        nums.append(int(parts[1]))
+                    except ValueError:
+                        pass
+            return f"CL-{(max(nums) + 1 if nums else 1):03d}"
 
 
 class Room(models.Model):

@@ -8,6 +8,46 @@
 <span class="topbar-crumb active">Remittance</span>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.rem-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rem-stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 10px 12px;
+}
+.rem-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+.rem-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--text);
+  line-height: 1.2;
+}
+.rem-stat-value .unit { font-size: 11px; font-weight: 500; color: var(--text-3); margin-left: 2px; }
+.rem-stat-value.red    { color: var(--red); }
+.rem-stat-value.green  { color: var(--green); }
+.rem-stat-value.yellow { color: var(--yellow); }
+.rem-stat-value.blue   { color: var(--blue, var(--accent)); }
+@media (max-width: 600px) {
+  .rem-stats { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page">
   <div class="page-header">
@@ -15,22 +55,24 @@
       <div class="page-title">Remittance</div>
       <div class="page-sub">Pengiriman uang Surabaya → Pusat</div>
     </div>
-    <a href="{% url 'remittance_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;">+ Kirim Baru</a>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <a href="{% url 'remittance_export_csv' %}" class="btn btn-secondary" style="height:32px;padding:0 12px;font-size:13px;">Export CSV</a>
+      <a href="{% url 'remittance_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;">+ Kirim Baru</a>
+    </div>
   </div>
 
-  <!-- Stats bar -->
-  <div class="stats" style="margin-bottom:16px;">
-    <div class="stat">
-      <div class="stat-label">Terbayar Surabaya</div>
-      <div class="stat-value green mono">{{ stats.terbayar_surabaya|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+  <div class="rem-stats">
+    <div class="rem-stat">
+      <div class="rem-stat-label">Total Tagihan</div>
+      <div class="rem-stat-value">{{ stats.total_tagihan|floatformat:0|intcomma }}<span class="unit">SAR</span></div>
     </div>
-    <div class="stat">
-      <div class="stat-label">Sudah Dikirim</div>
-      <div class="stat-value mono">{{ stats.sudah_dikirim|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    <div class="rem-stat">
+      <div class="rem-stat-label">Terkirim ke Pusat</div>
+      <div class="rem-stat-value blue">{{ stats.terkirim_ke_pusat|floatformat:0|intcomma }}<span class="unit">SAR</span></div>
     </div>
-    <div class="stat">
-      <div class="stat-label">Mengendap</div>
-      <div class="stat-value {% if stats.mengendap > 0 %}yellow{% else %}green{% endif %} mono">{{ stats.mengendap|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
+    <div class="rem-stat">
+      <div class="rem-stat-label">Uang Mengendap</div>
+      <div class="rem-stat-value {% if stats.mengendap > 0 %}yellow{% else %}green{% endif %}">{{ stats.mengendap|floatformat:0|intcomma }}<span class="unit">SAR</span></div>
     </div>
   </div>
 
@@ -40,26 +82,40 @@
       <table>
         <thead>
           <tr>
+            <th>No Remittance</th>
             <th>Tanggal</th>
             <th>Total SAR</th>
-            <th>Note</th>
-            <th>Bukti</th>
+            <th>Status</th>
+            <th class="col-m-hide">Bukti</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {% for rem in remittances %}
           <tr style="cursor:pointer;" onclick="location.href='{% url 'remittance_detail' rem.pk %}'">
+            <td class="col-nowrap" style="font-family:monospace;font-weight:600;">{{ rem.remittance_number }}</td>
             <td class="col-m-primary col-nowrap">{{ rem.date|date:"d/m/Y" }}</td>
             <td class="mono col-m-amount" style="font-weight:600;">{{ rem.total_sar|floatformat:0|intcomma }} SAR</td>
-            <td class="col-ellipsis col-muted col-m-hide">{{ rem.note|default:"—" }}</td>
-            <td class="col-m-hide">
+            <td>
               {% if rem.proof %}
-              <a href="{{ rem.proof.url }}" target="_blank" style="color:var(--accent-2);font-size:12px;text-decoration:none;" onclick="event.stopPropagation()">Lihat ↗</a>
+              <span class="badge badge-green">Diterima</span>
+              {% else %}
+              <span class="badge badge-yellow">Menunggu</span>
+              {% endif %}
+            </td>
+            <td class="col-m-hide" onclick="event.stopPropagation()">
+              {% if rem.proof %}
+              <a href="{{ rem.proof.url }}" target="_blank" style="color:var(--accent-2);font-size:12px;text-decoration:none;">Lihat ↗</a>
               {% else %}—{% endif %}
             </td>
             <td onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
+                <a href="{% url 'remittance_pdf' rem.pk %}" target="_blank" class="btn btn-ghost btn-icon btn-icon-green" title="PDF">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </a>
+                <a href="{% url 'remittance_edit' rem.pk %}" class="btn btn-ghost btn-icon" title="Edit">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </a>
                 <button type="button" class="btn btn-ghost btn-icon btn-icon-red" title="Hapus"
                   onclick="showDeleteModal('{% url 'remittance_delete' rem.pk %}', '{{ rem.date|date:'d/m/Y' }}')">
                   <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>

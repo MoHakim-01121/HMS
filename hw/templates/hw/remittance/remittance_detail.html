@@ -14,8 +14,8 @@
 <div class="page page-sm">
   <div class="page-header">
     <div>
-      <div class="page-title">Remittance {{ rem.date|date:"d/m/Y" }}</div>
-      <div class="page-sub">{{ rem.total_sar|floatformat:0|intcomma }} SAR dikirim ke Pusat</div>
+      <div class="page-title">{{ rem.remittance_number }}</div>
+      <div class="page-sub">{{ rem.date|date:"d/m/Y" }} &middot; {{ rem.total_sar|floatformat:0|intcomma }} SAR dikirim ke Pusat</div>
     </div>
     <form method="post" action="{% url 'remittance_delete' rem.pk %}" style="margin:0;">
       {% csrf_token %}
@@ -43,14 +43,21 @@
           <div style="font-size:13px;color:var(--text-2);">{{ rem.note|default:"—" }}</div>
         </div>
       </div>
-      {% if rem.proof %}
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        {% if rem.proof %}
         <a href="{{ rem.proof.url }}" target="_blank" class="btn btn-ghost" style="font-size:12px;">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-          Lihat Bukti Transfer
+          Lihat Kwitansi
         </a>
+        {% endif %}
+        <form method="post" action="{% url 'remittance_upload_proof' rem.pk %}" enctype="multipart/form-data" style="display:flex;align-items:center;gap:8px;">
+          {% csrf_token %}
+          <input type="file" name="proof" accept="image/*,.pdf" required style="font-size:12px;color:var(--text-2);">
+          <button type="submit" class="btn btn-secondary" style="font-size:12px;height:30px;padding:0 12px;">
+            {% if rem.proof %}Ganti{% else %}Upload Kwitansi{% endif %}
+          </button>
+        </form>
       </div>
-      {% endif %}
     </div>
   </div>
 

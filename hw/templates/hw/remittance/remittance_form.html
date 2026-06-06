@@ -1,4 +1,4 @@
-{% extends 'hw/partials/_base.html' %}
+﻿{% extends 'hw/partials/_base.html' %}
 {% load static humanize %}
 
 {% block title %}Remittance Baru{% endblock %}
@@ -12,36 +12,59 @@
 
 {% block extra_css %}
 <style>
+.form-header-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+@media(max-width:600px) { .form-header-grid { grid-template-columns:1fr; } }
+
 .rem-table { width:100%; border-collapse:collapse; }
 .rem-table th {
   font-size:11px; font-weight:600; color:var(--text-3);
   text-transform:uppercase; letter-spacing:.04em;
-  padding:8px 12px; text-align:left;
+  padding:8px 12px; text-align:left; white-space:nowrap;
   border-bottom:1px solid var(--border);
 }
-.rem-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; }
-.rem-table tr:last-child td { border-bottom:none; }
-.rem-table input[type="number"] {
-  width:130px; background:var(--surface-2);
+.rem-table th.r { text-align:right; }
+.rem-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
+.rem-table tbody tr:last-child td { border-bottom:none; }
+.rem-table tbody tr.row-pending { background:color-mix(in srgb, var(--yellow) 5%, transparent); }
+.rem-table tbody tr.row-lunas td { opacity:.5; }
+
+.td-res  { font-family:monospace; font-weight:700; font-size:13px; color:var(--text); white-space:nowrap; }
+.td-link { color:var(--accent-2); text-decoration:none; font-size:12px; white-space:nowrap; }
+.td-link:hover { text-decoration:underline; }
+.td-muted { font-size:12px; color:var(--text-2); }
+.td-date  { font-size:12px; color:var(--text-2); white-space:nowrap; }
+.td-mono  { font-family:monospace; color:var(--text-2); text-align:right; white-space:nowrap; }
+.td-pending { font-family:monospace; font-weight:700; color:var(--yellow); text-align:right; white-space:nowrap; }
+
+.rem-input {
+  width:110px; background:var(--surface-2);
   border:1px solid var(--border); border-radius:var(--r);
   color:var(--text); font-size:13px; font-family:monospace;
-  padding:6px 10px;
+  padding:6px 10px; text-align:right;
+  transition:border-color .12s;
+  display:block; margin-left:auto;
 }
-.rem-table input[type="number"]:focus { outline:none; border-color:var(--accent); }
+.rem-input:focus { outline:none; border-color:var(--accent); }
+
+.badge-lunas {
+  font-size:11px; font-weight:600; color:var(--green);
+  background:color-mix(in srgb, var(--green) 12%, transparent);
+  border-radius:var(--r); padding:3px 8px;
+  float:right;
+}
+
 .rem-total-bar {
-  display:flex; align-items:center; justify-content:flex-end; gap:12px;
-  padding:14px 16px;
-  border-top:1px solid var(--border);
-  font-size:13px; font-weight:600; color:var(--text);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; border-top:2px solid var(--border);
+  background:var(--surface-2);
 }
-.rem-total-val { font-family:monospace; font-size:16px; color:var(--accent-2); }
-.col-mengendap { color:var(--yellow); font-family:monospace; font-weight:600; }
-.col-muted-mono { color:var(--text-2); font-family:monospace; }
+.rem-total-label { font-size:12px; font-weight:600; color:var(--text-2); }
+.rem-total-val { font-family:monospace; font-size:18px; font-weight:700; color:var(--accent-2); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page page-sm">
+<div class="page">
   <div class="page-header">
     <div class="page-title">Kirim ke Pusat</div>
   </div>
@@ -50,13 +73,12 @@
   <div class="alert alert-error" style="margin-bottom:12px;">{{ error }}</div>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data">
+  <form method="post" enctype="multipart/form-data" id="rem-form">
     {% csrf_token %}
 
-    <!-- Header info -->
     <div class="card" style="margin-bottom:16px;">
       <div class="card-body">
-        <div class="inv-info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        <div class="form-header-grid">
           <div>
             <label class="field-label">Tanggal Kirim</label>
             <input type="date" name="date" value="{{ today }}" required
@@ -68,20 +90,22 @@
                    style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit;">
           </div>
           <div>
-            <label class="field-label">Bukti Transfer</label>
+            <label class="field-label">Kwitansi <span style="color:var(--text-3);font-weight:400;">(opsional)</span></label>
             <input type="file" name="proof" accept="image/*,.pdf"
-                   style="font-size:12px;color:var(--text-2);">
+                   style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text-2);font-size:13px;padding:7px 10px;font-family:inherit;box-sizing:border-box;">
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Tabel reservasi -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Reservasi yang Mengendap</span>
-        <span style="font-size:12px;color:var(--text-3);">Isi nominal yang dikirim ke Pusat</span>
+        <span class="card-title">Reservasi</span>
+        {% if reservasi %}
+        <button type="button" class="btn btn-ghost" style="font-size:12px;" onclick="isiSemua()">Isi Semua</button>
+        {% endif %}
       </div>
+
       {% if reservasi %}
       <div class="table-wrap">
         <table class="rem-table">
@@ -90,32 +114,39 @@
               <th>Res#</th>
               <th>Invoice</th>
               <th>Client</th>
-              <th style="text-align:right;">Terbayar Sby</th>
-              <th style="text-align:right;">Sudah Kirim</th>
-              <th style="text-align:right;">Mengendap</th>
-              <th style="text-align:right;">Kirim Sekarang</th>
+              <th class="r">Check-in</th>
+              <th class="r">Check-out</th>
+              <th class="r">Total</th>
+              <th class="r">Terbayar</th>
+              <th class="r">Sudah Kirim</th>
+              <th class="r">Mengendap</th>
+              <th class="r">Kirim Sekarang</th>
             </tr>
           </thead>
           <tbody>
             {% for res in reservasi %}
-            <tr>
-              <td style="font-family:monospace;font-weight:600;">{{ res.linked_number }}</td>
+            <tr class="{% if res.mengendap > 0 %}row-pending{% elif res.sudah_dikirim >= res.total_sar %}row-lunas{% endif %}">
+              <td class="td-res">{{ res.linked_number }}</td>
+              <td><a href="{% url 'invoice_detail' res.invoice_id %}" target="_blank" class="td-link">{{ res.invoice_number }}</a></td>
+              <td class="td-muted">{{ res.customer_name }}</td>
+              <td class="td-date" style="text-align:right;">{% if res.check_in %}{{ res.check_in|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+              <td class="td-date" style="text-align:right;">{% if res.check_out %}{{ res.check_out|date:"d/m/Y" }}{% else %}-{% endif %}</td>
+              <td class="td-mono">{{ res.total_sar|floatformat:0|intcomma }}</td>
+              <td class="td-mono">{{ res.terbayar_sby|floatformat:0|intcomma }}</td>
+              <td class="td-mono">{{ res.sudah_dikirim|floatformat:0|intcomma }}</td>
+              <td class="td-pending">{% if res.mengendap > 0 %}{{ res.mengendap|floatformat:0|intcomma }}{% else %}-{% endif %}</td>
               <td>
-                <a href="{% url 'invoice_detail' res.invoice_id %}" target="_blank"
-                   style="color:var(--accent-2);text-decoration:none;font-size:12px;">
-                  {{ res.invoice_number }}
-                </a>
-              </td>
-              <td style="color:var(--text-2);font-size:12px;">{{ res.customer_name }}</td>
-              <td style="text-align:right;" class="col-muted-mono">{{ res.terbayar_sby|floatformat:0|intcomma }}</td>
-              <td style="text-align:right;" class="col-muted-mono">{{ res.sudah_dikirim|floatformat:0|intcomma }}</td>
-              <td style="text-align:right;" class="col-mengendap">{{ res.mengendap|floatformat:0|intcomma }}</td>
-              <td style="text-align:right;">
+                {% if res.mengendap > 0 %}
                 <input type="hidden" name="linked_number" value="{{ res.linked_number }}">
                 <input type="hidden" name="invoice_id" value="{{ res.invoice_id }}">
-                <input type="number" name="amount_sar" min="0" max="{{ res.mengendap }}"
-                       step="1" placeholder="0"
-                       oninput="updateTotal()">
+                <input type="number" class="rem-input" name="amount_sar"
+                       min="0" max="{{ res.mengendap }}" step="1" placeholder="0"
+                       data-max="{{ res.mengendap }}" oninput="updateTotal()">
+                {% elif res.sudah_dikirim >= res.total_sar %}
+                <span class="badge-lunas">Lunas</span>
+                {% else %}
+                <span style="float:right;color:var(--text-3);font-size:12px;">-</span>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}
@@ -123,27 +154,23 @@
         </table>
       </div>
       <div class="rem-total-bar">
-        <span>Total dikirim:</span>
+        <span class="rem-total-label">Total dikirim sekarang</span>
         <span class="rem-total-val" id="rem-total">0 SAR</span>
       </div>
       {% else %}
       <div class="empty" style="padding:40px;">
-        <div class="empty-title">Tidak ada saldo mengendap</div>
-        <div class="empty-sub">Semua pembayaran Surabaya sudah dikirim ke Pusat</div>
+        <div class="empty-title">Tidak ada reservasi</div>
+        <div class="empty-sub">Belum ada pembayaran yang tercatat</div>
       </div>
       {% endif %}
     </div>
 
-    {% if reservasi %}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
       <a href="{% url 'remittance_list' %}" class="btn btn-secondary">Batal</a>
+      {% if reservasi %}
       <button type="submit" class="btn btn-primary" id="submit-btn">Simpan Remittance</button>
+      {% endif %}
     </div>
-    {% else %}
-    <div style="margin-top:12px;">
-      <a href="{% url 'remittance_list' %}" class="btn btn-secondary">Kembali</a>
-    </div>
-    {% endif %}
   </form>
 </div>
 {% endblock %}
@@ -151,18 +178,27 @@
 {% block extra_js %}
 <script>
 function updateTotal() {
-  var inputs = document.querySelectorAll('input[name="amount_sar"]');
   var total = 0;
-  inputs.forEach(function(inp) {
+  document.querySelectorAll('input[name="amount_sar"]').forEach(function(inp) {
     total += parseFloat(inp.value) || 0;
   });
   document.getElementById('rem-total').textContent =
     total.toLocaleString('id-ID', {maximumFractionDigits: 0}) + ' SAR';
 }
 
-document.querySelector('form').addEventListener('submit', function() {
+function isiSemua() {
+  document.querySelectorAll('input[name="amount_sar"]').forEach(function(inp) {
+    inp.value = inp.getAttribute('data-max') || 0;
+  });
+  updateTotal();
+}
+
+document.getElementById('rem-form').addEventListener('submit', function() {
   var btn = document.getElementById('submit-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
 });
 </script>
 {% endblock %}
+
+
+

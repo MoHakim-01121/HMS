@@ -1,0 +1,97 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+  size: A4 portrait;
+  margin: 14mm 16mm;
+  @bottom-right {
+    content: "Page " counter(page) " / " counter(pages);
+    font-size: 9px; color: #999;
+    font-family: 'Segoe UI', sans-serif;
+  }
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
+
+.doc-header { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:10px; border-bottom:2px solid #111; margin-bottom:16px; }
+.doc-title { font-size:18px; font-weight:800; color:#111; }
+.doc-sub { font-size:10px; color:#888; margin-top:3px; }
+.doc-meta { text-align:right; font-size:10px; color:#666; line-height:1.6; }
+
+.info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; padding:12px 14px; background:#f8f8f8; border-radius:6px; }
+.info-label { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
+.info-val { font-size:12px; font-weight:600; color:#111; }
+.info-val.accent { color:#1a56db; }
+
+table { width:100%; border-collapse:collapse; }
+thead th { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.05em; padding:7px 10px; border-bottom:1px solid #ddd; text-align:left; white-space:nowrap; }
+thead th.r { text-align:right; }
+tbody td { padding:8px 10px; border-bottom:1px solid #eee; font-size:11px; vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+.mono { font-family:monospace; text-align:right; }
+.muted { color:#666; }
+
+.footer-row td { padding-top:10px; border-top:2px solid #111; font-weight:700; font-size:12px; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <div>
+    <div class="doc-title">Remittance</div>
+    <div class="doc-sub">Pengiriman Surabaya → Pusat</div>
+  </div>
+  <div class="doc-meta">
+    <div>Tanggal: <strong>{{ rem.date|date:"d/m/Y" }}</strong></div>
+    {% if rem.note %}<div>Note: {{ rem.note }}</div>{% endif %}
+    <div>Dicetak: {{ now|date:"d/m/Y H:i" }}</div>
+  </div>
+</div>
+
+<div class="info-grid">
+  <div>
+    <div class="info-label">Tanggal Kirim</div>
+    <div class="info-val">{{ rem.date|date:"d F Y" }}</div>
+  </div>
+  <div>
+    <div class="info-label">Total Dikirim</div>
+    <div class="info-val accent">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
+  </div>
+  <div>
+    <div class="info-label">Status</div>
+    <div class="info-val">{% if rem.proof %}Kwitansi Diterima{% else %}Menunggu Kwitansi{% endif %}</div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>No</th>
+      <th>Res#</th>
+      <th>Invoice</th>
+      <th>Client</th>
+      <th class="r">Dikirim (SAR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in lines %}
+    <tr>
+      <td class="muted">{{ forloop.counter }}</td>
+      <td style="font-family:monospace;font-weight:700;">{{ line.linked_number }}</td>
+      <td class="muted">{{ line.invoice.invoice_number|default:"—" }}</td>
+      <td class="muted">{{ line.invoice.customer_name|default:"—" }}</td>
+      <td class="mono" style="font-weight:700;">{{ line.amount_sar|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endfor %}
+    <tr class="footer-row">
+      <td colspan="4">Total</td>
+      <td class="mono">{{ rem.total_sar|floatformat:0|intcomma }}</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

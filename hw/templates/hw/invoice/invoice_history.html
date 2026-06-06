@@ -8,8 +8,62 @@
 <span class="topbar-crumb active">Invoice Hotel</span>
 {% endblock %}
 
+{% block extra_css %}
+<style>
+.cl-filter-actions { display: flex; gap: 6px; }
+.mob-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:calc(var(--z-dropdown) - 1); }
+.mob-backdrop.open { display:block; }
+@media (max-width:600px) {
+  .cl-filter-actions { width:100%; margin-top:8px; }
+  .cl-filter-actions .sort-wrap,
+  .cl-filter-actions .filter-panel-wrap { flex:1; }
+  .cl-filter-actions .sort-wrap .btn,
+  .cl-filter-actions .filter-panel-wrap .btn { width:100%; justify-content:center; }
+  .mob-backdrop { z-index:9998 !important; }
+  .filter-panel { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; max-height:85vh !important; overflow-y:auto !important; z-index:9999 !important; padding-bottom:calc(90px + env(safe-area-inset-bottom)) !important; background:var(--surface) !important; }
+  .filter-panel.open { display:block !important; }
+  .sort-menu { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; padding:8px 8px calc(90px + env(safe-area-inset-bottom)) !important; z-index:9999 !important; background:var(--surface) !important; }
+  .sort-menu.open { display:block !important; }
+}
+.sort-wrap { position:relative; display:inline-block; }
+.sort-menu { position:absolute; top:calc(100% + 6px); right:0; width:180px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); box-shadow:var(--shadow-xl); z-index:var(--z-dropdown); display:none; overflow:hidden; padding:4px; }
+.sort-menu.open { display:block; }
+.sort-opt { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:var(--r-lg); font-size:12px; font-weight:500; color:var(--text-2); cursor:pointer; text-decoration:none; transition:background .1s, color .1s; }
+.sort-opt:hover { background:var(--surface-2); color:var(--text); }
+.sort-opt.active { color:var(--accent-2); font-weight:600; }
+.sort-opt.active::after { content:'✓'; font-size:11px; }
+.filter-panel-wrap { position:relative; display:inline-block; }
+.filter-panel { position:absolute; top:calc(100% + 6px); right:0; width:260px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); box-shadow:var(--shadow-xl); z-index:var(--z-dropdown); display:none; overflow:hidden; }
+.filter-panel.open { display:block; }
+.fp-head { padding:16px 16px 14px; border-bottom:1px solid var(--border); }
+.fp-title { font-size:14px; font-weight:700; color:var(--text); }
+.fp-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.fp-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.fp-section-label { font-size:13px; font-weight:600; color:var(--text); }
+.fp-reset { font-size:12px; font-weight:500; color:var(--accent-2); cursor:pointer; background:none; border:none; font-family:inherit; transition:opacity .12s; }
+.fp-reset:hover { opacity:.7; }
+.fp-status-group { display:flex; flex-direction:column; gap:2px; }
+.fp-status-opt { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r-lg); cursor:pointer; transition:background .1s; border:1px solid transparent; }
+.fp-status-opt:hover { background:var(--surface-2); }
+.fp-status-opt.selected { background:var(--surface-2); border-color:var(--border); }
+.fp-status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; border:2px solid var(--border-2); transition:background .1s, border-color .1s; }
+.fp-status-opt.selected .fp-status-dot { border-color:currentColor; background:currentColor; }
+.fp-status-opt-label { font-size:12px; font-weight:500; color:var(--text); flex:1; }
+.fp-status-opt.c-all { color:var(--text-2); }
+.fp-status-opt.c-all .fp-status-dot { border-color:var(--border-2); }
+.fp-status-opt.c-all.selected .fp-status-dot { border-color:var(--accent-2); background:var(--accent-2); }
+.fp-status-opt.c-lun { color:var(--green); }
+.fp-status-opt.c-par { color:var(--yellow); }
+.fp-status-opt.c-bel { color:var(--red); }
+.fp-footer { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-top:1px solid var(--border); }
+.fp-apply { background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:var(--r-lg); padding:8px 20px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; transition:opacity .12s; }
+.fp-apply:hover { opacity:.88; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page">
+
   <div class="page-header">
     <div>
       <div class="page-title">Invoice Hotel</div>
@@ -19,11 +73,11 @@
       <div class="export-dropdown">
         <button type="button" class="btn btn-secondary export-btn">Export ▾</button>
         <div class="export-menu">
-          <a href="{% url 'invoice_export_csv' %}?q={{ q }}">
+          <a href="{% url 'invoice_export_csv' %}?q={{ q }}&status={{ status_filter }}">
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             CSV
           </a>
-          <a href="{% url 'invoice_list_pdf' %}?q={{ q }}" target="_blank">
+          <a href="{% url 'invoice_list_pdf' %}?q={{ q }}&status={{ status_filter }}" target="_blank">
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
             PDF
           </a>
@@ -33,47 +87,102 @@
     </div>
   </div>
 
-  <div class="filter-chips">
-    <a href="?q={{ q }}" class="filter-chip chip-active {% if status_filter %}chip-active-off{% endif %} {% if not status_filter %}chip-active{% endif %}">Semua</a>
-    <a href="?q={{ q }}&status=lunas"   class="filter-chip chip-green  {% if status_filter == 'lunas' %}chip-active{% endif %}">Lunas</a>
-    <a href="?q={{ q }}&status=partial" class="filter-chip chip-yellow {% if status_filter == 'partial' %}chip-active{% endif %}">Partial</a>
-    <a href="?q={{ q }}&status=belum"   class="filter-chip chip-red    {% if status_filter == 'belum' %}chip-active{% endif %}">Belum Bayar</a>
+  {% if remit_stats %}
+  <style>
+  .rs-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:14px; }
+  .rs-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:10px 12px; }
+  .rs-label { font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+  .rs-val { font-size:16px; font-weight:700; font-family:monospace; color:var(--text); }
+  .rs-val .rs-unit { font-size:11px; font-weight:500; color:var(--text-3); }
+  .rs-val.red { color:var(--red); }
+  .rs-val.green { color:var(--green); }
+  .rs-val.yellow { color:var(--yellow); }
+  .rs-val.blue { color:var(--accent); }
+  @media(max-width:600px){
+    .rs-grid { grid-template-columns:1fr; gap:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+    .rs-card { background:transparent; border:none; border-radius:0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; padding:10px 14px; }
+    .rs-card:last-child { border-bottom:none; }
+    .rs-label { margin-bottom:0; }
+    .rs-val { font-size:14px; }
+  }
+  </style>
+  <div class="rs-grid">
+    <div class="rs-card">
+      <div class="rs-label">Total Tagihan</div>
+      <div class="rs-val">{{ remit_stats.total_tagihan|floatformat:0|intcomma }} <span class="rs-unit">SAR</span></div>
+    </div>
+    <div class="rs-card">
+      <div class="rs-label">Belum Terbayar</div>
+      <div class="rs-val {% if remit_stats.belum_terbayar > 0 %}red{% else %}green{% endif %}">{{ remit_stats.belum_terbayar|floatformat:0|intcomma }} <span class="rs-unit">SAR</span></div>
+    </div>
+    <div class="rs-card">
+      <div class="rs-label">Terbayar Sby</div>
+      <div class="rs-val green">{{ remit_stats.terbayar_surabaya|floatformat:0|intcomma }} <span class="rs-unit">SAR</span></div>
+    </div>
+    <div class="rs-card">
+      <div class="rs-label">Terkirim Pusat</div>
+      <div class="rs-val blue">{{ remit_stats.terbayar_pusat|floatformat:0|intcomma }} <span class="rs-unit">SAR</span></div>
+    </div>
+    <div class="rs-card">
+      <div class="rs-label">Mengendap</div>
+      <div class="rs-val {% if remit_stats.mengendap > 0 %}yellow{% else %}green{% endif %}">{{ remit_stats.mengendap|floatformat:0|intcomma }} <span class="rs-unit">SAR</span></div>
+    </div>
   </div>
+  {% endif %}
 
-  <form method="get" class="filter-bar">
-    <input type="hidden" name="status" value="{{ status_filter }}">
+  <div class="mob-backdrop" id="mob-backdrop"></div>
+
+  <form method="get" id="inv-filter-form" class="filter-bar">
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
       <input type="text" name="q" value="{{ q }}" placeholder="Cari customer atau nomor invoice…">
     </div>
-    <button type="submit" class="btn btn-secondary">Cari</button>
-    {% if q %}<a href="?status={{ status_filter }}" class="btn btn-ghost search-reset" title="Reset pencarian"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></a>{% endif %}
-  </form>
+    <input type="hidden" name="status" id="fp-hidden-status" value="{{ status_filter }}">
 
-  {% if remit_stats %}
-  <div class="stats" style="margin-bottom:16px;">
-    <div class="stat">
-      <div class="stat-label">Total Tagihan</div>
-      <div class="stat-value mono">{{ remit_stats.total_tagihan|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;color:var(--text-2);">SAR</span></div>
+    <div class="cl-filter-actions">
+      <div class="filter-panel-wrap">
+        <button type="button" class="btn btn-secondary" id="fp-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M11 12h2M15 16H9"/></svg>
+          Filter
+          {% if status_filter %}<span style="background:var(--accent);color:#fff;border-radius:9999px;padding:1px 6px;font-size:10px;font-weight:700;">1</span>{% endif %}
+        </button>
+
+        <div class="filter-panel" id="filter-panel">
+          <div class="fp-head">
+            <span class="fp-title">Filter</span>
+          </div>
+          <div class="fp-section">
+            <div class="fp-section-head">
+              <span class="fp-section-label">Status</span>
+              <button type="button" class="fp-reset" id="fp-reset-status">Reset</button>
+            </div>
+            <div class="fp-status-group">
+              <div class="fp-status-opt c-all {% if not status_filter %}selected{% endif %}" data-val="">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Semua</span>
+              </div>
+              <div class="fp-status-opt c-lun {% if status_filter == 'lunas' %}selected{% endif %}" data-val="lunas">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Lunas</span>
+              </div>
+              <div class="fp-status-opt c-par {% if status_filter == 'partial' %}selected{% endif %}" data-val="partial">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Partial</span>
+              </div>
+              <div class="fp-status-opt c-bel {% if status_filter == 'belum' %}selected{% endif %}" data-val="belum">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Belum Bayar</span>
+              </div>
+            </div>
+          </div>
+          <div class="fp-footer">
+            <button type="button" class="btn btn-ghost" id="fp-reset-all" style="font-size:12px;">Reset semua</button>
+            <button type="button" class="fp-apply" id="fp-apply">Terapkan</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="stat">
-      <div class="stat-label">Belum Terbayar</div>
-      <div class="stat-value {% if remit_stats.belum_terbayar > 0 %}red{% else %}green{% endif %} mono">{{ remit_stats.belum_terbayar|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Mengendap Sby</div>
-      <div class="stat-value {% if remit_stats.mengendap > 0 %}yellow{% else %}green{% endif %} mono">{{ remit_stats.mengendap|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Terbayar Sby</div>
-      <div class="stat-value green mono">{{ remit_stats.terbayar_surabaya|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
-    </div>
-    <div class="stat">
-      <div class="stat-label">Terbayar Pusat</div>
-      <div class="stat-value blue mono">{{ remit_stats.terbayar_pusat|floatformat:0|intcomma }} <span style="font-size:13px;font-weight:500;">SAR</span></div>
-    </div>
-  </div>
-  {% endif %}
+  </form>
 
   <div class="card">
     {% if invoices %}
@@ -155,4 +264,65 @@
 
 {% block extra_js %}
 <script src="{% static 'hw/js/list.js' %}"></script>
+<script>
+(function () {
+  var btn      = document.getElementById('fp-toggle-btn');
+  var panel    = document.getElementById('filter-panel');
+  var form     = document.getElementById('inv-filter-form');
+  var backdrop = document.getElementById('mob-backdrop');
+
+  function isMobile() { return window.innerWidth <= 600; }
+  if (isMobile()) {
+    document.body.appendChild(backdrop);
+    document.body.appendChild(panel);
+  }
+
+  function closeAll() {
+    panel.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var opening = !panel.classList.contains('open');
+    closeAll();
+    if (opening) {
+      panel.classList.add('open');
+      if (isMobile()) backdrop.classList.add('open');
+    }
+  });
+
+  backdrop.addEventListener('click', closeAll);
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target) && e.target !== btn) closeAll();
+  });
+
+  // Status — single select (radio behaviour)
+  document.querySelectorAll('.fp-status-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+    });
+  });
+
+  // Reset status
+  document.getElementById('fp-reset-status').addEventListener('click', function () {
+    document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+    document.querySelector('.fp-status-opt.c-all').classList.add('selected');
+  });
+
+  // Reset all
+  document.getElementById('fp-reset-all').addEventListener('click', function () {
+    document.getElementById('fp-hidden-status').value = '';
+    form.submit();
+  });
+
+  // Apply
+  document.getElementById('fp-apply').addEventListener('click', function () {
+    var sel = document.querySelector('.fp-status-opt.selected');
+    document.getElementById('fp-hidden-status').value = sel ? sel.getAttribute('data-val') : '';
+    form.submit();
+  });
+})();
+</script>
 {% endblock %}
