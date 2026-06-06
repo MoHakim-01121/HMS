@@ -1495,7 +1495,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent-2);
   .modal-box { max-width: 100%; border-radius: var(--r-xl) var(--r-xl) 0 0; }
   .modal-overlay.open .modal-box    { animation: _modal-in-sheet  .28s cubic-bezier(.32,1,.4,1) both; }
   .modal-overlay.closing .modal-box { animation: _modal-out-sheet .2s ease both; }
-  .modal-footer { padding: 4px 16px 32px; }
+  .modal-footer { padding: 4px 16px calc(90px + env(safe-area-inset-bottom)); }
   .modal-header { padding: 24px 16px 12px; }
   .modal-body   { padding: 6px 16px 16px; }
 
