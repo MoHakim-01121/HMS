@@ -1,0 +1,102 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}Rekap Remittance{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'remittance_list' %}" class="topbar-crumb">Remittance</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">Rekap Bulanan</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.month-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); margin-bottom:16px; overflow:hidden; }
+.month-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--surface-2); border-bottom:1px solid var(--border); }
+.month-label { font-size:14px; font-weight:700; color:var(--text); }
+.month-meta { display:flex; gap:12px; align-items:center; }
+.month-total { font-family:monospace; font-size:15px; font-weight:700; color:var(--accent-2); }
+.month-badges { display:flex; gap:6px; }
+.recap-table { width:100%; border-collapse:collapse; }
+.recap-table th { font-size:11px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; padding:8px 16px; border-bottom:1px solid var(--border); text-align:left; }
+.recap-table th.r { text-align:right; }
+.recap-table td { padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.recap-table tbody tr:last-child td { border-bottom:none; }
+.recap-table .mono { font-family:monospace; }
+.pdf-btn { font-size:11px; padding:4px 10px; white-space:nowrap; }
+.month-foot { display:flex; justify-content:space-between; align-items:center; padding:8px 16px; border-top:1px solid var(--border); background:var(--surface-2); }
+.month-foot-label { font-size:11px; font-weight:600; color:var(--text-2); }
+.month-foot-val { font-family:monospace; font-size:14px; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Rekap Bulanan</div>
+      <div class="page-sub">Ringkasan remittance per bulan</div>
+    </div>
+  </div>
+
+  {% if monthly %}
+    {% for m in monthly %}
+    <div class="month-card">
+      <div class="month-header">
+        <div class="month-label">{{ m.label }}</div>
+        <div class="month-meta">
+          <div class="month-badges">
+            {% if m.count_pending %}<span class="badge badge-yellow">{{ m.count_pending }} Pending</span>{% endif %}
+            {% if m.count_received %}<span class="badge badge-green">{{ m.count_received }} Received</span>{% endif %}
+          </div>
+          <div class="month-total">{{ m.total_sent|floatformat:0|intcomma }} SAR</div>
+          <a href="{% url 'remittance_period_pdf' %}?month={{ m.remittances.0.date|date:'Y-m' }}" target="_blank" class="btn btn-ghost pdf-btn">PDF ↓</a>
+        </div>
+      </div>
+      <table class="recap-table">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Tanggal</th>
+            <th>Res Count</th>
+            <th>Status</th>
+            <th class="r">Total SAR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for rem in m.remittances %}
+          <tr style="cursor:pointer;" onclick="location.href='{% url 'remittance_detail' rem.pk %}'">
+            <td class="mono" style="font-weight:600;">{{ rem.remittance_number }}</td>
+            <td>{{ rem.date|date:"d/m/Y" }}</td>
+            <td style="color:var(--text-2);">{{ rem.lines.count }} reservasi</td>
+            <td>
+              {% if rem.status == 'received' %}
+              <span class="badge badge-green">Received</span>
+              {% else %}
+              <span class="badge badge-yellow">Pending</span>
+              {% endif %}
+            </td>
+            <td class="mono r" style="font-weight:600;">{{ rem.total_sar|floatformat:0|intcomma }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="month-foot">
+        <div style="display:flex;gap:16px;">
+          {% if m.total_received %}<span class="month-foot-label">Received: <span class="month-foot-val" style="color:var(--green);">{{ m.total_received|floatformat:0|intcomma }}</span></span>{% endif %}
+          {% if m.total_pending %}<span class="month-foot-label">Pending: <span class="month-foot-val" style="color:var(--yellow);">{{ m.total_pending|floatformat:0|intcomma }}</span></span>{% endif %}
+        </div>
+        <span class="month-foot-label">Total: <span class="month-foot-val">{{ m.total_sent|floatformat:0|intcomma }} SAR</span></span>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="card">
+    <div class="empty">
+      <div class="empty-title">Belum ada data remittance</div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

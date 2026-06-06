@@ -12,7 +12,7 @@
 
 {% block extra_css %}
 <style>
-.form-header-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+.form-header-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px; }
 @media(max-width:600px) { .form-header-grid { grid-template-columns:1fr; } }
 
 .rem-table { width:100%; border-collapse:collapse; }
@@ -82,6 +82,11 @@
           <div>
             <label class="field-label">Tanggal Kirim</label>
             <input type="date" name="date" value="{{ today }}" required
+                   style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit;">
+          </div>
+          <div>
+            <label class="field-label">Receipt Reference</label>
+            <input type="text" name="receipt_reference" placeholder="Kode kwitansi dari Pusat"
                    style="width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:13px;padding:8px 10px;font-family:inherit;">
           </div>
           <div>

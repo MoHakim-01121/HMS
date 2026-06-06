@@ -1,99 +1,111 @@
 {% extends 'hw/partials/_base.html' %}
 {% load static humanize %}
 
-{% block title %}Remittance {{ rem.date|date:"d/m/Y" }}{% endblock %}
+{% block title %}{{ rem.remittance_number }}{% endblock %}
 
 {% block breadcrumbs %}
 <div class="topbar-sep"></div>
 <a href="{% url 'remittance_list' %}" class="topbar-crumb" data-shortcut="back">Remittance</a>
 <div class="topbar-sep"></div>
-<span class="topbar-crumb active">{{ rem.date|date:"d/m/Y" }}</span>
+<span class="topbar-crumb active">{{ rem.remittance_number }}</span>
 {% endblock %}
 
 {% block content %}
-<div class="page page-sm">
-  <div class="page-header">
-    <div>
-      <div class="page-title">{{ rem.remittance_number }}</div>
-      <div class="page-sub">{{ rem.date|date:"d/m/Y" }} &middot; {{ rem.total_sar|floatformat:0|intcomma }} SAR dikirim ke Pusat</div>
-    </div>
-    <form method="post" action="{% url 'remittance_delete' rem.pk %}" style="margin:0;">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-ghost btn-icon btn-icon-red"
-              onclick="return confirm('Hapus remittance ini?')" title="Hapus">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-      </button>
-    </form>
-  </div>
-
-  <!-- Info header -->
+<div class="page" style="max-width:960px;">
+  <div class="page-header"></div>
   <div class="card" style="margin-bottom:16px;">
     <div class="card-body">
-      <div class="inv-info-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Tanggal</div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Remittance No</div>
+          <div style="font-size:14px;font-weight:700;font-family:monospace;">{{ rem.remittance_number }}</div>
+        </div>
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Date</div>
           <div style="font-size:14px;font-weight:600;">{{ rem.date|date:"d/m/Y" }}</div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Total Dikirim</div>
-          <div style="font-size:14px;font-weight:700;font-family:monospace;color:var(--accent-2);">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Status</div>
+          <div>
+            {% if rem.status == 'received' %}
+            <span class="badge badge-green">Received</span>
+            {% else %}
+            <span class="badge badge-yellow">Pending</span>
+            {% endif %}
+          </div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Note</div>
-          <div style="font-size:13px;color:var(--text-2);">{{ rem.note|default:"—" }}</div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Receipt</div>
+          <div>
+            {% if rem.proof %}
+            <a href="{{ rem.proof.url }}" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:4px 10px;">Lihat ↗</a>
+            {% else %}
+            <span style="font-size:13px;color:var(--text-3);">—</span>
+            {% endif %}
+          </div>
         </div>
       </div>
-      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        {% if rem.proof %}
-        <a href="{{ rem.proof.url }}" target="_blank" class="btn btn-ghost" style="font-size:12px;">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-          Lihat Kwitansi
-        </a>
+      {% if rem.receipt_reference or rem.note %}
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        {% if rem.receipt_reference %}
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Receipt Reference</div>
+          <div style="font-size:13px;font-weight:600;font-family:monospace;">{{ rem.receipt_reference }}</div>
+        </div>
         {% endif %}
-        <form method="post" action="{% url 'remittance_upload_proof' rem.pk %}" enctype="multipart/form-data" style="display:flex;align-items:center;gap:8px;">
-          {% csrf_token %}
-          <input type="file" name="proof" accept="image/*,.pdf" required style="font-size:12px;color:var(--text-2);">
-          <button type="submit" class="btn btn-secondary" style="font-size:12px;height:30px;padding:0 12px;">
-            {% if rem.proof %}Ganti{% else %}Upload Kwitansi{% endif %}
-          </button>
-        </form>
+        {% if rem.note %}
+        <div>
+          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Note</div>
+          <div style="font-size:13px;color:var(--text-2);">{{ rem.note }}</div>
+        </div>
+        {% endif %}
       </div>
+      {% endif %}
     </div>
   </div>
 
-  <!-- Detail per reservasi -->
   <div class="card">
     <div class="card-header"><span class="card-title">Detail per Reservasi</span></div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Res#</th>
+            <th>Res</th>
             <th>Invoice</th>
-            <th>Client</th>
-            <th>Dikirim (SAR)</th>
+            <th>Client / Travel</th>
+            <th>Hotel</th>
+            <th style="text-align:right;">Check-in</th>
+            <th style="text-align:right;">Previously Sent</th>
+            <th style="text-align:right;">Sent Now</th>
           </tr>
         </thead>
         <tbody>
-          {% for line in lines %}
+          {% for row in lines %}
           <tr>
-            <td class="col-m-primary" style="font-family:monospace;font-weight:600;">{{ line.linked_number }}</td>
+            <td style="font-family:monospace;font-weight:600;">{{ row.line.linked_number }}</td>
             <td class="col-m-hide">
-              {% if line.invoice %}
-              <a href="{% url 'invoice_detail' line.invoice.pk %}" style="color:var(--accent-2);text-decoration:none;font-size:12px;">
-                {{ line.invoice.invoice_number }}
-              </a>
+              {% if row.line.invoice %}
+              <a href="{% url 'invoice_detail' row.line.invoice.pk %}" style="color:var(--accent-2);text-decoration:none;font-size:12px;">{{ row.line.invoice.invoice_number }}</a>
               {% else %}—{% endif %}
             </td>
-            <td class="col-muted col-ellipsis-sm col-m-hide">
-              {{ line.invoice.customer_name|default:"—" }}
-            </td>
-            <td class="mono col-m-amount" style="font-weight:600;">{{ line.amount_sar|floatformat:0|intcomma }} SAR</td>
+            <td style="font-size:12px;color:var(--text-2);">{{ row.line.invoice.customer_name|default:"—" }}</td>
+            <td style="font-size:12px;color:var(--text-2);">{{ row.hotel|default:"—" }}</td>
+            <td style="font-size:12px;color:var(--text-2);text-align:right;">{% if row.check_in %}{{ row.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td style="font-family:monospace;text-align:right;color:var(--text-2);">{{ row.prev_sent|floatformat:0|intcomma }}</td>
+            <td style="font-family:monospace;font-weight:600;text-align:right;">{{ row.line.amount_sar|floatformat:0|intcomma }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="4" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data</td></tr>
+          <tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data</td></tr>
           {% endfor %}
         </tbody>
+        {% if lines %}
+        <tfoot>
+          <tr style="border-top:2px solid var(--border);">
+            <td colspan="6" style="padding:10px 12px;font-size:12px;font-weight:600;color:var(--text-2);text-align:right;">Total</td>
+            <td style="padding:10px 12px;font-family:monospace;font-weight:700;text-align:right;">{{ rem.total_sar|floatformat:0|intcomma }} SAR</td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>

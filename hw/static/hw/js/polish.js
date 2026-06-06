@@ -1,7 +1,7 @@
 // Back button: inject above page-header on non-home pages
 (function () {
   var HOME_PATHS = ['/', '/company/'];
-  var LIST_ROOTS = ['/cl/', '/invoice/', '/services/', '/clients/', '/hotels/', '/users/', '/calendar/', '/search/'];
+  var LIST_ROOTS = ['/cl/', '/invoice/', '/services/', '/clients/', '/hotels/', '/users/', '/calendar/', '/search/', '/remittance/'];
   var path = window.location.pathname;
   if (HOME_PATHS.indexOf(path) !== -1) return;
   var header = document.querySelector('.page-header');

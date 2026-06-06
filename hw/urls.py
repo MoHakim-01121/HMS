@@ -74,10 +74,13 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     # Remittance (Konoz only)
     path('remittance/', views.remittance_list, name='remittance_list'),
     path('remittance/new/', views.remittance_new, name='remittance_new'),
+    path('remittance/recap/', views.remittance_recap, name='remittance_recap'),
     path('remittance/export/csv/', views.remittance_export_csv, name='remittance_export_csv'),
+    path('remittance/export/pdf/', views.remittance_period_pdf, name='remittance_period_pdf'),
     path('remittance/<int:pk>/', views.remittance_detail, name='remittance_detail'),
     path('remittance/<int:pk>/edit/', views.remittance_edit, name='remittance_edit'),
     path('remittance/<int:pk>/pdf/', views.remittance_pdf, name='remittance_pdf'),
+    path('remittance/<int:pk>/mark-received/', views.remittance_mark_received, name='remittance_mark_received'),
     path('remittance/<int:pk>/upload-proof/', views.remittance_upload_proof, name='remittance_upload_proof'),
     path('remittance/<int:pk>/delete/', views.remittance_delete, name='remittance_delete'),
 

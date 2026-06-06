@@ -127,12 +127,18 @@ class Payment(models.Model):
 
 
 class Remittance(models.Model):
+    STATUS_PENDING  = 'pending'
+    STATUS_RECEIVED = 'received'
+    STATUS_CHOICES  = [(STATUS_PENDING, 'Pending'), (STATUS_RECEIVED, 'Received')]
+
     remittance_number = models.CharField(max_length=20, unique=True, blank=True)
-    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
-    date       = models.DateField()
-    note       = models.TextField(blank=True)
-    proof      = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    company           = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    date              = models.DateField()
+    status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    receipt_reference = models.CharField(max_length=100, blank=True)
+    note              = models.TextField(blank=True)
+    proof             = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering            = ['-date', '-created_at']

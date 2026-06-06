@@ -1,0 +1,131 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+@page {
+  size: 210mm auto;
+  margin: 14mm 18mm 22mm;
+  @bottom-left {
+    content: string(printed-date);
+    font-size: 8px; color: #aaa;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  @bottom-right {
+    content: "Page " counter(page) " / " counter(pages);
+    font-size: 8px; color: #aaa;
+    font-family: 'Segoe UI', sans-serif;
+  }
+}
+.printed-anchor { string-set: printed-date content(); font-size: 0; height: 0; overflow: hidden; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
+
+/* Header */
+.doc-header { display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:2.5px solid #111; margin-bottom:20px; }
+.doc-left { display:flex; align-items:center; gap:12px; }
+.doc-company-name { font-size:13px; font-weight:700; color:#111; line-height:1.3; }
+.doc-company-addr { font-size:9px; color:#777; line-height:1.5; margin-top:1px; }
+.doc-right { text-align:right; }
+.doc-title { font-size:22px; font-weight:800; color:#111; letter-spacing:-.5px; }
+.doc-period { font-size:13px; font-weight:600; color:#555; margin-top:3px; }
+
+/* Summary boxes */
+.summary { display:flex; gap:12px; margin-top:28px; margin-bottom:24px; }
+.sum-box { flex:1; border:1px solid #e0e0e0; border-radius:6px; padding:10px 14px; }
+.sum-label { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+.sum-val { font-size:16px; font-weight:800; font-family:monospace; }
+.sum-val.orange { color:#e07b00; }
+.sum-val.green { color:#16a34a; }
+.sum-val.yellow { color:#ca8a04; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; margin-top:8px; }
+thead tr { border-top:2px solid #111; }
+thead th { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.05em; padding:7px 10px; border-bottom:2px solid #111; text-align:left; white-space:nowrap; }
+thead th.r { text-align:right; }
+tbody td { padding:8px 10px; border-bottom:1px solid #eee; font-size:11px; vertical-align:middle; }
+tbody tr:last-child td { border-bottom:none; }
+.mono { font-family:monospace; }
+.muted { color:#666; }
+.bold { font-weight:700; }
+.badge-p { display:inline-block; background:#fef9c3; color:#854d0e; border-radius:4px; padding:2px 6px; font-size:9px; font-weight:700; }
+.badge-r { display:inline-block; background:#dcfce7; color:#166534; border-radius:4px; padding:2px 6px; font-size:9px; font-weight:700; }
+tfoot td { padding:10px; border-top:2px solid #111; font-weight:700; font-size:12px; }
+</style>
+</head>
+<body>
+
+<span class="printed-anchor">Printed: {{ now|date:"d/m/Y H:i" }}</span>
+
+<div class="doc-header">
+  <div class="doc-left">
+    <img src="{{ logo_url }}" style="height:60px;width:auto;object-fit:contain;">
+    <div>
+      <div class="doc-company-addr">
+        Jl. Ikan Mungsing VII No. 51, Surabaya<br>
+        Telp: +966 56 600 2236 · konozsurabaya@gmail.com
+      </div>
+    </div>
+  </div>
+  <div class="doc-right">
+    <div class="doc-title">Rekap Remittance</div>
+    <div class="doc-period">{{ period_label }}</div>
+  </div>
+</div>
+
+<div class="summary">
+  <div class="sum-box">
+    <div class="sum-label">Total Dikirim</div>
+    <div class="sum-val orange">{{ total_sent|floatformat:0|intcomma }} <span style="font-size:11px;font-weight:500;color:#888;">SAR</span></div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-label">Sudah Diterima</div>
+    <div class="sum-val green">{{ total_received|floatformat:0|intcomma }} <span style="font-size:11px;font-weight:500;color:#888;">SAR</span></div>
+  </div>
+  <div class="sum-box">
+    <div class="sum-label">Masih Pending</div>
+    <div class="sum-val yellow">{{ total_pending|floatformat:0|intcomma }} <span style="font-size:11px;font-weight:500;color:#888;">SAR</span></div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>No Remittance</th>
+      <th>Tanggal</th>
+      <th>Res</th>
+      <th>Status</th>
+      <th class="r">Total SAR</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for rem in remittances %}
+    <tr>
+      <td class="muted">{{ forloop.counter }}</td>
+      <td class="bold mono">{{ rem.remittance_number }}</td>
+      <td class="muted">{{ rem.date|date:"d/m/Y" }}</td>
+      <td class="muted">{{ rem.lines.count }}</td>
+      <td>
+        {% if rem.status == 'received' %}
+        <span class="badge-r">Received</span>
+        {% else %}
+        <span class="badge-p">Pending</span>
+        {% endif %}
+      </td>
+      <td class="mono bold" style="text-align:right;">{{ rem.total_sar|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="5" style="text-align:right;">Total</td>
+      <td class="mono" style="text-align:right;">{{ total_sent|floatformat:0|intcomma }}</td>
+    </tr>
+  </tfoot>
+</table>
+
+</body>
+</html>

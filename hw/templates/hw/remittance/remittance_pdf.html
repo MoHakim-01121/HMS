@@ -5,97 +5,134 @@
 <meta charset="utf-8">
 <style>
 @page {
-  size: A4 portrait;
-  margin: 14mm 16mm;
+  size: 210mm auto;
+  margin: 14mm 18mm 22mm;
+  @bottom-left {
+    content: string(printed-date);
+    font-size: 8px; color: #aaa;
+    font-family: 'Segoe UI', sans-serif;
+  }
   @bottom-right {
     content: "Page " counter(page) " / " counter(pages);
-    font-size: 9px; color: #999;
+    font-size: 8px; color: #aaa;
     font-family: 'Segoe UI', sans-serif;
   }
 }
+.printed-anchor { string-set: printed-date content(); font-size: 0; height: 0; overflow: hidden; }
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
 
-.doc-header { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:10px; border-bottom:2px solid #111; margin-bottom:16px; }
-.doc-title { font-size:18px; font-weight:800; color:#111; }
-.doc-sub { font-size:10px; color:#888; margin-top:3px; }
-.doc-meta { text-align:right; font-size:10px; color:#666; line-height:1.6; }
+/* Watermark */
+.watermark {
+  position: fixed;
+  top: 45%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-40deg);
+  font-size: 90px; font-weight: 900;
+  color: rgba(0,0,0,0.04);
+  white-space: nowrap;
+  letter-spacing: 8px;
+}
 
-.info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; padding:12px 14px; background:#f8f8f8; border-radius:6px; }
-.info-label { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.06em; margin-bottom:3px; }
-.info-val { font-size:12px; font-weight:600; color:#111; }
-.info-val.accent { color:#1a56db; }
+/* Header */
+.doc-header { display:flex; justify-content:space-between; align-items:center; padding-bottom:10px; border-bottom:2.5px solid #111; margin-bottom:20px; }
+.doc-left { display:flex; align-items:center; gap:12px; }
+.doc-company-name { font-size:13px; font-weight:700; color:#111; line-height:1.3; }
+.doc-company-addr { font-size:9px; color:#777; line-height:1.5; margin-top:1px; }
+.doc-right { text-align:right; }
+.doc-title { font-size:22px; font-weight:800; color:#111; letter-spacing:-.5px; }
+.doc-number { font-size:13px; font-weight:600; color:#555; margin-top:3px; }
+.doc-note { font-size:10px; color:#999; margin-top:4px; }
 
-table { width:100%; border-collapse:collapse; }
-thead th { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.05em; padding:7px 10px; border-bottom:1px solid #ddd; text-align:left; white-space:nowrap; }
+/* Info grid */
+.info-grid { display:flex; justify-content:space-between; align-items:center; margin-top:32px; margin-bottom:20px; padding:14px 0; }
+.info-rows { display:flex; flex-direction:column; gap:6px; }
+.info-row { font-size:11px; color:#555; }
+.info-row span.lbl { color:#111; font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-right:4px; }
+.info-amount { text-align:right; }
+.info-amount-label { font-size:9px; font-weight:700; color:#111; text-transform:uppercase; letter-spacing:.07em; margin-bottom:4px; }
+.info-amount-val { font-size:22px; font-weight:800; color:#e07b00; line-height:1; }
+.info-amount-unit { font-size:12px; font-weight:600; color:#888; margin-top:2px; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; margin-top:48px; }
+thead tr { border-top:2px solid #111; }
+thead th { font-size:9px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.05em; padding:7px 10px; border-bottom:2px solid #111; text-align:left; white-space:nowrap; }
 thead th.r { text-align:right; }
 tbody td { padding:8px 10px; border-bottom:1px solid #eee; font-size:11px; vertical-align:middle; }
 tbody tr:last-child td { border-bottom:none; }
 .mono { font-family:monospace; text-align:right; }
 .muted { color:#666; }
-
-.footer-row td { padding-top:10px; border-top:2px solid #111; font-weight:700; font-size:12px; }
+.bold { font-weight:700; }
+tfoot td { padding:10px; border-top:2px solid #111; font-weight:700; font-size:12px; }
 </style>
 </head>
 <body>
 
+<div class="watermark">{% if rem.status == 'received' %}RECEIVED{% else %}PENDING{% endif %}</div>
+<span class="printed-anchor">Printed: {{ now|date:"d/m/Y H:i" }}</span>
+
 <div class="doc-header">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <img src="{{ logo_url }}" style="height:40px;width:auto;object-fit:contain;">
+  <div class="doc-left">
+    <img src="{{ logo_url }}" style="height:60px;width:auto;object-fit:contain;">
     <div>
-      <div style="font-size:14px;font-weight:800;color:#111;">Konoz United Surabaya</div>
-      <div style="font-size:10px;color:#888;margin-top:2px;">Surabaya → Pusat Transfer</div>
+      <div class="doc-company-addr">
+        Jl. Ikan Mungsing VII No. 51, Surabaya<br>
+        Telp: +966 56 600 2236 · konozsurabaya@gmail.com
+      </div>
     </div>
   </div>
-  <div class="doc-meta">
+  <div class="doc-right">
     <div class="doc-title">Remittance</div>
-    <div style="font-size:12px;font-weight:700;color:#555;margin-top:2px;">{{ rem.remittance_number }}</div>
-    <div style="margin-top:6px;">Date: <strong>{{ rem.date|date:"d/m/Y" }}</strong></div>
-    {% if rem.note %}<div>Note: {{ rem.note }}</div>{% endif %}
-    <div>Printed: {{ now|date:"d/m/Y H:i" }}</div>
+    <div class="doc-number">{{ rem.remittance_number }}</div>
+    {% if rem.note %}<div class="doc-note">{{ rem.note }}</div>{% endif %}
   </div>
 </div>
 
 <div class="info-grid">
-  <div>
-    <div class="info-label">Transfer Date</div>
-    <div class="info-val">{{ rem.date|date:"d F Y" }}</div>
+  <div class="info-rows">
+    <div class="info-row"><span class="lbl">Transfer Date :</span> {{ rem.date|date:"d F Y" }}</div>
+    <div class="info-row"><span class="lbl">Receipt Reference :</span> {{ rem.receipt_reference|default:"—" }}</div>
+    <div class="info-row"><span class="lbl">Status :</span> {% if rem.status == 'received' %}Received{% else %}Pending{% endif %}</div>
   </div>
-  <div>
-    <div class="info-label">Total Amount</div>
-    <div class="info-val accent">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
-  </div>
-  <div>
-    <div class="info-label">Status</div>
-    <div class="info-val">{% if rem.proof %}Receipt Received{% else %}Pending Receipt{% endif %}</div>
+  <div class="info-amount">
+    <div class="info-amount-label">Amount</div>
+    <div class="info-amount-val"><span style="margin-right:4px;">SAR</span>{{ rem.total_sar|floatformat:0|intcomma }}</div>
   </div>
 </div>
 
 <table>
   <thead>
     <tr>
-      <th>No</th>
-      <th>Res#</th>
+      <th>#</th>
+      <th>Res</th>
       <th>Invoice</th>
-      <th>Client</th>
-      <th class="r">Amount (SAR)</th>
+      <th>Client / Travel</th>
+      <th>Hotel</th>
+      <th class="r">Check-in</th>
+      <th class="r">Previously Sent</th>
+      <th class="r">Sent Now</th>
     </tr>
   </thead>
   <tbody>
-    {% for line in lines %}
+    {% for row in lines %}
     <tr>
       <td class="muted">{{ forloop.counter }}</td>
-      <td style="font-family:monospace;font-weight:700;">{{ line.linked_number }}</td>
-      <td class="muted">{{ line.invoice.invoice_number|default:"—" }}</td>
-      <td class="muted">{{ line.invoice.customer_name|default:"—" }}</td>
-      <td class="mono" style="font-weight:700;">{{ line.amount_sar|floatformat:0|intcomma }}</td>
+      <td class="bold" style="font-family:monospace;">{{ row.line.linked_number }}</td>
+      <td class="muted">{{ row.line.invoice.invoice_number|default:"—" }}</td>
+      <td class="muted">{{ row.line.invoice.customer_name|default:"—" }}</td>
+      <td class="muted">{{ row.hotel|default:"—" }}</td>
+      <td class="muted" style="text-align:right;">{% if row.check_in %}{{ row.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="mono muted">{{ row.prev_sent|floatformat:0|intcomma }}</td>
+      <td class="mono bold">{{ row.line.amount_sar|floatformat:0|intcomma }}</td>
     </tr>
     {% endfor %}
-    <tr class="footer-row">
-      <td colspan="4">Total</td>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="7" style="text-align:right;">Total</td>
       <td class="mono">{{ rem.total_sar|floatformat:0|intcomma }}</td>
     </tr>
-  </tbody>
+  </tfoot>
 </table>
 
 </body>

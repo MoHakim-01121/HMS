@@ -38,25 +38,69 @@
   line-height: 1.2;
 }
 .rem-stat-value .unit { font-size: 11px; font-weight: 500; color: var(--text-3); margin-left: 2px; }
-.rem-stat-value.red    { color: var(--red); }
-.rem-stat-value.green  { color: var(--green); }
 .rem-stat-value.yellow { color: var(--yellow); }
+.rem-stat-value.green  { color: var(--green); }
 .rem-stat-value.blue   { color: var(--blue, var(--accent)); }
-@media (max-width: 600px) {
+
+/* Filter panel (same as invoice) */
+.cl-filter-actions { display: flex; gap: 6px; }
+.mob-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:calc(var(--z-dropdown) - 1); }
+.mob-backdrop.open { display:block; }
+@media (max-width:600px) {
   .rem-stats { grid-template-columns: repeat(3, 1fr); }
+  .cl-filter-actions { width:100%; margin-top:8px; }
+  .cl-filter-actions .filter-panel-wrap { flex:1; }
+  .cl-filter-actions .filter-panel-wrap .btn { width:100%; justify-content:center; }
+  .mob-backdrop { z-index:9998 !important; }
+  .filter-panel { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; max-height:85vh !important; overflow-y:auto !important; z-index:9999 !important; padding-bottom:calc(90px + env(safe-area-inset-bottom)) !important; background:var(--surface) !important; }
+  .filter-panel.open { display:block !important; }
 }
+.filter-panel-wrap { position:relative; display:inline-block; }
+.filter-panel { position:absolute; top:calc(100% + 6px); right:0; width:240px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); box-shadow:var(--shadow-xl); z-index:var(--z-dropdown); display:none; overflow:hidden; }
+.filter-panel.open { display:block; }
+.fp-head { padding:16px 16px 14px; border-bottom:1px solid var(--border); }
+.fp-title { font-size:14px; font-weight:700; color:var(--text); }
+.fp-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.fp-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.fp-section-label { font-size:13px; font-weight:600; color:var(--text); }
+.fp-reset { font-size:12px; font-weight:500; color:var(--accent-2); cursor:pointer; background:none; border:none; font-family:inherit; transition:opacity .12s; }
+.fp-reset:hover { opacity:.7; }
+.fp-status-group { display:flex; flex-direction:column; gap:2px; }
+.fp-status-opt { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r-lg); cursor:pointer; transition:background .1s; border:1px solid transparent; }
+.fp-status-opt:hover { background:var(--surface-2); }
+.fp-status-opt.selected { background:var(--surface-2); border-color:var(--border); }
+.fp-status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; border:2px solid var(--border-2); transition:background .1s, border-color .1s; }
+.fp-status-opt.selected .fp-status-dot { border-color:currentColor; background:currentColor; }
+.fp-status-opt-label { font-size:12px; font-weight:500; color:var(--text); flex:1; }
+.fp-status-opt.c-all { color:var(--text-2); }
+.fp-status-opt.c-all.selected .fp-status-dot { border-color:var(--accent-2); background:var(--accent-2); }
+.fp-status-opt.c-pen { color:var(--yellow); }
+.fp-status-opt.c-rec { color:var(--green); }
+.fp-footer { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-top:1px solid var(--border); }
+.fp-apply { background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:var(--r-lg); padding:8px 20px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; transition:opacity .12s; }
+.fp-apply:hover { opacity:.88; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="page">
+
   <div class="page-header">
     <div>
       <div class="page-title">Remittance</div>
-      <div class="page-sub">Pengiriman uang Surabaya → Pusat</div>
+      <div class="page-sub">{{ total_count }} remittance tersimpan</div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
-      <a href="{% url 'remittance_export_csv' %}" class="btn btn-secondary" style="height:32px;padding:0 12px;font-size:13px;">Export CSV</a>
+      <a href="{% url 'remittance_recap' %}" class="btn btn-secondary" style="height:32px;padding:0 12px;font-size:13px;">Rekap</a>
+      <div class="export-dropdown">
+        <button type="button" class="btn btn-secondary export-btn">Export ▾</button>
+        <div class="export-menu">
+          <a href="{% url 'remittance_export_csv' %}">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            CSV
+          </a>
+        </div>
+      </div>
       <a href="{% url 'remittance_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;">+ Kirim Baru</a>
     </div>
   </div>
@@ -76,6 +120,56 @@
     </div>
   </div>
 
+  <div class="mob-backdrop" id="mob-backdrop"></div>
+
+  <form method="get" id="rem-filter-form" class="filter-bar">
+    <div class="search-wrap">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" name="q" value="{{ q }}" placeholder="Cari nomor remittance atau referensi…">
+    </div>
+    <input type="hidden" name="status" id="fp-hidden-status" value="{{ status_filter }}">
+
+    <div class="cl-filter-actions">
+      <div class="filter-panel-wrap">
+        <button type="button" class="btn btn-secondary" id="fp-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M11 12h2M15 16H9"/></svg>
+          Filter
+          {% if status_filter %}<span style="background:var(--accent);color:#fff;border-radius:9999px;padding:1px 6px;font-size:10px;font-weight:700;">1</span>{% endif %}
+        </button>
+
+        <div class="filter-panel" id="filter-panel">
+          <div class="fp-head">
+            <span class="fp-title">Filter</span>
+          </div>
+          <div class="fp-section">
+            <div class="fp-section-head">
+              <span class="fp-section-label">Status</span>
+              <button type="button" class="fp-reset" id="fp-reset-status">Reset</button>
+            </div>
+            <div class="fp-status-group">
+              <div class="fp-status-opt c-all {% if not status_filter %}selected{% endif %}" data-val="">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Semua</span>
+              </div>
+              <div class="fp-status-opt c-pen {% if status_filter == 'pending' %}selected{% endif %}" data-val="pending">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Pending</span>
+              </div>
+              <div class="fp-status-opt c-rec {% if status_filter == 'received' %}selected{% endif %}" data-val="received">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Received</span>
+              </div>
+            </div>
+          </div>
+          <div class="fp-footer">
+            <button type="button" class="btn btn-ghost" id="fp-reset-all" style="font-size:12px;">Reset semua</button>
+            <button type="button" class="fp-apply" id="fp-apply">Terapkan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
   <div class="card">
     {% if remittances %}
     <div class="table-wrap">
@@ -93,12 +187,12 @@
         <tbody>
           {% for rem in remittances %}
           <tr style="cursor:pointer;" onclick="location.href='{% url 'remittance_detail' rem.pk %}'">
-            <td class="col-nowrap" style="font-family:monospace;font-weight:600;">{{ rem.remittance_number }}</td>
-            <td class="col-m-primary col-nowrap">{{ rem.date|date:"d/m/Y" }}</td>
+            <td class="col-m-primary col-nowrap" style="font-family:monospace;font-weight:600;">{{ rem.remittance_number }}</td>
+            <td class="col-nowrap">{{ rem.date|date:"d/m/Y" }}</td>
             <td class="mono col-m-amount" style="font-weight:600;">{{ rem.total_sar|floatformat:0|intcomma }} SAR</td>
             <td>
-              {% if rem.proof %}
-              <span class="badge badge-green">Diterima</span>
+              {% if rem.status == 'received' %}
+              <span class="badge badge-green">Received</span>
               {% else %}
               <span class="badge badge-yellow">Pending</span>
               {% endif %}
@@ -108,11 +202,20 @@
               <a href="{{ rem.proof.url }}" target="_blank" style="color:var(--accent-2);font-size:12px;text-decoration:none;">Lihat ↗</a>
               {% else %}—{% endif %}
             </td>
-            <td onclick="event.stopPropagation()">
+            <td class="col-m-actions" onclick="event.stopPropagation()">
               <div style="display:flex;gap:4px;justify-content:flex-end;">
+                {% if rem.status == 'pending' %}
+                <form method="post" action="{% url 'remittance_mark_received' rem.pk %}" style="display:contents;">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-ghost btn-icon btn-icon-green" title="Mark as Received">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                  </button>
+                </form>
+                {% endif %}
                 <a href="{% url 'remittance_pdf' rem.pk %}" target="_blank" class="btn btn-ghost btn-icon btn-icon-green" title="PDF">
                   <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 </a>
+                {% if rem.status == 'pending' %}
                 <a href="{% url 'remittance_edit' rem.pk %}" class="btn btn-ghost btn-icon" title="Edit">
                   <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </a>
@@ -120,6 +223,7 @@
                   onclick="showDeleteModal('{% url 'remittance_delete' rem.pk %}', '{{ rem.date|date:'d/m/Y' }}')">
                   <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </button>
+                {% endif %}
               </div>
             </td>
           </tr>
@@ -130,8 +234,13 @@
     {% else %}
     <div class="empty">
       <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;color:var(--text-3)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      {% if q or status_filter %}
+      <div class="empty-title">Tidak ada hasil</div>
+      <div class="empty-sub">Coba ubah filter pencarian</div>
+      {% else %}
       <div class="empty-title">Belum ada remittance</div>
       <div class="empty-sub">Klik "+ Kirim Baru" untuk mencatat pengiriman ke Pusat</div>
+      {% endif %}
     </div>
     {% endif %}
   </div>
@@ -142,4 +251,61 @@
 
 {% block extra_js %}
 <script src="{% static 'hw/js/list.js' %}"></script>
+<script>
+(function () {
+  var btn      = document.getElementById('fp-toggle-btn');
+  var panel    = document.getElementById('filter-panel');
+  var form     = document.getElementById('rem-filter-form');
+  var backdrop = document.getElementById('mob-backdrop');
+
+  function isMobile() { return window.innerWidth <= 600; }
+  if (isMobile()) {
+    document.body.appendChild(backdrop);
+    document.body.appendChild(panel);
+  }
+
+  function closeAll() {
+    panel.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var opening = !panel.classList.contains('open');
+    closeAll();
+    if (opening) {
+      panel.classList.add('open');
+      if (isMobile()) backdrop.classList.add('open');
+    }
+  });
+
+  backdrop.addEventListener('click', closeAll);
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target) && e.target !== btn) closeAll();
+  });
+
+  document.querySelectorAll('.fp-status-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+    });
+  });
+
+  document.getElementById('fp-reset-status').addEventListener('click', function () {
+    document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+    document.querySelector('.fp-status-opt.c-all').classList.add('selected');
+  });
+
+  document.getElementById('fp-reset-all').addEventListener('click', function () {
+    document.getElementById('fp-hidden-status').value = '';
+    form.submit();
+  });
+
+  document.getElementById('fp-apply').addEventListener('click', function () {
+    var sel = document.querySelector('.fp-status-opt.selected');
+    document.getElementById('fp-hidden-status').value = sel ? sel.getAttribute('data-val') : '';
+    form.submit();
+  });
+})();
+</script>
 {% endblock %}

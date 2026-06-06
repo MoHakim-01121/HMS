@@ -33,6 +33,7 @@ from .hotel_views import (
 from .remittance_views import (
     remittance_list, remittance_new, remittance_detail, remittance_edit,
     remittance_pdf, remittance_delete, remittance_upload_proof, remittance_export_csv,
+    remittance_mark_received, remittance_recap, remittance_period_pdf,
 )
 
 from ..ai import generate_draft_message, get_chat_reply

@@ -17,8 +17,8 @@ from .context import (
 
 
 def _logo_file_url(company):
-    filename = "ijabahlogo.png" if company == "ijabah" else "konozlogo.jpeg"
-    mime = "image/png" if filename.endswith(".png") else "image/jpeg"
+    filename = "ijabahlogo.png" if company == "ijabah" else "LOGOKONOZ-02.png"
+    mime = "image/png"
     path = Path(__file__).resolve().parent.parent / "static" / "hw" / "img" / filename
     with open(path, "rb") as f:
         data = base64.b64encode(f.read()).decode()
@@ -93,11 +93,11 @@ def _render_invoice_pdf(invoice):
     hash_input = f"{invoice.invoice_number}|{int(total_sar)}|{invoice.issued_date}"
     doc_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:8].upper()
 
-    company_name = "Konoz United Surabaya" if invoice.company == "konoz" else "iJabah Group"
+    company_name = "" if invoice.company == "konoz" else "iJabah Group"
     context = {
         "company_name": company_name,
         "company_city": "",
-        "company_tagline": "Travel & Hospitality Services",
+        "company_tagline": "" if invoice.company == "konoz" else "Travel & Hospitality Services",
         "customer_name": invoice.customer_name,
         "issued_date": datetime.combine(invoice.issued_date, datetime.min.time()) if invoice.issued_date else None,
         "due_date": datetime.combine(invoice.due_date, datetime.min.time()) if invoice.due_date else None,
