@@ -114,7 +114,7 @@
 
         <!-- Delete -->
         <div style="padding:12px 20px;border-top:1px solid var(--border);">
-          <button onclick="document.getElementById('del-modal').classList.add('open')" class="btn btn-danger btn-sm" style="width:100%;">Hapus Client</button>
+          <button onclick="showDeleteModal('{% url 'client_delete' client.pk %}','{{ client.name|escapejs }}')" class="btn btn-danger btn-sm btn-full">Hapus Client</button>
         </div>
       </div>
     </div>
@@ -183,26 +183,5 @@
   </div>
 </div>
 
-<!-- Delete modal -->
-<div class="modal-overlay" id="del-modal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-warn-icon">!</div>
-      <div>
-        <div style="font-weight:600;font-size:15px;">Hapus Client</div>
-        <div style="font-size:13px;color:var(--text-2);margin-top:2px;">Tindakan ini tidak bisa dibatalkan</div>
-      </div>
-    </div>
-    <div class="modal-body">
-      <div class="modal-detail">Client <strong>{{ client.name }}</strong> akan dihapus. Invoice yang terkait tidak ikut terhapus.</div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="document.getElementById('del-modal').classList.remove('open')" class="btn btn-ghost">Batal</button>
-      <form method="post" action="{% url 'client_delete' client.pk %}" id="delete-form">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger-solid">Hapus</button>
-      </form>
-    </div>
-  </div>
-</div>
+{% include 'hw/partials/_delete_modal.html' with delete_modal_title="Client" %}
 {% endblock %}

@@ -135,27 +135,7 @@
   </div>
 
 
-<div class="modal-overlay" id="del-modal">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-warn-icon">!</div>
-      <div>
-        <div style="font-weight:600;font-size:15px;">Hapus Hotel</div>
-        <div style="font-size:13px;color:var(--text-2);margin-top:2px;">Tindakan ini tidak bisa dibatalkan</div>
-      </div>
-    </div>
-    <div class="modal-body">
-      <div class="modal-detail">Hotel <strong id="del-name"></strong> akan dihapus permanen.</div>
-    </div>
-    <div class="modal-footer">
-      <button onclick="document.getElementById('del-modal').classList.remove('open')" class="btn btn-ghost">Batal</button>
-      <form method="post" id="delete-form" action="">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-danger-solid">Hapus</button>
-      </form>
-    </div>
-  </div>
-</div>
+{% include 'hw/partials/_delete_modal.html' with delete_modal_title="Hotel" %}
 {% endblock %}
 
 {% block extra_js %}
@@ -186,9 +166,7 @@ document.addEventListener('click', function(e) {
 });
 
 function confirmDelete(pk, name) {
-  document.getElementById('del-name').textContent = name;
-  document.getElementById('delete-form').action = '/hotels/' + pk + '/delete/';
-  document.getElementById('del-modal').classList.add('open');
+  showDeleteModal('/hotels/' + pk + '/delete/', name);
 }
 </script>
 {% endblock %}

@@ -12,10 +12,10 @@
       <p class="modal-desc">Apakah Anda yakin ingin menghapus <strong id="delete-obj-name" class="modal-obj-name"></strong>? Data tidak dapat dipulihkan setelah dihapus.</p>
     </div>
     <div class="modal-footer">
-      <button type="button" id="delete-cancel-btn" class="btn btn-secondary modal-btn-cancel" onclick="closeDeleteModal()">Tidak, Batal</button>
+      <button type="button" id="delete-cancel-btn" class="btn btn-ghost modal-btn-cancel" onclick="closeDeleteModal()">Batal</button>
       <form method="post" id="delete-form" style="flex:1;">
         {% csrf_token %}
-        <button type="submit" id="delete-submit-btn" class="btn btn-danger-solid modal-btn-confirm">Ya, Hapus!</button>
+        <button type="submit" id="delete-submit-btn" class="btn btn-danger-solid modal-btn-confirm">Hapus</button>
       </form>
     </div>
   </div>
@@ -62,7 +62,7 @@
       if (!_deleteSubmitOrigHTML) _deleteSubmitOrigHTML = btn.innerHTML;
       btn.disabled = true;
       btn.classList.add('btn-loading');
-      btn.innerHTML = _deleteSubmitOrigHTML.replace('Ya, Hapus', 'Menghapus...');
+      btn.innerHTML = _deleteSubmitOrigHTML.replace('Hapus', 'Menghapus...');
     });
   })();
 </script>
