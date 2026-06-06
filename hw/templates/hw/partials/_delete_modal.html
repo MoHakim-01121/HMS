@@ -46,6 +46,7 @@
 
   (function() {
     var overlay = document.getElementById('delete-modal');
+    document.body.appendChild(overlay);
     overlay.addEventListener('animationend', function(e) {
       if (e.target === overlay && overlay.classList.contains('closing')) {
         overlay.classList.remove('open', 'closing');
