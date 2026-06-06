@@ -200,7 +200,7 @@
       <button onclick="document.getElementById('del-modal').classList.remove('open')" class="btn btn-ghost">Batal</button>
       <form method="post" action="{% url 'client_delete' client.pk %}" id="delete-form">
         {% csrf_token %}
-        <button type="submit" class="btn btn-danger">Hapus</button>
+        <button type="submit" class="btn btn-danger-solid">Hapus</button>
       </form>
     </div>
   </div>

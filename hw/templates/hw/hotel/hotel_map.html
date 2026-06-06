@@ -77,7 +77,7 @@
     cursor: pointer; font-family: inherit; transition: all .15s;
   }
   .hp-filter-btn:hover { background: rgba(255,255,255,.09); color: rgba(255,255,255,.8); }
-  .hp-filter-btn.has-filter { color: #D4A017; border-color: rgba(212,160,23,.35); background: rgba(212,160,23,.08); }
+  .hp-filter-btn.has-filter { color: var(--yellow); border-color: rgba(212,160,23,.35); background: rgba(212,160,23,.08); }
 
   /* Filter accordion (di dalam panel) */
   .filter-dropdown {
@@ -99,12 +99,12 @@
     cursor: pointer; font-size: 13px; color: rgba(255,255,255,.5); transition: background .1s;
   }
   .fp-radio:hover, .fp-check:hover { background: rgba(255,255,255,.04); color: rgba(255,255,255,.85); }
-  .fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: #D4A017; width: 14px; height: 14px; cursor: pointer; }
+  .fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--yellow); width: 14px; height: 14px; cursor: pointer; }
   .fp-radio.active { color: rgba(255,255,255,.9); font-weight: 600; }
   .fp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; }
   .fp-toggle-label { font-size: 13px; color: rgba(255,255,255,.5); }
   .fp-toggle-switch { width: 32px; height: 17px; border-radius: 9px; background: rgba(255,255,255,.12); position: relative; transition: background .15s; flex-shrink: 0; }
-  .fp-toggle-switch.on { background: #D4A017; }
+  .fp-toggle-switch.on { background: var(--yellow); }
   .fp-toggle-switch::after { content:''; position:absolute; width:11px; height:11px; border-radius:50%; background:#fff; top:3px; left:3px; transition:left .15s; }
   .fp-toggle-switch.on::after { left: 18px; }
   .fp-reset-wrap { padding: 10px 14px 12px; }
@@ -132,7 +132,7 @@
     transition: background .12s, border-color .12s;
   }
   .hp-card:hover { background: rgba(255,255,255,.04); }
-  .hp-card.active { background: rgba(212,160,23,.07); border-left-color: #D4A017; }
+  .hp-card.active { background: rgba(212,160,23,.07); border-left-color: var(--yellow); }
 
   /* Baris utama: dot + nama + jarak */
   .hp-card-top { display: flex; align-items: center; gap: 9px; }
@@ -161,7 +161,7 @@
     transition: color .15s, background .15s;
   }
   .hp-card:hover .hp-card-link { color: rgba(255,255,255,.5); }
-  .hp-card-link:hover { color: #D4A017 !important; background: rgba(212,160,23,.1); }
+  .hp-card-link:hover { color: var(--yellow) !important; background: rgba(212,160,23,.1); }
 
   /* Baris sub: bintang + area */
   .hp-card-sub {
@@ -211,7 +211,7 @@
     transition: all .15s;
   }
   .map-tb-btn:hover { border-color: rgba(255,255,255,.28); color: #fff; }
-  .map-tb-btn.has-filter { color: #D4A017; border-color: rgba(212,160,23,.5); background: rgba(212,160,23,.08); }
+  .map-tb-btn.has-filter { color: var(--yellow); border-color: rgba(212,160,23,.5); background: rgba(212,160,23,.08); }
 
   .map-search-wrap {
     display: flex; align-items: center; gap: 8px;
@@ -270,7 +270,7 @@
     border-radius: 6px; padding: 5px 10px;
     pointer-events: none; transition: color .2s;
   }
-  .hud-coords.active { color: #D4A017; border-color: rgba(212,160,23,.3); }
+  .hud-coords.active { color: var(--yellow); border-color: rgba(212,160,23,.3); }
 
   /* Route tooltip */
   .route-dist-tip { background:rgba(10,10,14,.9) !important; border:1px solid rgba(255,255,255,.1) !important; color:#EDEDEF !important; font-size:11px !important; font-weight:700 !important; font-family:'Courier New',monospace !important; letter-spacing:.5px !important; padding:4px 9px !important; border-radius:6px !important; white-space:nowrap; pointer-events:none; }
@@ -281,7 +281,7 @@
   .leaflet-popup-tip { background:rgba(10,10,14,.92); }
   .leaflet-popup-content { margin:12px 16px; min-width:160px; }
   .pop-name  { font-size:13px; font-weight:700; color:#EDEDEF; margin-bottom:2px; }
-  .pop-stars { font-size:11px; color:#D4A017; letter-spacing:2px; margin-bottom:6px; }
+  .pop-stars { font-size:11px; color:var(--yellow); letter-spacing:2px; margin-bottom:6px; }
   .pop-row   { display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px; }
   .pop-label { font-family:'Courier New',monospace; font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,.3); }
   .pop-val   { font-family:'Courier New',monospace; font-weight:700; color:#EDEDEF; }
@@ -468,7 +468,7 @@
   .leaflet-control-zoom-out:hover {
     background: rgba(212,160,23,.1) !important;
     border-color: rgba(212,160,23,.6) !important;
-    color: #D4A017 !important;
+    color: var(--yellow) !important;
   }
   [data-theme="light"] .leaflet-control-zoom-in,
   [data-theme="light"] .leaflet-control-zoom-out {
@@ -497,7 +497,7 @@
   }
   .map-loading::after {
     content:''; position:absolute; top:0; left:0; right:0; height:1px;
-    background: linear-gradient(90deg, transparent 0%, #D4A017 40%, #D4A017 60%, transparent 100%);
+    background: linear-gradient(90deg, transparent 0%, var(--yellow) 40%, var(--yellow) 60%, transparent 100%);
     animation: scan-line 1.6s ease-in-out infinite;
   }
 
@@ -629,7 +629,7 @@
         <button class="map-tb-btn" id="filter-open-btn" onclick="toggleFilter()">
           <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M10 12h4"/></svg>
           Filter
-          <span id="filter-badge" style="display:none;background:#D4A017;color:#000;border-radius:8px;padding:1px 6px;font-size:9px;font-weight:900;font-family:'Courier New',monospace;"></span>
+          <span id="filter-badge" style="display:none;background:var(--yellow);color:#000;border-radius:8px;padding:1px 6px;font-size:9px;font-weight:900;font-family:'Courier New',monospace;"></span>
         </button>
 
         <!-- Filter dropdown -->
@@ -645,9 +645,9 @@
           <label class="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onchange="applyFilters()"><span style="width:7px;height:7px;border-radius:1px;transform:rotate(45deg);background:#E5534B;display:inline-block;flex-shrink:0;"></span> &gt; 1.5 KM</label>
           <div class="fp-divider" style="margin:6px 0;"></div>
           <div class="fp-section"><div class="fp-section-title">Bintang</div></div>
-          <label class="fp-check"><input type="checkbox" name="fp-stars" value="3" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★</span></label>
-          <label class="fp-check"><input type="checkbox" name="fp-stars" value="4" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★★</span></label>
-          <label class="fp-check"><input type="checkbox" name="fp-stars" value="5" onchange="applyFilters()"><span style="color:#D4A017;font-size:12px;">★★★★★</span></label>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="3" onchange="applyFilters()"><span style="color:var(--yellow);font-size:12px;">★★★</span></label>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="4" onchange="applyFilters()"><span style="color:var(--yellow);font-size:12px;">★★★★</span></label>
+          <label class="fp-check"><input type="checkbox" name="fp-stars" value="5" onchange="applyFilters()"><span style="color:var(--yellow);font-size:12px;">★★★★★</span></label>
           <div class="fp-divider" style="margin:6px 0;"></div>
           <div class="fp-toggle-row" onclick="toggleAvg()"><span class="fp-toggle-label">Ada Avg / Kapasitas</span><div id="sw-avg" class="fp-toggle-switch"></div></div>
           <div class="fp-toggle-row" onclick="toggleRoutes()"><span class="fp-toggle-label">Tampilkan Rute</span><div id="sw-route" class="fp-toggle-switch on"></div></div>
@@ -750,7 +750,7 @@ var tileLayer = L.tileLayer(getTileUrl(), { attribution:'© OpenStreetMap © Car
 new MutationObserver(function() { tileLayer.setUrl(getTileUrl()); }).observe(document.documentElement, { attributeFilter:['data-theme'] });
 
 /* Reference markers */
-function refIcon() { return L.divIcon({ className:'', html:'<div style="width:12px;height:12px;border-radius:2px;transform:rotate(45deg);background:#D4A017;border:2px solid rgba(255,255,255,.5);box-shadow:0 0 8px #D4A017AA;"></div>', iconSize:[12,12], iconAnchor:[6,6] }); }
+function refIcon() { return L.divIcon({ className:'', html:'<div style="width:12px;height:12px;border-radius:2px;transform:rotate(45deg);background:var(--yellow);border:2px solid rgba(255,255,255,.5);box-shadow:0 0 8px var(--yellow)AA;"></div>', iconSize:[12,12], iconAnchor:[6,6] }); }
 function mosqueIcon() { return L.divIcon({ className:'', html:'<div style="width:10px;height:10px;border-radius:2px;transform:rotate(45deg);background:#E5534B;border:2px solid rgba(255,255,255,.4);box-shadow:0 0 6px #E5534BAA;"></div>', iconSize:[10,10], iconAnchor:[5,5] }); }
 L.marker(HARAM,      { icon:refIcon()    }).bindTooltip('Pelataran Al-Haram').addTo(map);
 L.marker(HARAM_INFO, { icon:mosqueIcon() }).bindTooltip('Masjid Al-Haram').addTo(map);
@@ -916,7 +916,7 @@ function buildCardHtml(h,idx){
         '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'+
       '</a>'+
     '</div>'+
-    '<div class="hp-card-sub"><span style="color:#D4A017;letter-spacing:1px;">'+starsHtml(h.stars)+'</span>'+(h.area?' · '+h.area:'')+'</div>'+
+    '<div class="hp-card-sub"><span style="color:var(--yellow);letter-spacing:1px;">'+starsHtml(h.stars)+'</span>'+(h.area?' · '+h.area:'')+'</div>'+
   '</div>';
 }
 function renderPanel(hotels){

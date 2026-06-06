@@ -49,7 +49,7 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:16px;">
-      <button type="submit" class="btn btn-primary">Buat User</button>
+      <button type="submit" class="btn btn-primary btn-full">Buat User</button>
       <a href="{% url 'user_list' %}" class="btn btn-ghost">Batal</a>
     </div>
   </form>
@@ -104,7 +104,7 @@
       <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
         {% csrf_token %}
         <input type="hidden" name="action" value="toggle_active">
-        <button type="submit" class="btn {% if edit_user.is_active %}btn-danger{% else %}btn-secondary{% endif %}" style="height:32px;">
+        <button type="submit" class="btn {% if edit_user.is_active %}btn-danger{% else %}btn-secondary{% endif %}"
           {% if edit_user.is_active %}Nonaktifkan User{% else %}Aktifkan User{% endif %}
         </button>
       </form>
@@ -112,7 +112,7 @@
       <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
         {% csrf_token %}
         <input type="hidden" name="action" value="toggle_staff">
-        <button type="submit" class="btn btn-ghost" style="height:32px;">
+        <button type="submit" class="btn btn-ghost"
           {% if edit_user.is_staff %}Turunkan ke User{% else %}Jadikan Staff{% endif %}
         </button>
       </form>
