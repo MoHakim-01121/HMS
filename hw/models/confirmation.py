@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.urls import reverse
 
 from .choices import Company
-from ..utils import convert_to_sar, next_sequence_number
+from ..utils import convert_to_sar
 
 
 class ConfirmationLetter(models.Model):

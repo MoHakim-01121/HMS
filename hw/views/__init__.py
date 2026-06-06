@@ -41,22 +41,6 @@ from ..ai import generate_draft_message, get_chat_reply
 from ..models import Invoice
 
 
-@login_required
-def company_select(request):
-    if request.method == "POST":
-        company = request.POST.get("company")
-        if company in ("konoz", "ijabah"):
-            request.session["active_company"] = company
-            request.session.modified = True
-            return redirect("home")
-    return render(request, "hw/company_select.html")
-
-
-@login_required
-def company_switch(request):
-    request.session.pop("active_company", None)
-    return redirect("company_select")
-
 
 @login_required
 @require_POST

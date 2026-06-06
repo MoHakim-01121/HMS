@@ -2,7 +2,7 @@ from django.db import models
 from django.urls import reverse
 
 from .choices import Company, InvoiceType  # noqa: F401 — Company used in Remittance
-from ..utils import convert_to_sar, next_sequence_number
+from ..utils import convert_to_sar
 
 
 class Invoice(models.Model):
