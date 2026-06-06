@@ -90,7 +90,7 @@
       <div class="page-title">Remittance</div>
       <div class="page-sub">{{ total_count }} remittance tersimpan</div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;">
+    <div class="page-actions">
       <a href="{% url 'remittance_recap' %}" class="btn btn-secondary" style="height:32px;padding:0 12px;font-size:13px;">Rekap</a>
       <div class="export-dropdown">
         <button type="button" class="btn btn-secondary export-btn">Export ▾</button>
@@ -101,7 +101,7 @@
           </a>
         </div>
       </div>
-      <a href="{% url 'remittance_new' %}" class="btn btn-primary" style="height:32px;padding:0 14px;font-size:13px;">+ Kirim Baru</a>
+      <a href="{% url 'remittance_new' %}" class="btn btn-primary">+ Kirim Baru</a>
     </div>
   </div>
 
@@ -203,7 +203,7 @@
               {% else %}—{% endif %}
             </td>
             <td class="col-m-actions" onclick="event.stopPropagation()">
-              <div style="display:flex;gap:4px;justify-content:flex-end;">
+              <div class="row-actions">
                 {% if rem.status == 'pending' %}
                 <form method="post" action="{% url 'remittance_mark_received' rem.pk %}" style="display:contents;">
                   {% csrf_token %}
@@ -233,7 +233,7 @@
     </div>
     {% else %}
     <div class="empty">
-      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="margin:0 auto 12px;display:block;color:var(--text-3)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="empty-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       {% if q or status_filter %}
       <div class="empty-title">Tidak ada hasil</div>
       <div class="empty-sub">Coba ubah filter pencarian</div>

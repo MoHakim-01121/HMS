@@ -3,9 +3,9 @@
 {% block title %}{% if edit %}Edit{% else %}Client Baru{% endif %}{% endblock %}
 
 {% block breadcrumbs %}
-<span class="topbar-sep"></span>
+<div class="topbar-sep"></div>
 <a href="{% url 'client_list' %}" class="topbar-crumb">Clients</a>
-<span class="topbar-sep"></span>
+<div class="topbar-sep"></div>
 <span class="topbar-crumb active">{% if edit %}Edit{% else %}Baru{% endif %}</span>
 {% endblock %}
 

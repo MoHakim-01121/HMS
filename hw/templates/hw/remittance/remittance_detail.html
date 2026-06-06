@@ -17,15 +17,15 @@
     <div class="card-body">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Remittance No</div>
+          <div class="info-label">Remittance No</div>
           <div style="font-size:14px;font-weight:700;font-family:monospace;">{{ rem.remittance_number }}</div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Date</div>
+          <div class="info-label">Date</div>
           <div style="font-size:14px;font-weight:600;">{{ rem.date|date:"d/m/Y" }}</div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Status</div>
+          <div class="info-label">Status</div>
           <div>
             {% if rem.status == 'received' %}
             <span class="badge badge-green">Received</span>
@@ -35,7 +35,7 @@
           </div>
         </div>
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Receipt</div>
+          <div class="info-label">Receipt</div>
           <div>
             {% if rem.proof %}
             <a href="{{ rem.proof.url }}" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:4px 10px;">Lihat ↗</a>
@@ -49,13 +49,13 @@
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         {% if rem.receipt_reference %}
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Receipt Reference</div>
+          <div class="info-label">Receipt Reference</div>
           <div style="font-size:13px;font-weight:600;font-family:monospace;">{{ rem.receipt_reference }}</div>
         </div>
         {% endif %}
         {% if rem.note %}
         <div>
-          <div class="info-label" style="font-size:11px;color:var(--text-3);font-weight:600;text-transform:uppercase;margin-bottom:4px;">Note</div>
+          <div class="info-label">Note</div>
           <div style="font-size:13px;color:var(--text-2);">{{ rem.note }}</div>
         </div>
         {% endif %}

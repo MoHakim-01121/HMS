@@ -627,6 +627,15 @@ body {
 .card-body { padding: 20px; }
 .card-body + .card-body { border-top: 1px solid var(--border); }
 
+/* ── Empty state ── */
+.empty-icon { margin: 0 auto 12px; display: block; color: var(--text-3); }
+
+/* ── Table row actions ── */
+.row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+/* ── Info label (field caption in detail views) ── */
+.info-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+
 /* ── Sections ── */
 .section { margin-bottom: 24px; }
 .section-label {

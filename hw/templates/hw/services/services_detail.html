@@ -20,7 +20,7 @@
       <div class="page-title">{{ invoice.invoice_number }}</div>
       <div class="page-sub">{{ invoice.customer_name }} · {{ invoice.created_at|date:"d/m/Y H:i" }}</div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;">
+    <div class="page-actions">
       <span class="badge badge-gray">{{ invoice.currency }}</span>
       {% if invoice.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
       {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}

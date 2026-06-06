@@ -3,9 +3,9 @@
 {% block title %}{{ client.name }}{% endblock %}
 
 {% block breadcrumbs %}
-<span class="topbar-sep"></span>
+<div class="topbar-sep"></div>
 <a href="{% url 'client_list' %}" class="topbar-crumb">Clients</a>
-<span class="topbar-sep"></span>
+<div class="topbar-sep"></div>
 <span class="topbar-crumb active">{{ client.name }}</span>
 {% endblock %}
 
@@ -104,8 +104,8 @@
           <div class="field">
             <div class="field-label">Score</div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-              <div style="flex:1;height:6px;background:var(--surface-3);border-radius:3px;">
-                <div style="height:6px;border-radius:3px;width:{{ client.score }}%;background:{% if client.score >= 70 %}var(--green){% elif client.score >= 40 %}var(--yellow){% else %}var(--red){% endif %};transition:width .3s;"></div>
+              <div style="flex:1;height:6px;background:var(--surface-3);border-radius:var(--r-xs);">
+                <div style="height:6px;border-radius:var(--r-xs);width:{{ client.score }}%;background:{% if client.score >= 70 %}var(--green){% elif client.score >= 40 %}var(--yellow){% else %}var(--red){% endif %};transition:width .3s;"></div>
               </div>
               <span style="font-size:12px;font-weight:600;color:var(--text-2);min-width:28px;">{{ client.score }}</span>
             </div>
