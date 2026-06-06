@@ -29,7 +29,7 @@
   .cl-filter-actions .sort-wrap .btn,
   .cl-filter-actions .filter-panel-wrap .btn { width: 100%; justify-content: center; }
 
-  .mob-backdrop { z-index: 9998 !important; }
+  .mob-backdrop { z-index: calc(var(--z-top) - 1) !important; }
 
   .filter-panel {
     position: fixed !important;
@@ -38,7 +38,7 @@
     border-radius: 20px 20px 0 0 !important;
     max-height: 85vh !important;
     overflow-y: auto !important;
-    z-index: 9999 !important;
+    z-index: var(--z-top) !important;
     padding-bottom: calc(90px + env(safe-area-inset-bottom)) !important;
     background: var(--surface) !important;
   }
@@ -50,7 +50,7 @@
     width: 100% !important;
     border-radius: 20px 20px 0 0 !important;
     padding: 8px 8px calc(90px + env(safe-area-inset-bottom)) !important;
-    z-index: 9999 !important;
+    z-index: var(--z-top) !important;
     background: var(--surface) !important;
   }
   .sort-menu.open { display: block !important; }

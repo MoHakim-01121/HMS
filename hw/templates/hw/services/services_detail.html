@@ -50,12 +50,12 @@
         <tbody>
           {% for svc in visa_services %}
           <tr>
-            <td style="color:var(--text-2);">{{ svc.service_no }}</td>
-            <td>{{ svc.product }}</td>
-            <td>{{ svc.qty }}</td>
-            <td class="mono">{{ svc.price|floatformat:0|intcomma }} {{ invoice.currency }}</td>
-            <td class="mono" style="font-weight:600;">{{ svc.total|floatformat:0|intcomma }} {{ invoice.currency }}</td>
-            <td class="{{ svc.remaining_class }} mono">{{ svc.remaining|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+            <td class="col-m-hide" style="color:var(--text-2);">{{ svc.service_no }}</td>
+            <td class="col-m-primary">{{ svc.product }}</td>
+            <td class="col-m-hide">{{ svc.qty }}</td>
+            <td class="mono col-m-hide">{{ svc.price|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+            <td class="mono col-m-amount" style="font-weight:600;">{{ svc.total|floatformat:0|intcomma }} {{ invoice.currency }}</td>
+            <td class="{{ svc.remaining_class }} mono col-m-hide">{{ svc.remaining|floatformat:0|intcomma }} {{ invoice.currency }}</td>
           </tr>
           {% empty %}
           <tr><td colspan="6" style="text-align:center;color:var(--text-3);">Tidak ada data layanan</td></tr>
@@ -81,14 +81,14 @@
         <tbody>
           {% for p in payments_history %}
           <tr>
-            <td>—</td>
-            <td style="color:var(--text-2);">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td>{{ p.payment_method|default:"—" }}</td>
-            <td class="mono">{{ p.payment_amount|floatformat:0|intcomma }}</td>
-            <td><span class="badge badge-gray">{{ p.payment_currency }}</span></td>
-            <td style="color:var(--text-2);">{{ p.payment_exchange|floatformat:2 }}</td>
-            <td style="color:var(--text-2);">{{ p.payment_note|default:"—" }}</td>
-            <td>{% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" title="Lihat bukti" style="color:var(--accent-2);text-decoration:none;display:inline-flex;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% else %}<span class="col-dim">—</span>{% endif %}</td>
+            <td class="col-m-hide">—</td>
+            <td class="col-m-primary" style="color:var(--text-2);">{% if p.payment_date %}{{ p.payment_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-m-secondary">{{ p.payment_method|default:"—" }}</td>
+            <td class="mono col-m-amount">{{ p.payment_amount|floatformat:0|intcomma }}</td>
+            <td class="col-m-hide"><span class="badge badge-gray">{{ p.payment_currency }}</span></td>
+            <td class="col-m-hide" style="color:var(--text-2);">{{ p.payment_exchange|floatformat:2 }}</td>
+            <td class="col-m-hide" style="color:var(--text-2);">{{ p.payment_note|default:"—" }}</td>
+            <td class="col-m-actions">{% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" title="Lihat bukti" style="color:var(--accent-2);text-decoration:none;display:inline-flex;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% else %}<span class="col-dim">—</span>{% endif %}</td>
           </tr>
           {% empty %}
           <tr><td colspan="8" style="text-align:center;color:var(--text-3);">Tidak ada data pembayaran</td></tr>

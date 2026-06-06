@@ -1,6 +1,3 @@
-from django.db import transaction
-
-
 def convert_to_sar(amount, currency, exchange_rate):
     if currency == "SAR":
         return amount

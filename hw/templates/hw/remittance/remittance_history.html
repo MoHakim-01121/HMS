@@ -51,8 +51,8 @@
   .cl-filter-actions { width:100%; margin-top:8px; }
   .cl-filter-actions .filter-panel-wrap { flex:1; }
   .cl-filter-actions .filter-panel-wrap .btn { width:100%; justify-content:center; }
-  .mob-backdrop { z-index:9998 !important; }
-  .filter-panel { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; max-height:85vh !important; overflow-y:auto !important; z-index:9999 !important; padding-bottom:calc(90px + env(safe-area-inset-bottom)) !important; background:var(--surface) !important; }
+  .mob-backdrop { z-index:calc(var(--z-top) - 1) !important; }
+  .filter-panel { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; max-height:85vh !important; overflow-y:auto !important; z-index:var(--z-top) !important; padding-bottom:calc(90px + env(safe-area-inset-bottom)) !important; background:var(--surface) !important; }
   .filter-panel.open { display:block !important; }
 }
 .filter-panel-wrap { position:relative; display:inline-block; }
@@ -188,9 +188,9 @@
           {% for rem in remittances %}
           <tr style="cursor:pointer;" onclick="location.href='{% url 'remittance_detail' rem.pk %}'">
             <td class="col-m-primary col-nowrap" style="font-family:monospace;font-weight:600;">{{ rem.remittance_number }}</td>
-            <td class="col-nowrap">{{ rem.date|date:"d/m/Y" }}</td>
+            <td class="col-m-secondary col-nowrap">{{ rem.date|date:"d/m/Y" }}</td>
             <td class="mono col-m-amount" style="font-weight:600;">{{ rem.total_sar|floatformat:0|intcomma }} SAR</td>
-            <td>
+            <td class="col-m-hide">
               {% if rem.status == 'received' %}
               <span class="badge badge-green">Received</span>
               {% else %}
