@@ -135,8 +135,11 @@ def ai_chat(request):
 
 
 def health_check(request):
-    if not request.user.is_authenticated or not request.user.is_superuser:
-        return JsonResponse({"detail": "Forbidden"}, status=403)
+    if not request.user.is_authenticated:
+        return redirect(f'/login/?next=/health/')
+    if not request.user.is_superuser:
+        from django.http import Http404
+        raise Http404
     try:
         connection.ensure_connection()
         return JsonResponse({"status": "ok", "db": "ok"})
