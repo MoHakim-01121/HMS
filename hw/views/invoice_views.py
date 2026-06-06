@@ -1,5 +1,4 @@
 ﻿import csv
-import json
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -103,14 +102,14 @@ def invoice_new(request):
             cl_qs = ConfirmationLetter.objects.select_related("invoice")
             if active_company:
                 cl_qs = cl_qs.filter(company=active_company)
-            cl_data = json.dumps([{
+            cl_data = [{
                 "id": cl.pk, "ref": cl.confirmation_number, "guest": cl.guest_name,
                 "hotel": cl.hotel_name or "-",
                 "check_in": cl.check_in.isoformat() if cl.check_in else "",
                 "check_out": cl.check_out.isoformat() if cl.check_out else "",
                 "total": int(round(cl.total_price)) if cl.total_price else 0,
                 "inv": cl.invoice.invoice_number if cl.invoice_id else "",
-            } for cl in cl_qs.order_by("-created_at")[:100]])
+            } for cl in cl_qs.order_by("-created_at")[:100]]
             return render(request, "hw/invoice/invoice_form.html", {
                 "suggested_number": invoice_number,
                 "default_company": active_company or "konoz",
@@ -142,7 +141,7 @@ def invoice_new(request):
     cl_qs = ConfirmationLetter.objects.select_related("invoice")
     if active_company:
         cl_qs = cl_qs.filter(company=active_company)
-    cl_data = json.dumps([{
+    cl_data = [{
         "id": cl.pk,
         "ref": cl.confirmation_number,
         "guest": cl.guest_name,
@@ -151,7 +150,7 @@ def invoice_new(request):
         "check_out": cl.check_out.isoformat() if cl.check_out else "",
         "total": int(round(cl.total_price)) if cl.total_price else 0,
         "inv": cl.invoice.invoice_number if cl.invoice_id else "",
-    } for cl in cl_qs.order_by("-created_at")[:100]])
+    } for cl in cl_qs.order_by("-created_at")[:100]]
 
     return render(request, "hw/invoice/invoice_form.html", {
         "suggested_number": suggested_number,
