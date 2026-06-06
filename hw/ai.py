@@ -10,7 +10,7 @@ from . import prompts
 from .models import ConfirmationLetter, Invoice
 
 _API_URL     = "https://api.groq.com/openai/v1/chat/completions"
-_MODEL_SMALL = "llama-3.2-1b-preview"
+_MODEL_SMALL = "llama-3.1-8b-instant"
 _MODEL_CHAT  = "llama-3.1-8b-instant"
 _logger      = logging.getLogger(__name__)
 

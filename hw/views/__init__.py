@@ -2,6 +2,7 @@
 from urllib.parse import urlparse
 
 from django.contrib.auth.decorators import login_required
+from django.db import connection
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
@@ -131,3 +132,11 @@ def ai_chat(request):
         request.session["ai_history"] = history[-6:]  # simpan 3 exchange terakhir
 
     return JsonResponse({"reply": reply or "Maaf, tidak dapat memproses pertanyaan saat ini."})
+
+
+def health_check(request):
+    try:
+        connection.ensure_connection()
+        return JsonResponse({"status": "ok", "db": "ok"})
+    except Exception:
+        return JsonResponse({"status": "error", "db": "unreachable"}, status=500)

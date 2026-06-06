@@ -94,4 +94,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('account/profile/', views.account_profile, name='account_profile'),
     path('account/avatar/upload/', views.avatar_upload, name='avatar_upload'),
     path('account/avatar/delete/', views.avatar_delete, name='avatar_delete'),
+
+    # Health check
+    path('health/', views.health_check, name='health_check'),
 ]
