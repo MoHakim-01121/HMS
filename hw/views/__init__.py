@@ -135,6 +135,8 @@ def ai_chat(request):
 
 
 def health_check(request):
+    if not request.user.is_authenticated or not request.user.is_superuser:
+        return JsonResponse({"detail": "Forbidden"}, status=403)
     try:
         connection.ensure_connection()
         return JsonResponse({"status": "ok", "db": "ok"})
