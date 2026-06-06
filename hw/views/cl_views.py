@@ -22,8 +22,8 @@ def cl_list(request):
 
     q           = request.GET.get('q', '').strip()
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
-    date_from   = request.GET.get('date_from', '').strip()
-    date_to     = request.GET.get('date_to', '').strip()
+    date_from   = _parse_date(request.GET.get('date_from', '').strip())
+    date_to     = _parse_date(request.GET.get('date_to', '').strip())
     sort        = request.GET.get('sort', '-check_in')
 
     _sort_map = {
@@ -233,8 +233,8 @@ _SORT_MAP = {
 def _filter_cl_qs(qs, request):
     q           = request.GET.get('q', '').strip()
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
-    date_from   = request.GET.get('date_from', '').strip()
-    date_to     = request.GET.get('date_to', '').strip()
+    date_from   = _parse_date(request.GET.get('date_from', '').strip())
+    date_to     = _parse_date(request.GET.get('date_to', '').strip())
     sort        = request.GET.get('sort', '-check_in')
     if q:
         qs = qs.filter(Q(guest_name__icontains=q) | Q(hotel_name__icontains=q) | Q(confirmation_number__icontains=q))

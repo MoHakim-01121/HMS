@@ -34,8 +34,11 @@ def _clip_day(d, month, year, days_in_month, is_start):
 @login_required
 def calendar_view(request):
     today = date.today()
-    year = int(request.GET.get('year', today.year))
-    month = int(request.GET.get('month', today.month))
+    try:
+        year = int(request.GET.get('year', today.year))
+        month = int(request.GET.get('month', today.month))
+    except (ValueError, TypeError):
+        year, month = today.year, today.month
 
     if month < 1:
         month, year = 12, year - 1
