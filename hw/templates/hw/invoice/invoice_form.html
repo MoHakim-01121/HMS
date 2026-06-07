@@ -144,7 +144,7 @@
       <div class="card-header">
         <span class="card-title">Reservations</span>
         <div style="display:flex;gap:6px;align-items:center;">
-          {% if not edit and cl_data_json %}
+          {% if cl_data_json %}
           <button type="button" class="cl-import-btn" id="btn-cl-import">
             <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h3m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             Impor dari CL
@@ -327,7 +327,7 @@
     </button>
   </form>
 
-{% if not edit and cl_data_json %}
+{% if cl_data_json %}
 <!-- CL Import Modal -->
 <div class="cl-modal-overlay" id="cl-modal-overlay">
   <div class="cl-modal">
@@ -371,7 +371,7 @@
 
 {% block extra_js %}
 <script src="{% static 'hw/js/invoice_form.js' %}"></script>
-{% if not edit and cl_data_json %}
+{% if cl_data_json %}
 {{ cl_data_json|json_script:"cl-data" }}
 <script>
 (function() {

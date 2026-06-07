@@ -224,6 +224,10 @@ def invoice_edit(request, pk):
         invoice.payments.all().delete()
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
+        cl_ids = request.POST.getlist("linked_cl_ids")
+        if cl_ids:
+            ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
+            ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
         generate_invoice_summary(invoice)
         _after = {
             'Nama Customer':    invoice.customer_name,
@@ -238,7 +242,22 @@ def invoice_edit(request, pk):
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil diperbarui.")
         return redirect("invoice_detail", pk=invoice.pk)
 
-    return render(request, "hw/invoice/invoice_form.html", {"invoice": invoice, "edit": True})
+    cl_qs = ConfirmationLetter.objects.select_related("invoice")
+    if active_company:
+        cl_qs = cl_qs.filter(company=active_company)
+    cl_data = [{
+        "id": cl.pk,
+        "ref": cl.confirmation_number,
+        "guest": cl.guest_name,
+        "hotel": cl.hotel_name or "-",
+        "check_in": cl.check_in.isoformat() if cl.check_in else "",
+        "check_out": cl.check_out.isoformat() if cl.check_out else "",
+        "total": int(round(cl.total_price)) if cl.total_price else 0,
+        "inv": cl.invoice.invoice_number if cl.invoice_id else "",
+    } for cl in cl_qs.order_by("-created_at")[:100]]
+    return render(request, "hw/invoice/invoice_form.html", {
+        "invoice": invoice, "edit": True, "cl_data_json": cl_data,
+    })
 
 
 @login_required
