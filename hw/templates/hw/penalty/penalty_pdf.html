@@ -1,0 +1,248 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cancellation Penalty — {{ penalty.penalty_number }}</title>
+  <style>
+    @page { size: A4; margin: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: #fefefe;
+      color: #1c1c1c;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px 40px; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 25px;
+      border-bottom: 3px solid #111;
+      margin-bottom: 30px;
+    }
+    .company-info { display: flex; align-items: center; gap: 10px; }
+    .company-logo { max-width: 80px; max-height: 80px; width: auto; height: auto; margin-right: 16px; }
+    .company-name { font-size: 18px; font-weight: 800; color: #111; }
+    .company-tagline { font-size: 10px; color: #666; font-weight: 500; letter-spacing: 1px; margin-top: 3px; }
+    .doc-meta { text-align: right; }
+    .doc-label { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 3px; color: #e5534b; margin-bottom: 6px; }
+    .doc-number { font-size: 13px; color: #666; font-weight: 600; }
+    .section { margin-bottom: 24px; }
+    .section-title {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.5px; color: #999; margin-bottom: 10px;
+      padding-bottom: 6px; border-bottom: 1px solid #eee;
+    }
+    .grid-2 { display: flex; gap: 30px; }
+    .grid-2 > div { flex: 1; }
+    .field-label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #999; letter-spacing: 1px; margin-bottom: 3px; }
+    .field-value { font-size: 13px; font-weight: 500; color: #333; }
+    .field-value strong { font-weight: 700; color: #111; }
+    .field { margin-bottom: 14px; }
+    table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      font-size: 11px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;
+    }
+    th {
+      background: #111; color: #fff; font-weight: 600; font-size: 9px;
+      text-transform: uppercase; padding: 10px 12px; letter-spacing: 1px;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #e8e8e8; color: #333; background: #fff; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:nth-child(even) td { background: #fafafa; }
+    .text-right { text-align: right; }
+    .penalty-box {
+      background: #fff1f0; border: 2px solid #e5534b; border-radius: 8px;
+      padding: 16px 20px; margin-top: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .penalty-box .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #e5534b; }
+    .penalty-box .amount { font-size: 24px; font-weight: 800; color: #e5534b; }
+    .status-badge {
+      display: inline-block; padding: 5px 14px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .status-paid { background: #d1fae5; color: #065f46; }
+    .status-unpaid { background: #fee2e2; color: #991b1b; }
+    .reason-box {
+      background: #fafafa; border-left: 3px solid #e5534b;
+      padding: 10px 14px; border-radius: 0 6px 6px 0; font-size: 12px; color: #444;
+    }
+    .footer {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 14px 40px; text-align: center; font-size: 10px; color: #666;
+      background: #fff; border-top: 1px solid #eee;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="company-info">
+      <img src="{{ logo_rel_path }}" class="company-logo">
+      <div>
+        {% if cl.company == 'ijabah' %}
+        <div class="company-name">IJABAH TRAVEL</div>
+        {% else %}
+        <div class="company-name">KONOZ UNITED</div>
+        {% endif %}
+        <div class="company-tagline">TRAVEL & TOURISM</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div class="doc-label">Cancellation Penalty</div>
+      <div class="doc-number">#{{ penalty.penalty_number }}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Informasi Reservasi</div>
+    <div class="grid-2">
+      <div>
+        <div class="field">
+          <div class="field-label">Tamu</div>
+          <div class="field-value"><strong>{{ cl.guest_name }}</strong></div>
+        </div>
+        <div class="field">
+          <div class="field-label">Hotel</div>
+          <div class="field-value">{{ cl.hotel_name }}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">No. Konfirmasi</div>
+          <div class="field-value" style="font-family:monospace;">{{ cl.confirmation_number }}</div>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <div class="field-label">Check-in</div>
+          <div class="field-value">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Check-out</div>
+          <div class="field-value">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Jumlah Malam</div>
+          <div class="field-value">{{ cl.num_nights }} malam</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if rooms %}
+  <div class="section">
+    <div class="section-title">Detail Kamar</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Tipe Kamar</th>
+          <th class="text-right">Qty</th>
+          <th class="text-right">Harga/Malam (SAR)</th>
+          <th class="text-right">Subtotal (SAR)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for room in rooms %}
+        <tr>
+          <td>{{ room.type }}</td>
+          <td class="text-right">{{ room.quantity }}</td>
+          <td class="text-right">{{ room.price|floatformat:0|intcomma }}</td>
+          <td class="text-right" style="font-weight:700;">{{ room.subtotal|floatformat:0|intcomma }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background:#f5f5f5;">
+          <td colspan="3" style="font-weight:700;text-align:right;">Total Booking</td>
+          <td class="text-right" style="font-weight:800;color:#111;">{{ cl.total_price|floatformat:0|intcomma }} SAR</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <div class="section-title">Detail Pembatalan</div>
+    <div class="grid-2">
+      <div>
+        <div class="field">
+          <div class="field-label">Tanggal Pembatalan</div>
+          <div class="field-value"><strong>{{ penalty.cancellation_date|date:"d/m/Y" }}</strong></div>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <div class="field-label">Status Pembayaran Penalti</div>
+          <div class="field-value">
+            {% if penalty.is_paid %}
+            <span class="status-badge status-paid">Lunas</span>
+            {% else %}
+            <span class="status-badge status-unpaid">Belum Dibayar</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% if penalty.reason %}
+    <div class="field">
+      <div class="field-label" style="margin-bottom:6px;">Alasan Pembatalan</div>
+      <div class="reason-box">{{ penalty.reason }}</div>
+    </div>
+    {% endif %}
+
+    <div class="penalty-box">
+      <div class="label">Jumlah Penalti</div>
+      <div class="amount">
+        {{ penalty.penalty_amount|floatformat:0|intcomma }} {{ penalty.penalty_currency }}
+        {% if penalty.penalty_currency != 'SAR' %}
+        <div style="font-size:12px;font-weight:500;color:#666;margin-top:2px;">
+          ≈ {{ penalty.penalty_amount_sar|floatformat:0|intcomma }} SAR
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if penalty.is_paid %}
+  <div class="section">
+    <div class="section-title">Info Pembayaran Penalti</div>
+    <div class="grid-2">
+      {% if penalty.payment_date %}
+      <div class="field">
+        <div class="field-label">Tanggal Bayar</div>
+        <div class="field-value">{{ penalty.payment_date|date:"d/m/Y" }}</div>
+      </div>
+      {% endif %}
+      {% if penalty.payment_method %}
+      <div class="field">
+        <div class="field-label">Metode</div>
+        <div class="field-value">{{ penalty.payment_method }}</div>
+      </div>
+      {% endif %}
+    </div>
+    {% if penalty.payment_note %}
+    <div class="field">
+      <div class="field-label">Catatan</div>
+      <div class="field-value">{{ penalty.payment_note }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if penalty.note %}
+  <div class="section">
+    <div class="section-title">Catatan</div>
+    <div class="field-value">{{ penalty.note }}</div>
+  </div>
+  {% endif %}
+
+</div>
+
+<div class="footer">
+  Diterbitkan: {{ now|date:"d/m/Y H:i" }} &nbsp;·&nbsp; {{ penalty.penalty_number }} &nbsp;·&nbsp; {{ cl.confirmation_number }}
+</div>
+</body>
+</html>

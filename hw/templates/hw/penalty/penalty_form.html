@@ -1,0 +1,139 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}{% if edit %}Edit Penalti{% else %}Tambah Penalti{% endif %} — {{ cl.confirmation_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'cl_list' %}" class="topbar-crumb">Confirmation Letter</a>
+<div class="topbar-sep"></div>
+<a href="{% url 'cl_detail' cl.pk %}" class="topbar-crumb">{{ cl.confirmation_number }}</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{% if edit %}Edit Penalti{% else %}Tambah Penalti{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="page-sm">
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Info Reservasi (dari CL)</span></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field"><div class="field-label">Tamu</div><div class="field-value">{{ cl.guest_name }}</div></div>
+          <div class="field"><div class="field-label">Hotel</div><div class="field-value">{{ cl.hotel_name }}</div></div>
+          <div class="field"><div class="field-label">Check-in</div><div class="field-value">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+          <div class="field"><div class="field-label">Check-out</div><div class="field-value">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
+          <div class="field"><div class="field-label">Total Booking</div><div class="field-value">{{ cl.total_price|floatformat:0|intcomma }} SAR</div></div>
+          <div class="field"><div class="field-label">No. CL</div><div class="field-value" style="font-family:monospace;">{{ cl.confirmation_number }}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Dokumen Penalti</span></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="penalty_number">No. Penalti</label>
+            <input id="penalty_number" name="penalty_number" class="input" type="text"
+              value="{{ penalty.penalty_number|default:suggested_number }}" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="cancellation_date">Tanggal Pembatalan</label>
+            <input id="cancellation_date" name="cancellation_date" class="input" type="date"
+              value="{{ penalty.cancellation_date|date:'Y-m-d'|default:'' }}" required>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label class="field-label" for="reason">Alasan Pembatalan</label>
+          <textarea id="reason" name="reason" class="input" rows="3" placeholder="Tuliskan alasan pembatalan...">{{ penalty.reason|default:'' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Jumlah Penalti</span></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div class="field">
+            <label class="field-label" for="penalty_amount">Jumlah Penalti</label>
+            <input id="penalty_amount" name="penalty_amount" class="input" type="number"
+              step="0.01" min="0" value="{{ penalty.penalty_amount|default:'' }}" required placeholder="0">
+          </div>
+          <div class="field">
+            <label class="field-label" for="penalty_currency">Mata Uang</label>
+            <select id="penalty_currency" name="penalty_currency" class="input">
+              <option value="SAR" {% if penalty.penalty_currency == 'SAR' or not penalty %}selected{% endif %}>SAR</option>
+              <option value="IDR" {% if penalty.penalty_currency == 'IDR' %}selected{% endif %}>IDR</option>
+              <option value="USD" {% if penalty.penalty_currency == 'USD' %}selected{% endif %}>USD</option>
+            </select>
+          </div>
+          <div class="field" id="exchange-rate-field" style="{% if penalty.penalty_currency == 'SAR' or not penalty %}display:none{% endif %}">
+            <label class="field-label" for="exchange_rate">Kurs ke SAR</label>
+            <input id="exchange_rate" name="exchange_rate" class="input" type="number"
+              step="0.0001" min="0" value="{{ penalty.exchange_rate|default:'1' }}" placeholder="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Status Pembayaran Penalti</span></div>
+      <div class="card-body">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:16px;">
+          <input type="checkbox" name="is_paid" id="is_paid" {% if penalty.is_paid %}checked{% endif %}
+            style="width:18px;height:18px;cursor:pointer;">
+          <span style="font-weight:500;">Penalti sudah dibayar</span>
+        </label>
+        <div id="payment-fields" style="{% if not penalty.is_paid %}display:none{% endif %}">
+          <div class="grid-2">
+            <div class="field">
+              <label class="field-label" for="payment_date">Tanggal Bayar</label>
+              <input id="payment_date" name="payment_date" class="input" type="date"
+                value="{{ penalty.payment_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="field">
+              <label class="field-label" for="payment_method">Metode Bayar</label>
+              <select id="payment_method" name="payment_method" class="input">
+                <option value="" {% if not penalty.payment_method %}selected{% endif %}>Pilih metode</option>
+                <option value="Cash" {% if penalty.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                <option value="Bank Transfer" {% if penalty.payment_method == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                <option value="Direct" {% if penalty.payment_method == 'Direct' %}selected{% endif %}>Direct</option>
+              </select>
+            </div>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label class="field-label" for="payment_note">Catatan Pembayaran</label>
+            <textarea id="payment_note" name="payment_note" class="input" rows="2"
+              placeholder="Referensi transfer, bukti, dll...">{{ penalty.payment_note|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><span class="card-title">Catatan Tambahan</span></div>
+      <div class="card-body">
+        <textarea name="note" class="input" rows="3"
+          placeholder="Catatan internal...">{{ penalty.note|default:'' }}</textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;padding-bottom:32px;">
+      <a href="{% url 'cl_detail' cl.pk %}" class="btn btn-ghost">Batal</a>
+      <button type="submit" class="btn btn-primary">{% if edit %}Simpan Perubahan{% else %}Buat Dokumen{% endif %}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+document.getElementById('is_paid').addEventListener('change', function() {
+  document.getElementById('payment-fields').style.display = this.checked ? '' : 'none';
+});
+document.getElementById('penalty_currency').addEventListener('change', function() {
+  document.getElementById('exchange-rate-field').style.display = this.value !== 'SAR' ? '' : 'none';
+});
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@ from .invoice import (
     Remittance, RemittanceLine,
 )
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
+from .penalty import CancellationPenalty
 
 __all__ = [
     'Company', 'HotelCity', 'InvoiceType',
@@ -19,4 +20,5 @@ __all__ = [
     'Invoice', 'Reservation', 'ServiceItem', 'Payment', 'Attachment', '_attachment_path',
     'Remittance', 'RemittanceLine',
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
+    'CancellationPenalty',
 ]
