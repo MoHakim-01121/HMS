@@ -7,15 +7,15 @@ from ..utils import convert_to_sar
 
 
 class ConfirmationLetter(models.Model):
-    company             = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    company             = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     client              = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cls')
     hotel_name          = models.CharField(max_length=200)
     guest_name          = models.CharField(max_length=200)
     guest_phone         = models.CharField(max_length=50, blank=True)
-    check_in            = models.DateField(null=True, blank=True)
-    check_out           = models.DateField(null=True, blank=True)
+    check_in            = models.DateField(null=True, blank=True, db_index=True)
+    check_out           = models.DateField(null=True, blank=True, db_index=True)
     confirmation_number = models.CharField(max_length=100, db_index=True)
-    reservation_status  = models.CharField(max_length=50, default='DEFINITE')
+    reservation_status  = models.CharField(max_length=50, default='DEFINITE', db_index=True)
     invoice             = models.ForeignKey(
         'Invoice', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='confirmation_letters',
@@ -75,8 +75,10 @@ class ConfirmationLetter(models.Model):
         from django.db import transaction
         with transaction.atomic():
             nums = []
-            for obj in cls.objects.select_for_update().filter(confirmation_number__startswith='CL-'):
-                parts = obj.confirmation_number.split('-')
+            for num_str in cls.objects.select_for_update().filter(
+                confirmation_number__startswith='CL-',
+            ).values_list('confirmation_number', flat=True):
+                parts = num_str.split('-')
                 if len(parts) == 2:
                     try:
                         nums.append(int(parts[1]))

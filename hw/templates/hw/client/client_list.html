@@ -1,4 +1,4 @@
-﻿{% extends 'hw/partials/_base.html' %}
+{% extends 'hw/partials/_base.html' %}
 {% load static %}
 
 {% block title %}Clients{% endblock %}
@@ -6,6 +6,47 @@
 {% block breadcrumbs %}
 <div class="topbar-sep"></div>
 <span class="topbar-crumb active">Clients</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.cl-filter-actions { display: flex; gap: 6px; }
+.mob-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:calc(var(--z-dropdown) - 1); }
+.mob-backdrop.open { display:block; }
+@media (max-width:600px) {
+  .cl-filter-actions { width:100%; margin-top:8px; }
+  .cl-filter-actions .filter-panel-wrap { flex:1; }
+  .cl-filter-actions .filter-panel-wrap .btn { width:100%; justify-content:center; }
+  .mob-backdrop { z-index:calc(var(--z-top) - 1) !important; }
+  .filter-panel { position:fixed !important; left:0 !important; right:0 !important; bottom:0 !important; top:auto !important; width:100% !important; border-radius:20px 20px 0 0 !important; max-height:85vh !important; overflow-y:auto !important; z-index:var(--z-top) !important; padding-bottom:calc(90px + env(safe-area-inset-bottom)) !important; background:var(--surface) !important; }
+  .filter-panel.open { display:block !important; }
+}
+.filter-panel-wrap { position:relative; display:inline-block; }
+.filter-panel { position:absolute; top:calc(100% + 6px); right:0; width:240px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); box-shadow:var(--shadow-xl); z-index:var(--z-dropdown); display:none; overflow:hidden; }
+.filter-panel.open { display:block; }
+.fp-head { padding:16px 16px 14px; border-bottom:1px solid var(--border); }
+.fp-title { font-size:14px; font-weight:700; color:var(--text); }
+.fp-section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.fp-section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.fp-section-label { font-size:13px; font-weight:600; color:var(--text); }
+.fp-reset { font-size:12px; font-weight:500; color:var(--accent-2); cursor:pointer; background:none; border:none; font-family:inherit; transition:opacity .12s; }
+.fp-reset:hover { opacity:.7; }
+.fp-status-group { display:flex; flex-direction:column; gap:2px; }
+.fp-status-opt { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--r-lg); cursor:pointer; transition:background .1s; border:1px solid transparent; }
+.fp-status-opt:hover { background:var(--surface-2); }
+.fp-status-opt.selected { background:var(--surface-2); border-color:var(--border); }
+.fp-status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; border:2px solid var(--border-2); transition:background .1s, border-color .1s; }
+.fp-status-opt.selected .fp-status-dot { border-color:currentColor; background:currentColor; }
+.fp-status-opt-label { font-size:12px; font-weight:500; color:var(--text); flex:1; }
+.fp-status-opt.c-all { color:var(--text-2); }
+.fp-status-opt.c-all .fp-status-dot { border-color:var(--border-2); }
+.fp-status-opt.c-all.selected .fp-status-dot { border-color:var(--accent-2); background:var(--accent-2); }
+.fp-status-opt.c-act { color:var(--green); }
+.fp-status-opt.c-ina { color:var(--text-3); }
+.fp-footer { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-top:1px solid var(--border); }
+.fp-apply { background:var(--accent); color:#fff; border:1px solid var(--accent); border-radius:var(--r-lg); padding:8px 20px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; transition:opacity .12s; }
+.fp-apply:hover { opacity:.88; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -27,18 +68,54 @@
     </div>
   </div>
 
-  <form method="get" class="filter-bar">
+  <div class="mob-backdrop" id="mob-backdrop"></div>
+
+  <form method="get" id="client-filter-form" class="filter-bar">
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
       <input type="text" name="q" value="{{ q }}" placeholder="Cari nama, kota, PIC…">
     </div>
-    <select name="status">
-      <option value="">Semua status</option>
-      <option value="active" {% if status == 'active' %}selected{% endif %}>Aktif</option>
-      <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Nonaktif</option>
-    </select>
-    <button type="submit" class="btn btn-secondary">Filter</button>
-    {% if q or status %}<a href="{% url 'client_list' %}" class="btn btn-ghost search-reset" title="Reset pencarian"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></a>{% endif %}
+    <input type="hidden" name="status" id="fp-hidden-status" value="{{ status }}">
+
+    <div class="cl-filter-actions">
+      <div class="filter-panel-wrap">
+        <button type="button" class="btn btn-secondary" id="fp-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M11 12h2M15 16H9"/></svg>
+          Filter
+          {% if status %}<span style="background:var(--accent);color:#fff;border-radius:9999px;padding:1px 6px;font-size:10px;font-weight:700;">1</span>{% endif %}
+        </button>
+
+        <div class="filter-panel" id="filter-panel">
+          <div class="fp-head">
+            <span class="fp-title">Filter</span>
+          </div>
+          <div class="fp-section">
+            <div class="fp-section-head">
+              <span class="fp-section-label">Status</span>
+              <button type="button" class="fp-reset" id="fp-reset-status">Reset</button>
+            </div>
+            <div class="fp-status-group">
+              <div class="fp-status-opt c-all {% if not status %}selected{% endif %}" data-val="">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Semua</span>
+              </div>
+              <div class="fp-status-opt c-act {% if status == 'active' %}selected{% endif %}" data-val="active">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Aktif</span>
+              </div>
+              <div class="fp-status-opt c-ina {% if status == 'inactive' %}selected{% endif %}" data-val="inactive">
+                <span class="fp-status-dot"></span>
+                <span class="fp-status-opt-label">Nonaktif</span>
+              </div>
+            </div>
+          </div>
+          <div class="fp-footer">
+            <button type="button" class="btn btn-ghost" id="fp-reset-all" style="font-size:12px;">Reset semua</button>
+            <button type="button" class="fp-apply" id="fp-apply">Terapkan</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </form>
 
   <div class="card">
@@ -110,4 +187,66 @@
   </div>
   {% endif %}
   </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'hw/js/list.js' %}"></script>
+<script>
+(function () {
+  var btn      = document.getElementById('fp-toggle-btn');
+  var panel    = document.getElementById('filter-panel');
+  var form     = document.getElementById('client-filter-form');
+  var backdrop = document.getElementById('mob-backdrop');
+
+  function isMobile() { return window.innerWidth <= 600; }
+  if (isMobile()) {
+    document.body.appendChild(backdrop);
+    document.body.appendChild(panel);
+  }
+
+  function closeAll() {
+    panel.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var opening = !panel.classList.contains('open');
+    closeAll();
+    if (opening) {
+      panel.classList.add('open');
+      if (isMobile()) backdrop.classList.add('open');
+    }
+  });
+
+  backdrop.addEventListener('click', closeAll);
+  document.addEventListener('click', function (e) {
+    if (!panel.contains(e.target) && e.target !== btn) closeAll();
+  });
+
+  document.querySelectorAll('.fp-status-opt').forEach(function (opt) {
+    opt.addEventListener('click', function () {
+      document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+      opt.classList.add('selected');
+    });
+  });
+
+  document.getElementById('fp-reset-status').addEventListener('click', function () {
+    document.querySelectorAll('.fp-status-opt').forEach(function (o) { o.classList.remove('selected'); });
+    document.querySelector('.fp-status-opt.c-all').classList.add('selected');
+  });
+
+  document.getElementById('fp-reset-all').addEventListener('click', function () {
+    document.getElementById('fp-hidden-status').value = '';
+    form.submit();
+  });
+
+  document.getElementById('fp-apply').addEventListener('click', function () {
+    var sel = document.querySelector('.fp-status-opt.selected');
+    document.getElementById('fp-hidden-status').value = sel ? sel.getAttribute('data-val') : '';
+    form.submit();
+  });
+})();
+</script>
 {% endblock %}

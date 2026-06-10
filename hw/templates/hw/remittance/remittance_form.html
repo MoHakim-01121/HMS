@@ -137,7 +137,7 @@
               <td class="td-date" style="text-align:right;">{% if res.check_in %}{{ res.check_in|date:"d/m/Y" }}{% else %}-{% endif %}</td>
               <td class="td-date" style="text-align:right;">{% if res.check_out %}{{ res.check_out|date:"d/m/Y" }}{% else %}-{% endif %}</td>
               <td class="td-mono">{{ res.total_sar|floatformat:0|intcomma }}</td>
-              <td class="td-mono">{{ res.terbayar_sby|floatformat:0|intcomma }}</td>
+              <td class="td-mono">{{ res.terbayar_total|floatformat:0|intcomma }}</td>
               <td class="td-mono">{{ res.sudah_dikirim|floatformat:0|intcomma }}</td>
               <td class="td-pending">{% if res.mengendap > 0 %}{{ res.mengendap|floatformat:0|intcomma }}{% else %}-{% endif %}</td>
               <td>

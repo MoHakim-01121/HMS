@@ -6,13 +6,13 @@ from ..utils import convert_to_sar
 
 
 class Invoice(models.Model):
-    company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='invoices')
-    invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL)
+    invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
     invoice_number = models.CharField(max_length=100, db_index=True)
     customer_name  = models.CharField(max_length=200)
     issued_date    = models.DateField(null=True, blank=True)
-    due_date       = models.DateField(null=True, blank=True)
+    due_date       = models.DateField(null=True, blank=True, db_index=True)
     currency       = models.CharField(max_length=10, default='SAR')
     ai_summary     = models.TextField(blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
@@ -50,11 +50,11 @@ class Invoice(models.Model):
         prefix = 'INV' if invoice_type == InvoiceType.HOTEL else 'SVC'
         with transaction.atomic():
             nums = []
-            for obj in cls.objects.select_for_update().filter(
+            for num_str in cls.objects.select_for_update().filter(
                 invoice_type=invoice_type,
                 invoice_number__startswith=f'{prefix}-',
-            ):
-                parts = obj.invoice_number.split('-')
+            ).values_list('invoice_number', flat=True):
+                parts = num_str.split('-')
                 if len(parts) == 2:
                     try:
                         nums.append(int(parts[1]))

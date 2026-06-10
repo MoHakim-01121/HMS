@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.core.cache import cache
 from django.urls import reverse
 
 from .models import Invoice
@@ -9,6 +10,11 @@ def due_soon(request):
     if not request.user.is_authenticated:
         return {}
     active_company = request.session.get("active_company")
+    cache_key = f'due_soon_u{request.user.id}_{active_company}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     today = date.today()
     threshold = today + timedelta(days=7)
     qs = (
@@ -39,7 +45,9 @@ def due_soon(request):
             "url": reverse("invoice_detail", args=[inv.pk]),
         })
 
-    return {
+    result = {
         "due_soon_count": len(notifs),
         "due_soon_notifs": notifs,
     }
+    cache.set(cache_key, result, 300)  # cache 5 menit
+    return result

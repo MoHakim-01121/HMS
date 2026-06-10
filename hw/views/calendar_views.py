@@ -88,6 +88,7 @@ def calendar_view(request):
             'inv_number': inv_number,
             'inv_remaining': inv_remaining,
             'inv_url': inv_url,
+            'check_in': cl.check_in.isoformat(),
         })
 
     hotels = [{'name': k, 'reservations': sorted(v, key=lambda x: x['start'])}

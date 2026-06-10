@@ -67,10 +67,10 @@
   /* Calendar card */
   .cal-card {
     background: var(--surface);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-2);
     border-radius: var(--r-xl);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
   }
 
   /* Grid columns */
@@ -86,15 +86,15 @@
     font-size: 10px; font-weight: 600; color: var(--text-3);
     text-transform: uppercase; letter-spacing: .5px;
     border-right: 1px solid var(--border);
-    background: var(--surface-2);
+    background: var(--surface);
     position: sticky; left: 0; z-index: 2;
   }
   .cal-day-th {
     padding: 8px 0;
-    font-size: 10px; font-weight: 600; color: var(--text-3);
+    font-size: 10px; font-weight: 600; color: var(--text-2);
     text-align: center;
-    border-right: 1px solid rgba(255,255,255,.04);
-    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    background: var(--surface);
     line-height: 1;
   }
   .cal-day-th.today {
@@ -108,7 +108,8 @@
     display: grid;
     grid-template-columns: 140px repeat({{ days_in_month }}, 1fr);
     grid-template-rows: 0 1fr;
-    border-top: 1px solid rgba(255,255,255,.045);
+    border-top: 1px solid var(--border);
+    background: var(--surface);
     width: 100%;
     position: relative;
   }
@@ -126,7 +127,7 @@
   }
   .cal-row:hover .cal-hotel-name { background: var(--surface-2); }
   .cal-cell {
-    border-right: 1px solid rgba(255,255,255,.03);
+    border-right: 1px solid var(--border);
   }
   .cal-cell.today-col { background: rgba(94,106,210,.04); }
 
@@ -155,13 +156,10 @@
   }
   .cal-block:hover { filter: brightness(1.15); transform: translateY(-1px); z-index: 5; }
 
-  .block-blue   { background: rgba(94,106,210,.18);  color: var(--accent-2); border-left: 3px solid var(--accent-2); }
-  .block-yellow { background: rgba(240,164,41,.15);  color: var(--yellow);   border-left: 3px solid var(--yellow); }
-  .block-red    { background: rgba(229,83,75,.15);   color: var(--red);      border-left: 3px solid var(--red); }
-  .block-green  { background: rgba(38,194,129,.15);  color: var(--green);    border-left: 3px solid var(--green); }
-  [data-theme="light"] .block-blue   { background: rgba(94,106,210,.12); }
-  [data-theme="light"] .block-yellow { background: rgba(240,164,41,.12); }
-  [data-theme="light"] .block-red    { background: rgba(229,83,75,.12);  }
+  .block-blue   { background: #7B87E8; color: #fff; }
+  .block-yellow { background: #F0A420; color: #fff; }
+  .block-red    { background: #E85555; color: #fff; }
+  .block-green  { background: #26C281; color: #fff; }
 
 
   /* Tooltip card */
@@ -216,6 +214,7 @@
 
   @media (max-width: 600px) {
     .cal-page { padding: 10px 0 80px; }
+    .cal-page > .page-back { margin-left: 12px; }
 
     /* Top bar */
     .cal-topbar {
@@ -229,11 +228,15 @@
     .cal-month { font-size: 15px; min-width: 110px; }
     .sum-pill { font-size: 10px; padding: 3px 8px; }
 
-    /* Calendar card: horizontally scrollable */
+    /* Calendar card: solid container */
     .cal-card {
       border-radius: 0;
       border-left: none;
       border-right: none;
+    }
+    /* Inner scroll wrapper */
+    .cal-scroll-wrap {
+      background: var(--surface);
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
@@ -285,6 +288,10 @@
 {% block content %}
 <div class="cal-page">
 
+  <button type="button" class="page-back" onclick="location.href='/'">
+    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>Kembali
+  </button>
+
   <!-- Top bar -->
   <div class="cal-topbar">
     <div class="cal-topbar-left">
@@ -316,6 +323,7 @@
 
   {% if hotels %}
   <div class="cal-card">
+  <div class="cal-scroll-wrap">
 
     <!-- Header hari -->
     <div class="cal-grid-template" style="border-bottom:1px solid var(--border);">
@@ -349,7 +357,8 @@
            data-end="{{ res.end }}"
            data-inv="{{ res.inv_number }}"
            data-inv-remaining="{{ res.inv_remaining }}"
-           data-inv-url="{{ res.inv_url }}">
+           data-inv-url="{{ res.inv_url }}"
+           data-checkin="{{ res.check_in }}">
           {{ res.guest }}
         </a>
         {% endfor %}
@@ -358,7 +367,8 @@
     </div>
     {% endfor %}
 
-  </div>
+  </div><!-- /.cal-scroll-wrap -->
+  </div><!-- /.cal-card -->
 
   {% else %}
   <div class="card" style="margin-top:0;">
@@ -381,6 +391,7 @@
     <span class="tt-label">Status</span><span class="tt-val" id="tt-status"></span>
     <span class="tt-label">CL No</span> <span class="tt-val" id="tt-ref"></span>
     <span class="tt-label">CI/CO</span> <span class="tt-val" id="tt-dates"></span>
+    <span class="tt-label">Check-in</span> <span class="tt-val" id="tt-countdown"></span>
     <span class="tt-label">Malam</span> <span class="tt-val" id="tt-nights"></span>
     <span class="tt-label">Total</span> <span class="tt-val" id="tt-total"></span>
   </div>
@@ -424,6 +435,15 @@
       document.getElementById('tt-total').textContent  = block.dataset.total;
       document.getElementById('tt-nights').textContent = block.dataset.nights + ' malam';
       document.getElementById('tt-dates').textContent  = block.dataset.start + ' – ' + block.dataset.end;
+      var cdEl = document.getElementById('tt-countdown');
+      if (block.dataset.checkin) {
+        var ci = new Date(block.dataset.checkin);
+        var now = new Date(); now.setHours(0,0,0,0);
+        var diff = Math.round((ci - now) / 86400000);
+        if (diff === 0)      { cdEl.textContent = 'Hari ini';           cdEl.style.color = 'var(--green)'; }
+        else if (diff > 0)   { cdEl.textContent = diff + ' hari lagi';  cdEl.style.color = diff <= 3 ? 'var(--yellow)' : ''; }
+        else                 { cdEl.textContent = Math.abs(diff) + ' hari lalu'; cdEl.style.color = 'var(--text-3)'; }
+      }
       var invRow = document.getElementById('tt-inv-row');
       if (block.dataset.inv) {
         var invLink = document.getElementById('tt-inv');

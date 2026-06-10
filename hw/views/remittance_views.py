@@ -110,6 +110,7 @@ def _build_reservasi_mengendap():
             'total_sar': rd.get('total_sar', 0),
             'terbayar_sby': terbayar_sby,
             'terbayar_direct': terbayar_direct,
+            'terbayar_total': terbayar_sby + terbayar_direct,
             'sudah_dikirim': sudah_dikirim,
             'mengendap': mengendap,
         })

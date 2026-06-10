@@ -8,7 +8,6 @@ from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from ..ai import generate_invoice_summary
 from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
@@ -19,7 +18,7 @@ from .pdf import _render_invoice_pdf
 @login_required
 def invoice_list(request):
     active_company = request.session.get("active_company")
-    base_qs = Invoice.objects.filter(invoice_type="hotel")
+    base_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations', 'payments')
     if active_company:
         base_qs = base_qs.filter(company=active_company)
 
@@ -133,7 +132,6 @@ def invoice_new(request):
         if cl_ids:
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
-        generate_invoice_summary(invoice)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat.")
         return redirect("invoice_detail", pk=invoice.pk)
@@ -179,7 +177,6 @@ def invoice_detail(request, pk):
     return render(request, "hw/invoice/invoice_detail.html", {
         "invoice": invoice,
         "reservations": reservations,
-        "ai_summary": invoice.ai_summary or None,
         "due_alert": due_alert,
     })
 
@@ -228,7 +225,6 @@ def invoice_edit(request, pk):
         if cl_ids:
             ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
-        generate_invoice_summary(invoice)
         _after = {
             'Nama Customer':    invoice.customer_name,
             'No. Invoice':      invoice.invoice_number,

@@ -35,7 +35,16 @@
       <div class="grid-2">
         <div class="field"><div class="field-label">Hotel</div><div class="field-value">{{ cl.hotel_name }}</div></div>
         <div class="field"><div class="field-label">Confirmation #</div><div class="field-value copyable" style="font-family:monospace;" onclick="copyText('{{ cl.confirmation_number }}')" title="Klik untuk menyalin">{{ cl.confirmation_number }}</div></div>
-        <div class="field"><div class="field-label">Tamu</div><div class="field-value">{{ cl.guest_name }}</div></div>
+        <div class="field">
+          <div class="field-label">Agen Travel</div>
+          <div class="field-value">
+            {% if cl.client %}
+            <a href="{% url 'client_detail' cl.client.pk %}" style="color:var(--accent);text-decoration:none;font-weight:500;">{{ cl.client.name }}</a>
+            {% else %}
+            {{ cl.guest_name|default:"—" }}
+            {% endif %}
+          </div>
+        </div>
         <div class="field"><div class="field-label">Telepon</div><div class="field-value">{{ cl.guest_phone|default:"—" }}</div></div>
         <div class="field"><div class="field-label">Check-in</div><div class="field-value">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>
         <div class="field"><div class="field-label">Check-out</div><div class="field-value">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</div></div>

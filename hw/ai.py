@@ -6,7 +6,6 @@ from datetime import date
 
 from django.conf import settings
 
-from . import prompts
 from .models import ConfirmationLetter, Invoice
 
 _API_URL     = "https://api.groq.com/openai/v1/chat/completions"
@@ -54,69 +53,137 @@ def _user(prompt: str) -> list:
     return [{"role": "user", "content": prompt}]
 
 
-def generate_invoice_summary(invoice) -> None:
-    total     = invoice.total_sar
-    remaining = invoice.remaining_sar
-    paid      = total - remaining
-    hotels    = ", ".join(
-        r.hotel for r in invoice.reservations.all() if r.hotel and r.hotel != "-"
-    ) or "-"
-    res_count = invoice.reservations.count()
-    result    = _call_groq(_user(prompts.invoice_summary(invoice, total, paid, remaining, hotels, res_count)))
-    if result:
-        invoice.ai_summary = result
-        invoice.save(update_fields=["ai_summary"])
-
-
-def generate_cl_summary(cl) -> None:
-    rooms_desc = ", ".join(
-        f"{r.quantity}x {r.room_type}" for r in cl.rooms.all()
-    ) or "-"
-    result = _call_groq(_user(prompts.cl_summary(cl, rooms_desc)))
-    if result:
-        cl.ai_summary = result
-        cl.save(update_fields=["ai_summary"])
-
-
-def generate_services_summary(invoice) -> None:
-    items         = invoice.service_items.all()
-    total         = int(sum(i.qty * float(i.price) for i in items))
-    services_desc = ", ".join(i.name for i in items[:4]) or "-"
-    paid          = sum(float(p.amount) for p in invoice.payments.all())
-    remaining     = total - paid
-    result = _call_groq(_user(prompts.services_summary(invoice, services_desc, total, remaining)))
-    if result:
-        invoice.ai_summary = result
-        invoice.save(update_fields=["ai_summary"])
-
 
 def generate_draft_message(invoice_type: str, invoice) -> str | None:
-    today = date.today()
+    today   = date.today()
+    company = invoice.get_company_display()
+
+    def _fmt(n):
+        return f"{int(round(n)):,}".replace(",", ".")
+
+    if invoice_type == "invoice_lunas":
+        total  = invoice.total_sar
+        hotels = ", ".join(
+            r.hotel for r in invoice.reservations.all() if r.hotel and r.hotel != "-"
+        ) or "-"
+        return (
+            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n\n"
+            f"Kami informasikan bahwa Invoice #{invoice.invoice_number} Anda telah *LUNAS*. \n\n"
+            f"Detail:\n"
+            f"- Hotel: {hotels}\n"
+            f"- Total: {_fmt(total)} SAR\n"
+            f"- Terbayar: {_fmt(total)} SAR\n"
+            f"- Sisa: 0 SAR\n\n"
+            f"Terima kasih atas kepercayaan Anda.\n\n"
+            f"Wassalamualaikum Wr Wb,\n"
+            f"{company}"
+        )
+
+    if invoice_type == "services_lunas":
+        items    = invoice.service_items.all()
+        total    = int(sum(i.qty * float(i.price) for i in items))
+        services = ", ".join(i.name for i in items[:4]) or "-"
+        return (
+            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n\n"
+            f"Kami informasikan bahwa Invoice #{invoice.invoice_number} Anda telah *LUNAS*. \n\n"
+            f"Detail:\n"
+            f"- Layanan: {services}\n"
+            f"- Total: {_fmt(total)} {invoice.currency}\n"
+            f"- Terbayar: {_fmt(total)} {invoice.currency}\n"
+            f"- Sisa: 0 {invoice.currency}\n\n"
+            f"Terima kasih atas kepercayaan Anda.\n\n"
+            f"Wassalamualaikum Wr Wb,\n"
+            f"{company}"
+        )
 
     if invoice_type == "invoice":
         total     = invoice.total_sar
         remaining = invoice.remaining_sar
         paid      = total - remaining
-        due_info  = ""
-        if invoice.due_date:
-            days = (invoice.due_date - today).days
-            if days < 0:
-                due_info = f"(sudah lewat jatuh tempo {abs(days)} hari)"
-            elif days == 0:
-                due_info = "(jatuh tempo hari ini)"
-            else:
-                due_info = f"(jatuh tempo {days} hari lagi)"
-        hotels = ", ".join(
+        hotels    = ", ".join(
             r.hotel for r in invoice.reservations.all() if r.hotel and r.hotel != "-"
         ) or "-"
-        return _call_groq(_user(prompts.draft_invoice(invoice, hotels, total, paid, remaining, due_info)))
+
+        detail = (
+            f"Detail tagihan:\n"
+            f"- Hotel: {hotels}\n"
+            f"- Total: {_fmt(total)} SAR\n"
+            f"- Terbayar: {_fmt(paid)} SAR\n"
+            f"- Sisa: {_fmt(remaining)} SAR"
+        )
+
+        if invoice.due_date:
+            days    = (invoice.due_date - today).days
+            due_str = invoice.due_date.strftime("%Y-%m-%d")
+            if days < 0:
+                due_block = (
+                    f"\nJatuh Tempo:\n"
+                    f"Sudah lewat jatuh tempo {abs(days)} hari, tanggal jatuh tempo: {due_str}"
+                )
+                middle = f"{detail}\n{due_block}"
+                closing = ""
+            elif days == 0:
+                middle  = f"{detail}\n- Jatuh tempo: {due_str} (hari ini)"
+                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
+            else:
+                middle  = f"{detail}\n- Jatuh tempo: {due_str} (1x24 jam)"
+                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
+        else:
+            middle  = detail
+            closing = ""
+
+        return (
+            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n"
+            f"Invoice #{invoice.invoice_number} Anda telah diterbitkan. \n\n"
+            f"{middle}\n"
+            f"{closing}\n"
+            f"Terima kasih,\n"
+            f"{company}"
+        )
+
     else:
-        items         = invoice.service_items.all()
-        total         = int(sum(i.qty * float(i.price) for i in items))
-        paid          = sum(float(p.amount) for p in invoice.payments.all())
-        remaining     = total - paid
-        services_desc = ", ".join(i.name for i in items[:4]) or "-"
-        return _call_groq(_user(prompts.draft_services(invoice, services_desc, total, paid, remaining)))
+        items     = invoice.service_items.all()
+        total     = int(sum(i.qty * float(i.price) for i in items))
+        paid      = int(sum(float(p.amount) for p in invoice.payments.all()))
+        remaining = total - paid
+        services  = ", ".join(i.name for i in items[:4]) or "-"
+
+        detail = (
+            f"Detail tagihan:\n"
+            f"- Layanan: {services}\n"
+            f"- Total: {_fmt(total)} {invoice.currency}\n"
+            f"- Terbayar: {_fmt(paid)} {invoice.currency}\n"
+            f"- Sisa: {_fmt(remaining)} {invoice.currency}"
+        )
+
+        if invoice.due_date:
+            days    = (invoice.due_date - today).days
+            due_str = invoice.due_date.strftime("%Y-%m-%d")
+            if days < 0:
+                due_block = (
+                    f"\nJatuh Tempo:\n"
+                    f"Sudah lewat jatuh tempo {abs(days)} hari, tanggal jatuh tempo: {due_str}"
+                )
+                middle  = f"{detail}\n{due_block}"
+                closing = ""
+            elif days == 0:
+                middle  = f"{detail}\n- Jatuh tempo: {due_str} (hari ini)"
+                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
+            else:
+                middle  = f"{detail}\n- Jatuh tempo: {due_str} (1x24 jam)"
+                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
+        else:
+            middle  = detail
+            closing = ""
+
+        return (
+            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n"
+            f"Invoice #{invoice.invoice_number} Anda telah diterbitkan. \n\n"
+            f"{middle}\n"
+            f"{closing}\n"
+            f"Terima kasih,\n"
+            f"{company}"
+        )
 
 
 def get_chat_reply(

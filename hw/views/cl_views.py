@@ -1,16 +1,14 @@
 import csv
-import json
 from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from ..ai import generate_cl_summary
-from ..models import ActivityLog, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
 from .helpers import _paginated_list, _parse_date, _render_list_pdf
 from .pdf import _logo_file_url, _render_cl_pdf
 
@@ -18,7 +16,7 @@ from .pdf import _logo_file_url, _render_cl_pdf
 @login_required
 def cl_list(request):
     active_company = request.session.get("active_company")
-    base_qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
+    base_qs = (ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()).select_related('invoice').prefetch_related('rooms')
 
     q           = request.GET.get('q', '').strip()
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
@@ -56,11 +54,15 @@ def cl_list(request):
     qs = qs.order_by(_sort_map.get(sort, '-check_in'))
 
     active_filters = len(status_list) + bool(date_from) + bool(date_to)
+    _status_counts = {
+        row['reservation_status']: row['n']
+        for row in base_qs.values('reservation_status').annotate(n=Count('id'))
+    }
     counts = {
-        'all':       base_qs.count(),
-        'definite':  base_qs.filter(reservation_status='DEFINITE').count(),
-        'tentative': base_qs.filter(reservation_status='TENTATIVE').count(),
-        'cancelled': base_qs.filter(reservation_status='CANCELLED').count(),
+        'all':       sum(_status_counts.values()),
+        'definite':  _status_counts.get('DEFINITE', 0),
+        'tentative': _status_counts.get('TENTATIVE', 0),
+        'cancelled': _status_counts.get('CANCELLED', 0),
     }
     return _paginated_list(request, qs, "hw/cl/cl_history.html", "letters",
                            extra_ctx={
@@ -75,7 +77,13 @@ def cl_list(request):
                            })
 
 
-@login_required
+def _form_context_data():
+    return {
+        "hotels": list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")),
+        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "company").order_by("company", "name")),
+    }
+
+
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
     if request.method == "POST":
@@ -84,29 +92,32 @@ def cl_new(request):
 
         if check_in and check_out and check_out < check_in:
             messages.error(request, "Check-out tidak boleh sebelum check-in.")
-            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
             return render(request, "hw/cl/cl_form.html", {
                 "suggested_number": suggested_number,
                 "default_company": request.session.get("active_company", "konoz"),
                 "form_data": request.POST,
-                "hotels": hotels,
+                **_form_context_data(),
             })
 
         confirmation_number = request.POST.get("confirmation_number", "")
         if ConfirmationLetter.objects.filter(confirmation_number=confirmation_number).exists():
             messages.error(request, f"Nomor CL '{confirmation_number}' sudah digunakan.")
-            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
             return render(request, "hw/cl/cl_form.html", {
                 "suggested_number": confirmation_number,
                 "default_company": request.session.get("active_company", "konoz"),
                 "form_data": request.POST,
-                "hotels": hotels,
+                **_form_context_data(),
             })
 
+        client_id = request.POST.get("client_id") or None
+        guest_name = request.POST.get("guest_name", "").strip()
+        if not guest_name and client_id:
+            guest_name = Client.objects.filter(pk=client_id).values_list("name", flat=True).first() or ""
         cl = ConfirmationLetter.objects.create(
             company=request.POST.get("company", "konoz"),
+            client_id=client_id,
             hotel_name=request.POST.get("hotel_name", ""),
-            guest_name=request.POST.get("guest_name", ""),
+            guest_name=guest_name,
             guest_phone=request.POST.get("guest_phone", ""),
             check_in=check_in,
             check_out=check_out,
@@ -115,25 +126,22 @@ def cl_new(request):
             note=request.POST.get("note", ""),
         )
         _save_cl_rooms(cl, request)
-        generate_cl_summary(cl)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number, cl.company)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
         return redirect("cl_detail", pk=cl.pk)
 
-    hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
     return render(request, "hw/cl/cl_form.html", {
         "suggested_number": suggested_number,
         "default_company": request.session.get("active_company", "konoz"),
-        "hotels": hotels,
+        **_form_context_data(),
     })
 
 
 @login_required
 def cl_detail(request, pk):
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = get_object_or_404(ConfirmationLetter.objects.select_related('client'), pk=pk)
     return render(request, "hw/cl/cl_detail.html", {
         "cl": cl,
-        "ai_summary": cl.ai_summary or None,
     })
 
 
@@ -147,8 +155,7 @@ def cl_edit(request, pk):
 
         if check_in and check_out and check_out < check_in:
             messages.error(request, "Check-out tidak boleh sebelum check-in.")
-            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
-            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
+            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, **_form_context_data()})
 
         def _room_snapshot(rooms_qs):
             rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
@@ -168,12 +175,15 @@ def cl_edit(request, pk):
         new_number = request.POST.get("confirmation_number", "")
         if ConfirmationLetter.objects.filter(confirmation_number=new_number).exclude(pk=cl.pk).exists():
             messages.error(request, f"Nomor CL '{new_number}' sudah digunakan.")
-            hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
-            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels, "form_data": request.POST})
+            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, "form_data": request.POST, **_form_context_data()})
 
         cl.company = request.POST.get("company", "konoz")
+        cl.client_id = request.POST.get("client_id") or None
         cl.hotel_name = request.POST.get("hotel_name", "")
-        cl.guest_name = request.POST.get("guest_name", "")
+        guest_name = request.POST.get("guest_name", "").strip()
+        if not guest_name and cl.client_id:
+            guest_name = Client.objects.filter(pk=cl.client_id).values_list("name", flat=True).first() or ""
+        cl.guest_name = guest_name
         cl.guest_phone = request.POST.get("guest_phone", "")
         cl.check_in = check_in
         cl.check_out = check_out
@@ -184,7 +194,6 @@ def cl_edit(request, pk):
 
         cl.rooms.all().delete()
         _save_cl_rooms(cl, request)
-        generate_cl_summary(cl)
 
         _after = {
             'Hotel':     cl.hotel_name,
@@ -201,8 +210,7 @@ def cl_edit(request, pk):
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil diperbarui.")
         return redirect("cl_detail", pk=cl.pk)
 
-    hotels = json.dumps(list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")))
-    return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, "hotels": hotels})
+    return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, **_form_context_data()})
 
 
 @login_required

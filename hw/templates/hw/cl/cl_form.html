@@ -105,10 +105,13 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Guest Information</span></div>
       <div class="card-body">
+        <input type="hidden" name="guest_name" id="guest_name" value="{% if edit %}{{ cl.guest_name }}{% endif %}">
         <div class="grid-2">
           <div class="field">
-            <label>Guest Name *</label>
-            <input type="text" name="guest_name" required value="{% if edit %}{{ cl.guest_name }}{% endif %}">
+            <label>Agen Travel *</label>
+            <input type="text" id="client_search" autocomplete="off" placeholder="Ketik nama agen…" style="width:100%;">
+            <input type="hidden" name="client_id" id="client_id_hidden" value="{% if edit and cl.client_id %}{{ cl.client_id }}{% elif form_data %}{{ form_data.client_id }}{% endif %}">
+            {{ clients|json_script:"clients-data" }}
           </div>
           <div class="field">
             <label>Phone Number</label>
@@ -246,6 +249,13 @@
       hotelSearch.style.borderColor = 'var(--red)';
       valid = false;
     }
+    {% if not edit %}
+    if (!clientHidden.value) {
+      clientSearch.focus();
+      clientSearch.style.borderColor = 'var(--red)';
+      valid = false;
+    }
+    {% endif %}
     if (!valid) { e.preventDefault(); return; }
     const btn = document.getElementById('submit-btn');
     btn.disabled = true;
@@ -275,11 +285,109 @@
     if (container.querySelectorAll('.room-row').length > 1) btn.closest('.room-row').remove();
   }
 
+  const companySelect = document.querySelector('select[name="company"]');
+
+  // Searchable client dropdown
+  const clientsData   = JSON.parse(document.getElementById('clients-data').textContent);
+  const clientSearch  = document.getElementById('client_search');
+  const clientHidden  = document.getElementById('client_id_hidden');
+
+  const clientDropdown = document.createElement('div');
+  clientDropdown.id = 'client_dropdown';
+  clientDropdown.style.cssText = 'display:none;position:fixed;z-index:var(--z-top);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.25);min-width:240px;';
+  document.body.appendChild(clientDropdown);
+
+  // Resolve initial display name from hidden id (edit mode)
+  if (clientHidden.value) {
+    const found = clientsData.find(c => String(c.id) === clientHidden.value);
+    if (found) clientSearch.value = found.name;
+  }
+
+  function positionClientDropdown() {
+    const rect = clientSearch.getBoundingClientRect();
+    clientDropdown.style.top  = (rect.bottom + 4) + 'px';
+    clientDropdown.style.left = rect.left + 'px';
+    clientDropdown.style.width = rect.width + 'px';
+  }
+
+  function getFilteredClients(query) {
+    const company = companySelect.value;
+    const q = query.toLowerCase();
+    return clientsData.filter(c => c.company === company && c.name.toLowerCase().includes(q));
+  }
+
+  const guestNameInput = document.getElementById('guest_name');
+
+  function selectClient(id, name) {
+    clientSearch.value = name;
+    clientHidden.value = id;
+    guestNameInput.value = name;
+    clientDropdown.style.display = 'none';
+  }
+
+  function openClientDropdown(clients) {
+    clientDropdown.innerHTML = '';
+    if (!clients.length) {
+      clientDropdown.innerHTML = '<div style="padding:10px 14px;color:var(--text-muted);font-size:13px;">Tidak ada agen ditemukan</div>' +
+        '<a href="/clients/new/" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--accent);text-decoration:none;border-top:1px solid var(--border);">' +
+        '<span style="font-size:16px;line-height:1;">+</span> Buat agen baru</a>';
+    } else {
+      clients.forEach(c => {
+        const item = document.createElement('div');
+        item.textContent = c.name;
+        item.dataset.clientId = c.id;
+        item.dataset.clientName = c.name;
+        item.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;transition:background .1s;';
+        item.addEventListener('mouseenter', () => item.style.background = 'var(--surface-3,rgba(255,255,255,.08))');
+        item.addEventListener('mouseleave', () => item.style.background = '');
+        clientDropdown.appendChild(item);
+      });
+    }
+    positionClientDropdown();
+    clientDropdown.style.display = 'block';
+  }
+
+  clientDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-client-id]');
+    if (item) selectClient(item.dataset.clientId, item.dataset.clientName);
+  });
+
+  clientSearch.addEventListener('input', () => {
+    clientHidden.value = '';
+    guestNameInput.value = '';
+    openClientDropdown(getFilteredClients(clientSearch.value));
+  });
+  clientSearch.addEventListener('focus', () => openClientDropdown(getFilteredClients(clientSearch.value)));
+
+  document.addEventListener('click', (e) => {
+    if (!clientSearch.contains(e.target) && !clientDropdown.contains(e.target)) {
+      clientDropdown.style.display = 'none';
+    }
+  });
+
+  window.addEventListener('scroll', positionClientDropdown, true);
+
+  clientDropdown.addEventListener('click', (e) => {
+    if (e.target.closest('a[href*="/clients/new/"]')) {
+      sessionStorage.setItem('cl_new_client_pending', '1');
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (sessionStorage.getItem('cl_new_client_pending')) {
+      sessionStorage.removeItem('cl_new_client_pending');
+      window.location.reload();
+    }
+  });
+
+  companySelect.addEventListener('change', () => {
+    clientSearch.value = ''; clientHidden.value = '';
+    clientDropdown.style.display = 'none';
+  });
+
   // Searchable hotel dropdown — appended to body to avoid overflow:hidden clipping
   const hotelsData   = JSON.parse(document.getElementById('hotels-data').textContent);
   const hotelSearch  = document.getElementById('hotel_search');
   const hotelHidden  = document.getElementById('hotel_name_hidden');
-  const companySelect = document.querySelector('select[name="company"]');
 
   // Create dropdown and attach to body
   const hotelDropdown = document.createElement('div');
@@ -361,8 +469,12 @@
     const roomCount = Array.isArray(roomTypes) ? roomTypes.length : (roomTypes ? 1 : 0);
     const existing = document.querySelectorAll('#rooms-container .room-row').length;
     for (let i = existing; i < roomCount; i++) addRoom();
-    // Sync visible hotel search input after draft restore
+    // Sync visible search inputs after draft restore
     if (hotelHidden.value) hotelSearch.value = hotelHidden.value;
+    if (clientHidden.value) {
+      const found = clientsData.find(c => String(c.id) === clientHidden.value);
+      if (found) clientSearch.value = found.name;
+    }
   });
   {% endif %}
 </script>

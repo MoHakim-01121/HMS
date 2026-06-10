@@ -7,7 +7,6 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from ..ai import generate_services_summary
 from ..models import ActivityLog, Invoice, ServiceItem, log_activity
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_service_payments
@@ -50,7 +49,6 @@ def services_new(request):
         )
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
-        generate_services_summary(invoice)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil dibuat.")
         return redirect("services_detail", pk=invoice.pk)
@@ -66,11 +64,12 @@ def services_detail(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
     visa_services = _build_visa_services_context(invoice)
     payments_history = _build_visa_payments_context(invoice)
+    services_remaining = sum(s["remaining"] for s in visa_services)
     return render(request, "hw/services/services_detail.html", {
         "invoice": invoice,
         "visa_services": visa_services,
         "payments_history": payments_history,
-        "ai_summary": invoice.ai_summary or None,
+        "services_remaining": services_remaining,
     })
 
 
@@ -104,7 +103,6 @@ def services_edit(request, pk):
         invoice.payments.all().delete()
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
-        generate_services_summary(invoice)
         _after = {
             'Nama Customer': invoice.customer_name,
             'No. Invoice':   invoice.invoice_number,
