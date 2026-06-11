@@ -8,181 +8,7 @@
 <span class="topbar-crumb active">Confirmation Letter</span>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-/* ── Sort + Filter actions wrapper ── */
-.cl-filter-actions { display: flex; gap: 6px; }
-
-/* Backdrop mobile */
-.mob-backdrop {
-  display: none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.5);
-  z-index: calc(var(--z-dropdown) - 1);
-}
-.mob-backdrop.open { display: block; }
-
-@media (max-width: 600px) {
-  .cl-filter-actions { width: 100%; margin-top: 8px; }
-  .cl-filter-actions .sort-wrap,
-  .cl-filter-actions .filter-panel-wrap { flex: 1; }
-  .cl-filter-actions .sort-wrap .btn,
-  .cl-filter-actions .filter-panel-wrap .btn { width: 100%; justify-content: center; }
-
-  .mob-backdrop { z-index: calc(var(--z-top) - 1) !important; }
-
-  .filter-panel {
-    position: fixed !important;
-    left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
-    width: 100% !important;
-    border-radius: 20px 20px 0 0 !important;
-    max-height: 85vh !important;
-    overflow-y: auto !important;
-    z-index: var(--z-top) !important;
-    padding-bottom: calc(90px + env(safe-area-inset-bottom)) !important;
-    background: var(--surface) !important;
-  }
-  .filter-panel.open { display: block !important; }
-
-  .sort-menu {
-    position: fixed !important;
-    left: 0 !important; right: 0 !important; bottom: 0 !important; top: auto !important;
-    width: 100% !important;
-    border-radius: 20px 20px 0 0 !important;
-    padding: 8px 8px calc(90px + env(safe-area-inset-bottom)) !important;
-    z-index: var(--z-top) !important;
-    background: var(--surface) !important;
-  }
-  .sort-menu.open { display: block !important; }
-}
-
-/* ── Sort dropdown ── */
-.sort-wrap { position: relative; display: inline-block; }
-.sort-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-xl);
-  z-index: var(--z-dropdown);
-  display: none;
-  overflow: hidden;
-  padding: 4px;
-}
-.sort-menu.open { display: block; }
-.sort-opt {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: var(--r-lg);
-  font-size: 12px; font-weight: 500; color: var(--text-2);
-  cursor: pointer; text-decoration: none;
-  transition: background .1s, color .1s;
-}
-.sort-opt:hover { background: var(--surface-2); color: var(--text); }
-.sort-opt.active { color: var(--accent-2); font-weight: 600; }
-.sort-opt.active::after { content: '✓'; font-size: 11px; }
-
-/* ── Filter panel ── */
-.filter-panel-wrap { position: relative; display: inline-block; }
-
-.filter-panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 300px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-xl);
-  z-index: var(--z-dropdown);
-  display: none;
-  overflow: hidden;
-}
-.filter-panel.open { display: block; }
-
-.fp-head {
-  padding: 16px 16px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.fp-title { font-size: 14px; font-weight: 700; color: var(--text); }
-
-.fp-section {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.fp-section-head {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 10px;
-}
-.fp-section-label { font-size: 13px; font-weight: 600; color: var(--text); }
-.fp-reset {
-  font-size: 12px; font-weight: 500;
-  color: var(--accent-2); cursor: pointer;
-  background: none; border: none; font-family: inherit;
-  transition: opacity .12s;
-}
-.fp-reset:hover { opacity: .7; }
-
-/* Date inputs */
-.fp-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.fp-date-field { display: flex; flex-direction: column; gap: 5px; }
-.fp-date-field label { font-size: 11px; color: var(--text-3); font-weight: 500; }
-.fp-date-field input[type="date"] {
-  width: 100%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  color: var(--text);
-  font-size: 12px;
-  padding: 7px 10px;
-  font-family: inherit;
-  transition: border-color .12s;
-}
-.fp-date-field input[type="date"]:focus { outline: none; border-color: var(--accent); }
-
-/* Status radio group */
-.fp-status-group { display: flex; flex-direction: column; gap: 2px; }
-.fp-status-opt {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; border-radius: var(--r-lg);
-  cursor: pointer; transition: background .1s;
-  border: 1px solid transparent;
-}
-.fp-status-opt:hover { background: var(--surface-2); }
-.fp-status-opt.selected { background: var(--surface-2); border-color: var(--border); }
-.fp-status-opt input[type="radio"] { display: none; }
-.fp-status-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
-  border: 2px solid var(--border-2);
-  transition: background .1s, border-color .1s;
-}
-.fp-status-opt.selected .fp-status-dot { border-color: currentColor; background: currentColor; }
-.fp-status-opt-label { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; }
-.fp-status-count { font-size: 11px; color: var(--text-3); }
-.fp-status-opt.c-def { color: var(--green); }
-.fp-status-opt.c-ten { color: var(--yellow); }
-.fp-status-opt.c-can { color: var(--red); }
-.fp-status-opt.c-all .fp-status-dot { border-color: var(--border-2); }
-.fp-status-opt.c-all.selected .fp-status-dot { border-color: var(--accent-2); background: var(--accent-2); }
-
-/* Footer */
-.fp-footer {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
-}
-.fp-apply {
-  background: var(--accent); color: #fff; border: 1px solid var(--accent);
-  border-radius: var(--r-lg); padding: 8px 20px;
-  font-size: 12px; font-weight: 600; font-family: inherit;
-  cursor: pointer; transition: opacity .12s;
-}
-.fp-apply:hover { opacity: .88; }
-</style>
-{% endblock %}
+{% block extra_css %}{% endblock %}
 
 {% block content %}
 <div class="page">
@@ -216,6 +42,7 @@
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
       <input type="text" name="q" value="{{ q }}" placeholder="Cari tamu, hotel, nomor konfirmasi…" id="cl-search-input">
+      {% if q %}<button type="button" class="sw-clear" title="Hapus pencarian" onclick="this.closest('form').querySelector('input[name=q]').value='';this.closest('form').submit()"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></button>{% endif %}
     </div>
 
     <!-- Hidden inputs untuk filter aktif -->
@@ -225,9 +52,9 @@
     <input type="hidden" name="sort"      value="{{ sort }}">
 
     <!-- Sort + Filter buttons -->
-    <div class="cl-filter-actions">
+    <div class="fbar-actions">
     <div class="sort-wrap">
-      <button type="button" class="btn btn-secondary" id="sort-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+      <button type="button" class="fbar-btn" id="sort-toggle-btn">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M6 12h12M10 17h4"/></svg>
         {{ sort_label }}
       </button>
@@ -241,10 +68,10 @@
 
     <!-- Filter button -->
     <div class="filter-panel-wrap">
-      <button type="button" class="btn btn-secondary" id="fp-toggle-btn" style="display:flex;align-items:center;gap:6px;">
+      <button type="button" class="fbar-btn" id="fp-toggle-btn">
         <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M7 8h10M11 12h2M15 16H9"/></svg>
         Filter
-        {% if active_filters %}<span style="background:var(--accent);color:#fff;border-radius:9999px;padding:1px 6px;font-size:10px;font-weight:700;">{{ active_filters }}</span>{% endif %}
+        {% if active_filters %}<span class="fbar-count">{{ active_filters }}</span>{% endif %}
       </button>
 
       <!-- Filter panel -->
@@ -279,14 +106,17 @@
           </div>
           <div class="fp-status-group">
             <div class="fp-status-opt c-def {% if 'DEFINITE' in status_list %}selected{% endif %}" data-val="definite">
+              <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Definite</span>
               <span class="fp-status-count">{{ counts.definite }}</span>
             </div>
             <div class="fp-status-opt c-ten {% if 'TENTATIVE' in status_list %}selected{% endif %}" data-val="tentative">
+              <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Tentative</span>
               <span class="fp-status-count">{{ counts.tentative }}</span>
             </div>
             <div class="fp-status-opt c-can {% if 'CANCELLED' in status_list %}selected{% endif %}" data-val="cancelled">
+              <span class="fp-status-dot"></span>
               <span class="fp-status-opt-label">Cancelled</span>
               <span class="fp-status-count">{{ counts.cancelled }}</span>
             </div>
@@ -299,7 +129,7 @@
         </div>
       </div>
     </div>
-    </div>{# end cl-filter-actions #}
+    </div>{# end fbar-actions #}
 
   </form>
 

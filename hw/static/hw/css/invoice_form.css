@@ -1,196 +1,162 @@
-/* Invoice form specific layout — depends on design.css variables */
+/* Invoice form — depends on design.css + forms.css variables */
 
-/* Reservation row grid */
-.res-header {
+/* ── Column grids ── */
+.res-header,
+.item        { grid-template-columns: 100px 1fr 126px 126px 145px 28px; }
+.pay-header,
+.payment-item { grid-template-columns: 20px 90px 120px 1fr 110px 80px 90px 1fr 80px 28px; }
+.svc-header,
+.svc-row     { grid-template-columns: 40px 1fr 80px 120px 28px; }
+
+/* ── Row header labels ── */
+.res-header, .pay-header, .svc-header {
   display: grid;
-  grid-template-columns: 100px 1fr 126px 126px 145px 28px;
   gap: 10px;
-  padding: 0 16px 8px;
-  font-size: 11px; font-weight: 600; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .4px;
+  padding: 0 4px 7px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px; font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase; letter-spacing: .7px;
 }
+
+/* ── Reservation row ── */
 .item {
   display: grid;
-  grid-template-columns: 100px 1fr 126px 126px 145px 28px;
   gap: 10px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 9px 12px;
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  margin-bottom: 8px;
-  transition: border-color .12s, background .12s;
+  border-left: 2px solid transparent;
+  background: var(--bg-2);
+  margin-bottom: 6px;
+  transition: border-color .12s, border-left-color .15s, background .12s;
 }
+.item:last-child { margin-bottom: 0; }
 .item:hover {
-  background: var(--surface-3);
+  background: var(--surface-2);
   border-color: var(--border-2);
+  border-left-color: var(--accent);
 }
 .item .btn-remove { opacity: 0; transition: opacity .12s; }
 .item:hover .btn-remove { opacity: 1; }
 
-/* Payment row grid */
-.pay-header {
-  display: grid;
-  grid-template-columns: 20px 90px 120px 1fr 110px 80px 90px 1fr 80px 28px;
-  gap: 10px;
-  padding: 0 16px 8px;
-  font-size: 11px; font-weight: 600; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .4px;
-}
+/* ── Payment row ── */
 .payment-item {
   display: grid;
-  grid-template-columns: 20px 90px 120px 1fr 110px 80px 90px 1fr 80px 28px;
   gap: 10px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 9px 12px;
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  margin-bottom: 8px;
-  transition: border-color .12s, background .12s, opacity .12s;
+  border-left: 2px solid transparent;
+  background: var(--bg-2);
+  margin-bottom: 6px;
+  transition: border-color .12s, border-left-color .15s, background .12s, opacity .12s;
 }
+.payment-item:last-child { margin-bottom: 0; }
 .payment-item:hover {
-  background: var(--surface-3);
+  background: var(--surface-2);
   border-color: var(--border-2);
+  border-left-color: var(--accent);
 }
 .payment-item .btn-remove { opacity: 0; transition: opacity .12s; }
 .payment-item:hover .btn-remove { opacity: 1; }
+.payment-item textarea {
+  min-height: 34px; height: 34px;
+  resize: none; padding: 7px 9px;
+}
 
-/* Drag handle */
+/* ── Drag handle ── */
 .drag-handle {
   display: flex; align-items: center; justify-content: center;
   color: var(--text-3); cursor: grab; opacity: 0;
-  transition: opacity .12s; user-select: none;
+  transition: opacity .12s; user-select: none; flex-shrink: 0;
 }
-.payment-item:hover .drag-handle { opacity: 1; }
-.drag-handle:active { cursor: grabbing; }
+.payment-item:hover .drag-handle { opacity: .6; }
+.drag-handle:active { cursor: grabbing; opacity: 1 !important; }
+.payment-item.is-dragging { opacity: .3; }
+.payment-item.drop-above  { border-top: 2px solid var(--accent); }
+.payment-item.drop-below  { border-bottom: 2px solid var(--accent); }
 
-/* Drag-and-drop states */
-.payment-item.is-dragging { opacity: 0.35; }
-.payment-item.drop-above  { border-top: 2px solid var(--accent-2); }
-.payment-item.drop-below  { border-bottom: 2px solid var(--accent-2); }
-.payment-item textarea {
-  min-height: 36px;
-  height: 36px;
-  resize: none;
-  padding: 8px 10px;
-}
+/* ── Proof cell ── */
 .proof-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
+  display: flex; align-items: center; gap: 4px; min-width: 0;
 }
 .proof-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r);
-  background: var(--surface-3);
-  color: var(--text-2);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background .12s, color .12s;
-  position: relative;
-  overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--r);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-3); cursor: pointer; flex-shrink: 0;
+  transition: background .12s, color .12s, border-color .12s;
+  position: relative; overflow: hidden;
 }
-.proof-btn:hover { background: var(--accent-muted); color: var(--accent-2); }
+.proof-btn:hover { background: var(--accent-muted); border-color: rgba(255,108,55,.3); color: var(--accent); }
 .proof-fname {
-  font-size: 11px;
-  color: var(--green);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 48px;
+  font-size: 10px; font-family: 'JetBrains Mono', monospace;
+  color: var(--green); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 46px;
 }
-.proof-link {
-  font-size: 14px;
-  text-decoration: none;
-  opacity: .8;
-  transition: opacity .12s;
-}
+.proof-link { text-decoration: none; opacity: .7; transition: opacity .12s; }
 .proof-link:hover { opacity: 1; }
 
-/* Draft banner */
-.draft-banner {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--yellow-muted);
-  border: 1px solid rgba(240,164,41,.25);
-  border-radius: var(--r-lg);
-  margin-bottom: 16px;
-}
-.draft-banner.visible { display: flex; }
-
-/* Services row grid (services form) */
-.svc-header {
-  display: grid;
-  grid-template-columns: 40px 1fr 80px 120px 28px;
-  gap: 10px;
-  padding: 0 16px 8px;
-  font-size: 11px; font-weight: 600; color: var(--text-3);
-  text-transform: uppercase; letter-spacing: .4px;
-}
+/* ── Services row ── */
 .svc-row {
   display: grid;
-  grid-template-columns: 40px 1fr 80px 120px 28px;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 16px;
+  gap: 10px; align-items: center;
+  padding: 9px 12px;
   border-radius: var(--r-lg);
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  margin-bottom: 8px;
-  transition: border-color .12s, background .12s;
+  border-left: 2px solid transparent;
+  background: var(--bg-2);
+  margin-bottom: 6px;
+  transition: border-color .12s, border-left-color .15s, background .12s;
 }
+.svc-row:last-child { margin-bottom: 0; }
 .svc-row:hover {
-  background: var(--surface-3);
+  background: var(--surface-2);
   border-color: var(--border-2);
+  border-left-color: var(--accent);
 }
 .svc-row .btn-remove { opacity: 0; transition: opacity .12s; }
 .svc-row:hover .btn-remove { opacity: 1; }
 .svc-num {
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 600; color: var(--text-3);
-  font-family: monospace;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 600; color: var(--text-3);
 }
 
-/* Summary bar */
-.summary-bar {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  margin-bottom: 16px;
+/* ── Draft banner (legacy, kept for compat) ── */
+.draft-banner {
+  display: none; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px;
+  background: var(--yellow-muted); border: 1px solid rgba(240,164,41,.25);
+  border-radius: var(--r-lg); margin-bottom: 16px;
 }
-.summary-cell {
-  flex: 1;
-  padding: 14px 18px;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
+.draft-banner.visible { display: flex; }
+
+/* ── Summary bar (legacy, kept for compat) ── */
+.summary-bar { display: flex; border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; margin-bottom: 16px; }
+.summary-cell { flex: 1; padding: 14px 18px; border-right: 1px solid var(--border); background: var(--surface); }
 .summary-cell:last-child { border-right: none; }
-.summary-cell .lbl { font-size: 11px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+.summary-cell .lbl { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
 .summary-cell .val { font-size: 17px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .summary-cell .val.green  { color: var(--green); }
 .summary-cell .val.yellow { color: var(--yellow); }
 .summary-cell .val.red    { color: var(--red); }
 
-@media(max-width:900px) {
-  .res-header, .item { grid-template-columns: 90px 1fr 116px 116px 125px 28px; }
-  .pay-header, .payment-item { grid-template-columns: 20px 80px 110px 1fr 100px 70px 80px 1fr 70px 28px; }
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .res-header, .item         { grid-template-columns: 88px 1fr 112px 112px 130px 28px; }
+  .pay-header, .payment-item { grid-template-columns: 20px 80px 108px 1fr 100px 70px 82px 1fr 70px 28px; }
 }
-@media(max-width:700px) {
+@media (max-width: 700px) {
   .res-header, .pay-header, .svc-header { display: none; }
-  .item, .payment-item { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
-  .svc-row { grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
-  .drag-handle { display: none; }
-  .summary-bar { flex-direction: column; }
+  .item         { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; }
+  .payment-item { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; }
+  .svc-row      { grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 12px; }
+  .drag-handle  { display: none; }
+  .summary-bar  { flex-direction: column; }
   .summary-cell { border-right: none; border-bottom: 1px solid var(--border); }
   .summary-cell:last-child { border-bottom: none; }
 }

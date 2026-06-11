@@ -37,9 +37,8 @@
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
       <input type="text" name="q" value="{{ q }}" placeholder="Cari customer atau nomor invoice…">
+      {% if q %}<button type="button" class="sw-clear" title="Hapus pencarian" onclick="this.closest('form').querySelector('input[name=q]').value='';this.closest('form').submit()"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></button>{% endif %}
     </div>
-    <button type="submit" class="btn btn-secondary">Cari</button>
-    {% if q %}<a href="{% url 'services_list' %}" class="btn btn-ghost search-reset" title="Reset pencarian"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></a>{% endif %}
   </form>
 
   <div class="card">

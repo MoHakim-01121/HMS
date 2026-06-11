@@ -3,23 +3,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Remittance — {{ rem.remittance_number }}</title>
+  <title>Invoice — {{ invoice_number }}</title>
   <style>
-    @page {
-      size: A4;
-      margin: 56px 64px 48px;
-      @bottom-left {
-        content: string(doc-date);
-        font-size: 10px; color: #111;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      }
-      @bottom-right {
-        content: "Page " counter(page) " / " counter(pages);
-        font-size: 10px; color: #111;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      }
-    }
-    .doc-date-anchor { string-set: doc-date content(); display: none; }
+    @page { size: A4; margin: 56px 64px; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -49,13 +35,25 @@
     .col-body { font-size: 12px; color: #444; line-height: 1.7; }
 
     .amount-headline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: 22px;
       font-weight: 700;
       color: #111;
       margin-top: 40px;
       margin-bottom: 56px;
-      text-align: right;
     }
+    .badge-status {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .badge-paid    { background: #d1fae5; color: #065f46; }
+    .badge-partial { background: #fef3c7; color: #92400e; }
+    .badge-unpaid  { background: #fee2e2; color: #991b1b; }
 
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     thead th {
@@ -68,10 +66,9 @@
       border-bottom: 1px solid #111;
     }
     thead th.r { text-align: right; }
-    tbody td { padding: 8px 8px 8px 0; vertical-align: top; color: #111; }
-    tbody td.r { text-align: right; padding-right: 0; }
-    thead th { padding-right: 8px; }
-    thead th.r { padding-right: 0; }
+    tbody td { padding: 8px 0; vertical-align: top; color: #111; }
+    tbody td.r { text-align: right; }
+    .td-name { font-weight: 400; }
     .td-sub { font-size: 11px; color: #666; margin-top: 2px; }
 
     .totals {
@@ -85,7 +82,7 @@
       gap: 0;
       padding: 1px 0;
       font-size: 12px;
-      width: 140px;
+      width: 300px;
     }
     .total-row:first-child { border-top: 1px solid #ddd; padding-top: 3px; }
     .total-row .tkey { flex: 1; color: #555; text-align: left; }
@@ -93,10 +90,10 @@
     .total-row.bold .tkey,
     .total-row.bold .tval { font-weight: 700; color: #111; }
     .total-row.main { border-top: 1px solid #ddd; margin-top: 2px; padding-top: 3px; }
+    .total-row.red .tval { color: #dc2626; }
 
-    .section { margin-top: 28px; }
-    .section-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 6px; }
-    .section-body { font-size: 12px; color: #444; line-height: 1.7; }
+    .section { margin-top: 36px; }
+    .section-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 12px; }
 
     .watermark {
       position: fixed;
@@ -108,12 +105,21 @@
       letter-spacing: 8px;
     }
 
+    .footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      border-top: 1px solid #ddd;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #111;
+    }
   </style>
 </head>
 <body>
 
-<span class="doc-date-anchor">{{ rem.date|date:"d M Y" }}</span>
-<div class="watermark">{% if rem.status == 'received' %}RECEIVED{% else %}PENDING{% endif %}</div>
+<div class="watermark">{% if remaining_int == 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
 
 <div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
   <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
@@ -132,75 +138,111 @@
 </div>
 
 <div class="top">
-  <div class="doc-title">Remittance</div>
-  <img src="{{ logo_url }}" class="logo">
+  <div class="doc-title">Invoice</div>
+  <img src="{{ logo_rel_path }}" class="logo">
 </div>
 
 <div class="meta">
-  <div class="meta-row"><span class="mk">Remittance number</span><span class="mv">{{ rem.remittance_number }}</span></div>
-  <div class="meta-row"><span class="mk">Transfer date</span><span class="mv">{{ rem.date|date:"d M Y" }}</span></div>
-  <div class="meta-row"><span class="mk">Receipt reference</span><span class="mv">{{ rem.receipt_reference|default:"—" }}</span></div>
-  <div class="meta-row"><span class="mk">Status</span><span class="mv">{% if rem.status == 'received' %}Received{% else %}Pending{% endif %}</span></div>
+  <div class="meta-row"><span class="mk">Invoice number</span><span class="mv">{{ invoice_number }}</span></div>
+  <div class="meta-row"><span class="mk">Date issued</span><span class="mv">{% if issued_date %}{{ issued_date|date:"d M Y" }}{% else %}—{% endif %}</span></div>
+  <div class="meta-row"><span class="mk">Due date</span><span class="mv">{% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}</span></div>
 </div>
 
 <div class="two-col">
   <div>
     <div class="col-title">Konoz United Surabaya</div>
-    <div class="col-body">
-      Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>
-      Kec. Krembangan, Surabaya, Jawa Timur 60177<br>
-      konozsurabaya@gmail.com
-    </div>
+    <div class="col-body">Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>Kec. Krembangan, Surabaya, Jawa Timur 60177<br>konozsurabaya@gmail.com</div>
   </div>
   <div>
-    <div class="col-title">To</div>
-    <div class="col-body">Konoz United Main Branch</div>
+    <div class="col-title">Bill to</div>
+    <div class="col-body">{{ customer_name }}</div>
   </div>
 </div>
 
-<div class="amount-headline">{{ rem.total_sar|floatformat:0|intcomma }} SAR</div>
+<div class="amount-headline">
+  {{ total_reservation_sar }} SAR
+  {% if remaining_int == 0 %}paid{% else %}due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
+</div>
 
 <table>
   <thead>
     <tr>
-      <th>#</th>
-      <th>Res</th>
-      <th>Client</th>
+      <th>Res No</th>
       <th>Hotel</th>
       <th class="r">Check-in</th>
-      <th class="r">Prev Sent (SAR)</th>
-      <th class="r">Sent Now (SAR)</th>
+      <th class="r">Check-out</th>
+      <th class="r">Amount (SAR)</th>
+      <th class="r">Remaining (SAR)</th>
     </tr>
   </thead>
   <tbody>
-    {% for row in lines %}
+    {% for r in reservations %}
     <tr>
-      <td style="color:#999;padding-right:16px;">{{ forloop.counter }}</td>
-      <td style="font-family:monospace;font-weight:600;padding-right:24px;">{{ row.line.linked_number }}</td>
-      <td>{{ row.line.invoice.customer_name|default:"—" }}</td>
-      <td>{{ row.hotel|default:"—" }}</td>
-      <td class="r">{% if row.check_in %}{{ row.check_in|date:"d M Y" }}{% else %}—{% endif %}</td>
-      <td class="r" style="color:#888;">{{ row.prev_sent|floatformat:0|intcomma }}</td>
-      <td class="r" style="font-weight:600;">{{ row.line.amount_sar|floatformat:0|intcomma }}</td>
+      <td><div class="td-name">{{ r.number }}</div></td>
+      <td>{{ r.hotel }}</td>
+      <td class="r">{% if r.check_in %}{{ r.check_in|date:"d M Y" }}{% else %}—{% endif %}</td>
+      <td class="r">{% if r.check_out %}{{ r.check_out|date:"d M Y" }}{% else %}—{% endif %}</td>
+      <td class="r">{{ r.total }} SAR</td>
+      <td class="r">{{ r.remaining }} SAR</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
 <div class="totals">
-  <div class="total-row bold main">
+  <div class="total-row">
+    <span class="tkey">Subtotal</span>
+    <span class="tval">{{ total_reservation_sar }} SAR</span>
+  </div>
+  <div class="total-row">
     <span class="tkey">Total</span>
-    <span class="tval">{{ rem.total_sar|floatformat:0|intcomma }} SAR</span>
+    <span class="tval">{{ total_reservation_sar }} SAR</span>
+  </div>
+  <div class="total-row">
+    <span class="tkey">Amount paid</span>
+    <span class="tval">{{ total_paid_sar }} SAR</span>
+  </div>
+  <div class="total-row bold main{% if remaining_int > 0 %} red{% endif %}">
+    <span class="tkey">Balance due</span>
+    <span class="tval">{{ remaining }} SAR</span>
   </div>
 </div>
 
-{% if rem.note %}
+{% if payments %}
 <div class="section">
-  <div class="section-title">Notes</div>
-  <div class="section-body">{{ rem.note }}</div>
-</div>  
+  <div class="section-title">Payment history</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ref</th>
+        <th>Date</th>
+        <th>Method</th>
+        <th class="r">Amount</th>
+        <th class="r">Amount (SAR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td><div class="td-name">{{ p.reservation_no }}</div></td>
+        <td>{% if p.date %}{{ p.date|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td>{{ p.method }}</td>
+        <td class="r">
+          {{ p.amount }} {{ p.currency }}
+          {% if p.currency != 'SAR' %}<div class="td-sub">@ {{ p.exchange }}</div>{% endif %}
+        </td>
+        <td class="r">{{ p.amount_sar }} SAR</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endif %}
 
+<div class="footer">
+  <span>{% if issued_date %}{{ issued_date|date:"d M Y" }}{% endif %}</span>
+  <span>Page 1 of 1</span>
+</div>
 
 </body>
 </html>

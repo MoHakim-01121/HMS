@@ -1,6 +1,7 @@
-﻿{% extends 'hw/partials/_base.html' %}
+{% extends 'hw/partials/_base.html' %}
+{% load static %}
 
-{% block title %}{% if edit %}Edit{% else %}Client Baru{% endif %}{% endblock %}
+{% block title %}{% if edit %}Edit Client — {{ client.name }}{% else %}New Client{% endif %}{% endblock %}
 
 {% block breadcrumbs %}
 <div class="topbar-sep"></div>
@@ -9,99 +10,109 @@
 <span class="topbar-crumb active">{% if edit %}Edit{% else %}Baru{% endif %}</span>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'hw/css/forms.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="page-sm">
-  <div class="page-header">
+<div class="form-page">
+
+  <div class="page-header" style="margin-bottom:16px;">
     <div>
       <div class="page-title">{% if edit %}Edit Client{% else %}Client Baru{% endif %}</div>
       <div class="page-sub">Data agen travel Umrah</div>
     </div>
   </div>
 
-  <form method="post">
+  <form method="post" id="client-form">
     {% csrf_token %}
 
-    <div class="card">
-      <div class="card-header"><span class="card-title">Identitas</span></div>
-      <div class="card-body">
-        <div class="grid-2" style="margin-bottom:14px;">
-          <div class="field">
+    <div class="form-panel">
+
+      <!-- Identitas -->
+      <div class="form-section">
+        <div class="form-section-label">Identitas</div>
+        <div class="fg-2" style="margin-bottom:12px;">
+          <div class="ff" style="grid-column:span 2;">
             <label>Nama Agen *</label>
-            <input type="text" name="name" value="{{ client.name|default:'' }}" required placeholder="PT. Anugerah Wisata">
+            <input type="text" name="name" value="{{ client.name|default:'' }}" required
+              placeholder="PT. Anugerah Wisata" autofocus>
           </div>
-          <div class="field">
-            <label>Status</label>
-            <div style="display:flex;align-items:center;gap:8px;padding-top:6px;">
-              <input type="checkbox" name="is_active" id="is_active" {% if not edit or client.is_active %}checked{% endif %}>
-              <label for="is_active" style="font-size:13px;color:var(--text);font-weight:400;">Aktif</label>
-            </div>
-          </div>
-        </div>
-        <div class="grid-2">
-          <div class="field">
+          <div class="ff">
             <label>Kota</label>
             <input type="text" name="city" value="{{ client.city|default:'' }}" placeholder="Surabaya">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Provinsi</label>
             <input type="text" name="province" value="{{ client.province|default:'' }}" placeholder="Jawa Timur">
           </div>
         </div>
+        <label class="ff-check">
+          <input type="checkbox" name="is_active" id="is_active" {% if not edit or client.is_active %}checked{% endif %}>
+          <span>Aktif <span class="check-sub">Client dapat dipilih saat membuat dokumen baru</span></span>
+        </label>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header"><span class="card-title">Kontak</span></div>
-      <div class="card-body">
-        <div class="grid-2" style="margin-bottom:14px;">
-          <div class="field">
+      <!-- Kontak -->
+      <div class="form-section">
+        <div class="form-section-label">Kontak</div>
+        <div class="fg-2" style="margin-bottom:12px;">
+          <div class="ff">
             <label>PIC</label>
             <input type="text" name="pic" value="{{ client.pic|default:'' }}" placeholder="Nama penanggung jawab">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>WhatsApp</label>
-            <input type="text" name="wa" value="{{ client.wa|default:'' }}" placeholder="628123456789">
+            <input type="text" name="wa" value="{{ client.wa|default:'' }}" placeholder="628123456789"
+              inputmode="tel">
           </div>
         </div>
-        <div class="field">
+        <div class="ff">
           <label>Email</label>
           <input type="email" name="email" value="{{ client.email|default:'' }}" placeholder="email@agen.com">
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header"><span class="card-title">Lokasi (untuk peta)</span></div>
-      <div class="card-body">
-        <div class="grid-2">
-          <div class="field">
+      <!-- Lokasi -->
+      <div class="form-section">
+        <div class="form-section-label">
+          Lokasi
+          <span style="font-family:inherit;font-weight:400;font-size:11px;text-transform:none;letter-spacing:0;color:var(--text-3);margin-left:4px;">untuk peta</span>
+        </div>
+        <div class="fg-2">
+          <div class="ff">
             <label>Latitude</label>
             <input type="number" name="lat" step="any" value="{{ client.lat|default:'' }}" placeholder="-7.2575">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Longitude</label>
             <input type="number" name="lng" step="any" value="{{ client.lng|default:'' }}" placeholder="112.7521">
           </div>
         </div>
-        <div style="margin-top:8px;font-size:12px;color:var(--text-3);">
-          Cari koordinat kota di <a href="https://www.latlong.net/" target="_blank" style="color:var(--accent-2);">latlong.net</a>
+        <div class="hint" style="margin-top:8px;">
+          Cari koordinat kota di
+          <a href="https://www.latlong.net/" target="_blank" style="color:var(--accent);text-decoration:none;">latlong.net ↗</a>
         </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div class="card-header"><span class="card-title">Catatan Internal</span></div>
-      <div class="card-body">
-        <div class="field">
+      <!-- Catatan -->
+      <div class="form-section">
+        <div class="form-section-label">Catatan Internal</div>
+        <div class="ff">
           <textarea name="note" placeholder="Catatan tentang client ini…" rows="3">{{ client.note|default:'' }}</textarea>
         </div>
       </div>
-    </div>
 
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <a href="{% if edit %}{% url 'client_detail' client.pk %}{% else %}{% url 'client_list' %}{% endif %}" class="btn btn-ghost">Batal</a>
-      <button type="submit" class="btn btn-primary">{% if edit %}Simpan{% else %}Tambah Client{% endif %}</button>
+      <div class="form-actions">
+        <a href="{% if edit %}{% url 'client_detail' client.pk %}{% else %}{% url 'client_list' %}{% endif %}" class="btn btn-ghost">Batal</a>
+        <button type="submit" class="btn btn-primary">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          {% if edit %}Simpan Perubahan{% else %}Tambah Client{% endif %}
+        </button>
+      </div>
+
     </div>
   </form>
+
 </div>
 {% endblock %}

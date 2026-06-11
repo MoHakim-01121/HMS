@@ -1,9 +1,10 @@
-﻿{% extends 'hw/partials/_base.html' %}
+{% extends 'hw/partials/_base.html' %}
 {% load static %}
 
 {% block title %}{% if edit %}Edit Invoice Services{% else %}Buat Invoice Services{% endif %}{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'hw/css/forms.css' %}">
 <link rel="stylesheet" href="{% static 'hw/css/invoice_form.css' %}">
 {% endblock %}
 
@@ -14,16 +15,10 @@
 <span class="topbar-crumb active">{% if edit %}Edit{% else %}Buat Baru{% endif %}</span>
 {% endblock %}
 
-{% block topbar_actions %}
-{% if edit %}
-<a href="{% url 'services_detail' invoice.pk %}" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;" data-shortcut="back">Batal</a>
-<div class="topbar-sep"></div>
-{% endif %}
-{% endblock %}
-
 {% block content %}
 <div class="page">
-  <div class="page-header">
+
+  <div class="page-header" style="margin-bottom:14px;">
     <div>
       <div class="page-title">{% if edit %}Edit Invoice Services{% else %}Invoice Services / Visa{% endif %}</div>
       <div class="page-sub">Layanan visa, umroh, dan services lainnya</div>
@@ -31,41 +26,48 @@
   </div>
 
   {% if not edit %}
-  <div class="draft-banner" id="draft-banner">
-    <span style="font-size:13px;color:var(--yellow);">Draft tersimpan dari sesi sebelumnya</span>
-    <div style="display:flex;gap:6px;">
-      <button type="button" onclick="restoreDraft()" class="btn btn-secondary" style="height:28px;padding:0 12px;font-size:12px;">Restore</button>
-      <button type="button" onclick="discardDraft()" class="btn btn-ghost" style="height:28px;padding:0 10px;font-size:12px;">Abaikan</button>
+  <div class="form-draft-banner" id="draft-banner">
+    <span class="draft-text">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:-2px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+      Draft tersimpan dari sesi sebelumnya
+    </span>
+    <div class="draft-actions">
+      <button type="button" onclick="restoreDraft()" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:12px;">Restore</button>
+      <button type="button" onclick="discardDraft()" class="btn btn-ghost" style="height:26px;padding:0 8px;font-size:12px;">Abaikan</button>
     </div>
   </div>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data" action="{% if edit %}{% url 'services_edit' invoice.pk %}{% else %}{% url 'services_new' %}{% endif %}" id="services-form">
+  <form method="post" enctype="multipart/form-data"
+    action="{% if edit %}{% url 'services_edit' invoice.pk %}{% else %}{% url 'services_new' %}{% endif %}"
+    id="services-form">
     {% csrf_token %}
 
-    {# ── Info Invoice ─────────────────────────────────────────────────────── #}
-    <div class="card">
-      <div class="card-header"><span class="card-title">Info Invoice</span></div>
-      <div class="card-body">
-        <div class="grid-4">
-          <div class="field">
+    {# ── Info Invoice ── #}
+    <div class="form-panel" style="margin-bottom:12px;">
+      <div class="form-section">
+        <div class="form-section-label">Info Invoice</div>
+        <div class="fg-3" style="margin-bottom:12px;">
+          <div class="ff">
             <label>Company *</label>
             <select name="company">
               <option value="ijabah" {% if edit and invoice.company == 'ijabah' or not edit and default_company == 'ijabah' %}selected{% endif %}>Ijabah</option>
-              <option value="konoz" {% if edit and invoice.company == 'konoz' or not edit and default_company == 'konoz' %}selected{% endif %}>Konoz</option>
+              <option value="konoz"  {% if edit and invoice.company == 'konoz'  or not edit and default_company == 'konoz'  %}selected{% endif %}>Konoz</option>
             </select>
           </div>
-          <div class="field">
+          <div class="ff fg-span2">
             <label>Customer *</label>
             <input type="text" name="customer_name" required placeholder="Nama customer"
-                   value="{% if edit %}{{ invoice.customer_name }}{% endif %}">
+              value="{% if edit %}{{ invoice.customer_name }}{% endif %}">
           </div>
-          <div class="field">
+        </div>
+        <div class="fg-4">
+          <div class="ff fg-span2">
             <label>Invoice Number *</label>
-            <input type="text" name="invoice_number" required placeholder="SVC-202505-001"
-                   value="{% if edit %}{{ invoice.invoice_number }}{% else %}{{ suggested_number }}{% endif %}">
+            <input type="text" name="invoice_number" required placeholder="{{ suggested_number }}"
+              value="{% if edit %}{{ invoice.invoice_number }}{% else %}{{ suggested_number }}{% endif %}">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Currency *</label>
             <select id="invoice_currency" name="invoice_currency" required>
               <option value="USD" {% if not edit or invoice.currency == 'USD' %}selected{% endif %}>USD</option>
@@ -73,47 +75,41 @@
               <option value="IDR" {% if edit and invoice.currency == 'IDR' %}selected{% endif %}>IDR</option>
             </select>
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Issued Date *</label>
             <input type="date" name="issued_date" required
-                   value="{% if edit and invoice.issued_date %}{{ invoice.issued_date|date:'Y-m-d' }}{% endif %}">
+              value="{% if edit and invoice.issued_date %}{{ invoice.issued_date|date:'Y-m-d' }}{% endif %}">
           </div>
-          <div class="field">
+        </div>
+        <div style="margin-top:12px;max-width:calc(25% - 6px);">
+          <div class="ff">
             <label>Due Date *</label>
             <input type="date" name="due_date" required
-                   value="{% if edit and invoice.due_date %}{{ invoice.due_date|date:'Y-m-d' }}{% endif %}">
+              value="{% if edit and invoice.due_date %}{{ invoice.due_date|date:'Y-m-d' }}{% endif %}">
           </div>
         </div>
       </div>
     </div>
 
-    {# ── Services ─────────────────────────────────────────────────────────── #}
-    <div class="card">
+    {# ── Services ── #}
+    <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
         <span class="card-title">Services</span>
-        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:12px;" onclick="addServiceItem()">+ Add</button>
+        <button type="button" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;" onclick="addServiceItem()">+ Add</button>
       </div>
       <div class="card-body" style="padding-bottom:8px;">
         <div class="svc-header">
-          <div>#</div>
-          <div>Service</div>
-          <div>Qty</div>
-          <div>Amount</div>
-          <div></div>
+          <div>#</div><div>Service</div><div>Qty</div><div>Amount</div><div></div>
         </div>
         <div id="services-list">
           {% if edit %}
             {% for item in invoice.service_items.all %}
             <div class="svc-row">
               <div class="svc-num">{{ forloop.counter }}</div>
-              <input type="text" name="service" value="{{ item.name }}"
-                     placeholder="Service Name" required class="service-input">
-              <input type="number" name="qty" value="{{ item.qty }}"
-                     min="1" required class="qty-input">
-              <input type="number" name="amount" value="{{ item.price }}"
-                     min="0" step="0.01" required class="amount-input">
-              <button type="button" class="btn-remove"
-                      onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
+              <input type="text" name="service" value="{{ item.name }}" placeholder="Service Name" required class="service-input">
+              <input type="number" name="qty" value="{{ item.qty }}" min="1" required class="qty-input">
+              <input type="number" name="amount" value="{{ item.price }}" min="0" step="0.01" required class="amount-input">
+              <button type="button" class="btn-remove" onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
                 {% include 'hw/partials/_icon_trash.html' %}
               </button>
             </div>
@@ -124,8 +120,7 @@
             <input type="text" name="service" placeholder="Service Name" required class="service-input">
             <input type="number" name="qty" value="1" min="1" required class="qty-input">
             <input type="number" name="amount" min="0" step="0.01" required class="amount-input">
-            <button type="button" class="btn-remove"
-                    onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
+            <button type="button" class="btn-remove" onclick="this.closest('.svc-row').remove();updateServiceNumbers();">
               {% include 'hw/partials/_icon_trash.html' %}
             </button>
           </div>
@@ -134,49 +129,37 @@
       </div>
     </div>
 
-    {# ── Payments ─────────────────────────────────────────────────────────── #}
-    <div class="card">
+    {# ── Payments ── #}
+    <div class="card" style="margin-bottom:12px;">
       <div class="card-header">
         <span class="card-title">Payments</span>
-        <button type="button" class="btn btn-secondary" style="height:26px;padding:0 10px;font-size:12px;" onclick="addPayment()">+ Add</button>
+        <button type="button" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;" onclick="addPayment()">+ Add</button>
       </div>
       <div class="card-body" style="padding-bottom:8px;">
-        <div class="pay-header">
-          <div>SVC#</div>
-          <div>DATE</div>
-          <div>METHOD</div>
-          <div>AMOUNT</div>
-          <div>CUR</div>
-          <div>RATE</div>
-          <div>NOTE</div>
-          <div>BUKTI</div>
-          <div></div>
+        <div class="pay-header" style="grid-template-columns:90px 120px 1fr 110px 80px 90px 1fr 80px 28px;">
+          <div>SVC#</div><div>DATE</div><div>METHOD</div><div>AMOUNT</div>
+          <div>CUR</div><div>RATE</div><div>NOTE</div><div>BUKTI</div><div></div>
         </div>
         <div id="payments">
           {% if edit %}
             {% for p in invoice.payments.all %}
-            <div class="payment-item">
+            <div class="payment-item" style="grid-template-columns:90px 120px 1fr 110px 80px 90px 1fr 80px 28px;">
               <select name="payment_service_no" required>
                 <option value="">Svc#</option>
                 {% for item in invoice.service_items.all %}
-                <option value="{{ item.service_number }}"
-                        {% if p.linked_number == item.service_number|stringformat:"s" %}selected{% endif %}>
-                  {{ item.service_number }}
-                </option>
+                <option value="{{ item.service_number }}" {% if p.linked_number == item.service_number|stringformat:"s" %}selected{% endif %}>{{ item.service_number }}</option>
                 {% endfor %}
               </select>
-              <input type="date" name="payment_date" required
-                     value="{% if p.payment_date %}{{ p.payment_date|date:'Y-m-d' }}{% endif %}">
+              <input type="date" name="payment_date" required value="{% if p.payment_date %}{{ p.payment_date|date:'Y-m-d' }}{% endif %}">
               <input type="text" name="payment_method" value="{{ p.method }}" placeholder="Method" required>
-              <input type="number" step="0.01" name="payment_amount" value="{{ p.amount }}"
-                     placeholder="Amount" required oninput="recalculate()">
+              <input type="number" step="0.01" name="payment_amount" value="{{ p.amount }}" placeholder="Amount" required oninput="recalculate()">
               <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
                 <option value="SAR" {% if p.currency == 'SAR' %}selected{% endif %}>SAR</option>
                 <option value="USD" {% if p.currency == 'USD' %}selected{% endif %}>USD</option>
                 <option value="IDR" {% if p.currency == 'IDR' %}selected{% endif %}>IDR</option>
               </select>
               <input type="number" step="0.0001" name="payment_exchange" value="{{ p.exchange_rate }}"
-                     {% if p.currency == invoice.currency %}readonly{% endif %} oninput="recalculate()">
+                {% if p.currency == invoice.currency %}readonly{% endif %} oninput="recalculate()">
               <textarea name="payment_note" placeholder="Note">{{ p.note }}</textarea>
               <div class="proof-cell">
                 {% if p.proof %}<a href="{{ p.proof.url }}" target="_blank" class="proof-link" title="{{ p.proof.name }}"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg></a>{% endif %}
@@ -187,28 +170,21 @@
                 </label>
                 <span class="proof-fname"></span>
               </div>
-              <button type="button" class="btn-remove"
-                      onclick="this.closest('.payment-item').remove();recalculate();">
+              <button type="button" class="btn-remove" onclick="this.closest('.payment-item').remove();recalculate();">
                 {% include 'hw/partials/_icon_trash.html' %}
               </button>
             </div>
             {% endfor %}
           {% else %}
-          <div class="payment-item">
-            <select name="payment_service_no" required>
-              <option value="">Svc#</option>
-            </select>
+          <div class="payment-item" style="grid-template-columns:90px 120px 1fr 110px 80px 90px 1fr 80px 28px;">
+            <select name="payment_service_no" required><option value="">Svc#</option></select>
             <input type="date" name="payment_date" required>
             <input type="text" name="payment_method" placeholder="Method" required>
-            <input type="number" step="0.01" name="payment_amount" placeholder="Amount"
-                   required oninput="recalculate()">
+            <input type="number" step="0.01" name="payment_amount" placeholder="Amount" required oninput="recalculate()">
             <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
-              <option value="SAR">SAR</option>
-              <option value="USD">USD</option>
-              <option value="IDR">IDR</option>
+              <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
             </select>
-            <input type="number" step="0.0001" name="payment_exchange" value="1"
-                   readonly oninput="recalculate()">
+            <input type="number" step="0.0001" name="payment_exchange" value="1" readonly oninput="recalculate()">
             <textarea name="payment_note" placeholder="Note"></textarea>
             <div class="proof-cell">
               <label class="proof-btn" title="Upload bukti">
@@ -217,8 +193,7 @@
               </label>
               <span class="proof-fname"></span>
             </div>
-            <button type="button" class="btn-remove"
-                    onclick="this.closest('.payment-item').remove();recalculate();">
+            <button type="button" class="btn-remove" onclick="this.closest('.payment-item').remove();recalculate();">
               {% include 'hw/partials/_icon_trash.html' %}
             </button>
           </div>
@@ -227,27 +202,37 @@
       </div>
     </div>
 
-    {# ── Summary + Submit ─────────────────────────────────────────────────── #}
-    <div class="summary-bar">
-      <div class="summary-cell">
+    {# ── Summary ── #}
+    <div class="form-summary">
+      <div class="form-summary-cell">
         <div class="lbl">Total Services</div>
         <div class="val" id="total-services">0</div>
       </div>
-      <div class="summary-cell">
+      <div class="form-summary-cell">
         <div class="lbl">Total Payments</div>
         <div class="val green" id="total-payments">0</div>
       </div>
-      <div class="summary-cell">
+      <div class="form-summary-cell">
         <div class="lbl">Remaining</div>
         <div class="val" id="remaining-balance">0</div>
       </div>
     </div>
 
-    <button type="submit" id="submit-btn" class="btn btn-primary btn-full">
-      {% if edit %}Update &amp; Simpan{% else %}Simpan &amp; Buka Detail{% endif %}
-    </button>
+    <div class="form-actions" style="padding:14px 0 4px;">
+      {% if edit %}
+      <a href="{% url 'services_detail' invoice.pk %}" class="btn btn-ghost">Batal</a>
+      {% else %}
+      <a href="{% url 'services_list' %}" class="btn btn-ghost">Batal</a>
+      {% endif %}
+      <button type="submit" id="submit-btn" class="btn btn-primary">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+        {% if edit %}Update &amp; Simpan{% else %}Simpan &amp; Buka{% endif %}
+      </button>
+    </div>
+
   </form>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -288,15 +273,14 @@
     const container = document.getElementById('payments');
     const row = document.createElement('div');
     row.className = 'payment-item';
+    row.style.gridTemplateColumns = '90px 120px 1fr 110px 80px 90px 1fr 80px 28px';
     row.innerHTML = `
       <select name="payment_service_no" required><option value="">Svc#</option></select>
       <input type="date" name="payment_date" required>
       <input type="text" name="payment_method" placeholder="Method" required>
       <input type="number" step="0.01" name="payment_amount" placeholder="Amount" required oninput="recalculate()">
       <select name="payment_currency" onchange="toggleExchange(this);recalculate()">
-        <option value="SAR">SAR</option>
-        <option value="USD">USD</option>
-        <option value="IDR">IDR</option>
+        <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
       </select>
       <input type="number" step="0.0001" name="payment_exchange" value="1" readonly oninput="recalculate()">
       <textarea name="payment_note" placeholder="Note"></textarea>
@@ -342,10 +326,10 @@
     let totalPayments = 0;
     const invoiceCurrency = document.getElementById('invoice_currency')?.value || 'SAR';
     document.querySelectorAll('#payments .payment-item').forEach(row => {
-      const amount = parseFloat(row.querySelector('input[name="payment_amount"]')?.value || 0);
+      const amount   = parseFloat(row.querySelector('input[name="payment_amount"]')?.value || 0);
       const currency = row.querySelector('select[name="payment_currency"]')?.value || 'SAR';
-      const rate = parseFloat(row.querySelector('input[name="payment_exchange"]')?.value || 1);
-      let converted = amount;
+      const rate     = parseFloat(row.querySelector('input[name="payment_exchange"]')?.value || 1);
+      let converted  = amount;
       if (currency !== invoiceCurrency) {
         if (['IDR'].includes(currency)) converted = rate ? Math.floor(amount / rate) : 0;
         else converted = amount / (rate || 1);
@@ -357,11 +341,11 @@
     const remaining = Math.floor(totalServices - totalPayments);
     const fmt = n => Number(n).toLocaleString('en-US', {maximumFractionDigits: 0});
 
-    document.getElementById('total-services').textContent = fmt(totalServices) + ' ' + invoiceCurrency;
-    document.getElementById('total-payments').textContent = fmt(totalPayments) + ' ' + invoiceCurrency;
+    document.getElementById('total-services').textContent   = fmt(totalServices)   + ' ' + invoiceCurrency;
+    document.getElementById('total-payments').textContent   = fmt(totalPayments)   + ' ' + invoiceCurrency;
     const el = document.getElementById('remaining-balance');
     el.textContent = fmt(remaining) + ' ' + invoiceCurrency;
-    el.className = 'val' + (remaining === 0 ? ' green' : remaining < 0 ? ' red' : '');
+    el.className   = 'val' + (remaining === 0 ? ' green' : remaining < 0 ? ' red' : '');
   }
 
   function toggleExchange(sel) {
@@ -378,7 +362,7 @@
     recalculate();
   });
 
-  document.querySelector('form').addEventListener('submit', function() {
+  document.getElementById('services-form').addEventListener('submit', function() {
     document.querySelectorAll('#payments .payment-item').forEach(function(row, i) {
       var f = row.querySelector('.payment-proof-input');
       if (f) f.name = 'payment_proof_' + i;
@@ -391,11 +375,11 @@
   {% if not edit %}
   initDraft('docgen_draft_services', 'services-form', function(data) {
     const services = data['service'];
-    const svcCount = Array.isArray(services) ? services.length : (services ? 1 : 0);
+    const svcCount  = Array.isArray(services) ? services.length : (services ? 1 : 0);
     const existingSvc = document.querySelectorAll('#services-list .svc-row').length;
     for (let i = existingSvc; i < svcCount; i++) addServiceItem();
     const payDates = data['payment_date'];
-    const payCount = Array.isArray(payDates) ? payDates.length : (payDates ? 1 : 0);
+    const payCount  = Array.isArray(payDates) ? payDates.length : (payDates ? 1 : 0);
     const existingPay = document.querySelectorAll('#payments .payment-item').length;
     for (let i = existingPay; i < payCount; i++) addPayment();
   });

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -40,6 +40,7 @@ def penalty_new(request, cl_pk):
     return render(request, 'hw/penalty/penalty_form.html', {
         'cl': cl,
         'suggested_number': suggested_number,
+        'today': date.today().isoformat(),
     })
 
 
@@ -73,6 +74,8 @@ def penalty_edit(request, pk):
     return render(request, 'hw/penalty/penalty_form.html', {
         'cl': cl,
         'penalty': penalty,
+        'suggested_number': penalty.penalty_number,
+        'today': date.today().isoformat(),
         'edit': True,
     })
 

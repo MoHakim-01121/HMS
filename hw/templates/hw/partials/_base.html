@@ -5,8 +5,24 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Workspace{% endblock %}</title>
-  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235E6AD2' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>">
+  <script>(function(){
+    var t=localStorage.getItem('theme')||'dark';
+    document.documentElement.setAttribute('data-theme',t);
+    var p=location.pathname;
+    var pg='home';
+    if(p==='/'||p==='')pg='home';
+    else if(p.indexOf('/penalty')!==-1)pg='penalty';
+    else if(p.indexOf('/hotels')===0)pg='hotels';
+    else if(p.indexOf('/invoice')===0)pg='invoice';
+    else if(p.indexOf('/services')===0)pg='services';
+    else if(p.indexOf('/calendar')===0)pg='calendar';
+    else if(p.indexOf('/clients')===0)pg='clients';
+    else if(p.indexOf('/remittance')===0)pg='remittance';
+    else if(p.indexOf('/cl')===0)pg='cl';
+    else if(p.indexOf('/users')===0||p.indexOf('/account')===0)pg='users';
+    document.documentElement.setAttribute('data-page',pg);
+  })();</script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23FF6C37' stroke-width='2'><path stroke-linecap='round' stroke-linejoin='round' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>">
   <link rel="stylesheet" href="{% static 'hw/css/design.css' %}">
   <style>
     .page, .page-sm, .center-wrap, .card {
@@ -51,6 +67,89 @@
       font-weight: 600;
       color: var(--text);
     }
+
+  /* ── Global animated background ── */
+  :root {
+    --b1-c: rgba(255,108,55,.10); --b2-c: rgba(139,92,246,.07); --b3-c: rgba(16,185,129,.05);
+    --b4-c: rgba(245,158,11,.08);
+    --b1-d: 30s; --b2-d: 38s; --b3-d: 26s; --b4-d: 35s;
+    --b3-w: 300px;
+  }
+  /* Home — 4 blobs, vivid */
+  [data-page="home"]       { --b1-c:rgba(255,108,55,.13);  --b2-c:rgba(139,92,246,.09);  --b3-c:rgba(16,185,129,.07); }
+  /* Hotels — warm amber */
+  [data-page="hotels"]     { --b1-c:rgba(245,158,11,.11);  --b2-c:rgba(255,108,55,.09);  --b3-c:rgba(251,191,36,.06);  --b1-d:28s; --b2-d:42s; --b3-d:24s; --b3-w:320px; }
+  /* Invoice — indigo/blue */
+  [data-page="invoice"]    { --b1-c:rgba(99,102,241,.11);  --b2-c:rgba(139,92,246,.09);  --b3-c:rgba(59,130,246,.06);  --b1-d:33s; --b2-d:41s; --b3-d:27s; }
+  /* Confirmation Letter — orange/cyan */
+  [data-page="cl"]         { --b1-c:rgba(255,108,55,.11);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(20,184,166,.05);  --b1-d:26s; --b2-d:36s; --b3-d:30s; --b3-w:280px; }
+  /* Services — emerald */
+  [data-page="services"]   { --b1-c:rgba(16,185,129,.10);  --b2-c:rgba(20,184,166,.08);  --b3-c:rgba(52,211,153,.06);  --b1-d:31s; --b2-d:43s; --b3-d:23s; --b3-w:260px; }
+  /* Calendar — yellow */
+  [data-page="calendar"]   { --b1-c:rgba(234,179,8,.11);   --b2-c:rgba(245,158,11,.08);  --b3-c:rgba(251,191,36,.06);  --b1-d:29s; --b2-d:39s; --b3-d:25s; }
+  /* Clients — blue/cyan */
+  [data-page="clients"]    { --b1-c:rgba(59,130,246,.10);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(99,102,241,.05);  --b1-d:32s; --b2-d:40s; --b3-d:28s; }
+  /* Remittance — green */
+  [data-page="remittance"] { --b1-c:rgba(34,197,94,.11);   --b2-c:rgba(16,185,129,.09);  --b3-c:rgba(134,239,172,.06); --b1-d:35s; --b2-d:44s; --b3-d:29s; }
+  /* Penalty — red/orange */
+  [data-page="penalty"]    { --b1-c:rgba(239,68,68,.10);   --b2-c:rgba(255,108,55,.08);  --b3-c:rgba(249,115,22,.06);  --b1-d:27s; --b2-d:37s; --b3-d:22s; }
+  /* Users/Account — purple */
+  [data-page="users"]      { --b1-c:rgba(168,85,247,.10);  --b2-c:rgba(139,92,246,.08);  --b3-c:rgba(196,181,253,.05); --b1-d:34s; --b2-d:45s; --b3-d:30s; }
+
+  .base-bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+  .base-bg::after {
+    content:''; position:absolute; inset:0;
+    background-image: radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 15%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 15%, transparent 100%);
+  }
+  [data-theme="light"] .base-bg::after { background-image: radial-gradient(rgba(0,0,0,.04) 1px, transparent 1px); }
+  [data-page="home"] .base-bg::after   { background-size: 28px 28px; }
+
+  .base-blob { position:absolute; border-radius:50%; filter:blur(100px); will-change:transform; }
+  .base-blob-1 {
+    width:550px; height:550px; top:-170px; left:-120px;
+    background: radial-gradient(circle, var(--b1-c) 0%, transparent 65%);
+    animation: bDrift1 var(--b1-d) ease-in-out infinite;
+  }
+  .base-blob-2 {
+    width:420px; height:420px; bottom:-120px; right:-90px;
+    background: radial-gradient(circle, var(--b2-c) 0%, transparent 65%);
+    animation: bDrift2 var(--b2-d) ease-in-out infinite;
+  }
+  .base-blob-3 {
+    width: var(--b3-w); height: var(--b3-w); top:35%; left:55%;
+    background: radial-gradient(circle, var(--b3-c) 0%, transparent 65%);
+    animation: bDrift3 var(--b3-d) ease-in-out infinite;
+  }
+  .base-blob-4 { display:none; }
+  [data-page="home"] .base-blob-4 {
+    display:block; width:380px; height:380px; bottom:5%; right:5%;
+    background: radial-gradient(circle, var(--b4-c) 0%, transparent 65%);
+    animation: bDrift4 var(--b4-d) ease-in-out infinite;
+  }
+
+  @keyframes bDrift1 {
+    0%,100%{transform:translate(0,0) scale(1);}
+    30%    {transform:translate(45px,-55px) scale(1.06);}
+    60%    {transform:translate(70px,20px) scale(.93);}
+    80%    {transform:translate(20px,45px) scale(1.03);}
+  }
+  @keyframes bDrift2 {
+    0%,100%{transform:translate(0,0) scale(1);}
+    35%    {transform:translate(-55px,40px) scale(1.09);}
+    70%    {transform:translate(30px,-45px) scale(.90);}
+  }
+  @keyframes bDrift3 {
+    0%,100%{transform:translate(0,0) scale(1);}
+    45%    {transform:translate(40px,-35px) scale(1.08);}
+    75%    {transform:translate(-25px,30px) scale(.95);}
+  }
+  @keyframes bDrift4 {
+    0%,100%{transform:translate(0,0) scale(1);}
+    50%    {transform:translate(-35px,-30px) scale(1.1);}
+  }
   </style>
   {% block extra_css %}{% endblock %}
 </head>
@@ -69,7 +168,7 @@
     {% if user.is_authenticated %}
     <div class="topbar-right">
 
-      <!-- Search -->
+      <!-- Search (global, buka dengan /) -->
       <button type="button" id="btn-search" class="topbar-icon-btn" title="Cari (/)">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
       </button>
@@ -246,7 +345,13 @@
   </div>
   {% endif %}
 
-  <canvas id="bg-canvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;"></canvas>
+  <!-- Animated ambient background -->
+  <div class="base-bg" aria-hidden="true">
+    <div class="base-blob base-blob-1"></div>
+    <div class="base-blob base-blob-2"></div>
+    <div class="base-blob base-blob-3"></div>
+    <div class="base-blob base-blob-4"></div>
+  </div>
   {% block content %}{% endblock %}
 
   {% include 'hw/partials/_toast.html' %}
@@ -579,140 +684,6 @@
 
   <script src="{% static 'hw/js/polish.js' %}"></script>
 
-  <script>
-  /* ── Greek Doric columns background ── */
-  (function(){
-    var canvas = document.getElementById('bg-canvas');
-    if (!canvas) return;
-    var ctx = canvas.getContext('2d');
-
-    function hGrad(oc, x0, x1) {
-      var g = oc.createLinearGradient(x0,0,x1,0);
-      g.addColorStop(0,'#2e2e2e'); g.addColorStop(0.18,'#7a7a7a');
-      g.addColorStop(0.5,'#b4b4b4'); g.addColorStop(0.82,'#7a7a7a'); g.addColorStop(1,'#2e2e2e');
-      return g;
-    }
-    function flatGrad(oc, x0, x1, mid) {
-      var g = oc.createLinearGradient(x0,0,x1,0);
-      g.addColorStop(0,'#383838'); g.addColorStop(0.2,'#888888');
-      g.addColorStop(0.5,mid); g.addColorStop(0.8,'#888888'); g.addColorStop(1,'#383838');
-      return g;
-    }
-
-    function drawColumn(oc, cx, baseY, shaftH, shaftW) {
-      var baseH  = shaftH * 0.045;
-      var capH   = shaftH * 0.085;
-      var echH   = capH * 0.52;
-      var capW   = shaftW * 1.40;
-      var baseW  = shaftW * 1.52;
-      var topW   = shaftW * 0.88;
-      var sTop   = baseY - baseH - shaftH;
-
-      // Stylobate
-      oc.fillStyle = flatGrad(oc, cx-baseW/2, cx+baseW/2, '#ababab');
-      oc.fillRect(cx-baseW/2, baseY-baseH, baseW, baseH);
-
-      // Shaft (tapered trapezoid)
-      oc.fillStyle = hGrad(oc, cx-shaftW/2, cx+shaftW/2);
-      oc.beginPath();
-      oc.moveTo(cx-shaftW/2, baseY-baseH);
-      oc.lineTo(cx+shaftW/2, baseY-baseH);
-      oc.lineTo(cx+topW/2,   sTop);
-      oc.lineTo(cx-topW/2,   sTop);
-      oc.closePath();
-      oc.fill();
-
-      // Echinus
-      oc.fillStyle = flatGrad(oc, cx-capW/2, cx+capW/2, '#a8a8a8');
-      oc.beginPath();
-      oc.moveTo(cx-topW/2, sTop);
-      oc.lineTo(cx+topW/2, sTop);
-      oc.lineTo(cx+capW/2, sTop-echH);
-      oc.lineTo(cx-capW/2, sTop-echH);
-      oc.closePath();
-      oc.fill();
-
-      // Abacus
-      oc.fillStyle = flatGrad(oc, cx-capW/2, cx+capW/2, '#b0b0b0');
-      oc.fillRect(cx-capW/2, sTop-capH, capW, capH-echH);
-    }
-
-    function drawColomnade(oc, startX, baseY, n, spacing, shaftH, shaftW) {
-      var capW  = shaftW * 1.40;
-      var capH  = shaftH * 0.085;
-      var baseH = shaftH * 0.045;
-      var entH  = shaftH * 0.095;
-      var sTop  = baseY - baseH - shaftH - capH;
-      var totalW = (n-1)*spacing + capW*1.05;
-      var entX   = startX - capW*0.525;
-
-      for (var i = 0; i < n; i++) drawColumn(oc, startX + i*spacing, baseY, shaftH, shaftW);
-
-      // Entablature
-      var eg = oc.createLinearGradient(entX, sTop-entH, entX, sTop);
-      eg.addColorStop(0,'#a0a0a0'); eg.addColorStop(1,'#707070');
-      oc.fillStyle = eg;
-      oc.fillRect(entX, sTop-entH, totalW, entH);
-    }
-
-    function drawScene(oc, W, H) {
-      oc.fillStyle = '#fff';
-      oc.fillRect(0, 0, W, H);
-
-      var isMobile = W <= 640;
-      var GROUPS = isMobile ? [
-        { x:0.08, n:2, sp:0.14, h:0.65, w:0.09 },
-        { x:0.76, n:2, sp:0.14, h:0.65, w:0.09 },
-      ] : [
-        { x:0.06, n:2, sp:0.072, h:0.72, w:0.044 },
-        { x:0.84, n:2, sp:0.072, h:0.72, w:0.044 },
-      ];
-
-      GROUPS.forEach(function(g) {
-        drawColomnade(oc, g.x*W, H, g.n, g.sp*W, g.h*H, g.w*W);
-      });
-    }
-
-    function render(){
-      var W=window.innerWidth, H=window.innerHeight;
-      canvas.width=W; canvas.height=H;
-      var sc=0.4, oW=Math.ceil(W*sc), oH=Math.ceil(H*sc);
-      var off=document.createElement('canvas'); off.width=oW; off.height=oH;
-      var oc=off.getContext('2d'); oc.scale(sc,sc);
-      drawScene(oc,W,H);
-      var img=oc.getImageData(0,0,oW,oH), d2=img.data;
-      function cl(v){return v<0?0:v>255?255:v;}
-      for(var y=0;y<oH;y++){for(var x=0;x<oW;x++){
-        var i=(y*oW+x)*4,o=d2[i],n=o<145?0:255,e=o-n;
-        d2[i]=d2[i+1]=d2[i+2]=n;
-        if(x+1<oW){var r=i+4;d2[r]=cl(d2[r]+e*7/16);d2[r+1]=d2[r];d2[r+2]=d2[r];}
-        if(y+1<oH){ 
-          if(x>0){var bl=i+oW*4-4;d2[bl]=cl(d2[bl]+e*3/16);d2[bl+1]=d2[bl];d2[bl+2]=d2[bl];}
-          var bm=i+oW*4;d2[bm]=cl(d2[bm]+e*5/16);d2[bm+1]=d2[bm];d2[bm+2]=d2[bm];
-          if(x+1<oW){var br=i+oW*4+4;d2[br]=cl(d2[br]+e*1/16);d2[br+1]=d2[br];d2[br+2]=d2[br];}
-        }
-      }}
-      var tmp=document.createElement('canvas'); tmp.width=oW; tmp.height=oH;
-      tmp.getContext('2d').putImageData(img,0,0);
-      ctx.clearRect(0,0,W,H); ctx.imageSmoothingEnabled=false;
-      ctx.drawImage(tmp,0,0,W,H);
-      var fd=ctx.getImageData(0,0,W,H), px=fd.data;
-      var isDark=document.documentElement.getAttribute('data-theme')!=='light';
-      var isMob=W<=600;
-      var dc=isDark?255:18, da=isDark?(isMob?75:118):(isMob?90:138);
-      for(var i=0;i<px.length;i+=4){
-        if(px[i]<128){px[i]=dc;px[i+1]=dc;px[i+2]=dc;px[i+3]=da;}
-        else{px[i+3]=0;}
-      }
-      ctx.putImageData(fd,0,0);
-    }
-
-    var _resizeTimer;
-    window.addEventListener('resize', function() { clearTimeout(_resizeTimer); _resizeTimer = setTimeout(render, 150); });
-    new MutationObserver(render).observe(document.documentElement,{attributeFilter:['data-theme']});
-    render();
-  })();
-  </script>
 
   {% block extra_js %}{% endblock %}
 

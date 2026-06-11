@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -6,364 +6,413 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Hakim Workspace</title>
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-  <link rel="stylesheet" href="{% static 'hw/css/design.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      margin: 0;
+    :root {
+      --bg:       #0A0A0B;
+      --surface:  #111113;
+      --border:   rgba(255,255,255,.07);
+      --border-2: rgba(255,255,255,.12);
+      --text:     #F2F2F2;
+      --text-2:   #A0A0A8;
+      --text-3:   #5A5A65;
+      --accent:   #FF6C37;
+      --accent-m: rgba(255,108,55,.12);
+      --red:      #EF4444;
+      --r:        8px;
+      --r-lg:     12px;
+      --r-xl:     16px;
+    }
+    [data-theme="light"] {
+      --bg:       #F0F0F2;
+      --surface:  #FFFFFF;
+      --border:   rgba(0,0,0,.09);
+      --border-2: rgba(0,0,0,.16);
+      --text:     #111113;
+      --text-2:   #4A4A55;
+      --text-3:   #9A9AA8;
+      --accent-m: rgba(255,108,55,.08);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    /* Grain texture */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      opacity: .018;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 180px 180px;
+    }
+
+    /* Corner accent glows */
+    .bg-accents { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
+    .ac {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+    }
+    .ac-tl {
+      width: 320px; height: 320px;
+      top: -80px; left: -80px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,108,55,.22) 0%, transparent 70%);
+      animation: ac-pulse 9s ease-in-out infinite alternate;
+    }
+    .ac-br {
+      width: 260px; height: 260px;
+      bottom: -60px; right: -60px;
+      background: radial-gradient(circle at 70% 70%, rgba(255,45,0,.16) 0%, transparent 70%);
+      animation: ac-pulse 11s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes ac-pulse {
+      0%   { opacity: .7; transform: scale(1); }
+      100% { opacity: 1;  transform: scale(1.15); }
+    }
+    [data-theme="light"] .ac-tl { opacity: .35; }
+    [data-theme="light"] .ac-br { opacity: .25; }
+
+    /* Layout */
+    .login-wrap {
+      position: relative; z-index: 2;
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-      position: relative;
-      overflow: hidden;
+      padding: 24px 16px 80px;
     }
 
-    /* Particle canvas as background */
-    #particle-canvas {
-      position: fixed;
-      inset: 0;
+    .login-card {
       width: 100%;
-      height: 100%;
-      z-index: 0;
+      max-width: 368px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
     }
 
-    /* Form centered on top of canvas */
-    .hud-wrap {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      max-width: 360px;
+    /* Brand header */
+    .login-brand {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 32px;
-    }
-
-    /* Brand */
-    .hud-brand {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 14px;
-    }
-    .hud-app-name {
-      font-size: 13px;
-      font-weight: 700;
-      color: #fff;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-    }
-
-    /* HUD Panel */
-    .hud-panel {
-      width: 100%;
-      position: relative;
-      padding: 32px 28px;
-      background: var(--surface, rgba(255,255,255,.03));
-      border: 1px solid var(--border);
-      border-radius: var(--r-2xl);
-      box-shadow: var(--shadow-lg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    /* Fields */
-    .hud-fields {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
+      gap: 12px;
       margin-bottom: 28px;
     }
-    .hud-field { display: flex; flex-direction: column; gap: 6px; }
-    .hud-field label {
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--accent-2);
+    .login-logo {
+      display: flex; align-items: center; justify-content: center;
+      color: #ffffff;
     }
-    .hud-field input {
-      height: 38px;
-      padding: 0 0 8px;
-      background: transparent;
-      border: none;
-      border-bottom: 1px solid var(--border-2);
-      color: var(--text);
-      font-size: 14px;
-      font-family: inherit;
-      transition: border-color .15s;
-      width: 100%;
+    [data-theme="light"] .login-logo { color: var(--accent); }
+    .login-logo svg { display: block; }
+    .login-appname {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 3px;
+      color: var(--text-2);
     }
-    .hud-field input:focus { outline: none; border-bottom-color: var(--accent-2); }
-    .hud-field input::placeholder { color: var(--text-3); font-size: 13px; }
+
+    /* Panel */
+    .login-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r-xl);
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset;
+    }
 
     /* Error */
-    .hud-error {
-      font-size: 11px;
-      color: var(--red);
-      letter-spacing: .5px;
-      text-transform: uppercase;
-      margin-bottom: 20px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+    .login-error {
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 20px;
+      background: rgba(239,68,68,.08);
+      border-bottom: 1px solid rgba(239,68,68,.2);
+      font-size: 12px; color: var(--red); font-weight: 500;
     }
+    .login-error svg { flex-shrink: 0; }
 
-    /* Button */
-    .hud-btn {
-      width: 100%;
-      height: 42px;
-      background: transparent;
-      color: var(--accent-2);
-      border: 1px solid var(--accent-2);
-      border-radius: var(--r);
-      font-size: 11px;
-      font-weight: 700;
-      font-family: inherit;
-      text-transform: uppercase;
-      letter-spacing: 3px;
-      cursor: pointer;
-      transition: background .15s, color .15s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-    .hud-btn:hover { background: var(--accent-2); color: #fff; }
-    .hud-btn:active { opacity: .85; }
-    .hud-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
-
-    .hud-spinner {
-      display: none;
-      width: 14px; height: 14px;
-      border: 2px solid currentColor;
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .hud-btn.loading .hud-spinner { display: block; }
-    .hud-btn.loading .hud-btn-text { letter-spacing: 2px; }
+    /* Form body */
+    .login-body { padding: 24px 24px 20px; }
 
     /* Company toggle */
     .co-label {
-      font-size: 9px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      color: var(--accent-2);
-      margin-bottom: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .8px;
+      color: var(--text-3);
+      margin-bottom: 7px;
     }
     .co-toggle {
-      display: flex;
-      width: 100%;
-      background: rgba(255,255,255,.06);
+      display: flex; gap: 4px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
       border-radius: var(--r-lg);
       padding: 3px;
-      margin-bottom: 28px;
-      gap: 2px;
+      margin-bottom: 22px;
     }
-    .co-toggle-btn {
-      flex: 1;
-      height: 34px;
-      background: transparent;
-      border: none;
-      border-radius: var(--r);
-      color: var(--text-3);
-      font-size: 11px;
-      font-weight: 600;
-      font-family: inherit;
+    .co-btn {
+      flex: 1; height: 32px;
+      background: transparent; border: none; border-radius: var(--r);
+      color: var(--text-3); font-size: 12px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
       cursor: pointer;
-      transition: background .2s, color .2s, box-shadow .2s;
+      transition: background .15s, color .15s, box-shadow .15s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .co-toggle-btn.active-konoz,
-    .co-toggle-btn.active-ijabah {
-      background: var(--surface-3, rgba(255,255,255,.12));
-      color: var(--text);
-      box-shadow: 0 1px 4px rgba(0,0,0,.3);
+    .co-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(255,108,55,.35);
     }
+    /* Fields */
+    .login-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 
-    /* Status */
-    .hud-status {
-      font-size: 9px;
+    .lf {
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .lf label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9.5px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .7px;
       color: var(--text-3);
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      text-align: center;
+    }
+    .lf input {
+      height: 38px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-size: 14px; font-family: 'DM Sans', sans-serif;
+      padding: 0 12px;
+      transition: border-color .12s, background .12s, box-shadow .12s;
+      width: 100%; outline: none;
+    }
+    .lf input:focus {
+      border-color: var(--accent);
+      background: var(--accent-m);
+      box-shadow: 0 0 0 3px rgba(255,108,55,.1);
+    }
+    .lf input::placeholder { color: var(--text-3); }
+    [data-theme="light"] .lf input {
+      background: rgba(0,0,0,.025);
+      border-color: rgba(0,0,0,.12);
+    }
+    [data-theme="light"] .login-panel {
+      box-shadow: 0 4px 24px rgba(0,0,0,.1), 0 1px 0 rgba(255,255,255,.8) inset;
+    }
+    [data-theme="light"] .co-toggle {
+      background: rgba(0,0,0,.04);
+    }
+    [data-theme="light"] .co-btn { color: var(--text-3); }
+    [data-theme="light"] .ambient {
+      background: radial-gradient(circle at 50% 50%, rgba(255,108,55,.05) 0%, transparent 65%);
+    }
+    [data-theme="light"] .theme-btn {
+      background: #fff;
     }
 
-    input[type="password"]::-ms-reveal,
-    input[type="password"]::-ms-clear { filter: invert(100%); }
+    /* Submit button */
+    .login-btn {
+      width: 100%; height: 40px;
+      background: var(--accent);
+      color: #fff; border: none; border-radius: var(--r);
+      font-size: 13px; font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer; letter-spacing: .2px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: opacity .15s, box-shadow .15s;
+      box-shadow: 0 2px 12px rgba(255,108,55,.3);
+    }
+    .login-btn:hover { opacity: .9; box-shadow: 0 4px 16px rgba(255,108,55,.4); }
+    .login-btn:active { opacity: .8; }
+    .login-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
+
+    .login-spinner {
+      display: none; width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .65s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .login-btn.loading .login-spinner { display: block; }
+
+    /* Theme toggle */
+    .theme-btn {
+      position: fixed; top: 20px; right: 20px; z-index: 10;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text-2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .15s, border-color .15s;
+    }
+    .theme-btn:hover { background: rgba(255,255,255,.08); border-color: var(--border-2); }
+
+    /* Autofill fix */
     input:-webkit-autofill,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
       -webkit-box-shadow: 0 0 0 100px transparent inset !important;
       -webkit-text-fill-color: var(--text) !important;
       caret-color: var(--text);
+      transition: background-color 5000s ease-in-out 0s;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed; top: 20px; right: 20px;
+      z-index: 999;
+    }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .toast-success {
+      display: flex; align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 10px 14px; border-radius: var(--r-lg);
+      font-size: 13px; font-weight: 500; color: var(--text);
+      box-shadow: 0 4px 24px rgba(0,0,0,.22);
+      backdrop-filter: blur(16px);
+      white-space: nowrap;
+      animation: toast-in .2s cubic-bezier(.16,1,.3,1) both;
     }
   </style>
 </head>
 <body>
 
-  <!-- Background particle canvas -->
-  <canvas id="particle-canvas"></canvas>
+  <div class="bg-accents">
+    <div class="ac ac-tl"></div>
+    <div class="ac ac-br"></div>
+  </div>
 
-  <!-- Centered form -->
-  <div class="hud-wrap">
-    <div class="hud-brand">
-      <svg width="52" height="52" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3" y="2" width="4.5" height="22" fill="#fff"/>
-        <rect x="18.5" y="2" width="4.5" height="22" fill="#fff"/>
-        <rect x="7.5" y="11" width="11" height="2.5" fill="#fff"/>
-      </svg>
-      <div class="hud-app-name">Hakim Workspace</div>
-    </div>
+  <!-- Theme toggle -->
+  <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema">
+    <svg id="icon-moon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+    <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </button>
 
-    <div class="hud-panel">
-      {% if request.GET.locked %}
-      <div class="hud-error">
-        Account locked. Too many failed attempts. Try again in 1 hour.
-      </div>
-      {% elif form.errors %}
-      <div class="hud-error">
-        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        Access denied. Invalid credentials.
-      </div>
-      {% endif %}
+  <div class="login-wrap">
+    <div class="login-card">
 
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="company" id="company-val" value="konoz">
-        <div class="co-label">Company</div>
-        <div class="co-toggle">
-          <button type="button" class="co-toggle-btn active-konoz" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
-          <button type="button" class="co-toggle-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+      <!-- Brand -->
+      <div class="login-brand">
+        <div class="login-logo">
+          <svg width="44" height="44" viewBox="0 0 26 26" fill="none">
+            <rect x="3"   y="2" width="4.5" height="22" fill="currentColor"/>
+            <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor"/>
+            <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor"/>
+          </svg>
         </div>
-        <div class="hud-fields">
-          <div class="hud-field">
-            <label for="id_username">Identifier</label>
-            <input type="text" id="id_username" name="username" autofocus autocomplete="username" placeholder="Enter identifier">
-          </div>
-          <div class="hud-field">
-            <label for="id_password">Auth Key</label>
-            <input type="password" id="id_password" name="password" autocomplete="current-password" placeholder="Enter auth key">
-          </div>
-        </div>
-        <button type="submit" class="hud-btn" id="login-btn">
-          <div class="hud-spinner"></div>
-          <span class="hud-btn-text">Authenticate</span>
-        </button>
-      </form>
-    </div>
+        <div class="login-appname">Hakim Workspace</div>
+      </div>
 
-    <div class="hud-status">Secure access only</div>
+      <!-- Panel -->
+      <div class="login-panel">
+
+        {% if request.GET.locked %}
+        <div class="login-error">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          Account locked. Too many failed attempts.
+        </div>
+        {% elif form.errors %}
+        <div class="login-error">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          Invalid username or password
+        </div>
+        {% endif %}
+
+        <div class="login-body">
+          <form method="post" id="login-form">
+            {% csrf_token %}
+            <input type="hidden" name="company" id="company-val" value="konoz">
+
+            <!-- Company -->
+            <div class="co-label">Company</div>
+            <div class="co-toggle">
+              <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
+              <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+            </div>
+
+            <!-- Fields -->
+            <div class="login-fields">
+              <div class="lf">
+                <label for="id_username">Username</label>
+                <input type="text" id="id_username" name="username"
+                  autofocus autocomplete="username" placeholder="Enter username">
+              </div>
+              <div class="lf">
+                <label for="id_password">Password</label>
+                <input type="password" id="id_password" name="password"
+                  autocomplete="current-password" placeholder="Enter password">
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <button type="submit" class="login-btn" id="login-btn">
+              <div class="login-spinner"></div>
+              <span class="login-btn-text">Sign in</span>
+            </button>
+          </form>
+        </div>
+
+      </div><!-- /.login-panel -->
+    </div>
   </div>
 
   <script>
+    /* Company toggle */
     function setCompany(val) {
       document.getElementById('company-val').value = val;
-      document.getElementById('btn-konoz').className = 'co-toggle-btn' + (val === 'konoz' ? ' active-konoz' : '');
-      document.getElementById('btn-ijabah').className = 'co-toggle-btn' + (val === 'ijabah' ? ' active-ijabah' : '');
+      document.getElementById('btn-konoz').className  = 'co-btn' + (val==='konoz'  ? ' active' : '');
+      document.getElementById('btn-ijabah').className = 'co-btn' + (val==='ijabah' ? ' active' : '');
     }
 
-    document.querySelector('form').addEventListener('submit', function() {
+    /* Loading state */
+    document.getElementById('login-form').addEventListener('submit', function() {
       var btn = document.getElementById('login-btn');
       btn.classList.add('loading');
       btn.disabled = true;
-      btn.querySelector('.hud-btn-text').textContent = 'Authenticating';
+      btn.querySelector('.login-btn-text').textContent = 'Signing in…';
     });
 
-    /* ── Abraj Al-Bait silhouette — Floyd-Steinberg dot style ── */
+    /* Theme toggle */
+    function toggleTheme() {
+      var html = document.documentElement;
+      var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      document.getElementById('icon-moon').style.display = next === 'dark'  ? '' : 'none';
+      document.getElementById('icon-sun').style.display  = next === 'light' ? '' : 'none';
+    }
     (function(){
-      var canvas = document.getElementById('particle-canvas');
-      var ctx    = canvas.getContext('2d');
-
-      var PROFILES = [
-        { cx:0.175, rows:[{l:-58,r:58,yb:0,yt:0.045},{l:-46,r:46,yb:0.045,yt:0.330},{l:-52,r:52,yb:0.330,yt:0.347},{l:-40,r:40,yb:0.347,yt:0.375},{l:-24,r:24,yb:0.375,yt:0.386}]},
-        { cx:0.280, rows:[{l:-36,r:36,yb:0,yt:0.045},{l:-30,r:30,yb:0.045,yt:0.448},{l:-34,r:34,yb:0.448,yt:0.465},{l:-22,r:22,yb:0.465,yt:0.487},{l:-10,r:10,yb:0.487,yt:0.510},{l:-5,r:5,yb:0.510,yt:0.521}]},
-        { cx:0.385, rows:[{l:-34,r:34,yb:0,yt:0.045},{l:-28,r:28,yb:0.045,yt:0.582},{l:-32,r:32,yb:0.582,yt:0.599},{l:-22,r:22,yb:0.599,yt:0.633},{l:-14,r:14,yb:0.633,yt:0.655},{l:-6,r:6,yb:0.655,yt:0.672},{l:-3,r:3,yb:0.672,yt:0.689}]},
-        { cx:0.500, rows:[{l:-60,r:60,yb:0,yt:0.034},{l:-52,r:52,yb:0.034,yt:0.078},{l:-40,r:40,yb:0.078,yt:0.112},{l:-32,r:32,yb:0.112,yt:0.336},{l:-28,r:28,yb:0.336,yt:0.470},{l:-38,r:38,yb:0.470,yt:0.487},{l:-50,r:50,yb:0.487,yt:0.560},{l:-54,r:54,yb:0.560,yt:0.616},{l:-50,r:50,yb:0.616,yt:0.655},{l:-38,r:38,yb:0.655,yt:0.672},{l:-22,r:22,yb:0.672,yt:0.711},{l:-16,r:16,yb:0.711,yt:0.750},{l:-10,r:10,yb:0.750,yt:0.795},{l:-6,r:6,yb:0.795,yt:0.840},{l:-3,r:3,yb:0.840,yt:0.896},{l:-1.5,r:1.5,yb:0.896,yt:0.930}]},
-        { cx:0.615, rows:[{l:-34,r:34,yb:0,yt:0.045},{l:-28,r:28,yb:0.045,yt:0.582},{l:-32,r:32,yb:0.582,yt:0.599},{l:-22,r:22,yb:0.599,yt:0.633},{l:-14,r:14,yb:0.633,yt:0.655},{l:-6,r:6,yb:0.655,yt:0.672},{l:-3,r:3,yb:0.672,yt:0.689}]},
-        { cx:0.720, rows:[{l:-36,r:36,yb:0,yt:0.045},{l:-30,r:30,yb:0.045,yt:0.448},{l:-34,r:34,yb:0.448,yt:0.465},{l:-22,r:22,yb:0.465,yt:0.487},{l:-10,r:10,yb:0.487,yt:0.510},{l:-5,r:5,yb:0.510,yt:0.521}]},
-        { cx:0.825, rows:[{l:-58,r:58,yb:0,yt:0.045},{l:-46,r:46,yb:0.045,yt:0.330},{l:-52,r:52,yb:0.330,yt:0.347},{l:-40,r:40,yb:0.347,yt:0.375},{l:-24,r:24,yb:0.375,yt:0.386}]},
-        { cx:0.500, rows:[{l:-470,r:470,yb:0,yt:0.025}]},
-      ];
-
-      function drawSilhouette(oc, W, H, profiles) {
-        oc.fillStyle='#fff'; oc.fillRect(0,0,W,H);
-        profiles.forEach(function(b){
-          var cx=b.cx*W;
-          b.rows.forEach(function(row){
-            var y0=H-row.yt*H, y1=H-row.yb*H;
-            var xl=cx+row.l, xr=cx+row.r;
-            var g=oc.createLinearGradient(xl,0,xr,0);
-            g.addColorStop(0,'#3a3a3a');g.addColorStop(0.2,'#6a6a6a');
-            g.addColorStop(0.5,'#a0a0a0');g.addColorStop(0.8,'#6a6a6a');g.addColorStop(1,'#3a3a3a');
-            oc.fillStyle=g; oc.fillRect(xl,y0,xr-xl,y1-y0);
-          });
-        });
-      }
-
-      function render(){
-        var W=window.innerWidth, H=window.innerHeight;
-        canvas.width=W; canvas.height=H;
-        var sc=0.4, oW=Math.ceil(W*sc), oH=Math.ceil(H*sc);
-        var off=document.createElement('canvas'); off.width=oW; off.height=oH;
-        var oc=off.getContext('2d'); oc.scale(sc,sc);
-        var activeProfiles = W<=640 ? [
-          Object.assign({},PROFILES[2],{cx:0.24}),
-          PROFILES[3],
-          Object.assign({},PROFILES[4],{cx:0.76}),
-          PROFILES[7]
-        ] : PROFILES;
-        drawSilhouette(oc,W,H,activeProfiles);
-        var img=oc.getImageData(0,0,oW,oH), d2=img.data;
-        function cl(v){return v<0?0:v>255?255:v;}
-        for(var y=0;y<oH;y++){for(var x=0;x<oW;x++){
-          var i=(y*oW+x)*4,o=d2[i],n=o<145?0:255,e=o-n;
-          d2[i]=d2[i+1]=d2[i+2]=n;
-          if(x+1<oW){var r=i+4;d2[r]=cl(d2[r]+e*7/16);d2[r+1]=d2[r];d2[r+2]=d2[r];}
-          if(y+1<oH){
-            if(x>0){var bl=i+oW*4-4;d2[bl]=cl(d2[bl]+e*3/16);d2[bl+1]=d2[bl];d2[bl+2]=d2[bl];}
-            var bm=i+oW*4;d2[bm]=cl(d2[bm]+e*5/16);d2[bm+1]=d2[bm];d2[bm+2]=d2[bm];
-            if(x+1<oW){var br=i+oW*4+4;d2[br]=cl(d2[br]+e*1/16);d2[br+1]=d2[br];d2[br+2]=d2[br];}
-          }
-        }}
-        var tmp=document.createElement('canvas'); tmp.width=oW; tmp.height=oH;
-        tmp.getContext('2d').putImageData(img,0,0);
-        ctx.clearRect(0,0,W,H); ctx.imageSmoothingEnabled=false; ctx.drawImage(tmp,0,0,W,H);
-        var fd=ctx.getImageData(0,0,W,H), px=fd.data;
-        var isDark=document.documentElement.getAttribute('data-theme')!=='light';
-        var dc=isDark?255:18, da=isDark?130:155;
-        for(var i=0;i<px.length;i+=4){
-          if(px[i]<128){px[i]=dc;px[i+1]=dc;px[i+2]=dc;px[i+3]=da;}
-          else{px[i+3]=0;}
-        }
-        ctx.putImageData(fd,0,0);
-      }
-
-      window.addEventListener('resize',render);
-      new MutationObserver(render).observe(document.documentElement,{attributeFilter:['data-theme']});
-      render();
+      var t = localStorage.getItem('theme') || 'dark';
+      document.getElementById('icon-moon').style.display = t === 'dark'  ? '' : 'none';
+      document.getElementById('icon-sun').style.display  = t === 'light' ? '' : 'none';
     })();
+
   </script>
 
   {% if request.GET.logged_out %}
   <div class="toast-container">
-    <div id="logout-toast" class="toast toast-success">Berhasil logout</div>
+    <div id="logout-toast" class="toast-success">Logged out successfully</div>
   </div>
   <script>
-    history.replaceState(null, '', '/login/');
+    history.replaceState(null,'','/login/');
     setTimeout(function(){
       var t=document.getElementById('logout-toast');
-      if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove()},300);}
+      if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove();},300);}
     },3000);
   </script>
   {% endif %}
+
 </body>
 </html>

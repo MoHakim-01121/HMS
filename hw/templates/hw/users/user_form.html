@@ -1,4 +1,4 @@
-﻿{% extends 'hw/partials/_base.html' %}
+{% extends 'hw/partials/_base.html' %}
 {% load static %}
 
 {% block title %}{% if edit %}Edit User — {{ edit_user.username }}{% else %}Buat User Baru{% endif %}{% endblock %}
@@ -10,115 +10,148 @@
 <span class="topbar-crumb active">{% if edit %}{{ edit_user.username }}{% else %}Buat Baru{% endif %}</span>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'hw/css/forms.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="page-sm">
-  <div class="page-header" style="margin-bottom:20px;">
+<div class="form-page">
+
+  <div class="page-header" style="margin-bottom:16px;">
     <div>
-      <div class="page-title">{% if edit %}Edit User{% else %}Buat User Baru{% endif %}</div>
+      <div class="page-title">{% if edit %}{{ edit_user.username }}{% else %}Buat User Baru{% endif %}</div>
       <div class="page-sub">{% if edit %}Reset password atau ubah hak akses{% else %}Tambah akun untuk anggota tim{% endif %}</div>
     </div>
   </div>
 
   {% if not edit %}
-  <form method="post" action="{% url 'user_new' %}">
+  <!-- CREATE USER -->
+  <form method="post" action="{% url 'user_new' %}" id="user-form">
     {% csrf_token %}
-    <div class="card">
-      <div class="card-header"><span class="card-title">Informasi Akun</span></div>
-      <div class="card-body">
-        <div class="grid-2">
-          <div class="field">
+    <div class="form-panel">
+      <div class="form-section">
+        <div class="form-section-label">Informasi Akun</div>
+        <div class="fg-2">
+          <div class="ff">
             <label>Username *</label>
-            <input type="text" name="username" value="{{ form_data.username|default:'' }}" placeholder="contoh: budi" required autofocus autocomplete="off">
+            <input type="text" name="username" value="{{ form_data.username|default:'' }}"
+              placeholder="contoh: budi" required autofocus autocomplete="off">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Hak Akses</label>
             <select name="is_staff">
               <option value="">User biasa</option>
               <option value="on" {% if form_data.is_staff == 'on' %}selected{% endif %}>Staff</option>
             </select>
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Password *</label>
-            <input type="password" name="password" placeholder="Password" required autocomplete="new-password">
+            <input type="password" name="password" placeholder="Buat password" required autocomplete="new-password">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Konfirmasi Password *</label>
             <input type="password" name="password_confirm" placeholder="Ulangi password" required autocomplete="new-password">
           </div>
         </div>
       </div>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button type="submit" class="btn btn-primary btn-full">Buat User</button>
-      <a href="{% url 'user_list' %}" class="btn btn-ghost">Batal</a>
+      <div class="form-actions">
+        <a href="{% url 'user_list' %}" class="btn btn-ghost">Batal</a>
+        <button type="submit" class="btn btn-primary">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          Buat User
+        </button>
+      </div>
     </div>
   </form>
 
   {% else %}
-  <div class="card" style="margin-bottom:16px;">
-    <div class="card-header"><span class="card-title">Info</span></div>
-    <div class="card-body">
-      <div class="grid-2">
-        <div class="field"><div class="field-label">Username</div><div class="field-value" style="font-weight:600;">{{ edit_user.username }}</div></div>
-        <div class="field"><div class="field-label">Role</div><div class="field-value">
-          {% if edit_user.is_superuser %}<span class="badge badge-yellow">Superuser</span>
-          {% elif edit_user.is_staff %}<span class="badge badge-blue">Staff</span>
-          {% else %}<span class="badge badge-gray">User</span>{% endif %}
-        </div></div>
-        <div class="field"><div class="field-label">Status</div><div class="field-value">
-          {% if edit_user.is_active %}<span class="badge badge-green">Aktif</span>{% else %}<span class="badge badge-red">Nonaktif</span>{% endif %}
-        </div></div>
-        <div class="field"><div class="field-label">Last Login</div><div class="field-value" style="color:var(--text-2);">
-          {% if edit_user.last_login %}{{ edit_user.last_login|date:"d/m/Y H:i" }}{% else %}—{% endif %}
-        </div></div>
+  <!-- EDIT USER -->
+  <div class="form-panel" style="margin-bottom:12px;">
+
+    <!-- Info user -->
+    <div class="form-section">
+      <div class="form-section-label">Info Akun</div>
+      <div class="fg-2">
+        <div class="ff">
+          <label>Username</label>
+          <div style="font-size:14px;font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;padding:3px 0;">{{ edit_user.username }}</div>
+        </div>
+        <div class="ff">
+          <label>Role</label>
+          <div style="padding-top:3px;">
+            {% if edit_user.is_superuser %}<span class="badge badge-yellow">Superuser</span>
+            {% elif edit_user.is_staff %}<span class="badge badge-blue">Staff</span>
+            {% else %}<span class="badge badge-gray">User</span>{% endif %}
+          </div>
+        </div>
+        <div class="ff">
+          <label>Status</label>
+          <div style="padding-top:3px;">
+            {% if edit_user.is_active %}<span class="badge badge-green">Aktif</span>{% else %}<span class="badge badge-red">Nonaktif</span>{% endif %}
+          </div>
+        </div>
+        <div class="ff">
+          <label>Last Login</label>
+          <div style="font-size:13px;color:var(--text-2);padding:3px 0;font-family:'JetBrains Mono',monospace;">
+            {% if edit_user.last_login %}{{ edit_user.last_login|date:"d/m/Y H:i" }}{% else %}—{% endif %}
+          </div>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="card" style="margin-bottom:16px;">
-    <div class="card-header"><span class="card-title">Reset Password</span></div>
-    <div class="card-body">
+    <!-- Reset Password -->
+    <div class="form-section">
+      <div class="form-section-label">Reset Password</div>
       <form method="post" action="{% url 'user_edit' edit_user.pk %}">
         {% csrf_token %}
         <input type="hidden" name="action" value="reset_password">
-        <div class="grid-2">
-          <div class="field">
+        <div class="fg-2" style="margin-bottom:12px;">
+          <div class="ff">
             <label>Password Baru *</label>
             <input type="password" name="password" placeholder="Password baru" required autocomplete="new-password">
           </div>
-          <div class="field">
+          <div class="ff">
             <label>Konfirmasi *</label>
             <input type="password" name="password_confirm" placeholder="Ulangi password" required autocomplete="new-password">
           </div>
         </div>
-        <div style="margin-top:12px;">
-          <button type="submit" class="btn btn-secondary">Reset Password</button>
-        </div>
+        <button type="submit" class="btn btn-secondary">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+          Reset Password
+        </button>
       </form>
     </div>
+
+    <!-- Aksi -->
+    <div class="form-section">
+      <div class="form-section-label">Aksi</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle_active">
+          <button type="submit" class="btn {% if edit_user.is_active %}btn-danger{% else %}btn-success{% endif %}">
+            {% if edit_user.is_active %}Nonaktifkan User{% else %}Aktifkan User{% endif %}
+          </button>
+        </form>
+        {% if not edit_user.is_superuser %}
+        <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="toggle_staff">
+          <button type="submit" class="btn btn-ghost">
+            {% if edit_user.is_staff %}Turunkan ke User{% else %}Jadikan Staff{% endif %}
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
   </div>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">Aksi</span></div>
-    <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;">
-      <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="toggle_active">
-        <button type="submit" class="btn {% if edit_user.is_active %}btn-danger{% else %}btn-secondary{% endif %}"
-          {% if edit_user.is_active %}Nonaktifkan User{% else %}Aktifkan User{% endif %}
-        </button>
-      </form>
-      {% if not edit_user.is_superuser %}
-      <form method="post" action="{% url 'user_edit' edit_user.pk %}" style="margin:0;">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="toggle_staff">
-        <button type="submit" class="btn btn-ghost"
-          {% if edit_user.is_staff %}Turunkan ke User{% else %}Jadikan Staff{% endif %}
-        </button>
-      </form>
-      {% endif %}
-    </div>
+  <div style="padding-bottom:20px;">
+    <a href="{% url 'user_list' %}" class="btn btn-ghost">← Kembali ke Users</a>
   </div>
+
   {% endif %}
+
 </div>
 {% endblock %}

@@ -113,7 +113,7 @@ def _render_invoice_pdf(invoice):
         "doc_hash": doc_hash,
     }
 
-    template = "hw/invoice/invoice_pdf_ijabah.html" if invoice.company == "ijabah" else "hw/invoice/invoice_pdf.html"
+    template = "hw/invoice/invoice_pdf_ijabah.html" if invoice.company == "ijabah" else "hw/invoice/invoice_pdf_v2.html"
     html = render_to_string(template, context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     filename = f"{invoice.invoice_number}.pdf"

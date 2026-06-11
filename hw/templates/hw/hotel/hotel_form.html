@@ -253,7 +253,7 @@
   var hotelMarker = null;
   function setHotelMarker(ll) {
     if (hotelMarker) { hotelMarker.setLatLng(ll); return; }
-    hotelMarker = L.marker(ll, { icon: dot(12,'#5E6AD2'), draggable: true }).addTo(map);
+    hotelMarker = L.marker(ll, { icon: dot(12,'#FF6C37'), draggable: true }).addTo(map);
     hotelMarker.on('dragend', function() {
       var p = hotelMarker.getLatLng();
       inpLat.value = p.lat.toFixed(6);
@@ -294,7 +294,7 @@
   function makeVertexIcon(idx, total) {
     var isEnd  = idx === 0 || idx === total-1;
     var s      = isEnd ? 12 : 8;
-    var color  = idx === 0 ? '#3FB950' : idx === total-1 ? '#F0A429' : '#5E6AD2';
+    var color  = idx === 0 ? '#3FB950' : idx === total-1 ? '#F0A429' : '#FF6C37';
     var ring   = isEnd
       ? '<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:'+color+'22;pointer-events:none;"></div>'
       : '';
@@ -327,7 +327,7 @@
     if (waypoints.length < 2) { updateRouteUI(); return; }
 
     routeLayer = L.polyline(waypoints, {
-      color: '#5E6AD2', weight: 3, opacity: 0.9,
+      color: '#FF6C37', weight: 3, opacity: 0.9,
       dashArray: '8,6', lineCap: 'round', lineJoin: 'round'
     }).addTo(map);
 
@@ -464,7 +464,7 @@
     if (waypoints.length > 0) {
       var pts = [waypoints[waypoints.length-1], [e.latlng.lat, e.latlng.lng]];
       if (previewLine) previewLine.setLatLngs(pts);
-      else previewLine = L.polyline(pts, { color:'#5E6AD2', weight:1.5, opacity:.38, dashArray:'5,5', interactive:false }).addTo(map);
+      else previewLine = L.polyline(pts, { color:'#FF6C37', weight:1.5, opacity:.38, dashArray:'5,5', interactive:false }).addTo(map);
     } else {
       if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
     }
