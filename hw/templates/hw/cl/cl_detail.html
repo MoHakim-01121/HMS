@@ -95,51 +95,6 @@
 
   {% include 'hw/partials/_attachments.html' with target_type="cl" target_id=cl.pk attachments=cl.attachments.all %}
 
-  {% if cl.reservation_status == 'CANCELLED' %}
-  <div class="card">
-    <div class="card-header">
-      <span class="card-title">Penalti Pembatalan</span>
-      {% if cl.penalty %}
-      <div style="display:flex;gap:6px;">
-        <a href="{% url 'penalty_pdf' cl.penalty.pk %}" target="_blank" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">PDF</a>
-        <a href="{% url 'penalty_edit' cl.penalty.pk %}" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">Edit</a>
-      </div>
-      {% else %}
-      <a href="{% url 'penalty_new' cl.pk %}" class="btn btn-primary" style="height:26px;padding:0 10px;font-size:12px;">+ Buat Dokumen Penalti</a>
-      {% endif %}
-    </div>
-    <div class="card-body">
-      {% if cl.penalty %}
-      <div class="grid-2">
-        <div class="field">
-          <div class="field-label">No. Penalti</div>
-          <div class="field-value">
-            <a href="{% url 'penalty_detail' cl.penalty.pk %}" style="color:var(--accent);font-family:monospace;font-weight:600;">{{ cl.penalty.penalty_number }}</a>
-          </div>
-        </div>
-        <div class="field">
-          <div class="field-label">Tanggal Batal</div>
-          <div class="field-value">{{ cl.penalty.cancellation_date|date:"d/m/Y" }}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Jumlah Penalti</div>
-          <div class="field-value" style="font-weight:700;">{{ cl.penalty.penalty_amount|floatformat:0|intcomma }} {{ cl.penalty.penalty_currency }}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Status Bayar</div>
-          <div class="field-value">
-            {% if cl.penalty.is_paid %}<span class="badge badge-green">Lunas</span>
-            {% else %}<span class="badge badge-red">Belum Dibayar</span>{% endif %}
-          </div>
-        </div>
-      </div>
-      {% else %}
-      <p style="color:var(--text-2);font-size:13px;">Belum ada dokumen penalti untuk CL ini.</p>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
   <div class="card">
     <div class="card-header">
       <span class="card-title">Kamar</span>

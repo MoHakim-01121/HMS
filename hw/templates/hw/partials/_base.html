@@ -11,7 +11,6 @@
     var p=location.pathname;
     var pg='home';
     if(p==='/'||p==='')pg='home';
-    else if(p.indexOf('/penalty')!==-1)pg='penalty';
     else if(p.indexOf('/hotels')===0)pg='hotels';
     else if(p.indexOf('/invoice')===0)pg='invoice';
     else if(p.indexOf('/services')===0)pg='services';
@@ -91,8 +90,6 @@
   [data-page="clients"]    { --b1-c:rgba(59,130,246,.10);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(99,102,241,.05);  --b1-d:32s; --b2-d:40s; --b3-d:28s; }
   /* Remittance — green */
   [data-page="remittance"] { --b1-c:rgba(34,197,94,.11);   --b2-c:rgba(16,185,129,.09);  --b3-c:rgba(134,239,172,.06); --b1-d:35s; --b2-d:44s; --b3-d:29s; }
-  /* Penalty — red/orange */
-  [data-page="penalty"]    { --b1-c:rgba(239,68,68,.10);   --b2-c:rgba(255,108,55,.08);  --b3-c:rgba(249,115,22,.06);  --b1-d:27s; --b2-d:37s; --b3-d:22s; }
   /* Users/Account — purple */
   [data-page="users"]      { --b1-c:rgba(168,85,247,.10);  --b2-c:rgba(139,92,246,.08);  --b3-c:rgba(196,181,253,.05); --b1-d:34s; --b2-d:45s; --b3-d:30s; }
 

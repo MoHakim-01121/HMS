@@ -140,7 +140,7 @@ def cl_new(request):
 @login_required
 def cl_detail(request, pk):
     cl = get_object_or_404(
-        ConfirmationLetter.objects.select_related('client', 'invoice', 'penalty'),
+        ConfirmationLetter.objects.select_related('client', 'invoice'),
         pk=pk,
     )
     return render(request, "hw/cl/cl_detail.html", {"cl": cl})
