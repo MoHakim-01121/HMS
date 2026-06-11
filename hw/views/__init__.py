@@ -36,6 +36,9 @@ from .remittance_views import (
     remittance_pdf, remittance_delete, remittance_upload_proof, remittance_export_csv,
     remittance_mark_received, remittance_recap, remittance_period_pdf,
 )
+from .penalty_views import (
+    penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
+)
 
 from ..ai import generate_draft_message, get_chat_reply
 from ..models import Invoice

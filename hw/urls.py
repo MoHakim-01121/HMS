@@ -96,6 +96,13 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('account/avatar/delete/', views.avatar_delete, name='avatar_delete'),
 
 
+    # Cancellation Penalty (accessible through CL)
+    path('cl/<int:cl_pk>/penalty/new/', views.penalty_new, name='penalty_new'),
+    path('penalty/<int:pk>/', views.penalty_detail, name='penalty_detail'),
+    path('penalty/<int:pk>/edit/', views.penalty_edit, name='penalty_edit'),
+    path('penalty/<int:pk>/delete/', views.penalty_delete, name='penalty_delete'),
+    path('penalty/<int:pk>/pdf/', views.penalty_pdf, name='penalty_pdf'),
+
     # Health check
     path('health/', views.health_check, name='health_check'),
 ]

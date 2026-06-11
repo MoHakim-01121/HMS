@@ -1,0 +1,253 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cancellation Penalty — {{ penalty.penalty_number }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 56px 64px 48px;
+      @bottom-left {
+        content: string(doc-date);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " / " counter(pages);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+    }
+    .doc-date-anchor { string-set: doc-date content(); display: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* Top: title left, logo right */
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+    .logo { max-height: 60px; width: auto; }
+
+    /* Meta: penalty number, date */
+    .meta { margin-bottom: 28px; font-size: 12px; }
+    .meta-row { display: flex; gap: 8px; }
+    .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
+    .meta-row .mv { color: #111; }
+
+    /* Two-column: from / guest */
+    .two-col { display: flex; gap: 40px; margin-bottom: 32px; }
+    .two-col > div { flex: 1; }
+    .col-title { font-weight: 700; font-size: 12px; color: #111; margin-bottom: 4px; }
+    .col-body { font-size: 12px; color: #444; line-height: 1.7; }
+
+    /* Amount headline */
+    .amount-headline {
+      font-size: 22px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 28px;
+    }
+    .amount-sub { font-size: 12px; color: #555; margin-bottom: 28px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 0; }
+    thead th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 400;
+      color: #333;
+      padding-top: 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #111;
+    }
+    thead th.r { text-align: right; }
+    tbody td {
+      padding: 8px 0;
+      vertical-align: top;
+      color: #111;
+    }
+    tbody td.r { text-align: right; }
+    .td-name { font-weight: 400; }
+    .td-sub { font-size: 11px; color: #666; margin-top: 2px; }
+
+    /* Totals (right-aligned block) */
+    .totals {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .total-row {
+      display: flex;
+      gap: 0;
+      padding: 1px 0;
+      font-size: 12px;
+      width: 300px;
+    }
+    .total-row:first-child {
+      border-top: 1px solid #ddd;
+      padding-top: 3px;
+    }
+    .total-row .tkey { flex: 1; color: #555; text-align: left; }
+    .total-row .tval { width: 110px; text-align: right; color: #111; }
+    .total-row.bold .tkey,
+    .total-row.bold .tval { font-weight: 700; color: #111; }
+    .total-row.main {
+      border-top: 1px solid #ddd;
+      margin-top: 2px;
+      padding-top: 3px;
+    }
+
+    /* Reason */
+    .section { margin-top: 36px; }
+    .section-title { font-size: 20px; font-weight: 700; color: #111; margin-bottom: 12px; }
+    .section-body { font-size: 12px; color: #444; line-height: 1.7; }
+
+    /* Watermark */
+    .watermark {
+      position: fixed;
+      top: 45%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-40deg);
+      font-size: 90px; font-weight: 900;
+      color: rgba(0,0,0,0.04);
+      white-space: nowrap;
+      letter-spacing: 8px;
+    }
+
+  </style>
+</head>
+<body>
+
+<span class="doc-date-anchor">{{ now|date:"d M Y" }}</span>
+<div class="watermark">{% if penalty.is_paid %}PAID{% else %}UNPAID{% endif %}</div>
+
+{% if cl.company == 'konoz' %}
+<div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
+    <g transform="rotate(-35, 300, 420)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100" y="-140">KONOZ UNITED</text><text x="300" y="-140">KONOZ UNITED</text><text x="500" y="-140">KONOZ UNITED</text><text x="700" y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text><text x="-100" y="0">KONOZ UNITED</text><text x="100" y="0">KONOZ UNITED</text><text x="300" y="0">KONOZ UNITED</text><text x="500" y="0">KONOZ UNITED</text><text x="700" y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text><text x="-100" y="140">KONOZ UNITED</text><text x="100" y="140">KONOZ UNITED</text><text x="300" y="140">KONOZ UNITED</text><text x="500" y="140">KONOZ UNITED</text><text x="700" y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text><text x="-100" y="280">KONOZ UNITED</text><text x="100" y="280">KONOZ UNITED</text><text x="300" y="280">KONOZ UNITED</text><text x="500" y="280">KONOZ UNITED</text><text x="700" y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text><text x="-100" y="420">KONOZ UNITED</text><text x="100" y="420">KONOZ UNITED</text><text x="300" y="420">KONOZ UNITED</text><text x="500" y="420">KONOZ UNITED</text><text x="700" y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text><text x="-100" y="560">KONOZ UNITED</text><text x="100" y="560">KONOZ UNITED</text><text x="300" y="560">KONOZ UNITED</text><text x="500" y="560">KONOZ UNITED</text><text x="700" y="560">KONOZ UNITED</text>
+      <text x="-300" y="700">KONOZ UNITED</text><text x="-100" y="700">KONOZ UNITED</text><text x="100" y="700">KONOZ UNITED</text><text x="300" y="700">KONOZ UNITED</text><text x="500" y="700">KONOZ UNITED</text><text x="700" y="700">KONOZ UNITED</text>
+      <text x="-300" y="840">KONOZ UNITED</text><text x="-100" y="840">KONOZ UNITED</text><text x="100" y="840">KONOZ UNITED</text><text x="300" y="840">KONOZ UNITED</text><text x="500" y="840">KONOZ UNITED</text><text x="700" y="840">KONOZ UNITED</text>
+      <text x="-300" y="980">KONOZ UNITED</text><text x="-100" y="980">KONOZ UNITED</text><text x="100" y="980">KONOZ UNITED</text><text x="300" y="980">KONOZ UNITED</text><text x="500" y="980">KONOZ UNITED</text><text x="700" y="980">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+{% endif %}
+
+  <div class="top">
+    <div class="doc-title">Cancellation Penalty</div>
+    <img src="{{ logo_rel_path }}" class="logo">
+  </div>
+
+  <div class="meta">
+    <div class="meta-row"><span class="mk">Penalty number</span><span class="mv">{{ penalty.penalty_number }}</span></div>
+    <div class="meta-row"><span class="mk">Cancellation date</span><span class="mv">{{ penalty.cancellation_date|date:"d M Y" }}</span></div>
+    <div class="meta-row"><span class="mk">Check-in</span><span class="mv">{% if cl.check_in %}{{ cl.check_in|date:"d M Y" }}{% else %}—{% endif %}</span></div>
+    <div class="meta-row"><span class="mk">Check-out</span><span class="mv">{% if cl.check_out %}{{ cl.check_out|date:"d M Y" }}{% else %}—{% endif %}</span></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="col-title">
+        {% if cl.company == 'ijabah' %}Ijabah Travel{% else %}Konoz United{% endif %}
+      </div>
+      <div class="col-body">
+        Travel & Tourism<br>
+        {% if cl.company == 'ijabah' %}ijabah.id{% else %}konozunited.com{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="col-title">Guest</div>
+      <div class="col-body">
+        {{ cl.guest_name }}<br>
+        {% if cl.guest_phone %}{{ cl.guest_phone }}<br>{% endif %}
+        {{ cl.hotel_name }}<br>
+        {{ cl.confirmation_number }}
+      </div>
+    </div>
+  </div>
+
+  <div class="amount-headline">
+    {{ penalty.penalty_amount|floatformat:0|intcomma }} {{ penalty.penalty_currency }}
+    {% if penalty.is_paid %}paid on {{ penalty.payment_date|date:"d M Y" }}{% else %}due on {{ penalty.cancellation_date|date:"d M Y" }}{% endif %}
+  </div>
+  {% if penalty.penalty_currency != 'SAR' %}
+  <div class="amount-sub">≈ {{ penalty.penalty_amount_sar|floatformat:0|intcomma }} SAR (@ {{ penalty.exchange_rate }})</div>
+  {% endif %}
+
+  {% if rooms %}
+  <table>
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="r">Qty</th>
+        <th class="r">Rate / Night</th>
+        <th class="r">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for room in rooms %}
+      <tr>
+        <td>
+          <div class="td-name">{{ room.type }}{% if room.meals %} · {{ room.meals }}{% endif %}</div>
+        </td>
+        <td class="r">{{ room.quantity }}</td>
+        <td class="r">{{ room.price|floatformat:0|intcomma }} SAR</td>
+        <td class="r">{{ room.subtotal|floatformat:0|intcomma }} SAR</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="totals">
+    <div class="total-row">
+      <span class="tkey">Booking total</span>
+      <span class="tval">{{ cl.total_price|floatformat:0|intcomma }} SAR</span>
+    </div>
+    <div class="total-row bold main">
+      <span class="tkey">Penalty amount</span>
+      <span class="tval">{{ penalty.penalty_amount|floatformat:0|intcomma }} {{ penalty.penalty_currency }}</span>
+    </div>
+  </div>
+  {% else %}
+  <div class="totals" style="border-top:none;">
+    <div class="total-row bold">
+      <span class="tkey">Penalty amount</span>
+      <span class="tval">{{ penalty.penalty_amount|floatformat:0|intcomma }} {{ penalty.penalty_currency }}</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if penalty.reason %}
+  <div class="section">
+    <div class="section-title">Reason for cancellation</div>
+    <div class="section-body">{{ penalty.reason }}</div>
+  </div>
+  {% endif %}
+
+  {% if penalty.note %}
+  <div class="section">
+    <div class="section-title">Notes</div>
+    <div class="section-body">{{ penalty.note }}</div>
+  </div>
+  {% endif %}
+
+
+</body>
+</html>

@@ -1,0 +1,179 @@
+{% extends 'hw/partials/_base.html' %}
+{% load static humanize %}
+
+{% block title %}{% if edit %}Edit Penalti{% else %}Buat Penalti{% endif %} — {{ cl.confirmation_number }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="topbar-sep"></div>
+<a href="{% url 'cl_list' %}" class="topbar-crumb">Confirmation Letter</a>
+<div class="topbar-sep"></div>
+<a href="{% url 'cl_detail' cl.pk %}" class="topbar-crumb">{{ cl.confirmation_number }}</a>
+<div class="topbar-sep"></div>
+<span class="topbar-crumb active">{% if edit %}Edit Penalti{% else %}Buat Penalti{% endif %}</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'hw/css/forms.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="form-page">
+
+  <div class="page-header" style="margin-bottom:16px;">
+    <div>
+      <div class="page-title">{% if edit %}Edit Penalti{% else %}Dokumen Penalti{% endif %}</div>
+      <div class="page-sub">{{ cl.confirmation_number }} · {{ cl.guest_name }}</div>
+    </div>
+  </div>
+
+  <form method="post" id="penalty-form">
+    {% csrf_token %}
+
+    <div class="form-panel">
+
+      <!-- Context bar -->
+      <div class="form-context">
+        <strong>{{ cl.hotel_name }}</strong>
+        <span class="form-context-sep">·</span>
+        {% if cl.check_in %}<span>{{ cl.check_in|date:"d M" }} – {{ cl.check_out|date:"d M Y" }}</span>{% endif %}
+        <span class="form-context-sep">·</span>
+        <span>{{ cl.guest_name }}</span>
+      </div>
+
+      <!-- Detail Penalti -->
+      <div class="form-section">
+        <div class="form-section-label">Detail Penalti</div>
+        <div class="fg-2">
+          <div class="ff">
+            <label>No. Penalti *</label>
+            <input type="text" name="penalty_number"
+              value="{{ penalty.penalty_number|default:suggested_number }}" required
+              placeholder="{{ suggested_number }}" autocomplete="off">
+          </div>
+          <div class="ff">
+            <label>Tanggal Pembatalan *</label>
+            <input type="date" name="cancellation_date"
+              value="{{ penalty.cancellation_date|date:'Y-m-d'|default:today }}" required>
+          </div>
+          <div class="ff">
+            <label>Jumlah Penalti *</label>
+            <input type="number" name="penalty_amount" step="0.01" min="0"
+              value="{{ penalty.penalty_amount|default:'' }}" required placeholder="0.00">
+          </div>
+          <div class="ff">
+            <label>Mata Uang</label>
+            <select name="penalty_currency" id="penalty_currency" onchange="toggleKurs(this)">
+              <option value="SAR" {% if penalty.penalty_currency == 'SAR' or not penalty %}selected{% endif %}>SAR – Saudi Riyal</option>
+              <option value="IDR" {% if penalty.penalty_currency == 'IDR' %}selected{% endif %}>IDR – Indonesian Rupiah</option>
+              <option value="USD" {% if penalty.penalty_currency == 'USD' %}selected{% endif %}>USD – US Dollar</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Kurs row (conditional) -->
+        <div id="kurs-row" style="margin-top:12px;{% if penalty.penalty_currency == 'SAR' or not penalty %}display:none{% endif %}">
+          <div style="max-width:calc(50% - 6px);">
+            <div class="ff">
+              <label>Kurs ke SAR</label>
+              <input type="number" name="exchange_rate" step="0.0001" min="0"
+                value="{{ penalty.exchange_rate|default:'1' }}" placeholder="1.0000">
+              <span class="hint">Nilai 1 mata uang = ? SAR</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keterangan -->
+      <div class="form-section">
+        <div class="form-section-label">Keterangan</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="ff">
+            <label>Alasan Pembatalan</label>
+            <textarea name="reason" rows="3"
+              placeholder="Tuliskan alasan pembatalan…">{{ penalty.reason|default:'' }}</textarea>
+          </div>
+          <div class="ff">
+            <label>Catatan Internal <span style="font-weight:400;text-transform:none;letter-spacing:0;font-family:inherit;color:var(--text-3);">(opsional)</span></label>
+            <textarea name="note" rows="2"
+              placeholder="Catatan untuk tim internal…">{{ penalty.note|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pembayaran Penalti -->
+      <div class="form-section">
+        <div class="form-section-label">
+          Pembayaran Penalti
+          <span class="form-section-label-right">
+            <label class="toggle-wrap" style="cursor:pointer;">
+              <span class="toggle">
+                <input type="checkbox" name="is_paid" id="is_paid"
+                  {% if penalty.is_paid %}checked{% endif %}
+                  onchange="togglePaid(this)">
+                <span class="toggle-slider"></span>
+              </span>
+              <span class="toggle-label">Sudah dibayar</span>
+            </label>
+          </span>
+        </div>
+
+        <div id="payment-fields" class="form-reveal{% if not penalty.is_paid %} hidden{% endif %}"
+          style="max-height:{% if penalty.is_paid %}400px{% else %}0{% endif %};">
+          <div class="fg-2" style="margin-bottom:12px;">
+            <div class="ff">
+              <label>Tanggal Bayar</label>
+              <input type="date" name="payment_date"
+                value="{{ penalty.payment_date|date:'Y-m-d'|default:'' }}">
+            </div>
+            <div class="ff">
+              <label>Metode Pembayaran</label>
+              <select name="payment_method">
+                <option value="" {% if not penalty.payment_method %}selected{% endif %}>— Pilih metode —</option>
+                <option value="Cash" {% if penalty.payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                <option value="Bank Transfer" {% if penalty.payment_method == 'Bank Transfer' %}selected{% endif %}>Bank Transfer</option>
+                <option value="Direct" {% if penalty.payment_method == 'Direct' %}selected{% endif %}>Direct</option>
+              </select>
+            </div>
+          </div>
+          <div class="ff">
+            <label>Catatan Pembayaran</label>
+            <textarea name="payment_note" rows="2"
+              placeholder="Referensi transfer, bukti, dll…">{{ penalty.payment_note|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <a href="{% url 'cl_detail' cl.pk %}" class="btn btn-ghost">Batal</a>
+        <button type="submit" id="submit-btn" class="btn btn-primary">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          {% if edit %}Simpan Perubahan{% else %}Buat Dokumen{% endif %}
+        </button>
+      </div>
+
+    </div><!-- /.form-panel -->
+  </form>
+
+</div>
+
+<script>
+function togglePaid(cb) {
+  const fields = document.getElementById('payment-fields');
+  if (cb.checked) {
+    fields.classList.remove('hidden');
+    fields.style.maxHeight = '400px';
+  } else {
+    fields.classList.add('hidden');
+    fields.style.maxHeight = '0';
+  }
+}
+function toggleKurs(sel) {
+  document.getElementById('kurs-row').style.display = sel.value !== 'SAR' ? '' : 'none';
+}
+document.getElementById('penalty-form').addEventListener('submit', function() {
+  var btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Menyimpan…';
+});
+</script>
+{% endblock %}
