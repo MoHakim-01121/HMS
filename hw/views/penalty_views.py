@@ -12,37 +12,6 @@ from .pdf import _logo_file_url
 
 
 @login_required
-def penalty_list(request):
-    active_company = request.session.get("active_company")
-    qs = CancellationPenalty.objects.select_related('cl')
-    if active_company:
-        qs = qs.filter(cl__company=active_company)
-
-    q = request.GET.get('q', '').strip()
-    paid = request.GET.get('paid', '')
-    if q:
-        from django.db.models import Q
-        qs = qs.filter(
-            Q(penalty_number__icontains=q) |
-            Q(cl__guest_name__icontains=q) |
-            Q(cl__hotel_name__icontains=q)
-        )
-    if paid == '1':
-        qs = qs.filter(is_paid=True)
-    elif paid == '0':
-        qs = qs.filter(is_paid=False)
-
-    qs = qs.order_by('-created_at')
-    total_count = qs.count()
-    return render(request, 'hw/penalty/penalty_list.html', {
-        'penalties': qs,
-        'q': q,
-        'paid': paid,
-        'total_count': total_count,
-    })
-
-
-@login_required
 def penalty_new(request, cl_pk):
     cl = get_object_or_404(ConfirmationLetter, pk=cl_pk)
     if hasattr(cl, 'penalty'):
