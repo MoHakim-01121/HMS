@@ -2,15 +2,15 @@
 Django==5.2.8
 
 # PDF Generation
-WeasyPrint==60.0
-pydyf==0.10.0
+WeasyPrint==68.1
+pydyf==0.12.1
 Pillow==12.0.0
 
 # Dependencies for WeasyPrint
 cffi==2.0.0
 pycparser==2.23
 cssselect2==0.8.0
-tinycss2==1.2.1
+tinycss2==1.5.1
 pyphen==0.14.0
 fonttools==4.61.1
 
