@@ -139,6 +139,19 @@
         </tbody>
       </table>
     </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}<a href="?{{ params_str }}&page={{ page_obj.previous_page_number }}" class="pag-btn">‹</a>{% else %}<span class="pag-btn pag-disabled">‹</span>{% endif %}
+      {% for p in page_range_display %}
+        {% if p is None %}<span class="pag-ellipsis">…</span>
+        {% elif p == page_obj.number %}<span class="pag-btn pag-active">{{ p }}</span>
+        {% else %}<a href="?{{ params_str }}&page={{ p }}" class="pag-btn">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}<a href="?{{ params_str }}&page={{ page_obj.next_page_number }}" class="pag-btn">›</a>{% else %}<span class="pag-btn pag-disabled">›</span>{% endif %}
+    </div>
+    {% endif %}
   {% else %}
   <div class="empty">
     <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" class="empty-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M12 3.75h.008v.008H12V3.75z"/></svg>
@@ -152,19 +165,6 @@
   </div>
   {% endif %}
   </div>
-
-  {% if page_obj.has_other_pages %}
-  <div class="pagination">
-    {% if page_obj.has_previous %}<a href="?{{ params_str }}&page={{ page_obj.previous_page_number }}" class="pag-btn">‹</a>{% else %}<span class="pag-btn pag-disabled">‹</span>{% endif %}
-    {% for p in page_range_display %}
-      {% if p is None %}<span class="pag-ellipsis">…</span>
-      {% elif p == page_obj.number %}<span class="pag-btn pag-active">{{ p }}</span>
-      {% else %}<a href="?{{ params_str }}&page={{ p }}" class="pag-btn">{{ p }}</a>
-      {% endif %}
-    {% endfor %}
-    {% if page_obj.has_next %}<a href="?{{ params_str }}&page={{ page_obj.next_page_number }}" class="pag-btn">›</a>{% else %}<span class="pag-btn pag-disabled">›</span>{% endif %}
-  </div>
-  {% endif %}
 
 {% include 'hw/partials/_delete_modal.html' with delete_modal_title="Hotel" %}
 {% endblock %}
