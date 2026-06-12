@@ -160,8 +160,7 @@
 </div>
 
 <div class="amount-headline">
-  {{ total_reservation_sar }} SAR
-  {% if remaining_int == 0 %}paid{% else %}due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
+  {% if remaining_int == 0 %}{{ total_reservation_sar }} SAR paid{% else %}{{ remaining }} SAR due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
 </div>
 
 <table>
