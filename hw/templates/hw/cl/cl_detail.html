@@ -10,90 +10,64 @@
 <span class="topbar-crumb active">{{ cl.confirmation_number }}</span>
 {% endblock %}
 
-{% block topbar_actions %}
-<a href="{% url 'cl_pdf' cl.pk %}" target="_blank" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;">PDF</a>
-<a href="{% url 'cl_edit' cl.pk %}" class="btn btn-ghost" style="height:28px;padding:0 12px;font-size:12px;" data-shortcut="edit">Edit</a>
-<div class="topbar-sep"></div>
-{% endblock %}
-
 {% block content %}
 <a href="{% url 'cl_edit' cl.pk %}" data-shortcut="edit" style="display:none" aria-hidden="true"></a>
 <a href="{% url 'cl_pdf' cl.pk %}" data-shortcut="pdf" target="_blank" style="display:none" aria-hidden="true"></a>
 
-<div class="page-sm">
-  <div class="page-header">
-    <div>
-      <div class="page-title">{{ cl.hotel_name|default:cl.confirmation_number }}</div>
-      <div class="page-sub">{{ cl.guest_name }}{% if cl.check_in %} · {{ cl.check_in|date:"d M Y" }} – {{ cl.check_out|date:"d M Y" }}{% endif %}</div>
+<div class="page">
+
+  <a href="{% url 'cl_list' %}" class="page-back">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7-7l-7 7 7 7"/></svg>
+    Kembali
+  </a>
+
+  <div class="dhero">
+    <div class="dhero-main">
+      <div class="dhero-kicker">Confirmation Letter</div>
+      <div class="dhero-title copyable" onclick="copyText('{{ cl.confirmation_number }}')" title="Klik untuk menyalin">{{ cl.confirmation_number }}</div>
+      <div class="dhero-sub">{{ cl.guest_name }}</div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-      {% if cl.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
-      {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
-      {% if cl.reservation_status == 'DEFINITE' %}<span class="badge badge-green">Definite</span>
-      {% elif cl.reservation_status == 'CANCELLED' %}<span class="badge badge-red">Cancelled</span>
-      {% else %}<span class="badge badge-yellow">Tentative</span>{% endif %}
-      {% if cl.invoice %}
-      <a href="{% url 'invoice_detail' cl.invoice.pk %}" class="badge badge-blue" style="text-decoration:none;" title="Ditagih dalam invoice ini">
-        Ditagih → {{ cl.invoice.invoice_number }}
-      </a>
-      {% endif %}
+    <div class="dhero-side">
+      <div class="dhero-badges">
+        {% if cl.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
+        {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
+        {% if cl.reservation_status == 'DEFINITE' %}<span class="badge badge-green">Definite</span>
+        {% elif cl.reservation_status == 'CANCELLED' %}<span class="badge badge-red">Cancelled</span>
+        {% else %}<span class="badge badge-yellow">Tentative</span>{% endif %}
+        {% if cl.invoice %}
+        <a href="{% url 'invoice_detail' cl.invoice.pk %}" class="badge badge-blue" style="text-decoration:none;" title="Ditagih dalam invoice ini">
+          Ditagih → {{ cl.invoice.invoice_number }}
+        </a>
+        {% endif %}
+      </div>
+      <div class="dhero-actions">
+        <a href="{% url 'cl_pdf' cl.pk %}" target="_blank" class="btn btn-primary btn-sm">PDF</a>
+        <a href="{% url 'cl_edit' cl.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-header"><span class="card-title">Detail</span></div>
-    <div class="card-body">
-      <div class="grid-2">
-        <div class="field">
-          <div class="field-label">Hotel</div>
-          <div class="field-value">{{ cl.hotel_name }}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Confirmation #</div>
-          <div class="field-value copyable" style="font-family:monospace;"
-            onclick="copyText('{{ cl.confirmation_number }}')" title="Klik untuk menyalin">
-            {{ cl.confirmation_number }}
-          </div>
-        </div>
-        <div class="field">
-          <div class="field-label">Agen Travel</div>
-          <div class="field-value">
-            {% if cl.client %}
-            <a href="{% url 'client_detail' cl.client.pk %}" style="color:var(--accent);text-decoration:none;font-weight:500;">{{ cl.client.name }}</a>
-            {% else %}{{ cl.guest_name|default:"—" }}{% endif %}
-          </div>
-        </div>
-        <div class="field">
-          <div class="field-label">Telepon</div>
-          <div class="field-value">{{ cl.guest_phone|default:"—" }}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Check-in</div>
-          <div class="field-value">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Check-out</div>
-          <div class="field-value">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Jumlah Malam</div>
-          <div class="field-value">{{ cl.num_nights }} malam</div>
-        </div>
-        <div class="field">
-          <div class="field-label">Jumlah Tamu</div>
-          <div class="field-value">{{ cl.num_guests }} orang</div>
-        </div>
-      </div>
-      {% if cl.note %}
-      <div class="field" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
-        <div class="field-label">Catatan</div>
-        <div class="field-value">{{ cl.note }}</div>
-      </div>
-      {% endif %}
-    </div>
+  <div class="dlayout rail-left">
+
+  <!-- Meta rail (left) -->
+  <div class="dmeta">
+    <div class="dmeta-head">Properti</div>
+    <div class="dmeta-row"><span class="dmeta-k">Hotel</span><span class="dmeta-v">{{ cl.hotel_name|default:"—" }}</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Agen Travel</span><span class="dmeta-v">
+      {% if cl.client %}<a href="{% url 'client_detail' cl.client.pk %}" style="color:var(--accent-2);text-decoration:none;">{{ cl.client.name }}</a>
+      {% else %}{{ cl.guest_name|default:"—" }}{% endif %}
+    </span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Telepon</span><span class="dmeta-v mono">{{ cl.guest_phone|default:"—" }}</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Check-in</span><span class="dmeta-v">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Check-out</span><span class="dmeta-v">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Malam</span><span class="dmeta-v">{{ cl.num_nights }}</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Tamu</span><span class="dmeta-v">{{ cl.num_guests }} orang</span></div>
+    <div class="dmeta-row"><span class="dmeta-k">Total</span><span class="dmeta-v mono" style="font-weight:700;">{{ cl.total_price|floatformat:0|intcomma }} SAR</span></div>
+    {% if cl.note %}<div class="dmeta-note">{{ cl.note }}</div>{% endif %}
   </div>
 
-  {% include 'hw/partials/_attachments.html' with target_type="cl" target_id=cl.pk attachments=cl.attachments.all %}
+  <!-- Content (right) -->
+  <div>
 
   {% if cl.reservation_status == 'CANCELLED' %}
   <div class="card">
@@ -101,11 +75,11 @@
       <span class="card-title">Penalti Pembatalan</span>
       {% if cl.penalty %}
       <div style="display:flex;gap:6px;">
-        <a href="{% url 'penalty_pdf' cl.penalty.pk %}" target="_blank" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">PDF</a>
-        <a href="{% url 'penalty_edit' cl.penalty.pk %}" class="btn btn-ghost" style="height:26px;padding:0 10px;font-size:12px;">Edit</a>
+        <a href="{% url 'penalty_pdf' cl.penalty.pk %}" target="_blank" class="btn btn-ghost btn-sm">PDF</a>
+        <a href="{% url 'penalty_edit' cl.penalty.pk %}" class="btn btn-ghost btn-sm">Edit</a>
       </div>
       {% else %}
-      <a href="{% url 'penalty_new' cl.pk %}" class="btn btn-primary" style="height:26px;padding:0 10px;font-size:12px;">+ Buat Dokumen Penalti</a>
+      <a href="{% url 'penalty_new' cl.pk %}" class="btn btn-primary btn-sm">+ Buat Dokumen Penalti</a>
       {% endif %}
     </div>
     <div class="card-body">
@@ -143,7 +117,6 @@
   <div class="card">
     <div class="card-header">
       <span class="card-title">Kamar</span>
-      <span style="font-size:13px;font-weight:600;color:var(--text);">{{ cl.total_price|floatformat:0|intcomma }} SAR</span>
     </div>
     <div class="table-wrap">
       <table>
@@ -175,6 +148,12 @@
       </table>
     </div>
   </div>
+
+  {% include 'hw/partials/_attachments.html' with target_type="cl" target_id=cl.pk attachments=cl.attachments.all %}
+
+  </div>{# end content (right) #}
+
+  </div>{# end dlayout #}
 
 </div>
 {% endblock %}

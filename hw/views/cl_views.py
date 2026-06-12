@@ -22,17 +22,17 @@ def cl_list(request):
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
     date_from   = _parse_date(request.GET.get('date_from', '').strip())
     date_to     = _parse_date(request.GET.get('date_to', '').strip())
-    sort        = request.GET.get('sort', '-check_in')
+    sort        = request.GET.get('sort', 'check_in')
 
     _sort_map = {
-        '-check_in':   '-check_in',
         'check_in':    'check_in',
+        '-check_in':   '-check_in',
         'guest_name':  'guest_name',
         '-created_at': '-created_at',
     }
     _sort_labels = {
-        '-check_in':   'Check-in (terbaru)',
         'check_in':    'Check-in (terlama)',
+        '-check_in':   'Check-in (terbaru)',
         'guest_name':  'Nama tamu (A–Z)',
         '-created_at': 'Dibuat (terbaru)',
     }

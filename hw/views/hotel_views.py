@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from ..models import ActivityLog, Hotel, log_activity
+from .helpers import _paginated_list
 
 
 def _save_hotel(h, data):
@@ -56,9 +57,7 @@ def hotel_list(request):
     if stars_filter.isdigit():
         qs = qs.filter(stars=int(stars_filter))
     areas = Hotel.objects.filter(company=company).exclude(area='').values_list('area', flat=True).distinct().order_by('area')
-    return render(request, 'hw/hotel/hotel_list.html', {
-        'hotels': qs,
-        'q': q,
+    return _paginated_list(request, qs, 'hw/hotel/hotel_list.html', 'hotels', extra_ctx={
         'area_filter': area_filter,
         'city_filter': city_filter,
         'stars_filter': stars_filter,

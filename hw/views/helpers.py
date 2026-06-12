@@ -22,7 +22,7 @@ def _page_range_display(page_obj):
 
 def _paginated_list(request, qs, template, context_key, extra_ctx=None):
     q = request.GET.get('q', '').strip()
-    paginator = Paginator(qs, 20)
+    paginator = Paginator(qs, 15)
     page_obj = paginator.get_page(request.GET.get('page'))
     params_str = urllib.parse.urlencode({k: v for k, v in request.GET.items() if k != 'page'})
     ctx = {
