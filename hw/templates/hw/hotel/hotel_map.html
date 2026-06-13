@@ -524,6 +524,7 @@
 {% block extra_js %}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+function _esc(s){return(s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 var HARAM      = [21.420324, 39.826485];
 var HARAM_INFO = [21.4225,   39.8262];
 var NABAWI     = [24.4672,   39.6112];
