@@ -948,11 +948,8 @@ fetch('{% url "hotel_map_data" %}')
     var filtered=getFiltered();
     renderMarkers(filtered);updateCounter(filtered.length);renderPanel(filtered);
     updateFilterBadge();syncRadioStyles();
-    if(allHotels.length===1){map.setView([allHotels[0].lat,allHotels[0].lng],15);}
-    else if(allHotels.length>1){
-      var lats=allHotels.map(function(h){return h.lat;}),lngs=allHotels.map(function(h){return h.lng;});
-      map.fitBounds([[Math.min.apply(null,lats),Math.min.apply(null,lngs)],[Math.max.apply(null,lats),Math.max.apply(null,lngs)]],{padding:[40,40],maxZoom:15});
-    }
+    if(getCityFilter()==='madinah') map.setView(NABAWI,14);
+    else map.setView(HARAM,14);
   });
 </script>
 {% endblock %}
