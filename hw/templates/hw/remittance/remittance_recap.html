@@ -28,6 +28,19 @@
 .month-foot { display:flex; justify-content:space-between; align-items:center; padding:8px 16px; border-top:1px solid var(--border); background:var(--surface-2); }
 .month-foot-label { font-size:11px; font-weight:600; color:var(--text-2); }
 .month-foot-val { font-family:monospace; font-size:14px; font-weight:700; }
+
+@media (max-width: 600px) {
+  .month-header { flex-wrap: wrap; gap: 8px; }
+  .month-meta { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .recap-table thead { display: none; }
+  .recap-table tbody, .recap-table tr, .recap-table td { display: block; }
+  .recap-table tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .recap-table tbody tr:last-child { border-bottom: none; }
+  .recap-table td { padding: 0; border: none; font-size: 12px; }
+  .recap-table td:nth-child(1) { font-weight: 700; font-family: monospace; }
+  .recap-table td:nth-child(5) { margin-left: auto; font-weight: 700; font-family: monospace; }
+  .month-foot { flex-wrap: wrap; gap: 6px; }
+}
 </style>
 {% endblock %}
 

@@ -55,31 +55,53 @@
       background-size: 180px 180px;
     }
 
-    /* Corner accent glows */
+    /* Ambient drifting blobs */
     .bg-accents { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
     .ac {
       position: absolute;
       border-radius: 50%;
-      filter: blur(60px);
+      filter: blur(56px);
+      will-change: transform;
     }
     .ac-tl {
-      width: 320px; height: 320px;
-      top: -80px; left: -80px;
-      background: radial-gradient(circle at 30% 30%, rgba(255,108,55,.22) 0%, transparent 70%);
-      animation: ac-pulse 9s ease-in-out infinite alternate;
+      width: 400px; height: 400px;
+      top: -110px; left: -90px;
+      background: radial-gradient(circle, rgba(255,108,55,.24) 0%, transparent 62%);
+      animation: ac-drift1 15s ease-in-out infinite;
     }
     .ac-br {
-      width: 260px; height: 260px;
-      bottom: -60px; right: -60px;
-      background: radial-gradient(circle at 70% 70%, rgba(255,45,0,.16) 0%, transparent 70%);
-      animation: ac-pulse 11s ease-in-out infinite alternate-reverse;
+      width: 340px; height: 340px;
+      bottom: -90px; right: -70px;
+      background: radial-gradient(circle, rgba(255,45,0,.18) 0%, transparent 62%);
+      animation: ac-drift2 19s ease-in-out infinite;
     }
-    @keyframes ac-pulse {
-      0%   { opacity: .7; transform: scale(1); }
-      100% { opacity: 1;  transform: scale(1.15); }
+    .ac-mid {
+      width: 320px; height: 320px;
+      top: 42%; left: 52%;
+      background: radial-gradient(circle, rgba(139,92,246,.13) 0%, transparent 62%);
+      animation: ac-drift3 17s ease-in-out infinite;
     }
-    [data-theme="light"] .ac-tl { opacity: .35; }
-    [data-theme="light"] .ac-br { opacity: .25; }
+    @keyframes ac-drift1 {
+      0%,100%{transform:translate(0,0) scale(1);}
+      30%   {transform:translate(75px,65px) scale(1.15);}
+      60%   {transform:translate(120px,-30px) scale(.88);}
+    }
+    @keyframes ac-drift2 {
+      0%,100%{transform:translate(0,0) scale(1);}
+      35%   {transform:translate(-85px,-65px) scale(1.2);}
+      70%   {transform:translate(45px,55px) scale(.84);}
+    }
+    @keyframes ac-drift3 {
+      0%,100%{transform:translate(0,0) scale(1);}
+      40%   {transform:translate(-75px,55px) scale(1.22);}
+      70%   {transform:translate(60px,-55px) scale(.86);}
+    }
+    [data-theme="light"] .ac-tl { opacity: .5; }
+    [data-theme="light"] .ac-br { opacity: .4; }
+    [data-theme="light"] .ac-mid { opacity: .4; }
+    @media (prefers-reduced-motion: reduce) {
+      .ac { animation: none !important; }
+    }
 
     /* Layout */
     .login-wrap {
@@ -292,6 +314,7 @@
   <div class="bg-accents">
     <div class="ac ac-tl"></div>
     <div class="ac ac-br"></div>
+    <div class="ac ac-mid"></div>
   </div>
 
   <!-- Theme toggle -->

@@ -15,7 +15,7 @@
   <div class="page-header"></div>
   <div class="card" style="margin-bottom:16px;">
     <div class="card-body">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div class="grid-4">
         <div>
           <div class="info-label">Remittance No</div>
           <div style="font-size:14px;font-weight:700;font-family:monospace;">{{ rem.remittance_number }}</div>
@@ -82,20 +82,23 @@
         <tbody>
           {% for row in lines %}
           <tr>
-            <td style="font-family:monospace;font-weight:600;">{{ row.line.linked_number }}</td>
+            <td class="col-m-primary" style="font-family:monospace;font-weight:600;">
+              {{ row.line.linked_number }}
+              <span class="m-sub" style="font-family:inherit;">{{ row.hotel|default:"—" }}{% if row.check_in %} · {{ row.check_in|date:"d/m/Y" }}{% endif %}{% if row.prev_sent %} · prev {{ row.prev_sent|floatformat:0|intcomma }}{% endif %}</span>
+            </td>
             <td class="col-m-hide">
               {% if row.line.invoice %}
               <a href="{% url 'invoice_detail' row.line.invoice.pk %}" style="color:var(--accent-2);text-decoration:none;font-size:12px;">{{ row.line.invoice.invoice_number }}</a>
               {% else %}—{% endif %}
             </td>
-            <td style="font-size:12px;color:var(--text-2);">{{ row.line.invoice.customer_name|default:"—" }}</td>
-            <td style="font-size:12px;color:var(--text-2);">{{ row.hotel|default:"—" }}</td>
-            <td style="font-size:12px;color:var(--text-2);text-align:right;">{% if row.check_in %}{{ row.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-            <td style="font-family:monospace;text-align:right;color:var(--text-2);">{{ row.prev_sent|floatformat:0|intcomma }}</td>
-            <td style="font-family:monospace;font-weight:600;text-align:right;">{{ row.line.amount_sar|floatformat:0|intcomma }}</td>
+            <td class="col-m-secondary" style="font-size:12px;color:var(--text-2);">{{ row.line.invoice.customer_name|default:"—" }}</td>
+            <td class="col-m-hide" style="font-size:12px;color:var(--text-2);">{{ row.hotel|default:"—" }}</td>
+            <td class="col-m-hide" style="font-size:12px;color:var(--text-2);text-align:right;">{% if row.check_in %}{{ row.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="col-m-hide" style="font-family:monospace;text-align:right;color:var(--text-2);">{{ row.prev_sent|floatformat:0|intcomma }}</td>
+            <td class="mono col-m-amount" style="font-weight:600;text-align:right;">{{ row.line.amount_sar|floatformat:0|intcomma }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="6" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data</td></tr>
+          <tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data</td></tr>
           {% endfor %}
         </tbody>
         {% if lines %}
