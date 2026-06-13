@@ -197,4 +197,5 @@ credentials/
 
 # Claude Code
 .claude/
+.superpowers/
 

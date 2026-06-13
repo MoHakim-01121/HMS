@@ -47,21 +47,6 @@ document.addEventListener('DOMContentLoaded', function () {
   if (firstInput) firstInput.focus();
 });
 
-// Bottom nav: highlight active item based on current path
-(function () {
-  var items = document.querySelectorAll('.bnav-item[data-path]');
-  if (!items.length) return;
-  var path = window.location.pathname;
-  var best = null, bestLen = 0;
-  items.forEach(function (item) {
-    var p = item.getAttribute('data-path');
-    if (p === '/' ? path === '/' : path.startsWith(p)) {
-      if (p.length > bestLen) { best = item; bestLen = p.length; }
-    }
-  });
-  if (best) best.classList.add('active');
-})();
-
 // Keyboard shortcuts — only when not typing in a field
 document.addEventListener('keydown', function (e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
