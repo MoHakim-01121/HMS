@@ -114,6 +114,13 @@
   }
 
   bindPagination();
+
+  var searchInput = form.querySelector('input[name="q"]');
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      if (searchInput.value === '') form.submit();
+    });
+  }
 })();
 
 // Export dropdown toggle
