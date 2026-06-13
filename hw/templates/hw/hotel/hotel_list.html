@@ -28,7 +28,7 @@
   <form method="get" id="filter-form" class="filter-bar">
     <div class="search-wrap">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
-      <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Cari nama atau area…" oninput="debounceSubmit()">
+      <input type="text" name="q" id="search-input" value="{{ q }}" placeholder="Cari nama atau area…">
       {% if q %}<button type="button" class="sw-clear" title="Hapus pencarian" onclick="clearSearch()"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M18 6L6 18M6 6l12 12"/></svg></button>{% endif %}
     </div>
     <input type="hidden" name="city"  id="fp-hidden-city"  value="{{ city_filter }}">
@@ -171,11 +171,6 @@
 
 {% block extra_js %}
 <script>
-var _debTimer;
-function debounceSubmit() {
-  clearTimeout(_debTimer);
-  _debTimer = setTimeout(function() { document.getElementById('filter-form').submit(); }, 350);
-}
 function clearSearch() {
   document.getElementById('search-input').value = '';
   document.getElementById('filter-form').submit();

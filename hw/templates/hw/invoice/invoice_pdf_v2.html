@@ -5,7 +5,23 @@
   <meta charset="UTF-8">
   <title>Invoice — {{ invoice_number }}</title>
   <style>
-    @page { size: A4; margin: 56px 64px; }
+    @page {
+      size: A4;
+      margin: 56px 64px 48px;
+      @bottom-left {
+        content: string(doc-date);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        padding-top: 6px;
+      }
+      @bottom-right {
+        content: "Page " counter(page) "/" counter(pages);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        padding-top: 6px;
+      }
+    }
+    .doc-date-anchor { string-set: doc-date content(); display: none; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -95,7 +111,16 @@
     .section { margin-top: 36px; }
     .section-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 12px; }
 
-    .watermark {
+    .terms { page-break-before: always; padding-top: 20px; }
+    .terms-title { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 20px; }
+    .terms-section { margin-bottom: 18px; }
+    .terms-section h4 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 6px; }
+    .terms-section ul { padding-left: 18px; margin: 0; }
+    .terms-section ul li { font-size: 13px; color: #555; line-height: 1.8; }
+    .terms-section ul ul { margin-top: 3px; }
+    .terms-section p { font-size: 13px; color: #555; line-height: 1.8; margin: 0; }
+
+.watermark {
       position: fixed;
       top: 45%; left: 50%;
       transform: translate(-50%, -50%) rotate(-40deg);
@@ -105,20 +130,11 @@
       letter-spacing: 8px;
     }
 
-    .footer {
-      position: fixed;
-      bottom: 0; left: 0; right: 0;
-      border-top: 1px solid #ddd;
-      padding-top: 6px;
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: #111;
-    }
   </style>
 </head>
 <body>
 
+<span class="doc-date-anchor">{% if issued_date %}{{ issued_date|date:"d M Y" }}{% endif %}</span>
 <div class="watermark">{% if remaining_int == 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
 
 <div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
@@ -238,10 +254,65 @@
 </div>
 {% endif %}
 
-<div class="footer">
-  <span>{% if issued_date %}{{ issued_date|date:"d M Y" }}{% endif %}</span>
-  <span>Page 1 of 1</span>
+<div class="terms">
+  <div class="terms-title">Syarat dan Ketentuan</div>
+  <div class="terms-section">
+    <h4>Tarif</h4>
+    <ul>
+      <li>Tarif di atas adalah per kamar per malam, dalam mata uang Riyal Saudi, bersih, dan tidak dapat dikomisikan.</li>
+      <li>Tarif sudah termasuk Biaya Kota (Municipality Fee) 5% dan Pajak Pertambahan Nilai (PPN) 15%.</li>
+      <li>Hari kerja (Weekdays/WD) adalah Sabtu–Rabu, akhir pekan (Weekend/WE) adalah Kamis–Jumat.</li>
+    </ul>
+  </div>
+  <div class="terms-section">
+    <h4>Kebijakan Pembatalan (Cancellation Policy)</h4>
+    <ul>
+      <li><strong>Pemesanan Individu (&lt;5 kamar)</strong>
+        <ul>
+          <li>Kurang dari 15 hari sebelum kedatangan: biaya 1 malam termasuk makan.</li>
+          <li>Kurang dari 7 hari sebelum kedatangan: biaya seluruh masa inap termasuk makan.</li>
+        </ul>
+      </li>
+      <li><strong>Pemesanan Grup (≥5 kamar)</strong>
+        <ul>
+          <li>Pembatalan &gt;30 hari sebelum kedatangan: 20% dari total biaya.</li>
+          <li>Pembatalan &gt;21 hari sebelum kedatangan: 50% dari total biaya.</li>
+          <li>Pembatalan &gt;14 hari sebelum kedatangan: 80% dari total biaya.</li>
+          <li>Pembatalan &gt;7 hari sebelum kedatangan: 100% dari total biaya.</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+  <div class="terms-section">
+    <h4>Kebijakan Perubahan (Amendment Policy)</h4>
+    <ul>
+      <li>Lebih dari 30 hari sebelum kedatangan: maksimal 80% jumlah kamar dapat dikurangi/diubah.</li>
+      <li>Lebih dari 21 hari sebelum kedatangan: maksimal 50% jumlah kamar dapat dikurangi/diubah.</li>
+      <li>Lebih dari 14 hari sebelum kedatangan: maksimal 20% jumlah kamar dapat dikurangi/diubah.</li>
+      <li>Lebih dari 6 hari sebelum kedatangan: maksimal 5% jumlah kamar dapat dikurangi/diubah.</li>
+      <li>Kurang dari 6 hari sebelum kedatangan: perubahan tidak dapat diterima.</li>
+    </ul>
+  </div>
+  <div class="terms-section">
+    <h4>Kebijakan Pembayaran (Payment Policy)</h4>
+    <ul>
+      <li><strong>Pemesanan lebih dari 30 hari sebelum kedatangan:</strong>
+        <ul>
+          <li>30% saat konfirmasi.</li>
+          <li>60% pada 14–18 hari setelah konfirmasi.</li>
+          <li>100% pada 27 hari sebelum kedatangan.</li>
+        </ul>
+      </li>
+      <li><strong>Pemesanan 30 hari atau kurang sebelum kedatangan:</strong> pembayaran penuh (100%) saat konfirmasi.</li>
+      <li>Apabila jadwal pembayaran tidak terpenuhi, pemesanan akan dibatalkan dan biaya pembatalan berlaku.</li>
+    </ul>
+  </div>
+  <div class="terms-section">
+    <h4>Kebijakan Ketidakhadiran (No Show Policy)</h4>
+    <p>Apabila tamu tidak hadir tanpa pemberitahuan sebelumnya, biaya penuh seluruh masa inap termasuk makan akan dikenakan.</p>
+  </div>
 </div>
+
 
 </body>
 </html>

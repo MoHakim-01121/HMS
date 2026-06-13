@@ -1,3 +1,48 @@
+// After search submit: restore focus + cursor to end; otherwise leave input unfocused
+(function () {
+  const input = document.querySelector('form.filter-bar input[name="q"]');
+  if (!input) return;
+  const q = new URLSearchParams(window.location.search).get('q');
+  if (q) {
+    input.focus();
+    const len = input.value.length;
+    input.setSelectionRange(len, len);
+  }
+})();
+
+// Persist filters across navigation via sessionStorage
+(function () {
+  const form = document.querySelector('form.filter-bar');
+  if (!form) return;
+
+  const KEY     = 'filter:' + window.location.pathname;
+  const CLR_KEY = KEY + ':cleared';
+  const params  = new URLSearchParams(window.location.search);
+  const FILTER_KEYS = ['q', 'status', 'date_from', 'date_to', 'city', 'stars', 'area'];
+  const hasActive = FILTER_KEYS.some(function (k) { return params.has(k); });
+
+  if (sessionStorage.getItem(CLR_KEY)) {
+    // Reset was just clicked — wipe saved state, don't restore
+    sessionStorage.removeItem(CLR_KEY);
+    sessionStorage.removeItem(KEY);
+  } else if (hasActive) {
+    sessionStorage.setItem(KEY, window.location.search);
+  } else if (!params.toString() || !hasActive) {
+    var saved = sessionStorage.getItem(KEY);
+    if (saved) {
+      window.location.replace(window.location.pathname + saved);
+      return;
+    }
+  }
+
+  // Mark storage for clearing when Reset / Reset semua is clicked
+  document.querySelectorAll('#fp-reset-all, [data-reset-all]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      sessionStorage.setItem(CLR_KEY, '1');
+    });
+  });
+})();
+
 // Export dropdown toggle
 document.querySelectorAll('.export-dropdown').forEach(function (dd) {
   dd.querySelector('.export-btn').addEventListener('click', function (e) {
@@ -11,18 +56,6 @@ document.addEventListener('click', function () {
   });
 });
 
-// Live search: auto-submit filter form as user types
-(function () {
-  const form = document.querySelector('form.filter-bar');
-  if (!form) return;
-  const input = form.querySelector('input[name="q"]');
-  if (!input) return;
-  let timer;
-  input.addEventListener('input', function () {
-    clearTimeout(timer);
-    timer = setTimeout(function () { form.submit(); }, 350);
-  });
-})();
 
 // Sortable table columns
 (function () {

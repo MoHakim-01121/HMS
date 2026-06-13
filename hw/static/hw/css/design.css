@@ -640,7 +640,7 @@ body::before {
 .dlayout.rail-left { grid-template-columns: 280px minmax(0, 1fr); }
 @media (max-width: 900px) {
   .dlayout, .dlayout.rail-left { grid-template-columns: 1fr; }
-  .dmeta { position: static; }
+  .dlayout .dmeta { position: static; top: auto; }
 }
 .dmeta {
   position: sticky; top: 60px;
@@ -1267,7 +1267,14 @@ input:-webkit-autofill:focus {
     z-index: var(--z-top);
     background: var(--surface);
   }
-  .filter-panel { padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+  .filter-panel { padding-bottom: 0; }
+  .filter-panel .fp-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border);
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
   .sort-menu { padding: 8px 8px calc(90px + env(safe-area-inset-bottom)); }
   .sort-menu.open, .filter-panel.open { animation: sheetIn .2s ease; }
 }
@@ -1633,8 +1640,12 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .page-title { font-size: 16px; }
   .page-header > div:last-child { width: 100%; justify-content: flex-end; }
 
-  .filter-bar { flex-direction: column; gap: 0; }
-  .filter-bar .search-wrap { width: 100%; min-width: 0; }
+  .filter-bar { flex-direction: column; gap: 0; align-items: stretch; }
+  .filter-bar .search-wrap { width: 100%; min-width: 0; height: 42px; flex: none; box-sizing: border-box; }
+  .filter-bar .fbar-actions { width: 100%; box-sizing: border-box; }
+  /* 16px input prevents iOS auto-zoom on focus */
+  .search-wrap input:not([type="checkbox"]):not([type="radio"]) { font-size: 16px; }
+  .filter-bar .fbar-btn { height: 42px; font-size: 13px; }
   .filter-bar select,
   .filter-bar button[type="submit"] { display: none !important; }
   .filter-bar-row { flex-direction: row !important; gap: 8px !important; }
@@ -1711,6 +1722,21 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap table tfoot tr { display: block; padding: 8px 14px; }
   .table-wrap table tfoot td { display: block; width: 100%; padding: 2px 0; border: none; background: transparent; font-size: 13px; text-align: left; }
   .table-wrap table tfoot .tsum-k { margin-right: 6px; }
+
+  /* dense entry tables (remittance form/edit): keep as scrollable table, don't collapse */
+  .table-wrap:has(table.rem-table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-wrap table.rem-table { display: table; }
+  .table-wrap table.rem-table thead { display: table-header-group; }
+  .table-wrap table.rem-table tbody { display: table-row-group; }
+  .table-wrap table.rem-table tr { display: table-row; }
+  .table-wrap table.rem-table th,
+  .table-wrap table.rem-table td { display: table-cell; white-space: nowrap; }
+
+  /* pagination: compact prev · current · next on mobile */
+  .pagination { gap: 10px; }
+  .pagination .pag-btn { min-width: 44px; height: 40px; font-size: 14px; border-color: var(--border); }
+  .pagination .pag-btn:not(:first-child):not(:last-child):not(.pag-active) { display: none; }
+  .pagination .pag-ellipsis { display: none; }
 
   .table-detail { overflow-x: unset; }
   .table-detail table { display: block; }

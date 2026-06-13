@@ -8,6 +8,11 @@ from django.shortcuts import render
 from ..models import ConfirmationLetter, Payment
 
 
+def _is_mobile(request):
+    ua = request.META.get('HTTP_USER_AGENT', '').lower()
+    return any(t in ua for t in ('mobi', 'android', 'iphone', 'ipod', 'windows phone'))
+
+
 def _page_range_display(page_obj):
     current = page_obj.number
     last = page_obj.paginator.num_pages
@@ -22,7 +27,7 @@ def _page_range_display(page_obj):
 
 def _paginated_list(request, qs, template, context_key, extra_ctx=None):
     q = request.GET.get('q', '').strip()
-    paginator = Paginator(qs, 15)
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
     params_str = urllib.parse.urlencode({k: v for k, v in request.GET.items() if k != 'page'})
     ctx = {

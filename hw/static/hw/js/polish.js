@@ -41,8 +41,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Autofocus first visible, editable input in a form
   const firstInput = document.querySelector(
-    'form:not(#delete-form) input:not([type=hidden]):not([type=submit]):not([readonly]), ' +
-    'form:not(#delete-form) select:not([readonly])'
+    'form:not(#delete-form):not(.filter-bar) input:not([type=hidden]):not([type=submit]):not([readonly]), ' +
+    'form:not(#delete-form):not(.filter-bar) select:not([readonly])'
   );
   if (firstInput) firstInput.focus();
 });
