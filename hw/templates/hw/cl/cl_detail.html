@@ -29,8 +29,6 @@
     </div>
     <div class="dhero-side">
       <div class="dhero-badges">
-        {% if cl.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
-        {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
         {% if cl.reservation_status == 'DEFINITE' %}<span class="badge badge-green">Definite</span>
         {% elif cl.reservation_status == 'CANCELLED' %}<span class="badge badge-red">Cancelled</span>
         {% else %}<span class="badge badge-yellow">Tentative</span>{% endif %}
@@ -62,7 +60,6 @@
     <div class="dmeta-row"><span class="dmeta-k">Check-out</span><span class="dmeta-v">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</span></div>
     <div class="dmeta-row"><span class="dmeta-k">Malam</span><span class="dmeta-v">{{ cl.num_nights }}</span></div>
     <div class="dmeta-row"><span class="dmeta-k">Tamu</span><span class="dmeta-v">{{ cl.num_guests }} orang</span></div>
-    <div class="dmeta-row"><span class="dmeta-k">Total</span><span class="dmeta-v mono" style="font-weight:700;">{{ cl.total_price|floatformat:0|intcomma }} SAR</span></div>
     {% if cl.note %}<div class="dmeta-note">{{ cl.note }}</div>{% endif %}
   </div>
 
@@ -124,9 +121,9 @@
           <tr>
             <th>Tipe</th>
             <th class="col-m-hide">Meals</th>
-            <th class="col-m-hide">Qty</th>
-            <th class="col-m-hide">Harga/Malam</th>
-            <th style="text-align:right;">Subtotal</th>
+            <th class="col-num col-m-hide">Qty</th>
+            <th class="col-num col-m-hide">Harga/Malam</th>
+            <th class="col-num">Subtotal</th>
           </tr>
         </thead>
         <tbody>
@@ -137,14 +134,20 @@
               <span class="m-sub">{{ room.quantity }} × {{ room.price|floatformat:0|intcomma }} SAR/malam</span>
             </td>
             <td class="col-m-hide" style="color:var(--text-2);">{{ room.meals|default:"—" }}</td>
-            <td class="mono col-m-hide">{{ room.quantity }}</td>
-            <td class="mono col-m-hide">{{ room.price|floatformat:0|intcomma }}</td>
-            <td class="mono col-m-amount" style="font-weight:600;text-align:right;">{{ room.subtotal|floatformat:0|intcomma }} SAR</td>
+            <td class="mono col-num col-m-hide">{{ room.quantity }}</td>
+            <td class="mono col-num col-m-hide">{{ room.price|floatformat:0|intcomma }}</td>
+            <td class="mono col-num col-m-amount" style="font-weight:600;">{{ room.subtotal|floatformat:0|intcomma }} SAR</td>
           </tr>
           {% empty %}
           <tr><td colspan="5" style="text-align:center;color:var(--text-3);padding:20px;">Tidak ada data kamar</td></tr>
           {% endfor %}
         </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="col-num col-m-hide" style="font-weight:700;">Total</td>
+            <td class="tsum-v col-num" style="font-weight:700;"><span class="m-only tsum-k">Total</span>{{ cl.total_price|floatformat:0|intcomma }} SAR</td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>

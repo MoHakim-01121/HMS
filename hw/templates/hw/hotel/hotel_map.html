@@ -11,6 +11,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
+  /* Sembunyikan cluster utilitas global (search/notif/avatar) di map mobile — peta sudah punya kontrolnya sendiri */
+  @media (max-width: 600px) { .m-topbar { display: none !important; } }
   /* ── Layout utama ── */
   #map-wrap { position: relative; height: calc(100vh - 48px); overflow: hidden; }
   #map { position: absolute; inset: 0; isolation: isolate; }

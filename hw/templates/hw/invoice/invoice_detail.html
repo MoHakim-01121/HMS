@@ -45,8 +45,6 @@
         {% else %}
           <span class="badge badge-red">Unpaid</span>
         {% endif %}
-        {% if invoice.company == 'ijabah' %}<span class="badge badge-yellow">Ijabah</span>
-        {% else %}<span class="badge badge-blue">Konoz</span>{% endif %}
       </div>
       <div class="dhero-actions">
         <a href="{% url 'invoice_pdf' invoice.pk %}" target="_blank" class="btn btn-primary btn-sm">PDF</a>
