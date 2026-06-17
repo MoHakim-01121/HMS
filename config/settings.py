@@ -218,7 +218,10 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = 'same-origin'
 
 # CSRF Protection
-CSRF_COOKIE_HTTPONLY = True
+# Must stay False: the React/Inertia frontend reads the csrftoken cookie via
+# JavaScript (axios xsrfCookieName / utils/csrf.js) to send the X-CSRFToken
+# header. HttpOnly would hide the cookie from JS and break all POST requests.
+CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 
