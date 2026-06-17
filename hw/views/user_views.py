@@ -9,6 +9,8 @@ from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from ..models import ActivityLog, UserProfile
 
 
@@ -58,7 +60,12 @@ def _safe_redirect(request):
 @superuser_required
 def user_list(request):
     users = User.objects.all().order_by('username')
-    return render(request, 'hw/users/user_list.html', {'users': users})
+    data = [{
+        "id": u.pk, "username": u.username, "is_staff": u.is_staff,
+        "is_superuser": u.is_superuser, "is_active": u.is_active,
+        "is_self": u.pk == request.user.pk,
+    } for u in users]
+    return inertia_render(request, "User/List", props={"users": data})
 
 
 @superuser_required
@@ -69,21 +76,26 @@ def user_new(request):
         confirm  = request.POST.get('password_confirm', '')
         is_staff = request.POST.get('is_staff') == 'on'
 
-        if not username or not password:
-            messages.error(request, "Username dan password wajib diisi.")
-            return render(request, 'hw/users/user_form.html', {'form_data': request.POST})
-        if password != confirm:
-            messages.error(request, "Password tidak cocok.")
-            return render(request, 'hw/users/user_form.html', {'form_data': request.POST})
-        if User.objects.filter(username=username).exists():
-            messages.error(request, f"Username '{username}' sudah digunakan.")
-            return render(request, 'hw/users/user_form.html', {'form_data': request.POST})
+        errors = {}
+        if not username:
+            errors['username'] = "Username wajib diisi."
+        elif User.objects.filter(username=username).exists():
+            errors['username'] = f"Username '{username}' sudah digunakan."
+        if not password:
+            errors['password'] = "Password wajib diisi."
+        elif password != confirm:
+            errors['password_confirm'] = "Password tidak cocok."
+
+        if errors:
+            return inertia_render(request, "User/Form", props={
+                "form_data": {"username": username, "is_staff": is_staff}, "errors": errors,
+            })
 
         user = User.objects.create_user(username=username, password=password, is_staff=is_staff)
         messages.success(request, f"User '{user.username}' berhasil dibuat.")
         return redirect('user_list')
 
-    return render(request, 'hw/users/user_form.html', {})
+    return inertia_render(request, "User/Form", props={"form_data": None})
 
 
 @superuser_required
@@ -122,7 +134,9 @@ def user_edit(request, pk):
             messages.success(request, f"Hak akses '{edit_user.username}' berhasil diubah.")
             return redirect('user_list')
 
-    return render(request, 'hw/users/user_form.html', {'edit_user': edit_user, 'edit': True})
+    # Action-based view: every branch above either redirects on success or sets
+    # a messages.error (shown as a flash toast). Always return to the Inertia list.
+    return redirect('user_list')
 
 
 @superuser_required

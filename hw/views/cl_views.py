@@ -3,13 +3,17 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ObjectDoesNotExist
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
-from .helpers import _paginated_list, _parse_date, _render_list_pdf
+from .helpers import _is_mobile, _page_range_display, _paginated_list, _parse_date, _render_list_pdf
 from .pdf import _logo_file_url, _render_cl_pdf
 
 
@@ -64,17 +68,44 @@ def cl_list(request):
         'tentative': _status_counts.get('TENTATIVE', 0),
         'cancelled': _status_counts.get('CANCELLED', 0),
     }
-    return _paginated_list(request, qs, "hw/cl/cl_history.html", "letters",
-                           extra_ctx={
-                               'status_list':    status_list,
-                               'date_from':      date_from,
-                               'date_to':        date_to,
-                               'sort':           sort,
-                               'sort_label':     _sort_labels.get(sort, 'Check-in (terbaru)'),
-                               'sort_labels':    _sort_labels,
-                               'active_filters': active_filters,
-                               'counts':         counts,
-                           })
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    letters = [{
+        "id": cl.id,
+        "confirmation_number": cl.confirmation_number,
+        "reservation_status": cl.reservation_status,
+        "guest_name": cl.guest_name,
+        "hotel_name": cl.hotel_name,
+        "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
+        "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
+        "total_price": int(round(cl.total_price)) if cl.total_price else None,
+        "has_invoice": bool(cl.invoice_id),
+        "invoice_number": cl.invoice.invoice_number if cl.invoice_id else "",
+    } for cl in page_obj]
+
+    return inertia_render(request, "Cl/List", props={
+        "letters": letters,
+        "total_count": paginator.count,
+        "q": q,
+        "status_list": [s.lower() for s in status_list],
+        "date_from": date_from.isoformat() if date_from else "",
+        "date_to": date_to.isoformat() if date_to else "",
+        "sort": sort,
+        "sort_label": _sort_labels.get(sort, 'Check-in (terbaru)'),
+        "sort_labels": _sort_labels,
+        "active_filters": active_filters,
+        "counts": counts,
+        "pagination": {
+            "number": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "has_other_pages": page_obj.has_other_pages(),
+            "range": _page_range_display(page_obj),
+        },
+    })
 
 
 def _form_context_data():
@@ -140,10 +171,58 @@ def cl_new(request):
 @login_required
 def cl_detail(request, pk):
     cl = get_object_or_404(
-        ConfirmationLetter.objects.select_related('client', 'invoice', 'penalty'),
+        ConfirmationLetter.objects.select_related('client', 'invoice', 'penalty')
+        .prefetch_related('rooms', 'attachments'),
         pk=pk,
     )
-    return render(request, "hw/cl/cl_detail.html", {"cl": cl})
+    rooms = [{
+        "room_type": r.room_type,
+        "meals": r.meals,
+        "quantity": r.quantity,
+        "price": int(round(float(r.price))),
+        "subtotal": int(round(r.subtotal)),
+    } for r in cl.rooms.all()]
+
+    try:
+        pen = cl.penalty
+    except ObjectDoesNotExist:
+        pen = None
+    penalty = None
+    if pen:
+        penalty = {
+            "pk": pen.pk,
+            "penalty_number": pen.penalty_number,
+            "cancellation_date": pen.cancellation_date.strftime("%d/%m/%Y") if pen.cancellation_date else None,
+            "penalty_amount": int(round(float(pen.penalty_amount))),
+            "penalty_currency": pen.penalty_currency,
+            "is_paid": pen.is_paid,
+        }
+
+    attachments = [{
+        "id": a.id, "icon": a.icon, "url": a.file.url, "name": a.name, "size": a.size,
+    } for a in cl.attachments.all()]
+
+    return inertia_render(request, "Cl/Detail", props={
+        "cl": {
+            "pk": cl.pk,
+            "confirmation_number": cl.confirmation_number,
+            "guest_name": cl.guest_name,
+            "guest_phone": cl.guest_phone,
+            "hotel_name": cl.hotel_name,
+            "reservation_status": cl.reservation_status,
+            "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
+            "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
+            "num_nights": cl.num_nights,
+            "num_guests": cl.num_guests,
+            "total_price": int(round(cl.total_price)) if cl.total_price else 0,
+            "note": cl.note,
+            "client": {"pk": cl.client.pk, "name": cl.client.name} if cl.client_id else None,
+            "invoice": {"pk": cl.invoice.pk, "invoice_number": cl.invoice.invoice_number} if cl.invoice_id else None,
+        },
+        "rooms": rooms,
+        "penalty": penalty,
+        "attachments": attachments,
+    })
 
 
 @login_required

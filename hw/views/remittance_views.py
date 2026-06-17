@@ -9,6 +9,8 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from ..models import Invoice, Payment, Remittance, RemittanceLine
 from ..utils import convert_to_sar
 
@@ -133,12 +135,20 @@ def remittance_list(request):
             Q(note__icontains=q)
         )
     stats = _compute_stats()
-    return render(request, 'hw/remittance/remittance_history.html', {
-        'remittances': qs,
-        'stats': stats,
-        'status_filter': status_filter,
-        'q': q,
-        'total_count': Remittance.objects.filter(company=KONOZ).count(),
+    remittances = [{
+        "id": rem.id,
+        "remittance_number": rem.remittance_number,
+        "date": rem.date.strftime("%d/%m/%Y"),
+        "total_sar": rem.total_sar,
+        "status": rem.status,
+        "proof_url": rem.proof.url if rem.proof else None,
+    } for rem in qs]
+    return inertia_render(request, "Remittance/List", props={
+        "remittances": remittances,
+        "stats": stats,
+        "status_filter": status_filter,
+        "q": q,
+        "total_count": Remittance.objects.filter(company=KONOZ).count(),
     })
 
 
@@ -223,16 +233,31 @@ def remittance_detail(request, pk):
     enriched = []
     for line in lines:
         res = res_map.get(line.linked_number, {})
+        ci = res.get('check_in')
         enriched.append({
-            'line': line,
-            'check_in': res.get('check_in'),
-            'hotel': res.get('hotel', '—'),
+            'linked_number': line.linked_number,
+            'amount_sar': int(line.amount_sar),
+            'check_in': ci.strftime("%d/%m/%Y") if ci else None,
+            'hotel': res.get('hotel') or '—',
             'prev_sent': prev_map.get(line.linked_number, 0),
+            'invoice': {
+                'pk': line.invoice.pk,
+                'invoice_number': line.invoice.invoice_number,
+                'customer_name': line.invoice.customer_name,
+            } if line.invoice_id else None,
         })
 
-    return render(request, 'hw/remittance/remittance_detail.html', {
-        'rem': rem,
-        'lines': enriched,
+    return inertia_render(request, "Remittance/Detail", props={
+        "rem": {
+            "remittance_number": rem.remittance_number,
+            "date": rem.date.strftime("%d/%m/%Y"),
+            "status": rem.status,
+            "proof_url": rem.proof.url if rem.proof else None,
+            "receipt_reference": rem.receipt_reference,
+            "note": rem.note,
+            "total_sar": rem.total_sar,
+        },
+        "lines": enriched,
     })
 
 
@@ -364,6 +389,7 @@ def remittance_recap(request):
         if key not in monthly:
             monthly[key] = {
                 'label': rem.date.strftime('%B %Y'),
+                'period': key,
                 'remittances': [],
                 'total_sent': 0,
                 'total_pending': 0,
@@ -371,7 +397,14 @@ def remittance_recap(request):
                 'count_pending': 0,
                 'count_received': 0,
             }
-        monthly[key]['remittances'].append(rem)
+        monthly[key]['remittances'].append({
+            'id': rem.id,
+            'remittance_number': rem.remittance_number,
+            'date': rem.date.strftime('%d/%m/%Y'),
+            'lines_count': len(rem.lines.all()),
+            'status': rem.status,
+            'total_sar': rem.total_sar,
+        })
         amt = int(rem.total_sar or 0)
         monthly[key]['total_sent'] += amt
         if rem.status == Remittance.STATUS_RECEIVED:
@@ -380,10 +413,8 @@ def remittance_recap(request):
         else:
             monthly[key]['total_pending'] += amt
             monthly[key]['count_pending'] += 1
-    stats = _compute_stats()
-    return render(request, 'hw/remittance/remittance_recap.html', {
-        'monthly': list(monthly.values()),
-        'stats': stats,
+    return inertia_render(request, "Remittance/Recap", props={
+        "monthly": list(monthly.values()),
     })
 
 

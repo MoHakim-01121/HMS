@@ -1,0 +1,194 @@
+/* Shell styles ported verbatim from the inline <style> of _base.html
+   (animated ambient background, per-page blob theming, mobile account dropdown).
+   Loaded by the React AppLayout via base_inertia.html. */
+
+.page, .page-sm, .center-wrap, .card { position: relative; z-index: 1; }
+
+@media (max-width: 600px) {
+  nav.topbar { display: none !important; }
+}
+
+.bnav-account-dd {
+  position: fixed;
+  right: 12px;
+  left: auto;
+  width: 220px;
+  max-width: calc(100vw - 24px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: var(--z-overlay);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px) scale(.97);
+  transition: opacity .18s, transform .18s cubic-bezier(.34,1.56,.64,1);
+  display: block;
+}
+.bnav-account-dd.open {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(0) scale(1);
+}
+.bnav-account-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.bnav-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Global animated background ── */
+:root {
+  --b1-c: rgba(255,108,55,.17); --b2-c: rgba(139,92,246,.13); --b3-c: rgba(16,185,129,.10);
+  --b4-c: rgba(245,158,11,.14);
+  --b1-d: 30s; --b2-d: 38s; --b3-d: 26s; --b4-d: 35s;
+  --b3-w: 300px;
+}
+[data-page="home"]       { --b1-c:rgba(255,108,55,.13);  --b2-c:rgba(139,92,246,.09);  --b3-c:rgba(16,185,129,.07); }
+[data-page="hotels"]     { --b1-c:rgba(245,158,11,.11);  --b2-c:rgba(255,108,55,.09);  --b3-c:rgba(251,191,36,.06);  --b1-d:28s; --b2-d:42s; --b3-d:24s; --b3-w:320px; }
+[data-page="invoice"]    { --b1-c:rgba(99,102,241,.11);  --b2-c:rgba(139,92,246,.09);  --b3-c:rgba(59,130,246,.06);  --b1-d:33s; --b2-d:41s; --b3-d:27s; }
+[data-page="cl"]         { --b1-c:rgba(255,108,55,.11);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(20,184,166,.05);  --b1-d:26s; --b2-d:36s; --b3-d:30s; --b3-w:280px; }
+[data-page="services"]   { --b1-c:rgba(16,185,129,.10);  --b2-c:rgba(20,184,166,.08);  --b3-c:rgba(52,211,153,.06);  --b1-d:31s; --b2-d:43s; --b3-d:23s; --b3-w:260px; }
+[data-page="calendar"]   { --b1-c:rgba(234,179,8,.11);   --b2-c:rgba(245,158,11,.08);  --b3-c:rgba(251,191,36,.06);  --b1-d:29s; --b2-d:39s; --b3-d:25s; }
+[data-page="clients"]    { --b1-c:rgba(59,130,246,.10);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(99,102,241,.05);  --b1-d:32s; --b2-d:40s; --b3-d:28s; }
+[data-page="remittance"] { --b1-c:rgba(34,197,94,.11);   --b2-c:rgba(16,185,129,.09);  --b3-c:rgba(134,239,172,.06); --b1-d:35s; --b2-d:44s; --b3-d:29s; }
+[data-page="users"]      { --b1-c:rgba(168,85,247,.10);  --b2-c:rgba(139,92,246,.08);  --b3-c:rgba(196,181,253,.05); --b1-d:34s; --b2-d:45s; --b3-d:30s; }
+
+.base-bg { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
+.base-bg::after {
+  content:''; position:absolute; inset:0;
+  background-image: radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 15%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 15%, transparent 100%);
+}
+[data-theme="light"] .base-bg::after { background-image: radial-gradient(rgba(0,0,0,.04) 1px, transparent 1px); }
+[data-page="home"] .base-bg::after   { background-size: 28px 28px; }
+
+.base-blob { position:absolute; border-radius:50%; filter:blur(58px); will-change:transform; }
+.base-blob-1 {
+  width:600px; height:600px; top:-180px; left:-130px;
+  background: radial-gradient(circle, var(--b1-c) 0%, transparent 62%);
+  animation: bDrift1 17s ease-in-out infinite;
+}
+.base-blob-2 {
+  width:470px; height:470px; bottom:-130px; right:-100px;
+  background: radial-gradient(circle, var(--b2-c) 0%, transparent 62%);
+  animation: bDrift2 22s ease-in-out infinite;
+}
+.base-blob-3 {
+  width: var(--b3-w); height: var(--b3-w); top:35%; left:55%;
+  background: radial-gradient(circle, var(--b3-c) 0%, transparent 62%);
+  animation: bDrift3 14s ease-in-out infinite;
+}
+.base-blob-4 { display:none; }
+[data-page="home"] .base-blob-4 {
+  display:block; width:420px; height:420px; bottom:5%; right:5%;
+  background: radial-gradient(circle, var(--b4-c) 0%, transparent 62%);
+  animation: bDrift4 19s ease-in-out infinite;
+}
+
+@keyframes bDrift1 {
+  0%,100%{transform:translate(0,0) scale(1);}
+  25%   {transform:translate(95px,-85px) scale(1.16);}
+  55%   {transform:translate(150px,55px) scale(.84);}
+  80%   {transform:translate(45px,100px) scale(1.08);}
+}
+@keyframes bDrift2 {
+  0%,100%{transform:translate(0,0) scale(1);}
+  33%   {transform:translate(-120px,85px) scale(1.2);}
+  66%   {transform:translate(80px,-95px) scale(.8);}
+}
+@keyframes bDrift3 {
+  0%,100%{transform:translate(0,0) scale(1);}
+  40%   {transform:translate(90px,-75px) scale(1.22);}
+  70%   {transform:translate(-70px,65px) scale(.86);}
+}
+@keyframes bDrift4 {
+  0%,100%{transform:translate(0,0) scale(1);}
+  50%   {transform:translate(-85px,-70px) scale(1.24);}
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .base-blob { animation: none !important; }
+}
+
+/* ── Konoz remittance stat grid (ported from invoice_history.html inline style) ── */
+.rs-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:14px; }
+.rs-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:10px 12px; }
+.rs-label { font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.rs-val { font-size:16px; font-weight:700; font-family:monospace; color:var(--text); }
+.rs-val .rs-unit { font-size:11px; font-weight:500; color:var(--text-3); }
+.rs-val.red { color:var(--red); }
+.rs-val.green { color:var(--green); }
+.rs-val.yellow { color:var(--yellow); }
+.rs-val.blue { color:var(--accent); }
+@media(max-width:600px){
+  .rs-grid { grid-template-columns:1fr; gap:0; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; }
+  .rs-card { background:transparent; border:none; border-radius:0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; padding:10px 14px; }
+  .rs-card:last-child { border-bottom:none; }
+  .rs-label { margin-bottom:0; }
+  .rs-val { font-size:14px; }
+}
+
+/* ── Hotel detail info rows (ported from hotel_detail.html inline style) ── */
+.ht-row { display:flex; align-items:flex-start; gap:12px; padding:11px 0; border-bottom:1px solid var(--border); }
+.ht-key { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-3); min-width:76px; flex-shrink:0; padding-top:2px; }
+.ht-val { font-size:13px; font-weight:500; color:var(--text); }
+.ht-dist { font-weight:700; }
+.ht-dist.ht-green  { color:var(--green); }
+.ht-dist.ht-yellow { color:var(--yellow); }
+.ht-dist.ht-red    { color:var(--red); }
+
+/* Leaflet route distance tooltip (ported from map templates) */
+.route-dist-tip { background:var(--surface-3) !important; border:1px solid var(--border) !important; color:var(--text) !important; font-size:12px !important; font-weight:600 !important; padding:4px 9px !important; border-radius:6px !important; box-shadow:0 4px 14px rgba(0,0,0,.45) !important; white-space:nowrap; pointer-events:none; }
+.route-dist-tip::before { display:none !important; }
+
+/* ── Remittance stats (ported from remittance_history.html inline style) ── */
+.rem-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+.rem-stat { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:10px 12px; }
+.rem-stat-label { font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.rem-stat-value { font-size:15px; font-weight:700; font-family:monospace; color:var(--text); line-height:1.2; }
+.rem-stat-value .unit { font-size:11px; font-weight:500; color:var(--text-3); margin-left:2px; }
+.rem-stat-value.yellow { color:var(--yellow); }
+.rem-stat-value.green  { color:var(--green); }
+.rem-stat-value.blue   { color:var(--blue, var(--accent)); }
+
+/* ── Remittance recap (ported from remittance_recap.html inline style) ── */
+.month-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); margin-bottom:16px; overflow:hidden; }
+.month-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--surface-2); border-bottom:1px solid var(--border); }
+.month-label { font-size:14px; font-weight:700; color:var(--text); }
+.month-meta { display:flex; gap:12px; align-items:center; }
+.month-total { font-family:monospace; font-size:15px; font-weight:700; color:var(--accent-2); }
+.month-badges { display:flex; gap:6px; }
+.recap-table { width:100%; border-collapse:collapse; }
+.recap-table th { font-size:11px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; padding:8px 16px; border-bottom:1px solid var(--border); text-align:left; }
+.recap-table th.r { text-align:right; }
+.recap-table td { padding:10px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.recap-table tbody tr:last-child td { border-bottom:none; }
+.recap-table .mono { font-family:monospace; }
+.pdf-btn { font-size:11px; padding:4px 10px; white-space:nowrap; }
+.month-foot { display:flex; justify-content:space-between; align-items:center; padding:8px 16px; border-top:1px solid var(--border); background:var(--surface-2); }
+.month-foot-label { font-size:11px; font-weight:600; color:var(--text-2); }
+.month-foot-val { font-family:monospace; font-size:14px; font-weight:700; }
+@media (max-width:600px){
+  .month-header { flex-wrap:wrap; gap:8px; }
+  .month-meta { width:100%; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+  .recap-table thead { display:none; }
+  .recap-table tbody, .recap-table tr, .recap-table td { display:block; }
+  .recap-table tr { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; padding:10px 16px; border-bottom:1px solid var(--border); }
+  .recap-table tbody tr:last-child { border-bottom:none; }
+  .recap-table td { padding:0; border:none; font-size:12px; }
+  .recap-table td:nth-child(1) { font-weight:700; font-family:monospace; }
+  .recap-table td:nth-child(5) { margin-left:auto; font-weight:700; font-family:monospace; }
+  .month-foot { flex-wrap:wrap; gap:6px; }
+}

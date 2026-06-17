@@ -3,13 +3,23 @@ from datetime import date, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
+from inertia import render as inertia_render
+
 from ..models import ActivityLog, Invoice, ServiceItem, log_activity
 from .context import _build_visa_payments_context, _build_visa_services_context
-from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_service_payments
+from .helpers import (
+    _is_mobile,
+    _page_range_display,
+    _paginated_list,
+    _parse_date,
+    _render_list_pdf,
+    _save_service_payments,
+)
 from .pdf import _render_services_pdf
 
 
@@ -22,7 +32,32 @@ def services_list(request):
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    return _paginated_list(request, qs, "hw/services/services_history.html", "invoices")
+
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    invoices = [{
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "customer_name": inv.customer_name,
+        "currency": inv.currency,
+        "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+        "created_at": inv.created_at.strftime("%d/%m/%Y"),
+    } for inv in page_obj]
+    return inertia_render(request, "Services/List", props={
+        "invoices": invoices,
+        "total_count": paginator.count,
+        "q": q,
+        "pagination": {
+            "number": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "has_other_pages": page_obj.has_other_pages(),
+            "range": _page_range_display(page_obj),
+        },
+    })
 
 
 @login_required
@@ -63,10 +98,28 @@ def services_new(request):
 def services_detail(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
     visa_services = _build_visa_services_context(invoice)
-    payments_history = _build_visa_payments_context(invoice)
+    payments_raw = _build_visa_payments_context(invoice)
     services_remaining = sum(s["remaining"] for s in visa_services)
-    return render(request, "hw/services/services_detail.html", {
-        "invoice": invoice,
+    payments_history = [{
+        "payment_date": p["payment_date"].strftime("%d/%m/%Y") if p["payment_date"] else None,
+        "payment_method": p["payment_method"],
+        "payment_amount": p["payment_amount"],
+        "payment_currency": p["payment_currency"],
+        "payment_exchange": f"{float(p['payment_exchange']):.2f}",
+        "payment_note": p["payment_note"],
+        "proof_url": p["proof"].url if p["proof"] else None,
+    } for p in payments_raw]
+    return inertia_render(request, "Services/Detail", props={
+        "invoice": {
+            "pk": invoice.pk,
+            "invoice_number": invoice.invoice_number,
+            "customer_name": invoice.customer_name,
+            "currency": invoice.currency,
+            "company": invoice.company,
+            "issued_date": invoice.issued_date.strftime("%d/%m/%Y") if invoice.issued_date else None,
+            "due_date": invoice.due_date.strftime("%d/%m/%Y") if invoice.due_date else None,
+            "created_at": invoice.created_at.strftime("%d/%m/%Y %H:%M"),
+        },
         "visa_services": visa_services,
         "payments_history": payments_history,
         "services_remaining": services_remaining,

@@ -1,14 +1,17 @@
 ﻿import json as _json
 
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from ..models import ActivityLog, Hotel, log_activity
-from .helpers import _paginated_list
+from .helpers import _is_mobile, _page_range_display
 
 
 def _save_hotel(h, data):
@@ -56,12 +59,38 @@ def hotel_list(request):
         qs = qs.filter(city=city_filter)
     if stars_filter.isdigit():
         qs = qs.filter(stars=int(stars_filter))
-    areas = Hotel.objects.filter(company=company).exclude(area='').values_list('area', flat=True).distinct().order_by('area')
-    return _paginated_list(request, qs, 'hw/hotel/hotel_list.html', 'hotels', extra_ctx={
-        'area_filter': area_filter,
-        'city_filter': city_filter,
-        'stars_filter': stars_filter,
-        'areas': areas,
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    hotels = [{
+        "id": h.id,
+        "name": h.name,
+        "city": h.city,
+        "city_display": h.get_city_display(),
+        "area": h.area,
+        "stars": h.stars,
+        "distance": h.distance_to_haram,
+        "distance_label": h.distance_label,
+        "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
+        "is_active": h.is_active,
+    } for h in page_obj]
+
+    return inertia_render(request, "Hotel/List", props={
+        "hotels": hotels,
+        "total_count": paginator.count,
+        "q": q,
+        "city_filter": city_filter,
+        "stars_filter": stars_filter,
+        "area_filter": area_filter,
+        "pagination": {
+            "number": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "has_other_pages": page_obj.has_other_pages(),
+            "range": _page_range_display(page_obj),
+        },
     })
 
 
@@ -118,9 +147,24 @@ def hotel_detail(request, pk):
     if company:
         filters['company'] = company
     h = get_object_or_404(Hotel, **filters)
-    return render(request, 'hw/hotel/hotel_detail.html', {
-        'hotel': h,
-        'hotel_route_json': _json.dumps(h.route) if h.route else 'null',
+    return inertia_render(request, "Hotel/Detail", props={
+        "hotel": {
+            "id": h.id,
+            "name": h.name,
+            "city": h.city,
+            "city_display": h.get_city_display(),
+            "area": h.area,
+            "stars": h.stars,
+            "distance": h.distance_to_haram,
+            "distance_label": h.distance_label,
+            "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
+            "note": h.note,
+            "is_active": h.is_active,
+            "lat": h.lat,
+            "lng": h.lng,
+            "ref_label": h.ref_label,
+            "route": h.route,
+        },
     })
 
 

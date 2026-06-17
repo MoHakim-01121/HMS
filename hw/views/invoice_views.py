@@ -5,13 +5,23 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import ExpressionWrapper, F, FloatField, Q, Sum
 from django.db.models.functions import Coalesce
+from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+
+from inertia import render as inertia_render
 
 from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
-from .helpers import _paginated_list, _parse_date, _render_list_pdf, _save_hotel_payments
+from .helpers import (
+    _is_mobile,
+    _page_range_display,
+    _paginated_list,
+    _parse_date,
+    _render_list_pdf,
+    _save_hotel_payments,
+)
 from .pdf import _render_invoice_pdf
 
 
@@ -47,11 +57,44 @@ def invoice_list(request):
         elif status == 'partial':
             qs = qs.filter(_paid__gte=1).exclude(_paid__gte=F('_res'))
 
-    extra = {"due_soon_filter": bool(due_soon), "status_filter": status}
-    if active_company == 'konoz':
-        extra['remit_stats'] = _invoice_stats(base_qs, active_company)
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
-    return _paginated_list(request, qs, "hw/invoice/invoice_history.html", "invoices", extra_ctx=extra)
+    invoices = [{
+        "id": inv.id,
+        "invoice_number": inv.invoice_number,
+        "customer_name": inv.customer_name,
+        "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+        "created_at": inv.created_at.strftime("%d/%m/%Y"),
+        "total_sar": inv.total_sar,
+        "remaining_sar": inv.remaining_sar,
+        "status": (
+            "paid" if inv.remaining_sar == 0
+            else "partial" if inv.remaining_sar < inv.total_sar
+            else "unpaid"
+        ),
+    } for inv in page_obj]
+
+    props = {
+        "invoices": invoices,
+        "total_count": paginator.count,
+        "q": q,
+        "status_filter": status,
+        "pagination": {
+            "number": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "has_other_pages": page_obj.has_other_pages(),
+            "range": _page_range_display(page_obj),
+        },
+    }
+    if active_company == 'konoz':
+        props["remit_stats"] = _invoice_stats(base_qs, active_company)
+
+    return inertia_render(request, "Invoice/List", props=props)
 
 
 def _invoice_stats(invoice_qs, company):
@@ -164,7 +207,31 @@ def invoice_detail(request, pk):
     if active_company:
         filters['company'] = active_company
     invoice = get_object_or_404(Invoice, **filters)
-    reservations = _build_reservation_context(invoice)
+    res_ctx = _build_reservation_context(invoice)
+    reservations = [{
+        "number": r["number"],
+        "hotel": r["hotel"],
+        "check_in": r["check_in"].strftime("%d/%m/%Y") if r["check_in"] else None,
+        "check_out": r["check_out"].strftime("%d/%m/%Y") if r["check_out"] else None,
+        "total_int": r["total_int"],
+        "remaining_int": r["remaining_int"],
+        "remaining_class": r["remaining_class"],
+        "cl_pk": r["cl_pk"],
+    } for r in res_ctx]
+
+    payments = [{
+        "linked_number": p.linked_number,
+        "payment_date": p.payment_date.strftime("%d/%m/%Y") if p.payment_date else None,
+        "method": p.method,
+        "amount_int": int(round(float(p.amount))),
+        "currency": p.currency,
+        "exchange_rate": float(p.exchange_rate),
+        "exchange_rate_fmt": f"{float(p.exchange_rate):.2f}",
+        "amount_sar_int": p.amount_sar,
+        "proof_url": p.proof.url if p.proof else None,
+        "note": p.note,
+    } for p in invoice.payments.all()]
+
     due_alert = None
     if invoice.due_date and invoice.remaining_sar > 0:
         days = (invoice.due_date - date.today()).days
@@ -174,9 +241,19 @@ def invoice_detail(request, pk):
             due_alert = {"type": "red", "msg": "Jatuh tempo hari ini!"}
         elif days <= 7:
             due_alert = {"type": "yellow", "msg": f"Jatuh tempo {days} hari lagi."}
-    return render(request, "hw/invoice/invoice_detail.html", {
-        "invoice": invoice,
+
+    return inertia_render(request, "Invoice/Detail", props={
+        "invoice": {
+            "pk": invoice.pk,
+            "invoice_number": invoice.invoice_number,
+            "customer_name": invoice.customer_name,
+            "issued_date": invoice.issued_date.strftime("%d %b %Y") if invoice.issued_date else None,
+            "total_sar": invoice.total_sar,
+            "total_paid_sar": invoice.total_paid_sar,
+            "remaining_sar": invoice.remaining_sar,
+        },
         "reservations": reservations,
+        "payments": payments,
         "due_alert": due_alert,
     })
 

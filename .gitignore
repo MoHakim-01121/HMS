@@ -199,3 +199,10 @@ credentials/
 .claude/
 .superpowers/
 
+# Frontend build (React / Vite)
+node_modules/
+hw/static/dist/
+
+# Graphify tool output (generated)
+graphify-out/
+

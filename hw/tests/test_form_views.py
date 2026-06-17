@@ -31,3 +31,108 @@ class FlashShareTests(TestCase):
         page = resp2.json()
         self.assertIn("flash", page["props"])
         self.assertIsNotNone(page["props"]["flash"]["success"])
+
+
+class ClientFormTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("tester2", password="pw12345")
+        self.client.force_login(self.user)
+        s = self.client.session; s["active_company"] = "konoz"; s.save()
+
+    def _inertia(self, url, data, follow=False):
+        return self.client.post(url, data, follow=follow, HTTP_X_INERTIA="true")
+
+    def test_get_renders_inertia_form(self):
+        resp = self.client.get("/clients/new/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.json()["component"], "Client/Form")
+
+    def test_missing_name_returns_errors(self):
+        resp = self._inertia("/clients/new/", {"name": ""})
+        page = resp.json()
+        self.assertEqual(page["component"], "Client/Form")
+        self.assertIn("name", page["props"]["errors"])
+
+    def test_valid_create_redirects_to_detail(self):
+        from hw.models import Client
+        resp = self._inertia("/clients/new/", {"name": "PT Sahabat"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Client.objects.filter(name="PT Sahabat").exists())
+
+
+class PenaltyViewTests(TestCase):
+    def setUp(self):
+        from hw.models import ConfirmationLetter
+        self.user = User.objects.create_user("tester3", password="pw12345")
+        self.client.force_login(self.user)
+        s = self.client.session; s["active_company"] = "konoz"; s.save()
+        self.cl = ConfirmationLetter.objects.create(
+            company="konoz", guest_name="Budi", confirmation_number="CL-1",
+        )
+
+    def _inertia_get(self, url):
+        return self.client.get(url, HTTP_X_INERTIA="true")
+
+    def _make_penalty(self, number="PNL-001"):
+        from datetime import date
+        from hw.models import CancellationPenalty
+        return CancellationPenalty.objects.create(
+            cl=self.cl, penalty_number=number,
+            cancellation_date=date.today(), penalty_amount=500,
+        )
+
+    def test_detail_renders_inertia(self):
+        p = self._make_penalty()
+        resp = self._inertia_get(f"/penalty/{p.pk}/")
+        self.assertEqual(resp.json()["component"], "Penalty/Detail")
+
+    def test_new_get_renders_form(self):
+        resp = self._inertia_get(f"/cl/{self.cl.pk}/penalty/new/")
+        self.assertEqual(resp.json()["component"], "Penalty/Form")
+
+    def test_new_post_creates_and_redirects(self):
+        from datetime import date
+        from hw.models import CancellationPenalty
+        resp = self.client.post(
+            f"/cl/{self.cl.pk}/penalty/new/",
+            {
+                "penalty_number": "PNL-X", "cancellation_date": date.today().isoformat(),
+                "penalty_amount": "500", "penalty_currency": "SAR", "exchange_rate": "1",
+            },
+            HTTP_X_INERTIA="true",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(CancellationPenalty.objects.filter(penalty_number="PNL-X").exists())
+
+
+class UserAdminTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser("admin", "a@a.com", "pw12345")
+        self.client.force_login(self.admin)
+
+    def _inertia_get(self, url):
+        return self.client.get(url, HTTP_X_INERTIA="true")
+
+    def _inertia_post(self, url, data):
+        return self.client.post(url, data, HTTP_X_INERTIA="true")
+
+    def test_user_list_renders_inertia(self):
+        page = self._inertia_get("/users/").json()
+        self.assertEqual(page["component"], "User/List")
+        self.assertTrue(any(u["username"] == "admin" for u in page["props"]["users"]))
+
+    def test_new_get_renders_form(self):
+        self.assertEqual(self._inertia_get("/users/new/").json()["component"], "User/Form")
+
+    def test_password_mismatch_returns_error(self):
+        page = self._inertia_post("/users/new/", {"username": "bob", "password": "a", "password_confirm": "b"}).json()
+        self.assertEqual(page["component"], "User/Form")
+        self.assertIn("password_confirm", page["props"]["errors"])
+
+    def test_duplicate_username_returns_error(self):
+        resp = self._inertia_post("/users/new/", {"username": "admin", "password": "x", "password_confirm": "x"})
+        self.assertIn("username", resp.json()["props"]["errors"])
+
+    def test_valid_create_redirects(self):
+        resp = self._inertia_post("/users/new/", {"username": "carol", "password": "pw", "password_confirm": "pw"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(User.objects.filter(username="carol").exists())

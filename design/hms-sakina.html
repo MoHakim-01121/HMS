@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sakīna · HMS — Konoz / Ijabah</title>
+
+<!-- ── Typography: Fraunces (display/figures) + Hanken Grotesk (UI) ── -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,400..600&family=Hanken+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --paper:    #F2ECE0;
+    --paper-2:  #EBE3D4;
+    --card:     #FAF6EE;
+    --card-2:   #F5EFE3;
+    --ink:      #1C1812;
+    --ink-2:    #6A6151;
+    --ink-3:    #9C927F;
+    --line:     rgba(28,24,18,0.11);
+    --line-2:   rgba(28,24,18,0.06);
+    --gold:     #A87B2E;
+    --gold-2:   #C29A4B;
+    --gold-soft:#EAD9B4;
+    --emerald:  #2E5A48;
+    --emerald-soft:#D7E2D5;
+    --brick:    #9A3B30;
+    --brick-soft:#EBD3CB;
+    --konoz:    #2C4B6E;
+    --ijabah:   #B0883A;
+    --shadow:   0 1px 2px rgba(28,24,18,.04), 0 12px 30px -14px rgba(28,24,18,.18);
+    --shadow-lg:0 2px 4px rgba(28,24,18,.05), 0 40px 70px -30px rgba(28,24,18,.30);
+    --r:18px;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:'Hanken Grotesk', sans-serif;
+    color:var(--ink);
+    background:var(--paper);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  ::selection{ background:var(--gold-soft); color:var(--ink); }
+
+  /* ── Ambient background: warm light + faint khatam geometry + grain ── */
+  .bg-field{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  .bg-glow{
+    position:absolute; inset:-20%;
+    background:
+      radial-gradient(60% 50% at 78% 8%, rgba(194,154,75,.18), transparent 60%),
+      radial-gradient(50% 45% at 8% 92%, rgba(46,90,72,.10), transparent 60%),
+      radial-gradient(90% 80% at 50% 0%, rgba(250,246,238,.7), transparent 70%);
+  }
+  .bg-geo{ position:absolute; inset:0; opacity:.05;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'><g fill='none' stroke='%231C1812' stroke-width='1'><path d='M60 6 70 34 98 22 86 50 114 60 86 70 98 98 70 86 60 114 50 86 22 98 34 70 6 60 34 50 22 22 50 34z'/><circle cx='60' cy='60' r='20'/></g></svg>");
+    background-size:240px 240px;
+  }
+  .bg-grain{ position:absolute; inset:0; opacity:.20; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+  }
+
+  /* ── App shell ── */
+  .app{ position:relative; z-index:1; display:grid; grid-template-columns:248px 1fr; min-height:100vh; }
+
+  /* ── Sidebar ── */
+  .side{
+    position:sticky; top:0; align-self:start; height:100vh;
+    display:flex; flex-direction:column;
+    padding:30px 22px; border-right:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(250,246,238,.5), rgba(242,236,224,.2));
+    backdrop-filter:blur(2px);
+  }
+  .brand{ display:flex; align-items:center; gap:13px; margin-bottom:42px; }
+  .brand-mark{ width:40px; height:40px; flex-shrink:0; }
+  .brand-txt{ line-height:1; }
+  .brand-name{ font-family:'Fraunces',serif; font-weight:600; font-size:21px; letter-spacing:.2px; }
+  .brand-sub{ font-size:10.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--ink-3); margin-top:4px; }
+
+  .nav-label{ font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-3); margin:0 8px 12px; }
+  .nav{ display:flex; flex-direction:column; gap:3px; }
+  .nav-item{
+    position:relative; display:flex; align-items:center; gap:13px;
+    padding:11px 13px; border-radius:12px; cursor:pointer;
+    font-size:14px; font-weight:500; color:var(--ink-2);
+    border:1px solid transparent;
+    transition:color .25s, background .25s;
+  }
+  .nav-item:hover{ color:var(--ink); background:rgba(168,123,46,.07); }
+  .nav-item.active{ color:var(--ink); background:var(--card); border-color:var(--line); box-shadow:var(--shadow); }
+  .nav-item .ico{ width:18px; height:18px; flex-shrink:0; opacity:.8; }
+  .nav-item.active .ico{ opacity:1; color:var(--gold); }
+  .nav-dot{ position:absolute; left:-22px; top:50%; width:3px; height:0; border-radius:3px; background:var(--gold); transform:translateY(-50%); transition:height .3s; }
+  .nav-item.active .nav-dot{ height:22px; }
+
+  .side-foot{ margin-top:auto; padding-top:22px; border-top:1px solid var(--line); }
+  .switcher{ display:flex; background:var(--paper-2); border-radius:11px; padding:4px; gap:4px; border:1px solid var(--line-2); }
+  .switch-btn{ flex:1; padding:8px 6px; border:none; background:transparent; border-radius:8px; cursor:pointer;
+    font-family:'Hanken Grotesk'; font-size:12px; font-weight:600; color:var(--ink-3); transition:.2s; }
+  .switch-btn.on{ background:var(--card); color:var(--ink); box-shadow:var(--shadow); }
+  .switch-btn.on.konoz{ color:var(--konoz); }
+  .switch-btn.on.ijabah{ color:var(--ijabah); }
+  .who{ display:flex; align-items:center; gap:11px; margin-top:18px; }
+  .who-av{ width:34px; height:34px; border-radius:50%; background:linear-gradient(135deg,var(--gold-2),var(--gold)); display:grid; place-items:center; color:#fff; font-weight:600; font-size:13px; font-family:'Fraunces'; flex-shrink:0; }
+  .who-name{ font-size:13px; font-weight:600; }
+  .who-role{ font-size:11px; color:var(--ink-3); }
+
+  /* ── Main ── */
+  .main{ padding:34px 46px 80px; max-width:1180px; }
+  .topbar{ display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:34px; }
+  .eyebrow{ font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:var(--gold); font-weight:600; margin-bottom:10px; display:flex; align-items:center; gap:9px; }
+  .eyebrow::before{ content:''; width:22px; height:1px; background:var(--gold); display:inline-block; }
+  h1.page{ font-family:'Fraunces',serif; font-weight:340; font-size:40px; line-height:1.04; letter-spacing:-.5px; margin:0; }
+  h1.page b{ font-weight:600; font-style:italic; }
+  .top-right{ text-align:right; flex-shrink:0; }
+  .top-date{ font-family:'Fraunces'; font-size:16px; }
+  .top-meta{ font-size:12px; color:var(--ink-3); margin-top:3px; }
+
+  /* generic card */
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); }
+  .pad{ padding:22px 24px; }
+  .ttl{ font-family:'Fraunces',serif; font-size:18px; font-weight:500; margin:0; }
+  .sub{ font-size:12.5px; color:var(--ink-2); }
+  .hr{ height:1px; background:var(--line); border:none; margin:0; }
+
+  /* KPI grid */
+  .kgrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:24px; }
+  .kpi{ padding:20px 21px; position:relative; overflow:hidden; }
+  .kpi .klabel{ font-size:12px; color:var(--ink-2); display:flex; align-items:center; gap:8px; }
+  .kpi .kico{ width:15px; height:15px; color:var(--gold); }
+  .kpi .kval{ font-family:'Fraunces',serif; font-size:33px; font-weight:430; letter-spacing:-.5px; margin-top:14px; font-variant-numeric:tabular-nums; line-height:1; }
+  .kpi .kval .cur{ font-size:14px; color:var(--ink-3); font-weight:500; margin-right:5px; }
+  .kpi .kfoot{ font-size:11.5px; margin-top:11px; display:flex; align-items:center; gap:6px; color:var(--ink-3); }
+  .trend{ font-weight:600; }
+  .trend.up{ color:var(--emerald); } .trend.down{ color:var(--brick); }
+  .kpi-accent{ position:absolute; right:-30px; top:-30px; width:110px; height:110px; border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, rgba(194,154,75,.16), transparent 70%); }
+
+  /* layout split */
+  .split{ display:grid; grid-template-columns:1.55fr 1fr; gap:22px; align-items:start; }
+  .stack{ display:flex; flex-direction:column; gap:22px; }
+
+  /* chart */
+  .chart-head{ display:flex; align-items:baseline; justify-content:space-between; }
+  .legend{ display:flex; gap:16px; font-size:11.5px; color:var(--ink-2); }
+  .legend i{ width:9px; height:9px; border-radius:3px; display:inline-block; margin-right:6px; vertical-align:middle; }
+  .bars{ display:flex; align-items:flex-end; gap:14px; height:170px; padding:14px 4px 0; }
+  .barcol{ flex:1; display:flex; flex-direction:column; align-items:center; gap:9px; height:100%; justify-content:flex-end; }
+  .barpair{ display:flex; gap:5px; align-items:flex-end; width:100%; height:100%; justify-content:center; }
+  .bar{ width:46%; max-width:24px; border-radius:6px 6px 0 0; }
+  .bar.billed{ background:linear-gradient(180deg,var(--gold-2),var(--gold)); }
+  .bar.paid{ background:linear-gradient(180deg,var(--emerald),#3a6b56); }
+  .barlab{ font-size:11px; color:var(--ink-3); font-weight:500; }
+
+  /* list rows */
+  .row{ display:flex; align-items:center; gap:14px; padding:14px 24px; cursor:pointer; transition:background .2s; }
+  .row:hover{ background:var(--card-2); }
+  .row + .row{ border-top:1px solid var(--line-2); }
+  .rnum{ font-family:'Fraunces'; font-weight:600; font-size:13.5px; font-variant-numeric:tabular-nums; min-width:64px; }
+  .rname{ flex:1; min-width:0; }
+  .rname b{ font-weight:600; font-size:13.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rname span{ font-size:11.5px; color:var(--ink-3); }
+  .ramt{ font-family:'Fraunces'; font-variant-numeric:tabular-nums; font-weight:500; font-size:14px; text-align:right; }
+
+  /* pills */
+  .pill{ display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600; padding:4px 11px; border-radius:9999px; letter-spacing:.02em; white-space:nowrap; }
+  .pill::before{ content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .pill.paid{ color:var(--emerald); background:var(--emerald-soft); }
+  .pill.partial{ color:var(--gold); background:var(--gold-soft); }
+  .pill.unpaid{ color:var(--brick); background:var(--brick-soft); }
+  .pill.flat::before{ display:none; }
+  .pill.def{ color:var(--emerald); background:var(--emerald-soft); letter-spacing:.14em; }
+
+  /* tag / chip */
+  .chip{ font-size:11px; color:var(--ink-2); background:var(--paper-2); border:1px solid var(--line-2); padding:4px 10px; border-radius:8px; font-weight:500; }
+
+  /* table */
+  table.t{ width:100%; border-collapse:collapse; }
+  .t th{ text-align:left; font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); font-weight:600; padding:0 16px 13px; border-bottom:1px solid var(--line); }
+  .t td{ padding:16px; border-bottom:1px solid var(--line-2); font-size:13.5px; vertical-align:middle; }
+  .t tr:last-child td{ border-bottom:none; }
+  .t .num{ text-align:right; font-family:'Fraunces'; font-variant-numeric:tabular-nums; font-weight:500; }
+  .t .strong{ font-weight:600; }
+  .t tbody tr{ transition:background .18s; }
+  .t tbody tr:hover{ background:var(--card-2); }
+  .tfoot td{ padding-top:18px; border-top:1.5px solid var(--ink); font-weight:600; }
+
+  /* detail hero */
+  .hero{ position:relative; overflow:hidden; padding:30px 32px; }
+  .hero-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }
+  .hero h2{ font-family:'Fraunces',serif; font-weight:380; font-size:30px; margin:6px 0 0; letter-spacing:-.4px; }
+  .hero .who-line{ font-size:13px; color:var(--ink-2); margin-top:9px; }
+  .hero-fig{ text-align:right; flex-shrink:0; }
+  .hero-fig .lbl{ font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3); }
+  .hero-fig .big{ font-family:'Fraunces'; font-size:38px; font-weight:440; letter-spacing:-.5px; font-variant-numeric:tabular-nums; line-height:1.05; margin-top:6px; }
+  .hero-fig .big .cur{ font-size:15px; color:var(--ink-3); margin-right:5px; }
+
+  .meta-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border-radius:13px; overflow:hidden; margin-top:26px; border:1px solid var(--line); }
+  .meta-cell{ background:var(--card); padding:15px 17px; }
+  .meta-cell .k{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); }
+  .meta-cell .v{ font-size:14.5px; font-weight:600; margin-top:7px; font-family:'Fraunces'; }
+  .meta-cell .v.sm{ font-size:13px; font-family:'Hanken Grotesk'; }
+
+  /* progress arc card */
+  .arc-wrap{ display:flex; align-items:center; gap:22px; }
+  .arc-svg{ flex-shrink:0; }
+  .arc-legend .al{ display:flex; align-items:center; gap:9px; font-size:12.5px; margin:7px 0; }
+  .arc-legend .al i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+  .arc-legend .al b{ font-family:'Fraunces'; font-variant-numeric:tabular-nums; margin-left:auto; padding-left:18px; }
+
+  /* timeline */
+  .tl{ position:relative; padding-left:8px; }
+  .tl-item{ position:relative; padding:0 0 20px 26px; border-left:1.5px solid var(--line); margin-left:5px; }
+  .tl-item:last-child{ border-left-color:transparent; padding-bottom:0; }
+  .tl-dot{ position:absolute; left:-7.5px; top:2px; width:13px; height:13px; border-radius:50%; background:var(--card); border:2.5px solid var(--gold); }
+  .tl-date{ font-size:11px; color:var(--ink-3); letter-spacing:.04em; }
+  .tl-main{ font-size:13.5px; font-weight:600; margin-top:3px; display:flex; justify-content:space-between; gap:12px; }
+  .tl-main .amt{ font-family:'Fraunces'; font-variant-numeric:tabular-nums; color:var(--emerald); }
+  .tl-sub{ font-size:11.5px; color:var(--ink-3); margin-top:2px; }
+
+  /* stars */
+  .stars{ color:var(--gold); letter-spacing:2px; font-size:14px; }
+  .stars .off{ color:var(--ink-3); opacity:.4; }
+
+  /* radial map for hotel */
+  .radial{ position:relative; width:100%; aspect-ratio:1/1; max-width:330px; margin:0 auto; }
+
+  /* room-type rate cards */
+  .rates{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .rate{ padding:17px 18px; border:1px solid var(--line); border-radius:14px; background:var(--card-2); transition:.22s; cursor:default; }
+  .rate:hover{ transform:translateY(-3px); box-shadow:var(--shadow); border-color:var(--gold-soft); }
+  .rate .rt{ font-family:'Fraunces'; font-weight:600; font-size:15px; }
+  .rate .rp{ font-family:'Fraunces'; font-size:22px; font-weight:440; margin-top:10px; font-variant-numeric:tabular-nums; }
+  .rate .rp small{ font-size:11px; color:var(--ink-3); font-weight:400; font-family:'Hanken Grotesk'; }
+  .rate .rmeal{ font-size:11.5px; color:var(--ink-2); margin-top:4px; }
+
+  /* AI teaser */
+  .ai{ background:linear-gradient(155deg, #20312b, #2E5A48); color:#EAF1EC; border:none; }
+  .ai .ttl{ color:#fff; }
+  .ai .sub{ color:rgba(234,241,236,.7); }
+  .ai-input{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:12px 14px; margin-top:16px; font-size:13px; color:rgba(234,241,236,.6); }
+  .ai-sug{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .ai-sug span{ font-size:11.5px; padding:6px 11px; border-radius:8px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); cursor:pointer; transition:.2s; }
+  .ai-sug span:hover{ background:rgba(255,255,255,.2); }
+
+  .note-box{ background:var(--card-2); border:1px dashed var(--line); border-radius:13px; padding:16px 18px; font-size:13px; color:var(--ink-2); line-height:1.6; }
+
+  .btn{ display:inline-flex; align-items:center; gap:8px; padding:10px 17px; border-radius:11px; border:1px solid var(--line); background:var(--card); font-family:'Hanken Grotesk'; font-size:13px; font-weight:600; color:var(--ink); cursor:pointer; transition:.2s; }
+  .btn:hover{ background:var(--card-2); }
+  .btn.gold{ background:var(--ink); color:var(--paper); border-color:var(--ink); }
+  .btn.gold:hover{ background:#2a241b; }
+  .btn .ico{ width:15px; height:15px; }
+
+  .mut{ color:var(--ink-2); }
+  .right{ text-align:right; }
+  .flex{ display:flex; }
+  .between{ justify-content:space-between; }
+  .center{ align-items:center; }
+  .gap8{ gap:8px; } .gap12{ gap:12px; } .gap16{ gap:16px; }
+  .mt6{margin-top:6px;} .mt14{margin-top:14px;} .mt20{margin-top:20px;} .mt24{margin-top:24px;}
+
+  @media (max-width:1080px){
+    .app{ grid-template-columns:1fr; }
+    .side{ position:relative; height:auto; flex-direction:row; flex-wrap:wrap; align-items:center; gap:18px; }
+    .brand{ margin-bottom:0; } .nav-label{ display:none; }
+    .nav{ flex-direction:row; flex-wrap:wrap; flex:1; }
+    .side-foot{ margin:0; border:none; padding:0; display:flex; gap:16px; align-items:center; }
+    .nav-dot{ display:none; }
+    .main{ padding:26px 22px 70px; }
+    .kgrid{ grid-template-columns:repeat(2,1fr); }
+    .split{ grid-template-columns:1fr; }
+    .meta-grid{ grid-template-columns:repeat(2,1fr); }
+    h1.page{ font-size:32px; }
+  }
+  @media (max-width:560px){
+    .kgrid{ grid-template-columns:1fr; } .rates{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg-field">
+    <div class="bg-glow"></div>
+    <div class="bg-geo"></div>
+    <div class="bg-grain"></div>
+  </div>
+  <div id="root"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "motion/react": "https://esm.sh/motion@11.11.17/react?external=react,react-dom"
+    }
+  }
+  </script>
+
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+  <script type="text/babel" data-type="module" data-presets="react">
+  import React, { useState, useEffect, useRef } from "react";
+  import { createRoot } from "react-dom/client";
+  import { motion, AnimatePresence, useInView } from "motion/react";
+
+  /* ─────────────────────────  helpers  ───────────────────────── */
+  const fmt = (n) => new Intl.NumberFormat("en-US").format(Math.round(n));
+
+  function CountUp({ value, dur = 1.1 }){
+    const [n, setN] = useState(0);
+    const ref = useRef(null);
+    const inView = useInView(ref, { once:true, margin:"-40px" });
+    useEffect(() => {
+      if(!inView) return;
+      let raf, start;
+      const tick = (t) => {
+        if(!start) start = t;
+        const p = Math.min((t - start) / (dur*1000), 1);
+        const e = 1 - Math.pow(1 - p, 3);
+        setN(value * e);
+        if(p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [inView, value]);
+    return <span ref={ref}>{fmt(n)}</span>;
+  }
+
+  const ease = [0.22, 1, 0.36, 1];
+  const reveal = {
+    hidden:{ opacity:0, y:18 },
+    show:(i=0)=>({ opacity:1, y:0, transition:{ duration:.6, ease, delay:i*0.06 } }),
+  };
+  const Section = ({ i=0, children, style, className }) => (
+    <motion.div custom={i} variants={reveal} initial="hidden" animate="show"
+      style={style} className={className}>{children}</motion.div>
+  );
+
+  /* ─────────────────────────  icons  ───────────────────────── */
+  const I = {
+    dash:  <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM14 4v4h6V4zM4 20h6v-4H4z"/></svg>,
+    invoice:<svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>,
+    cl:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 4h16v13H7l-3 3z"/><path d="M8 9h8M8 12h5"/></svg>,
+    hotel: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 9h.01M15 9h.01M9 12h.01M15 12h.01"/></svg>,
+    coin:  <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 7v10M9.5 9.5c0-1 1.1-1.6 2.5-1.6s2.5.7 2.5 1.6-1.1 1.4-2.5 1.4-2.5.6-2.5 1.6 1.1 1.6 2.5 1.6 2.5-.6 2.5-1.6"/></svg>,
+    clock: <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>,
+    doc:   <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>,
+    bed:   <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 18V9h13a4 4 0 0 1 4 4v5M3 14h17M3 18v2M20 18v2M7 9V6h6v3"/></svg>,
+    pin:   <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>,
+    dl:    <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>,
+    print: <svg className="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z"/></svg>,
+    spark: <svg className="kico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6z"/></svg>,
+  };
+
+  /* khatam (eight-point star) brand mark, with draw-on animation */
+  const Mark = () => (
+    <svg className="brand-mark" viewBox="0 0 48 48" fill="none">
+      <motion.path
+        d="M24 3 30 14 42 12 36 24 45 30 33 33 33 45 24 38 15 45 15 33 3 30 12 24 6 12 18 14z"
+        stroke="var(--gold)" strokeWidth="1.4" strokeLinejoin="round"
+        initial={{ pathLength:0, opacity:0 }} animate={{ pathLength:1, opacity:1 }}
+        transition={{ duration:1.4, ease }} />
+      <motion.circle cx="24" cy="24" r="7.5" stroke="var(--gold)" strokeWidth="1.4"
+        initial={{ pathLength:0 }} animate={{ pathLength:1 }} transition={{ duration:1, delay:.5, ease }}/>
+      <motion.circle cx="24" cy="24" r="2.4" fill="var(--gold)"
+        initial={{ scale:0 }} animate={{ scale:1 }} transition={{ delay:1.2, type:"spring", stiffness:300 }}/>
+    </svg>
+  );
+
+  /* ─────────────────────────  mock data (grounded in HMS models)  ───────────────────────── */
+  const COMPANIES = {
+    konoz:  { name:"Konoz United", color:"var(--konoz)" },
+    ijabah: { name:"Ijabah",       color:"var(--ijabah)" },
+  };
+
+  const KPIS = [
+    { label:"Billed · YTD",        cur:"SAR", val:1284500, foot:"+12.4%", dir:"up",   ico:I.coin,  note:"vs last year" },
+    { label:"Outstanding",         cur:"SAR", val:196750,  foot:"4 invoices", dir:"down", ico:I.clock, note:"awaiting payment" },
+    { label:"Confirmations · Jun", cur:"",    val:38,      foot:"+9", dir:"up",   ico:I.doc,   note:"this month" },
+    { label:"Rooms booked · Jun",  cur:"",    val:412,     foot:"avg 3.4 pax", dir:"up", ico:I.bed, note:"across 9 hotels" },
+  ];
+  const MONTHS = [
+    { m:"Jan", billed:172, paid:160 },{ m:"Feb", billed:208, paid:191 },
+    { m:"Mar", billed:244, paid:228 },{ m:"Apr", billed:196, paid:182 },
+    { m:"May", billed:268, paid:240 },{ m:"Jun", billed:197, paid:118 },
+  ];
+  const RECENT = [
+    { num:"INV-014", name:"PT Arrayyan Wisata",  meta:"Makkah · Madinah · 3 res", amt:84000,  status:"partial" },
+    { num:"INV-013", name:"Madinah Berkah Tour", meta:"Madinah · 2 res",          amt:132500, status:"paid" },
+    { num:"INV-012", name:"Safar Mulia Travel",  meta:"Makkah · 1 res",           amt:47200,  status:"unpaid" },
+    { num:"INV-011", name:"Albadr Wisata",       meta:"Makkah · Madinah · 4 res", amt:96000,  status:"paid" },
+  ];
+  const REMIT = [
+    { num:"RMT-021", date:"14 Jun 2026", amt:220000, status:"partial", label:"Pending" },
+    { num:"RMT-020", date:"31 May 2026", amt:318500, status:"paid",    label:"Received" },
+  ];
+  const CHECKIN = [
+    { guest:"H. Ahmad Fauzi",  hotel:"Swissôtel Al Maqam", city:"Makkah",  date:"18 Jun", rooms:12 },
+    { guest:"Hj. Nur Aisyah",  hotel:"Dar Al Eiman Royal", city:"Madinah", date:"19 Jun", rooms:8 },
+    { guest:"KBIH Al-Ikhlas",  hotel:"Anjum Makkah Hotel", city:"Makkah",  date:"21 Jun", rooms:15 },
+  ];
+
+  const INV = {
+    num:"INV-014", company:"konoz", customer:"PT Arrayyan Wisata",
+    issued:"02 Jun 2026", due:"16 Jun 2026", type:"Hotel",
+    total:84000, paid:42000,
+    reservations:[
+      { num:"RSV-2291", hotel:"Anjum Makkah Hotel",      city:"Makkah",  ci:"18 Jun", co:"23 Jun", nights:5, amt:38500 },
+      { num:"RSV-2292", hotel:"Dar Al Eiman Royal",      city:"Madinah", ci:"23 Jun", co:"27 Jun", nights:4, amt:24000 },
+      { num:"RSV-2293", hotel:"Pullman ZamZam Makkah",   city:"Makkah",  ci:"12 Jun", co:"14 Jun", nights:2, amt:21500 },
+    ],
+    payments:[
+      { date:"28 May 2026", method:"Bank Transfer · Al Rajhi", amt:30000, ref:"TRX-88241" },
+      { date:"01 Jun 2026", method:"Cash · Jakarta office",    amt:12000, ref:"CASH-0612" },
+    ],
+  };
+
+  const CL = {
+    num:"CL-031", company:"ijabah", guest:"H. Ahmad Fauzi", phone:"+62 812-9931-4477",
+    hotel:"Swissôtel Al Maqam Makkah", status:"DEFINITE",
+    ci:"18 Jun 2026", co:"24 Jun 2026", nights:6,
+    rooms:[
+      { type:"Quad",   meals:"Full Board", qty:6, price:410 },
+      { type:"Triple", meals:"Half Board", qty:4, price:520 },
+      { type:"Double", meals:"Room Only",  qty:2, price:680 },
+    ],
+    paid:20000,
+  };
+  const CAP = { Double:2, Triple:3, Quad:4, Quint:5 };
+
+  const HOTEL = {
+    name:"Anjum Makkah Hotel", city:"Makkah", stars:5,
+    area:"Ajyad · King Abdul Aziz Gate", distance:280, ref:"Masjid Al-Haram",
+    occ:3.6, active:32,
+    rooms:[
+      { type:"Double", meals:"Room Only",  price:680 },
+      { type:"Triple", meals:"Half Board", price:520 },
+      { type:"Quad",   meals:"Full Board", price:410 },
+      { type:"Quint",  meals:"Full Board", price:350 },
+    ],
+    recent:[
+      { num:"RSV-2291", guest:"PT Arrayyan Wisata", ci:"18 Jun", nights:5, rooms:12 },
+      { num:"RSV-2274", guest:"Albadr Wisata",      ci:"15 Jun", nights:4, rooms:9 },
+      { num:"RSV-2260", guest:"KBIH Al-Ikhlas",     ci:"21 Jun", nights:6, rooms:15 },
+    ],
+    note:"Walking distance to the Haram via the Ajyad pedestrian bridge. Preferred for VIP groups; request high floors facing the clock tower for repeat clients.",
+  };
+
+  /* ─────────────────────────  shared atoms  ───────────────────────── */
+  const Pill = ({ s }) => {
+    const map = { paid:"Paid", partial:"Partial", unpaid:"Unpaid" };
+    return <span className={"pill "+s}>{map[s]}</span>;
+  };
+  const Stars = ({ n }) => (
+    <span className="stars">{"★".repeat(n)}<span className="off">{"★".repeat(5-n)}</span></span>
+  );
+
+  /* payment progress arc */
+  function Arc({ total, paid }){
+    const r = 52, c = 2*Math.PI*r;
+    const pct = total ? paid/total : 0;
+    const ref = useRef(null);
+    const inView = useInView(ref, { once:true });
+    return (
+      <div className="arc-wrap" ref={ref}>
+        <svg className="arc-svg" width="132" height="132" viewBox="0 0 132 132">
+          <circle cx="66" cy="66" r={r} fill="none" stroke="var(--line)" strokeWidth="13"/>
+          <motion.circle cx="66" cy="66" r={r} fill="none" stroke="var(--emerald)" strokeWidth="13"
+            strokeLinecap="round" transform="rotate(-90 66 66)"
+            strokeDasharray={c}
+            initial={{ strokeDashoffset:c }}
+            animate={ inView ? { strokeDashoffset:c*(1-pct) } : {} }
+            transition={{ duration:1.3, ease }} />
+          <text x="66" y="62" textAnchor="middle" fontFamily="Fraunces" fontSize="26" fontWeight="500" fill="var(--ink)">{Math.round(pct*100)}%</text>
+          <text x="66" y="82" textAnchor="middle" fontFamily="Hanken Grotesk" fontSize="10" letterSpacing="1.5" fill="var(--ink-3)">SETTLED</text>
+        </svg>
+        <div className="arc-legend" style={{flex:1}}>
+          <div className="al"><i style={{background:"var(--emerald)"}}></i> Paid <b>SAR {fmt(paid)}</b></div>
+          <div className="al"><i style={{background:"var(--line)"}}></i> Remaining <b style={{color:"var(--brick)"}}>SAR {fmt(total-paid)}</b></div>
+          <hr className="hr" style={{margin:"10px 0"}}/>
+          <div className="al" style={{fontWeight:600}}>Total <b>SAR {fmt(total)}</b></div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─────────────────────────  DASHBOARD  ───────────────────────── */
+  function Dashboard({ co }){
+    const max = Math.max(...MONTHS.map(m=>m.billed));
+    return (
+      <>
+        <div className="topbar">
+          <Section i={0}>
+            <div className="eyebrow">Operations · {COMPANIES[co].name}</div>
+            <h1 className="page">Assalamu’alaikum, <b>Hakim</b></h1>
+          </Section>
+          <Section i={1}><div className="top-right">
+            <div className="top-date">Monday, 15 June 2026</div>
+            <div className="top-meta">29 Dhū al-Hijjah 1447 · Makkah +03:00</div>
+          </div></Section>
+        </div>
+
+        <div className="kgrid">
+          {KPIS.map((k,i)=>(
+            <Section i={2+i} key={k.label} className="card kpi">
+              <div className="kpi-accent"></div>
+              <div className="klabel">{k.ico}{k.label}</div>
+              <div className="kval">{k.cur && <span className="cur">{k.cur}</span>}<CountUp value={k.val}/></div>
+              <div className="kfoot"><span className={"trend "+k.dir}>{k.foot}</span> · {k.note}</div>
+            </Section>
+          ))}
+        </div>
+
+        <div className="split">
+          <div className="stack">
+            <Section i={6} className="card pad">
+              <div className="chart-head">
+                <div>
+                  <h3 className="ttl">Billed vs. Settled</h3>
+                  <div className="sub">Last six months · thousands SAR</div>
+                </div>
+                <div className="legend">
+                  <span><i style={{background:"var(--gold)"}}></i>Billed</span>
+                  <span><i style={{background:"var(--emerald)"}}></i>Settled</span>
+                </div>
+              </div>
+              <div className="bars">
+                {MONTHS.map((m,i)=>(
+                  <div className="barcol" key={m.m}>
+                    <div className="barpair">
+                      <motion.div className="bar billed" initial={{height:0}} whileInView={{height:(m.billed/max*100)+"%"}}
+                        viewport={{once:true}} transition={{duration:.9,ease,delay:i*0.05}}/>
+                      <motion.div className="bar paid" initial={{height:0}} whileInView={{height:(m.paid/max*100)+"%"}}
+                        viewport={{once:true}} transition={{duration:.9,ease,delay:i*0.05+0.08}}/>
+                    </div>
+                    <div className="barlab">{m.m}</div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section i={7} className="card">
+              <div className="pad flex between center" style={{paddingBottom:14}}>
+                <div><h3 className="ttl">Recent invoices</h3><div className="sub">Across both companies</div></div>
+                <button className="btn">View all</button>
+              </div>
+              <hr className="hr"/>
+              {RECENT.map(r=>(
+                <div className="row" key={r.num}>
+                  <span className="rnum">{r.num}</span>
+                  <div className="rname"><b>{r.name}</b><span>{r.meta}</span></div>
+                  <span className="ramt">SAR {fmt(r.amt)}</span>
+                  <Pill s={r.status}/>
+                </div>
+              ))}
+            </Section>
+          </div>
+
+          <div className="stack">
+            <Section i={8} className="card ai pad">
+              <div className="flex between center"><h3 className="ttl">Ask Konoz</h3>{I.spark && <span style={{color:"var(--gold-2)"}}>{React.cloneElement(I.spark,{className:"kico"})}</span>}</div>
+              <div className="sub mt6">Your books, answered in plain language.</div>
+              <div className="ai-input">Type a question…</div>
+              <div className="ai-sug">
+                <span>Total outstanding</span><span>Who owes the most?</span><span>June check-ins</span>
+              </div>
+            </Section>
+
+            <Section i={9} className="card">
+              <div className="pad" style={{paddingBottom:14}}><h3 className="ttl">Remittances</h3><div className="sub">To head office</div></div>
+              <hr className="hr"/>
+              {REMIT.map(r=>(
+                <div className="row" key={r.num}>
+                  <span className="rnum">{r.num}</span>
+                  <div className="rname"><b>SAR {fmt(r.amt)}</b><span>{r.date}</span></div>
+                  <span className={"pill flat "+(r.status==="paid"?"paid":"partial")}>{r.label}</span>
+                </div>
+              ))}
+            </Section>
+
+            <Section i={10} className="card">
+              <div className="pad" style={{paddingBottom:14}}><h3 className="ttl">Upcoming check-ins</h3><div className="sub">Next 7 days</div></div>
+              <hr className="hr"/>
+              {CHECKIN.map((c,i)=>(
+                <div className="row" key={i}>
+                  <div style={{textAlign:"center",minWidth:42}}>
+                    <div style={{fontFamily:"Fraunces",fontWeight:600,fontSize:15}}>{c.date.split(" ")[0]}</div>
+                    <div style={{fontSize:10,color:"var(--ink-3)",letterSpacing:".1em"}}>{c.date.split(" ")[1].toUpperCase()}</div>
+                  </div>
+                  <div className="rname" style={{borderLeft:"1px solid var(--line)",paddingLeft:14}}>
+                    <b>{c.guest}</b><span>{c.hotel} · {c.city}</span>
+                  </div>
+                  <span className="chip">{c.rooms} rooms</span>
+                </div>
+              ))}
+            </Section>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ─────────────────────────  INVOICE DETAIL  ───────────────────────── */
+  function InvoiceDetail(){
+    const remaining = INV.total - INV.paid;
+    const status = remaining<=0 ? "paid" : INV.paid>0 ? "partial" : "unpaid";
+    return (
+      <>
+        <div className="topbar">
+          <Section i={0}>
+            <div className="eyebrow">Invoice · {COMPANIES[INV.company].name}</div>
+            <h1 className="page">Invoice <b>{INV.num}</b></h1>
+          </Section>
+          <Section i={1}><div className="flex gap8">
+            <button className="btn">{I.print} Print</button>
+            <button className="btn gold">{I.dl} PDF</button>
+          </div></Section>
+        </div>
+
+        <div className="split">
+          <div className="stack">
+            <Section i={2} className="card hero">
+              <div className="hero-top">
+                <div>
+                  <Pill s={status}/>
+                  <h2>{INV.customer}</h2>
+                  <div className="who-line">Hotel reservations · {INV.reservations.length} bookings · {COMPANIES[INV.company].name}</div>
+                </div>
+                <div className="hero-fig">
+                  <div className="lbl">Total due</div>
+                  <div className="big"><span className="cur">SAR</span>{fmt(INV.total)}</div>
+                </div>
+              </div>
+              <div className="meta-grid">
+                <div className="meta-cell"><div className="k">Issued</div><div className="v sm">{INV.issued}</div></div>
+                <div className="meta-cell"><div className="k">Due</div><div className="v sm">{INV.due}</div></div>
+                <div className="meta-cell"><div className="k">Type</div><div className="v sm">{INV.type}</div></div>
+                <div className="meta-cell"><div className="k">Remaining</div><div className="v sm" style={{color:remaining>0?"var(--brick)":"var(--emerald)"}}>SAR {fmt(remaining)}</div></div>
+              </div>
+            </Section>
+
+            <Section i={3} className="card pad">
+              <h3 className="ttl">Reservations</h3>
+              <div className="sub" style={{marginBottom:18}}>Rooms held against this invoice</div>
+              <table className="t">
+                <thead><tr><th>Ref</th><th>Hotel</th><th>Stay</th><th className="num">Nights</th><th className="num">Amount</th></tr></thead>
+                <tbody>
+                  {INV.reservations.map(r=>(
+                    <tr key={r.num}>
+                      <td className="strong" style={{fontFamily:"Fraunces"}}>{r.num}</td>
+                      <td>{r.hotel}<div style={{fontSize:11,color:"var(--ink-3)"}}>{r.city}</div></td>
+                      <td className="mut">{r.ci} → {r.co}</td>
+                      <td className="num">{r.nights}</td>
+                      <td className="num">{fmt(r.amt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr className="tfoot">
+                  <td colSpan="4">Total · SAR</td>
+                  <td className="num" style={{fontFamily:"Fraunces",fontSize:16}}>{fmt(INV.total)}</td>
+                </tr></tfoot>
+              </table>
+            </Section>
+          </div>
+
+          <div className="stack">
+            <Section i={4} className="card pad">
+              <h3 className="ttl">Payment status</h3>
+              <div className="sub" style={{marginBottom:18}}>Settled to date</div>
+              <Arc total={INV.total} paid={INV.paid}/>
+            </Section>
+
+            <Section i={5} className="card pad">
+              <h3 className="ttl">Payments</h3>
+              <div className="sub" style={{marginBottom:20}}>{INV.payments.length} received</div>
+              <div className="tl">
+                {INV.payments.map((p,i)=>(
+                  <div className="tl-item" key={i}>
+                    <span className="tl-dot"></span>
+                    <div className="tl-date">{p.date}</div>
+                    <div className="tl-main"><span>{p.method.split(" · ")[0]}</span><span className="amt">+ SAR {fmt(p.amt)}</span></div>
+                    <div className="tl-sub">{p.method.split(" · ")[1]} · {p.ref}</div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section i={6} className="card pad">
+              <h3 className="ttl" style={{marginBottom:12}}>Terms</h3>
+              <div className="note-box">Balance due by <b>{INV.due}</b>. Reservations are confirmed on full settlement; partial holds expire 72 hours before check-in. Rates quoted in SAR, inclusive of municipality fees.</div>
+            </Section>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ─────────────────────────  CONFIRMATION LETTER  ───────────────────────── */
+  function CLDetail(){
+    const rooms = CL.rooms.map(r=>({ ...r, sub:r.price*r.qty*CL.nights }));
+    const total = rooms.reduce((s,r)=>s+r.sub,0);
+    const totalRooms = rooms.reduce((s,r)=>s+r.qty,0);
+    const guests = rooms.reduce((s,r)=>s+(CAP[r.type]||1)*r.qty,0);
+    const remaining = total - CL.paid;
+    return (
+      <>
+        <div className="topbar">
+          <Section i={0}>
+            <div className="eyebrow">Confirmation Letter · {COMPANIES[CL.company].name}</div>
+            <h1 className="page">Confirmation <b>{CL.num}</b></h1>
+          </Section>
+          <Section i={1}><div className="flex gap8">
+            <button className="btn">{I.print} Print</button>
+            <button className="btn gold">{I.dl} PDF</button>
+          </div></Section>
+        </div>
+
+        <div className="split">
+          <div className="stack">
+            <Section i={2} className="card hero">
+              <div className="hero-top">
+                <div>
+                  <span className="pill def">{CL.status}</span>
+                  <h2>{CL.hotel}</h2>
+                  <div className="who-line">Guest · <b>{CL.guest}</b> · {CL.phone}</div>
+                </div>
+                <div className="hero-fig">
+                  <div className="lbl">{CL.nights} nights</div>
+                  <div className="big" style={{fontSize:28}}>{CL.ci.split(" ").slice(0,2).join(" ")}</div>
+                  <div className="sub">→ {CL.co}</div>
+                </div>
+              </div>
+              <div className="meta-grid">
+                <div className="meta-cell"><div className="k">Check-in</div><div className="v sm">{CL.ci}</div></div>
+                <div className="meta-cell"><div className="k">Check-out</div><div className="v sm">{CL.co}</div></div>
+                <div className="meta-cell"><div className="k">Rooms</div><div className="v">{totalRooms}</div></div>
+                <div className="meta-cell"><div className="k">Guests</div><div className="v">{guests}</div></div>
+              </div>
+            </Section>
+
+            <Section i={3} className="card pad">
+              <h3 className="ttl">Room allocation</h3>
+              <div className="sub" style={{marginBottom:18}}>Priced per night · {CL.nights} nights</div>
+              <table className="t">
+                <thead><tr>
+                  <th>Room type</th><th>Board</th><th className="num">Qty</th>
+                  <th className="num">Rate / night</th><th className="num">Subtotal</th>
+                </tr></thead>
+                <tbody>
+                  {rooms.map((r,i)=>(
+                    <tr key={i}>
+                      <td className="strong" style={{fontFamily:"Fraunces",fontSize:14.5}}>{r.type}</td>
+                      <td className="mut">{r.meals}</td>
+                      <td className="num">{r.qty}</td>
+                      <td className="num">{fmt(r.price)}</td>
+                      <td className="num strong">{fmt(r.sub)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot><tr className="tfoot">
+                  <td colSpan="4">Total · SAR</td>
+                  <td className="num" style={{fontFamily:"Fraunces",fontSize:16}}>{fmt(total)}</td>
+                </tr></tfoot>
+              </table>
+            </Section>
+          </div>
+
+          <div className="stack">
+            <Section i={4} className="card pad">
+              <h3 className="ttl">Settlement</h3>
+              <div className="sub" style={{marginBottom:18}}>Against confirmation total</div>
+              <Arc total={total} paid={CL.paid}/>
+            </Section>
+
+            <Section i={5} className="card pad">
+              <h3 className="ttl" style={{marginBottom:16}}>At a glance</h3>
+              {[
+                ["Property", CL.hotel],
+                ["Guest", CL.guest],
+                ["Reservation", CL.status],
+                ["Nights", CL.nights+" nights"],
+                ["Total rooms", totalRooms],
+                ["Total guests", guests],
+              ].map(([k,v],i)=>(
+                <div key={i} className="flex between" style={{padding:"10px 0",borderBottom:i<5?"1px solid var(--line-2)":"none",fontSize:13}}>
+                  <span className="mut">{k}</span><span style={{fontWeight:600,fontFamily:"Fraunces"}}>{v}</span>
+                </div>
+              ))}
+            </Section>
+
+            <Section i={6} className="card pad">
+              <h3 className="ttl" style={{marginBottom:12}}>Notes</h3>
+              <div className="note-box">Group requests connecting rooms on the same floor and an early check-in window. Special meal arrangements (3× full board) confirmed with the property.</div>
+            </Section>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ─────────────────────────  HOTEL DETAIL  ───────────────────────── */
+  function RadialMap({ distance, label }){
+    const rings = [0.32, 0.55, 0.78, 1.0];
+    const ang = -38 * Math.PI/180;
+    const rHotel = 0.62;
+    const cx = 50, cy = 50;
+    const hx = cx + Math.cos(ang)*rHotel*44;
+    const hy = cy + Math.sin(ang)*rHotel*44;
+    return (
+      <div className="radial">
+        <svg viewBox="0 0 100 100" width="100%" height="100%">
+          <defs>
+            <radialGradient id="rg" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="rgba(168,123,46,.18)"/>
+              <stop offset="100%" stopColor="rgba(168,123,46,0)"/>
+            </radialGradient>
+          </defs>
+          <circle cx="50" cy="50" r="46" fill="url(#rg)"/>
+          {rings.map((r,i)=>(
+            <motion.circle key={i} cx="50" cy="50" r={r*44} fill="none"
+              stroke="var(--line)" strokeWidth="0.5" strokeDasharray="2 3"
+              initial={{ opacity:0, scale:.6 }} whileInView={{ opacity:1, scale:1 }}
+              viewport={{once:true}} transition={{ delay:i*0.1, duration:.6, ease }}/>
+          ))}
+          {/* connecting line */}
+          <motion.line x1="50" y1="50" x2={hx} y2={hy} stroke="var(--gold)" strokeWidth="1"
+            initial={{ pathLength:0 }} whileInView={{ pathLength:1 }} viewport={{once:true}}
+            transition={{ delay:.5, duration:.8, ease }}/>
+          {/* Haram (center) */}
+          <motion.g initial={{scale:0}} whileInView={{scale:1}} viewport={{once:true}} transition={{type:"spring",stiffness:260,delay:.3}}>
+            <rect x="45.5" y="45.5" width="9" height="9" rx="1.4" fill="var(--ink)" transform="rotate(45 50 50)"/>
+          </motion.g>
+          {/* Hotel */}
+          <motion.circle cx={hx} cy={hy} r="3.4" fill="var(--gold)" stroke="var(--card)" strokeWidth="1.4"
+            initial={{scale:0}} whileInView={{scale:1}} viewport={{once:true}} transition={{type:"spring",stiffness:260,delay:1}}/>
+        </svg>
+        <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,14px)",fontSize:10,letterSpacing:".1em",color:"var(--ink-3)",textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</div>
+        <div style={{position:"absolute",left:`${hx}%`,top:`${hy}%`,transform:"translate(10px,-50%)",fontSize:11,fontWeight:600,fontFamily:"Fraunces"}}>{distance} m</div>
+      </div>
+    );
+  }
+
+  function HotelDetail(){
+    return (
+      <>
+        <div className="topbar">
+          <Section i={0}>
+            <div className="eyebrow">Hotel · {HOTEL.city}</div>
+            <h1 className="page">{HOTEL.name}</h1>
+            <div className="flex center gap12 mt14">
+              <Stars n={HOTEL.stars}/>
+              <span className="chip">{I.pin && React.cloneElement(I.pin,{className:"",style:{width:12,height:12,verticalAlign:"-1px",marginRight:4}})}{HOTEL.area}</span>
+            </div>
+          </Section>
+          <Section i={1}><button className="btn gold">Edit hotel</button></Section>
+        </div>
+
+        <div className="kgrid" style={{gridTemplateColumns:"repeat(3,1fr)"}}>
+          <Section i={2} className="card kpi">
+            <div className="kpi-accent"></div>
+            <div className="klabel">{I.pin}Distance to {HOTEL.ref}</div>
+            <div className="kval"><CountUp value={HOTEL.distance}/><span className="cur" style={{marginLeft:6}}>m</span></div>
+            <div className="kfoot">≈ 4 min walk · Ajyad bridge</div>
+          </Section>
+          <Section i={3} className="card kpi">
+            <div className="kpi-accent"></div>
+            <div className="klabel">{I.bed}Avg. occupancy</div>
+            <div className="kval">{HOTEL.occ}<span className="cur" style={{marginLeft:6}}>pax / room</span></div>
+            <div className="kfoot">basis for room-needs estimate</div>
+          </Section>
+          <Section i={4} className="card kpi">
+            <div className="kpi-accent"></div>
+            <div className="klabel">{I.doc}Active reservations</div>
+            <div className="kval"><CountUp value={HOTEL.active}/></div>
+            <div className="kfoot"><span className="trend up">8 this week</span></div>
+          </Section>
+        </div>
+
+        <div className="split">
+          <div className="stack">
+            <Section i={5} className="card pad">
+              <h3 className="ttl">Room types & nightly rates</h3>
+              <div className="sub" style={{marginBottom:18}}>Contracted rates · SAR per room / night</div>
+              <div className="rates">
+                {HOTEL.rooms.map((r,i)=>(
+                  <div className="rate" key={i}>
+                    <div className="flex between center">
+                      <span className="rt">{r.type}</span>
+                      <span className="chip" style={{fontSize:10}}>{CAP[r.type]} pax</span>
+                    </div>
+                    <div className="rp">{fmt(r.price)} <small>SAR / night</small></div>
+                    <div className="rmeal">{r.meals}</div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section i={6} className="card pad">
+              <h3 className="ttl">Recent reservations</h3>
+              <div className="sub" style={{marginBottom:18}}>Latest groups booked here</div>
+              <table className="t">
+                <thead><tr><th>Ref</th><th>Group</th><th className="num">Check-in</th><th className="num">Nights</th><th className="num">Rooms</th></tr></thead>
+                <tbody>
+                  {HOTEL.recent.map(r=>(
+                    <tr key={r.num}>
+                      <td className="strong" style={{fontFamily:"Fraunces"}}>{r.num}</td>
+                      <td>{r.guest}</td>
+                      <td className="num mut">{r.ci}</td>
+                      <td className="num">{r.nights}</td>
+                      <td className="num strong">{r.rooms}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Section>
+          </div>
+
+          <div className="stack">
+            <Section i={7} className="card pad">
+              <h3 className="ttl">Proximity</h3>
+              <div className="sub" style={{marginBottom:6}}>Relative to {HOTEL.ref}</div>
+              <RadialMap distance={HOTEL.distance} label={HOTEL.ref}/>
+            </Section>
+
+            <Section i={8} className="card pad">
+              <h3 className="ttl" style={{marginBottom:12}}>Operator note</h3>
+              <div className="note-box">{HOTEL.note}</div>
+            </Section>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  /* ─────────────────────────  SHELL  ───────────────────────── */
+  const NAV = [
+    { id:"dash",    label:"Dashboard",     ico:I.dash },
+    { id:"invoice", label:"Invoice",       ico:I.invoice },
+    { id:"cl",      label:"Confirmation",  ico:I.cl },
+    { id:"hotel",   label:"Hotel",         ico:I.hotel },
+  ];
+
+  function App(){
+    const [route, setRoute] = useState("dash");
+    const [co, setCo] = useState("konoz");
+    const screens = {
+      dash:    <Dashboard co={co}/>,
+      invoice: <InvoiceDetail/>,
+      cl:      <CLDetail/>,
+      hotel:   <HotelDetail/>,
+    };
+    return (
+      <div className="app">
+        <aside className="side">
+          <motion.div className="brand" initial={{opacity:0,x:-12}} animate={{opacity:1,x:0}} transition={{duration:.7,ease}}>
+            <Mark/>
+            <div className="brand-txt">
+              <div className="brand-name">Sakīna</div>
+              <div className="brand-sub">HMS Suite</div>
+            </div>
+          </motion.div>
+
+          <div className="nav-label">Workspace</div>
+          <nav className="nav">
+            {NAV.map(n=>(
+              <div key={n.id} className={"nav-item"+(route===n.id?" active":"")} onClick={()=>setRoute(n.id)}>
+                <span className="nav-dot"></span>{n.ico}{n.label}
+              </div>
+            ))}
+          </nav>
+
+          <div className="side-foot">
+            <div className="switcher">
+              <button className={"switch-btn konoz"+(co==="konoz"?" on konoz":"")} onClick={()=>setCo("konoz")}>Konoz</button>
+              <button className={"switch-btn ijabah"+(co==="ijabah"?" on ijabah":"")} onClick={()=>setCo("ijabah")}>Ijabah</button>
+            </div>
+            <div className="who">
+              <div className="who-av">H</div>
+              <div><div className="who-name">Hakim</div><div className="who-role">Operations</div></div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="main">
+          <AnimatePresence mode="wait">
+            <motion.div key={route}
+              initial={{opacity:0, y:14}} animate={{opacity:1, y:0}} exit={{opacity:0, y:-10}}
+              transition={{duration:.4, ease}}>
+              {screens[route]}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+    );
+  }
+
+  createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

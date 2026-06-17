@@ -7,6 +7,8 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from .cl_views import (
     cl_delete, cl_detail, cl_duplicate, cl_edit, cl_export_csv, cl_list,
     cl_list_pdf, cl_new, cl_pdf, invoice_from_cls,
@@ -73,7 +75,7 @@ def home(request):
     if not request.session.get("active_company"):
         request.session["active_company"] = "konoz"
         request.session.modified = True
-    return render(request, "hw/home.html")
+    return inertia_render(request, "Home/Index", props={})
 
 
 @login_required

@@ -5,6 +5,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.urls import reverse
 
+from inertia import render as inertia_render
+
 from ..models import ConfirmationLetter, Invoice
 
 _MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -106,7 +108,7 @@ def calendar_view(request):
     tentative_count  = sum(1 for r in all_res if r['color'] == 'yellow')
     active_today     = sum(1 for r in all_res if today_day and r['start'] <= today_day <= r['end']) if today_day else 0
 
-    return render(request, "hw/calendar.html", {
+    return inertia_render(request, "Calendar/Index", props={
         "year": year,
         "month": month,
         "month_name": _MONTH_NAMES[month],

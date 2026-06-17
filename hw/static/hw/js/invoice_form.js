@@ -285,6 +285,9 @@ window.addEventListener('load', function() {
             document.querySelectorAll('#payments .payment-item').forEach(function(row, i) {
                 var f = row.querySelector('.payment-proof-input');
                 if (f) f.name = 'payment_proof_' + i;
+                // Keep the existing-proof marker aligned with the row's new position
+                var keep = row.querySelector('input[name^="payment_proof_keep_"]');
+                if (keep) keep.name = 'payment_proof_keep_' + i;
             });
         });
     }

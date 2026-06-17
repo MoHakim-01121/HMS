@@ -8,6 +8,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from inertia import render as inertia_render
+
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, log_activity
 
 
@@ -34,21 +36,57 @@ def client_list(request):
         qs.order_by('name')
         .prefetch_related('invoices__payments', 'invoices__reservations', 'cls')
     )
-    return render(request, 'hw/client/client_list.html', {
-        'clients': clients, 'q': q, 'status': status,
+    data = [{
+        "id": c.pk,
+        "name": c.name,
+        "city": c.city,
+        "province": c.province,
+        "pic": c.pic,
+        "wa": c.wa,
+        "invoices_count": len(c.invoices.all()),
+        "outstanding": c.outstanding,
+        "score": c.score,
+        "risk_label": c.risk_label,
+        "is_active": c.is_active,
+    } for c in clients]
+    return inertia_render(request, "Client/List", props={
+        "clients": data, "q": q, "status": status,
     })
+
+
+def _validate_client(data):
+    errors = {}
+    if not data.get("name", "").strip():
+        errors["name"] = "Nama agen wajib diisi."
+    return errors
+
+
+def _client_echo(data):
+    """Echo submitted values back to the form on validation error."""
+    return {
+        "name": data.get("name", ""), "city": data.get("city", ""),
+        "province": data.get("province", ""), "pic": data.get("pic", ""),
+        "wa": data.get("wa", ""), "email": data.get("email", ""),
+        "note": data.get("note", ""), "lat": data.get("lat", ""),
+        "lng": data.get("lng", ""), "is_active": data.get("is_active") == "on",
+    }
 
 
 @login_required
 def client_new(request):
     company = _company(request)
     if request.method == 'POST':
+        errors = _validate_client(request.POST)
+        if errors:
+            return inertia_render(request, "Client/Form", props={
+                "client": _client_echo(request.POST), "edit": False, "errors": errors,
+            })
         c = Client(company=company or 'konoz')
         _save_client(c, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
         messages.success(request, f'Client "{c.name}" berhasil ditambahkan.')
         return redirect('client_detail', pk=c.pk)
-    return render(request, 'hw/client/client_form.html', {'edit': False})
+    return inertia_render(request, "Client/Form", props={"client": None, "edit": False})
 
 
 @login_required
@@ -59,6 +97,12 @@ def client_edit(request, pk):
         filters['company'] = company
     c = get_object_or_404(Client, **filters)
     if request.method == 'POST':
+        errors = _validate_client(request.POST)
+        if errors:
+            echo = _client_echo(request.POST); echo["id"] = c.pk
+            return inertia_render(request, "Client/Form", props={
+                "client": echo, "edit": True, "errors": errors,
+            })
         _before = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
         _after  = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
@@ -66,7 +110,14 @@ def client_edit(request, pk):
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
         messages.success(request, f'Client "{c.name}" berhasil diupdate.')
         return redirect('client_detail', pk=c.pk)
-    return render(request, 'hw/client/client_form.html', {'edit': True, 'client': c})
+    return inertia_render(request, "Client/Form", props={
+        "client": {
+            "id": c.pk, "name": c.name, "city": c.city, "province": c.province,
+            "pic": c.pic, "wa": c.wa, "email": c.email, "note": c.note,
+            "lat": c.lat, "lng": c.lng, "is_active": c.is_active,
+        },
+        "edit": True,
+    })
 
 
 @login_required
@@ -97,10 +148,42 @@ def client_detail(request, pk):
     c = get_object_or_404(qs, pk=pk)
     invoices = c.invoices.order_by('-created_at')
     cls = c.cls.order_by('-created_at')
-    return render(request, 'hw/client/client_detail.html', {
-        'client': c,
-        'invoices': invoices,
-        'cls': cls,
+    inv_data = [{
+        "pk": inv.pk,
+        "invoice_number": inv.invoice_number,
+        "invoice_type": inv.invoice_type,
+        "invoice_type_display": inv.get_invoice_type_display(),
+        "total_sar": inv.total_sar,
+        "remaining_sar": inv.remaining_sar,
+        "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+    } for inv in invoices]
+    cls_data = [{
+        "pk": cl.pk,
+        "confirmation_number": cl.confirmation_number,
+        "guest_name": cl.guest_name,
+        "hotel_name": cl.hotel_name,
+        "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
+    } for cl in cls]
+    return inertia_render(request, "Client/Detail", props={
+        "client": {
+            "pk": c.pk,
+            "name": c.name,
+            "city": c.city,
+            "province": c.province,
+            "pic": c.pic,
+            "wa": c.wa,
+            "email": c.email,
+            "note": c.note,
+            "is_active": c.is_active,
+            "total_billed": c.total_billed,
+            "outstanding": c.outstanding,
+            "avg_days_to_pay": c.avg_days_to_pay,
+            "score": c.score,
+            "risk_label": c.risk_label,
+            "days_since_last_order": c.days_since_last_order,
+        },
+        "invoices": inv_data,
+        "cls": cls_data,
     })
 
 

@@ -6,9 +6,30 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 
+from inertia import render as inertia_render
+
 from ..models import CancellationPenalty, ConfirmationLetter
 from .helpers import _parse_date
 from .pdf import _logo_file_url
+
+
+def _penalty_props(penalty):
+    cl = penalty.cl
+    return {
+        "id": penalty.pk,
+        "penalty_number": penalty.penalty_number,
+        "cancellation_date": penalty.cancellation_date.isoformat() if penalty.cancellation_date else None,
+        "reason": penalty.reason,
+        "penalty_amount": float(penalty.penalty_amount or 0),
+        "penalty_currency": penalty.penalty_currency,
+        "exchange_rate": float(penalty.exchange_rate or 1),
+        "is_paid": penalty.is_paid,
+        "payment_date": penalty.payment_date.isoformat() if penalty.payment_date else None,
+        "payment_method": penalty.payment_method,
+        "payment_note": penalty.payment_note,
+        "note": penalty.note,
+        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
+    }
 
 
 @login_required
@@ -37,17 +58,19 @@ def penalty_new(request, cl_pk):
         messages.success(request, f"Dokumen penalti {penalty.penalty_number} berhasil dibuat.")
         return redirect('penalty_detail', pk=penalty.pk)
 
-    return render(request, 'hw/penalty/penalty_form.html', {
-        'cl': cl,
-        'suggested_number': suggested_number,
-        'today': date.today().isoformat(),
+    return inertia_render(request, "Penalty/Form", props={
+        "penalty": None,
+        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
+        "suggested_number": suggested_number,
+        "today": date.today().isoformat(),
+        "edit": False,
     })
 
 
 @login_required
 def penalty_detail(request, pk):
     penalty = get_object_or_404(CancellationPenalty.objects.select_related('cl'), pk=pk)
-    return render(request, 'hw/penalty/penalty_detail.html', {'penalty': penalty})
+    return inertia_render(request, "Penalty/Detail", props={"penalty": _penalty_props(penalty)})
 
 
 @login_required
@@ -71,12 +94,12 @@ def penalty_edit(request, pk):
         messages.success(request, f"Dokumen penalti {penalty.penalty_number} berhasil diperbarui.")
         return redirect('penalty_detail', pk=penalty.pk)
 
-    return render(request, 'hw/penalty/penalty_form.html', {
-        'cl': cl,
-        'penalty': penalty,
-        'suggested_number': penalty.penalty_number,
-        'today': date.today().isoformat(),
-        'edit': True,
+    return inertia_render(request, "Penalty/Form", props={
+        "penalty": _penalty_props(penalty),
+        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
+        "suggested_number": penalty.penalty_number,
+        "today": date.today().isoformat(),
+        "edit": True,
     })
 
 

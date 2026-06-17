@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.humanize',
     'axes',
+    'inertia',
+    'django_vite',
     'hw',
 ]
 
@@ -68,6 +70,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'inertia.middleware.InertiaMiddleware',
+    'hw.inertia_share.InertiaShareMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',
@@ -168,6 +172,19 @@ STATICFILES_DIRS = []
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# ── Inertia.js ──
+INERTIA_LAYOUT = 'hw/base_inertia.html'
+
+# ── django-vite ──
+DJANGO_VITE = {
+    'default': {
+        'dev_mode': DEBUG,
+        'manifest_path': BASE_DIR / 'hw' / 'static' / 'dist' / 'manifest.json',
+        'static_url_prefix': 'dist',
+    }
+}
 
 # AI
 GROQ_API_KEY   = get_env_variable('GROQ_API_KEY', '')

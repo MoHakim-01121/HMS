@@ -3,6 +3,10 @@ from .settings import *
 DEBUG = False
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', [])
 
+# Always use the built Vite manifest in production (never the dev server),
+# regardless of the DEBUG value present when settings.py was imported.
+DJANGO_VITE['default']['dev_mode'] = False
+
 # Nginx handles HTTPS termination, Django does not redirect
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = True

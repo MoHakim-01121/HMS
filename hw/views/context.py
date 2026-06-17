@@ -33,6 +33,7 @@ def _build_reservation_context(invoice):
             "total": format_currency(res.total_sar),
             "total_int": res.total_sar,
             "remaining": format_currency(remaining),
+            "remaining_int": remaining,
             "remaining_class": cls,
             "cl_pk": cl_pk,
         })
