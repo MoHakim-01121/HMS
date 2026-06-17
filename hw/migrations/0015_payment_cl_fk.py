@@ -23,17 +23,17 @@ class Migration(migrations.Migration):
         # Backfill: link existing payments to CLs via linked_number
         migrations.RunSQL(
             sql="""
-                UPDATE invoices_payment
+                UPDATE hw_payment
                 SET cl_id = (
-                    SELECT id FROM invoices_confirmationletter
-                    WHERE confirmation_number = invoices_payment.linked_number
+                    SELECT id FROM hw_confirmationletter
+                    WHERE confirmation_number = hw_payment.linked_number
                     LIMIT 1
                 )
                 WHERE linked_number != ''
                   AND cl_id IS NULL
                   AND EXISTS (
-                      SELECT 1 FROM invoices_confirmationletter
-                      WHERE confirmation_number = invoices_payment.linked_number
+                      SELECT 1 FROM hw_confirmationletter
+                      WHERE confirmation_number = hw_payment.linked_number
                   );
             """,
             reverse_sql=migrations.RunSQL.noop,
