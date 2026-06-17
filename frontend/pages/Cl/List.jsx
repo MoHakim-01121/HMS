@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const STATUS_OPTS = [
   { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
@@ -57,6 +58,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div>
           <div className="page-title">Confirmation Letter</div>

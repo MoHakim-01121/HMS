@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const STATUS_OPTS = [
   { val: "", label: "Semua", cls: "c-all" },
@@ -42,6 +43,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div>
           <div className="page-title">Invoice Hotel</div>

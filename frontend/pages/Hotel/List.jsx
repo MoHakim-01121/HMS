@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const CITY_OPTS = [
   { val: "", label: "Semua Kota", cls: "c-all" },
@@ -57,6 +58,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div>
           <div className="page-title">Hotels</div>

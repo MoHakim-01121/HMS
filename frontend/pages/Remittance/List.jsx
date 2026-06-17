@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const STATUS_OPTS = [
@@ -34,6 +35,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div>
           <div className="page-title">Remittance</div>

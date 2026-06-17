@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 function action(userId, fields) {
   router.post(`/users/${userId}/edit/`, fields);
@@ -14,6 +15,7 @@ export default function List({ users }) {
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div><div className="page-title">Users</div><div className="page-sub">{users.length} akun terdaftar</div></div>
         <div className="page-actions">

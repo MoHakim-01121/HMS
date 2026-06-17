@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 function visit(params) {
   router.get("/services/", params, { preserveState: true, preserveScroll: true, replace: true });
@@ -24,6 +25,7 @@ export default function List({ invoices, total_count, q, pagination }) {
 
   return (
     <div className="page">
+      <PageBack />
       <div className="page-header">
         <div>
           <div className="page-title">Invoice Services</div>
