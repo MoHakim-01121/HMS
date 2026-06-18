@@ -21,7 +21,7 @@ vite.config.js                       # NEW — Vite + React plugin, manifest bui
 requirements.txt                     # MODIFY — add inertia-django, django-vite
 config/settings.py (or config/*)     # MODIFY — INSTALLED_APPS, MIDDLEWARE, INERTIA/VITE config
 hw/templates/hw/base_inertia.html    # NEW — Inertia root document (loads Vite + design.css link)
-nixpacks.toml                        # MODIFY — add Node build step
+deploy.sh                            # MODIFY — add Node build step
 
 frontend/
   main.jsx                           # NEW — createInertiaApp entry; imports design.css
@@ -788,37 +788,30 @@ git commit -m "Feat: migrasi invoice_detail ke Inertia + React (Detail + kompone
 
 ---
 
-## Task 8: Production build pipeline (Railway / nixpacks)
+## Task 8: Production build pipeline (VPS / deploy.sh)
 
 **Files:**
-- Modify: `nixpacks.toml`
+- Modify: `deploy.sh`
 
-> Goal: Railway installs Node deps and runs `npm run build` (producing the manifest) before `collectstatic`, so WhiteNoise serves hashed assets.
+> Goal: the deploy installs Node deps and runs `npm run build` (producing the manifest) before `collectstatic`, so WhiteNoise serves hashed assets.
 
-- [ ] **Step 1: Inspect current `nixpacks.toml`**
+- [ ] **Step 1: Inspect current build pipeline**
 
-Run: `cat nixpacks.toml`
+Run: `cat deploy.sh`
 Note the existing phases (install/build/start).
 
 - [ ] **Step 2: Add Node + frontend build**
 
-Edit `nixpacks.toml` to add `nodejs` to nix packages and a build phase that runs the Vite build before static collection. Example shape (adapt to existing file):
+Edit `deploy.sh` to install Node and run the Vite build before static collection. Example shape (adapt to existing script):
 
-```toml
-[phases.setup]
-nixPkgs = ["python3", "nodejs_20"]
+```bash
+# install deps
+pip install -r requirements.txt
+npm ci
 
-[phases.install]
-cmds = [
-  "python -m venv --copies /opt/venv && . /opt/venv/bin/activate && pip install -r requirements.txt",
-  "npm ci",
-]
-
-[phases.build]
-cmds = [
-  "npm run build",
-  ". /opt/venv/bin/activate && python manage.py collectstatic --noinput",
-]
+# build frontend, then collect static
+npm run build
+python manage.py collectstatic --noinput
 ```
 
 - [ ] **Step 3: Set production `dev_mode` off**
@@ -838,8 +831,8 @@ Expected: page loads with assets from `static/dist` (no call to `localhost:5173`
 - [ ] **Step 5: Commit**
 
 ```bash
-git add nixpacks.toml
-git commit -m "Build: pipeline produksi — Node build (Vite) sebelum collectstatic di nixpacks"
+git add deploy.sh
+git commit -m "Build: pipeline produksi — Node build (Vite) sebelum collectstatic di deploy.sh"
 ```
 
 ---

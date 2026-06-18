@@ -25,7 +25,7 @@ Non-goals (this milestone): redesigning the look, migrating forms, migrating oth
 - `@inertiajs/react`, `react`, `react-dom`
 - `vite` + `django-vite` (dev HMR; production manifest consumed by Django/WhiteNoise)
 
-**Deploy (Railway / nixpacks)**: add a Node build step — `npm ci && npm run build` — before `collectstatic`. WhiteNoise continues to serve the built assets. `nixpacks.toml` updated to include Node.
+**Deploy (VPS / deploy.sh)**: add a Node build step — `npm ci && npm run build` — before `collectstatic`. WhiteNoise continues to serve the built assets. The deploy script installs Node alongside Python.
 
 ## 3. What stays Django (NOT migrated)
 
@@ -115,7 +115,7 @@ All other invoice routes (`invoice_new`, `invoice_edit`, `invoice_delete`, `invo
 
 ## 9. Risks
 
-- **Build pipeline on Railway** — adding Node to nixpacks is the main integration risk; validate the deploy early.
+- **Build pipeline on VPS** — adding the Node build step to the deploy is the main integration risk; validate the deploy early.
 - **Auth + Inertia** — login page can stay a classic Django template initially; Inertia handles authenticated session requests normally.
 - **Duplicated shell logic** — until `_base.html` is fully retired, both the React `AppLayout` and the Django base exist; only migrated pages use the React shell.
 
