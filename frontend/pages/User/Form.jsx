@@ -16,7 +16,7 @@ export default function Form({ form_data, errors: serverErrors }) {
   const submit = (e) => {
     e.preventDefault();
     form.transform((d) => ({ ...d, is_staff: d.is_staff ? "on" : "" }));
-    form.post("/users/new/");
+    form.post("/users/new/", { forceFormData: true });
   };
 
   return (

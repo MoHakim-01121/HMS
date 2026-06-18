@@ -1,4 +1,5 @@
 import csv
+import json
 from datetime import date
 
 from django.contrib import messages
@@ -115,31 +116,52 @@ def _form_context_data():
     }
 
 
+def _validate_cl(data, exclude_pk=None):
+    errors = {}
+    check_in = _parse_date(data.get("check_in"))
+    check_out = _parse_date(data.get("check_out"))
+    if check_in and check_out and check_out < check_in:
+        errors["check_out"] = "Check-out tidak boleh sebelum check-in."
+    number = data.get("confirmation_number", "")
+    qs = ConfirmationLetter.objects.filter(confirmation_number=number)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if number and qs.exists():
+        errors["confirmation_number"] = f"Nomor CL '{number}' sudah digunakan."
+    return errors
+
+
+def _cl_echo(data):
+    try:
+        rooms = json.loads(data.get("rooms", "[]") or "[]")
+    except (ValueError, TypeError):
+        rooms = []
+    return {
+        "company": data.get("company", "konoz"),
+        "client_id": data.get("client_id", ""),
+        "hotel_name": data.get("hotel_name", ""),
+        "guest_name": data.get("guest_name", ""),
+        "guest_phone": data.get("guest_phone", ""),
+        "check_in": data.get("check_in", ""),
+        "check_out": data.get("check_out", ""),
+        "confirmation_number": data.get("confirmation_number", ""),
+        "reservation_status": data.get("reservation_status", "DEFINITE"),
+        "note": data.get("note", ""),
+        "rooms": rooms,
+    }
+
+
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
+    default_company = request.session.get("active_company", "konoz")
     if request.method == "POST":
-        check_in = _parse_date(request.POST.get("check_in"))
-        check_out = _parse_date(request.POST.get("check_out"))
-
-        if check_in and check_out and check_out < check_in:
-            messages.error(request, "Check-out tidak boleh sebelum check-in.")
-            return render(request, "hw/cl/cl_form.html", {
-                "suggested_number": suggested_number,
-                "default_company": request.session.get("active_company", "konoz"),
-                "form_data": request.POST,
-                **_form_context_data(),
+        errors = _validate_cl(request.POST)
+        if errors:
+            return inertia_render(request, "Cl/Form", props={
+                "cl": _cl_echo(request.POST), "edit": False, "errors": errors,
+                "suggested_number": request.POST.get("confirmation_number", suggested_number),
+                "default_company": default_company, **_form_context_data(),
             })
-
-        confirmation_number = request.POST.get("confirmation_number", "")
-        if ConfirmationLetter.objects.filter(confirmation_number=confirmation_number).exists():
-            messages.error(request, f"Nomor CL '{confirmation_number}' sudah digunakan.")
-            return render(request, "hw/cl/cl_form.html", {
-                "suggested_number": confirmation_number,
-                "default_company": request.session.get("active_company", "konoz"),
-                "form_data": request.POST,
-                **_form_context_data(),
-            })
-
         client_id = request.POST.get("client_id") or None
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and client_id:
@@ -150,9 +172,9 @@ def cl_new(request):
             hotel_name=request.POST.get("hotel_name", ""),
             guest_name=guest_name,
             guest_phone=request.POST.get("guest_phone", ""),
-            check_in=check_in,
-            check_out=check_out,
-            confirmation_number=confirmation_number,
+            check_in=_parse_date(request.POST.get("check_in")),
+            check_out=_parse_date(request.POST.get("check_out")),
+            confirmation_number=request.POST.get("confirmation_number", ""),
             reservation_status=request.POST.get("reservation_status", "DEFINITE"),
             note=request.POST.get("note", ""),
         )
@@ -161,9 +183,9 @@ def cl_new(request):
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
         return redirect("cl_detail", pk=cl.pk)
 
-    return render(request, "hw/cl/cl_form.html", {
-        "suggested_number": suggested_number,
-        "default_company": request.session.get("active_company", "konoz"),
+    return inertia_render(request, "Cl/Form", props={
+        "cl": None, "edit": False,
+        "suggested_number": suggested_number, "default_company": default_company,
         **_form_context_data(),
     })
 
@@ -229,17 +251,19 @@ def cl_detail(request, pk):
 def cl_edit(request, pk):
     cl = get_object_or_404(ConfirmationLetter, pk=pk)
 
+    def _room_snapshot(rooms_qs):
+        rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
+        return ' | '.join(rows) if rows else '—'
+
     if request.method == "POST":
-        check_in = _parse_date(request.POST.get("check_in"))
-        check_out = _parse_date(request.POST.get("check_out"))
-
-        if check_in and check_out and check_out < check_in:
-            messages.error(request, "Check-out tidak boleh sebelum check-in.")
-            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, **_form_context_data()})
-
-        def _room_snapshot(rooms_qs):
-            rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
-            return ' | '.join(rows) if rows else '—'
+        errors = _validate_cl(request.POST, exclude_pk=cl.pk)
+        if errors:
+            echo = _cl_echo(request.POST); echo["id"] = cl.pk
+            return inertia_render(request, "Cl/Form", props={
+                "cl": echo, "edit": True, "errors": errors,
+                "suggested_number": request.POST.get("confirmation_number", cl.confirmation_number),
+                "default_company": cl.company, **_form_context_data(),
+            })
 
         _before = {
             'Hotel':     cl.hotel_name,
@@ -252,11 +276,6 @@ def cl_edit(request, pk):
             'Kamar':     _room_snapshot(cl.rooms.all()),
         }
 
-        new_number = request.POST.get("confirmation_number", "")
-        if ConfirmationLetter.objects.filter(confirmation_number=new_number).exclude(pk=cl.pk).exists():
-            messages.error(request, f"Nomor CL '{new_number}' sudah digunakan.")
-            return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, "form_data": request.POST, **_form_context_data()})
-
         cl.company = request.POST.get("company", "konoz")
         cl.client_id = request.POST.get("client_id") or None
         cl.hotel_name = request.POST.get("hotel_name", "")
@@ -265,9 +284,9 @@ def cl_edit(request, pk):
             guest_name = Client.objects.filter(pk=cl.client_id).values_list("name", flat=True).first() or ""
         cl.guest_name = guest_name
         cl.guest_phone = request.POST.get("guest_phone", "")
-        cl.check_in = check_in
-        cl.check_out = check_out
-        cl.confirmation_number = new_number
+        cl.check_in = _parse_date(request.POST.get("check_in"))
+        cl.check_out = _parse_date(request.POST.get("check_out"))
+        cl.confirmation_number = request.POST.get("confirmation_number", "")
         cl.reservation_status = request.POST.get("reservation_status", "DEFINITE")
         cl.note = request.POST.get("note", "")
         cl.save()
@@ -290,7 +309,24 @@ def cl_edit(request, pk):
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil diperbarui.")
         return redirect("cl_detail", pk=cl.pk)
 
-    return render(request, "hw/cl/cl_form.html", {"cl": cl, "edit": True, **_form_context_data()})
+    rooms = [{
+        "room_type": r.room_type, "meals": r.meals,
+        "quantity": r.quantity, "price": int(round(float(r.price))),
+    } for r in cl.rooms.all()]
+    return inertia_render(request, "Cl/Form", props={
+        "cl": {
+            "id": cl.pk, "company": cl.company,
+            "client_id": cl.client_id or "", "hotel_name": cl.hotel_name,
+            "guest_name": cl.guest_name, "guest_phone": cl.guest_phone,
+            "check_in": cl.check_in.isoformat() if cl.check_in else "",
+            "check_out": cl.check_out.isoformat() if cl.check_out else "",
+            "confirmation_number": cl.confirmation_number,
+            "reservation_status": cl.reservation_status, "note": cl.note,
+            "rooms": rooms,
+        },
+        "edit": True, "suggested_number": cl.confirmation_number,
+        "default_company": cl.company, **_form_context_data(),
+    })
 
 
 @login_required
@@ -448,17 +484,20 @@ def invoice_from_cls(request):
 
 
 def _save_cl_rooms(cl, request):
-    room_types  = request.POST.getlist("room_type")
-    room_meals  = request.POST.getlist("room_meals")
-    num_rooms   = request.POST.getlist("num_rooms")
-    room_prices = request.POST.getlist("room_price")
-    for i, rt in enumerate(room_types):
+    try:
+        rooms = json.loads(request.POST.get("rooms", "[]") or "[]")
+    except (ValueError, TypeError):
+        rooms = []
+    for r in rooms:
+        rt = (r.get("room_type") or "").strip()
         if not rt:
             continue
-        Room.objects.create(
-            cl=cl,
-            room_type=rt,
-            meals=room_meals[i] if i < len(room_meals) else "",
-            quantity=max(1, int(num_rooms[i])) if i < len(num_rooms) and num_rooms[i] else 1,
-            price=max(0, float(room_prices[i])) if i < len(room_prices) and room_prices[i] else 0,
-        )
+        try:
+            qty = max(1, int(r.get("quantity") or 1))
+        except (ValueError, TypeError):
+            qty = 1
+        try:
+            price = max(0, float(r.get("price") or 0))
+        except (ValueError, TypeError):
+            price = 0
+        Room.objects.create(cl=cl, room_type=rt, meals=(r.get("meals") or ""), quantity=qty, price=price)

@@ -28,7 +28,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
     e.preventDefault();
     form.transform((d) => ({ ...d, is_paid: d.is_paid ? "on" : "" }));
     const url = edit ? `/penalty/${p.id}/edit/` : `/cl/${cl.id}/penalty/new/`;
-    form.post(url);
+    form.post(url, { forceFormData: true });
   };
 
   return (

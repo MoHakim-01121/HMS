@@ -136,3 +136,45 @@ class UserAdminTests(TestCase):
         resp = self._inertia_post("/users/new/", {"username": "carol", "password": "pw", "password_confirm": "pw"})
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(User.objects.filter(username="carol").exists())
+
+
+class ClFormTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("tester4", password="pw12345")
+        self.client.force_login(self.user)
+        s = self.client.session; s["active_company"] = "konoz"; s.save()
+
+    def _post(self, url, data):
+        return self.client.post(url, data, HTTP_X_INERTIA="true")
+
+    def test_get_renders_inertia_form(self):
+        resp = self.client.get("/cl/new/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.json()["component"], "Cl/Form")
+
+    def test_checkout_before_checkin_returns_error(self):
+        page = self._post("/cl/new/", {
+            "confirmation_number": "CLX-1", "company": "konoz",
+            "check_in": "2026-06-10", "check_out": "2026-06-05", "rooms": "[]",
+        }).json()
+        self.assertEqual(page["component"], "Cl/Form")
+        self.assertIn("check_out", page["props"]["errors"])
+
+    def test_duplicate_number_returns_error(self):
+        from hw.models import ConfirmationLetter
+        ConfirmationLetter.objects.create(company="konoz", confirmation_number="CLX-DUP")
+        page = self._post("/cl/new/", {"confirmation_number": "CLX-DUP", "company": "konoz", "rooms": "[]"}).json()
+        self.assertIn("confirmation_number", page["props"]["errors"])
+
+    def test_valid_create_with_rooms(self):
+        from hw.models import ConfirmationLetter, Room
+        resp = self._post("/cl/new/", {
+            "confirmation_number": "CLX-OK", "company": "konoz",
+            "guest_name": "Budi", "hotel_name": "Hilton",
+            "reservation_status": "DEFINITE",
+            "rooms": '[{"room_type":"Double","meals":"BB","quantity":2,"price":300}]',
+        })
+        self.assertEqual(resp.status_code, 302)
+        cl = ConfirmationLetter.objects.get(confirmation_number="CLX-OK")
+        rooms = Room.objects.filter(cl=cl)
+        self.assertEqual(rooms.count(), 1)
+        self.assertEqual(rooms.first().quantity, 2)

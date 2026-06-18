@@ -20,7 +20,7 @@ export default function Form({ client, edit, errors: serverErrors }) {
     // Django reads checkbox as the string "on".
     form.transform((d) => ({ ...d, is_active: d.is_active ? "on" : "" }));
     const url = edit ? `/clients/${c.id}/edit/` : `/clients/new/`;
-    form.post(url);
+    form.post(url, { forceFormData: true });
   };
 
   return (
