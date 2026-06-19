@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useForm } from "@inertiajs/react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
 
@@ -50,7 +51,7 @@ export default function HotelForm({ hotel, edit }) {
         html: '<div style="width:' + size + "px;height:" + size + "px;border-radius:50%;background:" + color + ";border:2px solid #fff;box-shadow:0 0 " + (glow || 6) + "px " + color + '99;"></div>',
         iconSize: [size, size], iconAnchor: [size / 2, size / 2],
       });
-      L.marker(HARAM, { icon: dot(14, "#F0A429", 10) }).bindTooltip("Pelataran Al-Haram").addTo(map);
+      L.marker(HARAM, { icon: dot(14, "#F0A429", 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
       L.marker([21.4225, 39.8262], { icon: dot(10, "#E5534B") }).bindTooltip("Masjid Al-Haram").addTo(map);
       L.marker(NABAWI, { icon: dot(10, "#E5534B") }).bindTooltip("Masjid Nabawi").addTo(map);
 
@@ -141,11 +142,11 @@ export default function HotelForm({ hotel, edit }) {
         const saved = document.getElementById("route-saved");
         if (waypoints.length >= 2) {
           const dist = routeDist(waypoints);
-          count.textContent = waypoints.length + " titik · " + (dist < 1000 ? Math.round(dist) + "m" : (dist / 1000).toFixed(2) + "km");
+          count.textContent = waypoints.length + " points · " + (dist < 1000 ? Math.round(dist) + "m" : (dist / 1000).toFixed(2) + "km");
           saved.style.display = "flex";
           inpRoute.value = JSON.stringify(waypoints);
         } else if (waypoints.length === 1) {
-          count.textContent = "1 titik — klik tujuan"; saved.style.display = "none"; inpRoute.value = "";
+          count.textContent = "1 point — click destination"; saved.style.display = "none"; inpRoute.value = "";
         } else {
           count.textContent = ""; saved.style.display = "none"; inpRoute.value = "";
         }
@@ -174,7 +175,7 @@ export default function HotelForm({ hotel, edit }) {
         btn.style.background = routeMode ? "rgba(94,106,210,.18)" : "";
         btn.style.color = routeMode ? "var(--accent-2)" : "";
         btn.style.boxShadow = routeMode ? "0 2px 16px rgba(94,106,210,.25)" : "0 2px 16px rgba(0,0,0,.45)";
-        if (lbl) lbl.textContent = routeMode ? "Sedang Gambar" : "Mode Gambar";
+        if (lbl) lbl.textContent = routeMode ? "Drawing…" : "Draw Mode";
         if (exit) exit.style.display = routeMode ? "block" : "none";
         ctrl.style.display = routeMode ? "flex" : "none";
         hint.style.display = routeMode ? "block" : "none";
@@ -247,29 +248,30 @@ export default function HotelForm({ hotel, edit }) {
   return (
     <div className="page page-sm">
       <style>{CSS}</style>
+      <PageBack href={edit ? `/hotels/${h.id}/` : "/hotels/"} />
       <div className="page-header">
-        <div className="page-title">{edit ? `Edit — ${h.name}` : "Hotel Baru"}</div>
+        <div className="page-title">{edit ? `Edit — ${h.name}` : "New Hotel"}</div>
       </div>
 
       <form ref={formRef} method="post" onSubmit={submit}>
         {/* ── Detail Hotel ── */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Detail Hotel</span></div>
+          <div className="card-header"><span className="card-title">Hotel Details</span></div>
           <div className="card-body">
             <div className="field" style={{ marginBottom: 14 }}>
-              <label>Nama Hotel *</label>
-              <input type="text" name="name" defaultValue={h.name || ""} required placeholder="Contoh: Hotel Sawaaed" />
+              <label>Hotel Name *</label>
+              <input type="text" name="name" defaultValue={h.name || ""} required placeholder="e.g. Hotel Sawaaed" />
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
               <div className="field">
-                <label>Kota *</label>
+                <label>City *</label>
                 <select name="city" defaultValue={h.city || "makkah"}>
                   <option value="makkah">Makkah</option>
                   <option value="madinah">Madinah</option>
                 </select>
               </div>
               <div className="field">
-                <label>Bintang</label>
+                <label>Stars</label>
                 <select name="stars" defaultValue={h.stars || 3}>
                   {[1, 2, 3, 4, 5].map((s) => <option key={s} value={s}>{s} ★</option>)}
                 </select>
@@ -282,14 +284,14 @@ export default function HotelForm({ hotel, edit }) {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div className="field">
-                <label>Avg Orang/Kamar</label>
+                <label>Avg People/Room</label>
                 <input type="number" step="0.01" min="0.1" name="avg_occupancy" defaultValue={h.avg_occupancy ?? ""} placeholder="3.4" />
-                <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>35 jamaah ÷ 3.4 = 11 kamar</div>
+                <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 4 }}>35 pilgrims ÷ 3.4 = 11 rooms</div>
               </div>
               <div className="field" style={{ display: "flex", alignItems: "flex-end", paddingBottom: 3 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", margin: 0 }}>
                   <input type="checkbox" name="is_active" defaultChecked={!edit || h.is_active} />
-                  <span>Aktif</span>
+                  <span>Active</span>
                 </label>
               </div>
             </div>
@@ -298,7 +300,7 @@ export default function HotelForm({ hotel, edit }) {
 
         {/* ── Peta & Rute ── */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Peta & Rute</span></div>
+          <div className="card-header"><span className="card-title">Map & Route</span></div>
           <div className="card-body" style={{ padding: 0 }}>
             <div id="map-wrap" style={{ position: "relative", overflow: "hidden", transition: "box-shadow .2s" }}>
               <div id="pick-map" style={{ height: 360, display: "block" }} />
@@ -310,22 +312,22 @@ export default function HotelForm({ hotel, edit }) {
                   transition: "border-color .2s,color .2s,background .2s,box-shadow .2s", boxShadow: "0 2px 16px rgba(0,0,0,.45)",
                 }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
-                  <span id="route-toggle-label">Mode Gambar</span>
+                  <span id="route-toggle-label">Draw Mode</span>
                   <svg id="route-exit-icon" style={{ display: "none", marginLeft: 1, opacity: 0.55, flexShrink: 0 }} width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
                 <div id="route-controls" style={{ display: "none", flexDirection: "column", gap: 6, marginTop: 6, padding: 8, background: "rgba(12,12,14,.93)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,.11)", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03) inset" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                    <button type="button" className="rib rib-amber" onClick={() => api.current.startFromMosque?.()} title="Titik awal: Pelataran Masjid">
+                    <button type="button" className="rib rib-amber" onClick={() => api.current.startFromMosque?.()} title="Start point: Mosque plaza">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z" /></svg>
                     </button>
-                    <button type="button" className="rib rib-blue" onClick={() => api.current.startFromHotel?.()} title="Titik awal: Posisi Hotel">
+                    <button type="button" className="rib rib-blue" onClick={() => api.current.startFromHotel?.()} title="Start point: Hotel position">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 21V12h6v9" /></svg>
                     </button>
                     <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.09)", margin: "0 3px", flexShrink: 0 }} />
-                    <button type="button" className="rib" onClick={() => api.current.undoRoute?.()} title="Undo — hapus titik terakhir (Ctrl+Z)">
+                    <button type="button" className="rib" onClick={() => api.current.undoRoute?.()} title="Undo — remove last point (Ctrl+Z)">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a4 4 0 010 8H7m-4-8l4-4m-4 4l4 4" /></svg>
                     </button>
-                    <button type="button" className="rib rib-red" onClick={() => api.current.clearRoute?.()} title="Hapus semua titik rute">
+                    <button type="button" className="rib rib-red" onClick={() => api.current.clearRoute?.()} title="Clear all route points">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
                   </div>
@@ -333,13 +335,13 @@ export default function HotelForm({ hotel, edit }) {
                     <span id="route-count" style={{ fontSize: 10.5, color: "var(--text-3)", whiteSpace: "nowrap", lineHeight: 1 }} />
                     <span id="route-saved" style={{ display: "none", alignItems: "center", gap: 3, fontSize: 10.5, color: "var(--green)", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", lineHeight: 1 }}>
                       <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                      Tersimpan
+                      Saved
                     </span>
                   </div>
                 </div>
               </div>
               <div id="route-hint" style={{ display: "none", position: "absolute", bottom: 30, left: "50%", transform: "translateX(-50%)", zIndex: "var(--z-overlay)", pointerEvents: "none", whiteSpace: "nowrap", background: "rgba(12,12,14,.88)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 99, padding: "5px 14px", fontSize: 10.5, color: "var(--text-2)", letterSpacing: ".01em" }}>
-                Klik peta = tambah &nbsp;·&nbsp; ○ putih = bengkok &nbsp;·&nbsp; seret = pindah &nbsp;·&nbsp; klik titik = hapus
+                Click map = add &nbsp;·&nbsp; white ○ = bend &nbsp;·&nbsp; drag = move &nbsp;·&nbsp; click point = remove
               </div>
             </div>
 
@@ -359,15 +361,15 @@ export default function HotelForm({ hotel, edit }) {
 
         {/* ── Catatan ── */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Catatan</span></div>
+          <div className="card-header"><span className="card-title">Notes</span></div>
           <div className="card-body">
-            <textarea name="note" rows={3} defaultValue={h.note || ""} placeholder="Info tambahan…" />
+            <textarea name="note" rows={3} defaultValue={h.note || ""} placeholder="Additional info…" />
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-          <a href={edit ? `/hotels/${h.id}/` : "/hotels/"} className="btn btn-ghost">Batal</a>
-          <button type="submit" className="btn btn-primary" disabled={form.processing}>{edit ? "Simpan" : "Buat Hotel"}</button>
+          <a href={edit ? `/hotels/${h.id}/` : "/hotels/"} className="btn btn-ghost">Cancel</a>
+          <button type="submit" className="btn btn-primary" disabled={form.processing}>{edit ? "Save" : "Create Hotel"}</button>
         </div>
       </form>
     </div>

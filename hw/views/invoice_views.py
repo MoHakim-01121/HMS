@@ -8,7 +8,7 @@ from django.db.models import ExpressionWrapper, F, FloatField, Q, Sum
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
@@ -321,7 +321,8 @@ def invoice_delete(request, pk):
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
         messages.success(request, f"Invoice {num} berhasil dihapus.")
         return redirect("invoice_list")
-    return render(request, "hw/partials/confirm_delete.html", {"object": invoice, "type": "Invoice Hotel"})
+    # Confirmation is handled client-side (React modal); GET just bounces back.
+    return redirect("invoice_list")
 
 
 @login_required

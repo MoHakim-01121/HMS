@@ -1,11 +1,13 @@
 import { router } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
 const scoreValCls = (s) => (s >= 70 ? "green" : s >= 40 ? "" : "red");
 
 function riskBadge(risk) {
-  if (risk === "high") return ["badge badge-red", "Risiko Tinggi"];
+  if (risk === "high") return ["badge badge-red", "High Risk"];
   if (risk === "medium") return ["badge badge-yellow", "Overdue"];
   if (risk === "dormant") return ["badge badge-gray", "Dormant"];
   return ["badge badge-green", "OK"];
@@ -22,10 +24,12 @@ function Field({ label, children }) {
 export default function Detail({ client, invoices, cls }) {
   const c = client;
   const [rcls, rlabel] = riskBadge(c.risk_label);
-  const del = () => { if (confirm(`Hapus client "${c.name}"?`)) router.post(`/clients/${c.pk}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = () => confirm({ title: "Delete client", message: `Delete client "${c.name}"?`, onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
 
   return (
     <div className="page">
+      <PageBack href="/clients/" />
       <div className="page-header">
         <div><div className="page-title">{c.name}</div></div>
         <div className="page-actions">
@@ -36,7 +40,7 @@ export default function Detail({ client, invoices, cls }) {
 
       <div className="stats" style={{ marginBottom: 20 }}>
         <div className="stat">
-          <div className="stat-label">Total Tagihan</div>
+          <div className="stat-label">Total Billed</div>
           <div className="stat-value blue mono">{fmt(c.total_billed)}</div>
           <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>SAR</div>
         </div>
@@ -46,8 +50,8 @@ export default function Detail({ client, invoices, cls }) {
           <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>SAR</div>
         </div>
         <div className="stat">
-          <div className="stat-label">Rata-rata Bayar</div>
-          <div className="stat-value">{c.avg_days_to_pay != null ? `${c.avg_days_to_pay} hari` : "—"}</div>
+          <div className="stat-label">Avg Payment</div>
+          <div className="stat-value">{c.avg_days_to_pay != null ? `${c.avg_days_to_pay} days` : "—"}</div>
         </div>
         <div className="stat">
           <div className="stat-label">Client Score</div>
@@ -63,20 +67,20 @@ export default function Detail({ client, invoices, cls }) {
               <span className={rcls}>{rlabel}</span>
             </div>
             <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Field label="Nama Agen">{c.name}</Field>
-              {c.city && <Field label="Lokasi">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
+              <Field label="Agent Name">{c.name}</Field>
+              {c.city && <Field label="Location">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
               {c.pic && <Field label="PIC">{c.pic}</Field>}
               {c.wa && <Field label="WhatsApp"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
               {c.email && <Field label="Email">{c.email}</Field>}
               {c.days_since_last_order != null && (
                 <div className="field">
-                  <div className="field-label">Terakhir Order</div>
-                  <div className={"field-value" + (c.days_since_last_order > 45 ? " remaining-unpaid" : "")}>{c.days_since_last_order} hari lalu</div>
+                  <div className="field-label">Last Order</div>
+                  <div className={"field-value" + (c.days_since_last_order > 45 ? " remaining-unpaid" : "")}>{c.days_since_last_order} days ago</div>
                 </div>
               )}
               {c.note && (
                 <div className="field">
-                  <div className="field-label">Catatan</div>
+                  <div className="field-label">Notes</div>
                   <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{c.note}</div>
                 </div>
               )}
@@ -91,7 +95,7 @@ export default function Detail({ client, invoices, cls }) {
               </div>
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-              <button onClick={del} className="btn btn-danger btn-sm btn-full">Hapus Client</button>
+              <button onClick={del} className="btn btn-danger btn-sm btn-full">Delete Client</button>
             </div>
           </div>
         </div>
@@ -101,11 +105,11 @@ export default function Detail({ client, invoices, cls }) {
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Invoice ({invoices.length})</span>
-                <a href={`/invoice/?client=${c.pk}`} className="btn btn-ghost btn-sm">Lihat semua</a>
+                <a href={`/invoice/?client=${c.pk}`} className="btn btn-ghost btn-sm">View all</a>
               </div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Nomor</th><th>Tipe</th><th>Tagihan</th><th>Sisa</th><th>Tanggal</th><th></th></tr></thead>
+                  <thead><tr><th>Number</th><th>Type</th><th>Billed</th><th>Remaining</th><th>Date</th><th></th></tr></thead>
                   <tbody>
                     {invoices.slice(0, 10).map((inv) => (
                       <tr key={inv.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/invoice/${inv.pk}/`)}>
@@ -128,7 +132,7 @@ export default function Detail({ client, invoices, cls }) {
               <div className="card-header"><span className="card-title">Confirmation Letter ({cls.length})</span></div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Nomor</th><th>Tamu</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
+                  <thead><tr><th>Number</th><th>Guest</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
                   <tbody>
                     {cls.slice(0, 8).map((cl) => (
                       <tr key={cl.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.pk}/`)}>
@@ -148,13 +152,14 @@ export default function Detail({ client, invoices, cls }) {
           {invoices.length === 0 && cls.length === 0 && (
             <div className="card">
               <div className="empty" style={{ padding: 40 }}>
-                <div className="empty-title">Belum ada transaksi</div>
-                <div className="empty-sub">Invoice dan CL yang di-assign ke client ini akan muncul di sini</div>
+                <div className="empty-title">No transactions yet</div>
+                <div className="empty-sub">Invoices and CLs assigned to this client will appear here</div>
               </div>
             </div>
           )}
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const STATUS_OPTS = [
@@ -31,7 +32,8 @@ export default function List({ remittances, stats, status_filter, q, total_count
   const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
   const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
   const markReceived = (e, pk) => { e.stopPropagation(); router.post(`/remittance/${pk}/mark-received/`); };
-  const del = (e, pk, label) => { e.stopPropagation(); if (confirm(`Hapus remittance ${label}?`)) router.post(`/remittance/${pk}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = (e, pk, label) => { e.stopPropagation(); confirm({ title: "Delete remittance", message: `Delete remittance ${label}?`, onConfirm: () => router.post(`/remittance/${pk}/delete/`) }); };
 
   return (
     <div className="page">
@@ -138,6 +140,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

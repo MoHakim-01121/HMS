@@ -3,6 +3,8 @@ import FormPanel from "../../components/form/FormPanel.jsx";
 import FormSection from "../../components/form/FormSection.jsx";
 import FormField from "../../components/form/FormField.jsx";
 import FormActions from "../../components/form/FormActions.jsx";
+import Combobox from "../../components/form/Combobox.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 import { postForm } from "../../utils/inertiaForm.js";
 import RoomRows from "./RoomRows.jsx";
 
@@ -32,6 +34,20 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
+
+  // Tamu = client. Typing free text keeps it as guest_name (no client link);
+  // an exact name match or picking from the list links the client_id.
+  const clientList = clients || [];
+  const onGuestText = (text) => {
+    const match = clientList.find((c) => c.name.toLowerCase() === text.trim().toLowerCase());
+    form.setData("guest_name", text);
+    form.setData("client_id", match ? String(match.id) : "");
+  };
+  const onGuestSelect = (c) => {
+    form.setData("guest_name", c.name);
+    form.setData("client_id", String(c.id));
+  };
+
   const nights = nightsBetween(form.data.check_in, form.data.check_out);
   const total = nights * form.data.rooms.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price) || 0), 0);
 
@@ -42,10 +58,11 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 
   return (
     <div className="form-page">
+      <PageBack href={edit ? `/cl/${c.id}/` : "/cl/"} />
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
-          <div className="page-title">{edit ? "Edit Confirmation Letter" : "Confirmation Letter Baru"}</div>
-          <div className="page-sub">Detail reservasi hotel</div>
+          <div className="page-title">{edit ? "Edit Confirmation Letter" : "New Confirmation Letter"}</div>
+          <div className="page-sub">Hotel reservation details</div>
         </div>
       </div>
 
@@ -67,11 +84,11 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
             </div>
           </FormSection>
 
-          <FormSection label="Reservasi">
+          <FormSection label="Reservation">
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Nomor CL" name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
+              <FormField label="CL Number" name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
               <FormField label="Hotel" name="hotel_name">
-                <input list="cl-hotels" name="hotel_name" value={form.data.hotel_name} onChange={(e) => form.setData("hotel_name", e.target.value)} placeholder="Nama hotel" />
+                <input list="cl-hotels" name="hotel_name" value={form.data.hotel_name} onChange={(e) => form.setData("hotel_name", e.target.value)} placeholder="Hotel name" />
                 <datalist id="cl-hotels">
                   {(hotels || []).map((h, i) => <option key={i} value={h.name} />)}
                 </datalist>
@@ -83,35 +100,41 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
             </div>
           </FormSection>
 
-          <FormSection label="Tamu">
-            <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Client (Agen)" name="client_id">
-                <select name="client_id" value={form.data.client_id} onChange={(e) => form.setData("client_id", e.target.value)}>
-                  <option value="">— Tanpa client —</option>
-                  {(clients || []).map((cl2) => <option key={cl2.id} value={cl2.id}>{cl2.name}</option>)}
-                </select>
+          <FormSection label="Guest">
+            <div className="fg-2">
+              <FormField label="Guest / Client" name="guest_name" error={errors.guest_name} hint="Pick a registered client or type the guest name">
+                <Combobox
+                  name="guest_name"
+                  value={form.data.guest_name}
+                  onTextChange={onGuestText}
+                  onSelect={onGuestSelect}
+                  options={clientList}
+                  getLabel={(o) => o.name}
+                  getSub={(o) => (o.company === "ijabah" ? "Ijabah" : "Konoz")}
+                  placeholder="Search client or type guest name…"
+                  error={errors.guest_name}
+                />
               </FormField>
-              <FormField label="Nama Tamu" name="guest_name" value={form.data.guest_name} onChange={set("guest_name")} placeholder="Kosongkan untuk pakai nama client" />
+              <FormField label="Phone No." name="guest_phone" value={form.data.guest_phone} onChange={set("guest_phone")} inputMode="tel" />
             </div>
-            <FormField label="No. Telepon" name="guest_phone" value={form.data.guest_phone} onChange={set("guest_phone")} inputMode="tel" />
           </FormSection>
 
-          <FormSection label="Kamar">
+          <FormSection label="Rooms">
             <RoomRows rooms={form.data.rooms} onChange={(next) => form.setData("rooms", next)} nights={nights} />
             <div style={{ marginTop: 12, textAlign: "right", fontWeight: 600 }}>
-              Total: {fmt(total)} SAR <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-3)" }}>({nights} malam)</span>
+              Total: {fmt(total)} SAR <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-3)" }}>({nights} nights)</span>
             </div>
           </FormSection>
 
-          <FormSection label="Catatan">
+          <FormSection label="Notes">
             <FormField name="note">
-              <textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder="Catatan internal…" />
+              <textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder="Internal notes…" />
             </FormField>
           </FormSection>
 
           <FormActions
             cancelHref={edit ? `/cl/${c.id}/` : "/cl/"}
-            submitLabel={edit ? "Simpan Perubahan" : "Buat CL"}
+            submitLabel={edit ? "Save Changes" : "Create CL"}
             processing={form.processing} />
         </FormPanel>
       </form>

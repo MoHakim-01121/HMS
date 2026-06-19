@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -338,7 +338,8 @@ def cl_delete(request, pk):
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num, cl.company)
         messages.success(request, f"Confirmation Letter {num} berhasil dihapus.")
         return redirect("cl_list")
-    return render(request, "hw/partials/confirm_delete.html", {"object": cl, "type": "Confirmation Letter"})
+    # Confirmation is handled client-side (React modal); GET just bounces back.
+    return redirect("cl_list")
 
 
 @login_required

@@ -4,13 +4,13 @@ import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 
 const STATUS_OPTS = [
-  { val: "", label: "Semua", cls: "c-all" },
-  { val: "active", label: "Aktif", cls: "c-act" },
-  { val: "inactive", label: "Nonaktif", cls: "c-ina" },
+  { val: "", label: "All", cls: "c-all" },
+  { val: "active", label: "Active", cls: "c-act" },
+  { val: "inactive", label: "Inactive", cls: "c-ina" },
 ];
 
 function riskBadge(risk) {
-  if (risk === "high") return ["badge badge-red", "Risiko"];
+  if (risk === "high") return ["badge badge-red", "Risk"];
   if (risk === "medium") return ["badge badge-yellow", "Overdue"];
   if (risk === "dormant") return ["badge badge-gray", "Dormant"];
   return null;
@@ -44,16 +44,16 @@ export default function List({ clients, q, status }) {
       <div className="page-header">
         <div>
           <div className="page-title">Clients</div>
-          <div className="page-sub">{clients.length} agen travel terdaftar</div>
+          <div className="page-sub">{clients.length} travel agents registered</div>
         </div>
         <div className="page-actions">
           <a href="/clients/map/" className="btn btn-secondary">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
-            Peta
+            Map
           </a>
           <a href="/clients/new/" className="btn btn-primary">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-            Client baru
+            New client
           </a>
         </div>
       </div>
@@ -61,8 +61,8 @@ export default function List({ clients, q, status }) {
       <div className="filter-bar">
         <div className="search-wrap">
           <Icon name="search" size={13} />
-          <input type="text" value={query} placeholder="Cari nama, kota, PIC…" onChange={(e) => setQuery(e.target.value)} />
-          {query && <button type="button" className="sw-clear" title="Hapus pencarian" onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
+          <input type="text" value={query} placeholder="Search name, city, PIC…" onChange={(e) => setQuery(e.target.value)} />
+          {query && <button type="button" className="sw-clear" title="Clear search" onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
         </div>
         <div className="fbar-actions">
           <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
@@ -84,8 +84,8 @@ export default function List({ clients, q, status }) {
                   </div>
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset semua</button>
-                  <button type="button" className="fp-apply" onClick={apply}>Terapkan</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset all</button>
+                  <button type="button" className="fp-apply" onClick={apply}>Apply</button>
                 </div>
               </div>
             )}
@@ -98,7 +98,7 @@ export default function List({ clients, q, status }) {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Nama Agen</th><th>Kota</th><th>PIC / WA</th><th>Invoice</th><th>Outstanding</th><th>Score</th><th>Status</th><th></th></tr>
+                <tr><th>Agent Name</th><th>City</th><th>PIC / WA</th><th>Invoice</th><th>Outstanding</th><th>Score</th><th>Status</th><th></th></tr>
               </thead>
               <tbody>
                 {clients.map((c) => {
@@ -124,7 +124,7 @@ export default function List({ clients, q, status }) {
                           <span style={{ fontSize: 11, color: "var(--text-3)" }}>{c.score}</span>
                         </div>
                       </td>
-                      <td className="col-m-hide">{c.is_active ? <span className="badge badge-green">Aktif</span> : <span className="badge badge-gray">Nonaktif</span>}</td>
+                      <td className="col-m-hide">{c.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
                       <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
                         <a href={`/clients/${c.id}/`} className="btn btn-ghost btn-sm">Detail</a>
                       </td>
@@ -138,9 +138,9 @@ export default function List({ clients, q, status }) {
           <div className="empty">
             <Icon name="user" size={36} strokeWidth={1.5} />
             {(q || status) ? (
-              <><div className="empty-title">Tidak ada hasil</div><div className="empty-sub">Coba ubah filter pencarian</div></>
+              <><div className="empty-title">No results</div><div className="empty-sub">Try adjusting your search filters</div></>
             ) : (
-              <><div className="empty-title">Belum ada client</div><div className="empty-sub">Tambah agen travel Umrah pertama</div></>
+              <><div className="empty-title">No clients yet</div><div className="empty-sub">Add your first Umrah travel agent</div></>
             )}
           </div>
         )}

@@ -68,7 +68,7 @@ export default function ClientMap() {
             '<div class="pop-name">' + _esc(c.name) + "</div>" +
             '<div class="pop-city">' + _esc(c.city || "") + (c.province ? ", " + _esc(c.province) : "") + "</div>" +
             '<div class="pop-row"><span class="pop-label">Outstanding</span><span class="pop-val ' + (c.outstanding > 0 ? "red" : "green") + '">' + fmtNum(c.outstanding) + "</span></div>" +
-            '<div class="pop-row"><span class="pop-label">Total Tagihan</span><span class="pop-val">' + fmtNum(c.total_billed) + "</span></div>" +
+            '<div class="pop-row"><span class="pop-label">Total Billed</span><span class="pop-val">' + fmtNum(c.total_billed) + "</span></div>" +
             '<div class="pop-row"><span class="pop-label">Score</span><span class="pop-val">' + _esc(String(c.score)) + "/100</span></div>" +
             (c.pic ? '<div class="pop-row"><span class="pop-label">PIC</span><span class="pop-val">' + _esc(c.pic) + "</span></div>" : "") +
             '<div class="pop-actions"><a href="' + c.url + '" class="pop-btn pop-btn-detail">Detail →</a>' + waBtn + "</div>";
@@ -126,20 +126,20 @@ export default function ClientMap() {
       <div id="map" />
 
       <div className="map-filter">
-        <a href="/clients/" className="map-back-btn" title="Kembali ke daftar client">
+        <a href="/clients/" className="map-back-btn" title="Back to client list">
           <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
-        <button className="active" data-filter="all" onClick={(e) => window.setFilter?.("all", e.currentTarget)}>Semua</button>
-        <button data-filter="risk" onClick={(e) => window.setFilter?.("risk", e.currentTarget)}>Risiko</button>
+        <button className="active" data-filter="all" onClick={(e) => window.setFilter?.("all", e.currentTarget)}>All</button>
+        <button data-filter="risk" onClick={(e) => window.setFilter?.("risk", e.currentTarget)}>Risk</button>
         <button data-filter="outstanding" onClick={(e) => window.setFilter?.("outstanding", e.currentTarget)}>Outstanding</button>
         <button data-filter="dormant" onClick={(e) => window.setFilter?.("dormant", e.currentTarget)}>Dormant</button>
       </div>
 
       <div className="map-legend">
         <div className="leg-title">Status</div>
-        <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> OK / Lunas</div>
+        <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> OK / Paid</div>
         <div className="leg-row"><div className="leg-dot" style={{ background: "var(--yellow)" }} /> Outstanding</div>
-        <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> Risiko Tinggi</div>
+        <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> High Risk</div>
         <div className="leg-row"><div className="leg-dot" style={{ background: "var(--text-3)" }} /> Dormant</div>
       </div>
 

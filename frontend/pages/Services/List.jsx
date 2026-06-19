@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 function visit(params) {
   router.get("/services/", params, { preserveState: true, preserveScroll: true, replace: true });
@@ -20,7 +21,8 @@ export default function List({ invoices, total_count, q, pagination }) {
     return () => clearTimeout(debounce.current);
   }, [query]);
 
-  const del = (e, pk, num) => { e.stopPropagation(); if (confirm(`Hapus invoice ${num}?`)) router.post(`/services/${pk}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = (e, pk, num) => { e.stopPropagation(); confirm({ title: "Delete invoice", message: `Delete invoice ${num}?`, onConfirm: () => router.post(`/services/${pk}/delete/`) }); };
   const qs = `?q=${encodeURIComponent(q || "")}`;
 
   return (
@@ -105,6 +107,7 @@ export default function List({ invoices, total_count, q, pagination }) {
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

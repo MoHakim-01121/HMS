@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.http import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -153,9 +153,8 @@ def user_delete(request, pk):
         target.delete()
         messages.success(request, f"User '{username}' berhasil dihapus.")
         return redirect('user_list')
-    return render(request, 'hw/partials/confirm_delete.html', {
-        'object': target, 'type': 'User',
-    })
+    # Confirmation is handled client-side (React modal); GET just bounces back.
+    return redirect('user_list')
 
 
 @login_required

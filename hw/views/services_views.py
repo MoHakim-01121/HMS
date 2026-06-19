@@ -7,7 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
@@ -195,7 +195,8 @@ def services_delete(request, pk):
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
         messages.success(request, f"Invoice Services {num} berhasil dihapus.")
         return redirect("services_list")
-    return render(request, "hw/partials/confirm_delete.html", {"object": invoice, "type": "Invoice Services"})
+    # Confirmation is handled client-side (React modal); GET just bounces back.
+    return redirect("services_list")
 
 
 @login_required

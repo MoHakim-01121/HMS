@@ -1,4 +1,5 @@
 import { router } from "@inertiajs/react";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
@@ -7,7 +8,8 @@ function Field({ label, children }) {
 }
 
 export default function Detail({ penalty: p }) {
-  const del = () => { if (confirm(`Hapus dokumen penalti ${p.penalty_number}?`)) router.post(`/penalty/${p.id}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = () => confirm({ title: "Delete penalty", message: `Delete penalty document ${p.penalty_number}?`, onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
   return (
     <div className="page">
       <div className="page-header">
@@ -50,6 +52,7 @@ export default function Detail({ penalty: p }) {
           </div>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

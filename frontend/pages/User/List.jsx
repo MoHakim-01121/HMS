@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 function action(userId, fields) {
   router.post(`/users/${userId}/edit/`, fields);
@@ -11,7 +12,8 @@ export default function List({ users }) {
     if (!pw) return;
     action(u.id, { action: "reset_password", password: pw, password_confirm: pw });
   };
-  const del = (u) => { if (confirm(`Hapus user ${u.username}?`)) router.post(`/users/${u.id}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = (u) => confirm({ title: "Delete user", message: `Delete user ${u.username}?`, onConfirm: () => router.post(`/users/${u.id}/delete/`) });
 
   return (
     <div className="page">
@@ -48,6 +50,7 @@ export default function List({ users }) {
           </table>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }

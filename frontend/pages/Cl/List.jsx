@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const STATUS_OPTS = [
   { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
@@ -52,7 +53,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   const applyFilters = () => { setPanelOpen(false); go({ status: sel, date_from: from, date_to: to }); };
   const resetAll = () => { setSel([]); setFrom(""); setTo(""); setPanelOpen(false); go({ status: [], date_from: "", date_to: "" }); };
 
-  const del = (e, pk, number) => { e.stopPropagation(); if (confirm(`Hapus CL ${number}?`)) router.post(`/cl/${pk}/delete/`); };
+  const [confirm, confirmDialog] = useConfirm();
+  const del = (e, pk, number) => { e.stopPropagation(); confirm({ message: `Delete CL ${number}?`, onConfirm: () => router.post(`/cl/${pk}/delete/`) }); };
 
   const exportQs = buildQuery({ q, status: status_list, date_from, date_to, sort }).replace("/cl/", "");
 
@@ -62,7 +64,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
       <div className="page-header">
         <div>
           <div className="page-title">Confirmation Letter</div>
-          <div className="page-sub">{total_count} dokumen tersimpan</div>
+          <div className="page-sub">{total_count} documents saved</div>
         </div>
         <div className="page-actions">
           <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
@@ -74,15 +76,15 @@ export default function List({ letters, total_count, q, status_list, date_from, 
               </div>
             )}
           </div>
-          <a href="/cl/new/" className="btn btn-primary">+ Buat Baru</a>
+          <a href="/cl/new/" className="btn btn-primary">+ Create New</a>
         </div>
       </div>
 
       <div className="filter-bar">
         <div className="search-wrap">
           <Icon name="search" size={13} />
-          <input type="text" value={query} placeholder="Cari tamu, hotel, nomor konfirmasi…" onChange={(e) => setQuery(e.target.value)} />
-          {query && <button type="button" className="sw-clear" title="Hapus pencarian" onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
+          <input type="text" value={query} placeholder="Search guest, hotel, confirmation number…" onChange={(e) => setQuery(e.target.value)} />
+          {query && <button type="button" className="sw-clear" title="Clear search" onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
         </div>
 
         <div className="fbar-actions">
@@ -113,8 +115,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                     <button type="button" className="fp-reset" onClick={() => { setFrom(""); setTo(""); }}>Reset</button>
                   </div>
                   <div className="fp-date-row">
-                    <div className="fp-date-field"><label>Dari</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-                    <div className="fp-date-field"><label>Sampai</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+                    <div className="fp-date-field"><label>From</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+                    <div className="fp-date-field"><label>To</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
                   </div>
                 </div>
                 <div className="fp-section">
@@ -133,8 +135,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   </div>
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset semua</button>
-                  <button type="button" className="fp-apply" onClick={applyFilters}>Terapkan</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset all</button>
+                  <button type="button" className="fp-apply" onClick={applyFilters}>Apply</button>
                 </div>
               </div>
             )}
@@ -157,7 +159,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                       <tr key={cl.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.id}/`)}>
                         <td className="col-m-primary">
                           <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
-                          {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Sudah ditagih: ${cl.invoice_number}`}>● INV</span>}
+                          {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
                         </td>
                         <td className="col-m-hide"><span className={bcls}>{blabel}</span></td>
                         <td className="col-m-secondary col-ellipsis">{cl.guest_name}</td>
@@ -169,7 +171,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                           <div className="row-actions">
                             <a href={`/cl/${cl.id}/pdf/`} className="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank" rel="noreferrer"><Icon name="pdf" size={14} /></a>
                             <a href={`/cl/${cl.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                            <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Hapus" onClick={(e) => del(e, cl.id, cl.confirmation_number)}><Icon name="trash" size={14} /></button>
+                            <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, cl.id, cl.confirmation_number)}><Icon name="trash" size={14} /></button>
                           </div>
                         </td>
                       </tr>
@@ -199,13 +201,14 @@ export default function List({ letters, total_count, q, status_list, date_from, 
           <div className="empty">
             <Icon name="cl" size={36} strokeWidth={1.5} />
             {q ? (
-              <><div className="empty-title">Tidak ada hasil</div><div className="empty-sub">Coba ubah filter pencarian</div></>
+              <><div className="empty-title">No results</div><div className="empty-sub">Try adjusting your search filters</div></>
             ) : (
-              <><div className="empty-title">Belum ada dokumen</div><div className="empty-sub">Gunakan tombol Buat Baru di pojok kanan atas</div></>
+              <><div className="empty-title">No documents yet</div><div className="empty-sub">Use the Create New button in the top right</div></>
             )}
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

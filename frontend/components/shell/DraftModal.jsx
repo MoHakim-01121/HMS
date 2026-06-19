@@ -45,24 +45,24 @@ export default function DraftModal() {
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, width: "100%", maxWidth: 480, overflow: "hidden", boxShadow: "0 24px 48px rgba(0,0,0,.4)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
-            <Icon name="message" size={16} /> Pesan Tagihan
+            <Icon name="message" size={16} /> Billing Message
           </div>
           <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 4 }}>
             <Icon name="close" size={16} />
           </button>
         </div>
         <div style={{ padding: 20, minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {state.kind === "loading" && <span style={{ color: "var(--text-3)", fontSize: 13 }}>Membuat pesan…</span>}
-          {state.kind === "error" && <span style={{ color: "var(--red)", fontSize: 13 }}>Gagal menghubungi server.</span>}
+          {state.kind === "loading" && <span style={{ color: "var(--text-3)", fontSize: 13 }}>Generating message…</span>}
+          {state.kind === "error" && <span style={{ color: "var(--red)", fontSize: 13 }}>Failed to reach the server.</span>}
           {state.kind === "ready" && (
             <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "var(--text)", margin: 0, width: "100%" }}>{text}</pre>
           )}
         </div>
         {state.kind === "ready" && (
           <div style={{ display: "flex", padding: "12px 20px", borderTop: "1px solid var(--border)", justifyContent: "flex-end", gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Tutup</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Close</button>
             <button className="btn btn-primary btn-sm" onClick={copy}>
-              <Icon name="copy" size={13} /> {copied ? "Tersalin!" : "Copy"}
+              <Icon name="copy" size={13} /> {copied ? "Copied!" : "Copy"}
             </button>
           </div>
         )}

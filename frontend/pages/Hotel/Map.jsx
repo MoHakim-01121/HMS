@@ -85,8 +85,8 @@ export default function HotelMap() {
 
       function buildPopup(h) {
         const dist = fmtDistLabel(h.distance_label);
-        const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">' + _esc(h.avg) + " org/kamar</span></div>" : "";
-        return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">Jarak</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
+        const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">' + _esc(h.avg) + " pax/room</span></div>" : "";
+        return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">Distance</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
       }
 
       const getCityFilter = () => { const el = document.querySelector('input[name="fp-city"]:checked'); return el ? el.value : "all"; };
@@ -151,13 +151,13 @@ export default function HotelMap() {
           '<div class="hp-dot" style="background:' + color + ';"></div>' +
           '<span class="hp-card-name">' + _esc(h.name) + "</span>" +
           '<span class="hp-card-dist ' + dc + '">' + dist + "</span>" +
-          '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="Detail hotel">' +
+          '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="Hotel details">' +
           '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
           "</a></div>" +
           '<div class="hp-card-sub"><span style="color:var(--yellow);letter-spacing:1px;">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
       }
       function renderPanel(hotels) {
-        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--text-2);margin-bottom:16px;">Tidak ada hotel yang cocok</div><button onclick="resetFilters()" style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 16px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Reset Filter</button></div>';
+        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--text-2);margin-bottom:16px;">No matching hotels</div><button onclick="resetFilters()" style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 16px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Reset Filter</button></div>';
         const html = hotels.length === 0 ? empty : hotels.map((h, i) => buildCardHtml(h, i)).join("");
         if (!isMobile()) document.getElementById("hotel-list").innerHTML = html;
         const mobList = document.getElementById("mob-sheet-list");
@@ -225,7 +225,7 @@ export default function HotelMap() {
         _sheetStates.forEach((s) => sheet.classList.remove("state-" + s));
         sheet.classList.add("state-" + state);
         const hint = document.getElementById("mob-sheet-hint");
-        if (hint) hint.textContent = state === "closed" ? "▲ Buka daftar" : state === "full" ? "▼ Tutup" : "▲▼ Geser";
+        if (hint) hint.textContent = state === "closed" ? "▲ Open list" : state === "full" ? "▼ Close" : "▲▼ Drag";
         if ((state === "half" || state === "full") && activeCardPk) { setTimeout(() => { const card = document.querySelector('#mob-sheet-list .hp-card[data-pk="' + activeCardPk + '"]'); if (card) card.scrollIntoView({ block: "nearest" }); }, 320); }
       }
       function lockSheet(ms) { _sheetLocked = true; setTimeout(() => { _sheetLocked = false; }, ms || 400); }
@@ -314,12 +314,12 @@ export default function HotelMap() {
       <div id="map" />
 
       <div className="map-topbar">
-        <a href="/hotels/" className="map-back-btn" title="Kembali ke daftar hotel">
+        <a href="/hotels/" className="map-back-btn" title="Back to hotel list">
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
         <div className="map-search-wrap">
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
-          <input type="text" id="hotel-search" placeholder="Cari hotel atau area..." onInput={() => window.debounceSearch?.()} />
+          <input type="text" id="hotel-search" placeholder="Search hotel or area..." onInput={() => window.debounceSearch?.()} />
           <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title="Hapus">
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -333,23 +333,23 @@ export default function HotelMap() {
           </button>
 
           <div id="filter-dropdown" className="map-filter-dropdown">
-            <div className="fp-section"><div className="fp-section-title">Kota</div></div>
-            <label className="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> Semua Kota</label>
+            <div className="fp-section"><div className="fp-section-title">City</div></div>
+            <label className="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> All Cities</label>
             <label className="fp-radio" id="fp-city-makkah"><input type="radio" name="fp-city" value="makkah" onChange={() => window.applyFilters?.()} /> Makkah</label>
             <label className="fp-radio" id="fp-city-madinah"><input type="radio" name="fp-city" value="madinah" onChange={() => window.applyFilters?.()} /> Madinah</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">Jarak ke Masjid</div></div>
+            <div className="fp-section"><div className="fp-section-title">Distance to Mosque</div></div>
             <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} /> ≤ 500 M</label>
             <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--yellow)", display: "inline-block", flexShrink: 0 }} /> 500 M – 1.5 KM</label>
             <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--red)", display: "inline-block", flexShrink: 0 }} /> {">"} 1.5 KM</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">Bintang</div></div>
+            <div className="fp-section"><div className="fp-section-title">Stars</div></div>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★</span></label>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★</span></label>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★★</span></label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">Ada Avg / Kapasitas</span><div id="sw-avg" className="fp-toggle-switch" /></div>
-            <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">Tampilkan Rute</span><div id="sw-route" className="fp-toggle-switch on" /></div>
+            <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">Has Avg / Capacity</span><div id="sw-avg" className="fp-toggle-switch" /></div>
+            <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">Show Routes</span><div id="sw-route" className="fp-toggle-switch on" /></div>
             <div className="fp-reset-wrap"><button className="fp-reset" onClick={() => window.resetFilters?.()}>Reset Filter</button></div>
           </div>
         </div>
@@ -359,17 +359,17 @@ export default function HotelMap() {
 
       <div className="map-legend">
         <div className="leg-toggle" onClick={() => window.toggleLegend?.()}>
-          <span className="leg-toggle-title">Keterangan</span>
+          <span className="leg-toggle-title">Legend</span>
           <svg className="leg-arrow" id="leg-arrow" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </div>
         <div id="leg-body">
-          <div className="leg-section">Jarak ke Masjid</div>
+          <div className="leg-section">Distance to Mosque</div>
           <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> ≤ 500 M</div>
           <div className="leg-row"><div className="leg-dot" style={{ background: "var(--yellow)" }} /> 500 M – 1.5 KM</div>
           <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {">"} 1.5 KM</div>
-          <div className="leg-section">Titik Acuan</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--accent)" }} /> Pelataran Al-Haram</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> Masjid</div>
+          <div className="leg-section">Reference Points</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--accent)" }} /> Al-Haram Plaza</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> Mosque</div>
         </div>
       </div>
 
@@ -378,7 +378,7 @@ export default function HotelMap() {
           <div className="mob-sheet-pill" />
           <div className="mob-sheet-meta">
             <span className="mob-sheet-count" id="mob-sheet-count">0 Hotel</span>
-            <span className="mob-sheet-hint" id="mob-sheet-hint">▲ Buka daftar</span>
+            <span className="mob-sheet-hint" id="mob-sheet-hint">▲ Open list</span>
           </div>
         </div>
         <div className="mob-sheet-list" id="mob-sheet-list">
@@ -387,7 +387,7 @@ export default function HotelMap() {
       </div>
 
       <div className="hotel-panel" id="hotel-panel">
-        <button className="panel-toggle" onClick={() => window.togglePanel?.()} title="Sembunyikan / tampilkan panel">
+        <button className="panel-toggle" onClick={() => window.togglePanel?.()} title="Hide / show panel">
           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
         </button>
         <div className="hotel-panel-inner">

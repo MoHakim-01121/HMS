@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 function distClass(d) {
   if (d === null || d === undefined) return "";
@@ -71,13 +72,13 @@ function RoomCalculator({ avg }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div className="field">
-        <label>Jumlah Jamaah</label>
+        <label>Number of Pilgrims</label>
         <input type="number" min="1" value={jamaah} onChange={(e) => setJamaah(parseInt(e.target.value) || 0)} />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: "var(--surface-2)", borderRadius: "var(--r-lg)" }}>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--text-3)" }}>Kamar Dibutuhkan</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 3 }}>avg {avg} org/kamar</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--text-3)" }}>Rooms Needed</div>
+          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 3 }}>avg {avg} pax/room</div>
         </div>
         <div style={{ fontSize: 32, fontWeight: 700, color: "var(--accent-2)", fontVariantNumeric: "tabular-nums" }}>{rooms}</div>
       </div>
@@ -89,9 +90,10 @@ export default function Detail({ hotel }) {
   const hasCoords = hotel.lat != null && hotel.lng != null;
   return (
     <div className="page">
+      <PageBack href="/hotels/" />
       <div className="page-header">
         <div className="page-title">{hotel.name}</div>
-        <div>{hotel.is_active ? <span className="badge badge-green">Aktif</span> : <span className="badge badge-gray">Nonaktif</span>}</div>
+        <div>{hotel.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</div>
       </div>
 
       <div className="detail-grid-eq">
@@ -99,21 +101,21 @@ export default function Detail({ hotel }) {
           <div className="card" style={{ marginBottom: 0 }}>
             <div className="card-header"><span className="card-title">Info</span></div>
             <div className="card-body" style={{ padding: "0 20px" }}>
-              <div className="ht-row"><span className="ht-key">Kota</span><span className="ht-val">{hotel.city_display}</span></div>
+              <div className="ht-row"><span className="ht-key">City</span><span className="ht-val">{hotel.city_display}</span></div>
               {hotel.area && <div className="ht-row"><span className="ht-key">Area</span><span className="ht-val">{hotel.area}</span></div>}
-              <div className="ht-row"><span className="ht-key">Bintang</span><span className="ht-val" style={{ color: "var(--yellow)", fontWeight: 600 }}>{hotel.stars}★</span></div>
-              <div className="ht-row"><span className="ht-key">Jarak</span><span className={"ht-val ht-dist " + distClass(hotel.distance)}>{hotel.distance_label}</span></div>
-              <div className="ht-row"><span className="ht-key">Avg/Kamar</span><span className="ht-val">{hotel.avg_occupancy ? `${hotel.avg_occupancy} org` : <span style={{ color: "var(--text-3)" }}>—</span>}</span></div>
-              {hotel.note ? <div className="ht-row" style={{ borderBottom: "none" }}><span className="ht-key">Catatan</span><span className="ht-val" style={{ whiteSpace: "pre-wrap" }}>{hotel.note}</span></div> : <div style={{ height: 8 }} />}
+              <div className="ht-row"><span className="ht-key">Stars</span><span className="ht-val" style={{ color: "var(--yellow)", fontWeight: 600 }}>{hotel.stars}★</span></div>
+              <div className="ht-row"><span className="ht-key">Distance</span><span className={"ht-val ht-dist " + distClass(hotel.distance)}>{hotel.distance_label}</span></div>
+              <div className="ht-row"><span className="ht-key">Avg/Room</span><span className="ht-val">{hotel.avg_occupancy ? `${hotel.avg_occupancy} pax` : <span style={{ color: "var(--text-3)" }}>—</span>}</span></div>
+              {hotel.note ? <div className="ht-row" style={{ borderBottom: "none" }}><span className="ht-key">Notes</span><span className="ht-val" style={{ whiteSpace: "pre-wrap" }}>{hotel.note}</span></div> : <div style={{ height: 8 }} />}
             </div>
           </div>
 
           <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-header"><span className="card-title">Kalkulator Kamar</span></div>
+            <div className="card-header"><span className="card-title">Room Calculator</span></div>
             <div className="card-body">
               {hotel.avg_occupancy
                 ? <RoomCalculator avg={hotel.avg_occupancy} />
-                : <div className="empty" style={{ padding: 28 }}><div className="empty-title">Hotel ini tidak memiliki average</div></div>}
+                : <div className="empty" style={{ padding: 28 }}><div className="empty-title">This hotel has no average set</div></div>}
             </div>
           </div>
         </div>
@@ -121,8 +123,8 @@ export default function Detail({ hotel }) {
         {hasCoords ? (
           <div className="card" style={{ marginBottom: 0, position: "sticky", top: 16 }}>
             <div className="card-header">
-              <span className="card-title">Lokasi</span>
-              <a href="/hotels/map/" className="btn btn-ghost btn-sm">Peta Lengkap</a>
+              <span className="card-title">Location</span>
+              <a href="/hotels/map/" className="btn btn-ghost btn-sm">Full Map</a>
             </div>
             <HotelMiniMap hotel={hotel} />
           </div>
@@ -130,8 +132,8 @@ export default function Detail({ hotel }) {
           <div className="card" style={{ marginBottom: 0 }}>
             <div className="card-body">
               <div className="empty" style={{ padding: 48 }}>
-                <div className="empty-title">Koordinat belum diset</div>
-                <div className="empty-sub">Tambahkan koordinat di halaman edit</div>
+                <div className="empty-title">Coordinates not set yet</div>
+                <div className="empty-sub">Add coordinates on the edit page</div>
               </div>
             </div>
           </div>

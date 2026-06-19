@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react";
 import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const STATUS_OPTS = [
   { val: "", label: "Semua", cls: "c-all" },
@@ -34,9 +35,10 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
   const applyStatus = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
   const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
 
+  const [confirm, confirmDialog] = useConfirm();
   const del = (e, pk, number) => {
     e.stopPropagation();
-    if (confirm(`Hapus invoice ${number}?`)) router.post(`/invoice/${pk}/delete/`);
+    confirm({ title: "Delete invoice", message: `Delete invoice ${number}?`, onConfirm: () => router.post(`/invoice/${pk}/delete/`) });
   };
 
   const qs = `?q=${encodeURIComponent(q || "")}&status=${status_filter || ""}`;
@@ -179,6 +181,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

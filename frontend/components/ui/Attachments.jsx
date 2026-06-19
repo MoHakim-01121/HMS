@@ -36,14 +36,14 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
         if (d.error) { alert(d.error); continue; }
         setItems((prev) => [...prev, { id: d.id, icon: d.icon, url: d.url, name: d.name, size: d.size }]);
       } catch {
-        alert("Gagal upload");
+        alert("Upload failed");
       }
     }
     e.target.value = "";
   };
 
   const del = async (pk) => {
-    if (!confirm("Hapus lampiran ini?")) return;
+    if (!confirm("Delete this attachment?")) return;
     try {
       const d = await fetchJson(`/attachments/${pk}/delete/`, { method: "POST" });
       if (d.ok) setItems((prev) => prev.filter((x) => x.id !== pk));
@@ -53,7 +53,7 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
   return (
     <div className="card">
       <div className="card-header">
-        <span className="card-title">Lampiran</span>
+        <span className="card-title">Attachments</span>
         <label className="btn btn-ghost" style={{ height: 26, padding: "0 10px", fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           Upload
@@ -66,12 +66,12 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
             <div className="att-icon"><AttIcon icon={att.icon} /></div>
             <a href={att.url} target="_blank" rel="noreferrer" className="att-name" title={att.name}>{att.name}</a>
             <span className="att-size">{fmtSize(att.size)}</span>
-            <button type="button" className="btn btn-ghost att-del" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--text-3)" }} onClick={() => del(att.id)} title="Hapus">
+            <button type="button" className="btn btn-ghost att-del" style={{ width: 24, height: 24, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--text-3)" }} onClick={() => del(att.id)} title="Delete">
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
         )) : (
-          <div style={{ color: "var(--text-3)", fontSize: 12, textAlign: "center" }}>Belum ada lampiran</div>
+          <div style={{ color: "var(--text-3)", fontSize: 12, textAlign: "center" }}>No attachments yet</div>
         )}
       </div>
     </div>

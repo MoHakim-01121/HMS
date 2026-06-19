@@ -3,7 +3,7 @@ from datetime import date, datetime
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 
 from inertia import render as inertia_render
@@ -112,10 +112,8 @@ def penalty_delete(request, pk):
         penalty.delete()
         messages.success(request, f"Dokumen penalti {num} berhasil dihapus.")
         return redirect('cl_detail', pk=cl_pk)
-    return render(request, 'hw/partials/confirm_delete.html', {
-        'object': penalty,
-        'type': 'Dokumen Penalti',
-    })
+    # Confirmation is handled client-side (React modal); GET just bounces back.
+    return redirect('cl_detail', pk=cl_pk)
 
 
 @login_required

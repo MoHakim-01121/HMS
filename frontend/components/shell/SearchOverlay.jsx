@@ -49,7 +49,7 @@ export default function SearchOverlay({ open, onClose }) {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Cari nomor, tamu, atau hotel…"
+            placeholder="Search number, guest, or hotel…"
             autoComplete="off"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -58,7 +58,7 @@ export default function SearchOverlay({ open, onClose }) {
             }}
           />
           {q && (
-            <button className="search-clear" aria-label="Hapus" onClick={() => setQ("")}>
+            <button className="search-clear" aria-label="Clear" onClick={() => setQ("")}>
               <Icon name="close" size={10} strokeWidth={2.5} />
             </button>
           )}
@@ -68,8 +68,8 @@ export default function SearchOverlay({ open, onClose }) {
           {state.kind === "quick" && (
             <div className="s-empty-state">
               <Icon name="search" size={32} strokeWidth={1.5} />
-              <span className="s-empty-title">Ketik untuk mencari</span>
-              <span className="s-empty-sub">nomor dokumen, nama tamu, atau hotel</span>
+              <span className="s-empty-title">Type to search</span>
+              <span className="s-empty-sub">document number, guest name, or hotel</span>
             </div>
           )}
           {state.kind === "loading" && (
@@ -77,17 +77,17 @@ export default function SearchOverlay({ open, onClose }) {
           )}
           {state.kind === "error" && (
             <div style={{ padding: 16, textAlign: "center", color: "var(--red)", fontSize: 13 }}>
-              Gagal mencari.
+              Search failed.
             </div>
           )}
           {state.kind === "results" && <Results data={state.data} />}
         </div>
 
         <div id="search-hints">
-          <span className="search-hint-item"><kbd className="search-hint-kbd">↑↓</kbd> navigasi</span>
-          <span className="search-hint-item"><kbd className="search-hint-kbd">↵</kbd> pilih</span>
-          <span className="search-hint-item"><kbd className="search-hint-kbd">Esc</kbd> tutup</span>
-          <span className="search-hint-item"><kbd className="search-hint-kbd">/</kbd> cari</span>
+          <span className="search-hint-item"><kbd className="search-hint-kbd">↑↓</kbd> navigate</span>
+          <span className="search-hint-item"><kbd className="search-hint-kbd">↵</kbd> select</span>
+          <span className="search-hint-item"><kbd className="search-hint-kbd">Esc</kbd> close</span>
+          <span className="search-hint-item"><kbd className="search-hint-kbd">/</kbd> search</span>
         </div>
       </div>
     </div>
@@ -99,7 +99,7 @@ function Results({ data }) {
     return (
       <div className="s-empty-state">
         <Icon name="search" size={32} strokeWidth={1.5} />
-        <span className="s-empty-title">Tidak ada hasil</span>
+        <span className="s-empty-title">No results</span>
         <span className="s-empty-sub">untuk &ldquo;{data.q}&rdquo;</span>
       </div>
     );

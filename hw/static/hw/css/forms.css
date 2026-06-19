@@ -40,15 +40,8 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .9px;
-  color: var(--text-3);
+  color: #fff;
   margin-bottom: 16px;
-}
-.form-section-label::before {
-  content: '';
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex-shrink: 0;
 }
 .form-section-label-right {
   margin-left: auto;
