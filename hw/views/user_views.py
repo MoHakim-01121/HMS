@@ -162,7 +162,37 @@ def user_delete(request, pk):
 def account_profile(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     activities  = ActivityLog.objects.filter(user=request.user)[:20]
-    return render(request, 'hw/account/profile.html', {'profile': profile, 'activities': activities})
+    u = request.user
+    if u.is_superuser:
+        role, role_badge = "Administrator", "Admin"
+    elif u.is_staff:
+        role, role_badge = "Staff", "Staff"
+    else:
+        role, role_badge = "Standard User", "User"
+    return inertia_render(request, "Account/Profile", props={
+        "profile": {"avatar_url": profile.avatar.url if profile.avatar else None},
+        "account": {
+            "full_name":    u.get_full_name() or u.username,
+            "username":     u.username,
+            "email":        u.email,
+            "uid":          f"UID-{u.pk:04d}",
+            "is_superuser": u.is_superuser,
+            "is_staff":     u.is_staff,
+            "is_active":    u.is_active,
+            "role":         role,
+            "role_badge":   role_badge,
+            "date_joined":  u.date_joined.isoformat() if u.date_joined else None,
+            "last_login":   u.last_login.isoformat() if u.last_login else None,
+        },
+        "activities": [{
+            "timestamp":  a.timestamp.isoformat(),
+            "action":     a.action,
+            "model_name": a.model_name,
+            "object_ref": a.object_ref,
+            "company":    a.company,
+            "changes":    a.changes or [],
+        } for a in activities],
+    })
 
 
 @login_required

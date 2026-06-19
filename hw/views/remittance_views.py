@@ -1,4 +1,5 @@
 import csv
+import json
 
 from collections import defaultdict
 from datetime import date
@@ -6,7 +7,7 @@ from datetime import date
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -120,6 +121,17 @@ def _build_reservasi_mengendap():
     return result
 
 
+def _serialize_reservasi():
+    """Reservasi mengendap dengan tanggal yang sudah diformat untuk props Inertia."""
+    rows = _build_reservasi_mengendap()
+    for r in rows:
+        ci = r.get('check_in')
+        co = r.get('check_out')
+        r['check_in'] = ci.strftime('%d/%m/%Y') if ci else None
+        r['check_out'] = co.strftime('%d/%m/%Y') if co else None
+    return rows
+
+
 @login_required
 def remittance_list(request):
     from django.db.models import Q
@@ -160,23 +172,27 @@ def remittance_new(request):
         note = request.POST.get('note', '').strip()
         proof = request.FILES.get('proof')
 
-        linked_numbers = request.POST.getlist('linked_number')
-        amounts = request.POST.getlist('amount_sar')
-        invoice_ids = request.POST.getlist('invoice_id')
+        try:
+            raw_lines = json.loads(request.POST.get('lines', '[]'))
+        except (ValueError, TypeError):
+            raw_lines = []
 
         lines_data = []
-        for ln, amt, inv_id in zip(linked_numbers, amounts, invoice_ids):
+        for ld in raw_lines:
             try:
-                amt_val = float(amt.replace(',', '').strip()) if amt and amt.strip() else 0
-            except ValueError:
+                amt_val = float(ld.get('amount_sar') or 0)
+            except (ValueError, TypeError):
                 amt_val = 0
             if amt_val > 0:
-                lines_data.append({'linked_number': ln, 'amount_sar': amt_val, 'invoice_id': inv_id or None})
+                lines_data.append({
+                    'linked_number': ld.get('linked_number'),
+                    'amount_sar': amt_val,
+                    'invoice_id': ld.get('invoice_id') or None,
+                })
 
         if not lines_data:
-            reservasi = _build_reservasi_mengendap()
-            return render(request, 'hw/remittance/remittance_form.html', {
-                'reservasi': reservasi,
+            return inertia_render(request, "Remittance/Form", props={
+                'reservasi': _serialize_reservasi(),
                 'error': 'Masukkan minimal satu nominal untuk dikirim.',
                 'today': str(date.today()),
             })
@@ -202,9 +218,8 @@ def remittance_new(request):
 
         return redirect('remittance_detail', pk=rem.pk)
 
-    reservasi = _build_reservasi_mengendap()
-    return render(request, 'hw/remittance/remittance_form.html', {
-        'reservasi': reservasi,
+    return inertia_render(request, "Remittance/Form", props={
+        'reservasi': _serialize_reservasi(),
         'today': str(date.today()),
     })
 
@@ -314,21 +329,40 @@ def remittance_edit(request, pk):
             update_fields.append('proof')
         rem.save(update_fields=update_fields)
 
-        line_ids = request.POST.getlist('line_id')
-        amounts = request.POST.getlist('amount_sar')
-        for line_id, amt in zip(line_ids, amounts):
+        try:
+            raw_lines = json.loads(request.POST.get('lines', '[]'))
+        except (ValueError, TypeError):
+            raw_lines = []
+        for ld in raw_lines:
             try:
-                amt_val = float(amt.replace(',', '').strip()) if amt and amt.strip() else 0
-            except ValueError:
+                amt_val = float(ld.get('amount_sar') or 0)
+            except (ValueError, TypeError):
                 amt_val = 0
-            RemittanceLine.objects.filter(pk=line_id, remittance=rem).update(amount_sar=amt_val)
+            RemittanceLine.objects.filter(pk=ld.get('line_id'), remittance=rem).update(amount_sar=amt_val)
 
         return redirect('remittance_detail', pk=rem.pk)
 
     lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
-    return render(request, 'hw/remittance/remittance_edit.html', {
-        'rem': rem,
-        'lines': lines,
+    return inertia_render(request, "Remittance/Edit", props={
+        "rem": {
+            "id": rem.id,
+            "remittance_number": rem.remittance_number,
+            "date": rem.date.strftime("%Y-%m-%d"),
+            "receipt_reference": rem.receipt_reference or "",
+            "status": rem.status,
+            "note": rem.note or "",
+            "proof_url": rem.proof.url if rem.proof else None,
+        },
+        "lines": [{
+            "line_id": l.pk,
+            "linked_number": l.linked_number,
+            "amount_sar": int(l.amount_sar or 0),
+            "invoice": {
+                "pk": l.invoice.pk,
+                "invoice_number": l.invoice.invoice_number,
+                "customer_name": l.invoice.customer_name,
+            } if l.invoice_id else None,
+        } for l in lines],
     })
 
 

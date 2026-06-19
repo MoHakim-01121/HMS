@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -102,7 +102,7 @@ def hotel_new(request):
         _save_hotel(h, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name, h.company)
         return redirect('hotel_detail', pk=h.pk)
-    return render(request, 'hw/hotel/hotel_form.html', {'edit': False})
+    return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})
 
 
 @login_required
@@ -119,10 +119,14 @@ def hotel_edit(request, pk):
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name, h.company, changes)
         return redirect('hotel_detail', pk=h.pk)
-    return render(request, 'hw/hotel/hotel_form.html', {
-        'hotel': h,
-        'edit': True,
-        'hotel_route_json': _json.dumps(h.route) if h.route else 'null',
+    return inertia_render(request, "Hotel/Form", props={
+        "edit": True,
+        "hotel": {
+            "id": h.id, "name": h.name, "city": h.city, "stars": h.stars,
+            "area": h.area, "note": h.note, "is_active": h.is_active,
+            "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
+            "lat": h.lat, "lng": h.lng, "route": h.route,
+        },
     })
 
 
@@ -170,7 +174,7 @@ def hotel_detail(request, pk):
 
 @login_required
 def hotel_map(request):
-    return render(request, 'hw/hotel/hotel_map.html')
+    return inertia_render(request, "Hotel/Map")
 
 
 @login_required

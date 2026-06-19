@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -192,7 +192,7 @@ def client_map(request):
     company = _company(request)
     qs = Client.objects.filter(company=company) if company else Client.objects.all()
     qs = qs.filter(lat__isnull=False, lng__isnull=False)
-    return render(request, 'hw/client/client_map.html', {'clients_count': qs.count()})
+    return inertia_render(request, "Client/Map", props={"clients_count": qs.count()})
 
 
 @login_required

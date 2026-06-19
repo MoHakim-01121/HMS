@@ -1,4 +1,5 @@
 ﻿import csv
+import json
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -21,6 +22,7 @@ from .helpers import (
     _parse_date,
     _render_list_pdf,
     _save_hotel_payments,
+    _to_float,
 )
 from .pdf import _render_invoice_pdf
 
@@ -140,23 +142,14 @@ def invoice_new(request):
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=invoice_number).exists():
-            messages.error(request, f"Nomor Invoice '{invoice_number}' sudah digunakan.")
-            cl_qs = ConfirmationLetter.objects.select_related("invoice")
-            if active_company:
-                cl_qs = cl_qs.filter(company=active_company)
-            cl_data = [{
-                "id": cl.pk, "ref": cl.confirmation_number, "guest": cl.guest_name,
-                "hotel": cl.hotel_name or "-",
-                "check_in": cl.check_in.isoformat() if cl.check_in else "",
-                "check_out": cl.check_out.isoformat() if cl.check_out else "",
-                "total": int(round(cl.total_price)) if cl.total_price else 0,
-                "inv": cl.invoice.invoice_number if cl.invoice_id else "",
-            } for cl in cl_qs.order_by("-created_at")[:100]]
-            return render(request, "hw/invoice/invoice_form.html", {
+            return inertia_render(request, "Invoice/Form", props={
+                "edit": False,
+                "invoice": None,
                 "suggested_number": invoice_number,
                 "default_company": active_company or "konoz",
-                "cl_data_json": cl_data,
-                "form_data": request.POST,
+                "cl_data": _cl_data_for_form(active_company),
+                "initial": _invoice_echo(request),
+                "errors": {"invoice_number": f"Nomor Invoice '{invoice_number}' sudah digunakan."},
             })
 
         invoice = Invoice.objects.create(
@@ -171,7 +164,7 @@ def invoice_new(request):
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
 
-        cl_ids = request.POST.getlist("linked_cl_ids")
+        cl_ids = _parse_cl_ids(request)
         if cl_ids:
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
@@ -179,24 +172,12 @@ def invoice_new(request):
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat.")
         return redirect("invoice_detail", pk=invoice.pk)
 
-    cl_qs = ConfirmationLetter.objects.select_related("invoice")
-    if active_company:
-        cl_qs = cl_qs.filter(company=active_company)
-    cl_data = [{
-        "id": cl.pk,
-        "ref": cl.confirmation_number,
-        "guest": cl.guest_name,
-        "hotel": cl.hotel_name or "-",
-        "check_in": cl.check_in.isoformat() if cl.check_in else "",
-        "check_out": cl.check_out.isoformat() if cl.check_out else "",
-        "total": int(round(cl.total_price)) if cl.total_price else 0,
-        "inv": cl.invoice.invoice_number if cl.invoice_id else "",
-    } for cl in cl_qs.order_by("-created_at")[:100]]
-
-    return render(request, "hw/invoice/invoice_form.html", {
+    return inertia_render(request, "Invoice/Form", props={
+        "edit": False,
+        "invoice": None,
         "suggested_number": suggested_number,
         "default_company": active_company or "konoz",
-        "cl_data_json": cl_data,
+        "cl_data": _cl_data_for_form(active_company),
     })
 
 
@@ -284,8 +265,13 @@ def invoice_edit(request, pk):
         }
         new_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
-            messages.error(request, f"Nomor Invoice '{new_number}' sudah digunakan.")
-            return render(request, "hw/invoice/invoice_form.html", {"invoice": invoice, "edit": True, "form_data": request.POST})
+            return inertia_render(request, "Invoice/Form", props={
+                "edit": True,
+                "invoice": _serialize_hotel_invoice(invoice),
+                "cl_data": _cl_data_for_form(active_company),
+                "initial": _invoice_echo(request),
+                "errors": {"invoice_number": f"Nomor Invoice '{new_number}' sudah digunakan."},
+            })
 
         invoice.company = request.POST.get("company", "konoz")
         invoice.invoice_number = new_number
@@ -298,7 +284,7 @@ def invoice_edit(request, pk):
         invoice.payments.all().delete()
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
-        cl_ids = request.POST.getlist("linked_cl_ids")
+        cl_ids = _parse_cl_ids(request)
         if cl_ids:
             ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
@@ -315,21 +301,10 @@ def invoice_edit(request, pk):
         messages.success(request, f"Invoice {invoice.invoice_number} berhasil diperbarui.")
         return redirect("invoice_detail", pk=invoice.pk)
 
-    cl_qs = ConfirmationLetter.objects.select_related("invoice")
-    if active_company:
-        cl_qs = cl_qs.filter(company=active_company)
-    cl_data = [{
-        "id": cl.pk,
-        "ref": cl.confirmation_number,
-        "guest": cl.guest_name,
-        "hotel": cl.hotel_name or "-",
-        "check_in": cl.check_in.isoformat() if cl.check_in else "",
-        "check_out": cl.check_out.isoformat() if cl.check_out else "",
-        "total": int(round(cl.total_price)) if cl.total_price else 0,
-        "inv": cl.invoice.invoice_number if cl.invoice_id else "",
-    } for cl in cl_qs.order_by("-created_at")[:100]]
-    return render(request, "hw/invoice/invoice_form.html", {
-        "invoice": invoice, "edit": True, "cl_data_json": cl_data,
+    return inertia_render(request, "Invoice/Form", props={
+        "edit": True,
+        "invoice": _serialize_hotel_invoice(invoice),
+        "cl_data": _cl_data_for_form(active_company),
     })
 
 
@@ -439,18 +414,89 @@ def invoice_duplicate(request, pk):
 
 
 def _save_reservations(invoice, request):
-    reservation_numbers = request.POST.getlist("reservation_number")
-    hotels = request.POST.getlist("hotel")
-    checkins = request.POST.getlist("check_in")
-    checkouts = request.POST.getlist("check_out")
-    reservation_totals = request.POST.getlist("reservation_total")
-    for num, hotel, ci, co, total in zip(reservation_numbers, hotels, checkins, checkouts, reservation_totals):
-        amt = int(round(float(total.strip()))) if total and total.strip() else 0
+    try:
+        rows = json.loads(request.POST.get("reservations", "[]"))
+    except (ValueError, TypeError):
+        rows = []
+    for r in rows:
         Reservation.objects.create(
             invoice=invoice,
-            reservation_number=num.strip() if num else "-",
-            hotel=hotel.strip() if hotel else "-",
-            check_in=_parse_date(ci),
-            check_out=_parse_date(co),
-            total_sar=amt,
+            reservation_number=(r.get("reservation_number") or "-").strip() or "-",
+            hotel=(r.get("hotel") or "-").strip() or "-",
+            check_in=_parse_date(r.get("check_in")),
+            check_out=_parse_date(r.get("check_out")),
+            total_sar=int(round(_to_float(r.get("reservation_total")))),
         )
+
+
+def _invoice_echo(request):
+    """Echo submitted values (incl. JSON arrays) back to the form on error."""
+    def _loads(key):
+        try:
+            return json.loads(request.POST.get(key, "[]"))
+        except (ValueError, TypeError):
+            return []
+    return {
+        "company": request.POST.get("company", "konoz"),
+        "customer_name": request.POST.get("customer_name", ""),
+        "invoice_number": request.POST.get("invoice_number", ""),
+        "issued_date": request.POST.get("issued_date", ""),
+        "due_date": request.POST.get("due_date", ""),
+        "reservations": _loads("reservations"),
+        "payments": _loads("payments"),
+        "linked_cl_ids": _loads("linked_cl_ids"),
+    }
+
+
+def _serialize_hotel_invoice(invoice):
+    """Invoice + reservations + payments serialized for the React form."""
+    return {
+        "pk": invoice.pk,
+        "company": invoice.company,
+        "customer_name": invoice.customer_name,
+        "invoice_number": invoice.invoice_number,
+        "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",
+        "due_date": invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "",
+        "reservations": [{
+            "reservation_number": r.reservation_number,
+            "hotel": r.hotel,
+            "check_in": r.check_in.strftime("%Y-%m-%d") if r.check_in else "",
+            "check_out": r.check_out.strftime("%Y-%m-%d") if r.check_out else "",
+            "reservation_total": int(r.total_sar or 0),
+        } for r in invoice.reservations.all()],
+        "payments": [{
+            "ref": p.linked_number,
+            "date": p.payment_date.strftime("%Y-%m-%d") if p.payment_date else "",
+            "method": p.method or "Cash",
+            "amount": float(p.amount),
+            "currency": p.currency,
+            "exchange": float(p.exchange_rate),
+            "note": p.note,
+            "proof_keep": p.proof.name if p.proof else "",
+            "proof_url": p.proof.url if p.proof else None,
+        } for p in invoice.payments.all()],
+    }
+
+
+def _parse_cl_ids(request):
+    try:
+        ids = json.loads(request.POST.get("linked_cl_ids", "[]"))
+    except (ValueError, TypeError):
+        ids = []
+    return [i for i in ids if i]
+
+
+def _cl_data_for_form(active_company):
+    cl_qs = ConfirmationLetter.objects.select_related("invoice")
+    if active_company:
+        cl_qs = cl_qs.filter(company=active_company)
+    return [{
+        "id": cl.pk,
+        "ref": cl.confirmation_number,
+        "guest": cl.guest_name,
+        "hotel": cl.hotel_name or "-",
+        "check_in": cl.check_in.isoformat() if cl.check_in else "",
+        "check_out": cl.check_out.isoformat() if cl.check_out else "",
+        "total": int(round(cl.total_price)) if cl.total_price else 0,
+        "inv": cl.invoice.invoice_number if cl.invoice_id else "",
+    } for cl in cl_qs.order_by("-created_at")[:100]]

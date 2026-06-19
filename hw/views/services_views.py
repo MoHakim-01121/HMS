@@ -1,4 +1,5 @@
 ﻿import csv
+import json
 from datetime import date, timedelta
 
 from django.contrib import messages
@@ -15,10 +16,10 @@ from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
     _is_mobile,
     _page_range_display,
-    _paginated_list,
     _parse_date,
     _render_list_pdf,
     _save_service_payments,
+    _to_float,
 )
 from .pdf import _render_services_pdf
 
@@ -66,11 +67,13 @@ def services_new(request):
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=invoice_number).exists():
-            messages.error(request, f"Nomor Invoice '{invoice_number}' sudah digunakan.")
-            return render(request, "hw/services/services_form.html", {
-                "suggested_number": invoice_number,
+            return inertia_render(request, "Services/Form", props={
+                "edit": False,
+                "invoice": None,
+                "suggested_number": suggested_number,
                 "default_company": request.session.get("active_company", "ijabah"),
-                "form_data": request.POST,
+                "initial": _services_echo(request),
+                "errors": {"invoice_number": f"Nomor Invoice '{invoice_number}' sudah digunakan."},
             })
 
         invoice = Invoice.objects.create(
@@ -88,7 +91,9 @@ def services_new(request):
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil dibuat.")
         return redirect("services_detail", pk=invoice.pk)
 
-    return render(request, "hw/services/services_form.html", {
+    return inertia_render(request, "Services/Form", props={
+        "edit": False,
+        "invoice": None,
         "suggested_number": suggested_number,
         "default_company": request.session.get("active_company", "ijabah"),
     })
@@ -141,8 +146,14 @@ def services_edit(request, pk):
         }
         new_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
-            messages.error(request, f"Nomor Invoice '{new_number}' sudah digunakan.")
-            return render(request, "hw/services/services_form.html", {"invoice": invoice, "edit": True, "form_data": request.POST})
+            echo = _services_echo(request)
+            echo["pk"] = invoice.pk
+            return inertia_render(request, "Services/Form", props={
+                "edit": True,
+                "invoice": _serialize_service_invoice(invoice),
+                "initial": echo,
+                "errors": {"invoice_number": f"Nomor Invoice '{new_number}' sudah digunakan."},
+            })
 
         invoice.company = request.POST.get("company", "ijabah")
         invoice.invoice_number = new_number
@@ -169,7 +180,10 @@ def services_edit(request, pk):
         messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil diperbarui.")
         return redirect("services_detail", pk=invoice.pk)
 
-    return render(request, "hw/services/services_form.html", {"invoice": invoice, "edit": True})
+    return inertia_render(request, "Services/Form", props={
+        "edit": True,
+        "invoice": _serialize_service_invoice(invoice),
+    })
 
 
 @login_required
@@ -256,16 +270,72 @@ def services_duplicate(request, pk):
 
 
 def _save_service_items(invoice, request):
-    service_names = request.POST.getlist("service")
-    qtys = request.POST.getlist("qty")
-    amounts = request.POST.getlist("amount")
-    for i, name in enumerate(service_names):
+    try:
+        rows = json.loads(request.POST.get("service_items", "[]"))
+    except (ValueError, TypeError):
+        rows = []
+    number = 0
+    for r in rows:
+        name = (r.get("name") or "").strip()
         if not name:
             continue
+        number += 1
         ServiceItem.objects.create(
             invoice=invoice,
-            service_number=i + 1,
+            service_number=number,
             name=name,
-            qty=int(qtys[i]) if i < len(qtys) and qtys[i] else 1,
-            price=float(amounts[i]) if i < len(amounts) and amounts[i] else 0,
+            qty=int(_to_float(r.get("qty"), 1)) or 1,
+            price=_to_float(r.get("price")),
         )
+
+
+def _services_echo(request):
+    """Echo submitted values (incl. JSON arrays) back to the form on error."""
+    try:
+        items = json.loads(request.POST.get("service_items", "[]"))
+    except (ValueError, TypeError):
+        items = []
+    try:
+        pays = json.loads(request.POST.get("payments", "[]"))
+    except (ValueError, TypeError):
+        pays = []
+    return {
+        "company": request.POST.get("company", "ijabah"),
+        "customer_name": request.POST.get("customer_name", ""),
+        "invoice_number": request.POST.get("invoice_number", ""),
+        "invoice_currency": request.POST.get("invoice_currency", "USD"),
+        "issued_date": request.POST.get("issued_date", ""),
+        "due_date": request.POST.get("due_date", ""),
+        "service_items": items,
+        "payments": pays,
+    }
+
+
+def _serialize_service_invoice(invoice):
+    """Invoice + service items + payments serialized for the React form."""
+    return {
+        "pk": invoice.pk,
+        "company": invoice.company,
+        "customer_name": invoice.customer_name,
+        "invoice_number": invoice.invoice_number,
+        "invoice_currency": invoice.currency,
+        "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",
+        "due_date": invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "",
+        "service_items": [{
+            "service_number": it.service_number,
+            "name": it.name,
+            "qty": it.qty,
+            "price": float(it.price),
+        } for it in invoice.service_items.all()],
+        "payments": [{
+            "ref": p.linked_number,
+            "date": p.payment_date.strftime("%Y-%m-%d") if p.payment_date else "",
+            "method": p.method,
+            "amount": float(p.amount),
+            "currency": p.currency,
+            "exchange": float(p.exchange_rate),
+            "note": p.note,
+            "proof_keep": p.proof.name if p.proof else "",
+            "proof_url": p.proof.url if p.proof else None,
+        } for p in invoice.payments.all()],
+    }

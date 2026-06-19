@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import urllib.parse
 
 from django.core.paginator import Paginator
@@ -73,39 +74,50 @@ def _parse_date(date_str):
         return None
 
 
+def _to_float(val, default=0.0):
+    try:
+        if isinstance(val, str):
+            val = val.replace(',', '').strip()
+        return float(val) if val not in (None, '') else default
+    except (ValueError, TypeError):
+        return default
+
+
 def _save_payments(invoice, request, ref_field, default_currency):
-    """Create Payment objects from POST data lists. Sets cl FK when ref matches a CL number."""
-    refs      = request.POST.getlist(ref_field)
-    dates     = request.POST.getlist("payment_date")
-    methods   = request.POST.getlist("payment_method")
-    amounts   = request.POST.getlist("payment_amount")
-    currencies = request.POST.getlist("payment_currency")
-    exchanges = request.POST.getlist("payment_exchange")
-    notes     = request.POST.getlist("payment_note")
+    """Create Payment objects from a JSON `payments` array (one object per row).
+
+    Each row: {ref, date, method, amount, currency, exchange, note, proof_keep}.
+    New proof uploads arrive as multipart files keyed `payment_proof_<index>`,
+    where <index> is the row's position in the array. Sets cl FK when ref
+    matches a CL number.
+    """
+    try:
+        rows = json.loads(request.POST.get('payments', '[]'))
+    except (ValueError, TypeError):
+        rows = []
 
     # Pre-fetch CLs that match any of the ref numbers (one query instead of N)
-    ref_set = {r.strip() for r in refs if r and r.strip()}
+    ref_set = {(r.get('ref') or '').strip() for r in rows if (r.get('ref') or '').strip()}
     cl_by_number = {
         cl.confirmation_number: cl
         for cl in ConfirmationLetter.objects.filter(confirmation_number__in=ref_set)
     } if ref_set else {}
 
-    for i, (ref, dt, method, amount, currency, exchange, note) in enumerate(
-        zip(refs, dates, methods, amounts, currencies, exchanges, notes)
-    ):
+    for i, r in enumerate(rows):
         proof = request.FILES.get(f"payment_proof_{i}")
-        keep  = request.POST.get(f"payment_proof_keep_{i}", "")
-        ref_clean = ref.strip() if ref else ""
+        keep  = (r.get('proof_keep') or '').strip()
+        ref_clean = (r.get('ref') or '').strip()
+        currency = (r.get('currency') or default_currency)
         p = Payment.objects.create(
             invoice=invoice,
             cl=cl_by_number.get(ref_clean),
             linked_number=ref_clean,
-            payment_date=_parse_date(dt),
-            method=method.strip() if method else "",
-            amount=float(amount.strip()) if amount and amount.strip() else 0,
+            payment_date=_parse_date(r.get('date')),
+            method=(r.get('method') or '').strip(),
+            amount=_to_float(r.get('amount')),
             currency=currency.upper() if currency else default_currency,
-            exchange_rate=float(exchange.strip()) if exchange and exchange.strip() else 1,
-            note=note.strip() if note else "",
+            exchange_rate=_to_float(r.get('exchange'), 1) or 1,
+            note=(r.get('note') or '').strip(),
         )
         if proof:
             p.proof = proof

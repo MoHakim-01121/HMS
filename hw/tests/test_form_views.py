@@ -178,3 +178,28 @@ class ClFormTests(TestCase):
         rooms = Room.objects.filter(cl=cl)
         self.assertEqual(rooms.count(), 1)
         self.assertEqual(rooms.first().quantity, 2)
+
+
+class ProfileTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("profiler", password="pw12345")
+        self.client.force_login(self.user)
+
+    def test_profile_renders_inertia(self):
+        resp = self.client.get("/account/profile/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 200)
+        page = resp.json()
+        self.assertEqual(page["component"], "Account/Profile")
+        self.assertEqual(page["props"]["account"]["username"], "profiler")
+        self.assertIn("activities", page["props"])
+
+    def test_profile_serializes_activity_with_changes(self):
+        from hw.models import ActivityLog, log_activity
+        log_activity(self.user, ActivityLog.ACTION_EDIT, "Hotel", "Hilton", "konoz",
+                     [{"label": "Nama", "before": "A", "after": "B"}])
+        page = self.client.get("/account/profile/", HTTP_X_INERTIA="true").json()
+        acts = page["props"]["activities"]
+        edits = [a for a in acts if a["action"] == "edit"]
+        self.assertEqual(len(edits), 1)
+        self.assertEqual(edits[0]["object_ref"], "Hilton")
+        self.assertEqual(edits[0]["changes"][0]["after"], "B")
