@@ -15,7 +15,7 @@ export default function Detail({ penalty: p }) {
       <div className="page-header">
         <div>
           <div className="page-title">{p.penalty_number}</div>
-          <div className="page-sub">Penalti pembatalan — {p.cl.confirmation_number}</div>
+          <div className="page-sub">Cancellation penalty — {p.cl.confirmation_number}</div>
         </div>
         <div className="page-actions">
           <a href={`/penalty/${p.id}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
@@ -27,27 +27,27 @@ export default function Detail({ penalty: p }) {
         <div>
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Detail Penalti</span>
-              <span className={"badge " + (p.is_paid ? "badge-green" : "badge-yellow")}>{p.is_paid ? "Lunas" : "Belum"}</span>
+              <span className="card-title">Penalty Details</span>
+              <span className={"badge " + (p.is_paid ? "badge-green" : "badge-yellow")}>{p.is_paid ? "Paid" : "Unpaid"}</span>
             </div>
             <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Field label="Tamu / CL">{p.cl.guest_name} — {p.cl.confirmation_number}</Field>
-              <Field label="Tanggal Pembatalan">{p.cancellation_date || "—"}</Field>
-              <Field label="Jumlah Penalti">{fmt(p.penalty_amount)} {p.penalty_currency}</Field>
-              {p.exchange_rate !== 1 && <Field label="Kurs">{p.exchange_rate}</Field>}
-              {p.reason && <Field label="Alasan">{p.reason}</Field>}
-              {p.is_paid && <Field label="Tanggal Bayar">{p.payment_date || "—"}</Field>}
-              {p.payment_method && <Field label="Metode Bayar">{p.payment_method}</Field>}
-              {p.payment_note && <Field label="Catatan Bayar">{p.payment_note}</Field>}
+              <Field label="Guest / CL">{p.cl.guest_name} — {p.cl.confirmation_number}</Field>
+              <Field label="Cancellation Date">{p.cancellation_date || "—"}</Field>
+              <Field label="Penalty Amount">{fmt(p.penalty_amount)} {p.penalty_currency}</Field>
+              {p.exchange_rate !== 1 && <Field label="Exchange Rate">{p.exchange_rate}</Field>}
+              {p.reason && <Field label="Reason">{p.reason}</Field>}
+              {p.is_paid && <Field label="Payment Date">{p.payment_date || "—"}</Field>}
+              {p.payment_method && <Field label="Payment Method">{p.payment_method}</Field>}
+              {p.payment_note && <Field label="Payment Note">{p.payment_note}</Field>}
               {p.note && (
                 <div className="field">
-                  <div className="field-label">Catatan</div>
+                  <div className="field-label">Note</div>
                   <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{p.note}</div>
                 </div>
               )}
             </div>
             <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-              <button onClick={del} className="btn btn-danger btn-sm btn-full">Hapus Penalti</button>
+              <button onClick={del} className="btn btn-danger btn-sm btn-full">Delete Penalty</button>
             </div>
           </div>
         </div>

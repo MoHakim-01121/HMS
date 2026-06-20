@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from "react";
 export default function Combobox({
   name, value, onTextChange, onSelect, options = [],
   getLabel = (o) => o.name, getSub, placeholder, error,
+  emptyLabel = "No client — used as guest name",
 }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(-1);
@@ -57,10 +58,10 @@ export default function Combobox({
           boxShadow: "0 12px 32px rgba(0,0,0,.5)",
         }}>
           {filtered.length === 0 ? (
-            <div className="ac-empty">No client — used as guest name</div>
+            <div className="ac-empty">{emptyLabel}</div>
           ) : filtered.map((o, i) => (
             <div
-              key={o.id}
+              key={o.id ?? i}
               className={"ac-item" + (i === focused ? " focused" : "")}
               onMouseDown={(e) => { e.preventDefault(); choose(o); }}
               onMouseEnter={() => setFocused(i)}

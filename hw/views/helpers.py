@@ -1,10 +1,7 @@
 from datetime import datetime
 import json
-import urllib.parse
 
-from django.core.paginator import Paginator
 from django.http import HttpResponse
-from django.shortcuts import render
 
 from ..models import ConfirmationLetter, Payment
 

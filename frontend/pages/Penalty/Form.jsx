@@ -35,52 +35,52 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
     <div className="form-page">
       <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
-          <div className="page-title">{edit ? "Edit Penalti" : "Dokumen Penalti Baru"}</div>
+          <div className="page-title">{edit ? "Edit Penalty" : "New Penalty Document"}</div>
           <div className="page-sub">{cl.guest_name} — {cl.confirmation_number}</div>
         </div>
       </div>
 
       <form method="post" onSubmit={submit}>
         <FormPanel>
-          <FormSection label="Informasi Penalti">
+          <FormSection label="Penalty Information">
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Nomor Penalti" name="penalty_number" value={form.data.penalty_number} onChange={set("penalty_number")} error={errors.penalty_number} />
-              <FormField label="Tanggal Pembatalan" name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
+              <FormField label="Penalty Number" name="penalty_number" value={form.data.penalty_number} onChange={set("penalty_number")} error={errors.penalty_number} />
+              <FormField label="Cancellation Date" name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
             </div>
-            <FormField name="reason" label="Alasan">
-              <textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder="Alasan pembatalan…" />
+            <FormField name="reason" label="Reason">
+              <textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder="Cancellation reason…" />
             </FormField>
           </FormSection>
 
-          <FormSection label="Nilai">
+          <FormSection label="Amount">
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Jumlah" name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
-              <FormField label="Mata Uang" name="penalty_currency">
+              <FormField label="Amount" name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
+              <FormField label="Currency" name="penalty_currency">
                 <select name="penalty_currency" value={form.data.penalty_currency} onChange={(e) => form.setData("penalty_currency", e.target.value)}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </FormField>
             </div>
-            <FormField label="Kurs ke SAR" name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
+            <FormField label="Exchange Rate to SAR" name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
           </FormSection>
 
-          <FormSection label="Pembayaran">
+          <FormSection label="Payment">
             <label className="ff-check">
               <input type="checkbox" checked={form.data.is_paid} onChange={(e) => form.setData("is_paid", e.target.checked)} />
-              <span>Sudah dibayar</span>
+              <span>Already paid</span>
             </label>
             {form.data.is_paid && (
               <div className="fg-2" style={{ marginTop: 12 }}>
-                <FormField label="Tanggal Bayar" name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
-                <FormField label="Metode" name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder="Transfer / Tunai" />
-                <FormField span={2} name="payment_note" label="Catatan Bayar">
+                <FormField label="Payment Date" name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
+                <FormField label="Method" name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder="Transfer / Cash" />
+                <FormField span={2} name="payment_note" label="Payment Note">
                   <textarea name="payment_note" rows={2} value={form.data.payment_note} onChange={(e) => form.setData("payment_note", e.target.value)} />
                 </FormField>
               </div>
             )}
           </FormSection>
 
-          <FormSection label="Catatan Internal">
+          <FormSection label="Internal Notes">
             <FormField name="note">
               <textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} />
             </FormField>
@@ -88,7 +88,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
 
           <FormActions
             cancelHref={edit ? `/penalty/${p.id}/` : `/cl/${cl.id}/`}
-            submitLabel={edit ? "Simpan Perubahan" : "Buat Penalti"}
+            submitLabel={edit ? "Save Changes" : "Create Penalty"}
             processing={form.processing} />
         </FormPanel>
       </form>

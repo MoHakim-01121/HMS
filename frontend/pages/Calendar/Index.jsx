@@ -31,12 +31,12 @@ function gridCss(days) {
 .cal-hotel-name { grid-column:1; grid-row:1 / span 2; padding:0 12px; font-size:11px; font-weight:500; color:var(--text); display:flex; align-items:center; border-right:1px solid var(--border); position:sticky; left:0; background:var(--surface); z-index:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cal-cell { border-right:1px solid var(--border); }
 .cal-cell.today-col { background:rgba(94,106,210,.04); }
-.cal-blocks { grid-column:2 / -1; display:grid; grid-template-columns:repeat(${days},1fr); align-items:center; padding:8px 0; position:relative; min-height:46px; }
+.cal-blocks { grid-column:2 / -1; display:grid; grid-template-columns:repeat(${days},1fr); grid-auto-rows:28px; row-gap:4px; align-items:center; padding:8px 0; position:relative; min-height:46px; }
 .cal-block { grid-row:1; height:28px; border-radius:var(--r); display:flex; align-items:center; padding:0 7px; font-size:10px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; transition:filter .12s,transform .1s; margin:0 1px; min-width:0; }
 .cal-block:hover { filter:brightness(1.15); transform:translateY(-1px); z-index:5; }
 .block-blue { background:#7B87E8; color:#fff; } .block-yellow { background:#F0A420; color:#fff; }
 .block-red { background:#E85555; color:#fff; } .block-green { background:#26C281; color:#fff; }
-.cal-today-bg { grid-row:1; align-self:stretch; background:rgba(94,106,210,.07); pointer-events:none; z-index:0; margin:-8px 0; }
+.cal-today-bg { grid-row:1 / -1; align-self:stretch; background:rgba(94,106,210,.07); pointer-events:none; z-index:0; margin:-8px 0; }
 .cal-tooltip { position:fixed; background:var(--surface); border:1px solid var(--border-2); border-radius:var(--r-xl); z-index:var(--z-overlay); pointer-events:none; min-width:230px; max-width:290px; box-shadow:var(--shadow-xl); overflow:hidden; }
 .tt-head { padding:12px 14px 10px; border-bottom:1px solid var(--border); }
 .tt-guest { font-size:13px; font-weight:700; color:var(--text); line-height:1.3; }
@@ -57,10 +57,26 @@ function gridCss(days) {
   .cal-row { grid-template-columns:72px repeat(${days},minmax(30px,1fr)); min-width:calc(72px + ${days} * 30px); }
   .cal-hotel-th { font-size:9px; padding:6px 8px; } .cal-hotel-name { font-size:10px; padding:0 6px; min-height:0; }
   .cal-day-th { padding:6px 0; font-size:9px; }
-  .cal-blocks { grid-column:2 / -1; grid-template-columns:repeat(${days},minmax(30px,1fr)); min-height:38px; padding:6px 0; }
+  .cal-blocks { grid-column:2 / -1; grid-template-columns:repeat(${days},minmax(30px,1fr)); grid-auto-rows:22px; row-gap:3px; min-height:38px; padding:6px 0; }
   .cal-block { font-size:9px; height:22px; padding:0 4px; border-radius:3px; }
   .cal-tooltip { position:fixed; bottom:80px; left:12px; right:12px; top:auto; max-width:100%; min-width:0; }
 }`;
+}
+
+// Assign each reservation a lane (row) so that overlapping periods stack below
+// each other instead of rendering on top of one another. Greedy interval packing:
+// a reservation joins the first lane whose last block ends before it starts.
+function packLanes(reservations) {
+  const items = reservations.map((res, i) => ({ res, i }));
+  items.sort((a, b) => a.res.start - b.res.start || a.res.end - b.res.end);
+  const laneEnds = []; // last occupied day per lane
+  for (const item of items) {
+    let lane = laneEnds.findIndex((end) => item.res.start > end);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(item.res.end); }
+    else { laneEnds[lane] = item.res.end; }
+    item.lane = lane;
+  }
+  return items;
 }
 
 function countdown(checkin) {
@@ -94,24 +110,24 @@ export default function Calendar(props) {
       <style dangerouslySetInnerHTML={{ __html: gridCss(days.length) }} />
 
       <Link href="/" className="page-back">
-        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>Kembali
+        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>Back
       </Link>
 
       <div className="cal-topbar">
         <div className="cal-topbar-left">
           <div className="cal-nav">
-            <Link href={`/calendar/?year=${prev_year}&month=${prev_month}`} title="Bulan sebelumnya">
+            <Link href={`/calendar/?year=${prev_year}&month=${prev_month}`} title="Previous month">
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <span className="cal-month">{month_name} {year}</span>
-            <Link href={`/calendar/?year=${next_year}&month=${next_month}`} title="Bulan berikutnya">
+            <Link href={`/calendar/?year=${next_year}&month=${next_month}`} title="Next month">
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
             </Link>
           </div>
-          <span className="cal-count">{total_reservations} reservasi</span>
+          <span className="cal-count">{total_reservations} reservations</span>
         </div>
         <div className="cal-topbar-right">
-          {today_day && active_today > 0 && <div className="sum-pill blue">Aktif <span className="sum-val">{active_today}</span></div>}
+          {today_day && active_today > 0 && <div className="sum-pill blue">Active <span className="sum-val">{active_today}</span></div>}
           {today_day && checkins_today > 0 && <div className="sum-pill green">CI <span className="sum-val">{checkins_today}</span></div>}
           {today_day && checkouts_today > 0 && <div className="sum-pill">CO <span className="sum-val">{checkouts_today}</span></div>}
           {today_day && tentative_count > 0 && <div className="sum-pill red">Tentative <span className="sum-val">{tentative_count}</span></div>}
@@ -137,9 +153,9 @@ export default function Calendar(props) {
                 {days.map((d) => <div key={d} className={"cal-cell" + (d === today_day ? " today-col" : "")}></div>)}
                 <div className="cal-blocks">
                   {today_day && <div className="cal-today-bg" style={{ gridColumn: `${today_day} / ${today_day + 1}` }}></div>}
-                  {hotel.reservations.map((res, ri) => (
-                    <a key={ri} href={res.url} className={`cal-block block-${res.color}`}
-                      style={{ gridColumn: `${res.start} / ${res.end + 1}` }}
+                  {packLanes(hotel.reservations).map(({ res, i, lane }) => (
+                    <a key={i} href={res.url} className={`cal-block block-${res.color}`}
+                      style={{ gridColumn: `${res.start} / ${res.end + 1}`, gridRow: lane + 1 }}
                       onMouseEnter={(e) => show(e, res)} onMouseMove={move} onMouseLeave={hide}>
                       {res.guest}
                     </a>
@@ -153,7 +169,7 @@ export default function Calendar(props) {
         <div className="card" style={{ marginTop: 0 }}>
           <div className="empty">
             <svg width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" className="empty-icon"><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" /></svg>
-            <div className="empty-title">Tidak ada reservasi</div>
+            <div className="empty-title">No reservations</div>
             <div className="empty-sub">{month_name} {year}</div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 
-const fmt = (n) => Number(n || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
+const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 export default function Form({ reservasi = [], today, error }) {
   const [amounts, setAmounts] = useState({});
@@ -47,8 +47,8 @@ export default function Form({ reservasi = [], today, error }) {
 
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div>
-          <div className="page-title">Kirim ke Pusat</div>
-          <div className="page-sub">Rekap pembayaran yang mengendap untuk dikirim</div>
+          <div className="page-title">Send to HQ</div>
+          <div className="page-sub">Summary of idle payments to send</div>
         </div>
       </div>
 
@@ -58,16 +58,16 @@ export default function Form({ reservasi = [], today, error }) {
         {/* ── Header ── */}
         <div className="form-panel" style={{ marginBottom: 12 }}>
           <div className="form-section">
-            <div className="form-section-label">Info Pengiriman</div>
+            <div className="form-section-label">Transfer Info</div>
             <div className="fg-4">
               <div className="ff">
-                <label>Tanggal Kirim *</label>
+                <label>Transfer Date *</label>
                 <input type="date" value={form.data.date} required
                   onChange={(e) => form.setData("date", e.target.value)} />
               </div>
               <div className="ff">
                 <label>Receipt Reference</label>
-                <input type="text" value={form.data.receipt_reference} placeholder="Kode kwitansi dari Pusat"
+                <input type="text" value={form.data.receipt_reference} placeholder="Receipt code from HQ"
                   onChange={(e) => form.setData("receipt_reference", e.target.value)} />
               </div>
               <div className="ff">
@@ -76,7 +76,7 @@ export default function Form({ reservasi = [], today, error }) {
                   onChange={(e) => form.setData("note", e.target.value)} />
               </div>
               <div className="ff">
-                <label>Kwitansi <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "inherit" }}>(opsional)</span></label>
+                <label>Receipt <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "inherit" }}>(optional)</span></label>
                 <input type="file" accept="image/*,.pdf"
                   onChange={(e) => form.setData("proof", e.target.files[0] || null)} />
               </div>
@@ -87,9 +87,9 @@ export default function Form({ reservasi = [], today, error }) {
         {/* ── Reservasi ── */}
         <div className="form-panel">
           <div className="form-section" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 }}>
-            <div className="form-section-label" style={{ marginBottom: 0 }}>Reservasi</div>
+            <div className="form-section-label" style={{ marginBottom: 0 }}>Reservations</div>
             {hasRows && (
-              <button type="button" className="btn btn-ghost" style={{ height: 26, padding: "0 10px", fontSize: 12 }} onClick={isiSemua}>Isi Semua</button>
+              <button type="button" className="btn btn-ghost" style={{ height: 26, padding: "0 10px", fontSize: 12 }} onClick={isiSemua}>Fill All</button>
             )}
           </div>
 
@@ -105,10 +105,10 @@ export default function Form({ reservasi = [], today, error }) {
                       <th className="r">Check-in</th>
                       <th className="r">Check-out</th>
                       <th className="r">Total</th>
-                      <th className="r">Terbayar</th>
-                      <th className="r">Sudah Kirim</th>
-                      <th className="r">Mengendap</th>
-                      <th className="r">Kirim Sekarang</th>
+                      <th className="r">Paid</th>
+                      <th className="r">Already Sent</th>
+                      <th className="r">Idle</th>
+                      <th className="r">Send Now</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -133,7 +133,7 @@ export default function Form({ reservasi = [], today, error }) {
                                 value={amounts[res.linked_number] ?? ""}
                                 onChange={(e) => setAmount(res.linked_number, e.target.value)} />
                             ) : lunas ? (
-                              <span className="badge-lunas">Lunas</span>
+                              <span className="badge-lunas">Paid</span>
                             ) : (
                               <span style={{ float: "right", color: "var(--text-3)", fontSize: 12 }}>-</span>
                             )}
@@ -145,24 +145,23 @@ export default function Form({ reservasi = [], today, error }) {
                 </table>
               </div>
               <div className="rem-total-bar">
-                <span className="rem-total-label">Total dikirim sekarang</span>
+                <span className="rem-total-label">Total sent now</span>
                 <span className="rem-total-val">{fmt(total)} SAR</span>
               </div>
             </>
           ) : (
             <div className="empty" style={{ padding: 40 }}>
-              <div className="empty-title">Tidak ada reservasi</div>
-              <div className="empty-sub">Belum ada pembayaran yang tercatat</div>
+              <div className="empty-title">No reservations</div>
+              <div className="empty-sub">No payments recorded yet</div>
             </div>
           )}
         </div>
 
         <div className="form-actions" style={{ padding: "14px 0 4px" }}>
-          <a href="/remittance/" className="btn btn-ghost">Batal</a>
+          <a href="/remittance/" className="btn btn-ghost">Cancel</a>
           {hasRows && (
             <button type="submit" className="btn btn-primary" disabled={form.processing}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-              {form.processing ? "Menyimpan..." : "Simpan Remittance"}
+              {form.processing ? "Saving..." : "Save Remittance"}
             </button>
           )}
         </div>

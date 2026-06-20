@@ -55,7 +55,7 @@ export default function Form({ client, edit, errors: serverErrors }) {
               <FormField label="PIC" name="pic" value={form.data.pic} onChange={set("pic")} placeholder="Person in charge name" />
               <FormField label="WhatsApp" name="wa" value={form.data.wa} onChange={set("wa")} placeholder="628123456789" inputMode="tel" />
             </div>
-            <FormField label="Email" name="email" type="email" value={form.data.email} onChange={set("email")} placeholder="email@agen.com" error={errors.email} />
+            <FormField label="Email" name="email" type="email" value={form.data.email} onChange={set("email")} placeholder="email@agency.com" error={errors.email} />
           </FormSection>
 
           <FormSection label="Location" sub="for map">

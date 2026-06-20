@@ -11,7 +11,7 @@ export default function Detail({ rem, lines }) {
             <div><div className="info-label">Remittance No</div><div style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace" }}>{rem.remittance_number}</div></div>
             <div><div className="info-label">Date</div><div style={{ fontSize: 14, fontWeight: 600 }}>{rem.date}</div></div>
             <div><div className="info-label">Status</div><div>{rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span>}</div></div>
-            <div><div className="info-label">Receipt</div><div>{rem.proof_url ? <a href={rem.proof_url} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>Lihat ↗</a> : <span style={{ fontSize: 13, color: "var(--text-3)" }}>—</span>}</div></div>
+            <div><div className="info-label">Receipt</div><div>{rem.proof_url ? <a href={rem.proof_url} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ fontSize: 12, padding: "4px 10px" }}>View ↗</a> : <span style={{ fontSize: 13, color: "var(--text-3)" }}>—</span>}</div></div>
           </div>
           {(rem.receipt_reference || rem.note) && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -23,7 +23,7 @@ export default function Detail({ rem, lines }) {
       </div>
 
       <div className="card">
-        <div className="card-header"><span className="card-title">Detail per Reservasi</span></div>
+        <div className="card-header"><span className="card-title">Detail per Reservation</span></div>
         <div className="table-wrap">
           <table>
             <thead>
@@ -49,7 +49,7 @@ export default function Detail({ rem, lines }) {
                   <td className="mono col-m-amount" style={{ fontWeight: 600, textAlign: "right" }}>{fmt(row.amount_sar)}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--text-3)", padding: 20 }}>Tidak ada data</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--text-3)", padding: 20 }}>No data</td></tr>
               )}
             </tbody>
             {lines.length > 0 && (

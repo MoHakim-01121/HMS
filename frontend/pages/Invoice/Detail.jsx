@@ -9,7 +9,7 @@ export default function Detail({ invoice, reservations, payments, due_alert }) {
         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
         </svg>
-        Kembali
+        Back
       </a>
 
       <InvoiceHero invoice={invoice} />

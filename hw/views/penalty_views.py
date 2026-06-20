@@ -55,7 +55,7 @@ def penalty_new(request, cl_pk):
             payment_note=request.POST.get('payment_note', ''),
             note=request.POST.get('note', ''),
         )
-        messages.success(request, f"Dokumen penalti {penalty.penalty_number} berhasil dibuat.")
+        messages.success(request, f"Penalty document {penalty.penalty_number} created successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
     return inertia_render(request, "Penalty/Form", props={
@@ -91,7 +91,7 @@ def penalty_edit(request, pk):
         penalty.payment_note    = request.POST.get('payment_note', '')
         penalty.note            = request.POST.get('note', '')
         penalty.save()
-        messages.success(request, f"Dokumen penalti {penalty.penalty_number} berhasil diperbarui.")
+        messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
     return inertia_render(request, "Penalty/Form", props={
@@ -110,7 +110,7 @@ def penalty_delete(request, pk):
     if request.method == 'POST':
         num = penalty.penalty_number
         penalty.delete()
-        messages.success(request, f"Dokumen penalti {num} berhasil dihapus.")
+        messages.success(request, f"Penalty document {num} deleted successfully.")
         return redirect('cl_detail', pk=cl_pk)
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect('cl_detail', pk=cl_pk)
@@ -145,5 +145,5 @@ def penalty_pdf(request, pk):
     from weasyprint import HTML
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="penalti-{penalty.penalty_number}.pdf"'
+    response['Content-Disposition'] = f'inline; filename="penalty-{penalty.penalty_number}.pdf"'
     return response

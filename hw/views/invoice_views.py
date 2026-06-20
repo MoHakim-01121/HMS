@@ -149,7 +149,7 @@ def invoice_new(request):
                 "default_company": active_company or "konoz",
                 "cl_data": _cl_data_for_form(active_company),
                 "initial": _invoice_echo(request),
-                "errors": {"invoice_number": f"Nomor Invoice '{invoice_number}' sudah digunakan."},
+                "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         invoice = Invoice.objects.create(
@@ -169,7 +169,7 @@ def invoice_new(request):
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
-        messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat.")
+        messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
 
     return inertia_render(request, "Invoice/Form", props={
@@ -217,11 +217,11 @@ def invoice_detail(request, pk):
     if invoice.due_date and invoice.remaining_sar > 0:
         days = (invoice.due_date - date.today()).days
         if days < 0:
-            due_alert = {"type": "red", "msg": f"Jatuh tempo sudah lewat {abs(days)} hari yang lalu."}
+            due_alert = {"type": "red", "msg": f"Payment is {abs(days)} day(s) overdue."}
         elif days == 0:
-            due_alert = {"type": "red", "msg": "Jatuh tempo hari ini!"}
+            due_alert = {"type": "red", "msg": "Due today!"}
         elif days <= 7:
-            due_alert = {"type": "yellow", "msg": f"Jatuh tempo {days} hari lagi."}
+            due_alert = {"type": "yellow", "msg": f"Due in {days} day(s)."}
 
     return inertia_render(request, "Invoice/Detail", props={
         "invoice": {
@@ -256,10 +256,10 @@ def invoice_edit(request, pk):
             return ' | '.join(rows) if rows else '—'
 
         _before = {
-            'Nama Customer':    invoice.customer_name,
-            'No. Invoice':      invoice.invoice_number,
-            'Tgl. Terbit':      str(invoice.issued_date or ''),
-            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Customer Name':    invoice.customer_name,
+            'Invoice No.':      invoice.invoice_number,
+            'Issued Date':      str(invoice.issued_date or ''),
+            'Due Date':         str(invoice.due_date or ''),
             'Company':          invoice.company,
             'Reservasi':        _res_snapshot(invoice),
         }
@@ -270,7 +270,7 @@ def invoice_edit(request, pk):
                 "invoice": _serialize_hotel_invoice(invoice),
                 "cl_data": _cl_data_for_form(active_company),
                 "initial": _invoice_echo(request),
-                "errors": {"invoice_number": f"Nomor Invoice '{new_number}' sudah digunakan."},
+                "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
 
         invoice.company = request.POST.get("company", "konoz")
@@ -289,16 +289,16 @@ def invoice_edit(request, pk):
             ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
         _after = {
-            'Nama Customer':    invoice.customer_name,
-            'No. Invoice':      invoice.invoice_number,
-            'Tgl. Terbit':      str(invoice.issued_date or ''),
-            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
+            'Customer Name':    invoice.customer_name,
+            'Invoice No.':      invoice.invoice_number,
+            'Issued Date':      str(invoice.issued_date or ''),
+            'Due Date':         str(invoice.due_date or ''),
             'Company':          invoice.company,
-            'Reservasi':        _res_snapshot(invoice),
+            'Reservations':     _res_snapshot(invoice),
         }
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, invoice.company, changes)
-        messages.success(request, f"Invoice {invoice.invoice_number} berhasil diperbarui.")
+        messages.success(request, f"Invoice {invoice.invoice_number} updated successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
 
     return inertia_render(request, "Invoice/Form", props={
@@ -319,7 +319,7 @@ def invoice_delete(request, pk):
         num = invoice.invoice_number
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
-        messages.success(request, f"Invoice {num} berhasil dihapus.")
+        messages.success(request, f"Invoice {num} deleted successfully.")
         return redirect("invoice_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect("invoice_list")
@@ -410,7 +410,7 @@ def invoice_duplicate(request, pk):
             check_out=res.check_out,
             total_sar=res.total_sar,
         )
-    messages.success(request, f"Invoice diduplikasi sebagai {new_num} (dari {original.invoice_number}).")
+    messages.success(request, f"Invoice duplicated as {new_num} (from {original.invoice_number}).")
     return redirect("invoice_edit", pk=new_inv.pk)
 
 

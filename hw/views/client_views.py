@@ -57,7 +57,7 @@ def client_list(request):
 def _validate_client(data):
     errors = {}
     if not data.get("name", "").strip():
-        errors["name"] = "Nama agen wajib diisi."
+        errors["name"] = "Agent name is required."
     return errors
 
 
@@ -84,7 +84,7 @@ def client_new(request):
         c = Client(company=company or 'konoz')
         _save_client(c, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
-        messages.success(request, f'Client "{c.name}" berhasil ditambahkan.')
+        messages.success(request, f'Client "{c.name}" added successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={"client": None, "edit": False})
 
@@ -103,12 +103,12 @@ def client_edit(request, pk):
             return inertia_render(request, "Client/Form", props={
                 "client": echo, "edit": True, "errors": errors,
             })
-        _before = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        _before = {'Name': c.name, 'City': c.city, 'Province': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
-        _after  = {'Nama': c.name, 'Kota': c.city, 'Provinsi': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        _after  = {'Name': c.name, 'City': c.city, 'Province': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
-        messages.success(request, f'Client "{c.name}" berhasil diupdate.')
+        messages.success(request, f'Client "{c.name}" updated successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
         "client": {
@@ -131,7 +131,7 @@ def client_delete(request, pk):
     name = c.name
     c.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
-    messages.success(request, f'Client "{name}" dihapus.')
+    messages.success(request, f'Client "{name}" deleted.')
     return redirect('client_list')
 
 

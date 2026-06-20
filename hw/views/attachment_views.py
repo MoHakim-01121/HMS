@@ -29,10 +29,10 @@ def attachment_upload(request):
         return JsonResponse({"error": "No target"}, status=400)
 
     if f.size > 10 * 1024 * 1024:
-        return JsonResponse({"error": "File terlalu besar (maks 10 MB)"}, status=400)
+        return JsonResponse({"error": "File too large (max 10 MB)"}, status=400)
 
     if f.content_type not in _ALLOWED_MIME:
-        return JsonResponse({"error": "Tipe file tidak diizinkan. Gunakan PDF, gambar, Excel, atau CSV."}, status=400)
+        return JsonResponse({"error": "File type not allowed. Use PDF, image, Excel, or CSV."}, status=400)
 
     att = Attachment(name=f.name, size=f.size)
     if invoice_id:

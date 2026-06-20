@@ -168,6 +168,15 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Additional locations of static files
 STATICFILES_DIRS = []
 
+# In development, let WhiteNoise serve hand-written static (CSS) straight from the
+# source app dirs via finders, re-reading on each request. This means edits to
+# files like hw/static/hw/css/*.css show up on a plain browser refresh — no
+# collectstatic + restart needed. In production these stay off and WhiteNoise
+# serves the collected (and hashed) files from STATIC_ROOT.
+if DEBUG:
+    WHITENOISE_USE_FINDERS = True
+    WHITENOISE_AUTOREFRESH = True
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -283,11 +292,6 @@ LOGGING = {
         'django.request': {
             'handlers': ['mail_admins', 'file'],
             'level': 'ERROR',
-            'propagate': False,
-        },
-        'invoices': {
-            'handlers': ['file', 'console'],
-            'level': 'INFO',
             'propagate': False,
         },
     },

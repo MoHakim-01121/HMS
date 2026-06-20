@@ -73,7 +73,7 @@ def services_new(request):
                 "suggested_number": suggested_number,
                 "default_company": request.session.get("active_company", "ijabah"),
                 "initial": _services_echo(request),
-                "errors": {"invoice_number": f"Nomor Invoice '{invoice_number}' sudah digunakan."},
+                "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         invoice = Invoice.objects.create(
@@ -88,7 +88,7 @@ def services_new(request):
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
-        messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil dibuat.")
+        messages.success(request, f"Services Invoice {invoice.invoice_number} created successfully.")
         return redirect("services_detail", pk=invoice.pk)
 
     return inertia_render(request, "Services/Form", props={
@@ -137,11 +137,11 @@ def services_edit(request, pk):
 
     if request.method == "POST":
         _before = {
-            'Nama Customer': invoice.customer_name,
-            'No. Invoice':   invoice.invoice_number,
-            'Tgl. Terbit':   str(invoice.issued_date or ''),
-            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
-            'Mata Uang':     invoice.currency,
+            'Customer Name': invoice.customer_name,
+            'Invoice No.':   invoice.invoice_number,
+            'Issued Date':   str(invoice.issued_date or ''),
+            'Due Date':      str(invoice.due_date or ''),
+            'Currency':      invoice.currency,
             'Company':       invoice.company,
         }
         new_number = request.POST.get("invoice_number", "")
@@ -152,7 +152,7 @@ def services_edit(request, pk):
                 "edit": True,
                 "invoice": _serialize_service_invoice(invoice),
                 "initial": echo,
-                "errors": {"invoice_number": f"Nomor Invoice '{new_number}' sudah digunakan."},
+                "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
 
         invoice.company = request.POST.get("company", "ijabah")
@@ -168,16 +168,16 @@ def services_edit(request, pk):
         _save_service_items(invoice, request)
         _save_service_payments(invoice, request)
         _after = {
-            'Nama Customer': invoice.customer_name,
-            'No. Invoice':   invoice.invoice_number,
-            'Tgl. Terbit':   str(invoice.issued_date or ''),
-            'Tgl. Jatuh Tempo': str(invoice.due_date or ''),
-            'Mata Uang':     invoice.currency,
+            'Customer Name': invoice.customer_name,
+            'Invoice No.':   invoice.invoice_number,
+            'Issued Date':   str(invoice.issued_date or ''),
+            'Due Date':      str(invoice.due_date or ''),
+            'Currency':      invoice.currency,
             'Company':       invoice.company,
         }
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Services', invoice.invoice_number, invoice.company, changes)
-        messages.success(request, f"Invoice Services {invoice.invoice_number} berhasil diperbarui.")
+        messages.success(request, f"Services Invoice {invoice.invoice_number} updated successfully.")
         return redirect("services_detail", pk=invoice.pk)
 
     return inertia_render(request, "Services/Form", props={
@@ -193,7 +193,7 @@ def services_delete(request, pk):
         num = invoice.invoice_number
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
-        messages.success(request, f"Invoice Services {num} berhasil dihapus.")
+        messages.success(request, f"Services Invoice {num} deleted successfully.")
         return redirect("services_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect("services_list")
@@ -266,7 +266,7 @@ def services_duplicate(request, pk):
             qty=item.qty,
             price=item.price,
         )
-    messages.success(request, f"Invoice Services diduplikasi sebagai {new_num} (dari {original.invoice_number}).")
+    messages.success(request, f"Services Invoice duplicated as {new_num} (from {original.invoice_number}).")
     return redirect("services_edit", pk=new_inv.pk)
 
 

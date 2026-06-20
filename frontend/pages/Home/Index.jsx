@@ -115,7 +115,7 @@ function makeCard(raw) {
   return '<div class="ai-card"><div class="ai-card-head"><span class="ai-card-num">' + esc(nomor) +
     '</span><span class="ai-card-badge ' + (lunas ? "ai-badge-green" : "ai-badge-red") + '">' + esc(status) +
     '</span></div><div class="ai-card-name">' + esc(nama) + '</div><div class="ai-card-meta">' + esc(total) +
-    " &middot; Sisa " + esc(sisa) + "</div></div>";
+    " &middot; Remaining " + esc(sisa) + "</div></div>";
 }
 function formatAI(text) {
   const lines = String(text || "").split("\n");
@@ -219,7 +219,7 @@ export default function Home() {
           <div className="ai-head-icon"><svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
           <div className="ai-head-text">
             <div className="ai-panel-title">Ask AI</div>
-            <div className="ai-panel-sub">Jawaban instan dari data Anda</div>
+            <div className="ai-panel-sub">Instant answers from your data</div>
           </div>
           <button className="ai-panel-close" onClick={() => setOpen(false)}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -229,10 +229,10 @@ export default function Home() {
           {messages.length === 0 && !typing && (
             <div className="chat-empty">
               <div className="chat-empty-icon"><svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
-              <div className="chat-empty-title">Tanya apa saja</div>
-              <div className="chat-empty-sub">Invoice, reservasi, atau klien — dijawab dari data Anda</div>
+              <div className="chat-empty-title">Ask anything</div>
+              <div className="chat-empty-sub">Invoices, reservations, or clients — answered from your data</div>
               <div className="chat-sugs">
-                {["Invoice belum lunas", "Reservasi bulan ini", "Total outstanding"].map((s) => (
+                {["Unpaid invoices", "Reservations this month", "Total outstanding"].map((s) => (
                   <button key={s} type="button" className="chat-sug" onClick={() => send(s)}>{s}</button>
                 ))}
               </div>

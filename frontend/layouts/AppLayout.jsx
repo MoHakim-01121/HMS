@@ -77,8 +77,8 @@ export default function AppLayout({ children }) {
   const NotifList = () => (
     <>
       <div className="notif-head">
-        <span>Notifikasi</span>
-        {dueCount > 0 && <span className="notif-head-count">{dueCount} jatuh tempo</span>}
+        <span>Notifications</span>
+        {dueCount > 0 && <span className="notif-head-count">{dueCount} due</span>}
       </div>
       {dueNotifs.length ? (
         dueNotifs.map((n, i) => (
@@ -94,7 +94,7 @@ export default function AppLayout({ children }) {
           </a>
         ))
       ) : (
-        <div className="notif-empty">Tidak ada notifikasi</div>
+        <div className="notif-empty">No notifications</div>
       )}
     </>
   );
@@ -127,23 +127,23 @@ export default function AppLayout({ children }) {
 
         {user && (
           <div className="topbar-right">
-            <button type="button" className="topbar-icon-btn" title="Cari (/)" aria-label="Cari"
+            <button type="button" className="topbar-icon-btn" title="Search (/)" aria-label="Search"
               onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
               <Icon name="search" />
             </button>
 
-            <button type="button" className="topbar-icon-btn" title="Notifikasi" aria-label="Notifikasi"
+            <button type="button" className="topbar-icon-btn" title="Notifications" aria-label="Notifications"
               onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); setAccount(false); }}>
               <Icon name="bell" />
               {dueCount > 0 && <span className="notif-badge">{dueCount}</span>}
             </button>
 
-            <button type="button" className="topbar-icon-btn" title="Ganti tema" aria-label="Ganti tema" onClick={toggle}>
+            <button type="button" className="topbar-icon-btn" title="Toggle theme" aria-label="Toggle theme" onClick={toggle}>
               <Icon name={theme === "light" ? "sun" : "moon"} />
             </button>
 
             <div className="account-wrap" ref={accountWrap}>
-              <button type="button" className="account-btn" aria-label="Akun"
+              <button type="button" className="account-btn" aria-label="Account"
                 onClick={(e) => { e.stopPropagation(); setAccount((v) => !v); setNotif(false); }}>
                 {user.avatar
                   ? <img src={user.avatar} className="account-avatar-img" alt={user.username} />
@@ -156,12 +156,12 @@ export default function AppLayout({ children }) {
                   <span className="account-dd-name">{user.username}</span>
                   {user.is_superuser && <span className="account-dd-role">Admin</span>}
                 </div>
-                <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> Profil Saya</a>
+                <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> My Profile</a>
                 <div className="co-dropdown-sep"></div>
                 <CompanySwitch />
                 <form method="post" action={NAV.logout} style={{ margin: 0 }}>
                   <Csrf />
-                  <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> Keluar</button>
+                  <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> Log out</button>
                 </form>
               </div>
             </div>
@@ -173,14 +173,14 @@ export default function AppLayout({ children }) {
         <>
           {/* ── Mobile top-right utility cluster ── */}
           <div className="m-topbar" id="m-topbar">
-            <button type="button" className="m-top-btn" aria-label="Cari" onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
+            <button type="button" className="m-top-btn" aria-label="Search" onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
               <Icon name="search" size={17} strokeWidth={1.8} />
             </button>
-            <button type="button" className="m-top-btn" aria-label="Notifikasi" onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); }}>
+            <button type="button" className="m-top-btn" aria-label="Notifications" onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); }}>
               <Icon name="bell" size={17} strokeWidth={1.8} />
               {dueCount > 0 && <span className="m-top-badge">{dueCount}</span>}
             </button>
-            <button type="button" className="m-top-avatar" aria-label="Akun" onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); }}>
+            <button type="button" className="m-top-avatar" aria-label="Account" onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); }}>
               {user.avatar ? <img src={user.avatar} alt={user.username} /> : <Icon name="user" size={18} strokeWidth={0} fill="currentColor" />}
             </button>
           </div>
@@ -189,7 +189,7 @@ export default function AppLayout({ children }) {
           <nav className="bottom-nav" id="bottom-nav">
             <a href={NAV.cl} className="bnav-tab bnav-tab-cl"><Icon name="cl" strokeWidth={1.8} /><span className="bnav-label">CL</span></a>
             <a href={NAV.invoice} className="bnav-tab bnav-tab-invoice"><Icon name="invoice" strokeWidth={1.8} /><span className="bnav-label">Invoice</span></a>
-            <a href={NAV.home} className="bnav-home" aria-label="Beranda"><Icon name="home" strokeWidth={1.8} /></a>
+            <a href={NAV.home} className="bnav-home" aria-label="Home"><Icon name="home" strokeWidth={1.8} /></a>
             <a href={NAV.hotels} className="bnav-tab bnav-tab-hotels"><Icon name="hotels" strokeWidth={1.8} /><span className="bnav-label">Hotels</span></a>
             <a href={NAV.calendar} className="bnav-tab bnav-tab-calendar"><Icon name="calendar" strokeWidth={1.8} /><span className="bnav-label">Calendar</span></a>
           </nav>
@@ -201,15 +201,15 @@ export default function AppLayout({ children }) {
               {user.is_superuser ? <span className="badge badge-blue" style={{ fontSize: 9 }}>Admin</span>
                 : user.is_staff ? <span className="badge badge-green" style={{ fontSize: 9 }}>Staff</span> : null}
             </div>
-            <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> Profil Saya</a>
+            <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> My Profile</a>
             <button type="button" className="co-option" onClick={toggle}>
-              <Icon name={theme === "light" ? "sun" : "moon"} size={13} /> Ganti Tema
+              <Icon name={theme === "light" ? "sun" : "moon"} size={13} /> Toggle Theme
             </button>
             <div className="co-dropdown-sep"></div>
             <CompanySwitch />
             <form method="post" action={NAV.logout} style={{ margin: 0 }}>
               <Csrf />
-              <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> Keluar</button>
+              <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> Log out</button>
             </form>
           </div>
 
@@ -230,7 +230,7 @@ export default function AppLayout({ children }) {
         <div className="base-blob base-blob-4"></div>
       </div>
 
-      {children}
+      <div className="page-shell">{children}</div>
 
       <Toast />
       {user && <SearchOverlay open={search} onClose={() => setSearch(false)} />}

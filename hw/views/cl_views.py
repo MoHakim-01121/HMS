@@ -36,10 +36,10 @@ def cl_list(request):
         '-created_at': '-created_at',
     }
     _sort_labels = {
-        'check_in':    'Check-in (terlama)',
-        '-check_in':   'Check-in (terbaru)',
-        'guest_name':  'Nama tamu (A–Z)',
-        '-created_at': 'Dibuat (terbaru)',
+        'check_in':    'Check-in (oldest)',
+        '-check_in':   'Check-in (newest)',
+        'guest_name':  'Guest name (A–Z)',
+        '-created_at': 'Created (newest)',
     }
 
     qs = base_qs
@@ -121,13 +121,13 @@ def _validate_cl(data, exclude_pk=None):
     check_in = _parse_date(data.get("check_in"))
     check_out = _parse_date(data.get("check_out"))
     if check_in and check_out and check_out < check_in:
-        errors["check_out"] = "Check-out tidak boleh sebelum check-in."
+        errors["check_out"] = "Check-out cannot be before check-in."
     number = data.get("confirmation_number", "")
     qs = ConfirmationLetter.objects.filter(confirmation_number=number)
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
     if number and qs.exists():
-        errors["confirmation_number"] = f"Nomor CL '{number}' sudah digunakan."
+        errors["confirmation_number"] = f"CL number '{number}' is already in use."
     return errors
 
 
@@ -180,7 +180,7 @@ def cl_new(request):
         )
         _save_cl_rooms(cl, request)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number, cl.company)
-        messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil dibuat.")
+        messages.success(request, f"Confirmation Letter {cl.confirmation_number} created successfully.")
         return redirect("cl_detail", pk=cl.pk)
 
     return inertia_render(request, "Cl/Form", props={
@@ -267,13 +267,13 @@ def cl_edit(request, pk):
 
         _before = {
             'Hotel':     cl.hotel_name,
-            'Tamu':      cl.guest_name,
-            'No. Telp':  cl.guest_phone,
+            'Guest':     cl.guest_name,
+            'Phone':     cl.guest_phone,
             'Check-in':  str(cl.check_in or ''),
             'Check-out': str(cl.check_out or ''),
             'Status':    cl.reservation_status,
             'Company':   cl.company,
-            'Kamar':     _room_snapshot(cl.rooms.all()),
+            'Rooms':     _room_snapshot(cl.rooms.all()),
         }
 
         cl.company = request.POST.get("company", "konoz")
@@ -296,17 +296,17 @@ def cl_edit(request, pk):
 
         _after = {
             'Hotel':     cl.hotel_name,
-            'Tamu':      cl.guest_name,
-            'No. Telp':  cl.guest_phone,
+            'Guest':     cl.guest_name,
+            'Phone':     cl.guest_phone,
             'Check-in':  str(cl.check_in or ''),
             'Check-out': str(cl.check_out or ''),
             'Status':    cl.reservation_status,
             'Company':   cl.company,
-            'Kamar':     _room_snapshot(cl.rooms.all()),
+            'Rooms':     _room_snapshot(cl.rooms.all()),
         }
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, cl.company, changes)
-        messages.success(request, f"Confirmation Letter {cl.confirmation_number} berhasil diperbarui.")
+        messages.success(request, f"Confirmation Letter {cl.confirmation_number} updated successfully.")
         return redirect("cl_detail", pk=cl.pk)
 
     rooms = [{
@@ -336,7 +336,7 @@ def cl_delete(request, pk):
         num = cl.confirmation_number
         cl.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num, cl.company)
-        messages.success(request, f"Confirmation Letter {num} berhasil dihapus.")
+        messages.success(request, f"Confirmation Letter {num} deleted successfully.")
         return redirect("cl_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect("cl_list")
@@ -441,7 +441,7 @@ def cl_duplicate(request, pk):
             quantity=room.quantity,
             price=room.price,
         )
-    messages.success(request, f"CL diduplikasi sebagai {new_num} (dari {original.confirmation_number}).")
+    messages.success(request, f"CL duplicated as {new_num} (from {original.confirmation_number}).")
     return redirect("cl_edit", pk=new_cl.pk)
 
 
@@ -450,12 +450,12 @@ def cl_duplicate(request, pk):
 def invoice_from_cls(request):
     cl_ids = request.POST.getlist("cl_ids")
     if not cl_ids:
-        messages.error(request, "Pilih minimal satu CL.")
+        messages.error(request, "Select at least one CL.")
         return redirect("cl_list")
 
     cls = ConfirmationLetter.objects.filter(pk__in=cl_ids)
     if not cls.exists():
-        messages.error(request, "CL tidak ditemukan.")
+        messages.error(request, "CL not found.")
         return redirect("cl_list")
 
     first_cl = cls.order_by('created_at').first()
@@ -480,7 +480,7 @@ def invoice_from_cls(request):
         cl.invoice = invoice
         cl.save(update_fields=["invoice"])
 
-    messages.success(request, f"Invoice {invoice.invoice_number} berhasil dibuat dari {cls.count()} CL.")
+    messages.success(request, f"Invoice {invoice.invoice_number} created from {cls.count()} CL(s).")
     return redirect("invoice_edit", pk=invoice.pk)
 
 

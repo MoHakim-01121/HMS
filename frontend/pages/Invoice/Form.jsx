@@ -137,7 +137,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div>
           <div className="page-title">{edit ? `Edit Invoice — ${src?.invoice_number || ""}` : "Invoice Hotel"}</div>
-          <div className="page-sub">Reservasi hotel + pembayaran dalam SAR</div>
+          <div className="page-sub">Hotel reservations + payments in SAR</div>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
         <div className="form-panel">
           {/* ── Info ── */}
           <div className="form-section">
-            <div className="form-section-label">Info Invoice</div>
+            <div className="form-section-label">Invoice Info</div>
             <div className="inv-info-row" style={{ display: "grid", gridTemplateColumns: "110px 1fr 160px 140px 140px", gap: 12 }}>
               <div className="ff">
                 <label>Company *</label>
@@ -156,7 +156,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
               </div>
               <div className="ff">
                 <label>Customer *</label>
-                <input type="text" required placeholder="Nama customer / agen travel" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+                <input type="text" required placeholder="Customer / travel agent name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
               </div>
               <div className="ff">
                 <label>Invoice Number *</label>
@@ -180,7 +180,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {cl_data.length > 0 && (
                 <button type="button" className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={openModal}>
-                  <Icon name="invoice" size={11} /> Impor dari CL
+                  <Icon name="invoice" size={11} /> Import from CL
                 </button>
               )}
               <button type="button" className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={addRes}>+ Add</button>
@@ -198,7 +198,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                   <input type="date" value={r.check_in} onChange={(e) => setRes(i, "check_in", e.target.value)} />
                   <input type="date" min={r.check_in || undefined} value={r.check_out} onChange={(e) => setRes(i, "check_out", e.target.value)} />
                   <input type="number" placeholder="Total SAR" step="0.01" required value={r.reservation_total} onChange={(e) => setRes(i, "reservation_total", e.target.value)} />
-                  <button type="button" className="btn-remove" onClick={() => removeRes(i)} aria-label="Hapus"><Icon name="trash" size={12} /></button>
+                  <button type="button" className="btn-remove" onClick={() => removeRes(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
                 </div>
               ))}
             </div>
@@ -211,8 +211,8 @@ export default function Form({ invoice, edit, suggested_number, default_company,
           </div>
           <div className="inv-sec-body-scroll">
             <div className="pay-header" style={{ gridTemplateColumns: PAY_COLS }}>
-              <div></div><div>Res#</div><div>Tanggal</div><div>Metode</div>
-              <div>Amount</div><div>Cur</div><div>Rate</div><div>Note</div><div>Bukti</div><div></div>
+              <div></div><div>Res#</div><div>Date</div><div>Method</div>
+              <div>Amount</div><div>Cur</div><div>Rate</div><div>Note</div><div>Proof</div><div></div>
             </div>
             <div id="payments">
               {payments.map((p, i) => (
@@ -233,14 +233,14 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                   <input type="number" step="0.0001" placeholder="Rate" value={p.exchange} readOnly={p.currency === "SAR"} onChange={(e) => setPay(i, { exchange: e.target.value })} />
                   <textarea placeholder="Note" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
                   <div className="proof-cell">
-                    {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="Lihat bukti"><Icon name="proof" size={13} /></a>}
-                    <label className="proof-btn" title="Upload bukti">
+                    {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="View proof"><Icon name="proof" size={13} /></a>}
+                    <label className="proof-btn" title="Upload proof">
                       <Icon name="proof" size={13} />
                       <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
                     </label>
                     <span className="proof-fname">{p.file ? p.file.name : ""}</span>
                   </div>
-                  <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Hapus"><Icon name="trash" size={12} /></button>
+                  <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
                 </div>
               ))}
             </div>
@@ -248,16 +248,15 @@ export default function Form({ invoice, edit, suggested_number, default_company,
 
           {/* ── Summary ── */}
           <div className="inv-summary">
-            <div className="inv-summary-cell"><div className="lbl">Total Reservasi</div><div className="val">{fmt(totals.totalRes)} SAR</div></div>
-            <div className="inv-summary-cell"><div className="lbl">Total Terbayar</div><div className="val green">{fmt(totals.totalPaidSar)} SAR</div></div>
-            <div className="inv-summary-cell"><div className="lbl">Sisa</div><div className={"val " + remainingClass}>{fmt(totals.remaining)} SAR</div></div>
+            <div className="inv-summary-cell"><div className="lbl">Total Reservations</div><div className="val">{fmt(totals.totalRes)} SAR</div></div>
+            <div className="inv-summary-cell"><div className="lbl">Total Paid</div><div className="val green">{fmt(totals.totalPaidSar)} SAR</div></div>
+            <div className="inv-summary-cell"><div className="lbl">Remaining</div><div className={"val " + remainingClass}>{fmt(totals.remaining)} SAR</div></div>
           </div>
 
           <div className="form-actions" style={{ borderTop: "1px solid var(--border)" }}>
-            <a href={edit ? `/invoice/${src.pk}/` : "/invoice/"} className="btn btn-ghost">Batal</a>
+            <a href={edit ? `/invoice/${src.pk}/` : "/invoice/"} className="btn btn-ghost">Cancel</a>
             <button type="submit" id="submit-btn" className="btn btn-primary" disabled={form.processing}>
-              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-              {form.processing ? "Menyimpan…" : edit ? "Update & Simpan" : "Simpan & Buka"}
+              {form.processing ? "Saving…" : edit ? "Update & Save" : "Save & Open"}
             </button>
           </div>
         </div>
@@ -268,23 +267,23 @@ export default function Form({ invoice, edit, suggested_number, default_company,
         <div className={"cl-modal-overlay" + (modalOpen ? " open" : "")} onClick={(e) => { if (e.target === e.currentTarget) setModalOpen(false); }}>
           <div className="cl-modal">
             <div className="cl-modal-head">
-              <h3>Impor dari Confirmation Letter</h3>
+              <h3>Import from Confirmation Letter</h3>
               <button type="button" className="btn btn-ghost" style={{ width: 28, height: 28, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }} onClick={() => setModalOpen(false)}>
                 <Icon name="close" size={14} />
               </button>
             </div>
             <div className="cl-modal-search">
-              <input type="text" placeholder="Cari tamu, hotel, nomor CL…" autoComplete="off" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input type="text" placeholder="Search guest, hotel, CL number…" autoComplete="off" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <div className="cl-modal-body">
               <table>
                 <thead><tr>
-                  <th style={{ width: 32 }}></th><th>No CL</th><th>Tamu</th><th>Hotel</th>
+                  <th style={{ width: 32 }}></th><th>No CL</th><th>Guest</th><th>Hotel</th>
                   <th>Check-in</th><th>Check-out</th><th style={{ textAlign: "right" }}>Total SAR</th>
                 </tr></thead>
                 <tbody>
                   {filteredCls.length === 0 ? (
-                    <tr><td colSpan={7}><div className="cl-modal-empty">Tidak ada CL tersedia</div></td></tr>
+                    <tr><td colSpan={7}><div className="cl-modal-empty">No CL available</div></td></tr>
                   ) : filteredCls.map((cl) => {
                     const isSel = !!selected[cl.id];
                     return (
@@ -303,10 +302,10 @@ export default function Form({ invoice, edit, suggested_number, default_company,
               </table>
             </div>
             <div className="cl-modal-foot">
-              <span className="cl-modal-sel-info"><strong>{Object.keys(selected).length}</strong> CL dipilih</span>
+              <span className="cl-modal-sel-info"><strong>{Object.keys(selected).length}</strong> CL selected</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="btn btn-ghost" style={{ height: 32, padding: "0 14px", fontSize: 13 }} onClick={() => setModalOpen(false)}>Batal</button>
-                <button type="button" className="btn btn-primary" style={{ height: 32, padding: "0 16px", fontSize: 13 }} disabled={!Object.keys(selected).length} onClick={doImport}>Impor →</button>
+                <button type="button" className="btn btn-ghost" style={{ height: 32, padding: "0 14px", fontSize: 13 }} onClick={() => setModalOpen(false)}>Cancel</button>
+                <button type="button" className="btn btn-primary" style={{ height: 32, padding: "0 16px", fontSize: 13 }} disabled={!Object.keys(selected).length} onClick={doImport}>Import →</button>
               </div>
             </div>
           </div>

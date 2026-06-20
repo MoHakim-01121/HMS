@@ -359,7 +359,7 @@ export default function HotelForm({ hotel, edit }) {
           </div>
         </div>
 
-        {/* ── Catatan ── */}
+        {/* ── Notes ── */}
         <div className="card">
           <div className="card-header"><span className="card-title">Notes</span></div>
           <div className="card-body">

@@ -14,7 +14,7 @@
   .form-page { padding: 14px 12px 112px; }
 }
 
-/* ── Form panel: one glass surface, sections within ── */
+/* ── Form panel: solid surface, sections within ── */
 .form-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -467,3 +467,54 @@
   cursor: pointer;
 }
 .toggle-label-sub { font-size: 11px; color: var(--text-3); display: block; }
+
+/* ── CL room rows ─────────────────────────────────────────── */
+/* No card here — the form section is already a panel; avoid card-in-card. */
+.cl-rooms { padding: 0; }
+/* Single source for column widths — header & rows stay aligned. */
+.cl-rooms-head,
+.cl-room-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr .6fr 1fr 1fr 32px;
+  gap: 10px;
+  align-items: center;
+}
+.cl-rooms-head {
+  padding: 12px 0 9px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--text-3);
+}
+.cl-rooms-head > span { padding: 0 11px; }      /* line label up with input text */
+.cl-rooms-head > span.col-c { text-align: center; padding: 0; }
+.cl-rooms-head > span.col-r { text-align: right; }
+.cl-room-row {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cl-room-row:last-child { border-bottom: 0; }
+.cl-room-row .ff input,
+.cl-room-row .ff select { padding: 7px 11px; }  /* slightly denser inside rows */
+.cl-room-row input.num-c { text-align: center; }
+.cl-room-row input.num-r { text-align: right; }
+/* Read-only computed cell — styled like a field so the column reads as filled,
+   but visually muted (no focus, dashed border) to signal it's not editable. */
+.cl-room-sub {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 7px 11px;
+  background: var(--bg-2);
+  border: 1px dashed var(--border-2);
+  border-radius: var(--r);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+}

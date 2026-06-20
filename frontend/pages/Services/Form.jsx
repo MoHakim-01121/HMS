@@ -121,7 +121,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
         {/* ── Info Invoice ── */}
         <div className="form-panel" style={{ marginBottom: 12 }}>
           <div className="form-section">
-            <div className="form-section-label">Info Invoice</div>
+            <div className="form-section-label">Invoice Info</div>
             <div className="fg-3" style={{ marginBottom: 12 }}>
               <div className="ff">
                 <label>Company *</label>
@@ -132,7 +132,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
               </div>
               <div className="ff fg-span2">
                 <label>Customer *</label>
-                <input type="text" required placeholder="Nama customer" value={customerName}
+                <input type="text" required placeholder="Customer name" value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)} />
               </div>
             </div>
@@ -181,7 +181,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                     value={it.qty} onChange={(e) => setItem(i, "qty", e.target.value)} />
                   <input type="number" className="amount-input" min="0" step="0.01" required
                     value={it.price} onChange={(e) => setItem(i, "price", e.target.value)} />
-                  <button type="button" className="btn-remove" onClick={() => removeItem(i)} aria-label="Hapus">
+                  <button type="button" className="btn-remove" onClick={() => removeItem(i)} aria-label="Remove">
                     <Icon name="trash" size={12} />
                   </button>
                 </div>
@@ -199,7 +199,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
           <div className="card-body" style={{ paddingBottom: 8 }}>
             <div className="pay-header" style={{ gridTemplateColumns: PAY_COLS }}>
               <div>SVC#</div><div>DATE</div><div>METHOD</div><div>AMOUNT</div>
-              <div>CUR</div><div>RATE</div><div>NOTE</div><div>BUKTI</div><div></div>
+              <div>CUR</div><div>RATE</div><div>NOTE</div><div>PROOF</div><div></div>
             </div>
             <div id="payments">
               {payments.map((p, i) => (
@@ -219,16 +219,16 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                   <textarea placeholder="Note" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
                   <div className="proof-cell">
                     {p.proof_url && !p.file && (
-                      <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="Lihat bukti"><Icon name="proof" size={13} /></a>
+                      <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="View proof"><Icon name="proof" size={13} /></a>
                     )}
-                    <label className="proof-btn" title="Upload bukti">
+                    <label className="proof-btn" title="Upload proof">
                       <Icon name="proof" size={13} />
                       <input type="file" accept="image/*,.pdf" style={{ display: "none" }}
                         onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
                     </label>
                     <span className="proof-fname">{p.file ? p.file.name : ""}</span>
                   </div>
-                  <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Hapus">
+                  <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Remove">
                     <Icon name="trash" size={12} />
                   </button>
                 </div>
@@ -256,10 +256,9 @@ export default function Form({ invoice, edit, suggested_number, default_company,
         </div>
 
         <div className="form-actions" style={{ padding: "14px 0 4px" }}>
-          <a href={edit ? `/services/${src.pk}/` : "/services/"} className="btn btn-ghost">Batal</a>
+          <a href={edit ? `/services/${src.pk}/` : "/services/"} className="btn btn-ghost">Cancel</a>
           <button type="submit" className="btn btn-primary" disabled={form.processing}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-            {form.processing ? "Menyimpan…" : edit ? "Update & Simpan" : "Simpan & Buka"}
+            {form.processing ? "Saving…" : edit ? "Update & Save" : "Save & Open"}
           </button>
         </div>
       </form>

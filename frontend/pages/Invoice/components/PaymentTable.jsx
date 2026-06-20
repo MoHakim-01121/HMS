@@ -14,7 +14,7 @@ export default function PaymentTable({ payments, invoice }) {
       <div className="card-header">
         <span className="card-title">Payments</span>
         <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "invoice" : "invoice_lunas", invoice.pk)}>
-          <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Draf Lunas"}
+          <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Paid Message"}
         </button>
       </div>
       <div className="table-wrap">

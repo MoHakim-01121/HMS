@@ -86,14 +86,14 @@ def ai_draft_message(request):
         invoice_type = data.get("type", "invoice")
         pk = int(data.get("pk"))
     except Exception:
-        return JsonResponse({"error": "Request tidak valid."}, status=400)
+        return JsonResponse({"error": "Invalid request."}, status=400)
 
     invoice = Invoice.objects.filter(pk=pk).first()
     if not invoice:
-        return JsonResponse({"error": "Invoice tidak ditemukan."}, status=404)
+        return JsonResponse({"error": "Invoice not found."}, status=404)
 
     result = generate_draft_message(invoice_type, invoice)
-    return JsonResponse({"message": result or "Gagal generate pesan."})
+    return JsonResponse({"message": result or "Failed to generate message."})
 
 
 @login_required
@@ -103,10 +103,10 @@ def ai_chat(request):
         data = json.loads(request.body)
         message = data.get("message", "").strip()
     except Exception:
-        return JsonResponse({"reply": "Request tidak valid."}, status=400)
+        return JsonResponse({"reply": "Invalid request."}, status=400)
 
     if not message:
-        return JsonResponse({"reply": "Pertanyaan tidak boleh kosong."})
+        return JsonResponse({"reply": "Question cannot be empty."})
 
     active_company = request.session.get("active_company")
     history = request.session.get("ai_history", [])
@@ -118,9 +118,9 @@ def ai_chat(request):
             {"role": "user",      "content": message},
             {"role": "assistant", "content": reply},
         ]
-        request.session["ai_history"] = history[-6:]  # simpan 3 exchange terakhir
+        request.session["ai_history"] = history[-6:]  # keep last 3 exchanges
 
-    return JsonResponse({"reply": reply or "Maaf, tidak dapat memproses pertanyaan saat ini."})
+    return JsonResponse({"reply": reply or "Sorry, unable to process your question right now."})
 
 
 def health_check(request):

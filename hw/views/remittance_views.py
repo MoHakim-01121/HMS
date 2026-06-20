@@ -193,7 +193,7 @@ def remittance_new(request):
         if not lines_data:
             return inertia_render(request, "Remittance/Form", props={
                 'reservasi': _serialize_reservasi(),
-                'error': 'Masukkan minimal satu nominal untuk dikirim.',
+                'error': 'Enter at least one amount to send.',
                 'today': str(date.today()),
             })
 

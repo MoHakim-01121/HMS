@@ -30,12 +30,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     confirmation_number: c.confirmation_number || suggested_number || "",
     reservation_status: c.reservation_status || "DEFINITE",
     note: c.note || "",
-    rooms: c.rooms || [],
+    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", meals: "", quantity: 1, price: "" }],
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
 
-  // Tamu = client. Typing free text keeps it as guest_name (no client link);
+  // Guest = client. Typing free text keeps it as guest_name (no client link);
   // an exact name match or picking from the list links the client_id.
   const clientList = clients || [];
   const onGuestText = (text) => {
@@ -87,11 +87,19 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
           <FormSection label="Reservation">
             <div className="fg-2" style={{ marginBottom: 12 }}>
               <FormField label="CL Number" name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
-              <FormField label="Hotel" name="hotel_name">
-                <input list="cl-hotels" name="hotel_name" value={form.data.hotel_name} onChange={(e) => form.setData("hotel_name", e.target.value)} placeholder="Hotel name" />
-                <datalist id="cl-hotels">
-                  {(hotels || []).map((h, i) => <option key={i} value={h.name} />)}
-                </datalist>
+              <FormField label="Hotel" name="hotel_name" error={errors.hotel_name}>
+                <Combobox
+                  name="hotel_name"
+                  value={form.data.hotel_name}
+                  onTextChange={(text) => form.setData("hotel_name", text)}
+                  onSelect={(h) => form.setData("hotel_name", h.name)}
+                  options={hotels || []}
+                  getLabel={(o) => o.name}
+                  getSub={(o) => [o.company === "ijabah" ? "Ijabah" : "Konoz", o.city].filter(Boolean).join(" · ")}
+                  placeholder="Search hotel or type name…"
+                  emptyLabel="New hotel — typed manually"
+                  error={errors.hotel_name}
+                />
               </FormField>
             </div>
             <div className="fg-2">
@@ -121,8 +129,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 
           <FormSection label="Rooms">
             <RoomRows rooms={form.data.rooms} onChange={(next) => form.setData("rooms", next)} nights={nights} />
-            <div style={{ marginTop: 12, textAlign: "right", fontWeight: 600 }}>
-              Total: {fmt(total)} SAR <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-3)" }}>({nights} nights)</span>
+            <div style={{ marginTop: 32, textAlign: "right", fontWeight: 600 }}>
+              Total: {fmt(total)} SAR <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-3)" }}>({nights} {nights === 1 ? "night" : "nights"})</span>
             </div>
           </FormSection>
 

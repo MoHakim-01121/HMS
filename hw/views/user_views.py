@@ -39,7 +39,7 @@ def superuser_required(view_func):
     @login_required
     def wrapper(request, *args, **kwargs):
         if not request.user.is_superuser:
-            messages.error(request, "Akses ditolak.")
+            messages.error(request, "Access denied.")
             return redirect('home')
         return view_func(request, *args, **kwargs)
     return wrapper
@@ -78,13 +78,13 @@ def user_new(request):
 
         errors = {}
         if not username:
-            errors['username'] = "Username wajib diisi."
+            errors['username'] = "Username is required."
         elif User.objects.filter(username=username).exists():
-            errors['username'] = f"Username '{username}' sudah digunakan."
+            errors['username'] = f"Username '{username}' is already taken."
         if not password:
-            errors['password'] = "Password wajib diisi."
+            errors['password'] = "Password is required."
         elif password != confirm:
-            errors['password_confirm'] = "Password tidak cocok."
+            errors['password_confirm'] = "Passwords do not match."
 
         if errors:
             return inertia_render(request, "User/Form", props={
@@ -92,7 +92,7 @@ def user_new(request):
             })
 
         user = User.objects.create_user(username=username, password=password, is_staff=is_staff)
-        messages.success(request, f"User '{user.username}' berhasil dibuat.")
+        messages.success(request, f"User '{user.username}' created successfully.")
         return redirect('user_list')
 
     return inertia_render(request, "User/Form", props={"form_data": None})
@@ -109,29 +109,29 @@ def user_edit(request, pk):
             password = request.POST.get('password', '')
             confirm  = request.POST.get('password_confirm', '')
             if not password:
-                messages.error(request, "Password baru wajib diisi.")
+                messages.error(request, "New password is required.")
             elif password != confirm:
-                messages.error(request, "Password tidak cocok.")
+                messages.error(request, "Passwords do not match.")
             else:
                 edit_user.set_password(password)
                 edit_user.save()
-                messages.success(request, f"Password '{edit_user.username}' berhasil direset.")
+                messages.success(request, f"Password for '{edit_user.username}' has been reset.")
                 return redirect('user_list')
 
         elif action == 'toggle_active':
             if edit_user == request.user:
-                messages.error(request, "Tidak bisa menonaktifkan akun sendiri.")
+                messages.error(request, "You cannot deactivate your own account.")
             else:
                 edit_user.is_active = not edit_user.is_active
                 edit_user.save()
-                status = "diaktifkan" if edit_user.is_active else "dinonaktifkan"
-                messages.success(request, f"User '{edit_user.username}' berhasil {status}.")
+                status = "activated" if edit_user.is_active else "deactivated"
+                messages.success(request, f"User '{edit_user.username}' {status} successfully.")
                 return redirect('user_list')
 
         elif action == 'toggle_staff':
             edit_user.is_staff = not edit_user.is_staff
             edit_user.save()
-            messages.success(request, f"Hak akses '{edit_user.username}' berhasil diubah.")
+            messages.success(request, f"Permissions for '{edit_user.username}' updated successfully.")
             return redirect('user_list')
 
     # Action-based view: every branch above either redirects on success or sets
@@ -143,15 +143,15 @@ def user_edit(request, pk):
 def user_delete(request, pk):
     target = get_object_or_404(User, pk=pk)
     if target == request.user:
-        messages.error(request, "Tidak bisa menghapus akun sendiri.")
+        messages.error(request, "You cannot delete your own account.")
         return redirect('user_list')
     if target.is_superuser:
-        messages.error(request, "Tidak bisa menghapus superuser.")
+        messages.error(request, "You cannot delete a superuser.")
         return redirect('user_list')
     if request.method == 'POST':
         username = target.username
         target.delete()
-        messages.success(request, f"User '{username}' berhasil dihapus.")
+        messages.success(request, f"User '{username}' deleted successfully.")
         return redirect('user_list')
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect('user_list')

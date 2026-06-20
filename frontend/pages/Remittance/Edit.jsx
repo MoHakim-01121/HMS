@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 
-const fmt = (n) => Number(n || 0).toLocaleString("id-ID", { maximumFractionDigits: 0 });
+const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const inputStyle = {
   width: "100%", background: "var(--surface-2)", border: "1px solid var(--border)",
   borderRadius: "var(--r)", color: "var(--text)", fontSize: 13, padding: "8px 10px", fontFamily: "inherit",
@@ -51,13 +51,13 @@ export default function Edit({ rem, lines = [] }) {
           <div className="card-body">
             <div className="form-header-grid">
               <div>
-                <label className="field-label">Tanggal Kirim</label>
+                <label className="field-label">Transfer Date</label>
                 <input type="date" value={form.data.date} required style={inputStyle}
                   onChange={(e) => form.setData("date", e.target.value)} />
               </div>
               <div>
                 <label className="field-label">Receipt Reference</label>
-                <input type="text" value={form.data.receipt_reference} placeholder="Kode kwitansi dari Pusat" style={inputStyle}
+                <input type="text" value={form.data.receipt_reference} placeholder="Receipt code from HQ" style={inputStyle}
                   onChange={(e) => form.setData("receipt_reference", e.target.value)} />
               </div>
               <div>
@@ -70,22 +70,22 @@ export default function Edit({ rem, lines = [] }) {
               </div>
               <div>
                 <label className="field-label">Note</label>
-                <input type="text" value={form.data.note} placeholder="Misal: Transfer BCA 01/06" style={inputStyle}
+                <input type="text" value={form.data.note} placeholder="e.g. BCA Transfer 01/06" style={inputStyle}
                   onChange={(e) => form.setData("note", e.target.value)} />
               </div>
               <div>
-                <label className="field-label">Kwitansi</label>
+                <label className="field-label">Receipt</label>
                 <input type="file" accept="image/*,.pdf" style={{ ...inputStyle, color: "var(--text-2)", padding: "7px 10px", boxSizing: "border-box" }}
                   onChange={(e) => form.setData("proof", e.target.files[0] || null)} />
                 {rem.proof_url && !removeProof && (
                   <div style={{ marginTop: 4, display: "flex", gap: 6 }}>
-                    <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent-2)" }}>Lihat ↗</a>
-                    <button type="button" onClick={() => setRemoveProof(true)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--red)", cursor: "pointer", padding: 0 }}>Hapus</button>
+                    <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent-2)" }}>View ↗</a>
+                    <button type="button" onClick={() => setRemoveProof(true)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--red)", cursor: "pointer", padding: 0 }}>Remove</button>
                   </div>
                 )}
                 {removeProof && (
                   <div style={{ marginTop: 4, fontSize: 11, color: "var(--red)" }}>
-                    Kwitansi akan dihapus saat disimpan. <button type="button" onClick={() => setRemoveProof(false)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--accent-2)", cursor: "pointer", padding: 0 }}>Batal</button>
+                    Receipt will be removed on save. <button type="button" onClick={() => setRemoveProof(false)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--accent-2)", cursor: "pointer", padding: 0 }}>Cancel</button>
                   </div>
                 )}
               </div>
@@ -95,7 +95,7 @@ export default function Edit({ rem, lines = [] }) {
 
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Reservasi</span>
+            <span className="card-title">Reservations</span>
           </div>
           {lines.length > 0 ? (
             <>
@@ -137,15 +137,15 @@ export default function Edit({ rem, lines = [] }) {
             </>
           ) : (
             <div className="empty" style={{ padding: 40 }}>
-              <div className="empty-title">Tidak ada reservasi</div>
+              <div className="empty-title">No reservations</div>
             </div>
           )}
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <a href={`/remittance/${rem.id}/`} className="btn btn-secondary">Batal</a>
+          <a href={`/remittance/${rem.id}/`} className="btn btn-secondary">Cancel</a>
           <button type="submit" className="btn btn-primary" disabled={form.processing}>
-            {form.processing ? "Menyimpan..." : "Simpan"}
+            {form.processing ? "Saving..." : "Save"}
           </button>
         </div>
       </form>

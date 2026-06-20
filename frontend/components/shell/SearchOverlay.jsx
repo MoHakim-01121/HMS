@@ -100,7 +100,7 @@ function Results({ data }) {
       <div className="s-empty-state">
         <Icon name="search" size={32} strokeWidth={1.5} />
         <span className="s-empty-title">No results</span>
-        <span className="s-empty-sub">untuk &ldquo;{data.q}&rdquo;</span>
+        <span className="s-empty-sub">for &ldquo;{data.q}&rdquo;</span>
       </div>
     );
   }

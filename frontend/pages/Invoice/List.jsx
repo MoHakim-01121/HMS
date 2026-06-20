@@ -6,10 +6,10 @@ import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 
 const STATUS_OPTS = [
-  { val: "", label: "Semua", cls: "c-all" },
-  { val: "lunas", label: "Lunas", cls: "c-lun" },
+  { val: "", label: "All", cls: "c-all" },
+  { val: "lunas", label: "Paid", cls: "c-lun" },
   { val: "partial", label: "Partial", cls: "c-par" },
-  { val: "belum", label: "Belum Bayar", cls: "c-bel" },
+  { val: "belum", label: "Unpaid", cls: "c-bel" },
 ];
 
 function visit(params) {
@@ -49,7 +49,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
       <div className="page-header">
         <div>
           <div className="page-title">Invoice Hotel</div>
-          <div className="page-sub">{total_count} invoice tersimpan</div>
+          <div className="page-sub">{total_count} invoices saved</div>
         </div>
         <div className="page-actions">
           <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
@@ -61,26 +61,26 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
               </div>
             )}
           </div>
-          <a href="/invoice/new/" className="btn btn-primary">+ Buat Baru</a>
+          <a href="/invoice/new/" className="btn btn-primary">+ Create New</a>
         </div>
       </div>
 
       {remit_stats && (
         <div className="rs-grid">
-          <Stat label="Total Tagihan" value={remit_stats.total_tagihan} />
-          <Stat label="Belum Terbayar" value={remit_stats.belum_terbayar} cls={remit_stats.belum_terbayar > 0 ? "red" : "green"} />
-          <Stat label="Terbayar Sby" value={remit_stats.terbayar_surabaya} cls="green" />
-          <Stat label="Terkirim Pusat" value={remit_stats.terbayar_pusat} cls="blue" />
-          <Stat label="Mengendap" value={remit_stats.mengendap} cls={remit_stats.mengendap > 0 ? "yellow" : "green"} />
+          <Stat label="Total Billed" value={remit_stats.total_tagihan} />
+          <Stat label="Unpaid" value={remit_stats.belum_terbayar} cls={remit_stats.belum_terbayar > 0 ? "red" : "green"} />
+          <Stat label="Paid in Surabaya" value={remit_stats.terbayar_surabaya} cls="green" />
+          <Stat label="Sent to HQ" value={remit_stats.terbayar_pusat} cls="blue" />
+          <Stat label="Idle Funds" value={remit_stats.mengendap} cls={remit_stats.mengendap > 0 ? "yellow" : "green"} />
         </div>
       )}
 
       <div className="filter-bar">
         <div className="search-wrap">
           <Icon name="search" size={13} />
-          <input type="text" value={query} placeholder="Cari customer atau nomor invoice…" onChange={(e) => setQuery(e.target.value)} />
+          <input type="text" value={query} placeholder="Search customer or invoice number…" onChange={(e) => setQuery(e.target.value)} />
           {query && (
-            <button type="button" className="sw-clear" title="Hapus pencarian" onClick={() => setQuery("")}>
+            <button type="button" className="sw-clear" title="Clear search" onClick={() => setQuery("")}>
               <Icon name="close" size={11} strokeWidth={2.5} />
             </button>
           )}
@@ -109,8 +109,8 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                   </div>
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset semua</button>
-                  <button type="button" className="fp-apply" onClick={applyStatus}>Terapkan</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset all</button>
+                  <button type="button" className="fp-apply" onClick={applyStatus}>Apply</button>
                 </div>
               </div>
             )}
@@ -126,7 +126,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                 <thead>
                   <tr>
                     <th>Invoice #</th><th>Customer</th><th>Issued</th><th>Total</th>
-                    <th>Sisa</th><th>Status</th><th>Dibuat</th><th></th>
+                    <th>Remaining</th><th>Status</th><th>Created</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -145,7 +145,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                         <div className="row-actions">
                           <a href={`/invoice/${inv.id}/pdf/`} className="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank" rel="noreferrer"><Icon name="pdf" size={14} /></a>
                           <a href={`/invoice/${inv.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                          <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Hapus" onClick={(e) => del(e, inv.id, inv.invoice_number)}><Icon name="trash" size={14} /></button>
+                          <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, inv.id, inv.invoice_number)}><Icon name="trash" size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -174,9 +174,9 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
           <div className="empty">
             <Icon name="invoice" size={36} strokeWidth={1.5} />
             {q ? (
-              <><div className="empty-title">Tidak ada hasil</div><div className="empty-sub">Coba ubah filter pencarian</div></>
+              <><div className="empty-title">No results</div><div className="empty-sub">Try adjusting your search filters</div></>
             ) : (
-              <><div className="empty-title">Belum ada invoice</div><div className="empty-sub">Gunakan tombol Buat Baru di pojok kanan atas</div></>
+              <><div className="empty-title">No invoices yet</div><div className="empty-sub">Use the Create New button in the top right</div></>
             )}
           </div>
         )}

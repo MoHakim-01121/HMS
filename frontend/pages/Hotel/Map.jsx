@@ -320,7 +320,7 @@ export default function HotelMap() {
         <div className="map-search-wrap">
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
           <input type="text" id="hotel-search" placeholder="Search hotel or area..." onInput={() => window.debounceSearch?.()} />
-          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title="Hapus">
+          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title="Clear">
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>

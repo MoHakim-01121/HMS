@@ -22,7 +22,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
       </div>
 
       <div className="card">
-        <div className="card-header"><span className="card-title">Info Invoice</span></div>
+        <div className="card-header"><span className="card-title">Invoice Info</span></div>
         <div className="card-body">
           <div className="grid-3">
             <div className="field"><div className="field-label">Customer</div><div className="field-value">{invoice.customer_name}</div></div>
@@ -39,7 +39,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>#</th><th>Layanan</th><th>Qty</th><th>Harga</th><th>Total</th><th>Sisa</th></tr>
+              <tr><th>#</th><th>Service</th><th>Qty</th><th>Price</th><th>Total</th><th>Remaining</th></tr>
             </thead>
             <tbody>
               {visa_services.length ? visa_services.map((svc, i) => (
@@ -52,7 +52,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
                   <td className={`${svc.remaining_class} mono col-m-hide`}>{fmt(svc.remaining)} {cur}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-3)" }}>Tidak ada data layanan</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-3)" }}>No service data</td></tr>
               )}
             </tbody>
           </table>
@@ -61,15 +61,15 @@ export default function Detail({ invoice, visa_services, payments_history, servi
 
       <div className="card">
         <div className="card-header">
-          <span className="card-title">Pembayaran</span>
+          <span className="card-title">Payments</span>
           <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "services" : "services_lunas", invoice.pk)}>
-            <Icon name="message" size={13} /> {unpaid ? "Buat Pesan" : "Draf Lunas"}
+            <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Paid Message"}
           </button>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Svc#</th><th>Tanggal</th><th>Metode</th><th>Jumlah</th><th>Mata Uang</th><th>Rate</th><th>Catatan</th><th>Bukti</th></tr>
+              <tr><th>Svc#</th><th>Date</th><th>Method</th><th>Amount</th><th>Currency</th><th>Rate</th><th>Note</th><th>Proof</th></tr>
             </thead>
             <tbody>
               {payments_history.length ? payments_history.map((p, i) => (
@@ -81,10 +81,10 @@ export default function Detail({ invoice, visa_services, payments_history, servi
                   <td className="col-m-hide"><span className="badge badge-gray">{p.payment_currency}</span></td>
                   <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{p.payment_exchange}</td>
                   <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{p.payment_note || "—"}</td>
-                  <td className="col-m-actions">{p.proof_url ? <a href={p.proof_url} target="_blank" rel="noreferrer" title="Lihat bukti" style={{ color: "var(--accent-2)", textDecoration: "none", display: "inline-flex" }}><Icon name="search" size={14} /></a> : <span className="col-dim">—</span>}</td>
+                  <td className="col-m-actions">{p.proof_url ? <a href={p.proof_url} target="_blank" rel="noreferrer" title="View proof" style={{ color: "var(--accent-2)", textDecoration: "none", display: "inline-flex" }}><Icon name="search" size={14} /></a> : <span className="col-dim">—</span>}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--text-3)" }}>Tidak ada data pembayaran</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--text-3)" }}>No payment data</td></tr>
               )}
             </tbody>
           </table>

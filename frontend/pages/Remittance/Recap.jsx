@@ -7,8 +7,8 @@ export default function Recap({ monthly }) {
     <div className="page">
       <div className="page-header">
         <div>
-          <div className="page-title">Rekap Bulanan</div>
-          <div className="page-sub">Ringkasan remittance per bulan</div>
+          <div className="page-title">Monthly Recap</div>
+          <div className="page-sub">Remittance summary per month</div>
         </div>
       </div>
 
@@ -27,14 +27,14 @@ export default function Recap({ monthly }) {
           </div>
           <table className="recap-table">
             <thead>
-              <tr><th>No</th><th>Tanggal</th><th>Res Count</th><th>Status</th><th className="r">Total SAR</th></tr>
+              <tr><th>No</th><th>Date</th><th>Res Count</th><th>Status</th><th className="r">Total SAR</th></tr>
             </thead>
             <tbody>
               {m.remittances.map((rem) => (
                 <tr key={rem.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/remittance/${rem.id}/`)}>
                   <td className="mono" style={{ fontWeight: 600 }}>{rem.remittance_number}</td>
                   <td>{rem.date}</td>
-                  <td style={{ color: "var(--text-2)" }}>{rem.lines_count} reservasi</td>
+                  <td style={{ color: "var(--text-2)" }}>{rem.lines_count} reservations</td>
                   <td>{rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span>}</td>
                   <td className="mono r" style={{ fontWeight: 600 }}>{fmt(rem.total_sar)}</td>
                 </tr>
@@ -51,7 +51,7 @@ export default function Recap({ monthly }) {
         </div>
       )) : (
         <div className="card">
-          <div className="empty"><div className="empty-title">Belum ada data remittance</div></div>
+          <div className="empty"><div className="empty-title">No remittance data yet</div></div>
         </div>
       )}
     </div>
