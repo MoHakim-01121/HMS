@@ -107,7 +107,7 @@ tfoot td { padding:10px; border-top:2px solid #111; font-weight:700; font-size:1
       <td class="muted">{{ forloop.counter }}</td>
       <td class="bold mono">{{ rem.remittance_number }}</td>
       <td class="muted">{{ rem.date|date:"d/m/Y" }}</td>
-      <td class="muted">{{ rem.lines.count }}</td>
+      <td class="muted">{{ rem.lines.all|length }}</td>
       <td>
         {% if rem.status == 'received' %}
         <span class="badge-r">Received</span>

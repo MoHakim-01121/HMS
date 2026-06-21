@@ -203,3 +203,38 @@ class ProfileTests(TestCase):
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]["object_ref"], "Hilton")
         self.assertEqual(edits[0]["changes"][0]["after"], "B")
+
+
+class SessionExpiryInertiaTests(TestCase):
+    """An expired session must redirect Inertia (XHR) requests cleanly via a
+    409 + X-Inertia-Location, instead of feeding the HTML login page back to the
+    Inertia client (which errors out)."""
+
+    def test_inertia_request_when_logged_out_returns_409_location(self):
+        # No login → @login_required would redirect to /login/.
+        resp = self.client.get("/remittance/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("/login/", resp["X-Inertia-Location"])
+
+    def test_inertia_post_when_logged_out_returns_409_location(self):
+        resp = self.client.post("/remittance/1/delete/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("/login/", resp["X-Inertia-Location"])
+
+    def test_non_inertia_request_still_redirects_302(self):
+        # Plain browser navigation keeps the normal redirect behaviour.
+        resp = self.client.get("/remittance/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login/", resp["Location"])
+
+    def test_inertia_redirect_to_non_login_is_untouched(self):
+        # An authenticated Inertia action that redirects to another Inertia page
+        # must NOT be converted to a 409.
+        user = User.objects.create_user("sess_ok", password="pw12345")
+        self.client.force_login(user)
+        s = self.client.session; s["active_company"] = "konoz"; s.save()
+        from hw.models import Client
+        c = Client.objects.create(company="konoz", name="PT Sesi")
+        resp = self.client.post(f"/clients/{c.pk}/delete/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 302)
+        self.assertNotIn("/login/", resp["Location"])

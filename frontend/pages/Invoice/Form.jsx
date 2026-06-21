@@ -1,6 +1,14 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+
+const DragIcon = () => (
+  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" style={{ opacity: 0.45, display: "block" }}>
+    <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
+    <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
+    <circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/>
+  </svg>
+);
 
 const PAY_COLS = "28px 90px 130px 130px 110px 70px 90px 1fr 70px 28px";
 const CURRENCIES = ["SAR", "USD", "IDR"];
@@ -8,7 +16,8 @@ const METHODS = ["Cash", "Bank Transfer", "Direct", "Deposit"];
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 const blankRes = () => ({ reservation_number: "", hotel: "", check_in: "", check_out: "", reservation_total: "" });
-const blankPay = () => ({ ref: "", date: "", method: "Cash", amount: "", currency: "SAR", exchange: 1, note: "", proof_keep: "", proof_url: null, file: null });
+let _paySeq = 0;
+const blankPay = () => ({ _key: ++_paySeq, ref: "", date: "", method: "Cash", amount: "", currency: "SAR", exchange: 1, note: "", proof_keep: "", proof_url: null, file: null });
 
 function seedFrom(src) {
   if (!src) return { reservations: [blankRes()], payments: [blankPay()], linkedClIds: [] };
@@ -18,6 +27,7 @@ function seedFrom(src) {
     reservation_total: r.reservation_total ?? "",
   }));
   const payments = (src.payments || []).map((p) => ({
+    _key: ++_paySeq,
     ref: String(p.ref ?? ""), date: p.date || "", method: p.method || "Cash",
     amount: p.amount ?? "", currency: p.currency || "SAR", exchange: p.exchange ?? 1,
     note: p.note || "", proof_keep: p.proof_keep || "", proof_url: p.proof_url || null, file: null,
@@ -58,6 +68,23 @@ export default function Form({ invoice, edit, suggested_number, default_company,
   const setPay = (i, patch) => setPayments((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   const addPay = () => setPayments((rows) => [...rows, blankPay()]);
   const removePay = (i) => setPayments((rows) => rows.filter((_, idx) => idx !== i));
+
+  // ── Payment drag-to-reorder ──
+  const dragIndex = useRef(null);
+  const onPayDragStart = (e, i) => { dragIndex.current = i; e.dataTransfer.effectAllowed = "move"; };
+  // Only intercept dragover/drop when a payment drag is actually in progress.
+  // Without this guard, dragging text between inputs or dropping files would
+  // also trigger these handlers and could cause unexpected reorders.
+  const onPayDragOver = (e) => { if (dragIndex.current === null) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+  const onPayDrop = (e, i) => {
+    if (dragIndex.current === null) return;
+    e.preventDefault();
+    const from = dragIndex.current;
+    dragIndex.current = null;
+    if (from === i) return;
+    setPayments((rows) => { const next = [...rows]; next.splice(i, 0, next.splice(from, 1)[0]); return next; });
+  };
+  const onPayDragEnd = () => { dragIndex.current = null; };
   const onCurrencyChange = (i, cur) => {
     const patch = { currency: cur };
     if (cur === "SAR") patch.exchange = 1;
@@ -216,8 +243,9 @@ export default function Form({ invoice, edit, suggested_number, default_company,
             </div>
             <div id="payments">
               {payments.map((p, i) => (
-                <div className="payment-item" key={i} style={{ gridTemplateColumns: PAY_COLS }}>
-                  <div className="drag-handle" style={{ cursor: "default" }} />
+                <div className="payment-item" key={p._key} style={{ gridTemplateColumns: PAY_COLS }}
+                  onDragOver={onPayDragOver} onDrop={(e) => onPayDrop(e, i)}>
+                  <div className="drag-handle" draggable onDragStart={(e) => onPayDragStart(e, i)} onDragEnd={onPayDragEnd} style={{ cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center" }}><DragIcon /></div>
                   <select value={p.ref} required onChange={(e) => setPay(i, { ref: e.target.value })}>
                     <option value="">Res#</option>
                     {resOptions.map((n) => <option key={n} value={n}>{n}</option>)}

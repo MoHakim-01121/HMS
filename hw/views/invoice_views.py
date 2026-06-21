@@ -261,7 +261,7 @@ def invoice_edit(request, pk):
             'Issued Date':      str(invoice.issued_date or ''),
             'Due Date':         str(invoice.due_date or ''),
             'Company':          invoice.company,
-            'Reservasi':        _res_snapshot(invoice),
+            'Reservations':     _res_snapshot(invoice),
         }
         new_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
@@ -285,8 +285,8 @@ def invoice_edit(request, pk):
         _save_reservations(invoice, request)
         _save_hotel_payments(invoice, request)
         cl_ids = _parse_cl_ids(request)
+        ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
         if cl_ids:
-            ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
             ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
         _after = {
             'Customer Name':    invoice.customer_name,

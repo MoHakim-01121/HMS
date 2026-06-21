@@ -18,6 +18,17 @@ from .helpers import _is_mobile, _page_range_display, _paginated_list, _parse_da
 from .pdf import _logo_file_url, _render_cl_pdf
 
 
+def _get_cl(request, pk, qs=None):
+    """Fetch a ConfirmationLetter by pk, scoped to the active company (consistent
+    with the list/invoice/client views) so a CL from another company cannot be
+    opened by URL while a company is selected."""
+    active_company = request.session.get("active_company")
+    qs = qs if qs is not None else ConfirmationLetter.objects.all()
+    if active_company:
+        qs = qs.filter(company=active_company)
+    return get_object_or_404(qs, pk=pk)
+
+
 @login_required
 def cl_list(request):
     active_company = request.session.get("active_company")
@@ -192,10 +203,10 @@ def cl_new(request):
 
 @login_required
 def cl_detail(request, pk):
-    cl = get_object_or_404(
+    cl = _get_cl(
+        request, pk,
         ConfirmationLetter.objects.select_related('client', 'invoice', 'penalty')
         .prefetch_related('rooms', 'attachments'),
-        pk=pk,
     )
     rooms = [{
         "room_type": r.room_type,
@@ -249,7 +260,7 @@ def cl_detail(request, pk):
 
 @login_required
 def cl_edit(request, pk):
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = _get_cl(request, pk)
 
     def _room_snapshot(rooms_qs):
         rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
@@ -331,7 +342,7 @@ def cl_edit(request, pk):
 
 @login_required
 def cl_delete(request, pk):
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = _get_cl(request, pk)
     if request.method == "POST":
         num = cl.confirmation_number
         cl.delete()
@@ -344,7 +355,7 @@ def cl_delete(request, pk):
 
 @login_required
 def cl_pdf(request, pk):
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = _get_cl(request, pk)
     return _render_cl_pdf(cl)
 
 
@@ -420,7 +431,7 @@ def cl_export_csv(request):
 
 @login_required
 def cl_duplicate(request, pk):
-    original = get_object_or_404(ConfirmationLetter, pk=pk)
+    original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()
     new_cl = ConfirmationLetter.objects.create(
         company=original.company,

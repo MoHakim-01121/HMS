@@ -70,6 +70,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'hw.inertia_auth.InertiaAuthRedirectMiddleware',
     'inertia.middleware.InertiaMiddleware',
     'hw.inertia_share.InertiaShareMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',

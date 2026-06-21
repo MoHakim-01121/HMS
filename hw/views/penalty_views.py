@@ -9,8 +9,26 @@ from django.template.loader import render_to_string
 from inertia import render as inertia_render
 
 from ..models import CancellationPenalty, ConfirmationLetter
-from .helpers import _parse_date
+from .helpers import _parse_date, _to_float
 from .pdf import _logo_file_url
+
+
+def _get_cl(request, cl_pk):
+    """Fetch a CL scoped to the active company (consistent with cl/invoice views)."""
+    filters = {'pk': cl_pk}
+    active_company = request.session.get("active_company")
+    if active_company:
+        filters['company'] = active_company
+    return get_object_or_404(ConfirmationLetter, **filters)
+
+
+def _get_penalty(request, pk, qs=None):
+    """Fetch a penalty scoped to the active company via its CL."""
+    active_company = request.session.get("active_company")
+    qs = qs if qs is not None else CancellationPenalty.objects.all()
+    if active_company:
+        qs = qs.filter(cl__company=active_company)
+    return get_object_or_404(qs, pk=pk)
 
 
 def _penalty_props(penalty):
@@ -34,7 +52,7 @@ def _penalty_props(penalty):
 
 @login_required
 def penalty_new(request, cl_pk):
-    cl = get_object_or_404(ConfirmationLetter, pk=cl_pk)
+    cl = _get_cl(request, cl_pk)
     if hasattr(cl, 'penalty'):
         return redirect('penalty_detail', pk=cl.penalty.pk)
 
@@ -46,9 +64,9 @@ def penalty_new(request, cl_pk):
             penalty_number=request.POST.get('penalty_number', suggested_number),
             cancellation_date=_parse_date(request.POST.get('cancellation_date')),
             reason=request.POST.get('reason', ''),
-            penalty_amount=float(request.POST.get('penalty_amount', 0) or 0),
+            penalty_amount=_to_float(request.POST.get('penalty_amount')),
             penalty_currency=request.POST.get('penalty_currency', 'SAR'),
-            exchange_rate=float(request.POST.get('exchange_rate', 1) or 1),
+            exchange_rate=_to_float(request.POST.get('exchange_rate'), 1) or 1,
             is_paid=request.POST.get('is_paid') == 'on',
             payment_date=_parse_date(request.POST.get('payment_date')),
             payment_method=request.POST.get('payment_method', ''),
@@ -69,22 +87,22 @@ def penalty_new(request, cl_pk):
 
 @login_required
 def penalty_detail(request, pk):
-    penalty = get_object_or_404(CancellationPenalty.objects.select_related('cl'), pk=pk)
+    penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     return inertia_render(request, "Penalty/Detail", props={"penalty": _penalty_props(penalty)})
 
 
 @login_required
 def penalty_edit(request, pk):
-    penalty = get_object_or_404(CancellationPenalty.objects.select_related('cl'), pk=pk)
+    penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     cl = penalty.cl
 
     if request.method == 'POST':
         penalty.penalty_number  = request.POST.get('penalty_number', penalty.penalty_number)
         penalty.cancellation_date = _parse_date(request.POST.get('cancellation_date')) or penalty.cancellation_date
         penalty.reason          = request.POST.get('reason', '')
-        penalty.penalty_amount  = float(request.POST.get('penalty_amount', 0) or 0)
+        penalty.penalty_amount  = _to_float(request.POST.get('penalty_amount'))
         penalty.penalty_currency = request.POST.get('penalty_currency', 'SAR')
-        penalty.exchange_rate   = float(request.POST.get('exchange_rate', 1) or 1)
+        penalty.exchange_rate   = _to_float(request.POST.get('exchange_rate'), 1) or 1
         penalty.is_paid         = request.POST.get('is_paid') == 'on'
         penalty.payment_date    = _parse_date(request.POST.get('payment_date'))
         penalty.payment_method  = request.POST.get('payment_method', '')
@@ -105,7 +123,7 @@ def penalty_edit(request, pk):
 
 @login_required
 def penalty_delete(request, pk):
-    penalty = get_object_or_404(CancellationPenalty, pk=pk)
+    penalty = _get_penalty(request, pk)
     cl_pk = penalty.cl_id
     if request.method == 'POST':
         num = penalty.penalty_number
@@ -118,7 +136,7 @@ def penalty_delete(request, pk):
 
 @login_required
 def penalty_pdf(request, pk):
-    penalty = get_object_or_404(CancellationPenalty.objects.select_related('cl'), pk=pk)
+    penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     cl = penalty.cl
 
     rooms = []

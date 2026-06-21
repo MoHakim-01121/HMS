@@ -241,7 +241,8 @@ def remittance_detail(request, pk):
     # Total previously sent (other remittances)
     prev_map = {}
     for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers
+        linked_number__in=linked_numbers,
+        remittance__company=KONOZ,
     ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
         prev_map[row['linked_number']] = int(row['total'] or 0)
 
@@ -381,7 +382,8 @@ def remittance_pdf(request, pk):
     }
     prev_map = {}
     for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers
+        linked_number__in=linked_numbers,
+        remittance__company=KONOZ,
     ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
         prev_map[row['linked_number']] = int(row['total'] or 0)
 
@@ -391,7 +393,7 @@ def remittance_pdf(request, pk):
         request, rem.lines.none(),
         template='hw/remittance/remittance_pdf.html',
         filename=f'remittance_{rem.date}.pdf',
-        extra_ctx={'rem': rem, 'lines': lines, 'logo_url': _logo_file_url('konoz')},
+        extra_ctx={'rem': rem, 'lines': lines, 'logo_url': _logo_file_url('konoz'), 'total_sar': sum(int(l.amount_sar or 0) for l in raw_lines)},
     )
 
 
