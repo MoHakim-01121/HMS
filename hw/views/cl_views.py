@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
-from .helpers import _is_mobile, _page_range_display, _paginated_list, _parse_date, _render_list_pdf
+from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf
 from .pdf import _logo_file_url, _render_cl_pdf
 
 

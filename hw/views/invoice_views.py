@@ -18,7 +18,6 @@ from .context import _build_reservation_context
 from .helpers import (
     _is_mobile,
     _page_range_display,
-    _paginated_list,
     _parse_date,
     _render_list_pdf,
     _save_hotel_payments,

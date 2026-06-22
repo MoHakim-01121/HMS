@@ -23,23 +23,6 @@ def _page_range_display(page_obj):
     return result
 
 
-def _paginated_list(request, qs, template, context_key, extra_ctx=None):
-    q = request.GET.get('q', '').strip()
-    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    params_str = urllib.parse.urlencode({k: v for k, v in request.GET.items() if k != 'page'})
-    ctx = {
-        context_key: page_obj,
-        "page_obj": page_obj,
-        "q": q,
-        "total_count": paginator.count,
-        "page_range_display": _page_range_display(page_obj),
-        "params_str": params_str,
-    }
-    if extra_ctx:
-        ctx.update(extra_ctx)
-    return render(request, template, ctx)
-
 
 def _render_list_pdf(request, qs, template, filename, extra_ctx=None):
     from datetime import datetime as _dt
