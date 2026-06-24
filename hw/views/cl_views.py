@@ -384,7 +384,16 @@ def _filter_cl_qs(qs, request):
     date_to     = _parse_date(request.GET.get('date_to', '').strip())
     sort        = request.GET.get('sort', '-check_in')
     if q:
-        qs = qs.filter(Q(guest_name__icontains=q) | Q(hotel_name__icontains=q) | Q(confirmation_number__icontains=q))
+        tokens = _parse_search_tokens(q)
+        if tokens:
+            combined = Q()
+            for token in tokens:
+                combined |= (
+                    Q(guest_name__icontains=token) |
+                    Q(hotel_name__icontains=token) |
+                    Q(confirmation_number__icontains=token)
+                )
+            qs = qs.filter(combined)
     if status_list:
         qs = qs.filter(reservation_status__in=status_list)
     if date_from:

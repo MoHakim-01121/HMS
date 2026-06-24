@@ -88,3 +88,16 @@ class ClListMultiSearchTests(TestCase):
     def test_empty_comma_query_returns_all(self):
         letters = self._get_letters(" , , ")
         self.assertEqual(len(letters), 3)
+
+    def test_multi_query_export_csv_filters_correctly(self):
+        resp = self.client.get("/cl/export/csv/", {"q": "HMS/241,HMS/142"})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8-sig")
+        self.assertIn("HMS/241", content)
+        self.assertIn("HMS/142", content)
+        self.assertNotIn("HMS/999", content)
+
+    def test_multi_query_export_pdf_returns_200(self):
+        resp = self.client.get("/cl/export/pdf/", {"q": "HMS/241,HMS/142"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("application/pdf", resp.get("Content-Type", ""))
