@@ -29,6 +29,12 @@ def _get_cl(request, pk, qs=None):
     return get_object_or_404(qs, pk=pk)
 
 
+def _parse_search_tokens(q):
+    if ',' not in q:
+        return [q[:100]]
+    return [t.strip()[:100] for t in q.split(',') if t.strip()]
+
+
 @login_required
 def cl_list(request):
     active_company = request.session.get("active_company")
@@ -55,11 +61,16 @@ def cl_list(request):
 
     qs = base_qs
     if q:
-        qs = qs.filter(
-            Q(guest_name__icontains=q) |
-            Q(hotel_name__icontains=q) |
-            Q(confirmation_number__icontains=q)
-        )
+        tokens = _parse_search_tokens(q)
+        if tokens:
+            combined = Q()
+            for token in tokens:
+                combined |= (
+                    Q(guest_name__icontains=token) |
+                    Q(hotel_name__icontains=token) |
+                    Q(confirmation_number__icontains=token)
+                )
+            qs = qs.filter(combined)
     if status_list:
         qs = qs.filter(reservation_status__in=status_list)
     if date_from:
