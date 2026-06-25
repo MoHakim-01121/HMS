@@ -32,9 +32,9 @@
     td { padding: 7px 10px; vertical-align: middle; color: #111; border: none; border-bottom: 1px solid #f2f2f2; white-space: nowrap; }
     tbody tr:last-child td { border-bottom: 1px solid #e0e0e0; }
 
-    .col-no  { width: 30px; text-align: center; color: #888; }
-    .col-eta { width: 54px; text-align: center; font-weight: 600; }
-    .col-co  { width: 74px; }
+    .col-no      { width: 28px; text-align: center; color: #888; }
+    .col-fixed   { width: 90px; }
+    .col-eta     { width: 90px; text-align: center; font-weight: 600; }
 
     .empty-msg { text-align: center; padding: 40px; color: #aaa; font-style: italic; }
   </style>
@@ -68,10 +68,10 @@
                 <th class="col-no">No</th>
                 <th>Guest Name</th>
                 <th>Rooms</th>
-                <th class="col-co">Check-out</th>
+                <th class="col-fixed">Check-out</th>
                 <th class="col-eta">ETA</th>
-                <th>PIC Name</th>
-                <th>PIC Contact</th>
+                <th class="col-fixed">PIC Name</th>
+                <th class="col-fixed">PIC Contact</th>
               </tr>
             </thead>
             <tbody>
@@ -80,10 +80,10 @@
                 <td class="col-no">{{ g.no }}</td>
                 <td>{{ g.guest_name }}</td>
                 <td>{{ g.rooms }}</td>
-                <td class="col-co">{{ g.check_out|date:"d M Y" }}</td>
+                <td class="col-fixed">{{ g.check_out|date:"d M Y" }}</td>
                 <td class="col-eta">{{ g.eta }}</td>
-                <td>{{ g.pic_name }}</td>
-                <td>{{ g.pic_phone }}</td>
+                <td class="col-fixed">{{ g.pic_name }}</td>
+                <td class="col-fixed">{{ g.pic_phone }}</td>
               </tr>
               {% endfor %}
             </tbody>
