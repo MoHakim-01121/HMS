@@ -1,22 +1,31 @@
 import { useEffect, useState } from "react";
 import { usePage } from "@inertiajs/react";
 
+export function showToast(msg, kind = "success") {
+  window.dispatchEvent(new CustomEvent("show-toast", { detail: { msg, kind } }));
+}
+
 export default function Toast() {
   const { props } = usePage();
   const flash = props.flash || {};
   const [items, setItems] = useState([]);
 
+  const addItem = (kind, msg) => {
+    const item = { id: Date.now() + Math.random(), kind, msg };
+    setItems((cur) => [...cur, item]);
+    setTimeout(() => setItems((cur) => cur.filter((i) => i.id !== item.id)), 3200);
+  };
+
   useEffect(() => {
-    const next = [];
-    if (flash.success) next.push({ id: Date.now() + "s", kind: "success", msg: flash.success });
-    if (flash.error) next.push({ id: Date.now() + "e", kind: "error", msg: flash.error });
-    if (!next.length) return;
-    setItems((cur) => [...cur, ...next]);
-    const t = setTimeout(() => {
-      setItems((cur) => cur.filter((i) => !next.some((n) => n.id === i.id)));
-    }, 3200);
-    return () => clearTimeout(t);
+    if (flash.success) addItem("success", flash.success);
+    if (flash.error)   addItem("error",   flash.error);
   }, [flash.success, flash.error]);
+
+  useEffect(() => {
+    const handler = (e) => addItem(e.detail.kind, e.detail.msg);
+    window.addEventListener("show-toast", handler);
+    return () => window.removeEventListener("show-toast", handler);
+  }, []);
 
   if (!items.length) return null;
   return (

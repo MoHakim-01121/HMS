@@ -41,6 +41,14 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
 
     # Calendar
     path('calendar/', views.calendar_view, name='calendar'),
+    path('calendar/cl/<int:pk>/estimasi/', views.cl_estimasi_save, name='cl_estimasi_save'),
+    path('calendar/send-recap/', views.calendar_send_recap, name='calendar_send_recap'),
+    path('calendar/send-reminder/<int:pk>/', views.calendar_send_reminder, name='calendar_send_reminder'),
+    path('calendar/wa-targets/', views.wa_target_add, name='wa_target_add'),
+    path('calendar/wa-targets/<int:pk>/toggle/', views.wa_target_toggle, name='wa_target_toggle'),
+    path('calendar/wa-targets/<int:pk>/delete/', views.wa_target_delete, name='wa_target_delete'),
+    path('calendar/message-templates/', views.message_template_save, name='message_template_save'),
+    path('calendar/recap-settings/', views.calendar_recap_settings, name='calendar_recap_settings'),
 
     # Search
     path('search/', views.global_search, name='global_search'),

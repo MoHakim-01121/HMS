@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
+import UpcomingCheckins from "./UpcomingCheckins.jsx";
 
 // Day-count–dependent grid CSS (incl. mobile) injected per render, ported from calendar.html.
 function gridCss(days) {
@@ -90,7 +91,8 @@ function countdown(checkin) {
 
 export default function Calendar(props) {
   const { year, month, month_name, days, today_day, hotels, prev_year, prev_month, next_year, next_month,
-    total_reservations, checkins_today, checkouts_today, tentative_count, active_today } = props;
+    total_reservations, checkins_today, checkouts_today, tentative_count, active_today,
+    upcoming_checkins = [], last_recap = null } = props;
   const [tip, setTip] = useState(null); // { res, x, y }
 
   const show = (e, res) => setTip({ res, x: e.clientX, y: e.clientY });
@@ -195,6 +197,8 @@ export default function Calendar(props) {
           )}
         </div>
       )}
+
+      <UpcomingCheckins upcoming_checkins={upcoming_checkins} last_recap={last_recap} />
     </div>
   );
 }

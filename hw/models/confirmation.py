@@ -20,7 +20,10 @@ class ConfirmationLetter(models.Model):
         'Invoice', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='confirmation_letters',
     )
-    note       = models.TextField(blank=True)
+    note          = models.TextField(blank=True)
+    estimasi_tiba = models.TimeField(null=True, blank=True)
+    pic_name      = models.CharField(max_length=200, blank=True)
+    pic_phone     = models.CharField(max_length=50, blank=True)
     ai_summary = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -10,6 +10,7 @@ from .invoice import (
 )
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
+from .reminder import ReminderLog, RecapLog, WATarget, MessageTemplate
 
 __all__ = [
     'Company', 'HotelCity', 'InvoiceType',
@@ -21,4 +22,5 @@ __all__ = [
     'Remittance', 'RemittanceLine',
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     'CancellationPenalty',
+    'ReminderLog', 'RecapLog', 'WATarget', 'MessageTemplate',
 ]

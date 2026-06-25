@@ -200,6 +200,9 @@ DJANGO_VITE = {
 GROQ_API_KEY   = get_env_variable('GROQ_API_KEY', '')
 GEMINI_API_KEY = get_env_variable('GEMINI_API_KEY', '')
 
+FONNTE_TOKEN        = get_env_variable('FONNTE_TOKEN', '')
+FONNTE_TEAM_TARGETS = get_list_env('FONNTE_TEAM_TARGETS', [])
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
