@@ -90,7 +90,7 @@ class RecapServiceTest(TestCase):
         self.assertIn('MARRIOTT', msg)
         self.assertLess(msg.index('HILTON MAKKAH'), msg.index('MARRIOTT'))
         self.assertIn('CL-001', msg)
-        self.assertIn('Total: 3 guests | 2 hotels', msg)
+        self.assertIn('3 tamu | 2 hotel', msg)
 
     def test_build_reminder_h0_contains_hari_ini(self):
         from hw.services.recap import build_reminder_message
@@ -157,7 +157,7 @@ class RecapServiceTest(TestCase):
         cl_complete.save()
         cl_incomplete = _make_cl(confirmation_number='CL-FI1')  # estimasi_tiba=None
         msg = build_recap_message([cl_complete, cl_incomplete], date.today())
-        self.assertIn('1 incomplete', msg)
+        self.assertIn('1 belum ETA', msg)
 
     def test_build_recap_no_emoji(self):
         from hw.services.recap import build_recap_message, build_reminder_message

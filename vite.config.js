@@ -12,6 +12,11 @@ export default defineConfig({
     emptyOutDir: true,
     rollupOptions: {
       input: resolve("./frontend/main.jsx"),
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "@inertiajs/react"],
+        },
+      },
     },
   },
   server: {

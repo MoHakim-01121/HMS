@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -82,24 +83,28 @@ def _get_upcoming_checkins(active_company):
 
 
 def _get_message_templates():
-    rows = {r.template_type: r.body for r in MessageTemplate.objects.all()}
-    return {
-        'h1_template':    rows.get('H1_GUEST',  TEMPLATE_H1),
-        'h0_template':    rows.get('H0_GUEST',  TEMPLATE_H0),
-        'recap_template': rows.get('RECAP_OPS', TEMPLATE_RECAP),
-    }
+    def _fetch():
+        rows = {r.template_type: r.body for r in MessageTemplate.objects.all()}
+        return {
+            'h1_template':    rows.get('H1_GUEST',  TEMPLATE_H1),
+            'h0_template':    rows.get('H0_GUEST',  TEMPLATE_H0),
+            'recap_template': rows.get('RECAP_OPS', TEMPLATE_RECAP),
+        }
+    return cache.get_or_set('message_templates', _fetch, 300)
 
 
 def _get_last_recap():
-    log = RecapLog.objects.filter(status='SENT').order_by('-sent_at').first()
-    if not log:
-        return None
-    return {
-        'sent_at': log.sent_at.strftime('%d %b %Y %H:%M'),
-        'target': log.target,
-        'cl_count': log.cl_count,
-        'triggered_by': log.triggered_by,
-    }
+    def _fetch():
+        log = RecapLog.objects.filter(status='SENT').order_by('-sent_at').first()
+        if not log:
+            return None
+        return {
+            'sent_at': log.sent_at.strftime('%d %b %Y %H:%M'),
+            'target': log.target,
+            'cl_count': log.cl_count,
+            'triggered_by': log.triggered_by,
+        }
+    return cache.get_or_set('last_recap', _fetch, 60)
 
 
 def _inv_color(remaining, total):
@@ -285,6 +290,7 @@ def calendar_send_recap(request):
         )
         if status == 'FAILED':
             errors.append(f"{t.label}: {error}")
+    cache.delete('last_recap')
     return JsonResponse({'ok': not errors, 'errors': errors})
 
 
@@ -369,4 +375,5 @@ def message_template_save(request):
             MessageTemplate.objects.update_or_create(
                 template_type=ttype, defaults={'body': body},
             )
+    cache.delete('message_templates')
     return JsonResponse({'ok': True})

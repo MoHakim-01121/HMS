@@ -38,7 +38,11 @@ def _parse_search_tokens(q):
 @login_required
 def cl_list(request):
     active_company = request.session.get("active_company")
-    base_qs = (ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()).select_related('invoice').prefetch_related('rooms')
+    base_qs = (
+        ConfirmationLetter.objects.filter(company=active_company)
+        if active_company
+        else ConfirmationLetter.objects.all()
+    ).defer('note').select_related('invoice').prefetch_related('rooms')
 
     q           = request.GET.get('q', '').strip()
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
