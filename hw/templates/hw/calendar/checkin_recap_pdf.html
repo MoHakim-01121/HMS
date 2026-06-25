@@ -32,8 +32,6 @@
     .col-checkout { width: 70px; }
 
     .empty-msg { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
-
-    .date-group-break { page-break-before: always; }
   </style>
 </head>
 <body>
@@ -50,7 +48,7 @@
   <div class="empty-msg">Tidak ada data check-in untuk ditampilkan.</div>
 {% else %}
   {% for group in groups %}
-    <div class="date-group {% if not forloop.first %}date-group-break{% endif %}">
+    <div class="date-group">
       <div class="date-heading">
         <span class="date-label">{{ group.date|date:"l, d F Y" }}</span>
         <span class="date-count">{{ group.total }} tamu</span>
