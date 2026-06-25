@@ -26,12 +26,13 @@
 
     /* Table */
     table { width: 100%; border-collapse: collapse; font-size: 8pt; }
-    th { background: #ececec; border: 1px solid #bbb; padding: 6px 8px; text-align: left; font-weight: 700; color: #111; white-space: nowrap; }
-    td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; color: #111; }
-    tr:nth-child(even) td { background: #f7f7f7; }
+    thead tr { background: #f0f0f0; }
+    th { padding: 6px 10px; text-align: left; font-weight: 500; color: #555; white-space: nowrap; font-size: 7.5pt; border: none; border-bottom: 1px solid #d0d0d0; }
+    td { padding: 6px 10px; vertical-align: middle; color: #111; border: none; border-bottom: 1px solid #ebebeb; }
+    tbody tr:last-child td { border-bottom: none; }
 
     .col-no  { width: 28px; text-align: center; }
-    .col-eta { width: 50px; text-align: center; font-weight: 700; }
+    .col-eta { width: 50px; text-align: center; font-weight: 600; }
     .col-co  { width: 70px; }
 
     .empty-msg { text-align: center; padding: 40px; color: #777; font-style: italic; }
