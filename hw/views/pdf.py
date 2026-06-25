@@ -155,3 +155,50 @@ def _render_services_pdf(invoice):
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
     return response
+
+
+def _build_checkin_groups(qs):
+    from itertools import groupby
+    groups = []
+    for date_val, date_iter in groupby(qs, key=lambda c: c.check_in):
+        date_list = list(date_iter)
+        hotels = []
+        for hotel_name, hotel_iter in groupby(date_list, key=lambda c: c.hotel_name):
+            guests = []
+            for i, cl in enumerate(list(hotel_iter), 1):
+                rooms_str = ', '.join(
+                    f"{r.quantity} {r.room_type}" for r in cl.rooms.all()
+                ) or '—'
+                guests.append({
+                    'no': i,
+                    'guest_name': cl.guest_name,
+                    'confirmation_number': cl.confirmation_number,
+                    'rooms': rooms_str,
+                    'eta': cl.estimasi_tiba.strftime('%H:%M') if cl.estimasi_tiba is not None else '—',
+                    'check_out': cl.check_out,
+                    'num_nights': cl.num_nights,
+                    'pic_name': cl.pic_name or '—',
+                    'pic_phone': cl.pic_phone or '—',
+                })
+            hotels.append({'name': hotel_name, 'guests': guests})
+        groups.append({
+            'date': date_val,
+            'hotels': hotels,
+            'total': sum(len(h['guests']) for h in hotels),
+        })
+    return groups
+
+
+def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf'):
+    groups = _build_checkin_groups(cls)
+    context = {
+        'title': title,
+        'print_date': datetime.now(),
+        'groups': groups,
+        'logo_rel_path': _logo_file_url(company),
+    }
+    html = render_to_string('hw/calendar/checkin_recap_pdf.html', context)
+    pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
