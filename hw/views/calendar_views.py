@@ -395,11 +395,11 @@ def calendar_checkin_pdf(request):
             filename = f"checkin-{date_str}.pdf"
         except ValueError:
             date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
-            title = "Rekap Check-in Mendatang"
+            title = "Upcoming Check-in Recap"
             filename = f"checkin-rekap-{today.isoformat()}.pdf"
     else:
         date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
-        title = "Rekap Check-in Mendatang"
+        title = "Upcoming Check-in Recap"
         filename = f"checkin-rekap-{today.isoformat()}.pdf"
 
     qs = (
