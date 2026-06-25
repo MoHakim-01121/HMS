@@ -19,6 +19,15 @@ const WAIcon = ({ size = 11 }) => (
   </svg>
 );
 
+const PrinterIcon = ({ size = 13 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <polyline points="6 9 6 2 18 2 18 9"/>
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+    <rect x="6" y="14" width="12" height="8"/>
+  </svg>
+);
+
 function ReminderBadge({ sent, failed, label }) {
   const cfg = sent   ? { bg: 'rgba(34,197,94,.15)',  color: '#22C55E', icon: '✓' }
             : failed ? { bg: 'rgba(239,68,68,.12)',  color: '#EF4444', icon: '✗' }
@@ -37,7 +46,7 @@ function ReminderBadge({ sent, failed, label }) {
 
 // ── CheckinCard ───────────────────────────────────────────────
 function CheckinCard({ cl }) {
-  const [editing,    setEditing]    = useState(!cl.estimasi_tiba);
+  const [editing,    setEditing]    = useState(false);
   const [estimasi,   setEstimasi]   = useState(cl.estimasi_tiba || '');
   const [picName,    setPicName]    = useState(cl.pic_name  || '');
   const [picPhone,   setPicPhone]   = useState(cl.pic_phone || '');
@@ -110,7 +119,6 @@ function CheckinCard({ cl }) {
       background: 'var(--surface-2)',
       borderRadius: 12,
       border: '1px solid var(--border)',
-      borderTop: isToday && !hasETA ? '2px solid #EF4444' : undefined,
       padding: '16px',
       display: 'flex', flexDirection: 'column', gap: 12,
     }}>
@@ -249,8 +257,7 @@ function CheckinCard({ cl }) {
 
 // ── DateGroup ─────────────────────────────────────────────────
 function DateGroup({ dateStr, cls }) {
-  const [sending,     setSending]     = useState(false);
-  const [recapResult, setRecapResult] = useState(null);
+  const [sending, setSending] = useState(false);
 
   const isToday       = dateStr === TODAY;
   const incompleteCnt = cls.filter(c => !c.estimasi_tiba).length;
@@ -261,15 +268,15 @@ function DateGroup({ dateStr, cls }) {
   const dateFull = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const handleSendRecap = async () => {
-    setSending(true); setRecapResult(null);
+    setSending(true);
     try {
       const r = await axios.post(
         '/calendar/send-recap/',
         new URLSearchParams({ date: dateStr }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
-      setRecapResult(r.data);
-    } catch { setRecapResult({ ok: false, errors: ['Network error'] }); }
+      showToast(r.data.ok ? 'Rekap berhasil dikirim.' : (r.data.errors?.join(', ') || r.data.message || 'Gagal mengirim rekap'), r.data.ok ? 'success' : 'error');
+    } catch { showToast('Gagal mengirim rekap', 'error'); }
     setSending(false);
   };
 
@@ -306,6 +313,15 @@ function DateGroup({ dateStr, cls }) {
           }}>
             {cls.length} tamu
           </span>
+          <a href={`/calendar/checkin-pdf/?date=${dateStr}`} target="_blank" rel="noreferrer"
+            title="Download PDF hari ini" style={{
+              textDecoration: 'none', padding: '5px 10px', borderRadius: 8,
+              border: '1px solid var(--border-2)', background: 'var(--surface-2)',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              color: 'var(--text-2)', fontSize: 11, fontWeight: 600,
+            }}>
+            <PrinterIcon size={11} /> PDF
+          </a>
           <button onClick={handleSendRecap} disabled={sending} style={{
             padding: '5px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8,
             border: 'none', cursor: sending ? 'default' : 'pointer',
@@ -316,19 +332,6 @@ function DateGroup({ dateStr, cls }) {
           </button>
         </div>
       </div>
-
-      {recapResult && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px',
-          borderRadius: 8, marginBottom: 12, fontSize: 12,
-          background: recapResult.ok ? 'rgba(34,197,94,.08)' : 'rgba(239,68,68,.08)',
-          color: recapResult.ok ? '#22C55E' : '#EF4444',
-          border: `1px solid ${recapResult.ok ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)'}`,
-        }}>
-          <span style={{ fontWeight: 700 }}>{recapResult.ok ? '✓' : '✗'}</span>
-          <span>{recapResult.ok ? 'Rekap berhasil dikirim.' : recapResult.errors?.join(', ') || recapResult.message || 'Terjadi kesalahan.'}</span>
-        </div>
-      )}
 
       {/* Card grid */}
       <div style={{
@@ -397,16 +400,27 @@ export default function UpcomingCheckins({ upcoming_checkins, last_recap }) {
               </div>
             </div>
           </div>
-          <a href="/calendar/recap-settings/" title="Pengaturan Rekap" style={{
-            textDecoration: 'none', padding: '7px', borderRadius: 9,
-            border: '1px solid var(--border-2)', background: 'var(--surface-2)',
-            display: 'inline-flex', alignItems: 'center', color: 'var(--text-2)',
-          }}>
-            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <a href="/calendar/checkin-pdf/" target="_blank" rel="noreferrer"
+              title="Download PDF semua check-in mendatang" style={{
+                textDecoration: 'none', padding: '7px 10px', borderRadius: 9,
+                border: '1px solid var(--border-2)', background: 'var(--surface-2)',
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                color: 'var(--text-2)', fontSize: 11, fontWeight: 600,
+              }}>
+              <PrinterIcon size={13} /> PDF
+            </a>
+            <a href="/calendar/recap-settings/" title="Pengaturan Rekap" style={{
+              textDecoration: 'none', padding: '7px', borderRadius: 9,
+              border: '1px solid var(--border-2)', background: 'var(--surface-2)',
+              display: 'inline-flex', alignItems: 'center', color: 'var(--text-2)',
+            }}>
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </a>
+          </div>
         </div>
 
         {/* Empty state */}
