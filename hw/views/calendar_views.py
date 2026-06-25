@@ -10,6 +10,7 @@ from django.urls import reverse
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice, ReminderLog, RecapLog, WATarget, MessageTemplate
+from .pdf import _render_checkin_pdf
 from ..services.fonnte import send_wa
 from ..services.recap import (
     build_recap_message, build_reminder_message,
@@ -377,3 +378,39 @@ def message_template_save(request):
             )
     cache.delete('message_templates')
     return JsonResponse({'ok': True})
+
+
+@login_required
+def calendar_checkin_pdf(request):
+    today = date.today()
+    active_company = request.session.get('active_company')
+    date_str = request.GET.get('date', '').strip()
+
+    if date_str:
+        try:
+            from datetime import datetime as _dt
+            filter_date = _dt.strptime(date_str, '%Y-%m-%d').date()
+            date_filter = {'check_in': filter_date}
+            title = f"Check-in – {filter_date.strftime('%d %B %Y')}"
+            filename = f"checkin-{date_str}.pdf"
+        except ValueError:
+            date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
+            title = "Rekap Check-in Mendatang"
+            filename = f"checkin-rekap-{today.isoformat()}.pdf"
+    else:
+        date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
+        title = "Rekap Check-in Mendatang"
+        filename = f"checkin-rekap-{today.isoformat()}.pdf"
+
+    qs = (
+        ConfirmationLetter.objects
+        .filter(**date_filter)
+        .exclude(reservation_status='CANCELLED')
+        .prefetch_related('rooms')
+        .order_by('check_in', 'hotel_name', 'guest_name')
+    )
+    if active_company:
+        qs = qs.filter(company=active_company)
+
+    company = active_company or 'konoz'
+    return _render_checkin_pdf(list(qs), title, company, filename)

@@ -79,3 +79,35 @@ class CheckinPdfGroupingTest(TestCase):
         guest = groups[0]['hotels'][0]['guests'][0]
         self.assertEqual(guest['pic_name'], '—')
         self.assertEqual(guest['pic_phone'], '—')
+
+
+class CheckinPdfViewTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('tester', password='pw12345')
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['active_company'] = 'konoz'
+        session.save()
+
+    @patch('hw.views.pdf.HTML')
+    def test_all_returns_pdf(self, mock_html):
+        mock_html.return_value.write_pdf.return_value = b'%PDF-dummy'
+        resp = self.client.get('/calendar/checkin-pdf/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertIn('checkin-rekap-', resp['Content-Disposition'])
+
+    @patch('hw.views.pdf.HTML')
+    def test_date_param_returns_pdf(self, mock_html):
+        mock_html.return_value.write_pdf.return_value = b'%PDF-dummy'
+        today_str = date.today().isoformat()
+        resp = self.client.get(f'/calendar/checkin-pdf/?date={today_str}')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertIn(f'checkin-{today_str}.pdf', resp['Content-Disposition'])
+
+    def test_requires_login(self):
+        self.client.logout()
+        resp = self.client.get('/calendar/checkin-pdf/')
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/login/', resp['Location'])

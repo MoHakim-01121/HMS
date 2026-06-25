@@ -25,6 +25,7 @@ from .calendar_views import (
     calendar_view, cl_estimasi_save, calendar_send_recap, calendar_send_reminder,
     wa_target_add, wa_target_toggle, wa_target_delete,
     message_template_save, calendar_recap_settings,
+    calendar_checkin_pdf,
 )
 from .search_views import global_search
 from .attachment_views import attachment_delete, attachment_upload

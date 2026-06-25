@@ -49,6 +49,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('calendar/wa-targets/<int:pk>/delete/', views.wa_target_delete, name='wa_target_delete'),
     path('calendar/message-templates/', views.message_template_save, name='message_template_save'),
     path('calendar/recap-settings/', views.calendar_recap_settings, name='calendar_recap_settings'),
+    path('calendar/checkin-pdf/', views.calendar_checkin_pdf, name='calendar_checkin_pdf'),
 
     # Search
     path('search/', views.global_search, name='global_search'),
