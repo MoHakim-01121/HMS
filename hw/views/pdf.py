@@ -6,6 +6,7 @@ from pathlib import Path
 from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from django.utils.translation import override as translation_override
 from weasyprint import HTML
 
 from ..utils import format_currency
@@ -157,6 +158,26 @@ def _render_services_pdf(invoice):
     return response
 
 
+_DAYS_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+_MONTHS_EN = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+              'July', 'August', 'September', 'October', 'November', 'December']
+
+def _format_date_en(d):
+    return f"{_DAYS_EN[d.weekday()]}, {d.day} {_MONTHS_EN[d.month]} {d.year}"
+
+
+def _format_day_en(d):
+    return f"{d.day} {_MONTHS_EN[d.month]} {d.year}"
+
+
+def _format_date_range_en(start, end):
+    if start is None or end is None:
+        return ''
+    if start == end:
+        return _format_day_en(start)
+    return f"{_format_day_en(start)} – {_format_day_en(end)}"
+
+
 def _build_checkin_groups(qs):
     from itertools import groupby
     groups = []
@@ -183,21 +204,24 @@ def _build_checkin_groups(qs):
             hotels.append({'name': hotel_name, 'guests': guests})
         groups.append({
             'date': date_val,
+            'date_label': _format_date_en(date_val),
             'hotels': hotels,
             'total': sum(len(h['guests']) for h in hotels),
         })
     return groups
 
 
-def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf'):
+def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf',
+                        date_start=None, date_end=None):
     groups = _build_checkin_groups(cls)
     context = {
         'title': title,
-        'print_date': datetime.now(),
+        'date_range': _format_date_range_en(date_start, date_end),
         'groups': groups,
         'logo_rel_path': _logo_file_url(company),
     }
-    html = render_to_string('hw/calendar/checkin_recap_pdf.html', context)
+    with translation_override('en'):
+        html = render_to_string('hw/calendar/checkin_recap_pdf.html', context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="{filename}"'

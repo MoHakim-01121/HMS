@@ -393,12 +393,15 @@ def calendar_checkin_pdf(request):
             date_filter = {'check_in': filter_date}
             title = f"Check-in – {filter_date.strftime('%d %B %Y')}"
             filename = f"checkin-{date_str}.pdf"
+            date_start = date_end = filter_date
         except ValueError:
-            date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
+            date_start, date_end = today, today + timedelta(days=6)
+            date_filter = {'check_in__gte': date_start, 'check_in__lte': date_end}
             title = "Upcoming Check-in Recap"
             filename = f"checkin-rekap-{today.isoformat()}.pdf"
     else:
-        date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
+        date_start, date_end = today, today + timedelta(days=6)
+        date_filter = {'check_in__gte': date_start, 'check_in__lte': date_end}
         title = "Upcoming Check-in Recap"
         filename = f"checkin-rekap-{today.isoformat()}.pdf"
 
@@ -413,4 +416,5 @@ def calendar_checkin_pdf(request):
         qs = qs.filter(company=active_company)
 
     company = active_company or 'konoz'
-    return _render_checkin_pdf(list(qs), title, company, filename)
+    return _render_checkin_pdf(list(qs), title, company, filename,
+                               date_start=date_start, date_end=date_end)
