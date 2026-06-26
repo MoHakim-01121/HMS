@@ -207,3 +207,6 @@ hw/static/dist/
 # Graphify tool output (generated)
 graphify-out/
 
+# Superpowers plans & specs (local only, not for GitHub)
+docs/
+
