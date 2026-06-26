@@ -210,3 +210,6 @@ graphify-out/
 # Superpowers plans & specs (local only, not for GitHub)
 docs/
 
+# Editor config (local only)
+.vscode/
+
