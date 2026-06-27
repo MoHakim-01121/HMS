@@ -101,7 +101,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
               <tbody>
                 {remittances.map((rem) => (
                   <tr key={rem.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/remittance/${rem.id}/`)}>
-                    <td className="col-m-primary col-nowrap" style={{ fontFamily: "monospace", fontWeight: 600 }}>{rem.remittance_number}</td>
+                    <td className="col-m-primary col-nowrap" style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{rem.remittance_number}</td>
                     <td className="col-m-secondary col-nowrap">{rem.date}</td>
                     <td className="mono col-m-amount" style={{ fontWeight: 600 }}>{fmt(rem.total_sar)} SAR</td>
                     <td className="col-m-hide">{rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span>}</td>

@@ -1,13 +1,13 @@
 import { useState, useRef } from "react";
-import { Link } from "@inertiajs/react";
 import axios from "axios";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 // ── Toggle switch ─────────────────────────────────────────────
 function Toggle({ active, onToggle }) {
   return (
     <button onClick={onToggle} style={{
       width: 44, height: 24, borderRadius: 12,
-      background: active ? '#22C55E' : 'var(--border-2)',
+      background: active ? 'var(--green)' : 'var(--border-2)',
       border: 'none', cursor: 'pointer', padding: 0,
       position: 'relative', transition: 'background .2s', flexShrink: 0, outline: 'none',
     }}>
@@ -29,7 +29,7 @@ function NotifCard({ title, tags, description, active, onToggle, selected, onEdi
       border: selected ? '2px solid var(--accent-2)' : '1px solid var(--border)',
       display: 'flex', flexDirection: 'column', gap: 12,
       boxShadow: selected
-        ? '0 0 0 3px rgba(94,106,210,.1), 0 2px 8px rgba(0,0,0,.06)'
+        ? '0 0 0 3px rgba(255,108,55,.1), 0 2px 8px rgba(0,0,0,.06)'
         : '0 1px 3px rgba(0,0,0,.05)',
       transition: 'border-color .15s, box-shadow .15s',
     }}>
@@ -209,7 +209,7 @@ function TemplateEditorPanel({ title, body, onChange, vars, sample, onClose, onS
             style={{
               width: '100%', height: 220, padding: '11px 13px', boxSizing: 'border-box',
               background: 'var(--surface-2)', border: '1px solid var(--border-2)',
-              borderRadius: 10, color: 'var(--text)', fontFamily: 'monospace',
+              borderRadius: 10, color: 'var(--text)', fontFamily: "'JetBrains Mono', monospace",
               fontSize: 13, lineHeight: 1.7, resize: 'vertical', outline: 'none',
             }}
           />
@@ -222,7 +222,7 @@ function TemplateEditorPanel({ title, body, onChange, vars, sample, onClose, onS
                 <button key={v.key} onClick={() => insertVar(v.key)} title={v.label} style={{
                   fontSize: 11, padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
                   border: '1px solid var(--border-2)', background: 'var(--surface)',
-                  color: 'var(--text-2)', fontFamily: 'monospace',
+                  color: 'var(--text-2)', fontFamily: "'JetBrains Mono', monospace",
                 }}>
                   {'{' + v.key + '}'}
                 </button>
@@ -250,26 +250,18 @@ function TemplateEditorPanel({ title, body, onChange, vars, sample, onClose, onS
         gap: 10, marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)',
       }}>
         {savedAt && !error && (
-          <span style={{ fontSize: 12, color: '#059669', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <svg width="14" height="14" fill="none" stroke="#059669" strokeWidth="2.5" viewBox="0 0 24 24">
+          <span style={{ fontSize: 12, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             Tersimpan pukul {savedAt}
           </span>
         )}
-        {error && <span style={{ fontSize: 12, color: '#DC2626' }}>{error}</span>}
-        <button onClick={onClose} style={{
-          padding: '7px 14px', fontSize: 13, borderRadius: 8,
-          border: '1px solid var(--border-2)', background: 'none',
-          color: 'var(--text-3)', cursor: 'pointer',
-        }}>
+        {error && <span style={{ fontSize: 12, color: 'var(--red)' }}>{error}</span>}
+        <button onClick={onClose} className="btn btn-secondary">
           Tutup
         </button>
-        <button onClick={onSave} disabled={saving} style={{
-          padding: '7px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-          border: 'none', cursor: saving ? 'default' : 'pointer',
-          background: 'var(--accent-2)', color: '#fff', opacity: saving ? .7 : 1,
-        }}>
+        <button onClick={onSave} disabled={saving} className="btn btn-primary">
           {saving ? 'Menyimpan…' : 'Simpan'}
         </button>
       </div>
@@ -323,7 +315,7 @@ function WATargetSection({ initialTargets, highlighted }) {
       background: 'var(--surface)',
       border: highlighted ? '2px solid var(--accent-2)' : '1px solid var(--border)',
       borderRadius: 14, padding: '20px 26px',
-      boxShadow: highlighted ? '0 0 0 3px rgba(94,106,210,.1)' : '0 1px 3px rgba(0,0,0,.05)',
+      boxShadow: highlighted ? '0 0 0 3px rgba(255,108,55,.1)' : '0 1px 3px rgba(0,0,0,.05)',
       transition: 'border-color .15s, box-shadow .15s',
     }}>
       <div style={{ marginBottom: 18 }}>
@@ -345,35 +337,35 @@ function WATargetSection({ initialTargets, highlighted }) {
             }}>
               <span style={{
                 width: 9, height: 9, borderRadius: '50%', flexShrink: 0,
-                background: t.is_active ? '#22C55E' : '#94A3B8',
-                boxShadow: t.is_active ? '0 0 0 3px rgba(34,197,94,.18)' : 'none',
+                background: t.is_active ? 'var(--green)' : 'var(--text-3)',
+                boxShadow: t.is_active ? '0 0 0 3px rgba(46,204,113,.18)' : 'none',
                 transition: 'background .2s, box-shadow .2s',
               }} />
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)', minWidth: 80 }}>
                 {t.label}
               </span>
-              <span style={{ fontSize: 12, fontFamily: 'monospace', color: 'var(--text-3)', letterSpacing: '0.03em' }}>
+              <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-3)', letterSpacing: '0.03em' }}>
                 {t.target}
               </span>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <button onClick={() => handleToggle(t.id)} style={{
                   fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 99, cursor: 'pointer',
-                  border: t.is_active ? '1px solid rgba(34,197,94,.3)' : '1px solid var(--border-2)',
-                  background: t.is_active ? 'rgba(34,197,94,.08)' : 'var(--surface)',
-                  color: t.is_active ? '#15803D' : 'var(--text-3)', transition: 'all .15s',
+                  border: t.is_active ? '1px solid rgba(46,204,113,.3)' : '1px solid var(--border-2)',
+                  background: t.is_active ? 'var(--green-muted)' : 'var(--surface)',
+                  color: t.is_active ? 'var(--green)' : 'var(--text-3)', transition: 'all .15s',
                 }}>
                   {t.is_active ? 'Aktif' : 'Nonaktif'}
                 </button>
                 {confirm === t.id ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                     <span style={{ color: 'var(--text-3)' }}>Hapus?</span>
-                    <button onClick={() => handleDelete(t.id)} style={{ fontWeight: 700, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 12 }}>Ya</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ fontWeight: 700, color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 12 }}>Ya</button>
                     <button onClick={() => setConfirm(null)} style={{ color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 12 }}>Batal</button>
                   </span>
                 ) : (
                   <button onClick={() => setConfirm(t.id)} style={{
                     fontSize: 11, fontWeight: 500, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
-                    border: '1px solid rgba(220,38,38,.25)', background: 'rgba(220,38,38,.05)', color: '#DC2626',
+                    border: '1px solid rgba(255,69,58,.25)', background: 'var(--red-muted)', color: 'var(--red)',
                   }}>
                     Hapus
                   </button>
@@ -404,15 +396,12 @@ function WATargetSection({ initialTargets, highlighted }) {
             <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', marginBottom: 5 }}>Nomor WA / Grup ID</div>
             <input type="text" placeholder="628xxx..." value={target} onChange={e => setTarget(e.target.value)} style={inp} onKeyDown={e => e.key === 'Enter' && handleAdd()} />
           </div>
-          <button onClick={handleAdd} disabled={adding} style={{
-            padding: '8px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-            border: 'none', cursor: adding ? 'default' : 'pointer',
-            background: 'var(--accent-2)', color: '#fff', flexShrink: 0, alignSelf: 'flex-end',
-          }}>
+          <button onClick={handleAdd} disabled={adding} className="btn btn-primary"
+            style={{ height: 37, flexShrink: 0, alignSelf: 'flex-end' }}>
             {adding ? '…' : '+ Tambah'}
           </button>
         </div>
-        {error && <p style={{ margin: '8px 0 0', fontSize: 12, color: '#DC2626' }}>{error}</p>}
+        {error && <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--red)' }}>{error}</p>}
       </div>
     </div>
   );
@@ -448,12 +437,12 @@ export default function RecapSettings({
   };
 
   const TAMU_WA = [
-    { label: 'Tamu',     bg: '#F0FDF4', color: '#15803D' },
-    { label: 'WhatsApp', bg: '#DCFCE7', color: '#065F46' },
+    { label: 'Tamu',     bg: 'var(--accent-muted)', color: 'var(--accent-2)' },
+    { label: 'WhatsApp', bg: 'var(--green-muted)',  color: 'var(--green)' },
   ];
   const GRUP_WA = [
-    { label: 'Grup Ops', bg: '#EEF2FF', color: '#4338CA' },
-    { label: 'WhatsApp', bg: '#DCFCE7', color: '#065F46' },
+    { label: 'Grup Ops', bg: 'var(--purple-muted)', color: 'var(--purple)' },
+    { label: 'WhatsApp', bg: 'var(--green-muted)',  color: 'var(--green)' },
   ];
 
   const editorProps = {
@@ -467,15 +456,7 @@ export default function RecapSettings({
 
       {/* Page header */}
       <div style={{ marginBottom: 32 }}>
-        <Link href="/calendar/" style={{
-          fontSize: 12, color: 'var(--text-3)', textDecoration: 'none',
-          display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 14,
-        }}>
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Kembali ke Kalender
-        </Link>
+        <PageBack href="/calendar/" label="Kembali ke Kalender" />
         <h2 style={{ margin: '0 0 4px', fontSize: 20, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.03em' }}>
           Pengaturan Rekap WA
         </h2>

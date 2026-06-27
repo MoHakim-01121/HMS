@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
 import UpcomingCheckins from "./UpcomingCheckins.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 // Day-count–dependent grid CSS (incl. mobile) injected per render, ported from calendar.html.
 function gridCss(days) {
@@ -22,7 +23,7 @@ function gridCss(days) {
 .sum-pill .sum-val { font-weight:700; color:var(--text); }
 .sum-pill.red { background:var(--red-muted); border-color:rgba(229,83,75,.3); color:var(--red); }
 .sum-pill.green { background:var(--green-muted); border-color:rgba(38,194,129,.3); color:var(--green); }
-.sum-pill.blue { background:var(--accent-muted); border-color:rgba(94,106,210,.3); color:var(--accent-2); }
+.sum-pill.blue { background:var(--accent-muted); border-color:rgba(255,108,55,.3); color:var(--accent-2); }
 .cal-card { background:var(--surface); border:1px solid var(--border-2); border-radius:var(--r-xl); overflow:hidden; box-shadow:var(--shadow-md); }
 .cal-grid-template { display:grid; grid-template-columns:140px repeat(${days},1fr); width:100%; }
 .cal-hotel-th { padding:8px 12px; font-size:10px; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.5px; border-right:1px solid var(--border); background:var(--surface); position:sticky; left:0; z-index:2; }
@@ -31,13 +32,13 @@ function gridCss(days) {
 .cal-row { display:grid; grid-template-columns:140px repeat(${days},1fr); grid-template-rows:0 1fr; border-top:1px solid var(--border); background:var(--surface); width:100%; position:relative; }
 .cal-hotel-name { grid-column:1; grid-row:1 / span 2; padding:0 12px; font-size:11px; font-weight:500; color:var(--text); display:flex; align-items:center; border-right:1px solid var(--border); position:sticky; left:0; background:var(--surface); z-index:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cal-cell { border-right:1px solid var(--border); }
-.cal-cell.today-col { background:rgba(94,106,210,.04); }
+.cal-cell.today-col { background:rgba(255,108,55,.04); }
 .cal-blocks { grid-column:2 / -1; display:grid; grid-template-columns:repeat(${days},1fr); grid-auto-rows:28px; row-gap:4px; align-items:center; padding:8px 0; position:relative; min-height:46px; }
 .cal-block { grid-row:1; height:28px; border-radius:var(--r); display:flex; align-items:center; padding:0 7px; font-size:10px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none; transition:filter .12s,transform .1s; margin:0 1px; min-width:0; }
 .cal-block:hover { filter:brightness(1.15); transform:translateY(-1px); z-index:5; }
-.block-blue { background:#7B87E8; color:#fff; } .block-yellow { background:#F0A420; color:#fff; }
-.block-red { background:#E85555; color:#fff; } .block-green { background:#26C281; color:#fff; }
-.cal-today-bg { grid-row:1 / -1; align-self:stretch; background:rgba(94,106,210,.07); pointer-events:none; z-index:0; margin:-8px 0; }
+.block-blue { background:var(--accent); color:#fff; } .block-yellow { background:var(--yellow); color:#fff; }
+.block-red { background:var(--red); color:#fff; } .block-green { background:var(--green); color:#fff; }
+.cal-today-bg { grid-row:1 / -1; align-self:stretch; background:rgba(255,108,55,.07); pointer-events:none; z-index:0; margin:-8px 0; }
 .cal-tooltip { position:fixed; background:var(--surface); border:1px solid var(--border-2); border-radius:var(--r-xl); z-index:var(--z-overlay); pointer-events:none; min-width:230px; max-width:290px; box-shadow:var(--shadow-xl); overflow:hidden; }
 .tt-head { padding:12px 14px 10px; border-bottom:1px solid var(--border); }
 .tt-guest { font-size:13px; font-weight:700; color:var(--text); line-height:1.3; }
@@ -111,9 +112,7 @@ export default function Calendar(props) {
     <div className="cal-page">
       <style dangerouslySetInnerHTML={{ __html: gridCss(days.length) }} />
 
-      <Link href="/" className="page-back">
-        <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>Back
-      </Link>
+      <PageBack />
 
       <div className="cal-topbar">
         <div className="cal-topbar-left">

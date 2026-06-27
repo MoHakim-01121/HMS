@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { distColor, MAP } from "../../components/mapColors.js";
 
 function distClass(d) {
   if (d === null || d === undefined) return "";
@@ -28,7 +29,7 @@ function HotelMiniMap({ hotel }) {
       const refLL = hotel.city === "madinah" ? [24.4672, 39.6112] : [21.420324, 39.826485];
       const hotelLL = [hotel.lat, hotel.lng];
       const d = hotel.distance;
-      const color = d === null ? "#5A5A6A" : d < 500 ? "#26C281" : d < 1500 ? "#F0A429" : "#E5534B";
+      const color = distColor(d);
 
       map = L.map(ref.current, { zoomControl: false, scrollWheelZoom: false, dragging: true });
       L.control.zoom({ position: "bottomright" }).addTo(map);
@@ -44,9 +45,9 @@ function HotelMiniMap({ hotel }) {
       const routeTip = L.tooltip({ permanent: false, opacity: 1, className: "route-dist-tip", direction: "top", offset: [0, -8] });
       const dot = (c, sz) => L.divIcon({ className: "", html: `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 0 6px ${c}99;"></div>`, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] });
 
-      L.marker(refLL, { icon: dot("#F0A429", 12) }).bindTooltip(hotel.ref_label).addTo(map);
+      L.marker(refLL, { icon: dot(MAP.yellow, 12) }).bindTooltip(hotel.ref_label).addTo(map);
       if (hotel.city !== "madinah") {
-        L.marker([21.4225, 39.8262], { icon: dot("#E5534B", 10) }).bindTooltip("Masjid Al-Haram").addTo(map);
+        L.marker([21.4225, 39.8262], { icon: dot(MAP.red, 10) }).bindTooltip("Masjid Al-Haram").addTo(map);
       }
       L.marker(hotelLL, { icon: dot(color, 12) }).bindTooltip(hotel.name, { permanent: true, direction: "top", offset: [0, -8] }).addTo(map);
 

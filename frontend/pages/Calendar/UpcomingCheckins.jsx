@@ -29,9 +29,9 @@ const PrinterIcon = ({ size = 13 }) => (
 );
 
 function ReminderBadge({ sent, failed, label }) {
-  const cfg = sent   ? { bg: 'rgba(34,197,94,.15)',  color: '#22C55E', icon: '✓' }
-            : failed ? { bg: 'rgba(239,68,68,.12)',  color: '#EF4444', icon: '✗' }
-                     : { bg: 'rgba(148,163,184,.1)', color: '#94A3B8', icon: '·' };
+  const cfg = sent   ? { bg: 'var(--green-muted)', color: 'var(--green)', icon: '✓' }
+            : failed ? { bg: 'var(--red-muted)',   color: 'var(--red)',   icon: '✗' }
+                     : { bg: 'var(--surface-3)',   color: 'var(--text-3)', icon: '·' };
   return (
     <span title={sent ? 'Terkirim' : failed ? 'Gagal' : 'Belum terkirim'} style={{
       display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -58,10 +58,10 @@ function CheckinCard({ cl }) {
   const waSent  = cl.h0_sent || cl.h1_sent;
 
   const badge = !hasETA
-    ? { text: 'Belum ETA', bg: 'rgba(239,68,68,.15)',  color: '#EF4444' }
+    ? { text: 'Belum ETA', bg: 'var(--red-muted)',  color: 'var(--red)' }
     : waSent
-    ? { text: 'WA Terkirim', bg: 'rgba(34,197,94,.15)', color: '#22C55E' }
-    : { text: 'ETA OK', bg: 'rgba(99,102,241,.12)', color: 'var(--accent-2)' };
+    ? { text: 'WA Terkirim', bg: 'var(--green-muted)', color: 'var(--green)' }
+    : { text: 'ETA OK', bg: 'var(--accent-muted)', color: 'var(--accent-2)' };
 
   const handleSave = async () => {
     setSaving(true);
@@ -126,7 +126,7 @@ function CheckinCard({ cl }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0, flex: 1 }}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8"
-            viewBox="0 0 24 24" style={{ color: isToday ? '#EF4444' : 'var(--text-3)', flexShrink: 0, marginTop: 2 }}>
+            viewBox="0 0 24 24" style={{ color: isToday ? 'var(--red)' : 'var(--text-3)', flexShrink: 0, marginTop: 2 }}>
             <circle cx="12" cy="12" r="10"/>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2"/>
           </svg>
@@ -162,7 +162,7 @@ function CheckinCard({ cl }) {
               </div>
               <div style={{
                 fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em',
-                color: hasETA ? 'var(--text)' : '#EF4444',
+                color: hasETA ? 'var(--text)' : 'var(--red)',
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
                 {hasETA ? estimasi : '—'}
@@ -216,7 +216,7 @@ function CheckinCard({ cl }) {
               <button onClick={handleSend} disabled={sending} style={{
                 fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
                 border: 'none', cursor: sending ? 'default' : 'pointer',
-                background: '#25D366', color: '#fff', opacity: sending ? .75 : 1,
+                background: 'var(--green)', color: '#fff', opacity: sending ? .75 : 1,
                 display: 'inline-flex', alignItems: 'center', gap: 4,
               }}>
                 {sending ? '…' : <><WAIcon /> WA</>}
@@ -290,7 +290,7 @@ function DateGroup({ dateStr, cls }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{
             fontSize: 12, fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.08em', color: isToday ? '#EF4444' : 'var(--text)',
+            letterSpacing: '0.08em', color: isToday ? 'var(--red)' : 'var(--text)',
           }}>
             {label}
           </span>
@@ -298,7 +298,7 @@ function DateGroup({ dateStr, cls }) {
           {incompleteCnt > 0 && (
             <span style={{
               fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-              background: 'rgba(239,68,68,.12)', color: '#EF4444',
+              background: 'var(--red-muted)', color: 'var(--red)',
               textTransform: 'uppercase', letterSpacing: '0.04em',
             }}>
               {incompleteCnt} belum ETA
@@ -325,7 +325,7 @@ function DateGroup({ dateStr, cls }) {
           <button onClick={handleSendRecap} disabled={sending} style={{
             padding: '5px 12px', fontSize: 11, fontWeight: 700, borderRadius: 8,
             border: 'none', cursor: sending ? 'default' : 'pointer',
-            background: '#25D366', color: '#fff', opacity: sending ? .7 : 1,
+            background: 'var(--green)', color: '#fff', opacity: sending ? .7 : 1,
             display: 'inline-flex', alignItems: 'center', gap: 4,
           }}>
             {sending ? '…' : <><WAIcon size={10} /> Kirim Rekap</>}
@@ -375,7 +375,7 @@ export default function UpcomingCheckins({ upcoming_checkins, last_recap }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {/* Left accent bar */}
-            <div style={{ width: 4, height: 26, borderRadius: 2, background: '#22C55E', flexShrink: 0 }} />
+            <div style={{ width: 4, height: 26, borderRadius: 2, background: 'var(--green)', flexShrink: 0 }} />
             <div>
               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
                 Check-in Mendatang
@@ -387,7 +387,7 @@ export default function UpcomingCheckins({ upcoming_checkins, last_recap }) {
                 {totalIncomplete > 0 && (
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-                    background: 'rgba(239,68,68,.12)', color: '#EF4444',
+                    background: 'var(--red-muted)', color: 'var(--red)',
                   }}>
                     {totalIncomplete} belum ETA
                   </span>

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const PAY_COLS = "90px 120px 1fr 110px 80px 90px 1fr 80px 28px";
 const CURRENCIES = ["SAR", "USD", "IDR"];
@@ -110,6 +111,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
 
   return (
     <div className="page">
+      <PageBack href="/services/" />
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div>
           <div className="page-title">{edit ? "Edit Invoice Services" : "Invoice Services / Visa"}</div>

@@ -28,17 +28,17 @@ export default function PaymentTable({ payments, invoice }) {
           <tbody>
             {payments.length ? payments.map((p, i) => (
               <tr key={i}>
-                <td className="col-m-hide cell-id" style={{ fontFamily: "monospace" }}>{p.linked_number || "—"}</td>
+                <td className="col-m-hide cell-id" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{p.linked_number || "—"}</td>
                 <td className="col-m-hide">{p.payment_date || "—"}</td>
                 <td className="col-m-primary">
                   <span className="m-hide">{p.method || "—"}</span>
-                  <span className="m-only" style={{ fontFamily: "monospace" }}>
+                  <span className="m-only" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                     {p.linked_number || "—"}
                     {p.proof_url && <>&nbsp;&nbsp;<a href={p.proof_url} target="_blank" rel="noreferrer" style={{ fontFamily: "inherit", fontSize: 11, color: "var(--accent-2)", textDecoration: "none", fontWeight: 500 }}>(Proof ↗)</a></>}
                   </span>
                   <span className="m-sub" style={{ fontFamily: "inherit" }}>
                     {(p.method || "—") + " · " + (p.payment_date || "—")}
-                    {p.currency !== "SAR" && <span style={{ fontFamily: "monospace", display: "block" }}>{fmt(p.amount_int)} {p.currency} ÷ {fmt(p.exchange_rate)}</span>}
+                    {p.currency !== "SAR" && <span style={{ fontFamily: "'JetBrains Mono', monospace", display: "block" }}>{fmt(p.amount_int)} {p.currency} ÷ {fmt(p.exchange_rate)}</span>}
                   </span>
                 </td>
                 <td className="mono col-num col-m-hide">{fmt(p.amount_int)}</td>

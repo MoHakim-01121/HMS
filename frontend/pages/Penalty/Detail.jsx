@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
@@ -12,6 +13,7 @@ export default function Detail({ penalty: p }) {
   const del = () => confirm({ title: "Delete penalty", message: `Delete penalty document ${p.penalty_number}?`, onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
   return (
     <div className="page">
+      <PageBack href={`/cl/${p.cl.id}/`} label="Back to CL" />
       <div className="page-header">
         <div>
           <div className="page-title">{p.penalty_number}</div>

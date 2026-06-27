@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const DragIcon = () => (
   <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" style={{ opacity: 0.45, display: "block" }}>
@@ -161,6 +162,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
   return (
     <div className="page">
       <style>{CSS}</style>
+      <PageBack href="/invoice/" />
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div>
           <div className="page-title">{edit ? `Edit Invoice — ${src?.invoice_number || ""}` : "Invoice Hotel"}</div>

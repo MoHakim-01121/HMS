@@ -43,7 +43,7 @@ function PenaltyCard({ cl, penalty }) {
       <div className="card-body">
         {penalty ? (
           <div className="grid-2">
-            <div className="field"><div className="field-label">Penalty No.</div><div className="field-value"><a href={`/penalty/${penalty.pk}/`} style={{ color: "var(--accent)", fontFamily: "monospace", fontWeight: 600 }}>{penalty.penalty_number}</a></div></div>
+            <div className="field"><div className="field-label">Penalty No.</div><div className="field-value"><a href={`/penalty/${penalty.pk}/`} style={{ color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{penalty.penalty_number}</a></div></div>
             <div className="field"><div className="field-label">Cancellation Date</div><div className="field-value">{penalty.cancellation_date}</div></div>
             <div className="field"><div className="field-label">Penalty Amount</div><div className="field-value" style={{ fontWeight: 700 }}>{fmt(penalty.penalty_amount)} {penalty.penalty_currency}</div></div>
             <div className="field"><div className="field-label">Payment Status</div><div className="field-value">{penalty.is_paid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Unpaid</span>}</div></div>

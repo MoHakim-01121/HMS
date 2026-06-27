@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import { MAP } from "../../components/mapColors.js";
 
 // Client map — imperative Leaflet app ported from the original client_map
 // template. DOM mirrors the original; handlers used by inline elements are
@@ -49,7 +50,7 @@ export default function ClientMap() {
 
       let allClients = [];
       let markers = [];
-      const COLORS = { ok: "#2ECC71", medium: "#F5A623", high: "#FF453A", dormant: "#4E4E5A" };
+      const COLORS = { ok: MAP.green, medium: MAP.yellow, high: MAP.red, dormant: MAP.none };
 
       function makeIcon(risk, score) {
         const color = COLORS[risk] || COLORS.ok;

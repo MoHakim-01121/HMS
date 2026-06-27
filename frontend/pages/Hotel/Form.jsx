@@ -51,9 +51,9 @@ export default function HotelForm({ hotel, edit }) {
         html: '<div style="width:' + size + "px;height:" + size + "px;border-radius:50%;background:" + color + ";border:2px solid #fff;box-shadow:0 0 " + (glow || 6) + "px " + color + '99;"></div>',
         iconSize: [size, size], iconAnchor: [size / 2, size / 2],
       });
-      L.marker(HARAM, { icon: dot(14, "#F0A429", 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
-      L.marker([21.4225, 39.8262], { icon: dot(10, "#E5534B") }).bindTooltip("Masjid Al-Haram").addTo(map);
-      L.marker(NABAWI, { icon: dot(10, "#E5534B") }).bindTooltip("Masjid Nabawi").addTo(map);
+      L.marker(HARAM, { icon: dot(14, "#F5A623", 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
+      L.marker([21.4225, 39.8262], { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Al-Haram").addTo(map);
+      L.marker(NABAWI, { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Nabawi").addTo(map);
 
       let hotelMarker = null;
       function setHotelMarker(ll) {
@@ -90,7 +90,7 @@ export default function HotelForm({ hotel, edit }) {
       function makeVertexIcon(idx, total) {
         const isEnd = idx === 0 || idx === total - 1;
         const s = isEnd ? 12 : 8;
-        const color = idx === 0 ? "#3FB950" : idx === total - 1 ? "#F0A429" : "#FF6C37";
+        const color = idx === 0 ? "#2ECC71" : idx === total - 1 ? "#F5A623" : "#FF6C37";
         const ring = isEnd ? '<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:' + color + '22;pointer-events:none;"></div>' : "";
         return L.divIcon({
           className: "",
@@ -171,10 +171,10 @@ export default function HotelForm({ hotel, edit }) {
         const lbl = document.getElementById("route-toggle-label");
         const exit = document.getElementById("route-exit-icon");
         mapWrap.classList.toggle("route-active", routeMode);
-        btn.style.borderColor = routeMode ? "rgba(94,106,210,.55)" : "";
-        btn.style.background = routeMode ? "rgba(94,106,210,.18)" : "";
+        btn.style.borderColor = routeMode ? "rgba(255,108,55,.55)" : "";
+        btn.style.background = routeMode ? "rgba(255,108,55,.18)" : "";
         btn.style.color = routeMode ? "var(--accent-2)" : "";
-        btn.style.boxShadow = routeMode ? "0 2px 16px rgba(94,106,210,.25)" : "0 2px 16px rgba(0,0,0,.45)";
+        btn.style.boxShadow = routeMode ? "0 2px 16px rgba(255,108,55,.25)" : "0 2px 16px rgba(0,0,0,.45)";
         if (lbl) lbl.textContent = routeMode ? "Drawing…" : "Draw Mode";
         if (exit) exit.style.display = routeMode ? "block" : "none";
         ctrl.style.display = routeMode ? "flex" : "none";
@@ -347,11 +347,11 @@ export default function HotelForm({ hotel, edit }) {
 
             <div style={{ padding: "10px 16px", borderTop: "1px solid var(--border)", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 9.5, letterSpacing: ".08em", color: "var(--text-3)", fontWeight: 700, fontFamily: "monospace", flexShrink: 0, userSelect: "none", textTransform: "uppercase" }}>Lat</span>
+                <span style={{ fontSize: 9.5, letterSpacing: ".08em", color: "var(--text-3)", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, userSelect: "none", textTransform: "uppercase" }}>Lat</span>
                 <input type="number" step="any" name="lat" id="inp-lat" defaultValue={h.lat ?? ""} placeholder="21.4225" style={{ flex: 1, minWidth: 0 }} />
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 9.5, letterSpacing: ".08em", color: "var(--text-3)", fontWeight: 700, fontFamily: "monospace", flexShrink: 0, userSelect: "none", textTransform: "uppercase" }}>Lng</span>
+                <span style={{ fontSize: 9.5, letterSpacing: ".08em", color: "var(--text-3)", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", flexShrink: 0, userSelect: "none", textTransform: "uppercase" }}>Lng</span>
                 <input type="number" step="any" name="lng" id="inp-lng" defaultValue={h.lng ?? ""} placeholder="39.8262" style={{ flex: 1, minWidth: 0 }} />
               </div>
             </div>
@@ -380,13 +380,13 @@ const CSS = `
 .rib { width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;flex-shrink:0;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:var(--text-2);transition:background .12s,border-color .12s,transform .1s; }
 .rib:hover  { background:rgba(255,255,255,.11); }
 .rib:active { transform:scale(.92); }
-.rib.rib-amber { color:#F0A429;background:rgba(240,164,41,.09);border-color:rgba(240,164,41,.26); }
-.rib.rib-amber:hover { background:rgba(240,164,41,.18); }
-.rib.rib-blue  { color:var(--accent-2);background:rgba(94,106,210,.09);border-color:rgba(94,106,210,.26); }
-.rib.rib-blue:hover  { background:rgba(94,106,210,.18); }
-.rib.rib-red   { color:var(--red);background:rgba(229,83,75,.07);border-color:rgba(229,83,75,.18); }
-.rib.rib-red:hover   { background:rgba(229,83,75,.16); }
+.rib.rib-amber { color:#F5A623;background:rgba(245,166,35,.09);border-color:rgba(245,166,35,.26); }
+.rib.rib-amber:hover { background:rgba(245,166,35,.18); }
+.rib.rib-blue  { color:var(--accent-2);background:rgba(255,108,55,.09);border-color:rgba(255,108,55,.26); }
+.rib.rib-blue:hover  { background:rgba(255,108,55,.18); }
+.rib.rib-red   { color:var(--red);background:rgba(255,69,58,.07);border-color:rgba(255,69,58,.18); }
+.rib.rib-red:hover   { background:rgba(255,69,58,.16); }
 @keyframes _panelIn { from { opacity:0; transform:translateY(-5px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 #route-controls { animation:_panelIn .18s cubic-bezier(.34,1.4,.64,1); }
-#map-wrap.route-active { box-shadow:inset 0 0 0 2px rgba(94,106,210,.45); }
+#map-wrap.route-active { box-shadow:inset 0 0 0 2px rgba(255,108,55,.45); }
 `;

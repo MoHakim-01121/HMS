@@ -265,6 +265,7 @@ def remittance_detail(request, pk):
 
     return inertia_render(request, "Remittance/Detail", props={
         "rem": {
+            "id": rem.id,
             "remittance_number": rem.remittance_number,
             "date": rem.date.strftime("%d/%m/%Y"),
             "status": rem.status,

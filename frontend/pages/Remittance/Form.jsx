@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
+import { REM_TABLE_CSS } from "./remittanceStyles.js";
 
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
@@ -43,8 +45,9 @@ export default function Form({ reservasi = [], today, error }) {
 
   return (
     <div className="page">
-      <style>{CSS}</style>
+      <style>{REM_TABLE_CSS + CSS}</style>
 
+      <PageBack href="/remittance/" />
       <div className="page-header" style={{ marginBottom: 14 }}>
         <div>
           <div className="page-title">Send to HQ</div>
@@ -170,18 +173,8 @@ export default function Form({ reservasi = [], today, error }) {
   );
 }
 
+// Form-specific row + cell styles; shared table/input/total styles come from REM_TABLE_CSS.
 const CSS = `
-.rem-table { width:100%; border-collapse:collapse; }
-.rem-table th {
-  font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; color:var(--text-3);
-  text-transform:uppercase; letter-spacing:.7px;
-  padding:8px 12px; text-align:left; white-space:nowrap;
-  border-bottom:1px solid var(--border);
-  background:var(--surface-2);
-}
-.rem-table th.r { text-align:right; }
-.rem-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
-.rem-table tbody tr:last-child td { border-bottom:none; }
 .rem-table tbody tr.row-pending { background:color-mix(in srgb, var(--yellow) 5%, transparent); }
 .rem-table tbody tr.row-lunas td { opacity:.5; }
 
@@ -193,28 +186,10 @@ const CSS = `
 .td-mono  { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-2); text-align:right; white-space:nowrap; }
 .td-pending { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--yellow); text-align:right; white-space:nowrap; }
 
-.rem-input {
-  width:110px; background:var(--surface-2);
-  border:1px solid var(--border); border-radius:var(--r);
-  color:var(--text); font-size:13px; font-family:'JetBrains Mono',monospace;
-  padding:6px 10px; text-align:right;
-  transition:border-color .12s;
-  display:block; margin-left:auto;
-}
-.rem-input:focus { outline:none; border-color:var(--accent); }
-
 .badge-lunas {
   font-size:11px; font-weight:600; color:var(--green);
   background:color-mix(in srgb, var(--green) 12%, transparent);
   border-radius:var(--r); padding:3px 8px;
   float:right;
 }
-
-.rem-total-bar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:13px 16px; border-top:1px solid var(--border);
-  background:var(--surface-2);
-}
-.rem-total-label { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; color:var(--text-3); }
-.rem-total-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; color:var(--accent-2); }
 `;

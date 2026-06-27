@@ -1,10 +1,12 @@
 import { router } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
 export default function Recap({ monthly }) {
   return (
     <div className="page">
+      <PageBack href="/remittance/" />
       <div className="page-header">
         <div>
           <div className="page-title">Monthly Recap</div>

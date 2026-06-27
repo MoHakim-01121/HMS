@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import { distColor } from "../../components/mapColors.js";
 
 // Hotel map — full imperative Leaflet app ported from the original hotel_map
 // template. The DOM below mirrors the original (same ids/classes); the script
@@ -58,7 +59,6 @@ export default function HotelMap() {
       const haversine = (lat1, lng1, lat2, lng2) => { const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); };
       const fmtDist = (m) => (m < 1000 ? Math.round(m) + " M" : (m / 1000).toFixed(1) + " KM");
       const fmtDistLabel = (lbl) => (lbl ? lbl.replace(/\s*km/i, " KM").replace(/\s*m\b/i, " M") : "—");
-      const distColor = (d) => (d === null ? "#4E4E5A" : d < 500 ? "#2ECC71" : d < 1500 ? "#F5A623" : "#FF453A");
       const distClass = (d) => (d === null ? "dim" : d < 500 ? "green" : d < 1500 ? "yellow" : "red");
       const starsHtml = (n) => "★".repeat(n);
       const starSize = (s) => (s >= 5 ? 14 : s >= 4 ? 12 : 10);

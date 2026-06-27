@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { router } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 function relTime(iso) {
   if (!iso) return "—";
@@ -72,12 +73,7 @@ export default function Profile({ profile, account, activities }) {
     <div className="pf-page">
       <style>{CSS}</style>
 
-      <button className="page-back" onClick={() => history.back()}>
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back
-      </button>
+      <PageBack />
 
       {/* Profile header */}
       <div className="form-panel">

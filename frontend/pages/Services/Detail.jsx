@@ -1,4 +1,5 @@
 import { Icon } from "../../components/icons.jsx";
+import PageBack from "../../components/ui/PageBack.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 function openDraft(type, pk) {
@@ -10,6 +11,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
   const unpaid = services_remaining > 0;
   return (
     <div className="page">
+      <PageBack href="/services/" />
       <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
           <div className="page-title">{invoice.invoice_number}</div>
@@ -26,7 +28,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
         <div className="card-body">
           <div className="grid-3">
             <div className="field"><div className="field-label">Customer</div><div className="field-value">{invoice.customer_name}</div></div>
-            <div className="field"><div className="field-label">Invoice #</div><div className="field-value" style={{ fontFamily: "monospace" }}>{invoice.invoice_number}</div></div>
+            <div className="field"><div className="field-label">Invoice #</div><div className="field-value" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{invoice.invoice_number}</div></div>
             <div className="field"><div className="field-label">Currency</div><div className="field-value">{cur}</div></div>
             <div className="field"><div className="field-label">Issued Date</div><div className="field-value">{invoice.issued_date || "—"}</div></div>
             <div className="field"><div className="field-label">Due Date</div><div className="field-value">{invoice.due_date || "—"}</div></div>

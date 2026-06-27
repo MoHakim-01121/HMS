@@ -32,11 +32,11 @@ const CSS = `
 .doc-tile.cl:hover{box-shadow:0 8px 30px rgba(255,108,55,.18),0 2px 8px rgba(0,0,0,.2);border-color:rgba(255,108,55,.28);}
 .doc-tile.inv:hover{box-shadow:0 8px 30px rgba(139,92,246,.18),0 2px 8px rgba(0,0,0,.2);border-color:rgba(139,92,246,.28);}
 .doc-tile.svc:hover{box-shadow:0 8px 30px rgba(16,185,129,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(16,185,129,.26);}
-.doc-tile.cal:hover{box-shadow:0 8px 30px rgba(245,158,11,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(245,158,11,.26);}
+.doc-tile.cal:hover{box-shadow:0 8px 30px rgba(245,166,35,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(245,166,35,.26);}
 .doc-tile.cli:hover{box-shadow:0 8px 30px rgba(16,185,129,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(16,185,129,.26);}
 .doc-tile.htl:hover{box-shadow:0 8px 30px rgba(255,108,55,.18),0 2px 8px rgba(0,0,0,.2);border-color:rgba(255,108,55,.28);}
-.doc-tile.rem:hover{box-shadow:0 8px 30px rgba(245,158,11,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(245,158,11,.26);}
-.doc-tile.usr:hover{box-shadow:0 8px 30px rgba(239,68,68,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(239,68,68,.26);}
+.doc-tile.rem:hover{box-shadow:0 8px 30px rgba(245,166,35,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(245,166,35,.26);}
+.doc-tile.usr:hover{box-shadow:0 8px 30px rgba(255,69,58,.16),0 2px 8px rgba(0,0,0,.2);border-color:rgba(255,69,58,.26);}
 .tile-icon { width:44px; height:44px; display:flex; align-items:center; justify-content:center; color:var(--text); transition:transform .2s cubic-bezier(.34,1.56,.64,1),color .15s; }
 .tile-icon svg { width:22px; height:22px; }
 [data-theme="light"] .tile-name { color:var(--text-2); }
@@ -99,7 +99,7 @@ const CSS = `
 .bubble-ai .ai-ul li { font-size:13px; line-height:1.5; } .bubble-ai strong { font-weight:600; color:var(--text); }
 .ai-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:3px 0; display:flex; flex-direction:column; gap:3px; }
 .ai-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-.ai-card-num { font-family:'Courier New',monospace; font-size:11px; font-weight:700; color:var(--text); }
+.ai-card-num { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--text); }
 .ai-card-badge { font-size:10px; font-weight:600; padding:1px 7px; border-radius:9999px; flex-shrink:0; }
 .ai-badge-green { background:var(--green-muted); color:var(--green); } .ai-badge-red { background:var(--red-muted); color:var(--red); }
 .ai-card-name { font-size:12px; font-weight:500; color:var(--text); } .ai-card-meta { font-size:11px; color:var(--text-2); }

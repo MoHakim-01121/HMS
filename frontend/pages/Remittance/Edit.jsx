@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
+import PageBack from "../../components/ui/PageBack.jsx";
+import { REM_TABLE_CSS } from "./remittanceStyles.js";
 
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 const inputStyle = {
@@ -41,7 +43,8 @@ export default function Edit({ rem, lines = [] }) {
 
   return (
     <div className="page">
-      <style>{CSS}</style>
+      <style>{REM_TABLE_CSS + CSS}</style>
+      <PageBack href={`/remittance/${rem.id}/`} />
       <div className="page-header">
         <div className="page-title">Edit {rem.remittance_number}</div>
       </div>
@@ -112,7 +115,7 @@ export default function Edit({ rem, lines = [] }) {
                   <tbody>
                     {lines.map((line) => (
                       <tr key={line.line_id}>
-                        <td style={{ fontFamily: "monospace", fontWeight: 700 }}>{line.linked_number}</td>
+                        <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{line.linked_number}</td>
                         <td>
                           {line.invoice ? (
                             <a href={`/invoice/${line.invoice.pk}/`} target="_blank" rel="noreferrer"
@@ -153,35 +156,8 @@ export default function Edit({ rem, lines = [] }) {
   );
 }
 
+// Edit-specific layout only; shared table/input/total styles come from REM_TABLE_CSS.
 const CSS = `
 .form-header-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:16px; }
 @media(max-width:600px) { .form-header-grid { grid-template-columns:1fr; } }
-
-.rem-table { width:100%; border-collapse:collapse; }
-.rem-table th {
-  font-size:11px; font-weight:600; color:var(--text-3);
-  text-transform:uppercase; letter-spacing:.04em;
-  padding:8px 12px; text-align:left; white-space:nowrap;
-  border-bottom:1px solid var(--border);
-}
-.rem-table th.r { text-align:right; }
-.rem-table td { padding:10px 12px; border-bottom:1px solid var(--border); font-size:13px; vertical-align:middle; }
-.rem-table tbody tr:last-child td { border-bottom:none; }
-
-.rem-input {
-  width:120px; background:var(--surface-2);
-  border:1px solid var(--border); border-radius:var(--r);
-  color:var(--text); font-size:13px; font-family:monospace;
-  padding:6px 10px; text-align:right;
-  display:block; margin-left:auto;
-}
-.rem-input:focus { outline:none; border-color:var(--accent); }
-
-.rem-total-bar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px; border-top:2px solid var(--border);
-  background:var(--surface-2);
-}
-.rem-total-label { font-size:12px; font-weight:600; color:var(--text-2); }
-.rem-total-val { font-family:monospace; font-size:18px; font-weight:700; color:var(--accent-2); }
 `;

@@ -16,7 +16,7 @@ export default function ReservationTable({ reservations, invoice }) {
           <tbody>
             {reservations.length ? reservations.map((res, i) => (
               <tr key={i}>
-                <td className="col-m-primary" style={{ fontFamily: "monospace", fontWeight: 600, justifyContent: "space-between", alignItems: "flex-start" }}>
+                <td className="col-m-primary" style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, justifyContent: "space-between", alignItems: "flex-start" }}>
                   <span>
                     <span className="cell-id">{res.number}</span>
                     {res.cl_pk && <>&nbsp;&nbsp;<a href={`/cl/${res.cl_pk}/`} style={{ fontSize: 11, color: "var(--accent-2)", textDecoration: "none", fontFamily: "inherit", fontWeight: 500 }}>(CL ↗)</a></>}
