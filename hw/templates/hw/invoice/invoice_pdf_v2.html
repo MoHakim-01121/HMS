@@ -142,7 +142,7 @@
 
 <div class="page-footer-rule"></div>
 <span class="doc-date-anchor">{% if issued_date %}{{ issued_date|date:"d M Y" }}{% endif %}</span>
-<div class="watermark">{% if remaining_int == 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
+<div class="watermark">{% if remaining_int <= 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
 
 <div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
   <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
@@ -183,7 +183,7 @@
 </div>
 
 <div class="amount-headline">
-  {% if remaining_int == 0 %}{{ total_reservation_sar }} SAR paid{% else %}{{ remaining }} SAR due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
+  {% if remaining_int < 0 %}{{ excess_sar }} SAR overpaid{% elif remaining_int == 0 %}{{ total_reservation_sar }} SAR paid{% else %}{{ remaining }} SAR due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
 </div>
 
 <table>
@@ -225,8 +225,8 @@
     <span class="tval">{{ total_paid_sar }} SAR</span>
   </div>
   <div class="total-row bold main{% if remaining_int > 0 %} red{% endif %}">
-    <span class="tkey">Balance due</span>
-    <span class="tval">{{ remaining }} SAR</span>
+    <span class="tkey">{% if remaining_int < 0 %}Overpaid{% else %}Balance due{% endif %}</span>
+    <span class="tval">{% if remaining_int < 0 %}{{ excess_sar }}{% else %}{{ remaining }}{% endif %} SAR</span>
   </div>
 </div>
 

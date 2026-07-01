@@ -110,6 +110,7 @@ def _render_invoice_pdf(invoice):
         "total_paid_sar": format_currency(total_paid),
         "remaining": format_currency(total_remaining),
         "remaining_int": total_remaining,
+        "excess_sar": format_currency(-total_remaining) if total_remaining < 0 else "",
         "logo_rel_path": _logo_file_url(invoice.company),
         "doc_hash": doc_hash,
     }
