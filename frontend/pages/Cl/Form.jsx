@@ -17,10 +17,10 @@ function nightsBetween(ci, co) {
   return d > 0 ? d : 1;
 }
 
-export default function Form({ cl, edit, errors: serverErrors, suggested_number, default_company, hotels, clients }) {
+export default function Form({ cl, edit, errors: serverErrors, suggested_number, hotels, clients }) {
   const c = cl || {};
   const form = useForm({
-    company: c.company || default_company || "konoz",
+    // Company is set server-side from the active company; not a form field.
     client_id: c.client_id || "",
     hotel_name: c.hotel_name || "",
     guest_name: c.guest_name || "",
@@ -68,20 +68,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 
       <form method="post" onSubmit={submit}>
         <FormPanel>
-          <FormSection label="Company & Status">
-            <div className="fg-2">
-              <FormField label="Company" name="company">
-                <select name="company" value={form.data.company} onChange={(e) => form.setData("company", e.target.value)}>
-                  <option value="konoz">Konoz United</option>
-                  <option value="ijabah">Ijabah</option>
-                </select>
-              </FormField>
-              <FormField label="Reservation Status" name="reservation_status">
-                <select name="reservation_status" value={form.data.reservation_status} onChange={(e) => form.setData("reservation_status", e.target.value)}>
-                  {STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </FormField>
-            </div>
+          <FormSection label="Status">
+            <FormField label="Reservation Status" name="reservation_status">
+              <select name="reservation_status" value={form.data.reservation_status} onChange={(e) => form.setData("reservation_status", e.target.value)}>
+                {STATUS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </FormField>
           </FormSection>
 
           <FormSection label="Reservation">

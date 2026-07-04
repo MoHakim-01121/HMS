@@ -31,6 +31,12 @@ class ConfirmationLetter(models.Model):
         ordering            = ['-created_at']
         verbose_name        = 'Confirmation Letter'
         verbose_name_plural = 'Confirmation Letters'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'confirmation_number'],
+                name='uniq_confirmation_number_per_company',
+            ),
+        ]
 
     def __str__(self):
         return f"CL-{self.confirmation_number} | {self.guest_name}"
@@ -64,7 +70,7 @@ class ConfirmationLetter(models.Model):
             Q(cl=self) | Q(linked_number=self.confirmation_number, cl__isnull=True)
         )
         return sum(
-            int(round(convert_to_sar(float(p.amount), p.currency, float(p.exchange_rate))))
+            int(round(convert_to_sar(p.amount, p.currency, float(p.exchange_rate))))
             for p in payments
         )
 
@@ -94,7 +100,7 @@ class Room(models.Model):
     room_type = models.CharField(max_length=50)
     meals     = models.CharField(max_length=100, blank=True)
     quantity  = models.PositiveIntegerField(default=1)
-    price     = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    price     = models.PositiveIntegerField(default=0)
 
     class Meta:
         verbose_name        = 'Room'
@@ -106,4 +112,4 @@ class Room(models.Model):
     @property
     def subtotal(self):
         nights = self.cl.num_nights or 1
-        return float(self.price) * self.quantity * nights
+        return self.price * self.quantity * nights

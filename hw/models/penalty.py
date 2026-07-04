@@ -7,7 +7,7 @@ class CancellationPenalty(models.Model):
     cancellation_date = models.DateField()
     reason          = models.TextField(blank=True)
 
-    penalty_amount   = models.DecimalField(max_digits=14, decimal_places=2)
+    penalty_amount   = models.PositiveIntegerField(default=0)
     penalty_currency = models.CharField(max_length=10, default='SAR')
     exchange_rate    = models.DecimalField(max_digits=14, decimal_places=4, default=1)
 
@@ -30,7 +30,7 @@ class CancellationPenalty(models.Model):
 
     @property
     def penalty_amount_sar(self):
-        return float(self.penalty_amount) * float(self.exchange_rate)
+        return int(round(self.penalty_amount * float(self.exchange_rate)))
 
     @classmethod
     def generate_number(cls):

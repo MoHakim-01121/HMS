@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice — {{ invoice_number }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 48px 56px 40px;
+      @bottom-left {
+        content: "DOC-HASH: " string(doc-hash);
+        font-size: 9px; color: #999;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        padding-top: 6px;
+      }
+      @bottom-center {
+        content: string(doc-date);
+        font-size: 9px; color: #999;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        padding-top: 6px;
+      }
+      @bottom-right {
+        content: "Page " counter(page) "/" counter(pages);
+        font-size: 9px; color: #999;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        padding-top: 6px;
+      }
+    }
+    .doc-date-anchor { string-set: doc-date content(); display: block; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
+    .doc-hash-anchor { string-set: doc-hash content(); display: block; height: 0; overflow: hidden; font-size: 0; line-height: 0; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #1a1a1a;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    /* ── Brand accent ── */
+    :root { --brand: #0f3d1d; }
+
+    /* ── WATERMARK ── */
+    .watermark {
+      position: fixed;
+      top: 46%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-38deg);
+      font-size: 92px; font-weight: 800;
+      color: rgba(15,61,29,0.045);
+      white-space: nowrap;
+      letter-spacing: 10px;
+      z-index: 0;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 34px;
+    }
+    .logo { max-height: 60px; max-width: 150px; width: auto; display: block; }
+
+    /* ── INVOICE TITLE ROW ── */
+    .inv-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+    .inv-title { font-size: 19px; font-weight: 400; color: #333; letter-spacing: -.2px; }
+
+    /* ── PARTY ROW (bill-to + info box) ── */
+    .party-row { margin-bottom: 40px; border-top: 1px solid #d9d9d9; }
+    .party-row::after { content: ""; display: block; clear: both; }
+    .party-left { float: left; padding-top: 16px; }
+    .party-right { float: right; margin-top: -1px; }
+    .bill-name { font-size: 16px; font-weight: 400; color: #333; }
+
+    .info-box {
+      border: 1px solid #d8d8d8;
+      border-collapse: collapse;
+      table-layout: fixed;
+      width: 360px;
+    }
+    .info-box td {
+      padding: 6px 10px;
+      border-right: 1px solid #d8d8d8;
+      text-align: center;
+      vertical-align: middle;
+      width: 100px;
+    }
+    .info-box td:last-child { border-right: none; }
+    .info-lbl {
+      font-size: 10.5px; font-weight: 700;
+      color: #1a1a1a; margin-bottom: 2px; white-space: nowrap;
+    }
+    .info-val { font-size: 12px; font-weight: 400; color: #555; white-space: nowrap; }
+    .info-box td.info-pay { background: #0f3d1d; width: 160px; }
+    .info-pay .info-lbl { color: #fff; }
+    .info-pay .info-val { color: #fff; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+
+    /* ── TABLE ── */
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    thead th {
+      text-align: left;
+      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .7px; color: #555;
+      padding: 0 10px 9px 0;
+      border-bottom: 1.5px solid #0f3d1d;
+    }
+    thead th.r { text-align: right; }
+    thead th:last-child { padding-right: 0; }
+    tbody td { padding: 10px 10px 10px 0; vertical-align: top; color: #2d2d2d; border-bottom: 1px solid #eee; }
+    tbody td:last-child { padding-right: 0; }
+    tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    .td-strong { font-weight: 600; color: #1a1a1a; }
+    .amount { font-weight: 700; color: #0f3d1d; }
+    .muted { color: #888; }
+    .remaining-paid    { color: #15803d; font-weight: 600; }
+    .remaining-partial { color: #92400e; font-weight: 600; }
+    .remaining-unpaid  { color: #991b1b; font-weight: 600; }
+
+    /* ── TOTALS (full-width rules, ref style) ── */
+    .totals { width: 300px; margin-left: auto; border-collapse: collapse; margin-top: 34px; }
+    .totals td { padding: 8px 0 4px; font-size: 12px; }
+    .totals td.tkey { text-align: left; color: #555; }
+    .totals td.tval { text-align: right; width: 140px; color: #1a1a1a; font-variant-numeric: tabular-nums; }
+    .totals tr.line td { border-top: 1px solid #d5d5d5; }
+    .totals tr.bold td { font-weight: 700; color: #1a1a1a; }
+    .totals tr.grand td { font-size: 13px; }
+    .totals tr.grand.due td.tval { color: #991b1b; }
+    .totals tr.grand.paid td.tval { color: #15803d; }
+
+    /* ── SECTION ── */
+    .section { margin-top: 30px; }
+    .section-title {
+      font-size: 8.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: #555; margin-bottom: 12px;
+    }
+
+    /* ── PAYMENT DETAILS (bank) ── */
+    .pay-details { margin-top: 30px; padding-top: 16px; }
+    .pay-details .section-title { text-align: center; }
+    .bank-grid { display: flex; justify-content: center; gap: 70px; margin-top: 14px; }
+    .bank-card { width: 240px; }
+    .bank-title { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #0f3d1d; margin-bottom: 8px; }
+    .bank-row { display: flex; gap: 8px; margin-bottom: 3px; }
+    .bank-key { font-size: 10px; color: #999; min-width: 54px; }
+    .bank-val { font-size: 10px; font-weight: 600; color: #1a1a1a; white-space: nowrap; }
+    .bank-acc { font-size: 12px; font-weight: 700; color: #0f3d1d; letter-spacing: .4px; }
+
+  </style>
+</head>
+<body>
+
+<span class="doc-date-anchor">{% now "d F Y, H:i" %}</span>
+<span class="doc-hash-anchor">{{ doc_hash }}</span>
+<div class="watermark">{% if remaining_int <= 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
+
+<!-- HEADER -->
+<div class="header">
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+<!-- INVOICE TITLE ROW -->
+<div class="inv-row">
+  <div class="inv-title">Invoice{{ invoice_number }}</div>
+</div>
+
+<!-- BILL TO + INFO BOX -->
+<div class="party-row">
+  <div class="party-left">
+    <div class="bill-name">{{ customer_name }}</div>
+  </div>
+  <div class="party-right">
+    <table class="info-box">
+      <tr>
+        <td>
+          <div class="info-lbl">Invoice Date</div>
+          <div class="info-val">{% if issued_date %}{{ issued_date|date:"M j, Y" }}{% else %}—{% endif %}</div>
+        </td>
+        <td>
+          <div class="info-lbl">Due Date</div>
+          <div class="info-val">{% if due_date %}{{ due_date|date:"M j, Y" }}{% else %}—{% endif %}</div>
+        </td>
+        <td class="info-pay">
+          <div class="info-lbl">Please Pay</div>
+          <div class="info-val">{% if remaining_int > 0 %}{{ remaining }}{% else %}0{% endif %} SAR</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- RESERVATIONS -->
+<table>
+  <thead>
+    <tr>
+      <th>Res No</th>
+      <th>Hotel</th>
+      <th class="r">Check-in</th>
+      <th class="r">Check-out</th>
+      <th class="r">Amount (SAR)</th>
+      <th class="r">Remaining (SAR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in reservations %}
+    <tr>
+      <td class="td-strong">{{ r.number }}</td>
+      <td>{{ r.hotel }}</td>
+      <td class="r muted">{% if r.check_in %}{{ r.check_in|date:"d M Y" }}{% else %}—{% endif %}</td>
+      <td class="r muted">{% if r.check_out %}{{ r.check_out|date:"d M Y" }}{% else %}—{% endif %}</td>
+      <td class="r amount">{{ r.total }} SAR</td>
+      <td class="r {{ r.remaining_class }}">{% if r.remaining %}{{ r.remaining }}{% else %}0{% endif %} SAR</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- TOTALS -->
+<table class="totals">
+  <tr>
+    <td class="tkey">Subtotal</td>
+    <td class="tval">{{ total_reservation_sar }} SAR</td>
+  </tr>
+  <tr class="line bold">
+    <td class="tkey">Total</td>
+    <td class="tval">{{ total_reservation_sar }} SAR</td>
+  </tr>
+  <tr>
+    <td class="tkey">Amount Paid</td>
+    <td class="tval">{{ total_paid_sar }} SAR</td>
+  </tr>
+  <tr class="line bold grand {% if remaining_int > 0 %}due{% else %}paid{% endif %}">
+    <td class="tkey">Total Due</td>
+    <td class="tval">{% if remaining_int > 0 %}{{ remaining }}{% else %}0{% endif %} SAR</td>
+  </tr>
+</table>
+
+<!-- PAYMENT HISTORY -->
+{% if payments %}
+<div class="section">
+  <div class="section-title">Payment History</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ref</th>
+        <th>Date</th>
+        <th>Method</th>
+        <th class="r">Amount</th>
+        <th class="r">Rate</th>
+        <th class="r">Amount (SAR)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td class="td-strong">{{ p.reservation_no }}</td>
+        <td class="muted">{% if p.date %}{{ p.date|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td>{{ p.method }}</td>
+        <td class="r">{{ p.amount }} {{ p.currency }}</td>
+        <td class="r muted">{% if p.currency != 'SAR' %}{{ p.exchange }}{% else %}-{% endif %}</td>
+        <td class="r td-strong">{{ p.amount_sar }} SAR</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- PAYMENT DETAILS (bank) -->
+<div class="pay-details">
+  <div class="section-title">Payment Details</div>
+  <div class="bank-grid">
+    <div class="bank-card">
+      <div class="bank-title">IDR Account</div>
+      <div class="bank-row"><span class="bank-key">Bank</span><span class="bank-val">Bank Mandiri</span></div>
+      <div class="bank-row"><span class="bank-key">Account</span><span class="bank-acc">1400550011119</span></div>
+      <div class="bank-row"><span class="bank-key">Name</span><span class="bank-val">PT Gema Ijabah Sejahtera</span></div>
+    </div>
+    <div class="bank-card">
+      <div class="bank-title">USD Account</div>
+      <div class="bank-row"><span class="bank-key">Bank</span><span class="bank-val">Bank Mandiri</span></div>
+      <div class="bank-row"><span class="bank-key">Account</span><span class="bank-acc">1400560011117</span></div>
+      <div class="bank-row"><span class="bank-key">Name</span><span class="bank-val">PT Gema Ijabah Sejahtera</span></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

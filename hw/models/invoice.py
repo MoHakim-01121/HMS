@@ -21,6 +21,12 @@ class Invoice(models.Model):
         ordering            = ['-created_at']
         verbose_name        = 'Invoice'
         verbose_name_plural = 'Invoices'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['company', 'invoice_type', 'invoice_number'],
+                name='uniq_invoice_number_per_company_type',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.invoice_number} | {self.customer_name}"
@@ -35,7 +41,7 @@ class Invoice(models.Model):
     @property
     def total_paid_sar(self):
         return sum(
-            int(round(convert_to_sar(float(p.amount), p.currency, float(p.exchange_rate))))
+            int(round(convert_to_sar(p.amount, p.currency, float(p.exchange_rate))))
             for p in self.payments.all()
         )
 
@@ -83,7 +89,7 @@ class ServiceItem(models.Model):
     service_number = models.PositiveIntegerField(default=1)
     name           = models.CharField(max_length=200)
     qty            = models.PositiveIntegerField(default=1)
-    price          = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    price          = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering            = ['service_number']
@@ -95,7 +101,7 @@ class ServiceItem(models.Model):
 
     @property
     def total(self):
-        return int(self.qty * float(self.price))
+        return self.qty * self.price
 
 
 class Payment(models.Model):
@@ -107,7 +113,7 @@ class Payment(models.Model):
     linked_number = models.CharField(max_length=100, blank=True, db_index=True)
     payment_date  = models.DateField(null=True, blank=True)
     method        = models.CharField(max_length=100, blank=True)
-    amount        = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    amount        = models.PositiveIntegerField(default=0)
     currency      = models.CharField(max_length=10, default='SAR')
     exchange_rate = models.DecimalField(max_digits=14, decimal_places=4, default=1)
     note          = models.TextField(blank=True)
@@ -122,7 +128,7 @@ class Payment(models.Model):
 
     @property
     def amount_sar(self):
-        return int(round(convert_to_sar(float(self.amount), self.currency, float(self.exchange_rate))))
+        return int(round(convert_to_sar(self.amount, self.currency, float(self.exchange_rate))))
 
 
 class Remittance(models.Model):
@@ -168,7 +174,7 @@ class RemittanceLine(models.Model):
     remittance    = models.ForeignKey(Remittance, on_delete=models.CASCADE, related_name='lines')
     invoice       = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.SET_NULL, related_name='remittance_lines')
     linked_number = models.CharField(max_length=100)
-    amount_sar    = models.DecimalField(max_digits=14, decimal_places=2)
+    amount_sar    = models.PositiveIntegerField(default=0)
 
     class Meta:
         verbose_name        = 'Remittance Line'

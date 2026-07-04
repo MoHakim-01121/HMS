@@ -193,7 +193,10 @@ def cl_new(request):
         if not guest_name and client_id:
             guest_name = Client.objects.filter(pk=client_id).values_list("name", flat=True).first() or ""
         cl = ConfirmationLetter.objects.create(
-            company=request.POST.get("company", "konoz"),
+            # Scope the CL to the active company (same as the detail/list views
+            # filter by). Trusting the form's company field would let a CL be
+            # saved under a company the detail view then can't find -> 404.
+            company=request.session.get("active_company") or "konoz",
             client_id=client_id,
             hotel_name=request.POST.get("hotel_name", ""),
             guest_name=guest_name,
@@ -302,7 +305,8 @@ def cl_edit(request, pk):
             'Rooms':     _room_snapshot(cl.rooms.all()),
         }
 
-        cl.company = request.POST.get("company", "konoz")
+        # Company is locked to the CL's existing (active-company) scope; the form
+        # no longer submits it, so we never reassign and risk a cross-company 404.
         cl.client_id = request.POST.get("client_id") or None
         cl.hotel_name = request.POST.get("hotel_name", "")
         guest_name = request.POST.get("guest_name", "").strip()
