@@ -10,6 +10,7 @@ urlpatterns = [
     path('cl/new/', views.cl_new, name='cl_new'),
     path('cl/export/csv/', views.cl_export_csv, name='cl_export_csv'),
     path('cl/export/pdf/', views.cl_list_pdf, name='cl_list_pdf'),
+    path('cl/export/pdf-v2/', views.cl_list_pdf_v2, name='cl_list_pdf_v2'),
     path('cl/<int:pk>/', views.cl_detail, name='cl_detail'),
     path('cl/<int:pk>/edit/', views.cl_edit, name='cl_edit'),
 path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),

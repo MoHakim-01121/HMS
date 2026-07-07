@@ -11,7 +11,7 @@ from inertia import render as inertia_render
 
 from .cl_views import (
     cl_delete, cl_detail, cl_duplicate, cl_edit, cl_export_csv, cl_list,
-    cl_list_pdf, cl_new, cl_pdf, invoice_from_cls,
+    cl_list_pdf, cl_list_pdf_v2, cl_new, cl_pdf, invoice_from_cls,
 )
 from .invoice_views import (
     invoice_delete, invoice_detail, invoice_duplicate, invoice_edit,

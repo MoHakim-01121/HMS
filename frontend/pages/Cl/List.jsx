@@ -73,6 +73,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
               <div className="export-menu" style={{ display: "block" }}>
                 <a href={`/cl/export/csv/${exportQs}`}><Icon name="invoice" size={13} /> CSV</a>
                 <a href={`/cl/export/pdf/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
+                <a href={`/cl/export/pdf-v2/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF v2</a>
               </div>
             )}
           </div>

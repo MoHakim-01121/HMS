@@ -439,6 +439,32 @@ def cl_list_pdf(request):
 
 
 @login_required
+def cl_list_pdf_v2(request):
+    active_company = request.session.get("active_company")
+    qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
+    qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
+    letters = list(qs)
+    for cl in letters:
+        counts = {}
+        for r in cl.rooms.all():
+            counts[r.room_type] = counts.get(r.room_type, 0) + r.quantity
+        cl.room_types = ", ".join(f"{n} {t}" for t, n in counts.items())
+    total_rooms  = sum(cl.total_rooms for cl in letters)
+    total_sar    = sum(cl.total_price or 0 for cl in letters)
+    return _render_list_pdf(
+        request, qs,
+        template="hw/cl/cl_list_pdf_v2.html",
+        filename="confirmation_letters_v2.pdf",
+        extra_ctx={
+            "letters":       letters,
+            "total_rooms":   total_rooms,
+            "total_sar":     total_sar,
+            "logo_rel_path": _logo_file_url(active_company or "konoz"),
+        },
+    )
+
+
+@login_required
 def cl_export_csv(request):
     active_company = request.session.get("active_company")
     qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
