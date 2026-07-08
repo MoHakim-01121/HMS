@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
@@ -25,88 +26,99 @@ export default function Detail({ client, invoices, cls }) {
   const c = client;
   const [rcls, rlabel] = riskBadge(c.risk_label);
   const [confirm, confirmDialog] = useConfirm();
+  const [tab, setTab] = useState(invoices.length > 0 || cls.length === 0 ? "invoice" : "cl");
   const del = () => confirm({ title: "Delete client", message: `Delete client "${c.name}"?`, onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
+  const hasTransactions = invoices.length > 0 || cls.length > 0;
 
   return (
     <div className="page">
       <PageBack href="/clients/" />
-      <div className="page-header">
-        <div><div className="page-title">{c.name}</div></div>
-        <div className="page-actions">
-          <a href={`/clients/${c.pk}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
-          {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" className="btn btn-success btn-sm"><WaIcon /> WhatsApp</a>}
-        </div>
-      </div>
 
-      <div className="stats" style={{ marginBottom: 20 }}>
-        <div className="stat">
-          <div className="stat-label">Total Billed</div>
-          <div className="stat-value blue mono">{fmt(c.total_billed)}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>SAR</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Outstanding</div>
-          <div className={"stat-value mono " + (c.outstanding > 0 ? "red" : "green")}>{fmt(c.outstanding)}</div>
-          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>SAR</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Avg Payment</div>
-          <div className="stat-value">{c.avg_days_to_pay != null ? `${c.avg_days_to_pay} days` : "—"}</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Client Score</div>
-          <div className={"stat-value " + scoreValCls(c.score)}>{c.score}<span style={{ fontSize: 13, color: "var(--text-3)" }}>/100</span></div>
-        </div>
-      </div>
-
-      <div className="detail-grid">
-        <div>
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Info</span>
-              <span className={rcls}>{rlabel}</span>
+      <div className="dhero">
+        <div className="dhero-main">
+          <div className="dhero-kicker">Client</div>
+          <div className="dhero-title txt">{c.name}</div>
+          <div className="dhero-meta">
+            <div>
+              <div className="stat-label">Total Billed</div>
+              <div className="dhero-meta-value blue mono">{fmt(c.total_billed)} <span className="stat-sub" style={{ display: "inline" }}>SAR</span></div>
             </div>
-            <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Field label="Agent Name">{c.name}</Field>
-              {c.city && <Field label="Location">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
-              {c.pic && <Field label="PIC">{c.pic}</Field>}
-              {c.wa && <Field label="WhatsApp"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
-              {c.email && <Field label="Email">{c.email}</Field>}
-              {c.days_since_last_order != null && (
-                <div className="field">
-                  <div className="field-label">Last Order</div>
-                  <div className={"field-value" + (c.days_since_last_order > 45 ? " remaining-unpaid" : "")}>{c.days_since_last_order} days ago</div>
-                </div>
-              )}
-              {c.note && (
-                <div className="field">
-                  <div className="field-label">Notes</div>
-                  <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{c.note}</div>
-                </div>
-              )}
-              <div className="field">
-                <div className="field-label">Score</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                  <div style={{ flex: 1, height: 6, background: "var(--surface-3)", borderRadius: "var(--r-xs)" }}>
-                    <div style={{ height: 6, borderRadius: "var(--r-xs)", width: `${c.score}%`, background: scoreColor(c.score), transition: "width .3s" }}></div>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-2)", minWidth: 28 }}>{c.score}</span>
-                </div>
-              </div>
+            <div>
+              <div className="stat-label">Outstanding</div>
+              <div className={"dhero-meta-value mono " + (c.outstanding > 0 ? "red" : "green")}>{fmt(c.outstanding)} <span className="stat-sub" style={{ display: "inline" }}>SAR</span></div>
             </div>
-            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-              <button onClick={del} className="btn btn-danger btn-sm btn-full">Delete Client</button>
+            <div>
+              <div className="stat-label">Avg Payment</div>
+              <div className="dhero-meta-value">{c.avg_days_to_pay != null ? `${c.avg_days_to_pay} days` : "—"}</div>
+            </div>
+            <div>
+              <div className="stat-label">Client Score</div>
+              <div className={"dhero-meta-value " + scoreValCls(c.score)}>{c.score}<span style={{ fontSize: 12, color: "var(--text-3)" }}>/100</span></div>
             </div>
           </div>
         </div>
+        <div className="dhero-side">
+          <div className="dhero-badges"><span className={rcls}>{rlabel}</span></div>
+          <div className="dhero-actions">
+            <a href={`/clients/${c.pk}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
+            {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" className="btn btn-success btn-sm"><WaIcon /> WhatsApp</a>}
+            <button onClick={del} className="btn btn-danger btn-sm">Delete</button>
+          </div>
+        </div>
+      </div>
 
-        <div>
-          {invoices.length > 0 && (
-            <div className="card">
-              <div className="card-header">
-                <span className="card-title">Invoice ({invoices.length})</span>
-                <a href={`/invoice/?client=${c.pk}`} className="btn btn-ghost btn-sm">View all</a>
+      <div className="grid-2" style={{ marginBottom: 14 }}>
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-header"><span className="card-title">Contact</span></div>
+          <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {c.city && <Field label="Location">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
+            {c.pic && <Field label="PIC">{c.pic}</Field>}
+            {c.wa && <Field label="WhatsApp"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
+            {c.email && <Field label="Email">{c.email}</Field>}
+            {!c.city && !c.pic && !c.wa && !c.email && (
+              <div style={{ fontSize: 13, color: "var(--text-3)" }}>No contact details on file yet.</div>
+            )}
+          </div>
+        </div>
+
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-header"><span className="card-title">Health &amp; Notes</span></div>
+          <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="field">
+              <div className="field-label">Score</div>
+              <div className="score-gauge">
+                <div className="score-gauge-track"><div className="score-gauge-fill" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} /></div>
+                <span className="score-gauge-value">{c.score}</span>
               </div>
+            </div>
+            {c.days_since_last_order != null && (
+              <div className="field">
+                <div className="field-label">Last Order</div>
+                <div className={"field-value" + (c.days_since_last_order > 45 ? " remaining-unpaid" : "")}>{c.days_since_last_order} days ago</div>
+              </div>
+            )}
+            {c.note && (
+              <div className="field">
+                <div className="field-label">Notes</div>
+                <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{c.note}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {hasTransactions ? (
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="card-header">
+            <div className="tab-strip">
+              <button type="button" className={tab === "invoice" ? "tab-active" : ""} onClick={() => setTab("invoice")}>Invoice ({invoices.length})</button>
+              <button type="button" className={tab === "cl" ? "tab-active" : ""} onClick={() => setTab("cl")}>Confirmation Letter ({cls.length})</button>
+            </div>
+            {tab === "invoice" && invoices.length > 0 && <a href={`/invoice/?client=${c.pk}`} className="btn btn-ghost btn-sm">View all</a>}
+          </div>
+
+          {tab === "invoice" ? (
+            invoices.length > 0 ? (
               <div className="table-wrap">
                 <table>
                   <thead><tr><th>Number</th><th>Type</th><th>Billed</th><th>Remaining</th><th>Date</th><th></th></tr></thead>
@@ -124,41 +136,42 @@ export default function Detail({ client, invoices, cls }) {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {cls.length > 0 && (
-            <div className="card">
-              <div className="card-header"><span className="card-title">Confirmation Letter ({cls.length})</span></div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Number</th><th>Guest</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
-                  <tbody>
-                    {cls.slice(0, 8).map((cl) => (
-                      <tr key={cl.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.pk}/`)}>
-                        <td className="col-m-primary"><a href={`/cl/${cl.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.confirmation_number}</a></td>
-                        <td className="col-m-secondary col-ellipsis">{cl.guest_name}</td>
-                        <td className="col-ellipsis col-muted col-m-hide">{cl.hotel_name}</td>
-                        <td className="col-muted col-m-hide">{cl.check_in || "—"}</td>
-                        <td className="col-m-actions" onClick={(e) => e.stopPropagation()}><a href={`/cl/${cl.pk}/`} className="btn btn-ghost btn-sm">→</a></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            ) : (
+              <div className="empty" style={{ padding: 32 }}>
+                <div className="empty-title">No invoices yet</div>
               </div>
+            )
+          ) : cls.length > 0 ? (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Number</th><th>Guest</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
+                <tbody>
+                  {cls.slice(0, 8).map((cl) => (
+                    <tr key={cl.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.pk}/`)}>
+                      <td className="col-m-primary"><a href={`/cl/${cl.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.confirmation_number}</a></td>
+                      <td className="col-m-secondary col-ellipsis">{cl.guest_name}</td>
+                      <td className="col-ellipsis col-muted col-m-hide">{cl.hotel_name}</td>
+                      <td className="col-muted col-m-hide">{cl.check_in || "—"}</td>
+                      <td className="col-m-actions" onClick={(e) => e.stopPropagation()}><a href={`/cl/${cl.pk}/`} className="btn btn-ghost btn-sm">→</a></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-
-          {invoices.length === 0 && cls.length === 0 && (
-            <div className="card">
-              <div className="empty" style={{ padding: 40 }}>
-                <div className="empty-title">No transactions yet</div>
-                <div className="empty-sub">Invoices and CLs assigned to this client will appear here</div>
-              </div>
+          ) : (
+            <div className="empty" style={{ padding: 32 }}>
+              <div className="empty-title">No confirmation letters yet</div>
             </div>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="card" style={{ marginBottom: 0 }}>
+          <div className="empty" style={{ padding: 40 }}>
+            <div className="empty-title">No transactions yet</div>
+            <div className="empty-sub">Invoices and CLs assigned to this client will appear here</div>
+          </div>
+        </div>
+      )}
       {confirmDialog}
     </div>
   );

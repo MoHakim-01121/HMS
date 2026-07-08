@@ -27,6 +27,10 @@ class Invoice(models.Model):
                 name='uniq_invoice_number_per_company_type',
             ),
         ]
+        indexes = [
+            models.Index(fields=['company', 'invoice_type'], name='hw_invoice_company_type_idx'),
+            models.Index(fields=['company', 'due_date'], name='hw_invoice_company_due_idx'),
+        ]
 
     def __str__(self):
         return f"{self.invoice_number} | {self.customer_name}"

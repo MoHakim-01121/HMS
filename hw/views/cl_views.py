@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
-from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf
+from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf, get_active_company
 from .pdf import _logo_file_url, _render_cl_pdf
 
 
@@ -22,10 +22,8 @@ def _get_cl(request, pk, qs=None):
     """Fetch a ConfirmationLetter by pk, scoped to the active company (consistent
     with the list/invoice/client views) so a CL from another company cannot be
     opened by URL while a company is selected."""
-    active_company = request.session.get("active_company")
     qs = qs if qs is not None else ConfirmationLetter.objects.all()
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = qs.filter(company=get_active_company(request))
     return get_object_or_404(qs, pk=pk)
 
 
@@ -37,12 +35,11 @@ def _parse_search_tokens(q):
 
 @login_required
 def cl_list(request):
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
     base_qs = (
         ConfirmationLetter.objects.filter(company=active_company)
-        if active_company
-        else ConfirmationLetter.objects.all()
-    ).defer('note').select_related('invoice').prefetch_related('rooms')
+        .defer('note').select_related('invoice').prefetch_related('rooms')
+    )
 
     q           = request.GET.get('q', '').strip()
     status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
@@ -413,8 +410,8 @@ def _filter_cl_qs(qs, request):
 
 @login_required
 def cl_list_pdf(request):
-    active_company = request.session.get("active_company")
-    qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
+    active_company = get_active_company(request)
+    qs = ConfirmationLetter.objects.filter(company=active_company)
     qs = _filter_cl_qs(qs, request)
     letters = list(qs)
     total_rooms  = sum(cl.total_rooms for cl in letters)
@@ -433,15 +430,15 @@ def cl_list_pdf(request):
             "total_sar":     total_sar,
             "total_paid":    total_paid,
             "total_remain":  total_remain,
-            "logo_rel_path": _logo_file_url(active_company or "konoz"),
+            "logo_rel_path": _logo_file_url(active_company),
         },
     )
 
 
 @login_required
 def cl_list_pdf_v2(request):
-    active_company = request.session.get("active_company")
-    qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
+    active_company = get_active_company(request)
+    qs = ConfirmationLetter.objects.filter(company=active_company)
     qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
     letters = list(qs)
     for cl in letters:
@@ -459,15 +456,15 @@ def cl_list_pdf_v2(request):
             "letters":       letters,
             "total_rooms":   total_rooms,
             "total_sar":     total_sar,
-            "logo_rel_path": _logo_file_url(active_company or "konoz"),
+            "logo_rel_path": _logo_file_url(active_company),
         },
     )
 
 
 @login_required
 def cl_export_csv(request):
-    active_company = request.session.get("active_company")
-    qs = ConfirmationLetter.objects.filter(company=active_company) if active_company else ConfirmationLetter.objects.all()
+    active_company = get_active_company(request)
+    qs = ConfirmationLetter.objects.filter(company=active_company)
     qs = _filter_cl_qs(qs, request)
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="confirmation_letters.csv"'
@@ -518,7 +515,7 @@ def invoice_from_cls(request):
         messages.error(request, "Select at least one CL.")
         return redirect("cl_list")
 
-    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids)
+    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids, company=get_active_company(request))
     if not cls.exists():
         messages.error(request, "CL not found.")
         return redirect("cl_list")

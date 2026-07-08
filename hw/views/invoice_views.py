@@ -22,16 +22,17 @@ from .helpers import (
     _render_list_pdf,
     _save_hotel_payments,
     _to_float,
+    get_active_company,
 )
 from .pdf import _render_invoice_pdf
 
 
 @login_required
 def invoice_list(request):
-    active_company = request.session.get("active_company")
-    base_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations', 'payments')
-    if active_company:
-        base_qs = base_qs.filter(company=active_company)
+    active_company = get_active_company(request)
+    base_qs = Invoice.objects.filter(
+        invoice_type="hotel", company=active_company
+    ).prefetch_related('reservations', 'payments')
 
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
@@ -136,7 +137,7 @@ def _invoice_stats(invoice_qs, company):
 @login_required
 def invoice_new(request):
     suggested_number = Invoice.generate_number("hotel")
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
 
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
@@ -182,10 +183,7 @@ def invoice_new(request):
 
 @login_required
 def invoice_detail(request, pk):
-    active_company = request.session.get('active_company')
-    filters = {'pk': pk, 'invoice_type': 'hotel'}
-    if active_company:
-        filters['company'] = active_company
+    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
@@ -240,11 +238,8 @@ def invoice_detail(request, pk):
 
 @login_required
 def invoice_edit(request, pk):
-    active_company = request.session.get('active_company')
-    filters = {'pk': pk, 'invoice_type': 'hotel'}
-    if active_company:
-        filters['company'] = active_company
-    invoice = get_object_or_404(Invoice, **filters)
+    active_company = get_active_company(request)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=active_company)
 
     if request.method == "POST":
         def _res_snapshot(inv):
@@ -309,10 +304,7 @@ def invoice_edit(request, pk):
 
 @login_required
 def invoice_delete(request, pk):
-    active_company = request.session.get('active_company')
-    filters = {'pk': pk, 'invoice_type': 'hotel'}
-    if active_company:
-        filters['company'] = active_company
+    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     if request.method == "POST":
         num = invoice.invoice_number
@@ -326,20 +318,14 @@ def invoice_delete(request, pk):
 
 @login_required
 def invoice_pdf(request, pk):
-    active_company = request.session.get('active_company')
-    filters = {'pk': pk, 'invoice_type': 'hotel'}
-    if active_company:
-        filters['company'] = active_company
+    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     return _render_invoice_pdf(invoice)
 
 
 @login_required
 def invoice_list_pdf(request):
-    active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="hotel")
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -361,10 +347,7 @@ def invoice_list_pdf(request):
 
 @login_required
 def invoice_export_csv(request):
-    active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="hotel")
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -384,11 +367,7 @@ def invoice_export_csv(request):
 
 @login_required
 def invoice_duplicate(request, pk):
-    active_company = request.session.get('active_company')
-    filters = {'pk': pk, 'invoice_type': 'hotel'}
-    if active_company:
-        filters['company'] = active_company
-    original = get_object_or_404(Invoice, **filters)
+    original = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=get_active_company(request))
     new_num = Invoice.generate_number("hotel")
     today = date.today()
     new_inv = Invoice.objects.create(
@@ -475,6 +454,7 @@ def _serialize_hotel_invoice(invoice):
             "proof_keep": p.proof.name if p.proof else "",
             "proof_url": p.proof.url if p.proof else None,
         } for p in invoice.payments.all()],
+        "linked_cl_ids": list(invoice.confirmation_letters.values_list("pk", flat=True)),
     }
 
 
@@ -487,9 +467,7 @@ def _parse_cl_ids(request):
 
 
 def _cl_data_for_form(active_company):
-    cl_qs = ConfirmationLetter.objects.select_related("invoice")
-    if active_company:
-        cl_qs = cl_qs.filter(company=active_company)
+    cl_qs = ConfirmationLetter.objects.select_related("invoice").filter(company=active_company)
     return [{
         "id": cl.pk,
         "ref": cl.confirmation_number,

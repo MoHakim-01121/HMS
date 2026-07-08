@@ -11,16 +11,17 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, log_activity
+from .helpers import get_active_company
 
 
 def _company(request):
-    return request.session.get('active_company')
+    return get_active_company(request)
 
 
 @login_required
 def client_list(request):
     company = _company(request)
-    qs = Client.objects.filter(company=company) if company else Client.objects.all()
+    qs = Client.objects.filter(company=company)
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -81,7 +82,7 @@ def client_new(request):
             return inertia_render(request, "Client/Form", props={
                 "client": _client_echo(request.POST), "edit": False, "errors": errors,
             })
-        c = Client(company=company or 'konoz')
+        c = Client(company=company)
         _save_client(c, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
         messages.success(request, f'Client "{c.name}" added successfully.')
@@ -91,11 +92,7 @@ def client_new(request):
 
 @login_required
 def client_edit(request, pk):
-    company = _company(request)
-    filters = {'pk': pk}
-    if company:
-        filters['company'] = company
-    c = get_object_or_404(Client, **filters)
+    c = get_object_or_404(Client, pk=pk, company=_company(request))
     if request.method == 'POST':
         errors = _validate_client(request.POST)
         if errors:
@@ -123,11 +120,7 @@ def client_edit(request, pk):
 @login_required
 @require_POST
 def client_delete(request, pk):
-    company = _company(request)
-    filters = {'pk': pk}
-    if company:
-        filters['company'] = company
-    c = get_object_or_404(Client, **filters)
+    c = get_object_or_404(Client, pk=pk, company=_company(request))
     name = c.name
     c.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
@@ -138,13 +131,11 @@ def client_delete(request, pk):
 @login_required
 def client_detail(request, pk):
     company = _company(request)
-    qs = Client.objects.prefetch_related(
+    qs = Client.objects.filter(company=company).prefetch_related(
         'invoices__payments',
         'invoices__reservations',
         'cls__rooms',
     )
-    if company:
-        qs = qs.filter(company=company)
     c = get_object_or_404(qs, pk=pk)
     invoices = c.invoices.order_by('-created_at')
     cls = c.cls.order_by('-created_at')
@@ -190,8 +181,7 @@ def client_detail(request, pk):
 @login_required
 def client_map(request):
     company = _company(request)
-    qs = Client.objects.filter(company=company) if company else Client.objects.all()
-    qs = qs.filter(lat__isnull=False, lng__isnull=False)
+    qs = Client.objects.filter(company=company, lat__isnull=False, lng__isnull=False)
     return inertia_render(request, "Client/Map", props={"clients_count": qs.count()})
 
 
@@ -200,10 +190,9 @@ def client_map_data(request):
     company = _company(request)
     qs = (
         Client.objects
-        .filter(company=company) if company else Client.objects.all()
+        .filter(company=company, lat__isnull=False, lng__isnull=False)
+        .prefetch_related('invoices__payments', 'invoices__reservations')
     )
-    qs = qs.filter(lat__isnull=False, lng__isnull=False)
-    qs = qs.prefetch_related('invoices__payments', 'invoices__reservations')
 
     data = [
         {

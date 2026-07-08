@@ -6,6 +6,16 @@ from django.http import HttpResponse
 from ..models import ConfirmationLetter, Payment
 
 
+def get_active_company(request):
+    """Return the session's active company, defaulting to 'konoz' when unset.
+
+    Callers must always apply this as an unconditional filter, never skip
+    filtering when the session key is missing — that gap used to let
+    cross-company data leak through list/detail/PDF/CSV views.
+    """
+    return request.session.get("active_company") or "konoz"
+
+
 def _is_mobile(request):
     ua = request.META.get('HTTP_USER_AGENT', '').lower()
     return any(t in ua for t in ('mobi', 'android', 'iphone', 'ipod', 'windows phone'))

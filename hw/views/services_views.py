@@ -20,16 +20,21 @@ from .helpers import (
     _render_list_pdf,
     _save_service_payments,
     _to_float,
+    get_active_company,
 )
 from .pdf import _render_services_pdf
 
 
+def _get_service_invoice(request, pk):
+    """Fetch a visa invoice scoped to the active company (consistent with invoice/cl views)."""
+    return get_object_or_404(
+        Invoice, pk=pk, invoice_type='visa', company=get_active_company(request)
+    )
+
+
 @login_required
 def services_list(request):
-    active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="visa")
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -101,7 +106,7 @@ def services_new(request):
 
 @login_required
 def services_detail(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
+    invoice = _get_service_invoice(request, pk)
     visa_services = _build_visa_services_context(invoice)
     payments_raw = _build_visa_payments_context(invoice)
     services_remaining = sum(s["remaining"] for s in visa_services)
@@ -133,7 +138,7 @@ def services_detail(request, pk):
 
 @login_required
 def services_edit(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
+    invoice = _get_service_invoice(request, pk)
 
     if request.method == "POST":
         _before = {
@@ -188,7 +193,7 @@ def services_edit(request, pk):
 
 @login_required
 def services_delete(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
+    invoice = _get_service_invoice(request, pk)
     if request.method == "POST":
         num = invoice.invoice_number
         invoice.delete()
@@ -201,16 +206,13 @@ def services_delete(request, pk):
 
 @login_required
 def services_pdf(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
+    invoice = _get_service_invoice(request, pk)
     return _render_services_pdf(invoice)
 
 
 @login_required
 def services_list_pdf(request):
-    active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="visa")
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -224,10 +226,7 @@ def services_list_pdf(request):
 
 @login_required
 def services_export_csv(request):
-    active_company = request.session.get("active_company")
-    qs = Invoice.objects.filter(invoice_type="visa")
-    if active_company:
-        qs = qs.filter(company=active_company)
+    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -246,7 +245,7 @@ def services_export_csv(request):
 
 @login_required
 def services_duplicate(request, pk):
-    original = get_object_or_404(Invoice, pk=pk, invoice_type="visa")
+    original = _get_service_invoice(request, pk)
     new_num = Invoice.generate_number("visa")
     today = date.today()
     new_inv = Invoice.objects.create(

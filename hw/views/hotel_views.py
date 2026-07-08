@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, log_activity
-from .helpers import _is_mobile, _page_range_display
+from .helpers import _is_mobile, _page_range_display, get_active_company
 
 
 def _save_hotel(h, data):
@@ -45,7 +45,7 @@ def _save_hotel(h, data):
 
 @login_required
 def hotel_list(request):
-    company = request.session.get('active_company')
+    company = get_active_company(request)
     qs = Hotel.objects.filter(company=company)
     q            = request.GET.get('q', '').strip()
     area_filter  = request.GET.get('area', '').strip()
@@ -96,7 +96,7 @@ def hotel_list(request):
 
 @login_required
 def hotel_new(request):
-    company = request.session.get('active_company')
+    company = get_active_company(request)
     if request.method == 'POST':
         h = Hotel(company=company)
         _save_hotel(h, request.POST)
@@ -107,11 +107,7 @@ def hotel_new(request):
 
 @login_required
 def hotel_edit(request, pk):
-    company = request.session.get('active_company')
-    filters = {'pk': pk}
-    if company:
-        filters['company'] = company
-    h = get_object_or_404(Hotel, **filters)
+    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     if request.method == 'POST':
         _before = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
         _save_hotel(h, request.POST)
@@ -133,11 +129,7 @@ def hotel_edit(request, pk):
 @login_required
 @require_POST
 def hotel_delete(request, pk):
-    company = request.session.get('active_company')
-    filters = {'pk': pk}
-    if company:
-        filters['company'] = company
-    h = get_object_or_404(Hotel, **filters)
+    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     name = h.name
     h.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name, h.company)
@@ -146,11 +138,7 @@ def hotel_delete(request, pk):
 
 @login_required
 def hotel_detail(request, pk):
-    company = request.session.get('active_company')
-    filters = {'pk': pk}
-    if company:
-        filters['company'] = company
-    h = get_object_or_404(Hotel, **filters)
+    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     return inertia_render(request, "Hotel/Detail", props={
         "hotel": {
             "id": h.id,
@@ -179,7 +167,7 @@ def hotel_map(request):
 
 @login_required
 def hotel_map_data(request):
-    company = request.session.get('active_company')
+    company = get_active_company(request)
     hotels = []
     for h in Hotel.objects.filter(company=company, is_active=True):
         if h.lat is None or h.lng is None:

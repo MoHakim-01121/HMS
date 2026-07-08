@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'axes',
     'inertia',
     'django_vite',
+    'django_q',
     'hw',
 ]
 
@@ -132,9 +133,26 @@ else:
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'hw_cache_table',
         'TIMEOUT': 300,
     }
+}
+
+# ── django-q2 (background WhatsApp sends) ──
+# ORM broker: reuses the existing Postgres DB as the task queue, so no Redis
+# or extra service is needed. In production a separate `manage.py qcluster`
+# process must be running to actually process queued tasks (see bin/startup.sh).
+import sys
+Q_CLUSTER = {
+    'name': 'hms',
+    'workers': 2,
+    'timeout': 30,
+    'retry': 60,
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default',
+    'sync': 'test' in sys.argv,
 }
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
@@ -313,3 +331,18 @@ LOGGING = {
         },
     },
 }
+
+# ── Error tracking (Sentry) ──
+# No-op locally: only initializes when SENTRY_DSN is set in the environment.
+SENTRY_DSN = get_env_variable('SENTRY_DSN', '')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        environment='production' if not DEBUG else 'development',
+    )

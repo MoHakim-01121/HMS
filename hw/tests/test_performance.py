@@ -36,11 +36,6 @@ class GzipMiddlewareTest(TestCase):
 
 
 class SettingsTest(TestCase):
-    def test_caches_backend_is_locmem(self):
-        from django.conf import settings
-        backend = settings.CACHES['default']['BACKEND']
-        self.assertEqual(backend, 'django.core.cache.backends.locmem.LocMemCache')
-
     def test_session_engine_is_cached_db(self):
         from django.conf import settings
         self.assertEqual(

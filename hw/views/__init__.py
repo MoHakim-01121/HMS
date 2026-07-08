@@ -49,6 +49,7 @@ from .penalty_views import (
 
 from ..ai import generate_draft_message, get_chat_reply
 from ..models import Invoice
+from .helpers import get_active_company
 
 
 
@@ -93,7 +94,7 @@ def ai_draft_message(request):
     except Exception:
         return JsonResponse({"error": "Invalid request."}, status=400)
 
-    invoice = Invoice.objects.filter(pk=pk).first()
+    invoice = Invoice.objects.filter(pk=pk, company=get_active_company(request)).first()
     if not invoice:
         return JsonResponse({"error": "Invoice not found."}, status=404)
 

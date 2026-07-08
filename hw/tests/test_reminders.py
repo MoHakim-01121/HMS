@@ -243,7 +243,7 @@ class SendRecapViewTest(TestCase):
         s = self.client.session; s['active_company'] = 'konoz'; s.save()
         self.cl = _make_cl(estimasi_tiba=time(14, 0), pic_name='Budi', pic_phone='0812')
 
-    @patch('hw.views.calendar_views.send_wa')
+    @patch('hw.tasks.send_wa')
     def test_sends_recap_and_creates_log(self, mock_send):
         from hw.models import WATarget
         WATarget.objects.create(label='Tim', target='628111222333')
@@ -272,7 +272,7 @@ class SendReminderViewTest(TestCase):
         self.client.force_login(self.user)
         self.cl = _make_cl()
 
-    @patch('hw.views.calendar_views.send_wa')
+    @patch('hw.tasks.send_wa')
     def test_sends_reminder_and_creates_log(self, mock_send):
         mock_send.return_value = {'status': True}
         resp = self.client.post(f'/calendar/send-reminder/{self.cl.pk}/')

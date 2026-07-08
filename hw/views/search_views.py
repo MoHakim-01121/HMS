@@ -4,6 +4,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 
 from ..models import ConfirmationLetter, Invoice
+from .helpers import get_active_company
 
 
 @login_required
@@ -12,10 +13,10 @@ def global_search(request):
     if not q or len(q) < 2:
         return JsonResponse({"results": [], "q": q})
 
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
 
     def _co(qs):
-        return qs.filter(company=active_company) if active_company else qs
+        return qs.filter(company=active_company)
 
     cl_qs = _co(ConfirmationLetter.objects.filter(
         Q(confirmation_number__icontains=q) |

@@ -5,7 +5,10 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
+from django.db.models import Q
+
 from ..models import Attachment, ConfirmationLetter, Invoice
+from .helpers import get_active_company
 
 _ALLOWED_MIME = {
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -34,11 +37,12 @@ def attachment_upload(request):
     if f.content_type not in _ALLOWED_MIME:
         return JsonResponse({"error": "File type not allowed. Use PDF, image, Excel, or CSV."}, status=400)
 
+    active_company = get_active_company(request)
     att = Attachment(name=f.name, size=f.size)
     if invoice_id:
-        att.invoice = get_object_or_404(Invoice, pk=invoice_id)
+        att.invoice = get_object_or_404(Invoice, pk=invoice_id, company=active_company)
     else:
-        att.cl = get_object_or_404(ConfirmationLetter, pk=cl_id)
+        att.cl = get_object_or_404(ConfirmationLetter, pk=cl_id, company=active_company)
     att.file = f
     att.save()
 
@@ -55,7 +59,9 @@ def attachment_upload(request):
 @login_required
 @require_POST
 def attachment_delete(request, pk):
-    att = get_object_or_404(Attachment, pk=pk)
+    active_company = get_active_company(request)
+    qs = Attachment.objects.filter(Q(invoice__company=active_company) | Q(cl__company=active_company))
+    att = get_object_or_404(qs, pk=pk)
     try:
         if att.file and os.path.isfile(att.file.path):
             os.remove(att.file.path)

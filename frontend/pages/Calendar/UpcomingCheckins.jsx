@@ -84,7 +84,7 @@ function CheckinCard({ cl }) {
     setSending(true);
     try {
       const r = await axios.post(`/calendar/send-reminder/${cl.pk}/`);
-      showToast(r.data.ok ? `Pesan terkirim ke ${cl.guest_name}` : (r.data.message || 'Gagal mengirim pesan'), r.data.ok ? 'success' : 'error');
+      showToast(r.data.ok ? `Pesan sedang dikirim ke ${cl.guest_name}` : (r.data.message || 'Gagal mengirim pesan'), r.data.ok ? 'success' : 'error');
     } catch { showToast('Gagal mengirim pesan', 'error'); }
     setSending(false);
   };
@@ -102,7 +102,7 @@ function CheckinCard({ cl }) {
     setSending(true);
     try {
       const r = await axios.post(`/calendar/send-reminder/${cl.pk}/`);
-      showToast(r.data.ok ? `Pesan terkirim ke ${cl.guest_name}` : (r.data.message || 'Gagal mengirim pesan'), r.data.ok ? 'success' : 'error');
+      showToast(r.data.ok ? `Pesan sedang dikirim ke ${cl.guest_name}` : (r.data.message || 'Gagal mengirim pesan'), r.data.ok ? 'success' : 'error');
     } catch { showToast('Gagal mengirim pesan', 'error'); }
     setSending(false);
   };
@@ -275,7 +275,7 @@ function DateGroup({ dateStr, cls }) {
         new URLSearchParams({ date: dateStr }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
-      showToast(r.data.ok ? 'Rekap berhasil dikirim.' : (r.data.errors?.join(', ') || r.data.message || 'Gagal mengirim rekap'), r.data.ok ? 'success' : 'error');
+      showToast(r.data.ok ? 'Rekap sedang dikirim.' : (r.data.message || 'Gagal mengirim rekap'), r.data.ok ? 'success' : 'error');
     } catch { showToast('Gagal mengirim rekap', 'error'); }
     setSending(false);
   };

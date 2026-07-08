@@ -27,6 +27,14 @@ def _logo_file_url(company):
 
 
 def _render_cl_pdf(cl):
+    from django.core.cache import cache
+    cache_key = f"pdf:cl:{cl.pk}:{cl.updated_at.isoformat()}"
+    cached_pdf = cache.get(cache_key)
+    if cached_pdf is not None:
+        response = HttpResponse(cached_pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{cl.confirmation_number}.pdf"'
+        return response
+
     nights = cl.num_nights
     nights_factor = nights if nights > 0 else 1
 
@@ -61,6 +69,7 @@ def _render_cl_pdf(cl):
     template = "hw/cl/cl_pdf_ijabah.html" if cl.company == "ijabah" else "hw/cl/cl_pdf_konoz.html"
     html = render_to_string(template, context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
+    cache.set(cache_key, pdf, 3600)
     filename = f"{cl.confirmation_number}.pdf"
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
@@ -68,6 +77,14 @@ def _render_cl_pdf(cl):
 
 
 def _render_invoice_pdf(invoice):
+    from django.core.cache import cache
+    cache_key = f"pdf:invoice:{invoice.pk}:{invoice.updated_at.isoformat()}"
+    cached_pdf = cache.get(cache_key)
+    if cached_pdf is not None:
+        response = HttpResponse(cached_pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{invoice.invoice_number}.pdf"'
+        return response
+
     reservations = _build_reservation_context(invoice)
     payments = invoice.payments.all()
 
@@ -118,6 +135,7 @@ def _render_invoice_pdf(invoice):
     template = "hw/invoice/invoice_pdf_ijabah_v2.html" if invoice.company == "ijabah" else "hw/invoice/invoice_pdf_v2.html"
     html = render_to_string(template, context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
+    cache.set(cache_key, pdf, 3600)
     filename = f"{invoice.invoice_number}.pdf"
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'

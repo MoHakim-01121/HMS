@@ -125,7 +125,7 @@ class CalendarSendRecapWATargetTest(TestCase):
         self.assertFalse(resp.json()['ok'])
         self.assertIn('Belum ada nomor penerima', resp.json()['message'])
 
-    @patch('hw.views.calendar_views.send_wa')
+    @patch('hw.tasks.send_wa')
     def test_send_recap_uses_only_active_wa_targets(self, mock_send):
         mock_send.return_value = {'status': True}
         WATarget.objects.create(label='Tim A', target='628111000222333')
@@ -135,7 +135,7 @@ class CalendarSendRecapWATargetTest(TestCase):
         self.assertEqual(mock_send.call_count, 1)
         self.assertEqual(RecapLog.objects.count(), 1)
 
-    @patch('hw.views.calendar_views.send_wa')
+    @patch('hw.tasks.send_wa')
     def test_send_recap_creates_log_per_target(self, mock_send):
         mock_send.return_value = {'status': True}
         WATarget.objects.create(label='A', target='628111000222333')

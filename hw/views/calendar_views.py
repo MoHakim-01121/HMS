@@ -6,12 +6,13 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django_q.tasks import async_task
 
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice, ReminderLog, RecapLog, WATarget, MessageTemplate
+from .helpers import get_active_company
 from .pdf import _render_checkin_pdf
-from ..services.fonnte import send_wa
 from ..services.recap import (
     build_recap_message, build_reminder_message,
     TEMPLATE_H0, TEMPLATE_H1, TEMPLATE_RECAP,
@@ -136,7 +137,7 @@ def calendar_view(request):
     elif month > 12:
         month, year = 1, year + 1
 
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
     days_in_month = calendar.monthrange(year, month)[1]
     month_start = date(year, month, 1)
     month_end = date(year, month, days_in_month)
@@ -149,9 +150,8 @@ def calendar_view(request):
         .exclude(check_in=None).exclude(check_out=None)
         .select_related('invoice')
         .prefetch_related('invoice__payments', 'invoice__reservations')
+        .filter(company=active_company)
     )
-    if active_company:
-        cl_qs = cl_qs.filter(company=active_company)
 
     for cl in cl_qs:
         start = _clip_day(cl.check_in, month, year, days_in_month, is_start=True)
@@ -259,16 +259,13 @@ def calendar_send_recap(request):
         recap_date = None
         date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
         err_label = '7 hari ke depan'
-    active_company = request.session.get('active_company')
     qs = (
         ConfirmationLetter.objects
-        .filter(**date_filter, estimasi_tiba__isnull=False)
+        .filter(**date_filter, estimasi_tiba__isnull=False, company=get_active_company(request))
         .exclude(reservation_status='CANCELLED')
         .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name', 'guest_name')
     )
-    if active_company:
-        qs = qs.filter(company=active_company)
     cls = list(qs)
     if not cls:
         return JsonResponse({'ok': False, 'message': f'Tidak ada tamu check-in {err_label} dengan estimasi terisi'})
@@ -276,23 +273,10 @@ def calendar_send_recap(request):
     wa_targets = list(WATarget.objects.filter(is_active=True))
     if not wa_targets:
         return JsonResponse({'ok': False, 'message': 'Belum ada nomor penerima rekap yang aktif'})
-    errors = []
     for t in wa_targets:
-        try:
-            result = send_wa(t.target, message)
-            status = 'SENT' if result.get('status') else 'FAILED'
-            error  = result.get('reason', '') if not result.get('status') else ''
-        except Exception as exc:
-            status, error = 'FAILED', str(exc)
-        RecapLog.objects.create(
-            target_type=t.target_type, target=t.target,
-            cl_count=len(cls), message=message,
-            status=status, triggered_by='MANUAL', error=error,
-        )
-        if status == 'FAILED':
-            errors.append(f"{t.label}: {error}")
+        async_task('hw.tasks.send_recap_task', t.target_type, t.target, t.label, message, len(cls))
     cache.delete('last_recap')
-    return JsonResponse({'ok': not errors, 'errors': errors})
+    return JsonResponse({'ok': True, 'queued': len(wa_targets)})
 
 
 @login_required
@@ -305,17 +289,8 @@ def calendar_send_reminder(request, pk):
     today = date.today()
     reminder_type = 'H0_GUEST' if cl.check_in == today else 'H1_GUEST'
     message = build_reminder_message(cl, reminder_type)
-    try:
-        result = send_wa(cl.guest_phone, message)
-        status = 'SENT' if result.get('status') else 'FAILED'
-        error  = result.get('reason', '') if not result.get('status') else ''
-    except Exception as exc:
-        status, error = 'FAILED', str(exc)
-    ReminderLog.objects.create(
-        cl=cl, reminder_type=reminder_type,
-        phone=cl.guest_phone, status=status, error=error,
-    )
-    return JsonResponse({'ok': status == 'SENT', 'status': status})
+    async_task('hw.tasks.send_reminder_task', cl.pk, reminder_type, cl.guest_phone, message)
+    return JsonResponse({'ok': True, 'queued': True})
 
 
 @login_required
@@ -383,7 +358,7 @@ def message_template_save(request):
 @login_required
 def calendar_checkin_pdf(request):
     today = date.today()
-    active_company = request.session.get('active_company')
+    active_company = get_active_company(request)
     date_str = request.GET.get('date', '').strip()
 
     if date_str:
@@ -411,10 +386,8 @@ def calendar_checkin_pdf(request):
         .exclude(reservation_status='CANCELLED')
         .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name', 'guest_name')
+        .filter(company=active_company)
     )
-    if active_company:
-        qs = qs.filter(company=active_company)
 
-    company = active_company or 'konoz'
-    return _render_checkin_pdf(list(qs), title, company, filename,
+    return _render_checkin_pdf(list(qs), title, active_company, filename,
                                date_start=date_start, date_end=date_end)

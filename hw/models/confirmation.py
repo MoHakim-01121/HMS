@@ -37,6 +37,10 @@ class ConfirmationLetter(models.Model):
                 name='uniq_confirmation_number_per_company',
             ),
         ]
+        indexes = [
+            models.Index(fields=['company', 'check_in'], name='hw_cl_company_checkin_idx'),
+            models.Index(fields=['company', 'reservation_status'], name='hw_cl_company_status_idx'),
+        ]
 
     def __str__(self):
         return f"CL-{self.confirmation_number} | {self.guest_name}"

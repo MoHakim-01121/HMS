@@ -9,25 +9,19 @@ from django.template.loader import render_to_string
 from inertia import render as inertia_render
 
 from ..models import CancellationPenalty, ConfirmationLetter
-from .helpers import _parse_date, _to_float
+from .helpers import _parse_date, _to_float, get_active_company
 from .pdf import _logo_file_url
 
 
 def _get_cl(request, cl_pk):
     """Fetch a CL scoped to the active company (consistent with cl/invoice views)."""
-    filters = {'pk': cl_pk}
-    active_company = request.session.get("active_company")
-    if active_company:
-        filters['company'] = active_company
-    return get_object_or_404(ConfirmationLetter, **filters)
+    return get_object_or_404(ConfirmationLetter, pk=cl_pk, company=get_active_company(request))
 
 
 def _get_penalty(request, pk, qs=None):
     """Fetch a penalty scoped to the active company via its CL."""
-    active_company = request.session.get("active_company")
     qs = qs if qs is not None else CancellationPenalty.objects.all()
-    if active_company:
-        qs = qs.filter(cl__company=active_company)
+    qs = qs.filter(cl__company=get_active_company(request))
     return get_object_or_404(qs, pk=pk)
 
 
