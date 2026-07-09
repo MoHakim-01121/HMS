@@ -3,6 +3,8 @@ import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 function visit(params) {
   router.get("/services/", params, { preserveState: true, preserveScroll: true, replace: true });
@@ -58,31 +60,29 @@ export default function List({ invoices, total_count, q, pagination }) {
       <div className="card">
         {invoices.length ? (
           <>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Invoice #</th><th>Customer</th><th>Currency</th><th>Issued</th><th>Created</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/services/${inv.id}/`)}>
-                      <td className="col-m-primary"><span className="col-bold col-nowrap">{inv.invoice_number}</span></td>
-                      <td className="col-m-secondary">{inv.customer_name}</td>
-                      <td className="col-m-amount"><span className="badge badge-gray">{inv.currency}</span></td>
-                      <td className="col-muted col-nowrap col-m-hide">{inv.issued_date || "—"}</td>
-                      <td className="col-dim col-nowrap col-m-hide">{inv.created_at}</td>
-                      <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
-                        <div className="row-actions">
-                          <a href={`/services/${inv.id}/pdf/`} className="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank" rel="noreferrer"><Icon name="pdf" size={14} /></a>
-                          <a href={`/services/${inv.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                          <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, inv.id, inv.invoice_number)}><Icon name="trash" size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { header: "Invoice #", className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
+                { header: "Customer", className: "col-m-secondary", render: (inv) => inv.customer_name },
+                { header: "Currency", className: "col-m-amount", render: (inv) => <span className="badge badge-gray">{inv.currency}</span> },
+                { header: "Issued", className: "col-muted col-nowrap col-m-hide", render: (inv) => inv.issued_date || "—" },
+                { header: "Created", className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
+                {
+                  header: "",
+                  className: "col-m-actions",
+                  render: (inv) => (
+                    <RowActions actions={[
+                      { icon: "pdf", label: "Download PDF", href: `/services/${inv.id}/pdf/`, variant: "green", external: true },
+                      { icon: "edit", label: "Edit", href: `/services/${inv.id}/edit/` },
+                      { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, inv.id, inv.invoice_number) },
+                    ]} />
+                  ),
+                },
+              ]}
+              rows={invoices}
+              rowKey={(inv) => inv.id}
+              onRowClick={(inv) => router.visit(`/services/${inv.id}/`)}
+            />
 
             {pagination.has_other_pages && (
               <div className="pagination">

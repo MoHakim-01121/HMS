@@ -1,4 +1,5 @@
 import PageBack from "../../components/ui/PageBack.jsx";
+import Table from "../../components/ui/Table.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
@@ -38,44 +39,35 @@ export default function Detail({ rem, lines }) {
 
       <div className="card">
         <div className="card-header"><span className="card-title">Detail per Reservation</span></div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Res</th><th>Invoice</th><th>Client / Travel</th><th>Hotel</th>
-                <th style={{ textAlign: "right" }}>Check-in</th>
-                <th style={{ textAlign: "right" }}>Previously Sent</th>
-                <th style={{ textAlign: "right" }}>Sent Now</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.length ? lines.map((row, i) => (
-                <tr key={i}>
-                  <td className="col-m-primary" style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
-                    {row.linked_number}
-                    <span className="m-sub" style={{ fontFamily: "inherit" }}>{row.hotel || "—"}{row.check_in ? ` · ${row.check_in}` : ""}{row.prev_sent ? ` · prev ${fmt(row.prev_sent)}` : ""}</span>
-                  </td>
-                  <td className="col-m-hide">{row.invoice ? <a href={`/invoice/${row.invoice.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none", fontSize: 12 }}>{row.invoice.invoice_number}</a> : "—"}</td>
-                  <td className="col-m-secondary" style={{ fontSize: 12, color: "var(--text-2)" }}>{row.invoice ? row.invoice.customer_name : "—"}</td>
-                  <td className="col-m-hide" style={{ fontSize: 12, color: "var(--text-2)" }}>{row.hotel || "—"}</td>
-                  <td className="col-m-hide" style={{ fontSize: 12, color: "var(--text-2)", textAlign: "right" }}>{row.check_in || "—"}</td>
-                  <td className="col-m-hide" style={{ fontFamily: "'JetBrains Mono', monospace", textAlign: "right", color: "var(--text-2)" }}>{fmt(row.prev_sent)}</td>
-                  <td className="mono col-m-amount" style={{ fontWeight: 600, textAlign: "right" }}>{fmt(row.amount_sar)}</td>
-                </tr>
-              )) : (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--text-3)", padding: 20 }}>No data</td></tr>
-              )}
-            </tbody>
-            {lines.length > 0 && (
-              <tfoot>
-                <tr style={{ borderTop: "2px solid var(--border)" }}>
-                  <td colSpan={6} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-2)", textAlign: "right" }}>Total</td>
-                  <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textAlign: "right" }}>{fmt(rem.total_sar)} SAR</td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+        <Table
+          columns={[
+            {
+              header: "Res",
+              className: "col-m-primary",
+              style: { fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 },
+              render: (row) => (
+                <>
+                  {row.linked_number}
+                  <span className="m-sub" style={{ fontFamily: "inherit" }}>{row.hotel || "—"}{row.check_in ? ` · ${row.check_in}` : ""}{row.prev_sent ? ` · prev ${fmt(row.prev_sent)}` : ""}</span>
+                </>
+              ),
+            },
+            { header: "Invoice", className: "col-m-hide", render: (row) => row.invoice ? <a href={`/invoice/${row.invoice.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none", fontSize: 12 }}>{row.invoice.invoice_number}</a> : "—" },
+            { header: "Client / Travel", className: "col-m-secondary", style: { fontSize: 12, color: "var(--text-2)" }, render: (row) => row.invoice ? row.invoice.customer_name : "—" },
+            { header: "Hotel", className: "col-m-hide", style: { fontSize: 12, color: "var(--text-2)" }, render: (row) => row.hotel || "—" },
+            { header: "Check-in", headerStyle: { textAlign: "right" }, className: "col-m-hide", style: { fontSize: 12, color: "var(--text-2)", textAlign: "right" }, render: (row) => row.check_in || "—" },
+            { header: "Previously Sent", headerStyle: { textAlign: "right" }, className: "col-m-hide", style: { fontFamily: "'JetBrains Mono', monospace", textAlign: "right", color: "var(--text-2)" }, render: (row) => fmt(row.prev_sent) },
+            { header: "Sent Now", headerStyle: { textAlign: "right" }, className: "mono col-m-amount", style: { fontWeight: 600, textAlign: "right" }, render: (row) => fmt(row.amount_sar) },
+          ]}
+          rows={lines}
+          rowKey={(row, i) => i}
+          footer={lines.length > 0 && (
+            <tr style={{ borderTop: "2px solid var(--border)" }}>
+              <td colSpan={6} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-2)", textAlign: "right" }}>Total</td>
+              <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textAlign: "right" }}>{fmt(rem.total_sar)} SAR</td>
+            </tr>
+          )}
+        />
       </div>
     </div>
   );

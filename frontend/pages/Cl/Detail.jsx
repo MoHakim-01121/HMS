@@ -1,4 +1,5 @@
 import Attachments from "../../components/ui/Attachments.jsx";
+import Table from "../../components/ui/Table.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const fmtPrice = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -61,35 +62,33 @@ function RoomsTable({ cl, rooms }) {
   return (
     <div className="card">
       <div className="card-header"><span className="card-title">Rooms</span></div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr><th>Type</th><th className="col-m-hide">Meals</th><th className="col-num col-m-hide">Qty</th><th className="col-num col-m-hide">Price/Night</th><th className="col-num">Subtotal</th></tr>
-          </thead>
-          <tbody>
-            {rooms.length ? rooms.map((room, i) => (
-              <tr key={i}>
-                <td className="col-m-primary">
-                  {room.room_type}
-                  <span className="m-sub">{room.quantity} × {fmtPrice(room.price)} SAR/night</span>
-                </td>
-                <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{room.meals || "—"}</td>
-                <td className="mono col-num col-m-hide">{room.quantity}</td>
-                <td className="mono col-num col-m-hide">{fmtPrice(room.price)}</td>
-                <td className="mono col-num col-m-amount" style={{ fontWeight: 600 }}>{fmt(room.subtotal)} SAR</td>
-              </tr>
-            )) : (
-              <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-3)", padding: 20 }}>No room data</td></tr>
-            )}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={4} className="col-num col-m-hide" style={{ fontWeight: 700 }}>Total</td>
-              <td className="tsum-v col-num" style={{ fontWeight: 700 }}><span className="m-only tsum-k">Total</span>{fmt(cl.total_price)} SAR</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      <Table
+        columns={[
+          {
+            header: "Type",
+            className: "col-m-primary",
+            render: (room) => (
+              <>
+                {room.room_type}
+                <span className="m-sub">{room.quantity} × {fmtPrice(room.price)} SAR/night</span>
+              </>
+            ),
+          },
+          { header: "Meals", headerClassName: "col-m-hide", className: "col-m-hide", style: { color: "var(--text-2)" }, render: (room) => room.meals || "—" },
+          { header: "Qty", headerClassName: "col-num col-m-hide", className: "mono col-num col-m-hide", render: (room) => room.quantity },
+          { header: "Price/Night", headerClassName: "col-num col-m-hide", className: "mono col-num col-m-hide", render: (room) => fmtPrice(room.price) },
+          { header: "Subtotal", headerClassName: "col-num", className: "mono col-num col-m-amount", style: { fontWeight: 600 }, render: (room) => `${fmt(room.subtotal)} SAR` },
+        ]}
+        rows={rooms}
+        rowKey={(room, i) => i}
+        empty="No room data"
+        footer={
+          <tr>
+            <td colSpan={4} className="col-num col-m-hide" style={{ fontWeight: 700 }}>Total</td>
+            <td className="tsum-v col-num" style={{ fontWeight: 700 }}><span className="m-only tsum-k">Total</span>{fmt(cl.total_price)} SAR</td>
+          </tr>
+        }
+      />
     </div>
   );
 }

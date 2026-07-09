@@ -1,5 +1,7 @@
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 function openDraft(type, pk) {
@@ -38,27 +40,19 @@ export default function Detail({ invoice, visa_services, payments_history, servi
 
       <div className="card">
         <div className="card-header"><span className="card-title">Services</span></div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>#</th><th>Service</th><th>Qty</th><th>Price</th><th>Total</th><th>Remaining</th></tr>
-            </thead>
-            <tbody>
-              {visa_services.length ? visa_services.map((svc, i) => (
-                <tr key={i}>
-                  <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{svc.service_no}</td>
-                  <td className="col-m-primary">{svc.product}</td>
-                  <td className="col-m-hide">{svc.qty}</td>
-                  <td className="mono col-m-hide">{fmt(svc.price)} {cur}</td>
-                  <td className="mono col-m-amount" style={{ fontWeight: 600 }}>{fmt(svc.total)} {cur}</td>
-                  <td className={`${svc.remaining_class} mono col-m-hide`}>{fmt(svc.remaining)} {cur}</td>
-                </tr>
-              )) : (
-                <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-3)" }}>No service data</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            { header: "#", className: "col-m-hide", style: { color: "var(--text-2)" }, render: (svc) => svc.service_no },
+            { header: "Service", className: "col-m-primary", render: (svc) => svc.product },
+            { header: "Qty", className: "col-m-hide", render: (svc) => svc.qty },
+            { header: "Price", className: "mono col-m-hide", render: (svc) => `${fmt(svc.price)} ${cur}` },
+            { header: "Total", className: "mono col-m-amount", style: { fontWeight: 600 }, render: (svc) => `${fmt(svc.total)} ${cur}` },
+            { header: "Remaining", className: (svc) => `${svc.remaining_class} mono col-m-hide`, render: (svc) => `${fmt(svc.remaining)} ${cur}` },
+          ]}
+          rows={visa_services}
+          rowKey={(svc, i) => i}
+          empty="No service data"
+        />
       </div>
 
       <div className="card">
@@ -68,29 +62,27 @@ export default function Detail({ invoice, visa_services, payments_history, servi
             <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Paid Message"}
           </button>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Svc#</th><th>Date</th><th>Method</th><th>Amount</th><th>Currency</th><th>Rate</th><th>Note</th><th>Proof</th></tr>
-            </thead>
-            <tbody>
-              {payments_history.length ? payments_history.map((p, i) => (
-                <tr key={i}>
-                  <td className="col-m-hide">—</td>
-                  <td className="col-m-primary" style={{ color: "var(--text-2)" }}>{p.payment_date || "—"}</td>
-                  <td className="col-m-secondary">{p.payment_method || "—"}</td>
-                  <td className="mono col-m-amount">{fmt(p.payment_amount)}</td>
-                  <td className="col-m-hide"><span className="badge badge-gray">{p.payment_currency}</span></td>
-                  <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{p.payment_exchange}</td>
-                  <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{p.payment_note || "—"}</td>
-                  <td className="col-m-actions">{p.proof_url ? <a href={p.proof_url} target="_blank" rel="noreferrer" title="View proof" style={{ color: "var(--accent-2)", textDecoration: "none", display: "inline-flex" }}><Icon name="search" size={14} /></a> : <span className="col-dim">—</span>}</td>
-                </tr>
-              )) : (
-                <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--text-3)" }}>No payment data</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            { header: "Svc#", className: "col-m-hide", render: () => "—" },
+            { header: "Date", className: "col-m-primary", style: { color: "var(--text-2)" }, render: (p) => p.payment_date || "—" },
+            { header: "Method", className: "col-m-secondary", render: (p) => p.payment_method || "—" },
+            { header: "Amount", className: "mono col-m-amount", render: (p) => fmt(p.payment_amount) },
+            { header: "Currency", className: "col-m-hide", render: (p) => <span className="badge badge-gray">{p.payment_currency}</span> },
+            { header: "Rate", className: "col-m-hide", style: { color: "var(--text-2)" }, render: (p) => p.payment_exchange },
+            { header: "Note", className: "col-m-hide", style: { color: "var(--text-2)" }, render: (p) => p.payment_note || "—" },
+            {
+              header: "Proof",
+              className: "col-m-actions",
+              render: (p) => p.proof_url
+                ? <RowActions actions={[{ icon: "search", label: "View proof", href: p.proof_url, external: true }]} />
+                : <span className="col-dim">—</span>,
+            },
+          ]}
+          rows={payments_history}
+          rowKey={(p, i) => i}
+          empty="No payment data"
+        />
       </div>
     </div>
   );

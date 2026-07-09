@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const STATUS_OPTS = [
   { val: "", label: "All", cls: "c-all" },
@@ -95,45 +97,61 @@ export default function List({ clients, q, status }) {
 
       <div className="card">
         {clients.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Agent Name</th><th>City</th><th>PIC / WA</th><th>Invoice</th><th>Outstanding</th><th>Score</th><th>Status</th><th></th></tr>
-              </thead>
-              <tbody>
-                {clients.map((c) => {
+          <Table
+            columns={[
+              {
+                header: "Agent Name",
+                className: "col-m-primary",
+                render: (c) => {
                   const rb = riskBadge(c.risk_label);
                   return (
-                    <tr key={c.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/clients/${c.id}/`)}>
-                      <td className="col-m-primary">
-                        <span style={{ fontWeight: 600 }}>{c.name}</span>
-                        {rb && <span className={rb[0]} style={{ marginLeft: 6 }}>{rb[1]}</span>}
-                      </td>
-                      <td className="col-muted col-m-secondary">{c.city}{c.province ? `, ${c.province}` : ""}</td>
-                      <td className="col-m-hide">
-                        <div style={{ fontSize: 13 }}>{c.pic || "-"}</div>
-                        {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--green)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{c.wa}</a>}
-                      </td>
-                      <td className="col-muted mono col-m-hide">{c.invoices_count}</td>
-                      <td className="col-m-amount">{c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>}</td>
-                      <td className="col-m-hide">
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <div style={{ flex: 1, height: 4, background: "var(--surface-3)", borderRadius: 2, maxWidth: 48 }}>
-                            <div style={{ height: 4, borderRadius: 2, width: `${c.score}%`, background: scoreColor(c.score) }}></div>
-                          </div>
-                          <span style={{ fontSize: 11, color: "var(--text-3)" }}>{c.score}</span>
-                        </div>
-                      </td>
-                      <td className="col-m-hide">{c.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
-                      <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
-                        <a href={`/clients/${c.id}/`} className="btn btn-ghost btn-sm">Detail</a>
-                      </td>
-                    </tr>
+                    <>
+                      <span style={{ fontWeight: 600 }}>{c.name}</span>
+                      {rb && <span className={rb[0]} style={{ marginLeft: 6 }}>{rb[1]}</span>}
+                    </>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                },
+              },
+              { header: "City", className: "col-muted col-m-secondary", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
+              {
+                header: "PIC / WA",
+                className: "col-m-hide",
+                render: (c) => (
+                  <>
+                    <div style={{ fontSize: 13 }}>{c.pic || "-"}</div>
+                    {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--green)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{c.wa}</a>}
+                  </>
+                ),
+              },
+              { header: "Invoice", className: "col-muted mono col-m-hide", render: (c) => c.invoices_count },
+              {
+                header: "Outstanding",
+                className: "col-m-amount",
+                render: (c) => c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>,
+              },
+              {
+                header: "Score",
+                className: "col-m-hide",
+                render: (c) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1, height: 4, background: "var(--surface-3)", borderRadius: 2, maxWidth: 48 }}>
+                      <div style={{ height: 4, borderRadius: 2, width: `${c.score}%`, background: scoreColor(c.score) }}></div>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--text-3)" }}>{c.score}</span>
+                  </div>
+                ),
+              },
+              { header: "Status", className: "col-m-hide", render: (c) => c.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span> },
+              {
+                header: "",
+                className: "col-m-actions",
+                render: (c) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/clients/${c.id}/` }]} />,
+              },
+            ]}
+            rows={clients}
+            rowKey={(c) => c.id}
+            onRowClick={(c) => router.visit(`/clients/${c.id}/`)}
+          />
         ) : (
           <div className="empty">
             <Icon name="user" size={36} strokeWidth={1.5} />
