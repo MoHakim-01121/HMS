@@ -16,6 +16,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
 from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf, get_active_company
 from .pdf import _logo_file_url, _render_cl_pdf
+from ..utils import round_half_up
 
 
 def _get_cl(request, pk, qs=None):
@@ -102,7 +103,7 @@ def cl_list(request):
         "hotel_name": cl.hotel_name,
         "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
         "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
-        "total_price": int(round(cl.total_price)) if cl.total_price else None,
+        "total_price": round_half_up(cl.total_price) if cl.total_price else None,
         "has_invoice": bool(cl.invoice_id),
         "invoice_number": cl.invoice.invoice_number if cl.invoice_id else "",
     } for cl in page_obj]
@@ -227,8 +228,8 @@ def cl_detail(request, pk):
         "room_type": r.room_type,
         "meals": r.meals,
         "quantity": r.quantity,
-        "price": int(round(float(r.price))),
-        "subtotal": int(round(r.subtotal)),
+        "price": float(r.price),
+        "subtotal": round_half_up(r.subtotal),
     } for r in cl.rooms.all()]
 
     try:
@@ -262,7 +263,7 @@ def cl_detail(request, pk):
             "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
             "num_nights": cl.num_nights,
             "num_guests": cl.num_guests,
-            "total_price": int(round(cl.total_price)) if cl.total_price else 0,
+            "total_price": round_half_up(cl.total_price) if cl.total_price else 0,
             "note": cl.note,
             "client": {"pk": cl.client.pk, "name": cl.client.name} if cl.client_id else None,
             "invoice": {"pk": cl.invoice.pk, "invoice_number": cl.invoice.invoice_number} if cl.invoice_id else None,
@@ -278,7 +279,7 @@ def cl_edit(request, pk):
     cl = _get_cl(request, pk)
 
     def _room_snapshot(rooms_qs):
-        rows = [f"{r.room_type} x{r.quantity} @ {int(r.price or 0)}" for r in rooms_qs.order_by('id')]
+        rows = [f"{r.room_type} x{r.quantity} @ {r.price or 0}" for r in rooms_qs.order_by('id')]
         return ' | '.join(rows) if rows else '—'
 
     if request.method == "POST":
@@ -338,7 +339,7 @@ def cl_edit(request, pk):
 
     rooms = [{
         "room_type": r.room_type, "meals": r.meals,
-        "quantity": r.quantity, "price": int(round(float(r.price))),
+        "quantity": r.quantity, "price": float(r.price),
     } for r in cl.rooms.all()]
     return inertia_render(request, "Cl/Form", props={
         "cl": {
@@ -537,7 +538,7 @@ def invoice_from_cls(request):
             hotel=cl.hotel_name or "-",
             check_in=cl.check_in,
             check_out=cl.check_out,
-            total_sar=int(round(cl.total_price)) if cl.total_price else 0,
+            total_sar=round_half_up(cl.total_price) if cl.total_price else 0,
         )
         cl.invoice = invoice
         cl.save(update_fields=["invoice"])

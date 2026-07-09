@@ -1,9 +1,10 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.urls import reverse
 
 from .choices import Company
-from ..utils import convert_to_sar
+from ..utils import convert_to_sar, round_half_up
 
 
 class ConfirmationLetter(models.Model):
@@ -80,7 +81,7 @@ class ConfirmationLetter(models.Model):
 
     @property
     def remaining_sar(self):
-        return int(self.total_price or 0) - self.paid_sar
+        return round_half_up(self.total_price or 0) - self.paid_sar
 
     @classmethod
     def generate_number(cls):
@@ -104,7 +105,7 @@ class Room(models.Model):
     room_type = models.CharField(max_length=50)
     meals     = models.CharField(max_length=100, blank=True)
     quantity  = models.PositiveIntegerField(default=1)
-    price     = models.PositiveIntegerField(default=0)
+    price     = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
 
     class Meta:
         verbose_name        = 'Room'
