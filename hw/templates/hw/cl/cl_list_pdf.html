@@ -4,125 +4,126 @@
 <head>
 <meta charset="utf-8">
 <style>
-@page {
-  size: A4 landscape;
-  margin: 12mm 16mm;
-  @bottom-right {
-    content: "Page " counter(page) " / " counter(pages);
-    font-size: 9px;
-    color: #999;
-    font-family: 'Segoe UI', sans-serif;
+  @page {
+    size: A4 landscape;
+    margin: 40px 48px 36px;
+    @bottom-left {
+      content: string(doc-date);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+    @bottom-right {
+      content: "Page " counter(page) "/" counter(pages);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
   }
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
+  .doc-date-anchor { string-set: doc-date content(); display: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    font-size: 11px;
+    line-height: 1.6;
+  }
 
-/* Header */
-.doc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 6px;
-  border-bottom: 2px solid #111;
-  margin-bottom: 24px;
-}
-.doc-title { font-size: 18px; font-weight: 800; color: #111; letter-spacing: -.2px; white-space: nowrap; }
-.doc-sub { font-size: 10px; color: #888; margin-top: 3px; }
-.doc-meta { text-align: right; font-size: 12px; color: #666; line-height: 1.7; }
-.doc-meta strong { color: #111; font-weight: 700; }
+  .watermark-tile {
+    position: fixed;
+    top: 0; left: 0;
+    width: 29.7cm; height: 21cm;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-/* Table */
-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-thead tr { background: #111; }
-th {
-  color: #fff;
-  padding: 8px 10px;
-  text-align: left;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .6px;
-  white-space: nowrap;
-}
-th:first-child { border-top-left-radius: 7px; }
-th:last-child  { border-top-right-radius: 7px; }
-tbody tr:nth-child(even) td { background: #fafafa; }
-tbody tr:nth-child(odd)  td { background: #fff; }
-td {
-  padding: 7px 10px;
-  border-bottom: 1px solid #ececec;
-  vertical-align: middle;
-  font-size: 10.5px;
-}
-tbody tr:last-child td { border-bottom: none; }
+  .top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+  .logo { max-height: 56px; width: auto; }
 
-/* Totals row */
-tfoot td {
-  padding: 8px 10px;
-  background: #f0f0f0;
-  color: #1c1c1c;
-  font-size: 10px;
-  font-weight: 700;
-  border-top: 1px solid #ddd;
-}
-tfoot tr:last-child td:first-child { border-bottom-left-radius: 7px; }
-tfoot tr:last-child td:last-child  { border-bottom-right-radius: 7px; }
+  .meta { position: relative; z-index: 1; margin-bottom: 20px; font-size: 11px; }
+  .meta-row { display: flex; gap: 8px; }
+  .meta-row .mk { font-weight: 700; color: #111; min-width: 110px; }
+  .meta-row .mv { color: #111; }
 
-.mono { font-family: 'Courier New', monospace; font-size: 10px; }
-.text-right { text-align: right; }
-.text-center { text-align: center; }
-.nowrap { white-space: nowrap; }
+  table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  thead th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    color: #333;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+  }
+  thead th.r { text-align: right; }
+  thead th.c { text-align: center; }
+  tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+  tbody td.r { text-align: right; }
+  tbody td.c { text-align: center; }
+  .mono { font-family: 'Courier New', monospace; font-size: 10px; }
+  .nowrap { white-space: nowrap; }
 
-.badge {
-  display: inline-block; padding: 2px 7px; border-radius: 4px;
-  font-size: 9px; font-weight: 700; letter-spacing: .3px; white-space: nowrap;
-}
-.badge-def { background: #e8f5e9; color: #2e7d32; }
-.badge-ten { background: #fff8e1; color: #b45309; }
-.badge-can { background: #fdecea; color: #c62828; }
+  .badge-status {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .badge-def { background: #d1fae5; color: #065f46; }
+  .badge-ten { background: #fef3c7; color: #92400e; }
+  .badge-can { background: #fee2e2; color: #991b1b; }
 
-.remain-ok  { color: #15803d; font-weight: 700; }
-.remain-due { color: #b45309; font-weight: 700; }
+  .remain-due { color: #dc2626; font-weight: 700; }
+  .remain-ok  { color: #15803d; font-weight: 700; }
 
-/* Summary cards below table */
-.summary-bar {
-  display: flex;
-  gap: 12px;
-  margin-top: 14px;
-}
-.sum-card {
-  flex: 1;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 8px 12px;
-}
-.sum-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #999; margin-bottom: 3px; }
-.sum-val   { font-size: 14px; font-weight: 800; color: #111; font-family: 'Courier New', monospace; }
-.sum-card.green .sum-val { color: #15803d; }
-.sum-card.amber .sum-val { color: #b45309; }
+  tr.total-row td {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    font-weight: 700;
+    color: #111;
+    font-size: 10.5px;
+  }
+  tr.total-row td.r { text-align: right; }
+  tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
 </style>
 </head>
 <body>
 
-<div class="doc-header">
-  <div style="display:flex;align-items:center;">
-    <img src="{{ logo_rel_path }}" style="height:52px;width:auto;display:block;margin-right:32px;">
-    <div>
-      <div class="doc-title">Confirmation Letters</div>
-      {% if q %}<div class="doc-sub">Filter: "{{ q }}"</div>{% endif %}
-    </div>
-  </div>
-  <div class="doc-meta">
-    <div><strong>{{ letters|length }}</strong> records</div>
-    <div>{{ now|date:"d M Y, H:i" }}</div>
-  </div>
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+
+<div class="watermark-tile">
+  <svg xmlns="http://www.w3.org/2000/svg" width="29.7cm" height="21cm">
+    <g transform="rotate(-35, 420, 300)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100" y="-140">KONOZ UNITED</text><text x="300" y="-140">KONOZ UNITED</text><text x="500" y="-140">KONOZ UNITED</text><text x="700" y="-140">KONOZ UNITED</text><text x="900" y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text><text x="-100" y="0">KONOZ UNITED</text><text x="100" y="0">KONOZ UNITED</text><text x="300" y="0">KONOZ UNITED</text><text x="500" y="0">KONOZ UNITED</text><text x="700" y="0">KONOZ UNITED</text><text x="900" y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text><text x="-100" y="140">KONOZ UNITED</text><text x="100" y="140">KONOZ UNITED</text><text x="300" y="140">KONOZ UNITED</text><text x="500" y="140">KONOZ UNITED</text><text x="700" y="140">KONOZ UNITED</text><text x="900" y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text><text x="-100" y="280">KONOZ UNITED</text><text x="100" y="280">KONOZ UNITED</text><text x="300" y="280">KONOZ UNITED</text><text x="500" y="280">KONOZ UNITED</text><text x="700" y="280">KONOZ UNITED</text><text x="900" y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text><text x="-100" y="420">KONOZ UNITED</text><text x="100" y="420">KONOZ UNITED</text><text x="300" y="420">KONOZ UNITED</text><text x="500" y="420">KONOZ UNITED</text><text x="700" y="420">KONOZ UNITED</text><text x="900" y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text><text x="-100" y="560">KONOZ UNITED</text><text x="100" y="560">KONOZ UNITED</text><text x="300" y="560">KONOZ UNITED</text><text x="500" y="560">KONOZ UNITED</text><text x="700" y="560">KONOZ UNITED</text><text x="900" y="560">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+
+<div class="top">
+  <div class="doc-title">Confirmation Letters</div>
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Records</span><span class="mv">{{ letters|length }}</span></div>
+  {% if q %}<div class="meta-row"><span class="mk">Filter</span><span class="mv">"{{ q }}"</span></div>{% endif %}
+  <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
 </div>
 
 <table>
@@ -132,14 +133,14 @@ tfoot tr:last-child td:last-child  { border-bottom-right-radius: 7px; }
       <th>Company</th>
       <th>Guest</th>
       <th>Hotel</th>
-      <th class="text-center">Status</th>
-      <th class="text-center">Check-in</th>
-      <th class="text-center">Check-out</th>
-      <th class="text-right">Nights</th>
-      <th class="text-right">Rooms</th>
-      <th class="text-right">Total SAR</th>
-      <th class="text-right">Paid SAR</th>
-      <th class="text-right">Remaining SAR</th>
+      <th class="c">Status</th>
+      <th class="c">Check-in</th>
+      <th class="c">Check-out</th>
+      <th class="r">Nights</th>
+      <th class="r">Rooms</th>
+      <th class="r">Total SAR</th>
+      <th class="r">Paid SAR</th>
+      <th class="r">Remaining SAR</th>
     </tr>
   </thead>
   <tbody>
@@ -149,22 +150,22 @@ tfoot tr:last-child td:last-child  { border-bottom-right-radius: 7px; }
       <td class="nowrap">{{ cl.company|capfirst }}</td>
       <td>{{ cl.guest_name }}</td>
       <td>{{ cl.hotel_name }}</td>
-      <td class="text-center">
+      <td class="c">
         {% if cl.reservation_status == 'DEFINITE' %}
-          <span class="badge badge-def">Definite</span>
+          <span class="badge-status badge-def">Definite</span>
         {% elif cl.reservation_status == 'CANCELLED' %}
-          <span class="badge badge-can">Cancelled</span>
+          <span class="badge-status badge-can">Cancelled</span>
         {% else %}
-          <span class="badge badge-ten">Tentative</span>
+          <span class="badge-status badge-ten">Tentative</span>
         {% endif %}
       </td>
-      <td class="text-center nowrap">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-      <td class="text-center nowrap">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-      <td class="text-right">{{ cl.num_nights }}</td>
-      <td class="text-right">{{ cl.total_rooms }}</td>
-      <td class="text-right mono">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
-      <td class="text-right mono">{{ cl.paid_sar|floatformat:0|intcomma }}</td>
-      <td class="text-right mono">
+      <td class="c nowrap">{% if cl.check_in %}{{ cl.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="c nowrap">{% if cl.check_out %}{{ cl.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="r">{{ cl.num_nights }}</td>
+      <td class="r">{{ cl.total_rooms }}</td>
+      <td class="r mono">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+      <td class="r mono">{{ cl.paid_sar|floatformat:0|intcomma }}</td>
+      <td class="r mono">
         {% if cl.remaining_sar > 0 %}
           <span class="remain-due">{{ cl.remaining_sar|floatformat:0|intcomma }}</span>
         {% else %}
@@ -175,17 +176,17 @@ tfoot tr:last-child td:last-child  { border-bottom-right-radius: 7px; }
     {% empty %}
     <tr><td colspan="12" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
     {% endfor %}
-  </tbody>
-  <tfoot>
-    <tr>
-      <td colspan="7" style="text-align:right;letter-spacing:.5px;font-size:9px;">TOTAL</td>
-      <td class="text-right">{{ total_nights }}</td>
-      <td class="text-right">{{ total_rooms }}</td>
-      <td class="text-right mono">{{ total_sar|floatformat:0|intcomma }}</td>
-      <td class="text-right mono">{{ total_paid|floatformat:0|intcomma }}</td>
-      <td class="text-right mono">{{ total_remain|floatformat:0|intcomma }}</td>
+    {% if letters %}
+    <tr class="total-row">
+      <td colspan="7" class="label">Total</td>
+      <td class="r">{{ total_nights }}</td>
+      <td class="r">{{ total_rooms }}</td>
+      <td class="r mono">{{ total_sar|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_paid|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_remain|floatformat:0|intcomma }}</td>
     </tr>
-  </tfoot>
+    {% endif %}
+  </tbody>
 </table>
 
 </body>
