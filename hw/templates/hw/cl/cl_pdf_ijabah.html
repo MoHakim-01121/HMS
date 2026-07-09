@@ -433,7 +433,7 @@
                         <td class="font-bold">{{ room.type }}</td>
                         <td>{{ room.meals|default:"-" }}</td>
                         <td class="text-center">{{ room.quantity }}</td>
-                        <td class="text-right">{{ room.price|floatformat:0|intcomma }}</td>
+                        <td class="text-right">{{ room.price|floatformat:"-2"|intcomma }}</td>
                         <td class="text-right font-bold">{{ room.subtotal|floatformat:0|intcomma }}</td>
                     </tr>
                     {% endfor %}

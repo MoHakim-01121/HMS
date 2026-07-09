@@ -1,6 +1,7 @@
 import Attachments from "../../components/ui/Attachments.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+const fmtPrice = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 function heroBadge(s) {
   if (s === "DEFINITE") return ["badge badge-green", "Definite"];
@@ -70,11 +71,11 @@ function RoomsTable({ cl, rooms }) {
               <tr key={i}>
                 <td className="col-m-primary">
                   {room.room_type}
-                  <span className="m-sub">{room.quantity} × {fmt(room.price)} SAR/night</span>
+                  <span className="m-sub">{room.quantity} × {fmtPrice(room.price)} SAR/night</span>
                 </td>
                 <td className="col-m-hide" style={{ color: "var(--text-2)" }}>{room.meals || "—"}</td>
                 <td className="mono col-num col-m-hide">{room.quantity}</td>
-                <td className="mono col-num col-m-hide">{fmt(room.price)}</td>
+                <td className="mono col-num col-m-hide">{fmtPrice(room.price)}</td>
                 <td className="mono col-num col-m-amount" style={{ fontWeight: 600 }}>{fmt(room.subtotal)} SAR</td>
               </tr>
             )) : (
