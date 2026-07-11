@@ -231,7 +231,7 @@ def calendar_view(request):
 def cl_estimasi_save(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = get_object_or_404(ConfirmationLetter, pk=pk, company=get_active_company(request))
     estimasi_str = request.POST.get('estimasi_tiba', '').strip()
     cl.pic_name  = request.POST.get('pic_name', '').strip()
     cl.pic_phone = request.POST.get('pic_phone', '').strip()

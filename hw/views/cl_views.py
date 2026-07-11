@@ -137,10 +137,10 @@ def cl_list(request):
     })
 
 
-def _form_context_data():
+def _form_context_data(active_company):
     return {
-        "hotels": list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")),
-        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "company").order_by("company", "name")),
+        "hotels": list(Hotel.objects.filter(is_active=True, company=active_company).values("name", "company", "city").order_by("city", "name")),
+        "clients": list(Client.objects.filter(is_active=True, company=active_company).values("id", "name", "company").order_by("name")),
     }
 
 
@@ -182,16 +182,21 @@ def _cl_echo(data):
 @require_perm('cl', 'create')
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
-    default_company = request.session.get("active_company", "konoz")
+    active_company = get_active_company(request)
+    default_company = active_company
     if request.method == "POST":
         errors = _validate_cl(request.POST)
         if errors:
             return inertia_render(request, "Cl/Form", props={
                 "cl": _cl_echo(request.POST), "edit": False, "errors": errors,
                 "suggested_number": request.POST.get("confirmation_number", suggested_number),
-                "default_company": default_company, **_form_context_data(),
+                "default_company": default_company, **_form_context_data(active_company),
             })
         client_id = request.POST.get("client_id") or None
+        # Reject a client_id that doesn't belong to the active company so a
+        # forged form value can't link a CL to another tenant's client.
+        if client_id and not Client.objects.filter(pk=client_id, company=active_company).exists():
+            client_id = None
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and client_id:
             guest_name = Client.objects.filter(pk=client_id).values_list("name", flat=True).first() or ""
@@ -218,7 +223,7 @@ def cl_new(request):
     return inertia_render(request, "Cl/Form", props={
         "cl": None, "edit": False,
         "suggested_number": suggested_number, "default_company": default_company,
-        **_form_context_data(),
+        **_form_context_data(active_company),
     })
 
 
@@ -294,7 +299,7 @@ def cl_edit(request, pk):
             return inertia_render(request, "Cl/Form", props={
                 "cl": echo, "edit": True, "errors": errors,
                 "suggested_number": request.POST.get("confirmation_number", cl.confirmation_number),
-                "default_company": cl.company, **_form_context_data(),
+                "default_company": cl.company, **_form_context_data(cl.company),
             })
 
         _before = {
@@ -311,6 +316,10 @@ def cl_edit(request, pk):
         # Company is locked to the CL's existing (active-company) scope; the form
         # no longer submits it, so we never reassign and risk a cross-company 404.
         cl.client_id = request.POST.get("client_id") or None
+        # Reject a client_id that doesn't belong to this CL's company so a
+        # forged form value can't link a CL to another tenant's client.
+        if cl.client_id and not Client.objects.filter(pk=cl.client_id, company=cl.company).exists():
+            cl.client_id = None
         cl.hotel_name = request.POST.get("hotel_name", "")
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and cl.client_id:
@@ -361,7 +370,7 @@ def cl_edit(request, pk):
             "rooms": rooms,
         },
         "edit": True, "suggested_number": cl.confirmation_number,
-        "default_company": cl.company, **_form_context_data(),
+        "default_company": cl.company, **_form_context_data(cl.company),
     })
 
 
