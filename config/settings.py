@@ -139,10 +139,10 @@ CACHES = {
     }
 }
 
-# Temporarily disabled: the qcluster worker isn't running in production yet,
-# so H-1/H-0 guest reminders silently no-op (task queued, never processed).
-# Flip to True once the qcluster systemd unit is deployed.
-REMINDER_H1_H0_ENABLED = False
+# H-1/H-0 guest reminders. Requires the hworkspace-qcluster.service worker
+# to be running (processes the queued WhatsApp sends) — verified deployed
+# 2026-07-12.
+REMINDER_H1_H0_ENABLED = True
 
 # ── django-q2 (background WhatsApp sends) ──
 # ORM broker: reuses the existing Postgres DB as the task queue, so no Redis
