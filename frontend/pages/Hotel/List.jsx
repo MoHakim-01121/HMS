@@ -3,6 +3,8 @@ import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const CITY_OPTS = [
   { val: "", label: "All Cities", cls: "c-all" },
@@ -126,34 +128,30 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
       <div className="card">
         {hotels.length ? (
           <>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Hotel Name</th><th>City</th><th>Area</th><th>Stars</th><th>Distance to Mosque</th><th>Avg</th><th>Status</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {hotels.map((h) => (
-                    <tr key={h.id} className="row-link" style={{ cursor: "pointer" }} onClick={() => router.visit(`/hotels/${h.id}/`)}>
-                      <td className="col-m-primary"><span style={{ fontWeight: 600 }}>{h.name}</span></td>
-                      <td className="col-m-secondary"><span className={"badge " + (h.city === "makkah" ? "badge-blue" : "badge-green")}>{h.city_display}</span></td>
-                      <td className="col-muted col-m-hide">{h.area || "—"}</td>
-                      <td className="col-m-amount"><span style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 600 }}>{h.stars}★</span></td>
-                      <td className="col-m-hide">
-                        {h.distance !== null ? <span className={distBadge(h.distance)}>{h.distance_label}</span> : <span className="col-dim">—</span>}
-                      </td>
-                      <td className="mono col-m-hide">{h.avg_occupancy ? h.avg_occupancy : <span className="col-dim">—</span>}</td>
-                      <td className="col-m-hide">{h.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
-                      <td className="col-m-actions">
-                        <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-                          <a href={`/hotels/${h.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                          <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, h.id, h.name)}><Icon name="trash" size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { header: "Hotel Name", className: "col-m-primary", render: (h) => <span style={{ fontWeight: 600 }}>{h.name}</span> },
+                { header: "City", className: "col-m-secondary", render: (h) => <span className={"badge " + (h.city === "makkah" ? "badge-blue" : "badge-green")}>{h.city_display}</span> },
+                { header: "Area", className: "col-muted col-m-hide", render: (h) => h.area || "—" },
+                { header: "Stars", className: "col-m-amount", render: (h) => <span style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 600 }}>{h.stars}★</span> },
+                { header: "Distance to Mosque", className: "col-m-hide", render: (h) => h.distance !== null ? <span className={distBadge(h.distance)}>{h.distance_label}</span> : <span className="col-dim">—</span> },
+                { header: "Avg", className: "mono col-m-hide", render: (h) => h.avg_occupancy ? h.avg_occupancy : <span className="col-dim">—</span> },
+                { header: "Status", className: "col-m-hide", render: (h) => h.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span> },
+                {
+                  header: "",
+                  className: "col-m-actions",
+                  render: (h) => (
+                    <RowActions actions={[
+                      { icon: "edit", label: "Edit", href: `/hotels/${h.id}/edit/` },
+                      { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, h.id, h.name) },
+                    ]} />
+                  ),
+                },
+              ]}
+              rows={hotels}
+              rowKey={(h) => h.id}
+              onRowClick={(h) => router.visit(`/hotels/${h.id}/`)}
+            />
 
             {pagination.has_other_pages && (
               <div className="pagination">

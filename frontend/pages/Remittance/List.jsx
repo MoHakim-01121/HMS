@@ -3,6 +3,8 @@ import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const STATUS_OPTS = [
@@ -93,42 +95,37 @@ export default function List({ remittances, stats, status_filter, q, total_count
 
       <div className="card">
         {remittances.length ? (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>Remittance No</th><th>Date</th><th>Total SAR</th><th>Status</th><th className="col-m-hide">Proof</th><th></th></tr>
-              </thead>
-              <tbody>
-                {remittances.map((rem) => (
-                  <tr key={rem.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/remittance/${rem.id}/`)}>
-                    <td className="col-m-primary col-nowrap" style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{rem.remittance_number}</td>
-                    <td className="col-m-secondary col-nowrap">{rem.date}</td>
-                    <td className="mono col-m-amount" style={{ fontWeight: 600 }}>{fmt(rem.total_sar)} SAR</td>
-                    <td className="col-m-hide">{rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span>}</td>
-                    <td className="col-m-hide" onClick={(e) => e.stopPropagation()}>
-                      {rem.proof_url ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }}>View ↗</a> : "—"}
-                    </td>
-                    <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
-                      <div className="row-actions">
-                        {rem.status === "pending" && (
-                          <button type="button" className="btn btn-ghost btn-icon btn-icon-green" title="Mark as Received" onClick={(e) => markReceived(e, rem.id)}>
-                            <Icon name="check" size={14} strokeWidth={2.5} />
-                          </button>
-                        )}
-                        <a href={`/remittance/${rem.id}/pdf/`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-icon btn-icon-green" title="PDF"><Icon name="pdf" size={14} /></a>
-                        {rem.status === "pending" && (
-                          <>
-                            <a href={`/remittance/${rem.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                            <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, rem.id, rem.date)}><Icon name="trash" size={14} /></button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            columns={[
+              { header: "Remittance No", className: "col-m-primary col-nowrap", style: { fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }, render: (rem) => rem.remittance_number },
+              { header: "Date", className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
+              { header: "Total SAR", className: "mono col-m-amount", style: { fontWeight: 600 }, render: (rem) => `${fmt(rem.total_sar)} SAR` },
+              { header: "Status", className: "col-m-hide", render: (rem) => rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span> },
+              {
+                header: "Proof",
+                headerClassName: "col-m-hide",
+                className: "col-m-hide",
+                render: (rem) => rem.proof_url
+                  ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>View ↗</a>
+                  : "—",
+              },
+              {
+                header: "",
+                className: "col-m-actions",
+                render: (rem) => (
+                  <RowActions actions={[
+                    rem.status === "pending" && { icon: "check", label: "Mark as Received", variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
+                    { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
+                    rem.status === "pending" && { icon: "edit", label: "Edit", href: `/remittance/${rem.id}/edit/` },
+                    rem.status === "pending" && { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
+                  ]} />
+                ),
+              },
+            ]}
+            rows={remittances}
+            rowKey={(rem) => rem.id}
+            onRowClick={(rem) => router.visit(`/remittance/${rem.id}/`)}
+          />
         ) : (
           <div className="empty">
             <Icon name="invoice" size={36} strokeWidth={1.5} />
