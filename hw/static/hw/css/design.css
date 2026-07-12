@@ -2,6 +2,7 @@
 
 /* ── Raycast Design System ── */
 :root {
+  color-scheme: dark;
   --bg:           #0A0A0B;
   --bg-2:         #0F0F12;
   --surface:      #141417;
@@ -48,6 +49,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg:           #F7F7F8;
   --bg-2:         #EFEFF2;
   --surface:      #FFFFFF;
