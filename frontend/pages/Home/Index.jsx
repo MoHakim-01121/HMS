@@ -86,10 +86,12 @@ const CSS = `
 .bubble-typing span { width:5px; height:5px; background:var(--text-3); border-radius:50%; animation:bounce 1.2s infinite; }
 .bubble-typing span:nth-child(2){animation-delay:.2s;} .bubble-typing span:nth-child(3){animation-delay:.4s;}
 @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-4px);} }
-.chat-input-row { display:flex; align-items:center; border-top:1px solid var(--border); padding:10px 12px; gap:8px; flex-shrink:0; }
+.chat-input-row { display:flex; align-items:center; padding:2px 12px 12px; gap:8px; flex-shrink:0; }
 .chat-input-pill { flex:1; display:flex; align-items:center; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--r-full); padding:0 14px; height:36px; transition:border-color .15s,box-shadow .15s; }
 .chat-input-pill:focus-within { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-muted); }
-.chat-input { flex:1; background:transparent; border:none; outline:none; box-shadow:none; font-size:13px; font-family:inherit; color:var(--text); height:100%; padding:0; border-radius:0; }
+/* Beats the global input:not([type=checkbox]):not([type=radio]) rule in design.css (same idiom as .search-wrap) */
+.chat-input-pill input:not([type="checkbox"]):not([type="radio"]) { flex:1; width:auto; background:transparent; border:none; outline:none; box-shadow:none; font-size:13px; font-family:inherit; color:var(--text); height:100%; padding:0; border-radius:0; appearance:none; -webkit-appearance:none; }
+.chat-input-pill input:not([type="checkbox"]):not([type="radio"]):focus { border:none; box-shadow:none; outline:none; }
 .chat-input::placeholder { color:var(--text-3); }
 .chat-send { background:linear-gradient(135deg,var(--accent-2),var(--accent)); color:#fff; border:none; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s,box-shadow .15s; flex-shrink:0; }
 .chat-send:hover { transform:scale(1.08); box-shadow:0 2px 12px rgba(255,108,55,.4); }
