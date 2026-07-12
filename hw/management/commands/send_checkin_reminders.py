@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from hw.models import ConfirmationLetter, ReminderLog
@@ -11,6 +12,9 @@ class Command(BaseCommand):
     help = 'Kirim WA reminder check-in ke tamu (H-1 dan Hari H)'
 
     def handle(self, *args, **options):
+        if not settings.REMINDER_H1_H0_ENABLED:
+            self.stdout.write('Reminder H-1/H-0 dinonaktifkan sementara (settings.REMINDER_H1_H0_ENABLED=False)')
+            return
         today = date.today()
         self._send_reminders(today, 'H0_GUEST')
         self._send_reminders(today + timedelta(days=1), 'H1_GUEST')

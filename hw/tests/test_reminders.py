@@ -272,6 +272,13 @@ class SendReminderViewTest(TestCase):
         self.client.force_login(self.user)
         self.cl = _make_cl()
 
+    def test_disabled_by_default(self):
+        resp = self.client.post(f'/calendar/send-reminder/{self.cl.pk}/')
+        data = resp.json()
+        self.assertFalse(data['ok'])
+        self.assertEqual(ReminderLog.objects.filter(cl=self.cl).count(), 0)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.tasks.send_wa')
     def test_sends_reminder_and_creates_log(self, mock_send):
         mock_send.return_value = {'status': True}
@@ -280,6 +287,7 @@ class SendReminderViewTest(TestCase):
         self.assertTrue(resp.json()['ok'])
         self.assertEqual(ReminderLog.objects.filter(cl=self.cl).count(), 1)
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     def test_returns_error_if_no_phone(self):
         cl_no_phone = _make_cl(guest_phone='', confirmation_number='CL-NP2')
         resp = self.client.post(f'/calendar/send-reminder/{cl_no_phone.pk}/')
@@ -296,23 +304,33 @@ class SendCheckInRemindersCommandTest(TestCase):
         self.cl_cancelled = _make_cl(check_in=date.today(), reservation_status='CANCELLED', confirmation_number='CL-T03')
 
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_disabled_by_default(self, mock_send):
+        call_command('send_checkin_reminders')
+        mock_send.assert_not_called()
+        self.assertEqual(ReminderLog.objects.count(), 0)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_sends_h0_for_today(self, mock_send):
         mock_send.return_value = {'status': True}
         call_command('send_checkin_reminders')
         self.assertEqual(ReminderLog.objects.filter(cl=self.cl_today, reminder_type='H0_GUEST', status='SENT').count(), 1)
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_sends_h1_for_tomorrow(self, mock_send):
         mock_send.return_value = {'status': True}
         call_command('send_checkin_reminders')
         self.assertEqual(ReminderLog.objects.filter(cl=self.cl_tomorrow, reminder_type='H1_GUEST', status='SENT').count(), 1)
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_skips_cancelled(self, mock_send):
         mock_send.return_value = {'status': True}
         call_command('send_checkin_reminders')
         self.assertFalse(ReminderLog.objects.filter(cl=self.cl_cancelled).exists())
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_idempotent_skips_already_sent(self, mock_send):
         mock_send.return_value = {'status': True}
@@ -322,6 +340,7 @@ class SendCheckInRemindersCommandTest(TestCase):
         call_command('send_checkin_reminders')
         self.assertEqual(mock_send.call_count, 1)  # hanya H1 tomorrow, H0 today di-skip
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_records_failed_log_on_error(self, mock_send):
         mock_send.return_value = {'status': False, 'reason': 'invalid token'}
@@ -330,6 +349,7 @@ class SendCheckInRemindersCommandTest(TestCase):
         self.assertEqual(log.status, 'FAILED')
         self.assertEqual(log.error, 'invalid token')
 
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_skips_cl_without_phone(self, mock_send):
         cl_no_phone = _make_cl(guest_phone='', confirmation_number='CL-NP')

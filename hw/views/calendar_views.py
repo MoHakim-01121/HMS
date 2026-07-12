@@ -1,6 +1,7 @@
 ﻿import calendar
 from datetime import date, timedelta
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse
@@ -283,6 +284,8 @@ def calendar_send_recap(request):
 def calendar_send_reminder(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
+    if not settings.REMINDER_H1_H0_ENABLED:
+        return JsonResponse({'ok': False, 'message': 'Reminder H-1/H-0 sedang dinonaktifkan sementara'})
     cl = get_object_or_404(ConfirmationLetter, pk=pk)
     if not cl.guest_phone:
         return JsonResponse({'ok': False, 'message': 'Nomor telepon tamu tidak ada'})
