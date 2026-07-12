@@ -272,13 +272,13 @@ class SendReminderViewTest(TestCase):
         self.client.force_login(self.user)
         self.cl = _make_cl()
 
-    def test_disabled_by_default(self):
+    @override_settings(REMINDER_H1_H0_ENABLED=False)
+    def test_returns_error_when_disabled(self):
         resp = self.client.post(f'/calendar/send-reminder/{self.cl.pk}/')
         data = resp.json()
         self.assertFalse(data['ok'])
         self.assertEqual(ReminderLog.objects.filter(cl=self.cl).count(), 0)
 
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.tasks.send_wa')
     def test_sends_reminder_and_creates_log(self, mock_send):
         mock_send.return_value = {'status': True}
@@ -303,13 +303,13 @@ class SendCheckInRemindersCommandTest(TestCase):
         self.cl_tomorrow  = _make_cl(check_in=date.today() + timedelta(days=1), confirmation_number='CL-T02')
         self.cl_cancelled = _make_cl(check_in=date.today(), reservation_status='CANCELLED', confirmation_number='CL-T03')
 
+    @override_settings(REMINDER_H1_H0_ENABLED=False)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_disabled_by_default(self, mock_send):
+    def test_skips_when_disabled(self, mock_send):
         call_command('send_checkin_reminders')
         mock_send.assert_not_called()
         self.assertEqual(ReminderLog.objects.count(), 0)
 
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_sends_h0_for_today(self, mock_send):
         mock_send.return_value = {'status': True}
