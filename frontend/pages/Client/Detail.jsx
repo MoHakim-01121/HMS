@@ -2,6 +2,8 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
@@ -119,45 +121,49 @@ export default function Detail({ client, invoices, cls }) {
 
           {tab === "invoice" ? (
             invoices.length > 0 ? (
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Number</th><th>Type</th><th>Billed</th><th>Remaining</th><th>Date</th><th></th></tr></thead>
-                  <tbody>
-                    {invoices.slice(0, 10).map((inv) => (
-                      <tr key={inv.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/invoice/${inv.pk}/`)}>
-                        <td className="col-m-primary"><a href={`/invoice/${inv.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{inv.invoice_number}</a></td>
-                        <td className="col-m-secondary"><span className={"badge " + (inv.invoice_type === "hotel" ? "badge-blue" : "badge-purple")}>{inv.invoice_type_display}</span></td>
-                        <td className="mono col-m-hide">{fmt(inv.total_sar)}</td>
-                        <td className={"mono col-m-amount " + (inv.remaining_sar > 0 ? "remaining-unpaid" : "remaining-paid")}>{fmt(inv.remaining_sar)} SAR</td>
-                        <td className="col-muted col-m-hide">{inv.issued_date || "—"}</td>
-                        <td className="col-m-actions" onClick={(e) => e.stopPropagation()}><a href={`/invoice/${inv.pk}/`} className="btn btn-ghost btn-sm">→</a></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table
+                columns={[
+                  { header: "Number", className: "col-m-primary", render: (inv) => <a href={`/invoice/${inv.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{inv.invoice_number}</a> },
+                  { header: "Type", className: "col-m-secondary", render: (inv) => <span className={"badge " + (inv.invoice_type === "hotel" ? "badge-blue" : "badge-purple")}>{inv.invoice_type_display}</span> },
+                  { header: "Billed", className: "mono col-m-hide", render: (inv) => fmt(inv.total_sar) },
+                  {
+                    header: "Remaining",
+                    className: (inv) => "mono col-m-amount " + (inv.remaining_sar > 0 ? "remaining-unpaid" : "remaining-paid"),
+                    render: (inv) => `${fmt(inv.remaining_sar)} SAR`,
+                  },
+                  { header: "Date", className: "col-muted col-m-hide", render: (inv) => inv.issued_date || "—" },
+                  {
+                    header: "",
+                    className: "col-m-actions",
+                    render: (inv) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/invoice/${inv.pk}/` }]} />,
+                  },
+                ]}
+                rows={invoices.slice(0, 10)}
+                rowKey={(inv) => inv.pk}
+                onRowClick={(inv) => router.visit(`/invoice/${inv.pk}/`)}
+              />
             ) : (
               <div className="empty" style={{ padding: 32 }}>
                 <div className="empty-title">No invoices yet</div>
               </div>
             )
           ) : cls.length > 0 ? (
-            <div className="table-wrap">
-              <table>
-                <thead><tr><th>Number</th><th>Guest</th><th>Hotel</th><th>Check-in</th><th></th></tr></thead>
-                <tbody>
-                  {cls.slice(0, 8).map((cl) => (
-                    <tr key={cl.pk} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.pk}/`)}>
-                      <td className="col-m-primary"><a href={`/cl/${cl.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.confirmation_number}</a></td>
-                      <td className="col-m-secondary col-ellipsis">{cl.guest_name}</td>
-                      <td className="col-ellipsis col-muted col-m-hide">{cl.hotel_name}</td>
-                      <td className="col-muted col-m-hide">{cl.check_in || "—"}</td>
-                      <td className="col-m-actions" onClick={(e) => e.stopPropagation()}><a href={`/cl/${cl.pk}/`} className="btn btn-ghost btn-sm">→</a></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { header: "Number", className: "col-m-primary", render: (cl) => <a href={`/cl/${cl.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.confirmation_number}</a> },
+                { header: "Guest", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
+                { header: "Hotel", className: "col-ellipsis col-muted col-m-hide", render: (cl) => cl.hotel_name },
+                { header: "Check-in", className: "col-muted col-m-hide", render: (cl) => cl.check_in || "—" },
+                {
+                  header: "",
+                  className: "col-m-actions",
+                  render: (cl) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/cl/${cl.pk}/` }]} />,
+                },
+              ]}
+              rows={cls.slice(0, 8)}
+              rowKey={(cl) => cl.pk}
+              onRowClick={(cl) => router.visit(`/cl/${cl.pk}/`)}
+            />
           ) : (
             <div className="empty" style={{ padding: 32 }}>
               <div className="empty-title">No confirmation letters yet</div>

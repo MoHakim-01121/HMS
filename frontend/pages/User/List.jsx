@@ -1,6 +1,8 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 function action(userId, fields) {
   router.post(`/users/${userId}/edit/`, fields);
@@ -29,26 +31,42 @@ export default function List({ users }) {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td className="col-bold">{u.username}{u.is_self && <span className="badge badge-gray" style={{ marginLeft: 6 }}>You</span>}</td>
-                  <td>{u.is_superuser ? <span className="badge badge-blue">Admin</span> : u.is_staff ? <span className="badge badge-green">Staff</span> : <span className="badge badge-gray">User</span>}</td>
-                  <td>{u.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</td>
-                  <td className="col-m-actions" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                    <button className="btn btn-ghost btn-sm" onClick={() => resetPw(u)}>Reset PW</button>
-                    {!u.is_superuser && <button className="btn btn-ghost btn-sm" onClick={() => action(u.id, { action: "toggle_staff" })}>{u.is_staff ? "Revoke Staff" : "Make Staff"}</button>}
-                    {!u.is_self && !u.is_superuser && <button className="btn btn-ghost btn-sm" onClick={() => action(u.id, { action: "toggle_active" })}>{u.is_active ? "Deactivate" : "Activate"}</button>}
-                    {!u.is_self && !u.is_superuser && <button className="btn btn-danger btn-sm" onClick={() => del(u)}>Delete</button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          columns={[
+            {
+              header: "Username",
+              className: "col-bold",
+              render: (u) => (
+                <>
+                  {u.username}
+                  {u.is_self && <span className="badge badge-gray" style={{ marginLeft: 6 }}>You</span>}
+                </>
+              ),
+            },
+            {
+              header: "Role",
+              render: (u) => u.is_superuser ? <span className="badge badge-blue">Admin</span> : u.is_staff ? <span className="badge badge-green">Staff</span> : <span className="badge badge-gray">User</span>,
+            },
+            {
+              header: "Status",
+              render: (u) => u.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>,
+            },
+            {
+              header: "",
+              className: "col-m-actions",
+              render: (u) => (
+                <RowActions actions={[
+                  { icon: "key", label: "Reset Password", onClick: () => resetPw(u) },
+                  !u.is_superuser && { icon: "shield", label: u.is_staff ? "Revoke Staff" : "Make Staff", onClick: () => action(u.id, { action: "toggle_staff" }) },
+                  !u.is_self && !u.is_superuser && { icon: "power", label: u.is_active ? "Deactivate" : "Activate", onClick: () => action(u.id, { action: "toggle_active" }) },
+                  !u.is_self && !u.is_superuser && { icon: "trash", label: "Delete", variant: "red", onClick: () => del(u) },
+                ]} />
+              ),
+            },
+          ]}
+          rows={users}
+          rowKey={(u) => u.id}
+        />
       </div>
       {confirmDialog}
     </div>

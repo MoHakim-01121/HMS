@@ -3,6 +3,8 @@ import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const STATUS_OPTS = [
   { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
@@ -148,39 +150,47 @@ export default function List({ letters, total_count, q, status_list, date_from, 
       <div className="card">
         {letters.length ? (
           <>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>No CL</th><th>Status</th><th>Client/Travel</th><th>Hotel</th><th>Check-in</th><th>Check-out</th><th>Total</th><th></th></tr>
-                </thead>
-                <tbody>
-                  {letters.map((cl) => {
+            <Table
+              columns={[
+                {
+                  header: "No CL",
+                  className: "col-m-primary",
+                  render: (cl) => (
+                    <>
+                      <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
+                      {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
+                    </>
+                  ),
+                },
+                {
+                  header: "Status",
+                  className: "col-m-hide",
+                  render: (cl) => {
                     const [bcls, blabel] = statusBadge(cl.reservation_status);
-                    return (
-                      <tr key={cl.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/cl/${cl.id}/`)}>
-                        <td className="col-m-primary">
-                          <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
-                          {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
-                        </td>
-                        <td className="col-m-hide"><span className={bcls}>{blabel}</span></td>
-                        <td className="col-m-secondary col-ellipsis">{cl.guest_name}</td>
-                        <td className="col-ellipsis-sm col-muted col-m-hide">{cl.hotel_name}</td>
-                        <td className="col-muted col-nowrap col-m-hide">{cl.check_in || "—"}</td>
-                        <td className="col-muted col-nowrap col-m-hide">{cl.check_out || "—"}</td>
-                        <td className="mono col-nowrap col-m-amount">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : "—"}</td>
-                        <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
-                          <div className="row-actions">
-                            <a href={`/cl/${cl.id}/pdf/`} className="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank" rel="noreferrer"><Icon name="pdf" size={14} /></a>
-                            <a href={`/cl/${cl.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                            <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, cl.id, cl.confirmation_number)}><Icon name="trash" size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    return <span className={bcls}>{blabel}</span>;
+                  },
+                },
+                { header: "Client/Travel", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
+                { header: "Hotel", className: "col-ellipsis-sm col-muted col-m-hide", render: (cl) => cl.hotel_name },
+                { header: "Check-in", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_in || "—" },
+                { header: "Check-out", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_out || "—" },
+                { header: "Total", className: "mono col-nowrap col-m-amount", render: (cl) => cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : "—" },
+                {
+                  header: "",
+                  className: "col-m-actions",
+                  render: (cl) => (
+                    <RowActions actions={[
+                      { icon: "pdf", label: "Download PDF", href: `/cl/${cl.id}/pdf/`, variant: "green", external: true },
+                      { icon: "edit", label: "Edit", href: `/cl/${cl.id}/edit/` },
+                      { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, cl.id, cl.confirmation_number) },
+                    ]} />
+                  ),
+                },
+              ]}
+              rows={letters}
+              rowKey={(cl) => cl.id}
+              onRowClick={(cl) => router.visit(`/cl/${cl.id}/`)}
+            />
 
             {pagination.has_other_pages && (
               <div className="pagination">

@@ -4,6 +4,8 @@ import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
+import Table from "../../components/ui/Table.jsx";
+import RowActions from "../../components/ui/RowActions.jsx";
 
 const STATUS_OPTS = [
   { val: "", label: "All", cls: "c-all" },
@@ -121,38 +123,35 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
       <div className="card">
         {invoices.length ? (
           <>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Invoice #</th><th>Customer</th><th>Issued</th><th>Total</th>
-                    <th>Remaining</th><th>Status</th><th>Created</th><th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} style={{ cursor: "pointer" }} onClick={() => router.visit(`/invoice/${inv.id}/`)}>
-                      <td className="col-m-primary"><span className="col-bold col-nowrap">{inv.invoice_number}</span></td>
-                      <td className="col-m-secondary">{inv.customer_name}</td>
-                      <td className="col-muted col-nowrap col-m-hide">{inv.issued_date || "—"}</td>
-                      <td className="mono col-nowrap col-m-hide">{inv.total_sar.toLocaleString("en-US")} SAR</td>
-                      <td className={"mono col-nowrap col-m-amount " + (inv.remaining_sar === 0 ? "remaining-paid" : inv.remaining_sar > 0 ? "remaining-unpaid" : "")}>
-                        {inv.remaining_sar.toLocaleString("en-US")} SAR
-                      </td>
-                      <td><StatusBadge status={inv.status} /></td>
-                      <td className="col-dim col-nowrap col-m-hide">{inv.created_at}</td>
-                      <td className="col-m-actions" onClick={(e) => e.stopPropagation()}>
-                        <div className="row-actions">
-                          <a href={`/invoice/${inv.id}/pdf/`} className="btn btn-ghost btn-icon btn-icon-green" title="Download PDF" target="_blank" rel="noreferrer"><Icon name="pdf" size={14} /></a>
-                          <a href={`/invoice/${inv.id}/edit/`} className="btn btn-ghost btn-icon" title="Edit"><Icon name="edit" size={14} /></a>
-                          <button type="button" className="btn btn-ghost btn-icon btn-icon-red" title="Delete" onClick={(e) => del(e, inv.id, inv.invoice_number)}><Icon name="trash" size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={[
+                { header: "Invoice #", className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
+                { header: "Customer", className: "col-m-secondary", render: (inv) => inv.customer_name },
+                { header: "Issued", className: "col-muted col-nowrap col-m-hide", render: (inv) => inv.issued_date || "—" },
+                { header: "Total", className: "mono col-nowrap col-m-hide", render: (inv) => `${inv.total_sar.toLocaleString("en-US")} SAR` },
+                {
+                  header: "Remaining",
+                  className: (inv) => "mono col-nowrap col-m-amount " + (inv.remaining_sar === 0 ? "remaining-paid" : inv.remaining_sar > 0 ? "remaining-unpaid" : ""),
+                  render: (inv) => `${inv.remaining_sar.toLocaleString("en-US")} SAR`,
+                },
+                { header: "Status", render: (inv) => <StatusBadge status={inv.status} /> },
+                { header: "Created", className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
+                {
+                  header: "",
+                  className: "col-m-actions",
+                  render: (inv) => (
+                    <RowActions actions={[
+                      { icon: "pdf", label: "Download PDF", href: `/invoice/${inv.id}/pdf/`, variant: "green", external: true },
+                      { icon: "edit", label: "Edit", href: `/invoice/${inv.id}/edit/` },
+                      { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, inv.id, inv.invoice_number) },
+                    ]} />
+                  ),
+                },
+              ]}
+              rows={invoices}
+              rowKey={(inv) => inv.id}
+              onRowClick={(inv) => router.visit(`/invoice/${inv.id}/`)}
+            />
 
             {pagination.has_other_pages && (
               <div className="pagination">
