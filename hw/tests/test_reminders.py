@@ -170,6 +170,113 @@ class RecapServiceTest(TestCase):
                     f"Emoji ditemukan di pesan: {repr(char)}")
 
 
+class ResolveReminderTargetsTest(TestCase):
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Uji Target', wa='', wa_group='', reminder_target='PIC')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    def test_pic_uses_client_wa(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', reminder_target='PIC')
+        cl = _make_cl(guest_phone='628999')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111')])
+
+    def test_pic_falls_back_to_first_pending_guest_phone(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='', reminder_target='PIC')
+        cl = _make_cl(guest_phone='628999')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628999')])
+
+    def test_pic_empty_when_no_wa_and_no_guest_phone(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='', reminder_target='PIC')
+        cl = _make_cl(guest_phone='')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [])
+
+    def test_group_uses_wa_group(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa_group='120363xxx', reminder_target='GROUP')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('GROUP', '120363xxx')])
+
+    def test_group_empty_when_wa_group_blank_no_fallback(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa_group='', wa='628111', reminder_target='GROUP')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [])
+
+    def test_both_returns_two_targets(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', wa_group='120363xxx', reminder_target='BOTH')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111'), ('GROUP', '120363xxx')])
+
+    def test_both_only_pic_when_group_blank(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', wa_group='', reminder_target='BOTH')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111')])
+
+
+class BuildGroupedReminderMessageTest(TestCase):
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Grup Uji')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    def test_merges_two_bookings_same_hotel_into_one_block(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Merge')
+        cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M1')
+        cl2 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        self.assertEqual(msg.count('HILTON MAKKAH'), 1)
+        self.assertIn('CL-M1', msg)
+        self.assertIn('CL-M2', msg)
+
+    def test_keeps_two_different_hotels_separate_in_one_message(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Split')
+        cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-S1')
+        cl2 = _make_cl(client=client, hotel_name='Swissotel Madinah', confirmation_number='CL-S2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        self.assertIn('HILTON MAKKAH', msg)
+        self.assertIn('SWISSOTEL MADINAH', msg)
+        self.assertLess(msg.index('HILTON MAKKAH'), msg.index('SWISSOTEL MADINAH'))
+
+    def test_greets_client_name_not_pic(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Salam Benar', pic='Budi Santoso')
+        cl = _make_cl(client=client)
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        self.assertIn('PT Salam Benar', msg)
+        self.assertNotIn('Budi Santoso', msg)
+
+    def test_h1_includes_besok_and_date(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H1')
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=1))
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST')
+        self.assertIn('besok', msg.lower())
+
+    def test_h0_has_no_besok(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H0')
+        cl = _make_cl(client=client, check_in=date.today())
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        self.assertNotIn('besok', msg.lower())
+
+
 import json
 from datetime import time
 from django.contrib.auth.models import User
@@ -204,6 +311,22 @@ class CalendarUpcomingCheckinsTest(TestCase):
         entry = resp.json()['props']['upcoming_checkins'][0]
         self.assertTrue(entry['h0_failed'])
         self.assertFalse(entry['h0_sent'])
+
+    def test_includes_client_id_and_name_when_set(self):
+        from hw.models import Client
+        client = Client.objects.create(company='konoz', name='PT Upcoming')
+        cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-UPC1')
+        resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
+        entries = resp.json()['props']['upcoming_checkins']
+        entry = next(e for e in entries if e['pk'] == cl2.pk)
+        self.assertEqual(entry['client_id'], client.pk)
+        self.assertEqual(entry['client_name'], 'PT Upcoming')
+
+    def test_client_fields_none_when_no_client(self):
+        resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
+        entry = resp.json()['props']['upcoming_checkins'][0]
+        self.assertIsNone(entry['client_id'])
+        self.assertIsNone(entry['client_name'])
 
 
 class EstimasiSaveTest(TestCase):
@@ -294,6 +417,59 @@ class SendReminderViewTest(TestCase):
         self.assertFalse(resp.json()['ok'])
 
 
+class SendReminderGroupViewTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('tester7', password='pw12345')
+        self.client.force_login(self.user)
+        s = self.client.session; s['active_company'] = 'konoz'; s.save()
+
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Grup View', wa='628111', reminder_target='PIC')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=False)
+    def test_returns_error_when_disabled(self):
+        client = self._make_client()
+        cl = _make_cl(client=client, check_in=date.today())
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    @patch('hw.tasks.send_wa')
+    def test_sends_grouped_message_and_creates_logs(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V1')
+        cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+
+    def test_error_when_different_check_in_dates(self):
+        client = self._make_client()
+        cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-DD1')
+        cl2 = _make_cl(client=client, check_in=date.today() + timedelta(days=1), confirmation_number='CL-DD2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_different_clients(self):
+        client1 = self._make_client(name='PT A')
+        client2 = self._make_client(name='PT B')
+        cl1 = _make_cl(client=client1, check_in=date.today(), confirmation_number='CL-DC1')
+        cl2 = _make_cl(client=client2, check_in=date.today(), confirmation_number='CL-DC2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_no_wa_configured(self):
+        client = self._make_client(wa='', wa_group='', reminder_target='GROUP')
+        cl = _make_cl(client=client, check_in=date.today())
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+
 from django.core.management import call_command
 
 
@@ -355,6 +531,81 @@ class SendCheckInRemindersCommandTest(TestCase):
         cl_no_phone = _make_cl(guest_phone='', confirmation_number='CL-NP')
         call_command('send_checkin_reminders')
         self.assertFalse(ReminderLog.objects.filter(cl=cl_no_phone).exists())
+
+
+class GroupedReminderCommandTest(TestCase):
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Grup Command', wa='628111', reminder_target='PIC')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_two_bookings_same_hotel_send_once_log_twice(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-G1')
+        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-G2')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_two_bookings_different_hotels_still_one_send(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-D1')
+        _make_cl(client=client, hotel_name='Swissotel Madinah', check_in=date.today(), confirmation_number='CL-D2')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        sent_message = mock_send.call_args[0][1]
+        self.assertIn('HILTON MAKKAH', sent_message)
+        self.assertIn('SWISSOTEL MADINAH', sent_message)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_cl_without_client_sent_individually(self, mock_send):
+        mock_send.return_value = {'status': True}
+        _make_cl(client=None, check_in=date.today(), confirmation_number='CL-NOCLIENT')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        log = ReminderLog.objects.get(reminder_type='H0_GUEST')
+        self.assertEqual(log.cl.confirmation_number, 'CL-NOCLIENT')
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_partial_already_sent_only_sends_pending(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl_sent    = _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-P1')
+        cl_pending = _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-P2')
+        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628111', status='SENT')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        sent_message = mock_send.call_args[0][1]
+        self.assertNotIn('CL-P1', sent_message)
+        self.assertIn('CL-P2', sent_message)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_both_target_sends_to_two_channels(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client(wa='628111', wa_group='120363xxx', reminder_target='BOTH')
+        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-B1')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 2)
+        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_skips_when_group_target_has_no_wa_group(self, mock_send):
+        client = self._make_client(wa='', wa_group='', reminder_target='GROUP')
+        _make_cl(client=client, check_in=date.today(), confirmation_number='CL-SKIP1')
+        call_command('send_checkin_reminders')
+        mock_send.assert_not_called()
+        self.assertEqual(ReminderLog.objects.count(), 0)
 
 
 class SendCheckInRecapCommandTest(TestCase):

@@ -255,6 +255,145 @@ function CheckinCard({ cl }) {
   );
 }
 
+// ── BookingRow — compact per-booking row inside a ClientGroupCard ──
+function BookingRow({ cl }) {
+  const [editing,  setEditing]  = useState(false);
+  const [estimasi, setEstimasi] = useState(cl.estimasi_tiba || '');
+  const [picName,  setPicName]  = useState(cl.pic_name  || '');
+  const [picPhone, setPicPhone] = useState(cl.pic_phone || '');
+  const [saving,   setSaving]   = useState(false);
+
+  const hasETA = Boolean(estimasi);
+
+  const handleSave = async () => {
+    setSaving(true);
+    await axios.post(
+      `/calendar/cl/${cl.pk}/estimasi/`,
+      new URLSearchParams({ estimasi_tiba: estimasi, pic_name: picName, pic_phone: picPhone }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    setSaving(false); setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEstimasi(cl.estimasi_tiba || '');
+    setPicName(cl.pic_name  || '');
+    setPicPhone(cl.pic_phone || '');
+    setEditing(false);
+  };
+
+  const fi = {
+    width: '100%', padding: '5px 7px', fontSize: 11, borderRadius: 5,
+    border: '1px solid var(--border-2)', background: 'var(--surface)',
+    color: 'var(--text)', outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  };
+
+  return (
+    <div style={{
+      padding: '8px 10px', borderRadius: 8, background: 'var(--surface)',
+      border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0 }}>
+          <a href={cl.url} style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', textDecoration: 'none' }}>
+            {cl.confirmation_number}
+          </a>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>{cl.guest_name}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', marginLeft: 6 }}>· {cl.rooms || '—'}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <ReminderBadge sent={cl.h1_sent} failed={cl.h1_failed} label="H-1" />
+          <ReminderBadge sent={cl.h0_sent} failed={cl.h0_failed} label="H-0" />
+          <span style={{
+            fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+            background: hasETA ? 'var(--accent-muted)' : 'var(--red-muted)',
+            color: hasETA ? 'var(--accent-2)' : 'var(--red)',
+          }}>
+            {hasETA ? estimasi : 'Belum ETA'}
+          </span>
+          <button onClick={() => setEditing(v => !v)} style={{
+            fontSize: 10, fontWeight: 500, padding: '3px 8px', borderRadius: 6,
+            border: '1px solid var(--border-2)', background: 'none',
+            color: 'var(--text-3)', cursor: 'pointer',
+          }}>
+            {editing ? 'Tutup' : 'Edit'}
+          </button>
+        </div>
+      </div>
+
+      {editing && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+            <input type="time" value={estimasi} onChange={e => setEstimasi(e.target.value)} style={fi} />
+            <input type="text" value={picName} onChange={e => setPicName(e.target.value)} placeholder="Nama PIC" style={fi} />
+          </div>
+          <input type="text" value={picPhone} onChange={e => setPicPhone(e.target.value)} placeholder="No. HP PIC" style={fi} />
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button onClick={handleCancel} style={{ fontSize: 10, padding: '4px 9px', borderRadius: 6, border: '1px solid var(--border-2)', background: 'none', color: 'var(--text-3)', cursor: 'pointer' }}>Batal</button>
+            <button onClick={handleSave} disabled={saving} style={{ fontSize: 10, fontWeight: 600, padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border-2)', background: 'none', cursor: saving ? 'default' : 'pointer', color: 'var(--text-2)', opacity: saving ? .7 : 1 }}>
+              {saving ? '…' : 'Simpan'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ClientGroupCard — 1 client, multiple bookings grouped by hotel ──
+function ClientGroupCard({ clientName, cls }) {
+  const [sending, setSending] = useState(false);
+
+  const byHotel = {};
+  cls.forEach(cl => {
+    const key = cl.hotel_name || '—';
+    if (!byHotel[key]) byHotel[key] = [];
+    byHotel[key].push(cl);
+  });
+  const hotelNames = Object.keys(byHotel).sort();
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      const body = new URLSearchParams();
+      cls.forEach(cl => body.append('cl_ids', cl.pk));
+      const r = await axios.post('/calendar/send-reminder-group/', body, {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      showToast(r.data.ok ? `Pesan sedang dikirim ke ${clientName}` : (r.data.message || 'Gagal mengirim pesan'), r.data.ok ? 'success' : 'error');
+    } catch { showToast('Gagal mengirim pesan', 'error'); }
+    setSending(false);
+  };
+
+  return (
+    <div style={{
+      background: 'var(--surface-2)', borderRadius: 12, border: '1px solid var(--border)',
+      padding: '14px', display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{clientName}</span>
+        <button onClick={handleSend} disabled={sending} style={{
+          fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
+          border: 'none', cursor: sending ? 'default' : 'pointer',
+          background: 'var(--green)', color: '#fff', opacity: sending ? .75 : 1,
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+        }}>
+          {sending ? '…' : <><WAIcon /> Kirim WA</>}
+        </button>
+      </div>
+      {hotelNames.map(hotel => (
+        <div key={hotel} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {hotel}
+          </div>
+          {byHotel[hotel].map(cl => <BookingRow key={cl.pk} cl={cl} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── DateGroup ─────────────────────────────────────────────────
 function DateGroup({ dateStr, cls }) {
   const [sending, setSending] = useState(false);
@@ -339,7 +478,18 @@ function DateGroup({ dateStr, cls }) {
         gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
         gap: 12,
       }}>
-        {cls.map(cl => <CheckinCard key={cl.pk} cl={cl} />)}
+        {Object.values(
+          cls.reduce((acc, cl) => {
+            const key = cl.client_id || `single-${cl.pk}`;
+            if (!acc[key]) acc[key] = { client_id: cl.client_id, client_name: cl.client_name, items: [] };
+            acc[key].items.push(cl);
+            return acc;
+          }, {})
+        ).map(group =>
+          group.client_id && group.items.length > 1
+            ? <ClientGroupCard key={group.client_id} clientName={group.client_name} cls={group.items} />
+            : group.items.map(cl => <CheckinCard key={cl.pk} cl={cl} />)
+        )}
       </div>
     </div>
   );

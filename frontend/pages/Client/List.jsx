@@ -18,6 +18,7 @@ function riskBadge(risk) {
   return null;
 }
 const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
+const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 function visit(params) {
   router.get("/clients/", params, { preserveState: true, preserveScroll: true, replace: true });
@@ -120,6 +121,7 @@ export default function List({ clients, q, status }) {
                   <>
                     <div style={{ fontSize: 13 }}>{c.pic || "-"}</div>
                     {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--green)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{c.wa}</a>}
+                    {needsWaGroup(c) && <span className="badge badge-yellow" style={{ fontSize: 9, marginLeft: 6 }}>Grup belum diisi</span>}
                   </>
                 ),
               },

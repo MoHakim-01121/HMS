@@ -23,6 +23,7 @@ from .services_views import (
 )
 from .calendar_views import (
     calendar_view, cl_estimasi_save, calendar_send_recap, calendar_send_reminder,
+    calendar_send_reminder_group,
     wa_target_add, wa_target_toggle, wa_target_delete,
     message_template_save, calendar_recap_settings,
     calendar_checkin_pdf,

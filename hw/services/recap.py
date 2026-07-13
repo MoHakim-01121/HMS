@@ -32,6 +32,22 @@ TEMPLATE_RECAP = (
     "Total: {total_guests} tamu | {total_hotels} hotel"
 )
 
+TEMPLATE_H0_CLIENT = (
+    "Assalamualaikum Bapak/Ibu {client_name},\n\n"
+    "Berikut detail check-in hari ini:\n\n"
+    "{booking_blocks}\n"
+    "Mohon segera informasikan estimasi tiba & PIC untuk tiap hotel.\n\n"
+    "Terima kasih."
+)
+
+TEMPLATE_H1_CLIENT = (
+    "Assalamualaikum Bapak/Ibu {client_name},\n\n"
+    "Kami mengingatkan bahwa check-in berikut dijadwalkan besok, *{check_in_date}*:\n\n"
+    "{booking_blocks}\n"
+    "Mohon segera informasikan estimasi tiba & PIC untuk tiap hotel.\n\n"
+    "Terima kasih."
+)
+
 
 def _get_template_body(template_type: str, fallback: str) -> str:
     from hw.models import MessageTemplate
@@ -66,6 +82,42 @@ def build_reminder_message(cl, reminder_type: str) -> str:
         confirmation_number=cl.confirmation_number,
         rooms=rooms_str,
     )
+
+
+def resolve_reminder_targets(client, pending_cls: list) -> list:
+    """Return [(channel, phone), ...] to send a grouped reminder to. Empty = skip."""
+    targets = []
+    if client.reminder_target in ('PIC', 'BOTH'):
+        phone = client.wa or (pending_cls[0].guest_phone if pending_cls else '')
+        if phone:
+            targets.append(('PIC', phone))
+    if client.reminder_target in ('GROUP', 'BOTH'):
+        if client.wa_group:
+            targets.append(('GROUP', client.wa_group))
+    return targets
+
+
+def build_grouped_reminder_message(cls: list, reminder_type: str) -> str:
+    client = cls[0].client
+    by_hotel = defaultdict(list)
+    for cl in cls:
+        by_hotel[cl.hotel_name].append(cl)
+
+    blocks = []
+    for hotel_name in sorted(by_hotel.keys()):
+        blocks.append(f"*{hotel_name.upper()}*")
+        for i, cl in enumerate(by_hotel[hotel_name], 1):
+            rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
+            blocks.append(f"{i}. No. CL : {cl.confirmation_number} | Tamu: {cl.guest_name} | Kamar: {rooms_str}")
+        blocks.append("")
+    booking_blocks = '\n'.join(blocks).rstrip('\n')
+
+    kwargs = dict(client_name=client.name, booking_blocks=booking_blocks)
+    if reminder_type == 'H1_GUEST':
+        ci = cls[0].check_in
+        kwargs['check_in_date'] = ci.strftime('%d %b %Y') if ci else '-'
+        return _render(TEMPLATE_H1_CLIENT, **kwargs)
+    return _render(TEMPLATE_H0_CLIENT, **kwargs)
 
 
 def build_recap_message(cls: list, recap_date=None) -> str:
