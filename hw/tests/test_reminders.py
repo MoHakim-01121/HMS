@@ -227,6 +227,56 @@ class ResolveReminderTargetsTest(TestCase):
         self.assertEqual(targets, [('PIC', '628111')])
 
 
+class BuildGroupedReminderMessageTest(TestCase):
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Grup Uji')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    def test_merges_two_bookings_same_hotel_into_one_block(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Merge')
+        cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M1')
+        cl2 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        self.assertEqual(msg.count('HILTON MAKKAH'), 1)
+        self.assertIn('CL-M1', msg)
+        self.assertIn('CL-M2', msg)
+
+    def test_keeps_two_different_hotels_separate_in_one_message(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Split')
+        cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-S1')
+        cl2 = _make_cl(client=client, hotel_name='Swissotel Madinah', confirmation_number='CL-S2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        self.assertIn('HILTON MAKKAH', msg)
+        self.assertIn('SWISSOTEL MADINAH', msg)
+        self.assertLess(msg.index('HILTON MAKKAH'), msg.index('SWISSOTEL MADINAH'))
+
+    def test_greets_client_name_not_pic(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Salam Benar', pic='Budi Santoso')
+        cl = _make_cl(client=client)
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        self.assertIn('PT Salam Benar', msg)
+        self.assertNotIn('Budi Santoso', msg)
+
+    def test_h1_includes_besok_and_date(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H1')
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=1))
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST')
+        self.assertIn('besok', msg.lower())
+
+    def test_h0_has_no_besok(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H0')
+        cl = _make_cl(client=client, check_in=date.today())
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        self.assertNotIn('besok', msg.lower())
+
+
 import json
 from datetime import time
 from django.contrib.auth.models import User
