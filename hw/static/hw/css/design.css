@@ -1650,7 +1650,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
     z-index: var(--z-sticky);
   }
   .m-top-btn, .m-top-avatar {
-    width: 38px; height: 38px; border-radius: 50%;
+    width: 42px; height: 42px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: rgba(14,14,17,.55);
     backdrop-filter: blur(24px) saturate(160%);
@@ -1752,13 +1752,22 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap { overflow-x: unset; }
   .table-wrap table { display: block; }
   .table-wrap table thead { display: none; }
-  .table-wrap table tbody { display: block; }
+  /* container .card dibuat transparan: tiap baris jadi kartu sendiri
+     (kecuali tabel dense .rem-table yang tetap tabel scrollable) */
+  .card:has(> .table-wrap):not(:has(.rem-table)) {
+    background: transparent; border: none; box-shadow: none;
+    overflow: visible; animation: none;
+  }
+  .table-wrap table tbody { display: flex; flex-direction: column; gap: 8px; }
   .table-wrap table tbody tr {
     display: flex; flex-wrap: wrap; align-items: center;
-    gap: 3px 7px; padding: 10px 14px;
-    border-bottom: 1px solid var(--border); cursor: pointer;
+    gap: 3px 7px; padding: 12px 14px;
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    cursor: pointer;
   }
-  .table-wrap table tbody tr:last-child { border-bottom: none; }
   .table-wrap table tbody td {
     display: inline-flex; align-items: center;
     padding: 0; border: none; font-size: 12px; line-height: 1.4;
@@ -1767,12 +1776,35 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .m-hide { display: none !important; }
   .m-sub { display: block; width: 100%; color: var(--text-2); font-size: 12px; font-weight: 400; margin-top: 3px; }
   .m-only { display: inline-flex; }
-  .col-m-primary { width: 100%; font-size: 13px !important; font-weight: 600; margin-bottom: 1px; flex-wrap: wrap; }
+  .col-m-primary { width: 100%; font-size: 13px !important; font-weight: 600; margin-bottom: 1px; flex-wrap: wrap; padding-right: 34px; box-sizing: border-box; }
   .col-m-secondary { color: var(--text-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-m-amount { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
-  .col-m-actions { width: 100%; justify-content: flex-end; padding-top: 4px; gap: 5px; }
+  .col-m-actions { position: absolute; top: 7px; right: 7px; padding-top: 0; gap: 5px; }
   .col-m-actions .btn { width: 34px !important; height: 34px !important; }
-  .table-wrap table tfoot { display: block; border-top: 1px solid var(--border); background: var(--bg-2); }
+  /* badge status di kanan-atas kartu, di kiri tombol kebab */
+  .col-m-badge { position: absolute; top: 13px; right: 46px; }
+  tr:has(.col-m-badge) .col-m-primary { padding-right: 128px; }
+  /* baris meta berlabel di bawah kartu (label = header kolom via data-label):
+     satu baris penuh per field, label kiri redup + nilai kanan */
+  .col-m-meta {
+    order: 10;
+    width: 100%;
+    display: flex !important; align-items: baseline; justify-content: space-between; gap: 8px;
+    overflow: visible; white-space: normal; max-width: none;
+    font-size: 11.5px !important; color: var(--text-2) !important;
+  }
+  .col-m-meta::before {
+    content: attr(data-label);
+    font-size: 10px; color: var(--text-3);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    flex-shrink: 0;
+  }
+  .col-m-amount { order: 5; }
+  .col-m-secondary { order: 4; }
+  .table-wrap table tfoot {
+    display: block; margin-top: 8px;
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-xl);
+  }
   .table-wrap table tfoot tr { display: block; padding: 8px 14px; }
   .table-wrap table tfoot td { display: block; width: 100%; padding: 2px 0; border: none; background: transparent; font-size: 13px; text-align: left; }
   .table-wrap table tfoot .tsum-k { margin-right: 6px; }
@@ -1812,6 +1844,70 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   }
   .table-detail table tbody td:empty,
   .table-detail table tbody td.td-hide { display: none; }
+}
+
+/* ── Action sheet (mobile row actions) ── */
+@keyframes _asheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes _asheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.asheet-overlay {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: flex-end;
+  animation: _asheet-fade .15s ease both;
+}
+.asheet {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border); border-bottom: none;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
+  animation: _asheet-up .26s cubic-bezier(.32,1,.4,1) both;
+}
+.asheet-grab {
+  width: 36px; height: 4px; border-radius: var(--r-full);
+  background: var(--border); margin: 4px auto 10px;
+}
+.asheet-title {
+  font-size: 12px; font-weight: 600; color: var(--text-3);
+  padding: 0 10px 8px;
+}
+.asheet-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; min-height: 48px; padding: 0 10px;
+  background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: 14px; color: var(--text);
+  text-decoration: none; border-radius: var(--r-lg);
+  -webkit-appearance: none; appearance: none; text-align: left;
+}
+.asheet-item:active { background: var(--bg-2); }
+.asheet-item-red { color: var(--red); }
+.asheet-item-green { color: var(--green); }
+.asheet-cancel {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; min-height: 46px; margin-top: 6px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--r-lg); cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text-2);
+  -webkit-appearance: none; appearance: none;
+}
+
+/* Notif dropdown yang dipakai AppLayout: posisi desktop = seperti inline style lama */
+.notif-float { position: fixed; top: 54px; right: 14px; width: 300px; z-index: var(--z-overlay); }
+@media (max-width: 600px) {
+  .notif-float {
+    top: calc(58px + env(safe-area-inset-top));
+    left: 12px; right: 12px; width: auto;
+    max-height: 60dvh; overflow-y: auto;
+  }
+  .notif-float .notif-item { padding: 12px 14px; }
+}
+
+/* RowActions: ikon inline di desktop, kebab di mobile */
+.ra-inline { display: contents; }
+.ra-kebab { display: none !important; }
+@media (max-width: 600px) {
+  .ra-inline { display: none; }
+  .ra-kebab { display: inline-flex !important; width: 34px !important; height: 34px !important; }
 }
 
 /* ── Print ── */
