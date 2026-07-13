@@ -58,6 +58,13 @@ class ClientFormTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(Client.objects.filter(name="PT Sahabat").exists())
 
+    def test_new_client_defaults_reminder_target_to_group(self):
+        from hw.models import Client
+        self._inertia("/clients/new/", {"name": "PT Default Target"})
+        c = Client.objects.get(name="PT Default Target")
+        self.assertEqual(c.reminder_target, "GROUP")
+        self.assertEqual(c.wa_group, "")
+
 
 class PenaltyViewTests(TestCase):
     def setUp(self):
