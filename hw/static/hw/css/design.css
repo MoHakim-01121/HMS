@@ -1308,8 +1308,16 @@ input:-webkit-autofill:focus {
     border-top: 1px solid var(--border);
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
-  .sort-menu { padding: 8px 8px calc(90px + env(safe-area-inset-bottom)); }
+  .sort-menu { padding: 8px 8px calc(14px + env(safe-area-inset-bottom)); }
   .sort-menu.open, .filter-panel.open { animation: sheetIn .2s ease; }
+  /* Sheet filter/sort terkunci di stacking context .page (z-index:1, shell.css)
+     sehingga selalu kalah dari bottom-nav (z 200) — sembunyikan nav selama
+     sheet terbuka agar footer Apply/opsi bawah tidak tertutup. */
+  body:has(.filter-panel.open) .bottom-nav,
+  body:has(.sort-menu.open) .bottom-nav {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 /* ── Filter chips ── */
