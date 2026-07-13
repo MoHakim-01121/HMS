@@ -312,6 +312,22 @@ class CalendarUpcomingCheckinsTest(TestCase):
         self.assertTrue(entry['h0_failed'])
         self.assertFalse(entry['h0_sent'])
 
+    def test_includes_client_id_and_name_when_set(self):
+        from hw.models import Client
+        client = Client.objects.create(company='konoz', name='PT Upcoming')
+        cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-UPC1')
+        resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
+        entries = resp.json()['props']['upcoming_checkins']
+        entry = next(e for e in entries if e['pk'] == cl2.pk)
+        self.assertEqual(entry['client_id'], client.pk)
+        self.assertEqual(entry['client_name'], 'PT Upcoming')
+
+    def test_client_fields_none_when_no_client(self):
+        resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
+        entry = resp.json()['props']['upcoming_checkins'][0]
+        self.assertIsNone(entry['client_id'])
+        self.assertIsNone(entry['client_name'])
+
 
 class EstimasiSaveTest(TestCase):
     def setUp(self):

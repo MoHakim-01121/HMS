@@ -37,6 +37,7 @@ def _get_upcoming_checkins(active_company):
         ConfirmationLetter.objects
         .filter(check_in__gte=today, check_in__lte=week_end)
         .exclude(reservation_status='CANCELLED')
+        .select_related('client')
         .prefetch_related('rooms', 'reminder_logs')
         .order_by('check_in', 'hotel_name')
     )
@@ -81,6 +82,8 @@ def _get_upcoming_checkins(active_company):
             'h1_sent': h1_sent,
             'h0_failed': h0_failed,
             'h1_failed': h1_failed,
+            'client_id': cl.client_id,
+            'client_name': cl.client.name if cl.client_id else None,
             'url': cl.get_absolute_url(),
         })
     return result
