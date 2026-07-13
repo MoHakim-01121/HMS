@@ -170,6 +170,63 @@ class RecapServiceTest(TestCase):
                     f"Emoji ditemukan di pesan: {repr(char)}")
 
 
+class ResolveReminderTargetsTest(TestCase):
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Uji Target', wa='', wa_group='', reminder_target='PIC')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    def test_pic_uses_client_wa(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', reminder_target='PIC')
+        cl = _make_cl(guest_phone='628999')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111')])
+
+    def test_pic_falls_back_to_first_pending_guest_phone(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='', reminder_target='PIC')
+        cl = _make_cl(guest_phone='628999')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628999')])
+
+    def test_pic_empty_when_no_wa_and_no_guest_phone(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='', reminder_target='PIC')
+        cl = _make_cl(guest_phone='')
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [])
+
+    def test_group_uses_wa_group(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa_group='120363xxx', reminder_target='GROUP')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('GROUP', '120363xxx')])
+
+    def test_group_empty_when_wa_group_blank_no_fallback(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa_group='', wa='628111', reminder_target='GROUP')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [])
+
+    def test_both_returns_two_targets(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', wa_group='120363xxx', reminder_target='BOTH')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111'), ('GROUP', '120363xxx')])
+
+    def test_both_only_pic_when_group_blank(self):
+        from hw.services.recap import resolve_reminder_targets
+        client = self._make_client(wa='628111', wa_group='', reminder_target='BOTH')
+        cl = _make_cl()
+        targets = resolve_reminder_targets(client, [cl])
+        self.assertEqual(targets, [('PIC', '628111')])
+
+
 import json
 from datetime import time
 from django.contrib.auth.models import User

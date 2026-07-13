@@ -68,6 +68,19 @@ def build_reminder_message(cl, reminder_type: str) -> str:
     )
 
 
+def resolve_reminder_targets(client, pending_cls: list) -> list:
+    """Return [(channel, phone), ...] to send a grouped reminder to. Empty = skip."""
+    targets = []
+    if client.reminder_target in ('PIC', 'BOTH'):
+        phone = client.wa or (pending_cls[0].guest_phone if pending_cls else '')
+        if phone:
+            targets.append(('PIC', phone))
+    if client.reminder_target in ('GROUP', 'BOTH'):
+        if client.wa_group:
+            targets.append(('GROUP', client.wa_group))
+    return targets
+
+
 def build_recap_message(cls: list, recap_date=None) -> str:
     by_hotel = defaultdict(list)
     for cl in cls:
