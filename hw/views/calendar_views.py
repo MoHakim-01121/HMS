@@ -16,6 +16,7 @@ from .helpers import get_active_company
 from .pdf import _render_checkin_pdf
 from ..services.recap import (
     build_recap_message, build_reminder_message,
+    build_grouped_reminder_message, resolve_reminder_targets,
     TEMPLATE_H0, TEMPLATE_H1, TEMPLATE_RECAP,
 )
 
@@ -293,6 +294,49 @@ def calendar_send_reminder(request, pk):
     reminder_type = 'H0_GUEST' if cl.check_in == today else 'H1_GUEST'
     message = build_reminder_message(cl, reminder_type)
     async_task('hw.tasks.send_reminder_task', cl.pk, reminder_type, cl.guest_phone, message)
+    return JsonResponse({'ok': True, 'queued': True})
+
+
+@login_required
+def calendar_send_reminder_group(request):
+    if request.method != 'POST':
+        return JsonResponse({'ok': False}, status=405)
+    if not settings.REMINDER_H1_H0_ENABLED:
+        return JsonResponse({'ok': False, 'message': 'Reminder H-1/H-0 sedang dinonaktifkan sementara'})
+    cl_ids = request.POST.getlist('cl_ids')
+    if not cl_ids:
+        return JsonResponse({'ok': False, 'message': 'Tidak ada booking dipilih'})
+    cls = list(
+        ConfirmationLetter.objects
+        .filter(pk__in=cl_ids, company=get_active_company(request))
+        .exclude(reservation_status='CANCELLED')
+        .select_related('client')
+        .prefetch_related('rooms')
+    )
+    if len(cls) != len(cl_ids):
+        return JsonResponse({'ok': False, 'message': 'Sebagian booking tidak ditemukan'})
+    client_ids = {cl.client_id for cl in cls}
+    if len(client_ids) != 1 or None in client_ids:
+        return JsonResponse({'ok': False, 'message': 'Booking harus dari 1 client yang sama'})
+    check_ins = {cl.check_in for cl in cls}
+    if len(check_ins) != 1:
+        return JsonResponse({'ok': False, 'message': 'Booking harus di tanggal check-in yang sama'})
+    today = date.today()
+    check_in_date = next(iter(check_ins))
+    if check_in_date == today:
+        reminder_type = 'H0_GUEST'
+    elif check_in_date == today + timedelta(days=1):
+        reminder_type = 'H1_GUEST'
+    else:
+        return JsonResponse({'ok': False, 'message': 'Tanggal check-in di luar jangkauan H-1/H-0'})
+    client = cls[0].client
+    targets = resolve_reminder_targets(client, cls)
+    if not targets:
+        return JsonResponse({'ok': False, 'message': 'Client belum punya nomor WA/Group yang aktif'})
+    message = build_grouped_reminder_message(cls, reminder_type)
+    cl_pks = [cl.pk for cl in cls]
+    for channel, phone in targets:
+        async_task('hw.tasks.send_reminder_group_task', cl_pks, reminder_type, phone, message)
     return JsonResponse({'ok': True, 'queued': True})
 
 

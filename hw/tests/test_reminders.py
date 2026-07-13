@@ -401,6 +401,59 @@ class SendReminderViewTest(TestCase):
         self.assertFalse(resp.json()['ok'])
 
 
+class SendReminderGroupViewTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('tester7', password='pw12345')
+        self.client.force_login(self.user)
+        s = self.client.session; s['active_company'] = 'konoz'; s.save()
+
+    def _make_client(self, **kwargs):
+        from hw.models import Client
+        defaults = dict(company='konoz', name='PT Grup View', wa='628111', reminder_target='PIC')
+        defaults.update(kwargs)
+        return Client.objects.create(**defaults)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=False)
+    def test_returns_error_when_disabled(self):
+        client = self._make_client()
+        cl = _make_cl(client=client, check_in=date.today())
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    @patch('hw.tasks.send_wa')
+    def test_sends_grouped_message_and_creates_logs(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V1')
+        cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+
+    def test_error_when_different_check_in_dates(self):
+        client = self._make_client()
+        cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-DD1')
+        cl2 = _make_cl(client=client, check_in=date.today() + timedelta(days=1), confirmation_number='CL-DD2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_different_clients(self):
+        client1 = self._make_client(name='PT A')
+        client2 = self._make_client(name='PT B')
+        cl1 = _make_cl(client=client1, check_in=date.today(), confirmation_number='CL-DC1')
+        cl2 = _make_cl(client=client2, check_in=date.today(), confirmation_number='CL-DC2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_no_wa_configured(self):
+        client = self._make_client(wa='', wa_group='', reminder_target='GROUP')
+        cl = _make_cl(client=client, check_in=date.today())
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+
 from django.core.management import call_command
 
 
