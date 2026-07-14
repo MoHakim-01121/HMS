@@ -44,6 +44,8 @@ def client_list(request):
         "province": c.province,
         "pic": c.pic,
         "wa": c.wa,
+        "wa_group": c.wa_group,
+        "reminder_target": c.reminder_target,
         "invoices_count": len(c.invoices.all()),
         "outstanding": c.outstanding,
         "score": c.score,
@@ -67,7 +69,8 @@ def _client_echo(data):
     return {
         "name": data.get("name", ""), "city": data.get("city", ""),
         "province": data.get("province", ""), "pic": data.get("pic", ""),
-        "wa": data.get("wa", ""), "email": data.get("email", ""),
+        "wa": data.get("wa", ""), "wa_group": data.get("wa_group", ""),
+        "reminder_target": data.get("reminder_target", "GROUP"), "email": data.get("email", ""),
         "note": data.get("note", ""), "lat": data.get("lat", ""),
         "lng": data.get("lng", ""), "is_active": data.get("is_active") == "on",
     }
@@ -110,7 +113,8 @@ def client_edit(request, pk):
     return inertia_render(request, "Client/Form", props={
         "client": {
             "id": c.pk, "name": c.name, "city": c.city, "province": c.province,
-            "pic": c.pic, "wa": c.wa, "email": c.email, "note": c.note,
+            "pic": c.pic, "wa": c.wa, "wa_group": c.wa_group, "reminder_target": c.reminder_target,
+            "email": c.email, "note": c.note,
             "lat": c.lat, "lng": c.lng, "is_active": c.is_active,
         },
         "edit": True,
@@ -163,6 +167,8 @@ def client_detail(request, pk):
             "province": c.province,
             "pic": c.pic,
             "wa": c.wa,
+            "wa_group": c.wa_group,
+            "reminder_target": c.reminder_target,
             "email": c.email,
             "note": c.note,
             "is_active": c.is_active,
@@ -221,6 +227,9 @@ def _save_client(c, data):
     c.province  = data.get('province', '').strip()
     c.pic       = data.get('pic', '').strip()
     c.wa        = data.get('wa', '').strip()
+    c.wa_group  = data.get('wa_group', '').strip()
+    rt = data.get('reminder_target', '').strip()
+    c.reminder_target = rt if rt in dict(Client.REMINDER_TARGET_CHOICES) else 'GROUP'
     c.email     = data.get('email', '').strip()
     c.note      = data.get('note', '').strip()
     c.is_active = data.get('is_active') == 'on'

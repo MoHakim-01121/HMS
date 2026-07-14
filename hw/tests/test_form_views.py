@@ -58,6 +58,44 @@ class ClientFormTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(Client.objects.filter(name="PT Sahabat").exists())
 
+    def test_new_client_defaults_reminder_target_to_group(self):
+        from hw.models import Client
+        self._inertia("/clients/new/", {"name": "PT Default Target"})
+        c = Client.objects.get(name="PT Default Target")
+        self.assertEqual(c.reminder_target, "GROUP")
+        self.assertEqual(c.wa_group, "")
+
+    def test_create_saves_wa_group_and_reminder_target(self):
+        from hw.models import Client
+        self._inertia("/clients/new/", {
+            "name": "PT WA Group", "wa_group": "120363xxx", "reminder_target": "BOTH",
+        })
+        c = Client.objects.get(name="PT WA Group")
+        self.assertEqual(c.wa_group, "120363xxx")
+        self.assertEqual(c.reminder_target, "BOTH")
+
+    def test_invalid_reminder_target_falls_back_to_group(self):
+        from hw.models import Client
+        self._inertia("/clients/new/", {"name": "PT Invalid Target", "reminder_target": "NOT_A_CHOICE"})
+        c = Client.objects.get(name="PT Invalid Target")
+        self.assertEqual(c.reminder_target, "GROUP")
+
+    def test_edit_form_get_includes_wa_group_and_reminder_target(self):
+        from hw.models import Client
+        c = Client.objects.create(company="konoz", name="PT Edit Target", wa_group="grp1", reminder_target="BOTH")
+        resp = self.client.get(f"/clients/{c.pk}/edit/", HTTP_X_INERTIA="true")
+        props = resp.json()["props"]
+        self.assertEqual(props["client"]["wa_group"], "grp1")
+        self.assertEqual(props["client"]["reminder_target"], "BOTH")
+
+    def test_list_includes_wa_group_and_reminder_target(self):
+        from hw.models import Client
+        Client.objects.create(company="konoz", name="PT List Target", wa_group="", reminder_target="GROUP")
+        resp = self.client.get("/clients/", HTTP_X_INERTIA="true")
+        row = next(r for r in resp.json()["props"]["clients"] if r["name"] == "PT List Target")
+        self.assertEqual(row["wa_group"], "")
+        self.assertEqual(row["reminder_target"], "GROUP")
+
 
 class PenaltyViewTests(TestCase):
     def setUp(self):

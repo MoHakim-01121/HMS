@@ -9,7 +9,9 @@ export default function Form({ client, edit, errors: serverErrors }) {
   const c = client || {};
   const form = useForm({
     name: c.name || "", city: c.city || "", province: c.province || "",
-    pic: c.pic || "", wa: c.wa || "", email: c.email || "",
+    pic: c.pic || "", wa: c.wa || "", wa_group: c.wa_group || "",
+    reminder_target: c.reminder_target || "GROUP",
+    email: c.email || "",
     lat: c.lat ?? "", lng: c.lng ?? "", note: c.note || "",
     is_active: edit ? !!c.is_active : true,
   });
@@ -53,7 +55,17 @@ export default function Form({ client, edit, errors: serverErrors }) {
           <FormSection label="Contact">
             <div className="fg-2" style={{ marginBottom: 12 }}>
               <FormField label="PIC" name="pic" value={form.data.pic} onChange={set("pic")} placeholder="Person in charge name" />
-              <FormField label="WhatsApp" name="wa" value={form.data.wa} onChange={set("wa")} placeholder="628123456789" inputMode="tel" />
+              <FormField label="WhatsApp PIC" name="wa" value={form.data.wa} onChange={set("wa")} placeholder="628123456789" inputMode="tel" />
+            </div>
+            <div className="fg-2" style={{ marginBottom: 12 }}>
+              <FormField label="WhatsApp Group" name="wa_group" value={form.data.wa_group} onChange={set("wa_group")} placeholder="120363xxxxx@g.us atau ID grup Fonnte" />
+              <FormField label="Kirim Reminder Ke" name="reminder_target">
+                <select name="reminder_target" value={form.data.reminder_target} onChange={(e) => form.setData("reminder_target", e.target.value)}>
+                  <option value="PIC">PIC</option>
+                  <option value="GROUP">WhatsApp Group</option>
+                  <option value="BOTH">PIC & Group</option>
+                </select>
+              </FormField>
             </div>
             <FormField label="Email" name="email" type="email" value={form.data.email} onChange={set("email")} placeholder="email@agency.com" error={errors.email} />
           </FormSection>

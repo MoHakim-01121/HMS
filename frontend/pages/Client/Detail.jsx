@@ -8,6 +8,7 @@ import RowActions from "../../components/ui/RowActions.jsx";
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
 const scoreValCls = (s) => (s >= 70 ? "green" : s >= 40 ? "" : "red");
+const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 function riskBadge(risk) {
   if (risk === "high") return ["badge badge-red", "High Risk"];
@@ -75,7 +76,13 @@ export default function Detail({ client, invoices, cls }) {
           <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {c.city && <Field label="Location">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
             {c.pic && <Field label="PIC">{c.pic}</Field>}
-            {c.wa && <Field label="WhatsApp"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
+            {c.wa && <Field label="WhatsApp PIC"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
+            {c.wa_group && <Field label="WhatsApp Group">{c.wa_group}</Field>}
+            {needsWaGroup(c) && (
+              <div style={{ fontSize: 12, color: "var(--red)" }}>
+                Reminder diset ke {c.reminder_target === "BOTH" ? "PIC & Group" : "Group"} tapi WhatsApp Group belum diisi.
+              </div>
+            )}
             {c.email && <Field label="Email">{c.email}</Field>}
             {!c.city && !c.pic && !c.wa && !c.email && (
               <div style={{ fontSize: 13, color: "var(--text-3)" }}>No contact details on file yet.</div>

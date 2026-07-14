@@ -164,16 +164,16 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                 },
                 {
                   header: "Status",
-                  className: "col-m-hide",
+                  className: "col-m-badge",
                   render: (cl) => {
                     const [bcls, blabel] = statusBadge(cl.reservation_status);
                     return <span className={bcls}>{blabel}</span>;
                   },
                 },
                 { header: "Client/Travel", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
-                { header: "Hotel", className: "col-ellipsis-sm col-muted col-m-hide", render: (cl) => cl.hotel_name },
-                { header: "Check-in", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_in || "—" },
-                { header: "Check-out", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_out || "—" },
+                { header: "Hotel", className: "col-ellipsis-sm col-muted col-m-meta", render: (cl) => cl.hotel_name },
+                { header: "Check-in", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_in || "—" },
+                { header: "Check-out", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_out || "—" },
                 { header: "Total", className: "mono col-nowrap col-m-amount", render: (cl) => cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : "—" },
                 {
                   header: "",

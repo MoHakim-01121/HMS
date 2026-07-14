@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
 import Table from "../../components/ui/Table.jsx";
 import RowActions from "../../components/ui/RowActions.jsx";
 
@@ -18,6 +19,7 @@ function riskBadge(risk) {
   return null;
 }
 const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
+const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 function visit(params) {
   router.get("/clients/", params, { preserveState: true, preserveScroll: true, replace: true });
@@ -29,6 +31,7 @@ export default function List({ clients, q, status }) {
   const [sel, setSel] = useState(status || "");
   const debounce = useRef(null);
   const first = useRef(true);
+  const [confirm, confirmDialog] = useConfirm();
 
   useEffect(() => {
     if (first.current) { first.current = false; return; }
@@ -39,6 +42,7 @@ export default function List({ clients, q, status }) {
 
   const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
   const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
+  const del = (e, pk, name) => { e.stopPropagation(); confirm({ title: "Delete client", message: `Delete client ${name}?`, onConfirm: () => router.post(`/clients/${pk}/delete/`) }); };
 
   return (
     <div className="page">
@@ -120,6 +124,7 @@ export default function List({ clients, q, status }) {
                   <>
                     <div style={{ fontSize: 13 }}>{c.pic || "-"}</div>
                     {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--green)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{c.wa}</a>}
+                    {needsWaGroup(c) && <span className="badge badge-yellow" style={{ fontSize: 9, marginLeft: 6 }}>Grup belum diisi</span>}
                   </>
                 ),
               },
@@ -131,21 +136,17 @@ export default function List({ clients, q, status }) {
               },
               {
                 header: "Score",
-                className: "col-m-hide",
-                render: (c) => (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ flex: 1, height: 4, background: "var(--surface-3)", borderRadius: 2, maxWidth: 48 }}>
-                      <div style={{ height: 4, borderRadius: 2, width: `${c.score}%`, background: scoreColor(c.score) }}></div>
-                    </div>
-                    <span style={{ fontSize: 11, color: "var(--text-3)" }}>{c.score}</span>
-                  </div>
-                ),
+                className: "col-m-hide col-num",
+                render: (c) => <span className="mono" style={{ color: scoreColor(c.score) }}>{c.score}</span>,
               },
               { header: "Status", className: "col-m-hide", render: (c) => c.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span> },
               {
                 header: "",
                 className: "col-m-actions",
-                render: (c) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/clients/${c.id}/` }]} />,
+                render: (c) => <RowActions actions={[
+                  { icon: "edit", label: "Edit", href: `/clients/${c.id}/edit/` },
+                  { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, c.id, c.name) },
+                ]} />,
               },
             ]}
             rows={clients}
@@ -163,6 +164,7 @@ export default function List({ clients, q, status }) {
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

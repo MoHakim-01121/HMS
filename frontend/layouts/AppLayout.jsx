@@ -215,7 +215,7 @@ export default function AppLayout({ children }) {
 
           {/* ── Shared notification dropdown ── */}
           {notif && (
-            <div className="notif-dropdown open" style={{ position: "fixed", top: 54, right: 14, width: 300, zIndex: "var(--z-overlay)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="notif-dropdown notif-float open" onClick={(e) => e.stopPropagation()}>
               <NotifList />
             </div>
           )}

@@ -233,11 +233,15 @@ def _build_checkin_groups(qs):
 def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf',
                         date_start=None, date_end=None):
     groups = _build_checkin_groups(cls)
+    hotel_names = {hotel['name'] for group in groups for hotel in group['hotels']}
     context = {
         'title': title,
         'date_range': _format_date_range_en(date_start, date_end),
         'groups': groups,
+        'total_guests': sum(g['total'] for g in groups),
+        'total_hotels': len(hotel_names),
         'logo_rel_path': _logo_file_url(company),
+        'now': datetime.now(),
     }
     with translation_override('en'):
         html = render_to_string('hw/calendar/checkin_recap_pdf.html', context)

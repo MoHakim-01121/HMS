@@ -19,7 +19,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
               {columns.map((col, ci) => {
                 const cls = typeof col.className === "function" ? col.className(row) : col.className;
                 return (
-                  <td key={ci} className={cls} style={col.style}>{col.render(row, i)}</td>
+                  <td key={ci} className={cls} style={col.style} data-label={col.header || undefined}>{col.render(row, i)}</td>
                 );
               })}
             </tr>

@@ -157,7 +157,10 @@ Q_CLUSTER = {
     'queue_limit': 50,
     'bulk': 10,
     'orm': 'default',
-    'sync': 'test' in sys.argv,
+    # Sync mode runs tasks in-process: always during tests, and in local dev
+    # (DEBUG=True) where no qcluster worker is running — otherwise WA sends
+    # would queue forever and never actually go out.
+    'sync': DEBUG or 'test' in sys.argv,
 }
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'

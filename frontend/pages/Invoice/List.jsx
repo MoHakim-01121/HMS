@@ -127,14 +127,14 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
               columns={[
                 { header: "Invoice #", className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
                 { header: "Customer", className: "col-m-secondary", render: (inv) => inv.customer_name },
-                { header: "Issued", className: "col-muted col-nowrap col-m-hide", render: (inv) => inv.issued_date || "—" },
-                { header: "Total", className: "mono col-nowrap col-m-hide", render: (inv) => `${inv.total_sar.toLocaleString("en-US")} SAR` },
+                { header: "Issued", className: "col-muted col-nowrap col-m-meta", render: (inv) => inv.issued_date || "—" },
+                { header: "Total", className: "mono col-nowrap col-m-meta", render: (inv) => `${inv.total_sar.toLocaleString("en-US")} SAR` },
                 {
                   header: "Remaining",
                   className: (inv) => "mono col-nowrap col-m-amount " + (inv.remaining_sar === 0 ? "remaining-paid" : inv.remaining_sar > 0 ? "remaining-unpaid" : ""),
                   render: (inv) => `${inv.remaining_sar.toLocaleString("en-US")} SAR`,
                 },
-                { header: "Status", render: (inv) => <StatusBadge status={inv.status} /> },
+                { header: "Status", className: "col-m-badge", render: (inv) => <StatusBadge status={inv.status} /> },
                 { header: "Created", className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
                 {
                   header: "",

@@ -1,103 +1,153 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>{{ title }}</title>
-  <style>
-    @page { size: A4 portrait; margin: 16mm 14mm; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 9pt; color: #111; background: #fff; direction: ltr; }
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 40px 48px 36px;
+    @bottom-left {
+      content: string(doc-date);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+    @bottom-right {
+      content: "Page " counter(page) "/" counter(pages);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+  }
+  .doc-date-anchor { string-set: doc-date content(); display: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    font-size: 11px;
+    line-height: 1.6;
+  }
 
-    /* Page header */
-    .page-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 12px; margin-bottom: 22px; border-bottom: 1px solid #e0e0e0; }
-    .page-header img { height: 44px; }
-    .page-header-text { text-align: right; }
-    .page-header-text h1 { font-size: 11pt; font-weight: 600; color: #111; letter-spacing: -0.01em; white-space: nowrap; }
-    .page-header-text p { font-size: 7.5pt; color: #999; margin-top: 4px; letter-spacing: 0.01em; }
+  .watermark-tile {
+    position: fixed;
+    top: 0; left: 0;
+    width: 21cm; height: 29.7cm;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-    /* Date group */
-    .date-group { margin-bottom: 60px; }
-    .date-heading { margin-bottom: 12px; }
-    .date-label { font-size: 10.5pt; font-weight: 700; color: #111; letter-spacing: -0.01em; white-space: nowrap; }
-    .date-count { font-size: 8pt; color: #aaa; font-weight: 400; margin-left: 6px; }
+  .top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1.5px solid #111;
+  }
+  .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+  .logo { max-height: 56px; width: auto; }
 
-    /* Hotel group */
-    .hotel-group { margin-bottom: 34px; }
-    .hotel-name { font-size: 8.5pt; font-weight: 600; color: #555; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .meta { position: relative; z-index: 1; margin-bottom: 20px; padding-bottom: 14px; font-size: 11px; border-bottom: 1px solid #ddd; }
+  .meta-row { display: flex; gap: 8px; }
+  .meta-row .mk { display: flex; justify-content: space-between; font-weight: 700; color: #111; width: 150px; flex-shrink: 0; }
+  .meta-row .mv { color: #111; }
 
-    /* Table */
-    table { width: 100%; border-collapse: collapse; font-size: 8pt; }
-    table { border: 1px solid #d4d9e0; }
-    th { padding: 6px 8px; text-align: left; font-weight: 700; color: #3d4654; font-size: 6.5pt; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; background-color: #eaeef3; border: 1px solid #d4d9e0; border-bottom: 1.5px solid #c2c9d2; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    td { padding: 6px 8px; vertical-align: middle; color: #222; background: none; border: 1px solid #e4e8ed; white-space: nowrap; }
+  .date-block { position: relative; z-index: 1; margin-bottom: 22px; }
+  .date-title { font-size: 16px; font-weight: 700; color: #111; page-break-after: avoid; }
+  .date-count { font-size: 10px; font-weight: 400; color: #666; margin-left: 6px; }
 
-    .col-no    { width: 26px; text-align: center; }
-    .col-cl    { width: 84px; }
-    td.col-cl  { color: #444; font-weight: 600; }
-    .col-date  { width: 84px; text-align: center; }
-    .col-eta   { width: 70px; text-align: center; }
-    .col-pic   { width: 88px; }
-    td.col-no   { color: #aaa; font-size: 7pt; }
-    td.col-name { font-weight: 600; }
-    td.col-date { color: #444; }
-    td.col-eta  { font-weight: 700; color: #111; }
+  .hotel-block { margin-top: 12px; }
+  .hotel-title { font-size: 11px; font-weight: 700; color: #333; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; page-break-after: avoid; }
 
-    .empty-msg { text-align: center; padding: 40px; color: #aaa; font-style: italic; }
+  table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 4px; }
+  thead th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    color: #333;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+  }
+  thead th.c { text-align: center; }
+  tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+  tbody td.c { text-align: center; }
+  .mono { font-family: 'Courier New', monospace; font-size: 10px; }
+  .nowrap { white-space: nowrap; }
 
-    /* Page break behaviour */
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
-    .date-heading { page-break-after: avoid; }
-    .hotel-name { page-break-after: avoid; }
-  </style>
+  tbody tr { break-inside: avoid; page-break-inside: avoid; }
+
+  .empty-msg { text-align: center; color: #999; padding: 24px; font-style: italic; }
+</style>
 </head>
-<body dir="ltr">
+<body>
 
-<div class="page-header">
-  <img src="{{ logo_rel_path }}" alt="Logo">
-  <div class="page-header-text">
-    <h1>{{ title }}</h1>
-    {% if date_range %}<p>{{ date_range }}</p>{% endif %}
-  </div>
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+
+<div class="watermark-tile">
+  <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
+    <g transform="rotate(-35, 300, 420)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100" y="-140">KONOZ UNITED</text><text x="300" y="-140">KONOZ UNITED</text><text x="500" y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text><text x="-100" y="0">KONOZ UNITED</text><text x="100" y="0">KONOZ UNITED</text><text x="300" y="0">KONOZ UNITED</text><text x="500" y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text><text x="-100" y="140">KONOZ UNITED</text><text x="100" y="140">KONOZ UNITED</text><text x="300" y="140">KONOZ UNITED</text><text x="500" y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text><text x="-100" y="280">KONOZ UNITED</text><text x="100" y="280">KONOZ UNITED</text><text x="300" y="280">KONOZ UNITED</text><text x="500" y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text><text x="-100" y="420">KONOZ UNITED</text><text x="100" y="420">KONOZ UNITED</text><text x="300" y="420">KONOZ UNITED</text><text x="500" y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text><text x="-100" y="560">KONOZ UNITED</text><text x="100" y="560">KONOZ UNITED</text><text x="300" y="560">KONOZ UNITED</text><text x="500" y="560">KONOZ UNITED</text>
+      <text x="-300" y="700">KONOZ UNITED</text><text x="-100" y="700">KONOZ UNITED</text><text x="100" y="700">KONOZ UNITED</text><text x="300" y="700">KONOZ UNITED</text><text x="500" y="700">KONOZ UNITED</text>
+      <text x="-300" y="840">KONOZ UNITED</text><text x="-100" y="840">KONOZ UNITED</text><text x="100" y="840">KONOZ UNITED</text><text x="300" y="840">KONOZ UNITED</text><text x="500" y="840">KONOZ UNITED</text>
+      <text x="-300" y="980">KONOZ UNITED</text><text x="-100" y="980">KONOZ UNITED</text><text x="100" y="980">KONOZ UNITED</text><text x="300" y="980">KONOZ UNITED</text><text x="500" y="980">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+
+<div class="top">
+  <div class="doc-title">{{ title }}</div>
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk"><span>Number of Guests</span><span>:</span></span><span class="mv">{{ total_guests }} Guest(s)</span></div>
+  <div class="meta-row"><span class="mk"><span>Number of Hotels</span><span>:</span></span><span class="mv">{{ total_hotels }} Hotel(s)</span></div>
+  {% if date_range %}<div class="meta-row"><span class="mk"><span>Period</span><span>:</span></span><span class="mv">{{ date_range }}</span></div>{% endif %}
 </div>
 
 {% if not groups %}
   <div class="empty-msg">No upcoming check-in data to display.</div>
 {% else %}
   {% for group in groups %}
-    <div class="date-group" dir="ltr">
-      <div class="date-heading">
-        <span class="date-label">{{ group.date_label }}</span>
-        <span class="date-count">({{ group.total }} guest{{ group.total|pluralize }})</span>
-      </div>
+    <div class="date-block">
+      <div class="date-title">{{ group.date_label }}<span class="date-count">({{ group.total }} guest{{ group.total|pluralize }})</span></div>
 
       {% for hotel in group.hotels %}
-        <div class="hotel-group">
-          <div class="hotel-name">{{ hotel.name }}</div>
+        <div class="hotel-block">
+          <div class="hotel-title">{{ hotel.name }}</div>
           <table>
             <thead>
               <tr>
-                <th class="col-no">No</th>
-                <th class="col-cl">RSVN</th>
-                <th class="col-name">Guest Name</th>
+                <th class="c">No</th>
+                <th>RSVN</th>
+                <th>Guest Name</th>
                 <th>Rooms</th>
-                <th class="col-date">Check-out</th>
-                <th class="col-eta">ETA</th>
-                <th class="col-pic">PIC Name</th>
-                <th class="col-pic">PIC Contact</th>
+                <th class="c">Check-out</th>
+                <th class="c">ETA</th>
+                <th>PIC Name</th>
+                <th>PIC Contact</th>
               </tr>
             </thead>
             <tbody>
               {% for g in hotel.guests %}
               <tr>
-                <td class="col-no">{{ g.no }}</td>
-                <td class="col-cl">{{ g.confirmation_number }}</td>
-                <td class="col-name">{{ g.guest_name }}</td>
+                <td class="c">{{ g.no }}</td>
+                <td class="mono nowrap">{{ g.confirmation_number }}</td>
+                <td>{{ g.guest_name }}</td>
                 <td>{{ g.rooms }}</td>
-                <td class="col-date">{{ g.check_out|date:"d M Y" }}</td>
-                <td class="col-eta">{{ g.eta }}</td>
-                <td class="col-pic">{{ g.pic_name }}</td>
-                <td class="col-pic">{{ g.pic_phone }}</td>
+                <td class="c nowrap">{{ g.check_out|date:"d M Y" }}</td>
+                <td class="c">{{ g.eta }}</td>
+                <td>{{ g.pic_name }}</td>
+                <td>{{ g.pic_phone }}</td>
               </tr>
               {% endfor %}
             </tbody>

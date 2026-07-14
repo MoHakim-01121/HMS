@@ -11,12 +11,13 @@ from django_q.tasks import async_task
 
 from inertia import render as inertia_render
 
-from ..models import ConfirmationLetter, Invoice, ReminderLog, RecapLog, WATarget, MessageTemplate
+from ..models import ConfirmationLetter, Invoice, RecapLog, WATarget, MessageTemplate
 from .helpers import get_active_company
 from .pdf import _render_checkin_pdf
 from ..services.recap import (
-    build_recap_message, build_reminder_message,
-    TEMPLATE_H0, TEMPLATE_H1, TEMPLATE_RECAP,
+    build_recap_message,
+    build_grouped_reminder_message, resolve_reminder_targets, resolve_guest_target, group_guests,
+    TEMPLATE_H0_CLIENT, TEMPLATE_H1_CLIENT, TEMPLATE_RECAP,
 )
 
 _MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -36,6 +37,7 @@ def _get_upcoming_checkins(active_company):
         ConfirmationLetter.objects
         .filter(check_in__gte=today, check_in__lte=week_end)
         .exclude(reservation_status='CANCELLED')
+        .select_related('client')
         .prefetch_related('rooms', 'reminder_logs')
         .order_by('check_in', 'hotel_name')
     )
@@ -80,6 +82,8 @@ def _get_upcoming_checkins(active_company):
             'h1_sent': h1_sent,
             'h0_failed': h0_failed,
             'h1_failed': h1_failed,
+            'client_id': cl.client_id,
+            'client_name': cl.client.name if cl.client_id else None,
             'url': cl.get_absolute_url(),
         })
     return result
@@ -89,8 +93,8 @@ def _get_message_templates():
     def _fetch():
         rows = {r.template_type: r.body for r in MessageTemplate.objects.all()}
         return {
-            'h1_template':    rows.get('H1_GUEST',  TEMPLATE_H1),
-            'h0_template':    rows.get('H0_GUEST',  TEMPLATE_H0),
+            'h1_template':    rows.get('H1_GUEST',  TEMPLATE_H1_CLIENT),
+            'h0_template':    rows.get('H0_GUEST',  TEMPLATE_H0_CLIENT),
             'recap_template': rows.get('RECAP_OPS', TEMPLATE_RECAP),
         }
     return cache.get_or_set('message_templates', _fetch, 300)
@@ -281,18 +285,60 @@ def calendar_send_recap(request):
 
 
 @login_required
-def calendar_send_reminder(request, pk):
+def calendar_send_reminder_group(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
     if not settings.REMINDER_H1_H0_ENABLED:
         return JsonResponse({'ok': False, 'message': 'Reminder H-1/H-0 sedang dinonaktifkan sementara'})
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
-    if not cl.guest_phone:
-        return JsonResponse({'ok': False, 'message': 'Nomor telepon tamu tidak ada'})
+    cl_ids = request.POST.getlist('cl_ids')
+    if not cl_ids:
+        return JsonResponse({'ok': False, 'message': 'Tidak ada booking dipilih'})
+    cls = list(
+        ConfirmationLetter.objects
+        .filter(pk__in=cl_ids, company=get_active_company(request))
+        .exclude(reservation_status='CANCELLED')
+        .select_related('client')
+        .prefetch_related('rooms')
+    )
+    if len(cls) != len(cl_ids):
+        return JsonResponse({'ok': False, 'message': 'Sebagian booking tidak ditemukan'})
+    client_ids = {cl.client_id for cl in cls}
+    if len(client_ids) == 1 and None not in client_ids:
+        client = cls[0].client
+        recipient_name = client.name
+        resolve_targets = lambda cl_list: resolve_reminder_targets(client, cl_list)
+        no_target_message = 'Client belum punya nomor WA/Group yang aktif'
+    elif client_ids == {None}:
+        if len(group_guests(cls)) != 1:
+            return JsonResponse({'ok': False, 'message': 'Booking harus dari tamu yang sama'})
+        recipient_name = cls[0].guest_name
+        # Resolve from the whole group: the phone may live on a sibling booking.
+        resolve_targets = lambda cl_list: resolve_guest_target(cl_list)
+        no_target_message = 'Tamu belum punya nomor WhatsApp'
+    else:
+        return JsonResponse({'ok': False, 'message': 'Booking harus dari 1 client yang sama'})
+    check_ins = {cl.check_in for cl in cls}
+    if len(check_ins) != 1:
+        return JsonResponse({'ok': False, 'message': 'Booking harus di tanggal check-in yang sama'})
     today = date.today()
-    reminder_type = 'H0_GUEST' if cl.check_in == today else 'H1_GUEST'
-    message = build_reminder_message(cl, reminder_type)
-    async_task('hw.tasks.send_reminder_task', cl.pk, reminder_type, cl.guest_phone, message)
+    check_in_date = next(iter(check_ins))
+    if check_in_date == today:
+        reminder_type = 'H0_GUEST'
+    elif check_in_date == today + timedelta(days=1):
+        reminder_type = 'H1_GUEST'
+    else:
+        return JsonResponse({'ok': False, 'message': 'Tanggal check-in di luar jangkauan H-1/H-0'})
+    # Manual send never dedups against ReminderLog: the operator may need to
+    # resend a reminder that was already sent today (e.g. after editing the
+    # booking). Only the scheduled command (send_checkin_reminders) is
+    # idempotent per day.
+    targets = resolve_targets(cls)
+    if not targets:
+        return JsonResponse({'ok': False, 'message': no_target_message})
+    message = build_grouped_reminder_message(cls, reminder_type, recipient_name=recipient_name)
+    cl_pks = [cl.pk for cl in cls]
+    for channel, phone in targets:
+        async_task('hw.tasks.send_reminder_group_task', cl_pks, reminder_type, phone, message)
     return JsonResponse({'ok': True, 'queued': True})
 
 

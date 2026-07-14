@@ -8,6 +8,12 @@ from .choices import Company
 
 
 class Client(models.Model):
+    REMINDER_TARGET_CHOICES = [
+        ('PIC', 'PIC'),
+        ('GROUP', 'WhatsApp Group'),
+        ('BOTH', 'PIC & Group'),
+    ]
+
     company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     name       = models.CharField(max_length=200)
     city       = models.CharField(max_length=100, blank=True)
@@ -16,6 +22,8 @@ class Client(models.Model):
     lng        = models.FloatField(null=True, blank=True)
     pic        = models.CharField(max_length=200, blank=True, verbose_name='PIC')
     wa         = models.CharField(max_length=30, blank=True, verbose_name='WhatsApp')
+    wa_group   = models.CharField(max_length=100, blank=True, verbose_name='WhatsApp Group')
+    reminder_target = models.CharField(max_length=10, choices=REMINDER_TARGET_CHOICES, default='GROUP')
     email      = models.EmailField(blank=True)
     note       = models.TextField(blank=True)
     is_active  = models.BooleanField(default=True)
