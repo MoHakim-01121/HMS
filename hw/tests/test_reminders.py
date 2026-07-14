@@ -92,40 +92,6 @@ class RecapServiceTest(TestCase):
         self.assertIn('CL-001', msg)
         self.assertIn('3 tamu | 2 hotel', msg)
 
-    def test_build_reminder_h0_contains_hari_ini(self):
-        from hw.services.recap import build_reminder_message
-        cl = _make_cl()
-        msg = build_reminder_message(cl, 'H0_GUEST')
-        self.assertIn(cl.guest_name, msg)
-        self.assertIn(cl.hotel_name, msg)
-        self.assertIn('hari ini', msg.lower())
-
-    def test_build_reminder_h1_contains_besok(self):
-        from hw.services.recap import build_reminder_message
-        cl = _make_cl(check_in=date.today() + timedelta(days=1))
-        msg = build_reminder_message(cl, 'H1_GUEST')
-        self.assertIn('besok', msg.lower())
-
-    def test_build_reminder_h1_includes_confirmation_number(self):
-        from hw.services.recap import build_reminder_message
-        cl = _make_cl(confirmation_number='CL-XTEST')
-        msg = build_reminder_message(cl, 'H1_GUEST')
-        self.assertIn('CL-XTEST', msg)
-
-    def test_build_reminder_h1_includes_rooms(self):
-        from hw.services.recap import build_reminder_message
-        from hw.models import Room
-        cl = _make_cl(confirmation_number='CL-RTEST')
-        Room.objects.create(cl=cl, room_type='Deluxe', quantity=2, price=500000)
-        msg = build_reminder_message(cl, 'H1_GUEST')
-        self.assertIn('2 Deluxe', msg)
-
-    def test_build_reminder_h0_includes_confirmation_number(self):
-        from hw.services.recap import build_reminder_message
-        cl = _make_cl(confirmation_number='CL-H0TEST')
-        msg = build_reminder_message(cl, 'H0_GUEST')
-        self.assertIn('CL-H0TEST', msg)
-
     def test_build_recap_no_flag_for_missing_phone(self):
         from hw.services.recap import build_recap_message
         cl = _make_cl(guest_phone='', confirmation_number='CL-INC1')
@@ -160,10 +126,10 @@ class RecapServiceTest(TestCase):
         self.assertIn('1 belum ETA', msg)
 
     def test_build_recap_no_emoji(self):
-        from hw.services.recap import build_recap_message, build_reminder_message
+        from hw.services.recap import build_recap_message, build_grouped_reminder_message
         cl = _make_cl(confirmation_number='CL-EMJ1')
         recap_msg = build_recap_message([cl], date.today())
-        reminder_msg = build_reminder_message(cl, 'H0_GUEST')
+        reminder_msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=cl.guest_name)
         for msg in [recap_msg, reminder_msg]:
             for char in msg:
                 self.assertLess(ord(char), 0x1F300,
@@ -239,26 +205,46 @@ class BuildGroupedReminderMessageTest(TestCase):
         client = self._make_client(name='PT Merge')
         cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M1')
         cl2 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-M2')
-        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST', recipient_name=client.name)
         self.assertEqual(msg.count('HILTON MAKKAH'), 1)
         self.assertIn('CL-M1', msg)
         self.assertIn('CL-M2', msg)
+
+    def test_booking_line_uses_rsv_and_kamar_two_line_format(self):
+        from hw.models import Room
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Format')
+        cl = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='555')
+        Room.objects.create(cl=cl, room_type='Double', quantity=3, price=500000)
+        Room.objects.create(cl=cl, room_type='Quad', quantity=5, price=700000)
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
+        self.assertIn('1. #RSV : 555\n   Kamar : 3 Double, 5 Quad', msg)
+        self.assertNotIn('Tamu:', msg)
+        self.assertNotIn('No. CL', msg)
+
+    def test_blank_line_between_bookings(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Spasi')
+        cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-B1')
+        cl2 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-B2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST', recipient_name=client.name)
+        self.assertIn('1. #RSV : CL-B1\n   Kamar : -\n\n2. #RSV : CL-B2', msg)
 
     def test_keeps_two_different_hotels_separate_in_one_message(self):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT Split')
         cl1 = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='CL-S1')
         cl2 = _make_cl(client=client, hotel_name='Swissotel Madinah', confirmation_number='CL-S2')
-        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST', recipient_name=client.name)
         self.assertIn('HILTON MAKKAH', msg)
         self.assertIn('SWISSOTEL MADINAH', msg)
         self.assertLess(msg.index('HILTON MAKKAH'), msg.index('SWISSOTEL MADINAH'))
 
-    def test_greets_client_name_not_pic(self):
+    def test_greets_recipient_name_not_pic(self):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT Salam Benar', pic='Budi Santoso')
         cl = _make_cl(client=client)
-        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
         self.assertIn('PT Salam Benar', msg)
         self.assertNotIn('Budi Santoso', msg)
 
@@ -266,15 +252,120 @@ class BuildGroupedReminderMessageTest(TestCase):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT H1')
         cl = _make_cl(client=client, check_in=date.today() + timedelta(days=1))
-        msg = build_grouped_reminder_message([cl], 'H1_GUEST')
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
         self.assertIn('besok', msg.lower())
 
     def test_h0_has_no_besok(self):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT H0')
         cl = _make_cl(client=client, check_in=date.today())
-        msg = build_grouped_reminder_message([cl], 'H0_GUEST')
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
         self.assertNotIn('besok', msg.lower())
+
+    def test_accepts_guest_name_as_recipient_without_client(self):
+        from hw.services.recap import build_grouped_reminder_message
+        cl1 = _make_cl(client=None, guest_name='Nur Sultan', hotel_name='Sawaed Al Kheir', confirmation_number='CL-G1')
+        cl2 = _make_cl(client=None, guest_name='Nur Sultan', hotel_name='Sawaed Al Kheir', confirmation_number='CL-G2')
+        msg = build_grouped_reminder_message([cl1, cl2], 'H0_GUEST', recipient_name='Nur Sultan')
+        self.assertIn('Nur Sultan', msg)
+        self.assertIn('CL-G1', msg)
+        self.assertIn('CL-G2', msg)
+
+    def test_h0_uses_saved_template_from_settings(self):
+        from hw.models import MessageTemplate
+        from hw.services.recap import build_grouped_reminder_message
+        MessageTemplate.objects.create(
+            template_type='H0_GUEST',
+            body='Salam {client_name}, check-in hari ini:\n{booking_blocks}\nTTD Konoz',
+        )
+        client = self._make_client(name='PT Template H0')
+        cl = _make_cl(client=client, confirmation_number='CL-T0')
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
+        self.assertIn('Salam PT Template H0', msg)
+        self.assertIn('CL-T0', msg)
+        self.assertIn('TTD Konoz', msg)
+
+    def test_h1_uses_saved_template_from_settings(self):
+        from hw.models import MessageTemplate
+        from hw.services.recap import build_grouped_reminder_message
+        MessageTemplate.objects.create(
+            template_type='H1_GUEST',
+            body='Halo {client_name}, besok {check_in_date}:\n{booking_blocks}\nTTD Konoz',
+        )
+        client = self._make_client(name='PT Template H1')
+        check_in = date.today() + timedelta(days=1)
+        cl = _make_cl(client=client, check_in=check_in, confirmation_number='CL-T1')
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
+        self.assertIn('Halo PT Template H1', msg)
+        self.assertIn(check_in.strftime('%d %b %Y'), msg)
+        self.assertIn('CL-T1', msg)
+        self.assertIn('TTD Konoz', msg)
+
+    def test_falls_back_to_default_when_no_template_saved(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT Tanpa Template')
+        cl = _make_cl(client=client, confirmation_number='CL-DF')
+        msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
+        self.assertIn('Berikut detail check-in hari ini', msg)
+        self.assertIn('CL-DF', msg)
+
+
+class ResolveGuestTargetTest(TestCase):
+    def test_returns_guest_channel_with_phone(self):
+        from hw.services.recap import resolve_guest_target
+        cl = _make_cl(client=None, guest_phone='628999')
+        self.assertEqual(resolve_guest_target([cl]), [('GUEST', '628999')])
+
+    def test_empty_when_no_phone(self):
+        from hw.services.recap import resolve_guest_target
+        cl = _make_cl(client=None, guest_phone='')
+        self.assertEqual(resolve_guest_target([cl]), [])
+
+    def test_uses_first_pending_cl_with_phone(self):
+        from hw.services.recap import resolve_guest_target
+        cl1 = _make_cl(client=None, guest_phone='', confirmation_number='CL-NP1')
+        cl2 = _make_cl(client=None, guest_phone='628999', confirmation_number='CL-NP2')
+        self.assertEqual(resolve_guest_target([cl1, cl2]), [('GUEST', '628999')])
+
+
+class GroupGuestsTest(TestCase):
+    def test_same_name_blank_and_filled_phone_grouped(self):
+        from hw.services.recap import group_guests
+        cl1 = _make_cl(guest_name='Nur Sultan', guest_phone='', confirmation_number='CL-BP1')
+        cl2 = _make_cl(guest_name='Nur Sultan', guest_phone='085385557053', confirmation_number='CL-BP2')
+        groups = group_guests([cl1, cl2])
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(list(groups.values())[0]), 2)
+
+    def test_same_name_two_distinct_phones_kept_separate(self):
+        from hw.services.recap import group_guests
+        cl1 = _make_cl(guest_name='Ahmad', guest_phone='628111', confirmation_number='CL-DP1')
+        cl2 = _make_cl(guest_name='Ahmad', guest_phone='628222', confirmation_number='CL-DP2')
+        groups = group_guests([cl1, cl2])
+        self.assertEqual(len(groups), 2)
+
+    def test_blank_phone_stays_standalone_when_name_ambiguous(self):
+        from hw.services.recap import group_guests
+        cl1 = _make_cl(guest_name='Ahmad', guest_phone='628111', confirmation_number='CL-AM1')
+        cl2 = _make_cl(guest_name='Ahmad', guest_phone='628222', confirmation_number='CL-AM2')
+        cl3 = _make_cl(guest_name='Ahmad', guest_phone='', confirmation_number='CL-AM3')
+        groups = group_guests([cl1, cl2, cl3])
+        self.assertEqual(len(groups), 3)
+
+    def test_different_names_never_grouped(self):
+        from hw.services.recap import group_guests
+        cl1 = _make_cl(guest_name='Nur Sultan', confirmation_number='CL-DN1')
+        cl2 = _make_cl(guest_name='Budi', confirmation_number='CL-DN2')
+        groups = group_guests([cl1, cl2])
+        self.assertEqual(len(groups), 2)
+
+    def test_name_matching_ignores_case_and_whitespace(self):
+        from hw.services.recap import group_guests
+        cl1 = _make_cl(guest_name='Nur Sultan', guest_phone='628999', confirmation_number='CL-CS1')
+        cl2 = _make_cl(guest_name='  NUR SULTAN ', guest_phone='', confirmation_number='CL-CS2')
+        groups = group_guests([cl1, cl2])
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(list(groups.values())[0]), 2)
 
 
 import json
@@ -389,34 +480,6 @@ class SendRecapViewTest(TestCase):
         self.assertFalse(data['ok'])
 
 
-class SendReminderViewTest(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user('tester6', password='pw12345')
-        self.client.force_login(self.user)
-        self.cl = _make_cl()
-
-    @override_settings(REMINDER_H1_H0_ENABLED=False)
-    def test_returns_error_when_disabled(self):
-        resp = self.client.post(f'/calendar/send-reminder/{self.cl.pk}/')
-        data = resp.json()
-        self.assertFalse(data['ok'])
-        self.assertEqual(ReminderLog.objects.filter(cl=self.cl).count(), 0)
-
-    @patch('hw.tasks.send_wa')
-    def test_sends_reminder_and_creates_log(self, mock_send):
-        mock_send.return_value = {'status': True}
-        resp = self.client.post(f'/calendar/send-reminder/{self.cl.pk}/')
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(ReminderLog.objects.filter(cl=self.cl).count(), 1)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    def test_returns_error_if_no_phone(self):
-        cl_no_phone = _make_cl(guest_phone='', confirmation_number='CL-NP2')
-        resp = self.client.post(f'/calendar/send-reminder/{cl_no_phone.pk}/')
-        self.assertFalse(resp.json()['ok'])
-
-
 class SendReminderGroupViewTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('tester7', password='pw12345')
@@ -468,6 +531,89 @@ class SendReminderGroupViewTest(TestCase):
         cl = _make_cl(client=client, check_in=date.today())
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
         self.assertFalse(resp.json()['ok'])
+
+    @patch('hw.tasks.send_wa')
+    def test_sends_guest_grouped_message_when_no_client(self, mock_send):
+        mock_send.return_value = {'status': True}
+        cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+                        check_in=date.today(), confirmation_number='CL-GV1')
+        cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+                        check_in=date.today(), confirmation_number='CL-GV2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+
+    def test_error_when_guest_names_differ_and_no_client(self):
+        cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', check_in=date.today(), confirmation_number='CL-GD1')
+        cl2 = _make_cl(client=None, guest_name='Budi', guest_phone='628111', check_in=date.today(), confirmation_number='CL-GD2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_mixing_client_and_no_client(self):
+        client = self._make_client()
+        cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-MIX1')
+        cl2 = _make_cl(client=None, check_in=date.today(), confirmation_number='CL-MIX2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    def test_error_when_guest_has_no_phone(self):
+        cl = _make_cl(client=None, guest_phone='', check_in=date.today())
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
+
+    @patch('hw.tasks.send_wa')
+    def test_sends_guest_group_when_one_booking_has_blank_phone(self, mock_send):
+        mock_send.return_value = {'status': True}
+        cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
+                        check_in=date.today(), confirmation_number='CL-BPV1')
+        cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='085385557053',
+                        check_in=date.today(), confirmation_number='CL-BPV2')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+
+    @patch('hw.tasks.send_wa')
+    def test_resend_allowed_when_already_sent_today(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-AS1')
+        ReminderLog.objects.create(cl=cl, reminder_type='H0_GUEST', phone='628111', status='SENT')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(ReminderLog.objects.filter(cl=cl, status='SENT').count(), 2)
+
+    @patch('hw.tasks.send_wa')
+    def test_resend_includes_already_sent_bookings(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl_sent = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-PS1')
+        cl_new  = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-PS2')
+        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628111', status='SENT')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl_sent.pk, cl_new.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        message = mock_send.call_args[0][1]
+        self.assertIn('CL-PS2', message)
+        self.assertIn('CL-PS1', message)
+        self.assertEqual(ReminderLog.objects.filter(cl=cl_sent).count(), 2)
+        self.assertTrue(ReminderLog.objects.filter(cl=cl_new, status='SENT').exists())
+
+    @patch('hw.tasks.send_wa')
+    def test_guest_phone_resolved_from_already_sent_sibling(self, mock_send):
+        mock_send.return_value = {'status': True}
+        cl_sent  = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+                            check_in=date.today(), confirmation_number='CL-SB1')
+        cl_blank = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
+                            check_in=date.today(), confirmation_number='CL-SB2')
+        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628999', status='SENT')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl_sent.pk, cl_blank.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(mock_send.call_args[0][0], '628999')
+        self.assertTrue(ReminderLog.objects.filter(cl=cl_blank, status='SENT').exists())
 
 
 from django.core.management import call_command
@@ -528,7 +674,7 @@ class SendCheckInRemindersCommandTest(TestCase):
     @override_settings(REMINDER_H1_H0_ENABLED=True)
     @patch('hw.management.commands.send_checkin_reminders.send_wa')
     def test_skips_cl_without_phone(self, mock_send):
-        cl_no_phone = _make_cl(guest_phone='', confirmation_number='CL-NP')
+        cl_no_phone = _make_cl(guest_name='Tanpa Telepon', guest_phone='', confirmation_number='CL-NP')
         call_command('send_checkin_reminders')
         self.assertFalse(ReminderLog.objects.filter(cl=cl_no_phone).exists())
 
@@ -606,6 +752,55 @@ class GroupedReminderCommandTest(TestCase):
         call_command('send_checkin_reminders')
         mock_send.assert_not_called()
         self.assertEqual(ReminderLog.objects.count(), 0)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_guest_without_client_same_name_and_phone_grouped(self, mock_send):
+        mock_send.return_value = {'status': True}
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', hotel_name='Sawaed Al Kheir',
+                  check_in=date.today(), confirmation_number='CL-GU1')
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', hotel_name='Sawaed Al Kheir',
+                  check_in=date.today(), confirmation_number='CL-GU2')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(mock_send.call_args[0][0], '628999')
+        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_guest_without_client_different_phone_not_grouped(self, mock_send):
+        mock_send.return_value = {'status': True}
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', check_in=date.today(), confirmation_number='CL-DP1')
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628111', check_in=date.today(), confirmation_number='CL-DP2')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 2)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_guest_without_client_blank_phone_merges_with_filled(self, mock_send):
+        mock_send.return_value = {'status': True}
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='', hotel_name='Sawaed Al Kheir',
+                  check_in=date.today(), confirmation_number='CL-BP1')
+        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='085385557053', hotel_name='Sawaed Al Kheir',
+                  check_in=date.today(), confirmation_number='CL-BP2')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(mock_send.call_args[0][0], '085385557053')
+        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
+
+    @override_settings(REMINDER_H1_H0_ENABLED=True)
+    @patch('hw.management.commands.send_checkin_reminders.send_wa')
+    def test_blank_phone_booking_retried_with_sibling_phone(self, mock_send):
+        mock_send.return_value = {'status': True}
+        cl_sent = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+                           check_in=date.today(), confirmation_number='CL-RT1')
+        cl_blank = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
+                            check_in=date.today(), confirmation_number='CL-RT2')
+        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628999', status='SENT')
+        call_command('send_checkin_reminders')
+        self.assertEqual(mock_send.call_count, 1)
+        self.assertEqual(mock_send.call_args[0][0], '628999')
+        self.assertTrue(ReminderLog.objects.filter(cl=cl_blank, status='SENT').exists())
 
 
 class SendCheckInRecapCommandTest(TestCase):

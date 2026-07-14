@@ -24,23 +24,6 @@ class SendRecapTaskTest(TestCase):
         self.assertEqual(log.error, 'invalid token')
 
 
-class SendReminderTaskTest(TestCase):
-    @patch('hw.tasks.send_wa')
-    def test_creates_sent_log_on_success(self, mock_send):
-        from hw.tasks import send_reminder_task
-        from datetime import date
-        from hw.models import ConfirmationLetter
-        cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-TASK1', guest_name='Ahmad',
-            check_in=date.today(),
-        )
-        mock_send.return_value = {'status': True}
-        send_reminder_task(cl.pk, 'H0_GUEST', '628999', 'pesan reminder')
-        log = ReminderLog.objects.get(cl=cl)
-        self.assertEqual(log.status, 'SENT')
-        self.assertEqual(log.phone, '628999')
-
-
 class SendReminderGroupTaskTest(TestCase):
     @patch('hw.tasks.send_wa')
     def test_creates_one_log_per_cl_on_success(self, mock_send):

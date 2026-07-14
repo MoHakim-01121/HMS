@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from hw.models import ConfirmationLetter, ReminderLog
 from hw.services.fonnte import send_wa
 from hw.services.recap import (
-    build_reminder_message, build_grouped_reminder_message, resolve_reminder_targets,
+    build_grouped_reminder_message, resolve_reminder_targets, resolve_guest_target, group_guests,
 )
 
 
@@ -30,14 +30,17 @@ class Command(BaseCommand):
             .prefetch_related('rooms')
         )
         by_client = {}
+        no_client = []
         for cl in qs:
             if cl.client_id is None:
-                self._send_individual(cl, reminder_type)
+                no_client.append(cl)
             else:
                 by_client.setdefault(cl.client_id, []).append(cl)
 
         for cls in by_client.values():
             self._send_client_group(cls, reminder_type)
+        for cls in group_guests(no_client).values():
+            self._send_guest_group(cls, reminder_type)
 
     def _already_sent(self, cl, reminder_type):
         return ReminderLog.objects.filter(
@@ -45,37 +48,7 @@ class Command(BaseCommand):
             status='SENT', sent_at__date=date.today(),
         ).exists()
 
-    def _send_individual(self, cl, reminder_type):
-        if not cl.guest_phone:
-            self.stdout.write(f'  SKIP {cl.confirmation_number}: no phone')
-            return
-        if self._already_sent(cl, reminder_type):
-            self.stdout.write(f'  SKIP {cl.confirmation_number}: already sent')
-            return
-        message = build_reminder_message(cl, reminder_type)
-        try:
-            result = send_wa(cl.guest_phone, message)
-            status = 'SENT' if result.get('status') else 'FAILED'
-            error  = result.get('reason', '') if not result.get('status') else ''
-        except Exception as exc:
-            status, error = 'FAILED', str(exc)
-        ReminderLog.objects.create(
-            cl=cl, reminder_type=reminder_type,
-            phone=cl.guest_phone, status=status, error=error,
-        )
-        self.stdout.write(f'  [{reminder_type}] {cl.confirmation_number} -> {status}')
-
-    def _send_client_group(self, cls, reminder_type):
-        client = cls[0].client
-        pending = [cl for cl in cls if not self._already_sent(cl, reminder_type)]
-        if not pending:
-            self.stdout.write(f'  SKIP {client.name}: already sent')
-            return
-        targets = resolve_reminder_targets(client, pending)
-        if not targets:
-            self.stdout.write(f'  SKIP {client.name}: no WA number configured')
-            return
-        message = build_grouped_reminder_message(pending, reminder_type)
+    def _dispatch(self, pending, reminder_type, targets, message, label):
         for channel, phone in targets:
             try:
                 result = send_wa(phone, message)
@@ -88,4 +61,33 @@ class Command(BaseCommand):
                     cl=cl, reminder_type=reminder_type,
                     phone=phone, status=status, error=error,
                 )
-            self.stdout.write(f'  [{reminder_type}] {client.name} ({channel}) -> {status} ({len(pending)} booking)')
+            self.stdout.write(f'  [{reminder_type}] {label} ({channel}) -> {status} ({len(pending)} booking)')
+
+    def _send_client_group(self, cls, reminder_type):
+        client = cls[0].client
+        pending = [cl for cl in cls if not self._already_sent(cl, reminder_type)]
+        if not pending:
+            self.stdout.write(f'  SKIP {client.name}: already sent')
+            return
+        targets = resolve_reminder_targets(client, pending)
+        if not targets:
+            self.stdout.write(f'  SKIP {client.name}: no WA number configured')
+            return
+        message = build_grouped_reminder_message(pending, reminder_type, recipient_name=client.name)
+        self._dispatch(pending, reminder_type, targets, message, client.name)
+
+    def _send_guest_group(self, cls, reminder_type):
+        guest_name = cls[0].guest_name
+        pending = [cl for cl in cls if not self._already_sent(cl, reminder_type)]
+        if not pending:
+            self.stdout.write(f'  SKIP {guest_name}: already sent')
+            return
+        # Resolve from the whole group, not just pending: the phone may live on
+        # a sibling booking that was already sent (blank-phone retry case).
+        targets = resolve_guest_target(cls)
+        if not targets:
+            for cl in pending:
+                self.stdout.write(f'  SKIP {cl.confirmation_number}: no phone')
+            return
+        message = build_grouped_reminder_message(pending, reminder_type, recipient_name=guest_name)
+        self._dispatch(pending, reminder_type, targets, message, guest_name)

@@ -2,30 +2,6 @@ from collections import defaultdict
 from datetime import date
 
 
-TEMPLATE_H0 = (
-    "Assalamualaikum Bapak/Ibu {guest_name},\n\n"
-    "Hari ini adalah hari check-in Anda di *{hotel_name}*.\n\n"
-    "Detail reservasi:\n"
-    "- No. CL   : {confirmation_number}\n"
-    "- Kamar     : {rooms}\n\n"
-    "Mohon segera informasikan estimasi tiba dan nama PIC\n"
-    "agar kami siapkan penerimaan Anda.\n\n"
-    "Terima kasih."
-)
-
-TEMPLATE_H1 = (
-    "Assalamualaikum Bapak/Ibu {guest_name},\n\n"
-    "Kami mengingatkan bahwa check-in Anda di *{hotel_name}* dijadwalkan besok, "
-    "*{check_in_date}*.\n\n"
-    "Detail reservasi:\n"
-    "- No. CL   : {confirmation_number}\n"
-    "- Kamar     : {rooms}\n\n"
-    "Mohon balas pesan ini dengan:\n"
-    "- Estimasi tiba di hotel\n"
-    "- Nama & nomor PIC yang bisa kami hubungi\n\n"
-    "Terima kasih."
-)
-
 TEMPLATE_RECAP = (
     "*CHECK-IN RECAP — {date}*\n\n"
     "{guest_list}\n"
@@ -62,28 +38,6 @@ def _render(tmpl: str, **kwargs) -> str:
     return tmpl
 
 
-def build_reminder_message(cl, reminder_type: str) -> str:
-    rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
-    if reminder_type == 'H1_GUEST':
-        tmpl = _get_template_body('H1_GUEST', TEMPLATE_H1)
-        return _render(
-            tmpl,
-            guest_name=cl.guest_name,
-            hotel_name=cl.hotel_name,
-            check_in_date=cl.check_in.strftime('%d %b %Y') if cl.check_in else '-',
-            confirmation_number=cl.confirmation_number,
-            rooms=rooms_str,
-        )
-    tmpl = _get_template_body('H0_GUEST', TEMPLATE_H0)
-    return _render(
-        tmpl,
-        guest_name=cl.guest_name,
-        hotel_name=cl.hotel_name,
-        confirmation_number=cl.confirmation_number,
-        rooms=rooms_str,
-    )
-
-
 def resolve_reminder_targets(client, pending_cls: list) -> list:
     """Return [(channel, phone), ...] to send a grouped reminder to. Empty = skip."""
     targets = []
@@ -97,8 +51,41 @@ def resolve_reminder_targets(client, pending_cls: list) -> list:
     return targets
 
 
-def build_grouped_reminder_message(cls: list, reminder_type: str) -> str:
-    client = cls[0].client
+def resolve_guest_target(pending_cls: list) -> list:
+    """Return [('GUEST', phone)] for a client-less group (same guest_name), or [] if no phone."""
+    phone = next((cl.guest_phone for cl in pending_cls if cl.guest_phone), '')
+    return [('GUEST', phone)] if phone else []
+
+
+def group_guests(cls: list) -> dict:
+    """Group client-less CLs by guest identity for reminder purposes.
+
+    Names are compared case/whitespace-insensitively. Same guest name with a
+    single agreed non-blank phone across the group are merged (a blank phone
+    acts as a wildcard). Two distinct non-blank phones under the same name are
+    kept apart, treated as different people; a blank phone in that ambiguous
+    situation is kept standalone rather than guessed.
+    """
+    def name_key(cl):
+        return (cl.guest_name or '').strip().casefold()
+
+    phones_by_name = defaultdict(set)
+    for cl in cls:
+        if cl.guest_phone:
+            phones_by_name[name_key(cl)].add(cl.guest_phone)
+
+    groups = {}
+    for cl in cls:
+        phones = phones_by_name.get(name_key(cl), set())
+        if len(phones) <= 1:
+            key = (name_key(cl), next(iter(phones), ''))
+        else:
+            key = (name_key(cl), cl.guest_phone or cl.pk)
+        groups.setdefault(key, []).append(cl)
+    return groups
+
+
+def build_grouped_reminder_message(cls: list, reminder_type: str, recipient_name: str) -> str:
     by_hotel = defaultdict(list)
     for cl in cls:
         by_hotel[cl.hotel_name].append(cl)
@@ -108,16 +95,18 @@ def build_grouped_reminder_message(cls: list, reminder_type: str) -> str:
         blocks.append(f"*{hotel_name.upper()}*")
         for i, cl in enumerate(by_hotel[hotel_name], 1):
             rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
-            blocks.append(f"{i}. No. CL : {cl.confirmation_number} | Tamu: {cl.guest_name} | Kamar: {rooms_str}")
-        blocks.append("")
+            blocks.append(f"{i}. #RSV : {cl.confirmation_number}")
+            # 3 spasi = lebar prefix "1. " supaya Kamar lurus di bawah #RSV di WhatsApp
+            blocks.append(f"   Kamar : {rooms_str}")
+            blocks.append("")
     booking_blocks = '\n'.join(blocks).rstrip('\n')
 
-    kwargs = dict(client_name=client.name, booking_blocks=booking_blocks)
+    kwargs = dict(client_name=recipient_name, booking_blocks=booking_blocks)
     if reminder_type == 'H1_GUEST':
         ci = cls[0].check_in
         kwargs['check_in_date'] = ci.strftime('%d %b %Y') if ci else '-'
-        return _render(TEMPLATE_H1_CLIENT, **kwargs)
-    return _render(TEMPLATE_H0_CLIENT, **kwargs)
+        return _render(_get_template_body('H1_GUEST', TEMPLATE_H1_CLIENT), **kwargs)
+    return _render(_get_template_body('H0_GUEST', TEMPLATE_H0_CLIENT), **kwargs)
 
 
 def build_recap_message(cls: list, recap_date=None) -> str:
