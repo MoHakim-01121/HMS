@@ -106,6 +106,10 @@ export default function DraftModal() {
                 style={{ width: "100%", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: 10, resize: "vertical" }}
               />
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginBottom: 4 }}>
+                  <input type="checkbox" checked={withPdf} onChange={(e) => setWithPdf(e.target.checked)} />
+                  Lampirkan PDF invoice
+                </label>
                 {radio("client_wa", `WA Client${waSend?.client_wa ? ` — ${waSend.client_wa}` : ""}`, !waSend?.has_wa)}
                 {radio("client_group", "WA Group Client", !waSend?.has_group)}
                 {radio("manual", "Nomor lain", false)}
@@ -118,10 +122,6 @@ export default function DraftModal() {
                     style={{ fontSize: 13, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "transparent", color: "var(--text)" }}
                   />
                 )}
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
-                  <input type="checkbox" checked={withPdf} onChange={(e) => setWithPdf(e.target.checked)} />
-                  Lampirkan PDF invoice
-                </label>
               </div>
               {sendError && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>{sendError}</div>}
             </>
@@ -129,7 +129,6 @@ export default function DraftModal() {
         </div>
         {state.kind === "ready" && (
           <div style={{ display: "flex", padding: "12px 20px", borderTop: "1px solid var(--border)", justifyContent: "flex-end", gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Close</button>
             <button className="btn btn-ghost btn-sm" onClick={copy}>
               <Icon name="copy" size={13} /> {copied ? "Copied!" : "Copy"}
             </button>
