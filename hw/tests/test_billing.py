@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from unittest.mock import patch
 
-from hw.models import BillingLog, Client, Invoice
+from hw.models import BillingLog, Client, ConfirmationLetter, Invoice
 
 
 def _make_invoice(**kwargs):
@@ -114,6 +114,20 @@ class BillingSendEndpointTest(TestCase):
         )
 
     @patch('hw.views.billing_views.async_task')
+    def test_send_resolves_client_from_linked_cls(self, mock_task):
+        # Endpoint juga harus memakai client hasil resolve via CL, bukan hanya FK langsung.
+        invoice = _make_invoice(invoice_number='INV-EP-CL1')
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-EP-1', invoice=invoice, client=self.wa_client,
+        )
+        resp = self._post({'pk': invoice.pk, 'message': 'halo', 'target_kind': 'client_wa'})
+        self.assertTrue(resp.json()['ok'])
+        mock_task.assert_called_once_with(
+            'hw.tasks.send_billing_task', invoice.pk, '628111222333', 'halo',
+        )
+
+    @patch('hw.views.billing_views.async_task')
     def test_client_without_wa_errors(self, mock_task):
         self.wa_client.wa = ''
         self.wa_client.save()
@@ -189,6 +203,39 @@ class DetailBillingPropsTest(TestCase):
             'has_wa': False, 'has_group': False,
         })
         self.assertIsNone(props['last_billing'])
+
+    def test_invoice_detail_resolves_client_from_linked_cls(self):
+        # Invoice tanpa client FK langsung, tapi CL yang terhubung punya client.
+        invoice = _make_invoice(invoice_number='INV-PR-CL1')
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-BP-1', invoice=invoice, client=self.wa_client,
+        )
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Budi',
+            confirmation_number='CL-BP-2', invoice=invoice, client=self.wa_client,
+        )
+        resp = self.client.get(f'/invoice/{invoice.pk}/', HTTP_X_INERTIA='true')
+        props = resp.json()['props']
+        self.assertEqual(props['wa_send']['client_name'], 'Travel Amanah')
+        self.assertTrue(props['wa_send']['has_wa'])
+
+    def test_invoice_detail_ambiguous_cl_clients_stays_manual(self):
+        # Dua CL menunjuk client berbeda → tidak ada client default.
+        other = Client.objects.create(company='konoz', name='Travel Lain', wa='628444555666')
+        invoice = _make_invoice(invoice_number='INV-PR-CL2')
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-BP-3', invoice=invoice, client=self.wa_client,
+        )
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Budi',
+            confirmation_number='CL-BP-4', invoice=invoice, client=other,
+        )
+        resp = self.client.get(f'/invoice/{invoice.pk}/', HTTP_X_INERTIA='true')
+        props = resp.json()['props']
+        self.assertIsNone(props['wa_send']['client_name'])
+        self.assertFalse(props['wa_send']['has_wa'])
 
     def test_services_detail_has_wa_send_and_last_billing(self):
         invoice = _make_invoice(

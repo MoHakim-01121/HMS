@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django_q.tasks import async_task
 
 from ..models import Invoice
-from .helpers import get_active_company
+from .helpers import _billing_client, get_active_company
 
 
 @login_required
@@ -34,11 +34,12 @@ def billing_send(request):
 
     # Target selalu di-resolve di server; nilai nomor dari browser tidak dipercaya.
     target_kind = data.get('target_kind')
+    client = _billing_client(invoice)
     if target_kind == 'client_wa':
-        target = invoice.client.wa if invoice.client else ''
+        target = client.wa if client else ''
         no_target_message = 'Client belum punya nomor WA'
     elif target_kind == 'client_group':
-        target = invoice.client.wa_group if invoice.client else ''
+        target = client.wa_group if client else ''
         no_target_message = 'Client belum punya WA Group'
     elif target_kind == 'manual':
         target = (data.get('manual_target') or '').strip()

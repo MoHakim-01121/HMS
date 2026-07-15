@@ -125,9 +125,26 @@ def _save_service_payments(invoice, request):
     _save_payments(invoice, request, 'payment_service_no', invoice.currency)
 
 
+def _billing_client(invoice):
+    """Client efektif untuk kirim billing: FK langsung di invoice, atau —
+    karena form invoice tidak pernah mengisi FK itu — client tunggal dari
+    CL-CL yang terhubung ke invoice. Lebih dari satu client berbeda = ambigu,
+    kembalikan None (modal jatuh ke mode manual)."""
+    if invoice.client_id:
+        return invoice.client
+    clients = {
+        cl.client_id: cl.client
+        for cl in invoice.confirmation_letters.select_related('client')
+        if cl.client_id
+    }
+    if len(clients) == 1:
+        return next(iter(clients.values()))
+    return None
+
+
 def _billing_props(invoice):
     """Shared Inertia props for the billing-message WA send feature."""
-    client = invoice.client
+    client = _billing_client(invoice)
     last = invoice.billing_logs.order_by('-sent_at').first()
     return {
         'wa_send': {
