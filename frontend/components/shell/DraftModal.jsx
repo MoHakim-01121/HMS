@@ -106,7 +106,7 @@ export default function DraftModal() {
                 style={{ width: "100%", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "var(--text)", background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: 10, resize: "vertical" }}
               />
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginBottom: 4 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginBottom: 14 }}>
                   <input type="checkbox" checked={withPdf} onChange={(e) => setWithPdf(e.target.checked)} />
                   Lampirkan PDF invoice
                 </label>
