@@ -49,5 +49,5 @@ def billing_send(request):
     if not target:
         return JsonResponse({'ok': False, 'message': no_target_message})
 
-    async_task('hw.tasks.send_billing_task', invoice.pk, target, message)
+    async_task('hw.tasks.send_billing_task', invoice.pk, target, message, bool(data.get('with_pdf')))
     return JsonResponse({'ok': True, 'queued': True})

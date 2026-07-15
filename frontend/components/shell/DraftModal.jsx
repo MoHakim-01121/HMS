@@ -17,6 +17,7 @@ export default function DraftModal() {
   const [manualTarget, setManualTarget] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [withPdf, setWithPdf] = useState(true);
 
   useEffect(() => {
     async function onOpen(e) {
@@ -25,6 +26,7 @@ export default function DraftModal() {
       setCopied(false);
       setSendError("");
       setManualTarget("");
+      setWithPdf(true);
       setPk(pk);
       setWaSend(waSend || null);
       setTargetKind(waSend?.has_wa ? "client_wa" : waSend?.has_group ? "client_group" : "manual");
@@ -56,7 +58,7 @@ export default function DraftModal() {
     try {
       const data = await fetchJson("/billing/send/", {
         method: "POST",
-        json: { pk, message: text, target_kind: targetKind, manual_target: manualTarget },
+        json: { pk, message: text, target_kind: targetKind, manual_target: manualTarget, with_pdf: withPdf },
       });
       if (data.ok) {
         showToast("Pesan masuk antrean");
@@ -116,6 +118,10 @@ export default function DraftModal() {
                     style={{ fontSize: 13, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "transparent", color: "var(--text)" }}
                   />
                 )}
+                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text)", cursor: "pointer", marginTop: 4 }}>
+                  <input type="checkbox" checked={withPdf} onChange={(e) => setWithPdf(e.target.checked)} />
+                  Lampirkan PDF invoice
+                </label>
               </div>
               {sendError && <div style={{ color: "var(--red)", fontSize: 12, marginTop: 10 }}>{sendError}</div>}
             </>
