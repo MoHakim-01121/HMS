@@ -3,18 +3,18 @@ import Table from "../../../components/ui/Table.jsx";
 
 const fmt = (n) => Math.round(n).toLocaleString("en-US");
 
-function openDraft(type, pk) {
-  window.dispatchEvent(new CustomEvent("open-draft", { detail: { type, pk } }));
+function openDraft(type, pk, waSend) {
+  window.dispatchEvent(new CustomEvent("open-draft", { detail: { type, pk, waSend } }));
 }
 
 // Payments card ported from invoice_detail.html (incl. mobile m-* spans + draft button).
-export default function PaymentTable({ payments, invoice }) {
+export default function PaymentTable({ payments, invoice, waSend }) {
   const unpaid = invoice.remaining_sar > 0;
   return (
     <div className="card">
       <div className="card-header">
         <span className="card-title">Payments</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "invoice" : "invoice_lunas", invoice.pk)}>
+        <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "invoice" : "invoice_lunas", invoice.pk, waSend)}>
           <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Paid Message"}
         </button>
       </div>

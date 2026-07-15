@@ -2,13 +2,14 @@ import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import Table from "../../components/ui/Table.jsx";
 import RowActions from "../../components/ui/RowActions.jsx";
+import LastBilling from "../../components/ui/LastBilling.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
-function openDraft(type, pk) {
-  window.dispatchEvent(new CustomEvent("open-draft", { detail: { type, pk } }));
+function openDraft(type, pk, waSend) {
+  window.dispatchEvent(new CustomEvent("open-draft", { detail: { type, pk, waSend } }));
 }
 
-export default function Detail({ invoice, visa_services, payments_history, services_remaining }) {
+export default function Detail({ invoice, visa_services, payments_history, services_remaining, wa_send, last_billing }) {
   const cur = invoice.currency;
   const unpaid = services_remaining > 0;
   return (
@@ -37,6 +38,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
           </div>
         </div>
       </div>
+      <LastBilling last={last_billing} />
 
       <div className="card">
         <div className="card-header"><span className="card-title">Services</span></div>
@@ -58,7 +60,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
       <div className="card">
         <div className="card-header">
           <span className="card-title">Payments</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "services" : "services_lunas", invoice.pk)}>
+          <button className="btn btn-ghost btn-sm" onClick={() => openDraft(unpaid ? "services" : "services_lunas", invoice.pk, wa_send)}>
             <Icon name="message" size={13} /> {unpaid ? "Draft Message" : "Paid Message"}
           </button>
         </div>

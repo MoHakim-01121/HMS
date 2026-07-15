@@ -14,6 +14,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Invoice, ServiceItem, log_activity
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
+    _billing_props,
     _is_mobile,
     _page_range_display,
     _parse_date,
@@ -133,6 +134,7 @@ def services_detail(request, pk):
         "visa_services": visa_services,
         "payments_history": payments_history,
         "services_remaining": services_remaining,
+        **_billing_props(invoice),
     })
 
 

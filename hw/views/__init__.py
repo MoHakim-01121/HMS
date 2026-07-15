@@ -28,6 +28,7 @@ from .calendar_views import (
     message_template_save, calendar_recap_settings,
     calendar_checkin_pdf,
 )
+from .billing_views import billing_send
 from .search_views import global_search
 from .attachment_views import attachment_delete, attachment_upload
 from .user_views import account_profile, avatar_delete, avatar_upload, user_delete, user_edit, user_list, user_new

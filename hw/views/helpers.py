@@ -123,3 +123,22 @@ def _save_hotel_payments(invoice, request):
 
 def _save_service_payments(invoice, request):
     _save_payments(invoice, request, 'payment_service_no', invoice.currency)
+
+
+def _billing_props(invoice):
+    """Shared Inertia props for the billing-message WA send feature."""
+    client = invoice.client
+    last = invoice.billing_logs.order_by('-sent_at').first()
+    return {
+        'wa_send': {
+            'client_name': client.name if client else None,
+            'client_wa': client.wa if client else '',
+            'has_wa': bool(client and client.wa),
+            'has_group': bool(client and client.wa_group),
+        },
+        'last_billing': {
+            'sent_at': last.sent_at.strftime('%d %b %Y %H:%M'),
+            'target': last.target,
+            'status': last.status,
+        } if last else None,
+    }

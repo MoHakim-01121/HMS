@@ -16,6 +16,7 @@ from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
 from .helpers import (
+    _billing_props,
     _is_mobile,
     _page_range_display,
     _parse_date,
@@ -233,6 +234,7 @@ def invoice_detail(request, pk):
         "reservations": reservations,
         "payments": payments,
         "due_alert": due_alert,
+        **_billing_props(invoice),
     })
 
 

@@ -1,4 +1,4 @@
-from .models import RecapLog, ReminderLog
+from .models import BillingLog, RecapLog, ReminderLog
 from .services.fonnte import send_wa
 
 
@@ -35,3 +35,17 @@ def send_reminder_group_task(cl_ids, reminder_type, phone, message):
             cl_id=cl_id, reminder_type=reminder_type,
             phone=phone, status=status, error=error,
         )
+
+
+def send_billing_task(invoice_id, target, message):
+    """Background task: send one billing WA message and log the result."""
+    try:
+        result = send_wa(target, message)
+        status = 'SENT' if result.get('status') else 'FAILED'
+        error = result.get('reason', '') if not result.get('status') else ''
+    except Exception as exc:
+        status, error = 'FAILED', str(exc)
+    BillingLog.objects.create(
+        invoice_id=invoice_id, target=target,
+        message=message, status=status, error=error,
+    )
