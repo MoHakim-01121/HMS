@@ -266,14 +266,14 @@ def calendar_send_recap(request):
         err_label = '7 hari ke depan'
     qs = (
         ConfirmationLetter.objects
-        .filter(**date_filter, estimasi_tiba__isnull=False, company=get_active_company(request))
+        .filter(**date_filter, company=get_active_company(request))
         .exclude(reservation_status='CANCELLED')
         .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name', 'guest_name')
     )
     cls = list(qs)
     if not cls:
-        return JsonResponse({'ok': False, 'message': f'Tidak ada tamu check-in {err_label} dengan estimasi terisi'})
+        return JsonResponse({'ok': False, 'message': f'Tidak ada tamu check-in {err_label}'})
     message = build_recap_message(cls, recap_date)
     wa_targets = list(WATarget.objects.filter(is_active=True))
     if not wa_targets:
@@ -324,10 +324,10 @@ def calendar_send_reminder_group(request):
     check_in_date = next(iter(check_ins))
     if check_in_date == today:
         reminder_type = 'H0_GUEST'
-    elif check_in_date == today + timedelta(days=1):
+    elif check_in_date > today:
         reminder_type = 'H1_GUEST'
     else:
-        return JsonResponse({'ok': False, 'message': 'Tanggal check-in di luar jangkauan H-1/H-0'})
+        return JsonResponse({'ok': False, 'message': 'Tanggal check-in sudah lewat'})
     # Manual send never dedups against ReminderLog: the operator may need to
     # resend a reminder that was already sent today (e.g. after editing the
     # booking). Only the scheduled command (send_checkin_reminders) is

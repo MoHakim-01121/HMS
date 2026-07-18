@@ -255,6 +255,22 @@ class BuildGroupedReminderMessageTest(TestCase):
         msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
         self.assertIn('besok', msg.lower())
 
+    def test_h1_says_lusa_for_check_in_two_days_away(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H2')
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=2))
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
+        self.assertIn('lusa', msg.lower())
+        self.assertNotIn('besok', msg.lower())
+
+    def test_h1_says_n_hari_lagi_for_check_in_far_away(self):
+        from hw.services.recap import build_grouped_reminder_message
+        client = self._make_client(name='PT H3')
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=5))
+        msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
+        self.assertIn('5 hari lagi', msg.lower())
+        self.assertNotIn('besok', msg.lower())
+
     def test_h0_has_no_besok(self):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT H0')
@@ -467,16 +483,20 @@ class SendRecapViewTest(TestCase):
         self.assertTrue(resp.json()['ok'])
         self.assertEqual(RecapLog.objects.filter(triggered_by='MANUAL').count(), 1)
 
-    def test_returns_error_if_no_estimasi(self):
-        _make_cl(confirmation_number='CL-X99')  # tanpa estimasi
-        cl_no_est = _make_cl(confirmation_number='CL-X100', check_in=date.today())
-        resp = self.client.post('/calendar/send-recap/')
-        # self.cl punya estimasi tapi yang baru tidak, self.cl harus ikut rekap
-        # Test utama: jika TIDAK ADA yang punya estimasi, harus gagal
+    @patch('hw.tasks.send_wa')
+    def test_sends_recap_even_without_estimasi(self, mock_send):
+        from hw.models import WATarget
+        WATarget.objects.create(label='Tim', target='628111222333')
+        mock_send.return_value = {'status': True}
         self.cl.estimasi_tiba = None
         self.cl.save()
-        resp2 = self.client.post('/calendar/send-recap/')
-        data = resp2.json()
+        resp = self.client.post('/calendar/send-recap/')
+        self.assertTrue(resp.json()['ok'])
+
+    def test_returns_error_if_no_bookings_at_all(self):
+        self.cl.delete()
+        resp = self.client.post('/calendar/send-recap/')
+        data = resp.json()
         self.assertFalse(data['ok'])
 
 
@@ -510,6 +530,21 @@ class SendReminderGroupViewTest(TestCase):
         self.assertTrue(resp.json()['ok'])
         self.assertEqual(mock_send.call_count, 1)
         self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+
+    @patch('hw.tasks.send_wa')
+    def test_sends_reminder_for_check_in_beyond_h1(self, mock_send):
+        mock_send.return_value = {'status': True}
+        client = self._make_client()
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=3), confirmation_number='CL-H3')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertTrue(resp.json()['ok'])
+        self.assertEqual(mock_send.call_count, 1)
+
+    def test_error_when_check_in_already_passed(self):
+        client = self._make_client()
+        cl = _make_cl(client=client, check_in=date.today() - timedelta(days=1), confirmation_number='CL-PAST')
+        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
+        self.assertFalse(resp.json()['ok'])
 
     def test_error_when_different_check_in_dates(self):
         client = self._make_client()
