@@ -15,6 +15,11 @@ import FormSection from "@/components/shadcn/form-section.jsx";
 import FormField from "@/components/shadcn/form-field.jsx";
 import Combobox from "@/components/shadcn/combobox.jsx";
 import FormActions from "@/components/shadcn/form-actions.jsx";
+import DetailHero from "@/components/shadcn/detail-hero.jsx";
+import FloatCard from "@/components/shadcn/float-card.jsx";
+import Section from "@/components/shadcn/section.jsx";
+import ItemRow from "@/components/shadcn/item-row.jsx";
+import FooterSummary from "@/components/shadcn/footer-summary.jsx";
 
 const SWATCHES = [
   { name: "background", var: "--background" },
@@ -193,6 +198,42 @@ export default function StyleGuide() {
               </FormSection>
               <FormActions cancelHref="#" submitLabel="Save" processing={false} />
             </FormPanel>
+          </CardContent>
+        </Card>
+
+        <Card style={{ marginTop: 16 }}>
+          <CardHeader>
+            <CardTitle>Detail page</CardTitle>
+          </CardHeader>
+          <CardContent style={{ padding: 0 }}>
+            <div style={{ padding: 20 }}>
+              <DetailHero
+                kicker="Invoice"
+                title="INV-2026-0042"
+                sub="PT. Anugerah Wisata"
+                pill={{ label: "Unpaid", tone: "red" }}
+                menuItems={[{ label: "Edit" }, { label: "Download PDF" }]}
+              />
+              <FloatCard
+                right={
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Outstanding</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "var(--destructive)" }}>4,500,000</div>
+                  </div>
+                }
+              >
+                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Contact</div>
+                <div style={{ fontWeight: 600 }}>Ahmad Rahman</div>
+              </FloatCard>
+              <Section label="Payments" right="Amount">
+                <ItemRow name="Bank Transfer" sub="12 Jul 2026" amount="2,000,000" small />
+                <ItemRow name="Cash" sub="15 Jul 2026" amount="1,000,000" small amountColor="green" />
+              </Section>
+              <FooterSummary
+                left={<span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>2 payments</span>}
+                right={<div style={{ fontSize: 20, fontWeight: 700 }}>3,000,000 SAR</div>}
+              />
+            </div>
           </CardContent>
         </Card>
       </div>
