@@ -1,10 +1,13 @@
 import { useForm } from "@inertiajs/react";
-import PageBack from "../../components/ui/PageBack.jsx";
-import FormHeader from "../../components/form/FormHeader.jsx";
-import FormPanel from "../../components/form/FormPanel.jsx";
-import FormSection from "../../components/form/FormSection.jsx";
-import FormField from "../../components/form/FormField.jsx";
-import FormActions from "../../components/form/FormActions.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import FormHeader from "../../components/shadcn/form-header.jsx";
+import FormPanel from "../../components/shadcn/form-panel.jsx";
+import FormSection from "../../components/shadcn/form-section.jsx";
+import FormField from "../../components/shadcn/form-field.jsx";
+import FormActions from "../../components/shadcn/form-actions.jsx";
+import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
+import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 
 const CURRENCIES = ["SAR", "IDR", "USD"];
 
@@ -50,7 +53,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
               <FormField label="Cancellation Date" name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
             </div>
             <FormField name="reason" label="Reason">
-              <textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder="Cancellation reason…" />
+              <Textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder="Cancellation reason…" />
             </FormField>
           </FormSection>
 
@@ -58,17 +61,22 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
             <div className="fg-2" style={{ marginBottom: 12 }}>
               <FormField label="Amount" name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
               <FormField label="Currency" name="penalty_currency">
-                <select name="penalty_currency" value={form.data.penalty_currency} onChange={(e) => form.setData("penalty_currency", e.target.value)}>
-                  {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select name="penalty_currency" value={form.data.penalty_currency} onValueChange={(v) => form.setData("penalty_currency", v)}>
+                  <SelectTrigger id="penalty_currency" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </FormField>
             </div>
             <FormField label="Exchange Rate to SAR" name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
           </FormSection>
 
           <FormSection label="Payment">
-            <label className="ff-check">
-              <input type="checkbox" checked={form.data.is_paid} onChange={(e) => form.setData("is_paid", e.target.checked)} />
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <Checkbox checked={form.data.is_paid} onCheckedChange={(v) => form.setData("is_paid", !!v)} />
               <span>Already paid</span>
             </label>
             {form.data.is_paid && (
@@ -76,7 +84,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
                 <FormField label="Payment Date" name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
                 <FormField label="Method" name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder="Transfer / Cash" />
                 <FormField span={2} name="payment_note" label="Payment Note">
-                  <textarea name="payment_note" rows={2} value={form.data.payment_note} onChange={(e) => form.setData("payment_note", e.target.value)} />
+                  <Textarea name="payment_note" rows={2} value={form.data.payment_note} onChange={(e) => form.setData("payment_note", e.target.value)} />
                 </FormField>
               </div>
             )}
@@ -84,7 +92,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
 
           <FormSection label="Internal Notes">
             <FormField name="note">
-              <textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} />
+              <Textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} />
             </FormField>
           </FormSection>
 

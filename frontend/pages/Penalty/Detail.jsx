@@ -1,10 +1,11 @@
 import { router } from "@inertiajs/react";
-import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
-import DetailHero from "../../components/detail/DetailHero.jsx";
-import FloatCard from "../../components/detail/FloatCard.jsx";
-import Section from "../../components/detail/Section.jsx";
-import ItemRow from "../../components/detail/ItemRow.jsx";
-import FooterSummary from "../../components/detail/FooterSummary.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import DetailHero from "../../components/shadcn/detail-hero.jsx";
+import FloatCard from "../../components/shadcn/float-card.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import ItemRow from "../../components/shadcn/item-row.jsx";
+import FooterSummary from "../../components/shadcn/footer-summary.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
@@ -14,12 +15,7 @@ export default function Detail({ penalty: p }) {
   const paySub = [p.payment_date, p.payment_note].filter(Boolean);
   return (
     <div className="page dv-page">
-      <a href={`/cl/${p.cl.id}/`} className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back to CL
-      </a>
+      <PageBack href={`/cl/${p.cl.id}/`} label="Back to CL" />
 
       <DetailHero
         kicker="Cancellation Penalty"
