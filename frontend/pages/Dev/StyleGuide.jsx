@@ -8,6 +8,7 @@ import RowActions from "@/components/shadcn/row-actions.jsx";
 import KebabMenu from "@/components/shadcn/kebab-menu.jsx";
 import DraftModal from "@/components/shadcn/draft-modal.jsx";
 import Toast, { showToast } from "@/components/shadcn/toast.jsx";
+import SearchOverlay from "@/components/shadcn/search-overlay.jsx";
 
 const SWATCHES = [
   { name: "background", var: "--background" },
@@ -36,6 +37,7 @@ function Swatch({ name, value }) {
 function Panel({ theme }) {
   const [text, setText] = useState("");
   const [confirm, confirmDialog] = useConfirm();
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
     <div data-theme={theme} style={{ background: "var(--background)", color: "var(--foreground)", padding: 32, borderRadius: 16, flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--muted-foreground)", marginBottom: 16 }}>
@@ -99,6 +101,9 @@ function Panel({ theme }) {
             <Button variant="outline" onClick={() => showToast("Contoh notifikasi", "success")}>
               Show toast
             </Button>
+            <Button variant="outline" onClick={() => setSearchOpen(true)}>
+              Search
+            </Button>
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: 8 }}>
             <span style={{ fontSize: 13 }}>Sample row</span>
@@ -116,6 +121,7 @@ function Panel({ theme }) {
           {confirmDialog}
         </CardContent>
       </Card>
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
