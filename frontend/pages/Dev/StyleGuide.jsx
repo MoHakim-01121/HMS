@@ -20,6 +20,8 @@ import FloatCard from "@/components/shadcn/float-card.jsx";
 import Section from "@/components/shadcn/section.jsx";
 import ItemRow from "@/components/shadcn/item-row.jsx";
 import FooterSummary from "@/components/shadcn/footer-summary.jsx";
+import Table from "@/components/shadcn/table.jsx";
+import ActionSheet from "@/components/shadcn/action-sheet.jsx";
 
 const SWATCHES = [
   { name: "background", var: "--background" },
@@ -95,6 +97,7 @@ export default function StyleGuide() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [plainField, setPlainField] = useState("");
   const [comboText, setComboText] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   return (
     <div style={{ padding: 24, minHeight: "100vh", background: "#111" }}>
@@ -236,9 +239,42 @@ export default function StyleGuide() {
             </div>
           </CardContent>
         </Card>
+
+        <Card style={{ marginTop: 16 }}>
+          <CardHeader>
+            <CardTitle>Table & Sheet</CardTitle>
+          </CardHeader>
+          <CardContent style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Table
+              columns={[
+                { header: "Name", render: (r) => r.name },
+                { header: "Status", render: (r) => <Badge variant={r.status === "Paid" ? "default" : "destructive"}>{r.status}</Badge> },
+                { header: "Amount", render: (r) => r.amount },
+              ]}
+              rows={[
+                { id: 1, name: "PT. Anugerah Wisata", status: "Paid", amount: "2,000,000" },
+                { id: 2, name: "PT. Grup Command", status: "Unpaid", amount: "4,500,000" },
+              ]}
+              rowKey={(r) => r.id}
+              onRowClick={(r) => showToast(`Clicked ${r.name}`)}
+            />
+            <div>
+              <Button variant="outline" onClick={() => setSheetOpen(true)}>Open sheet</Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ActionSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        title="Row actions"
+        actions={[
+          { icon: "edit", label: "Edit", onClick: () => showToast("Edit clicked") },
+          { icon: "trash", label: "Delete", variant: "red", onClick: () => showToast("Deleted", "success") },
+        ]}
+      />
       <DraftModal />
       <Toast />
     </div>
