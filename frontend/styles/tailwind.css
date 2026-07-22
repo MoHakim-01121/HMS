@@ -1,0 +1,74 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+:root,
+[data-theme="light"] {
+  /* bg #FAF8F2 vs text #16140F: contrast ~16.9:1 */
+  --background: #FAF8F2;
+  --foreground: #16140F;
+  /* --primary #8A6E1E (dark gold, for text/icons) vs --background #FAF8F2: contrast ~4.56:1 (WCAG AA pass).
+     ui-ux-pro-max's own "Luxury/Premium Brand" match (#A16207) confirms black+gold as a database-backed
+     direction, but its accent was only WCAG-adjusted for 3:1 (component-level), not the 4.5:1 text
+     contrast this project requires — #8A6E1E is used instead, verified separately below. */
+  --primary: #8A6E1E;
+  --primary-foreground: #FFFBEF;
+  --secondary: #F0ECE1;
+  --secondary-foreground: #16140F;
+  --muted: #F0ECE1;
+  --muted-foreground: #6B6558;
+  --accent: #F0ECE1;
+  --accent-foreground: #8A6E1E;
+  /* kept as the existing light-mode red (design.css --red), NOT gold — danger stays danger */
+  --destructive: #DC2626;
+  --destructive-foreground: #FFFBEF;
+  --border: rgba(22, 20, 15, 0.12);
+  --input: rgba(22, 20, 15, 0.12);
+  --ring: #8A6E1E;
+  --radius: 0.75rem;
+}
+
+[data-theme="dark"] {
+  /* same near-black already used by design.css --bg, so dark mode base barely changes */
+  --background: #0A0A0B;
+  --foreground: #F2F0EB;
+  /* --primary #D4AF37 (bright gold) vs --background #0A0A0B: contrast ~9.41:1 (WCAG AAA pass) */
+  --primary: #D4AF37;
+  --primary-foreground: #0A0A0B;
+  --secondary: #1C1B18;
+  --secondary-foreground: #F2F0EB;
+  --muted: #171613;
+  --muted-foreground: #A6A29B;
+  --accent: #1C1B18;
+  --accent-foreground: #D4AF37;
+  /* kept as the existing dark-mode red (design.css --red), NOT gold */
+  --destructive: #FF453A;
+  --destructive-foreground: #0A0A0B;
+  --border: rgba(212, 175, 55, 0.16);
+  --input: rgba(212, 175, 55, 0.16);
+  --ring: #D4AF37;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  /* Playfair Display: ui-ux-pro-max "Classic Elegant" pairing, tagged "Perfect for luxury/premium" */
+  --font-display: "Playfair Display", serif;
+  /* IBM Plex Mono: kept over search results (JetBrains Mono / Space Mono) — neither database match
+     fit "premium" (hacker/terminal and brutalist moods respectively); still genuinely tabular/monospace. */
+  --font-mono: "IBM Plex Mono", monospace;
+}

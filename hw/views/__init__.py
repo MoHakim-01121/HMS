@@ -48,6 +48,7 @@ from .remittance_views import (
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
 )
+from .dev_views import style_guide
 
 from ..ai import generate_draft_message, get_chat_reply
 from ..models import Invoice

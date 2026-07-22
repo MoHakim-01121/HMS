@@ -116,6 +116,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('penalty/<int:pk>/delete/', views.penalty_delete, name='penalty_delete'),
     path('penalty/<int:pk>/pdf/', views.penalty_pdf, name='penalty_pdf'),
 
+    # Dev / design system preview (superuser only)
+    path('dev/style-guide/', views.style_guide, name='style_guide'),
+
     # Health check
     path('health/', views.health_check, name='health_check'),
 ]
