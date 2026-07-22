@@ -26,6 +26,14 @@
   --input: rgba(22, 20, 15, 0.12);
   --ring: #8A6E1E;
   --radius: 0.75rem;
+  /* card/popover share --background's solid color rather than a separate
+     shade — surfaces are differentiated by border/shadow only, matching how
+     Dialog/AlertDialog already use bg-background. Keeps the palette to one
+     surface tone (premium/minimalist bar) instead of adding another gray. */
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
 }
 
 [data-theme="dark"] {
@@ -47,6 +55,10 @@
   --border: rgba(212, 175, 55, 0.16);
   --input: rgba(212, 175, 55, 0.16);
   --ring: #D4AF37;
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
 }
 
 @theme inline {
@@ -65,6 +77,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --radius-lg: var(--radius);
   /* Playfair Display: ui-ux-pro-max "Classic Elegant" pairing, tagged "Perfect for luxury/premium" */
   --font-display: "Playfair Display", serif;

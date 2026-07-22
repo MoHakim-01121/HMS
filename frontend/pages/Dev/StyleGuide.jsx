@@ -10,6 +10,11 @@ import KebabMenu from "@/components/shadcn/kebab-menu.jsx";
 import DraftModal from "@/components/shadcn/draft-modal.jsx";
 import Toast, { showToast } from "@/components/shadcn/toast.jsx";
 import SearchOverlay from "@/components/shadcn/search-overlay.jsx";
+import FormPanel from "@/components/shadcn/form-panel.jsx";
+import FormSection from "@/components/shadcn/form-section.jsx";
+import FormField from "@/components/shadcn/form-field.jsx";
+import Combobox from "@/components/shadcn/combobox.jsx";
+import FormActions from "@/components/shadcn/form-actions.jsx";
 
 const SWATCHES = [
   { name: "background", var: "--background" },
@@ -83,6 +88,8 @@ export default function StyleGuide() {
   const { theme, toggle } = useTheme();
   const [confirm, confirmDialog] = useConfirm();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [plainField, setPlainField] = useState("");
+  const [comboText, setComboText] = useState("");
 
   return (
     <div style={{ padding: 24, minHeight: "100vh", background: "#111" }}>
@@ -150,6 +157,42 @@ export default function StyleGuide() {
               </div>
             </div>
             {confirmDialog}
+          </CardContent>
+        </Card>
+
+        <Card style={{ marginTop: 16 }}>
+          <CardHeader>
+            <CardTitle>Form</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FormPanel>
+              <FormSection label="Sample section" sub="(optional hint text)">
+                <FormField
+                  label="Plain field"
+                  name="sg-plain"
+                  value={plainField}
+                  onChange={setPlainField}
+                  placeholder="Type something…"
+                  hint="Regular text input"
+                />
+                <FormField label="Combobox field" name="sg-combo" hint="Type freely or pick a suggestion">
+                  <Combobox
+                    name="sg-combo"
+                    value={comboText}
+                    onTextChange={setComboText}
+                    onSelect={(o) => setComboText(o.name)}
+                    options={[
+                      { id: 1, name: "PT. Anugerah Wisata" },
+                      { id: 2, name: "PT. Grup Command" },
+                      { id: 3, name: "Ahmad Rahman" },
+                    ]}
+                    getSub={(o) => `id ${o.id}`}
+                    placeholder="Search or type a name…"
+                  />
+                </FormField>
+              </FormSection>
+              <FormActions cancelHref="#" submitLabel="Save" processing={false} />
+            </FormPanel>
           </CardContent>
         </Card>
       </div>
