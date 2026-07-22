@@ -35,7 +35,7 @@ export default function List({ users }) {
           columns={[
             {
               header: "Username",
-              className: "col-bold",
+              className: "col-bold col-m-primary",
               render: (u) => (
                 <>
                   {u.username}
@@ -44,12 +44,14 @@ export default function List({ users }) {
               ),
             },
             {
-              header: "Role",
-              render: (u) => u.is_superuser ? <span className="badge badge-blue">Admin</span> : u.is_staff ? <span className="badge badge-green">Staff</span> : <span className="badge badge-gray">User</span>,
+              header: "Status",
+              className: "col-m-badge",
+              render: (u) => u.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>,
             },
             {
-              header: "Status",
-              render: (u) => u.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>,
+              header: "Role",
+              className: "col-m-secondary",
+              render: (u) => u.is_superuser ? <span className="badge badge-blue">Admin</span> : u.is_staff ? <span className="badge badge-green">Staff</span> : <span className="badge badge-gray">User</span>,
             },
             {
               header: "",

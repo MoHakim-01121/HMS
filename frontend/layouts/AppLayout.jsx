@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usePage } from "@inertiajs/react";
+import { Link, usePage } from "@inertiajs/react";
 import { useTheme } from "./useTheme.js";
 import { Icon, BrandMark } from "../components/icons.jsx";
 import { getCsrf } from "../utils/csrf.js";
@@ -19,6 +19,15 @@ const NAV = {
   logout: "/logout/",
   company: "/company/set/",
 };
+
+// Bottom nav mobile: 5 tab setara; tab aktif terangkat dalam disc (docked notch).
+const BNAV_TABS = [
+  { key: "cl", label: "CL", icon: "cl" },
+  { key: "invoice", label: "Invoice", icon: "invoice" },
+  { key: "home", label: "Home", icon: "home" },
+  { key: "hotels", label: "Hotels", icon: "hotels" },
+  { key: "calendar", label: "Calendar", icon: "calendar" },
+];
 
 function pageKeyFromUrl(url) {
   if (url === "/" || url === "") return "home";
@@ -43,6 +52,7 @@ export default function AppLayout({ children }) {
   const dueNotifs = props.due_soon_notifs || [];
   const { theme, toggle } = useTheme();
   const page = pageKeyFromUrl(url);
+  const bnavIdx = BNAV_TABS.findIndex((t) => t.key === page);
 
   const [search, setSearch] = useState(false);
   const [notif, setNotif] = useState(false);
@@ -133,6 +143,7 @@ export default function AppLayout({ children }) {
             </button>
 
             <button type="button" className="topbar-icon-btn" title="Notifications" aria-label="Notifications"
+              aria-haspopup="true" aria-expanded={notif}
               onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); setAccount(false); }}>
               <Icon name="bell" />
               {dueCount > 0 && <span className="notif-badge">{dueCount}</span>}
@@ -144,6 +155,7 @@ export default function AppLayout({ children }) {
 
             <div className="account-wrap" ref={accountWrap}>
               <button type="button" className="account-btn" aria-label="Account"
+                aria-haspopup="true" aria-expanded={account}
                 onClick={(e) => { e.stopPropagation(); setAccount((v) => !v); setNotif(false); }}>
                 {user.avatar
                   ? <img src={user.avatar} className="account-avatar-img" alt={user.username} />
@@ -176,22 +188,28 @@ export default function AppLayout({ children }) {
             <button type="button" className="m-top-btn" aria-label="Search" onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
               <Icon name="search" size={17} strokeWidth={1.8} />
             </button>
-            <button type="button" className="m-top-btn" aria-label="Notifications" onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); }}>
+            <button type="button" className="m-top-btn" aria-label="Notifications" aria-haspopup="true" aria-expanded={notif} onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); }}>
               <Icon name="bell" size={17} strokeWidth={1.8} />
               {dueCount > 0 && <span className="m-top-badge">{dueCount}</span>}
             </button>
-            <button type="button" className="m-top-avatar" aria-label="Account" onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); }}>
+            <button type="button" className="m-top-avatar" aria-label="Account" aria-haspopup="true" aria-expanded={mAccount} onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); }}>
               {user.avatar ? <img src={user.avatar} alt={user.username} /> : <Icon name="user" size={18} strokeWidth={0} fill="currentColor" />}
             </button>
           </div>
 
-          {/* ── Mobile bottom tab bar ── */}
-          <nav className="bottom-nav" id="bottom-nav">
-            <a href={NAV.cl} className="bnav-tab bnav-tab-cl"><Icon name="cl" strokeWidth={1.8} /><span className="bnav-label">CL</span></a>
-            <a href={NAV.invoice} className="bnav-tab bnav-tab-invoice"><Icon name="invoice" strokeWidth={1.8} /><span className="bnav-label">Invoice</span></a>
-            <a href={NAV.home} className="bnav-home" aria-label="Home"><Icon name="home" strokeWidth={1.8} /></a>
-            <a href={NAV.hotels} className="bnav-tab bnav-tab-hotels"><Icon name="hotels" strokeWidth={1.8} /><span className="bnav-label">Hotels</span></a>
-            <a href={NAV.calendar} className="bnav-tab bnav-tab-calendar"><Icon name="calendar" strokeWidth={1.8} /><span className="bnav-label">Calendar</span></a>
+          {/* ── Mobile bottom tab bar (docked notch: disc mengikuti tab aktif) ── */}
+          <nav
+            className={"bottom-nav" + (bnavIdx < 0 ? " bnav-flat" : "")}
+            id="bottom-nav"
+            style={{ "--bnav-i": bnavIdx < 0 ? 2 : bnavIdx }}
+          >
+            <div className="bnav-disc" aria-hidden="true"></div>
+            {BNAV_TABS.map((t, i) => (
+              <Link key={t.key} href={NAV[t.key]} className={"bnav-tab" + (i === bnavIdx ? " bnav-active" : "")}>
+                <span className="bnav-ico"><Icon name={t.icon} strokeWidth={1.8} /></span>
+                <span className="bnav-label">{t.label}</span>
+              </Link>
+            ))}
           </nav>
 
           {/* ── Mobile account dropdown ── */}

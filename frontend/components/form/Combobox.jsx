@@ -8,6 +8,7 @@ export default function Combobox({
   name, value, onTextChange, onSelect, options = [],
   getLabel = (o) => o.name, getSub, placeholder, error,
   emptyLabel = "No client — used as guest name",
+  "aria-describedby": describedBy,
 }) {
   const [open, setOpen] = useState(false);
   const [focused, setFocused] = useState(-1);
@@ -48,6 +49,7 @@ export default function Combobox({
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         aria-invalid={error ? "true" : undefined}
+        aria-describedby={describedBy}
         className={error ? "is-invalid" : undefined}
       />
       {open && (
@@ -55,7 +57,7 @@ export default function Combobox({
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
           background: "var(--surface-2)", border: "1px solid var(--border-2)",
           borderRadius: "var(--r-lg)", maxHeight: 240, overflowY: "auto",
-          boxShadow: "0 12px 32px rgba(0,0,0,.5)",
+          boxShadow: "var(--shadow-lg)",
         }}>
           {filtered.length === 0 ? (
             <div className="ac-empty">{emptyLabel}</div>

@@ -50,27 +50,34 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg:           #F7F7F8;
-  --bg-2:         #EFEFF2;
-  --surface:      #FFFFFF;
-  --surface-2:    #F2F2F5;
-  --surface-3:    #E9E9ED;
-  --border:       rgba(0,0,0,.07);
-  --border-2:     rgba(0,0,0,.12);
-  --text:         #1A1A1C;
-  --text-2:       #6B6B77;
-  --text-3:       #A0A0AD;
-  --accent:       #E55A28;
-  --accent-2:     #C44A1E;
-  --accent-muted: rgba(229,90,40,.10);
-  --green:        #17A24A;
-  --green-muted:  rgba(23,162,74,.10);
-  --yellow:       #C07F10;
-  --yellow-muted: rgba(192,127,16,.10);
-  --red:          #E02020;
-  --red-muted:    rgba(224,32,32,.10);
-  --purple:       #9B43D0;
-  --purple-muted: rgba(155,67,208,.10);
+  --bg:           #F6F4F0;
+  --bg-2:         #EFECE6;
+  --surface:      #FDFCFA;
+  --surface-2:    #F5F3EE;
+  --surface-3:    #ECE9E2;
+  --border:       rgba(31,26,20,.10);
+  --border-2:     rgba(31,26,20,.17);
+  --text:         #1C1917;
+  --text-2:       #57534E;
+  --text-3:       #8A857D;
+  --accent:       #D1491C;
+  --accent-2:     #A93B12;
+  --accent-muted: rgba(209,73,28,.10);
+  --green:        #15803D;
+  --green-muted:  rgba(21,128,61,.10);
+  --yellow:       #A16207;
+  --yellow-muted: rgba(161,98,7,.10);
+  --red:          #DC2626;
+  --red-muted:    rgba(220,38,38,.10);
+  --purple:       #7E22CE;
+  --purple-muted: rgba(126,34,206,.10);
+
+  /* Paper-lift shadows (warm tint, low opacity) */
+  --shadow-sm:    0 1px 2px rgba(28,25,23,.06), 0 1px 3px rgba(28,25,23,.08);
+  --shadow-md:    0 2px 4px rgba(28,25,23,.05), 0 6px 16px rgba(28,25,23,.10);
+  --shadow-lg:    0 4px 8px rgba(28,25,23,.06), 0 16px 40px rgba(28,25,23,.14);
+  --shadow-xl:    0 8px 16px rgba(28,25,23,.08), 0 28px 64px rgba(28,25,23,.18);
+  --shadow-orange: 0 0 0 1px rgba(209,73,28,.22), 0 4px 16px rgba(209,73,28,.16);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -143,7 +150,7 @@ body::before {
 }
 
 [data-theme="light"] .topbar {
-  background: rgba(247,247,248,.90);
+  background: rgba(246,244,240,.90);
   border-bottom-color: var(--border);
 }
 
@@ -237,7 +244,7 @@ body::before {
   transition: transform .2s cubic-bezier(.34,1.56,.64,1), opacity .16s;
 }
 [data-theme="light"] .search-panel {
-  box-shadow: 0 32px 80px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.06) inset;
+  box-shadow: var(--shadow-xl);
 }
 #search-overlay.open .search-panel { transform: none; opacity: 1; }
 #search-overlay :focus-visible { outline: none; }
@@ -837,6 +844,10 @@ tbody tr:hover td:last-child {
 @media (min-width: 601px) {
   tbody .row-actions { opacity: .3; transition: opacity .1s; }
   tbody tr:hover .row-actions { opacity: 1; }
+  /* Kolom sintetis yang HANYA dibuat untuk anatomi baris mobile (tidak ada
+     padanan kolom desktop) — sembunyikan total di desktop supaya tidak
+     muncul sebagai kolom tabel baru yang tak diinginkan. */
+  .col-mobile-only { display: none; }
 }
 
 /* ── Badges ── */
@@ -997,7 +1008,8 @@ tbody tr:hover td:last-child {
   background: rgba(255,108,55,.06);
   outline: none;
 }
-[data-theme="light"] .s-row:hover { background: rgba(229,90,40,.05); }
+[data-theme="light"] .s-row { border-bottom-color: rgba(31,26,20,.05); }
+[data-theme="light"] .s-row:hover { background: rgba(209,73,28,.06); }
 
 .s-label {
   font-family: 'JetBrains Mono', monospace;
@@ -1073,6 +1085,7 @@ input:-webkit-autofill:focus {
   backdrop-filter: blur(16px);
   display: flex; align-items: center; gap: 8px;
 }
+[data-theme="light"] .toast { box-shadow: var(--shadow-md); }
 .toast-success { color: var(--text); }
 .toast-error   { color: var(--text); }
 .toast-warning { color: var(--text); }
@@ -1587,69 +1600,153 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 /* ── Detail action bar ── */
 .detail-actions { display: flex; gap: 5px; align-items: center; }
 
-/* ── Mobile bottom nav (tab bar) ── */
+/* ── Mobile bottom nav (tab bar, docked notch) ── */
+/* Posisi X pusat notch + radius lubang diregistrasi via @property supaya bisa
+   ditransisikan: lubang ikut meluncur bersama disc, dan menutup di state flat.
+   Browser tanpa @property tetap benar, hanya tanpa animasi notch. */
+@property --bnav-x {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+@property --bnav-r {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+/* Radius fillet (bahu melengkung kiri-kanan notch); 0 = bahu menutup. */
+@property --bnav-f {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 .bottom-nav { display: none; }
 .m-topbar { display: none; }
 @media (max-width: 600px) {
   .bottom-nav {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
     position: fixed;
-    bottom: calc(14px + env(safe-area-inset-bottom));
-    left: 12px;
-    right: 12px;
-    height: 60px;
-    background: rgba(14,14,17,.55);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
-    border: 1px solid rgba(255,255,255,.12);
-    border-bottom-color: rgba(255,255,255,.04);
-    border-radius: 22px;
-    padding: 0 6px;
-    box-shadow: var(--shadow-lg), 0 1px 0 rgba(255,255,255,.08) inset;
-    align-items: center;
-    justify-content: space-around;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(70px + env(safe-area-inset-bottom));
+    border: none;
+    border-radius: 14px 14px 0 0;
+    /* Tanpa padding samping supaya pusat slot i = i*20% + 10% dari lebar bar —
+       koordinat yang sama dipakai disc dan lubang mask notch. */
+    padding: 0 0 env(safe-area-inset-bottom);
     z-index: var(--z-sticky);
+    --bnav-x: calc(var(--bnav-i, 2) * 20% + 10%);
+    --bnav-r: 30.5px;
+    --bnav-f: 10px;
   }
-  [data-theme="light"] .bottom-nav {
-    background: rgba(255,255,255,.55);
-    border-color: rgba(0,0,0,.10);
-    border-bottom-color: rgba(0,0,0,.04);
-    box-shadow: 0 8px 24px rgba(0,0,0,.08), 0 1px 0 rgba(255,255,255,.9) inset;
+  /* Halaman di luar 5 tab: lubang menutup, disc hilang (rule .bnav-disc di bawah). */
+  .bottom-nav.bnav-flat { --bnav-r: 0px; --bnav-f: 0px; }
+  /* Background + blur di pseudo (bukan di .bottom-nav) supaya mask notch
+     tidak ikut memotong disc yang merupakan child bar.
+     Shadow pakai drop-shadow agar mengikuti kontur notch. */
+  .bottom-nav::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 14px 14px 0 0;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.16) 0%, rgba(255,255,255,0) 38%),
+      rgba(37,37,43,.68);
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
+    /* 5 lapis mask (composite): [lubang notch ∩ (strip atas ∪ fillet kiri ∪ fillet kanan)].
+       Strip setinggi --bnav-f di tepi atas diukir sepanjang ±40.45px dari pusat notch,
+       lalu dua lingkaran fillet (r = --bnav-f) mengembalikan lengkungan bahu —
+       hasilnya tepi bar meliuk mulus masuk ke lubang, ala "magic navigation".
+       40.45px = sqrt((30.5+10)² − (10−8)²): fillet tangen ke lubang & tepi atas. */
+    -webkit-mask-image:
+      radial-gradient(circle at var(--bnav-x) 8px, transparent calc(var(--bnav-r) - 1.5px), #000 var(--bnav-r)),
+      linear-gradient(180deg, transparent var(--bnav-f), #000 var(--bnav-f)),
+      linear-gradient(90deg, #000 calc(var(--bnav-x) - 40.45px), transparent calc(var(--bnav-x) - 40.45px), transparent calc(var(--bnav-x) + 40.45px), #000 calc(var(--bnav-x) + 40.45px)),
+      radial-gradient(circle at calc(var(--bnav-x) - 40.45px) var(--bnav-f), #000 calc(var(--bnav-f) - .5px), transparent var(--bnav-f)),
+      radial-gradient(circle at calc(var(--bnav-x) + 40.45px) var(--bnav-f), #000 calc(var(--bnav-f) - .5px), transparent var(--bnav-f));
+    mask-image:
+      radial-gradient(circle at var(--bnav-x) 8px, transparent calc(var(--bnav-r) - 1.5px), #000 var(--bnav-r)),
+      linear-gradient(180deg, transparent var(--bnav-f), #000 var(--bnav-f)),
+      linear-gradient(90deg, #000 calc(var(--bnav-x) - 40.45px), transparent calc(var(--bnav-x) - 40.45px), transparent calc(var(--bnav-x) + 40.45px), #000 calc(var(--bnav-x) + 40.45px)),
+      radial-gradient(circle at calc(var(--bnav-x) - 40.45px) var(--bnav-f), #000 calc(var(--bnav-f) - .5px), transparent var(--bnav-f)),
+      radial-gradient(circle at calc(var(--bnav-x) + 40.45px) var(--bnav-f), #000 calc(var(--bnav-f) - .5px), transparent var(--bnav-f));
+    -webkit-mask-composite: source-in, source-over, source-over, source-over, source-over;
+    mask-composite: intersect, add, add, add, add;
+    filter: drop-shadow(0 -8px 24px rgba(0,0,0,.38));
+    transition: --bnav-x .3s cubic-bezier(.34,1.56,.64,1), --bnav-r .3s ease, --bnav-f .3s ease;
+  }
+  [data-theme="light"] .bottom-nav::before {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 38%),
+      rgba(253,252,250,.7);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+    filter: drop-shadow(0 -8px 24px rgba(28,25,23,.12));
   }
 
-  /* Section tabs */
+  /* Disc aksen yang meluncur ke slot tab aktif. Pusat di y=8px dari tepi atas
+     bar — konsentris dengan lubang mask notch (r 30px), celah merata 4px. */
+  .bnav-disc {
+    position: absolute;
+    top: 8px;
+    left: var(--bnav-x);
+    width: 52px; height: 52px; border-radius: 50%;
+    background:
+      radial-gradient(circle at 30% 26%, rgba(255,255,255,.75), rgba(255,255,255,0) 45%),
+      linear-gradient(150deg, rgba(255,255,255,.22), rgba(255,255,255,0) 60%),
+      var(--accent);
+    transform: translate(-50%, -50%);
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,.55),
+      inset 0 -4px 6px rgba(0,0,0,.22),
+      0 4px 12px rgba(0,0,0,.35);
+    pointer-events: none;
+    transition: left .3s cubic-bezier(.34,1.56,.64,1),
+      transform .3s cubic-bezier(.34,1.56,.64,1), opacity .25s;
+  }
+  [data-theme="light"] .bnav-disc {
+    box-shadow:
+      inset 0 1px 1px rgba(255,255,255,.6),
+      inset 0 -4px 6px rgba(0,0,0,.12),
+      0 4px 12px rgba(28,25,23,.18);
+  }
+  .bnav-flat .bnav-disc { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+
+  /* Section tabs — ikon di tengah bar; label tersembunyi, muncul hanya saat aktif. */
   .bnav-tab {
+    position: relative;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; flex: 1; min-width: 0;
-    color: var(--text-3); text-decoration: none;
+    min-width: 0;
+    color: var(--text-2); text-decoration: none;
     background: none; border: none; cursor: pointer;
     font-family: inherit; -webkit-appearance: none; appearance: none;
     transition: color .15s, transform .12s cubic-bezier(.34,1.56,.64,1);
   }
   .bnav-tab:active { transform: scale(.9); }
-  .bnav-tab svg { width: 21px; height: 21px; flex-shrink: 0; }
-  .bnav-label { font-size: 10px; font-weight: 500; line-height: 1; letter-spacing: .01em; }
-
-  /* Active state driven by [data-page] on <html> */
-  [data-page="cl"]       .bnav-tab-cl,
-  [data-page="invoice"]  .bnav-tab-invoice,
-  [data-page="hotels"]   .bnav-tab-hotels,
-  [data-page="calendar"] .bnav-tab-calendar { color: var(--accent); }
-
-  /* Elevated center Home button */
-  .bnav-home {
-    flex: 0 0 auto;
-    width: 52px; height: 52px; border-radius: 50%;
-    background: var(--accent); border: 3px solid rgba(14,14,17,.55); color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    margin-top: -22px;
-    box-shadow: 0 8px 20px rgba(255,108,55,.45);
-    transition: transform .12s cubic-bezier(.34,1.56,.64,1), box-shadow .15s;
+  .bnav-ico { display: flex; transition: transform .3s cubic-bezier(.34,1.56,.64,1), color .15s; }
+  .bnav-ico svg { width: 22px; height: 22px; flex-shrink: 0; }
+  .bnav-label {
+    position: absolute; top: 50%; left: 0; right: 0;
+    text-align: center;
+    font-size: 9.5px; font-weight: 600; line-height: 1; letter-spacing: .02em;
+    opacity: 0; transform: translateY(18px);
+    transition: opacity .3s, transform .3s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: none;
   }
-  [data-theme="light"] .bnav-home { border-color: rgba(255,255,255,.55); }
-  .bnav-home svg { width: 24px; height: 24px; }
-  .bnav-home:active { transform: scale(.9); }
-  [data-page="home"] .bnav-home { box-shadow: 0 0 0 4px rgba(255,108,55,.25), 0 8px 20px rgba(255,108,55,.45); }
+
+  /* Tab aktif: ikon naik ke pusat disc (y=8 dari tepi atas bar, dari pusat 35 → −27),
+     label meluncur naik + fade-in warna aksen. */
+  .bnav-active .bnav-ico { transform: translateY(-27px); color: #fff; }
+  .bnav-active .bnav-label { opacity: 1; transform: translateY(9px); color: var(--accent); font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bottom-nav::before, .bnav-disc, .bnav-ico, .bnav-label { transition: none; }
+  }
 
   /* Top-right utility cluster */
   .m-topbar {
@@ -1660,17 +1757,26 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .m-top-btn, .m-top-avatar {
     width: 42px; height: 42px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(14,14,17,.55);
-    backdrop-filter: blur(24px) saturate(160%);
-    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    background:
+      linear-gradient(155deg, rgba(255,255,255,.18), rgba(255,255,255,0) 55%),
+      rgba(14,14,17,.45);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
     border: 1px solid rgba(255,255,255,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
     color: var(--text-2); cursor: pointer;
     font-family: inherit; -webkit-appearance: none; appearance: none;
     position: relative; flex-shrink: 0;
     transition: transform .12s cubic-bezier(.34,1.56,.64,1);
   }
   [data-theme="light"] .m-top-btn,
-  [data-theme="light"] .m-top-avatar { background: rgba(255,255,255,.6); border-color: rgba(0,0,0,.10); }
+  [data-theme="light"] .m-top-avatar {
+    background:
+      linear-gradient(155deg, rgba(255,255,255,.6), rgba(255,255,255,0) 55%),
+      rgba(253,252,250,.5);
+    border-color: rgba(31,26,20,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+  }
   .m-top-btn:active, .m-top-avatar:active { transform: scale(.9); }
   .m-top-avatar { padding: 0; overflow: hidden; color: var(--text-2); }
   .m-top-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -1685,7 +1791,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
     border: 1.5px solid rgba(14,14,17,.95);
     font-family: 'JetBrains Mono', monospace;
   }
-  [data-theme="light"] .m-top-badge { border-color: rgba(255,255,255,.95); }
+  [data-theme="light"] .m-top-badge { border-color: rgba(253,252,250,.95); }
 }
 
 /* ── Mobile ── */
@@ -1701,13 +1807,25 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
   .page-title { font-size: 16px; }
   .page-header > div:last-child { width: 100%; justify-content: flex-end; }
+  .page-header .btn-primary {
+    border-radius: var(--r-full);
+    background: linear-gradient(150deg, var(--accent), var(--accent-2));
+    box-shadow: var(--shadow-orange);
+    border: none;
+  }
 
-  .filter-bar { flex-direction: column; gap: 0; align-items: stretch; }
-  .filter-bar .search-wrap { width: 100%; min-width: 0; height: 42px; flex: none; box-sizing: border-box; }
-  .filter-bar .fbar-actions { width: 100%; box-sizing: border-box; }
+  .filter-bar { flex-direction: column; gap: 8px; align-items: stretch; }
+  .filter-bar .search-wrap {
+    width: 100%; min-width: 0; height: 42px; flex: none; box-sizing: border-box;
+    border-radius: var(--r-xl); background: var(--surface); border: 1px solid var(--border);
+  }
+  .filter-bar .fbar-actions { width: 100%; box-sizing: border-box; gap: 8px; }
   /* 16px input prevents iOS auto-zoom on focus */
   .search-wrap input:not([type="checkbox"]):not([type="radio"]) { font-size: 16px; }
-  .filter-bar .fbar-btn { height: 42px; font-size: 13px; }
+  .filter-bar .fbar-btn {
+    height: 42px; font-size: 13px; border-radius: var(--r-full);
+    background: var(--surface); border: 1px solid var(--border);
+  }
   .filter-bar select,
   .filter-bar button[type="submit"] { display: none !important; }
   .filter-bar-row { flex-direction: row !important; gap: 8px !important; }
@@ -1760,16 +1878,25 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap { overflow-x: unset; }
   .table-wrap table { display: block; }
   .table-wrap table thead { display: none; }
-  /* container .card dibuat transparan: tiap baris jadi kartu sendiri
+  /* Container transparan: tiap baris jadi kartu bertoken dv- sendiri
      (kecuali tabel dense .rem-table yang tetap tabel scrollable) */
   .card:has(> .table-wrap):not(:has(.rem-table)) {
     background: transparent; border: none; box-shadow: none;
     overflow: visible; animation: none;
   }
-  .table-wrap table tbody { display: flex; flex-direction: column; gap: 8px; }
+  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header {
+    background: none; border: none; border-radius: 0;
+    margin-bottom: 8px; padding: 4px 2px;
+  }
+  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header .card-title {
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--text-3); font-weight: 700;
+  }
+  .table-wrap table tbody { display: flex; flex-direction: column; gap: 10px; }
   .table-wrap table tbody tr {
-    display: flex; flex-wrap: wrap; align-items: center;
-    gap: 3px 7px; padding: 12px 14px;
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    gap: 2px 8px;
+    padding: 13px 40px 13px 14px;
     position: relative;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1784,38 +1911,50 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .m-hide { display: none !important; }
   .m-sub { display: block; width: 100%; color: var(--text-2); font-size: 12px; font-weight: 400; margin-top: 3px; }
   .m-only { display: inline-flex; }
-  .col-m-primary { width: 100%; font-size: 13px !important; font-weight: 600; margin-bottom: 1px; flex-wrap: wrap; padding-right: 34px; box-sizing: border-box; }
-  .col-m-secondary { color: var(--text-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-m-amount { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
-  .col-m-actions { position: absolute; top: 7px; right: 7px; padding-top: 0; gap: 5px; }
-  .col-m-actions .btn { width: 34px !important; height: 34px !important; }
-  /* badge status di kanan-atas kartu, di kiri tombol kebab */
-  .col-m-badge { position: absolute; top: 13px; right: 46px; }
-  tr:has(.col-m-badge) .col-m-primary { padding-right: 128px; }
-  /* baris meta berlabel di bawah kartu (label = header kolom via data-label):
-     satu baris penuh per field, label kiri redup + nilai kanan */
+  /* Row 1: identifier bold (order 0) + pill didorong ke ujung kanan (order 1) */
+  .col-m-primary { order: 0; font-size: 13.5px !important; font-weight: 700; }
+  .col-m-badge { order: 1; margin-left: auto; position: static; }
+  /* Sub 1: identitas, baris penuh sendiri. max-width:none membatalkan
+     .col-ellipsis/.col-ellipsis-sm (utilitas desktop, tidak berbatas media
+     query) yang kalau tidak dibatalkan akan menahan lebar kolom ini kecil
+     dan membuatnya numpuk di baris 1 alih-alih pindah baris sendiri. */
+  .col-m-secondary {
+    order: 2; width: 100%; flex-basis: 100%; max-width: none;
+    color: var(--text-2); font-size: 12.5px; margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  /* Sub 2: dua kolom (kiri polos, kanan redup+kecil) dalam satu td, TANPA garis */
   .col-m-meta {
-    order: 10;
-    width: 100%;
+    order: 3; width: 100%; flex-basis: 100%;
     display: flex !important; align-items: baseline; justify-content: space-between; gap: 8px;
     overflow: visible; white-space: normal; max-width: none;
-    font-size: 11.5px !important; color: var(--text-2) !important;
+    font-size: 11px !important; color: var(--text-3) !important;
+    margin-top: 5px;
   }
-  .col-m-meta::before {
-    content: attr(data-label);
-    font-size: 10px; color: var(--text-3);
-    font-family: 'DM Sans', system-ui, sans-serif;
-    flex-shrink: 0;
+  /* Footer: label kiri + nilai kanan, DI BAWAH garis pemisah */
+  .col-m-amount {
+    order: 4; width: 100%; flex-basis: 100%;
+    display: flex !important; align-items: baseline; justify-content: space-between;
+    margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border);
+    font-family: inherit; font-size: 12.5px !important; font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
-  .col-m-amount { order: 5; }
-  .col-m-secondary { order: 4; }
+  .col-m-actions { position: absolute; top: 12px; right: 12px; padding-top: 0; gap: 5px; }
+  .col-m-actions .btn {
+    width: 30px !important; height: 30px !important;
+    position: relative;
+  }
+  /* hit area 44x44 (touch minimum) tanpa membesarkan tombol visual;
+     aman karena hanya satu tombol (kebab) yang tampil per baris di mobile */
+  .col-m-actions .btn::after { content: ""; position: absolute; inset: -7px; }
   .table-wrap table tfoot {
     display: block; margin-top: 8px;
     background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-xl);
   }
   .table-wrap table tfoot tr { display: block; padding: 8px 14px; }
-  .table-wrap table tfoot td { display: block; width: 100%; padding: 2px 0; border: none; background: transparent; font-size: 13px; text-align: left; }
-  .table-wrap table tfoot .tsum-k { margin-right: 6px; }
+  /* total rata kanan, label kiri (label mengambang, nilai mengikuti text-align) */
+  .table-wrap table tfoot td { display: block; width: 100%; padding: 2px 0; border: none; background: transparent; font-size: 13px; text-align: right; }
+  .table-wrap table tfoot .tsum-k { float: left; margin-right: 6px; }
 
   /* dense entry tables (remittance form/edit): keep as scrollable table, don't collapse */
   .table-wrap:has(table.rem-table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -1827,10 +1966,15 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap table.rem-table td { display: table-cell; white-space: nowrap; }
 
   /* pagination: compact prev · current · next on mobile */
-  .pagination { gap: 10px; }
-  .pagination .pag-btn { min-width: 44px; height: 40px; font-size: 14px; border-color: var(--border); }
+  .pagination { gap: 8px; }
+  .pagination .pag-btn {
+    min-width: 40px; height: 40px; font-size: 13px; border-color: var(--border);
+    border-radius: var(--r-lg);
+  }
+  .pagination .pag-btn.pag-active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
   .pagination .pag-btn:not(:first-child):not(:last-child):not(.pag-active) { display: none; }
   .pagination .pag-ellipsis { display: none; }
+  .export-menu { border-radius: var(--r-xl); }
 
   .table-detail { overflow-x: unset; }
   .table-detail table { display: block; }
@@ -1916,6 +2060,191 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 @media (max-width: 600px) {
   .ra-inline { display: none; }
   .ra-kebab { display: inline-flex !important; width: 34px !important; height: 34px !important; }
+}
+
+/* ── Detail v2 (dv-): halaman Detail CL & Invoice, mockup dark-saas v10 ── */
+.dv-page { max-width: 760px; }
+
+.dv-hero {
+  position: relative;
+  background: linear-gradient(150deg, #FF6C37 0%, #E1521F 55%, #C63E12 100%);
+  border-radius: 22px;
+  padding: 18px 18px 60px;
+  color: #fff;
+}
+[data-theme="light"] .dv-hero {
+  background: linear-gradient(150deg, #E86A38 0%, #D1491C 55%, #AC3C10 100%);
+}
+.dv-hero-top { display: flex; justify-content: space-between; align-items: center; }
+.dv-hero-kicker {
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: rgba(255,255,255,.75); font-weight: 700; margin-top: 18px;
+}
+.dv-hero-title { font-size: 28px; font-weight: 800; letter-spacing: -.5px; margin-top: 2px; }
+.dv-hero-sub { opacity: .8; font-size: 12px; margin-top: 3px; }
+.dv-hero-sub a { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
+
+.dv-pill {
+  display: inline-flex; align-items: center;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 6px 13px; border-radius: var(--r-full);
+  background: rgba(0,0,0,.28); color: #fff;
+}
+.dv-pill.green  { background: rgba(16,94,50,.55); }
+.dv-pill.yellow { background: rgba(122,86,0,.5); }
+.dv-pill.red    { background: rgba(126,20,14,.55); }
+.dv-pill.gray   { background: rgba(0,0,0,.28); color: rgba(255,255,255,.82); }
+
+.dv-kebab-wrap { position: relative; display: inline-flex; align-items: center; }
+.dv-kebab {
+  display: inline-flex; width: 30px; height: 30px; border-radius: var(--r-full);
+  background: rgba(0,0,0,.22); border: none; cursor: pointer;
+  align-items: center; justify-content: center; color: #fff; padding: 0;
+  position: relative;
+}
+/* hit area 44x44; hanya satu kebab per hero jadi aman dari overlap */
+.dv-kebab::after { content: ""; position: absolute; inset: -7px; }
+.dv-kebab + .dv-kebab-wrap, .dv-kebab-wrap + .dv-kebab-wrap { margin-left: 8px; }
+.dv-kebab svg { width: 14px; height: 14px; stroke: #fff; stroke-width: 2; fill: none; }
+.dv-menu {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--z-dropdown);
+  min-width: 140px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border-2);
+  border-radius: var(--r-xl); box-shadow: var(--shadow-lg);
+}
+.dv-menu a, .dv-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--text);
+  text-decoration: none; border-radius: var(--r-lg); text-align: left;
+}
+.dv-menu a:hover, .dv-menu button:hover { background: var(--surface-2); }
+.dv-menu a.danger, .dv-menu button.danger { color: var(--red); }
+
+.dv-float {
+  display: flex; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 16px; margin: -44px 10px 0;
+  position: relative; box-shadow: var(--shadow-lg);
+}
+.dv-float-main { flex: 1; min-width: 0; }
+
+.dv-l {
+  font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-3); font-weight: 700;
+}
+.dv-float-name { font-weight: 700; font-size: 14.5px; margin-top: 5px; }
+
+.dv-amtbox {
+  background: var(--accent-muted); border: 1px solid rgba(255,108,55,.18);
+  border-radius: 14px; padding: 12px 14px; min-width: 126px; align-self: flex-start;
+}
+[data-theme="light"] .dv-amtbox { border-color: rgba(209,73,28,.2); }
+.dv-amtbox .dv-l { color: var(--accent-2); }
+.dv-amtbox.paid { background: var(--green-muted); border-color: rgba(46,204,113,.2); }
+.dv-amtbox.paid .dv-l { color: var(--green); }
+.dv-amtbox-num { font-size: 23px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dv-amtbox-cur { font-size: 10px; color: var(--text-3); font-weight: 700; letter-spacing: 1px; }
+.dv-amtbox-due { font-size: 9.5px; margin-top: 6px; font-weight: 600; }
+.dv-amtbox-due.red { color: var(--red); }
+.dv-amtbox-due.yellow { color: var(--yellow); }
+
+/* Mobile: latar halaman detail solid (bukan tembus blob/dot-grid shell) —
+   blob ambient & dot-grid disembunyikan supaya latar jadi hitam pekat
+   seperti mockup (di tema terang: paper polos) */
+@media (max-width: 600px) {
+  body:has(.dv-page) .base-bg,
+  body:has(.table-wrap) .base-bg,
+  body:has(.cl-form) .base-bg { display: none; }
+}
+
+/* Panel pembungkus semua seksi di bawah kartu identitas — hanya desktop;
+   di mobile konten tetap langsung di latar halaman seperti mockup */
+@media (min-width: 601px) {
+  .dv-body {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    padding: 0 14px 18px;
+    margin-top: 18px;
+    box-shadow: var(--shadow-sm);
+  }
+  .dv-body .dv-sec { margin-top: 24px; }
+}
+.dv-sec { padding: 0 8px; margin-top: 30px; }
+.dv-sech { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+
+.dv-item {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 13px 0; border-bottom: 1px solid var(--border);
+}
+.dv-item:last-child { border-bottom: none; }
+.dv-item-main { min-width: 0; }
+.dv-item-name { font-weight: 700; font-size: 14px; }
+.dv-item-name.sm { font-size: 13px; }
+.dv-item-sub { color: var(--text-2); font-size: 11px; margin-top: 3px; line-height: 1.6; }
+.dv-item-amt {
+  font-weight: 800; font-size: 14.5px; text-align: right; white-space: nowrap;
+  padding-left: 12px; font-variant-numeric: tabular-nums;
+}
+.dv-item-amt small { display: block; font-size: 11px; font-weight: 600; margin-top: 3px; }
+.dv-empty { color: var(--text-3); font-size: 12px; padding: 13px 0; }
+
+.dv-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; color: var(--accent-2);
+  margin-left: 9px; vertical-align: 1px; cursor: pointer; text-decoration: none;
+}
+.dv-link svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.dv-attach { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.dv-fico {
+  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  background: rgba(255,108,55,.09);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; cursor: default; padding: 0; color: var(--accent-2);
+}
+[data-theme="light"] .dv-fico { background: rgba(209,73,28,.09); }
+.dv-fico svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.dv-fico.ghost { background: transparent; cursor: pointer; position: relative; }
+.dv-fico.ghost:hover { background: var(--surface-2); }
+/* hit area 44x44; gap dv-attach-actions dilebarkan di bawah supaya area ini
+   tidak saling tumpuk antar tombol download/delete yang bersebelahan */
+.dv-fico.ghost::after { content: ""; position: absolute; inset: -6px; }
+.dv-attach-name { font-weight: 600; font-size: 12.5px; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.dv-attach-name:hover { color: var(--accent-2); }
+.dv-attach-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; padding-left: 12px; }
+
+.dv-foot {
+  display: flex; justify-content: space-between; gap: 16px;
+  border-top: 1px solid var(--border-2); margin-top: 4px; padding-top: 14px;
+}
+.dv-foot-total { font-size: 22px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.dv-foot-total .cur { font-size: 11px; color: var(--text-3); font-weight: 700; }
+
+.dv-cta {
+  display: block; width: 100%;
+  background: linear-gradient(150deg, #FF6C37, #D8501C);
+  border: none; border-radius: 14px; cursor: pointer;
+  text-align: center; padding: 14px; margin-top: 18px;
+  font-family: inherit; font-weight: 700; font-size: 13.5px; color: #fff;
+  box-shadow: 0 10px 24px rgba(255,108,55,.25);
+}
+[data-theme="light"] .dv-cta { background: linear-gradient(150deg, #E05A26, #C24314); box-shadow: 0 10px 24px rgba(209,73,28,.25); }
+.dv-cta:hover { filter: brightness(1.06); }
+
+.dv-sec-action {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: var(--accent-2);
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-family: inherit; text-decoration: none;
+}
+.dv-sec-action:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+@media (min-width: 601px) {
+  .dv-hero { padding: 24px 24px 64px; }
+  .dv-float { margin: -44px 18px 0; padding: 18px 20px; }
+  .dv-sec { padding: 0 12px; }
 }
 
 /* ── Print ── */

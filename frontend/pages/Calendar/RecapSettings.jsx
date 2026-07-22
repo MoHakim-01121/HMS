@@ -77,7 +77,7 @@ function NotifCard({ title, tags, description, active, onToggle, selected, onEdi
 
 // ── Template data per type ─────────────────────────────────────
 const GUEST_SAMPLE = {
-  client_name: 'PT Amanah Wisata', check_in_date: '25 Jun 2026',
+  client_name: 'PT Amanah Wisata', check_in_date: '25 Jun 2026', hari_relatif: 'besok',
   booking_blocks:
     '*OLAYAN AJYAD*\n' +
     '1. #RSV : CL-005\n' +
@@ -90,6 +90,7 @@ const GUEST_VARS = [
   { key: 'client_name',    label: 'Nama Client/Tamu'       },
   { key: 'booking_blocks', label: 'Daftar Booking'         },
   { key: 'check_in_date',  label: 'Tgl. CI (khusus H-1)'   },
+  { key: 'hari_relatif',   label: 'Besok/lusa/dst (khusus H-1)' },
 ];
 
 const RECAP_SAMPLE = {

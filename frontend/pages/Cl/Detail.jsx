@@ -1,136 +1,133 @@
 import Attachments from "../../components/ui/Attachments.jsx";
-import Table from "../../components/ui/Table.jsx";
+import DetailHero from "../../components/detail/DetailHero.jsx";
+import FloatCard from "../../components/detail/FloatCard.jsx";
+import Section from "../../components/detail/Section.jsx";
+import ItemRow from "../../components/detail/ItemRow.jsx";
+import FooterSummary from "../../components/detail/FooterSummary.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const fmtPrice = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
-function heroBadge(s) {
-  if (s === "DEFINITE") return ["badge badge-green", "Definite"];
-  if (s === "CANCELLED") return ["badge badge-red", "Cancelled"];
-  return ["badge badge-yellow", "Tentative"];
+function heroPill(s) {
+  if (s === "DEFINITE") return { label: "Definite", tone: "green" };
+  if (s === "CANCELLED") return { label: "Cancelled", tone: "red" };
+  return { label: "Tentative", tone: "yellow" };
 }
 
-function MetaRail({ cl }) {
+function PenaltySection({ cl, penalty }) {
   return (
-    <div className="dmeta">
-      <div className="dmeta-head">Property</div>
-      <div className="dmeta-row"><span className="dmeta-k">Hotel</span><span className="dmeta-v">{cl.hotel_name || "—"}</span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Travel Agent</span><span className="dmeta-v">
-        {cl.client ? <a href={`/clients/${cl.client.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.client.name}</a> : (cl.guest_name || "—")}
-      </span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Phone</span><span className="dmeta-v mono">{cl.guest_phone || "—"}</span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Check-in</span><span className="dmeta-v">{cl.check_in || "—"}</span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Check-out</span><span className="dmeta-v">{cl.check_out || "—"}</span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Nights</span><span className="dmeta-v">{cl.num_nights}</span></div>
-      <div className="dmeta-row"><span className="dmeta-k">Guests</span><span className="dmeta-v">{cl.num_guests} people</span></div>
-      {cl.note && <div className="dmeta-note">{cl.note}</div>}
-    </div>
-  );
-}
-
-function PenaltyCard({ cl, penalty }) {
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Cancellation Penalty</span>
-        {penalty ? (
-          <div style={{ display: "flex", gap: 6 }}>
-            <a href={`/penalty/${penalty.pk}/pdf/`} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">PDF</a>
-            <a href={`/penalty/${penalty.pk}/edit/`} className="btn btn-ghost btn-sm">Edit</a>
-          </div>
+    <Section
+      label="Cancellation Penalty"
+      action={
+        penalty ? (
+          <span style={{ display: "inline-flex", gap: 14 }}>
+            <a className="dv-sec-action" href={`/penalty/${penalty.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
+            <a className="dv-sec-action" href={`/penalty/${penalty.pk}/edit/`}>Edit</a>
+          </span>
         ) : (
-          <a href={`/cl/${cl.pk}/penalty/new/`} className="btn btn-primary btn-sm">+ Create Penalty Document</a>
-        )}
-      </div>
-      <div className="card-body">
-        {penalty ? (
-          <div className="grid-2">
-            <div className="field"><div className="field-label">Penalty No.</div><div className="field-value"><a href={`/penalty/${penalty.pk}/`} style={{ color: "var(--accent)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>{penalty.penalty_number}</a></div></div>
-            <div className="field"><div className="field-label">Cancellation Date</div><div className="field-value">{penalty.cancellation_date}</div></div>
-            <div className="field"><div className="field-label">Penalty Amount</div><div className="field-value" style={{ fontWeight: 700 }}>{fmt(penalty.penalty_amount)} {penalty.penalty_currency}</div></div>
-            <div className="field"><div className="field-label">Payment Status</div><div className="field-value">{penalty.is_paid ? <span className="badge badge-green">Paid</span> : <span className="badge badge-red">Unpaid</span>}</div></div>
-          </div>
-        ) : (
-          <p style={{ color: "var(--text-2)", fontSize: 13 }}>No penalty document for this CL yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RoomsTable({ cl, rooms }) {
-  return (
-    <div className="card">
-      <div className="card-header"><span className="card-title">Rooms</span></div>
-      <Table
-        columns={[
-          {
-            header: "Type",
-            className: "col-m-primary",
-            render: (room) => (
-              <>
-                {room.room_type}
-                <span className="m-sub">{room.quantity} × {fmtPrice(room.price)} SAR/night</span>
-              </>
-            ),
-          },
-          { header: "Meals", headerClassName: "col-m-hide", className: "col-m-hide", style: { color: "var(--text-2)" }, render: (room) => room.meals || "—" },
-          { header: "Qty", headerClassName: "col-num col-m-hide", className: "mono col-num col-m-hide", render: (room) => room.quantity },
-          { header: "Price/Night", headerClassName: "col-num col-m-hide", className: "mono col-num col-m-hide", render: (room) => fmtPrice(room.price) },
-          { header: "Subtotal", headerClassName: "col-num", className: "mono col-num col-m-amount", style: { fontWeight: 600 }, render: (room) => `${fmt(room.subtotal)} SAR` },
-        ]}
-        rows={rooms}
-        rowKey={(room, i) => i}
-        empty="No room data"
-        footer={
-          <tr>
-            <td colSpan={4} className="col-num col-m-hide" style={{ fontWeight: 700 }}>Total</td>
-            <td className="tsum-v col-num" style={{ fontWeight: 700 }}><span className="m-only tsum-k">Total</span>{fmt(cl.total_price)} SAR</td>
-          </tr>
-        }
-      />
-    </div>
+          <a className="dv-sec-action" href={`/cl/${cl.pk}/penalty/new/`}>+ Create Penalty Document</a>
+        )
+      }
+    >
+      {penalty ? (
+        <ItemRow
+          small
+          name={<a href={`/penalty/${penalty.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none" }}>{penalty.penalty_number}</a>}
+          sub={penalty.cancellation_date}
+          amount={`${fmt(penalty.penalty_amount)} ${penalty.penalty_currency}`}
+          amountSub={
+            <small style={{ color: penalty.is_paid ? "var(--green)" : "var(--red)" }}>
+              {penalty.is_paid ? "Paid" : "Unpaid"}
+            </small>
+          }
+        />
+      ) : (
+        <div className="dv-empty">No penalty document for this CL yet.</div>
+      )}
+    </Section>
   );
 }
 
 export default function Detail({ cl, rooms, penalty, attachments }) {
-  const [bcls, blabel] = heroBadge(cl.reservation_status);
+  const guestLines = [];
+  if (cl.client) {
+    guestLines.push(
+      <a key="travel" href={`/clients/${cl.client.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.client.name}</a>
+    );
+  }
+  if (cl.guest_phone) guestLines.push(cl.guest_phone);
+  if (cl.hotel_name) guestLines.push(cl.hotel_name);
+
   return (
-    <div className="page">
+    <div className="page dv-page">
       <a href="/cl/" className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" /></svg>
+        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
+        </svg>
         Back
       </a>
 
-      <div className="dhero">
-        <div className="dhero-main">
-          <div className="dhero-kicker">Confirmation Letter</div>
-          <div className="dhero-title">{cl.confirmation_number}</div>
-          <div className="dhero-sub">{cl.guest_name}</div>
-        </div>
-        <div className="dhero-side">
-          <div className="dhero-badges">
-            <span className={bcls}>{blabel}</span>
-            {cl.invoice && (
-              <a href={`/invoice/${cl.invoice.pk}/`} className="badge badge-blue" style={{ textDecoration: "none" }} title="Invoiced in this invoice">
-                Invoiced → {cl.invoice.invoice_number}
-              </a>
-            )}
-          </div>
-          <div className="dhero-actions">
-            <a href={`/cl/${cl.pk}/pdf/`} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">PDF</a>
-            <a href={`/cl/${cl.pk}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
-          </div>
-        </div>
-      </div>
+      <DetailHero
+        kicker="Confirmation Letter"
+        title={cl.confirmation_number}
+        sub={cl.invoice ? <>Invoiced : <a href={`/invoice/${cl.invoice.pk}/`}>{cl.invoice.invoice_number}</a></> : null}
+        pill={heroPill(cl.reservation_status)}
+        menuItems={[
+          { label: "PDF", href: `/cl/${cl.pk}/pdf/`, target: "_blank" },
+          { label: "Edit", href: `/cl/${cl.pk}/edit/` },
+        ]}
+      />
 
-      <div className="dlayout rail-left">
-        <MetaRail cl={cl} />
-        <div>
-          {cl.reservation_status === "CANCELLED" && <PenaltyCard cl={cl} penalty={penalty} />}
-          <RoomsTable cl={cl} rooms={rooms} />
-          <Attachments targetType="cl" targetId={cl.pk} initial={attachments} />
-        </div>
+      <FloatCard>
+        <div className="dv-l">Guest</div>
+        <div className="dv-float-name">{cl.guest_name}</div>
+        {guestLines.length ? (
+          <div className="dv-item-sub">
+            {guestLines.map((line, i) => <span key={i}>{i > 0 ? <br /> : null}{line}</span>)}
+          </div>
+        ) : null}
+      </FloatCard>
+
+      <div className="dv-body">
+      <Attachments targetType="cl" targetId={cl.pk} initial={attachments} />
+
+      {cl.reservation_status === "CANCELLED" ? <PenaltySection cl={cl} penalty={penalty} /> : null}
+
+      <Section label="Stay">
+        <ItemRow
+          small
+          name={`${cl.check_in || "?"} - ${cl.check_out || "?"}`}
+          sub="Check-in sampai Check-out"
+          amount={`${cl.num_nights} nights`}
+          amountSub={<small style={{ color: "var(--text-2)" }}>{cl.num_guests} guests</small>}
+        />
+      </Section>
+
+      <Section label="Rooms" right="Subtotal">
+        {rooms.length ? rooms.map((room, i) => (
+          <ItemRow
+            key={i}
+            name={room.room_type}
+            sub={`${room.quantity} kamar × ${fmtPrice(room.price)}/night${room.meals ? `, ${room.meals}` : ""}`}
+            amount={fmt(room.subtotal)}
+          />
+        )) : <div className="dv-empty">No room data</div>}
+      </Section>
+
+      {cl.note ? (
+        <Section label="Notes">
+          <div className="dv-item-sub" style={{ marginTop: 6 }}>{cl.note}</div>
+        </Section>
+      ) : null}
+
+      <FooterSummary
+        right={
+          <>
+            <div className="dv-l">Total Price</div>
+            <div className="dv-foot-total">{fmt(cl.total_price)}<span className="cur"> SAR</span></div>
+          </>
+        }
+      />
       </div>
     </div>
   );

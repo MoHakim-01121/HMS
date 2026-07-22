@@ -14,12 +14,14 @@
   left: auto;
   width: 220px;
   max-width: calc(100vw - 24px);
-  background: var(--surface);
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,0) 45%),
+    rgba(20,20,23,.7);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.14);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   z-index: var(--z-overlay);
   overflow: hidden;
   opacity: 0;
@@ -32,6 +34,12 @@
   opacity: 1;
   pointer-events: all;
   transform: translateY(0) scale(1);
+}
+[data-theme="light"] .bnav-account-dd {
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.55), rgba(255,255,255,0) 45%),
+    rgba(253,252,250,.7);
+  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.5);
 }
 .bnav-account-head {
   display: flex;
@@ -62,6 +70,18 @@
 [data-page="clients"]    { --b1-c:rgba(59,130,246,.10);  --b2-c:rgba(6,182,212,.08);   --b3-c:rgba(99,102,241,.05);  --b1-d:32s; --b2-d:40s; --b3-d:28s; }
 [data-page="remittance"] { --b1-c:rgba(34,197,94,.11);   --b2-c:rgba(16,185,129,.09);  --b3-c:rgba(134,239,172,.06); --b1-d:35s; --b2-d:44s; --b3-d:29s; }
 [data-page="users"]      { --b1-c:rgba(168,85,247,.10);  --b2-c:rgba(139,92,246,.08);  --b3-c:rgba(196,181,253,.05); --b1-d:34s; --b2-d:45s; --b3-d:30s; }
+
+/* Light mode: tint blob dipekatkan (~2x) agar animasi tetap terlihat di latar terang */
+[data-theme="light"]                         { --b1-c:rgba(255,108,55,.32);  --b2-c:rgba(139,92,246,.24);  --b3-c:rgba(16,185,129,.19);  --b4-c:rgba(245,158,11,.26); }
+[data-theme="light"][data-page="home"]       { --b1-c:rgba(255,108,55,.26);  --b2-c:rgba(139,92,246,.18);  --b3-c:rgba(16,185,129,.14); }
+[data-theme="light"][data-page="hotels"]     { --b1-c:rgba(245,158,11,.22);  --b2-c:rgba(255,108,55,.18);  --b3-c:rgba(251,191,36,.13); }
+[data-theme="light"][data-page="invoice"]    { --b1-c:rgba(99,102,241,.22);  --b2-c:rgba(139,92,246,.18);  --b3-c:rgba(59,130,246,.13); }
+[data-theme="light"][data-page="cl"]         { --b1-c:rgba(255,108,55,.22);  --b2-c:rgba(6,182,212,.16);   --b3-c:rgba(20,184,166,.11); }
+[data-theme="light"][data-page="services"]   { --b1-c:rgba(16,185,129,.20);  --b2-c:rgba(20,184,166,.16);  --b3-c:rgba(52,211,153,.12); }
+[data-theme="light"][data-page="calendar"]   { --b1-c:rgba(234,179,8,.22);   --b2-c:rgba(245,158,11,.16);  --b3-c:rgba(251,191,36,.12); }
+[data-theme="light"][data-page="clients"]    { --b1-c:rgba(59,130,246,.20);  --b2-c:rgba(6,182,212,.16);   --b3-c:rgba(99,102,241,.11); }
+[data-theme="light"][data-page="remittance"] { --b1-c:rgba(34,197,94,.22);   --b2-c:rgba(16,185,129,.18);  --b3-c:rgba(134,239,172,.13); }
+[data-theme="light"][data-page="users"]      { --b1-c:rgba(168,85,247,.20);  --b2-c:rgba(139,92,246,.16);  --b3-c:rgba(196,181,253,.11); }
 
 /* Ambient blobs sit above the body background (z-index:0). Page content is lifted
    above them via .page-shell (z-index:1) so opaque cards cover the blobs (no frosted

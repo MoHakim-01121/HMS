@@ -75,9 +75,12 @@ export default function List({ remittances, stats, status_filter, q, total_count
                 <div className="fp-head"><span className="fp-title">Filter</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">Status</span><button type="button" className="fp-reset" onClick={() => setSel("")}>Reset</button></div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="radiogroup" aria-label="Status">
                     {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`} onClick={() => setSel(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
+                        role="radio" aria-checked={sel === o.val} tabIndex={0}
+                        onClick={() => setSel(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
                         <span className="fp-status-dot"></span><span className="fp-status-opt-label">{o.label}</span>
                       </div>
                     ))}
@@ -98,16 +101,38 @@ export default function List({ remittances, stats, status_filter, q, total_count
           <Table
             columns={[
               { header: "Remittance No", className: "col-m-primary col-nowrap", style: { fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }, render: (rem) => rem.remittance_number },
+              {
+                header: "Status",
+                className: "col-m-badge",
+                render: (rem) => rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span>,
+              },
               { header: "Date", className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
-              { header: "Total SAR", className: "mono col-m-amount", style: { fontWeight: 600 }, render: (rem) => `${fmt(rem.total_sar)} SAR` },
-              { header: "Status", className: "col-m-hide", render: (rem) => rem.status === "received" ? <span className="badge badge-green">Received</span> : <span className="badge badge-yellow">Pending</span> },
               {
                 header: "Proof",
                 headerClassName: "col-m-hide",
-                className: "col-m-hide",
-                render: (rem) => rem.proof_url
-                  ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>View ↗</a>
-                  : "—",
+                className: "col-m-meta",
+                render: (rem) => (
+                  <>
+                    <span className="m-hide">
+                      {rem.proof_url
+                        ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>View ↗</a>
+                        : "—"}
+                    </span>
+                    {rem.proof_url && <a href={rem.proof_url} target="_blank" rel="noreferrer" className="dv-link m-only" onClick={(e) => e.stopPropagation()}>Proof</a>}
+                  </>
+                ),
+              },
+              {
+                header: "Total SAR",
+                className: "mono col-m-amount",
+                style: { fontWeight: 600 },
+                render: (rem) => (
+                  <>
+                    <span className="m-hide">{fmt(rem.total_sar)} SAR</span>
+                    <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>Total</span>
+                    <span className="m-only">{fmt(rem.total_sar)} SAR</span>
+                  </>
+                ),
               },
               {
                 header: "",

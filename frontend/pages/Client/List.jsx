@@ -81,9 +81,12 @@ export default function List({ clients, q, status }) {
                 <div className="fp-head"><span className="fp-title">Filter</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">Status</span><button type="button" className="fp-reset" onClick={() => setSel("")}>Reset</button></div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="radiogroup" aria-label="Status">
                     {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`} onClick={() => setSel(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
+                        role="radio" aria-checked={sel === o.val} tabIndex={0}
+                        onClick={() => setSel(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
                         <span className="fp-status-dot"></span><span className="fp-status-opt-label">{o.label}</span>
                       </div>
                     ))}
@@ -118,6 +121,16 @@ export default function List({ clients, q, status }) {
               },
               { header: "City", className: "col-muted col-m-secondary", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
               {
+                header: "PIC / Score",
+                className: "col-mobile-only col-m-meta",
+                render: (c) => (
+                  <>
+                    <span>{c.pic || ""}</span>
+                    {c.score != null && <span style={{ color: scoreColor(c.score) }}>{c.score}/100</span>}
+                  </>
+                ),
+              },
+              {
                 header: "PIC / WA",
                 className: "col-m-hide",
                 render: (c) => (
@@ -132,7 +145,13 @@ export default function List({ clients, q, status }) {
               {
                 header: "Outstanding",
                 className: "col-m-amount",
-                render: (c) => c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>,
+                render: (c) => (
+                  <>
+                    <span className="m-hide">{c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>}</span>
+                    <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>Outstanding</span>
+                    <span className="m-only" style={{ color: c.outstanding > 0 ? "var(--red)" : "var(--green)" }}>{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span>
+                  </>
+                ),
               },
               {
                 header: "Score",

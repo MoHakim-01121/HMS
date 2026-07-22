@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
-import PageBack from "../../components/ui/PageBack.jsx";
 import { distColor, MAP } from "../../components/mapColors.js";
-
-function distClass(d) {
-  if (d === null || d === undefined) return "";
-  if (d < 500) return "ht-green";
-  if (d < 1500) return "ht-yellow";
-  return "ht-red";
-}
+import DetailHero from "../../components/detail/DetailHero.jsx";
+import FloatCard from "../../components/detail/FloatCard.jsx";
+import Section from "../../components/detail/Section.jsx";
 
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
@@ -64,7 +59,7 @@ function HotelMiniMap({ hotel }) {
     };
   }, [hotel]);
 
-  return <div ref={ref} id="mini-map" style={{ height: 460, borderRadius: "0 0 var(--r-lg) var(--r-lg)", overflow: "hidden" }} />;
+  return <div ref={ref} id="mini-map" style={{ height: 380 }} />;
 }
 
 function RoomCalculator({ avg }) {
@@ -89,56 +84,76 @@ function RoomCalculator({ avg }) {
 
 export default function Detail({ hotel }) {
   const hasCoords = hotel.lat != null && hotel.lng != null;
+  const distStyle =
+    hotel.distance == null ? undefined :
+    hotel.distance < 500 ? { color: "var(--green)" } :
+    hotel.distance < 1500 ? { color: "var(--yellow)" } : { color: "var(--red)" };
+  const subLines = [];
+  if (hotel.stars) subLines.push(`${hotel.stars}★ hotel`);
+  if (hotel.avg_occupancy) subLines.push(`Avg ${hotel.avg_occupancy} pax/room`);
   return (
-    <div className="page">
-      <PageBack href="/hotels/" />
-      <div className="page-header">
-        <div className="page-title">{hotel.name}</div>
-        <div>{hotel.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>}</div>
-      </div>
+    <div className="page dv-page">
+      <a href="/hotels/" className="page-back">
+        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
+        </svg>
+        Back
+      </a>
 
-      <div className="detail-grid-eq">
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-header"><span className="card-title">Info</span></div>
-            <div className="card-body" style={{ padding: "0 20px" }}>
-              <div className="ht-row"><span className="ht-key">City</span><span className="ht-val">{hotel.city_display}</span></div>
-              {hotel.area && <div className="ht-row"><span className="ht-key">Area</span><span className="ht-val">{hotel.area}</span></div>}
-              <div className="ht-row"><span className="ht-key">Stars</span><span className="ht-val" style={{ color: "var(--yellow)", fontWeight: 600 }}>{hotel.stars}★</span></div>
-              <div className="ht-row"><span className="ht-key">Distance</span><span className={"ht-val ht-dist " + distClass(hotel.distance)}>{hotel.distance_label}</span></div>
-              <div className="ht-row"><span className="ht-key">Avg/Room</span><span className="ht-val">{hotel.avg_occupancy ? `${hotel.avg_occupancy} pax` : <span style={{ color: "var(--text-3)" }}>—</span>}</span></div>
-              {hotel.note ? <div className="ht-row" style={{ borderBottom: "none" }}><span className="ht-key">Notes</span><span className="ht-val" style={{ whiteSpace: "pre-wrap" }}>{hotel.note}</span></div> : <div style={{ height: 8 }} />}
-            </div>
-          </div>
+      <DetailHero
+        kicker="Hotel"
+        title={hotel.name}
+        sub={`${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}`}
+        pill={hotel.is_active ? { label: "Active", tone: "green" } : { label: "Inactive", tone: "gray" }}
+        menuItems={[{ label: "Edit", href: `/hotels/${hotel.id}/edit/` }]}
+      />
 
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-header"><span className="card-title">Room Calculator</span></div>
-            <div className="card-body">
-              {hotel.avg_occupancy
-                ? <RoomCalculator avg={hotel.avg_occupancy} />
-                : <div className="empty" style={{ padding: 28 }}><div className="empty-title">This hotel has no average set</div></div>}
+      <FloatCard
+        right={
+          hotel.distance_label ? (
+            <div className="dv-amtbox">
+              <div className="dv-l">Distance</div>
+              <div className="dv-amtbox-num" style={{ fontSize: 19, ...distStyle }}>{hotel.distance_label}</div>
             </div>
+          ) : null
+        }
+      >
+        <div className="dv-l">Info</div>
+        <div className="dv-float-name">{hotel.city_display}{hotel.area ? `, ${hotel.area}` : ""}</div>
+        {subLines.length ? (
+          <div className="dv-item-sub">
+            {subLines.map((l, i) => <span key={i}>{i > 0 ? <br /> : null}{l}</span>)}
           </div>
+        ) : null}
+      </FloatCard>
+
+      <div className="dv-body">
+      <Section label="Room Calculator">
+        <div style={{ marginTop: 10 }}>
+          {hotel.avg_occupancy
+            ? <RoomCalculator avg={hotel.avg_occupancy} />
+            : <div className="dv-empty">This hotel has no average set</div>}
         </div>
+      </Section>
 
+      <Section
+        label="Location"
+        action={hasCoords ? <a className="dv-sec-action" href="/hotels/map/">Full Map</a> : null}
+      >
         {hasCoords ? (
-          <div className="card" style={{ marginBottom: 0, position: "sticky", top: 16 }}>
-            <div className="card-header">
-              <span className="card-title">Location</span>
-              <a href="/hotels/map/" className="btn btn-ghost btn-sm">Full Map</a>
-            </div>
+          <div style={{ marginTop: 10, borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
             <HotelMiniMap hotel={hotel} />
           </div>
         ) : (
-          <div className="card" style={{ marginBottom: 0 }}>
-            <div className="card-body">
-              <div className="empty" style={{ padding: 48 }}>
-                <div className="empty-title">Coordinates not set yet</div>
-                <div className="empty-sub">Add coordinates on the edit page</div>
-              </div>
-            </div>
-          </div>
+          <div className="dv-empty">Coordinates not set yet. Add coordinates on the edit page.</div>
         )}
+      </Section>
+
+      {hotel.note ? (
+        <Section label="Notes">
+          <div className="dv-item-sub" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{hotel.note}</div>
+        </Section>
+      ) : null}
       </div>
     </div>
   );

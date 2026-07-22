@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 
 const PAY_COLS = "90px 120px 1fr 110px 80px 90px 1fr 80px 28px";
@@ -112,12 +113,11 @@ export default function Form({ invoice, edit, suggested_number, default_company,
   return (
     <div className="page">
       <PageBack href="/services/" />
-      <div className="page-header" style={{ marginBottom: 14 }}>
-        <div>
-          <div className="page-title">{edit ? "Edit Invoice Services" : "Invoice Services / Visa"}</div>
-          <div className="page-sub">Layanan visa, umroh, dan services lainnya</div>
-        </div>
-      </div>
+      <FormHeader
+        kicker="Invoice Services"
+        title={edit ? "Edit Invoice Services" : "Invoice Services / Visa"}
+        sub="Layanan visa, umroh, dan services lainnya"
+      />
 
       <form method="post" onSubmit={submit}>
         {/* ── Info Invoice ── */}

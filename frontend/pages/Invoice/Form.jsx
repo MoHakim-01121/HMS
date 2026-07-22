@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 
 const DragIcon = () => (
@@ -160,15 +161,14 @@ export default function Form({ invoice, edit, suggested_number, default_company,
   };
 
   return (
-    <div className="page">
+    <div className="page inv-form">
       <style>{CSS}</style>
       <PageBack href="/invoice/" />
-      <div className="page-header" style={{ marginBottom: 14 }}>
-        <div>
-          <div className="page-title">{edit ? `Edit Invoice — ${src?.invoice_number || ""}` : "Invoice Hotel"}</div>
-          <div className="page-sub">Hotel reservations + payments in SAR</div>
-        </div>
-      </div>
+      <FormHeader
+        kicker="Invoice Hotel"
+        title={edit ? `Edit Invoice — ${src?.invoice_number || ""}` : "Invoice Hotel"}
+        sub="Hotel reservations + payments in SAR"
+      />
 
       <form method="post" onSubmit={submit}>
         <div className="form-panel">
@@ -212,67 +212,137 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                   <Icon name="invoice" size={11} /> Import from CL
                 </button>
               )}
-              <button type="button" className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={addRes}>+ Add</button>
+              <button type="button" className="btn btn-ghost inv-add-desktop" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={addRes}>+ Add</button>
             </div>
           </div>
           <div className="inv-sec-body">
-            <div className="res-header" style={{ padding: "0 4px 7px" }}>
-              <div>Res#</div><div>Hotel</div><div>Check-in</div><div>Check-out</div><div>Total SAR</div><div></div>
+            <div className="inv-res-desktop">
+              <div className="res-header" style={{ padding: "0 4px 7px" }}>
+                <div>Res#</div><div>Hotel</div><div>Check-in</div><div>Check-out</div><div>Total SAR</div><div></div>
+              </div>
+              <div id="reservations">
+                {reservations.map((r, i) => (
+                  <div className="item" key={i}>
+                    <input type="text" placeholder="RES#" required inputMode="numeric" value={r.reservation_number} onChange={(e) => setRes(i, "reservation_number", e.target.value)} />
+                    <input type="text" placeholder="Hotel Name" value={r.hotel} onChange={(e) => setRes(i, "hotel", e.target.value)} />
+                    <input type="date" value={r.check_in} onChange={(e) => setRes(i, "check_in", e.target.value)} />
+                    <input type="date" min={r.check_in || undefined} value={r.check_out} onChange={(e) => setRes(i, "check_out", e.target.value)} />
+                    <input type="number" placeholder="Total SAR" step="0.01" required value={r.reservation_total} onChange={(e) => setRes(i, "reservation_total", e.target.value)} />
+                    <button type="button" className="btn-remove" onClick={() => removeRes(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div id="reservations">
+            <div className="inv-res-cards">
               {reservations.map((r, i) => (
-                <div className="item" key={i}>
-                  <input type="text" placeholder="RES#" required inputMode="numeric" value={r.reservation_number} onChange={(e) => setRes(i, "reservation_number", e.target.value)} />
-                  <input type="text" placeholder="Hotel Name" value={r.hotel} onChange={(e) => setRes(i, "hotel", e.target.value)} />
-                  <input type="date" value={r.check_in} onChange={(e) => setRes(i, "check_in", e.target.value)} />
-                  <input type="date" min={r.check_in || undefined} value={r.check_out} onChange={(e) => setRes(i, "check_out", e.target.value)} />
-                  <input type="number" placeholder="Total SAR" step="0.01" required value={r.reservation_total} onChange={(e) => setRes(i, "reservation_total", e.target.value)} />
-                  <button type="button" className="btn-remove" onClick={() => removeRes(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
+                <div className="simple-card" key={i}>
+                  <div className="simple-top">
+                    <input type="text" className="simple-id" placeholder="RES#" required inputMode="numeric" value={r.reservation_number} onChange={(e) => setRes(i, "reservation_number", e.target.value)} />
+                    <span className="simple-amt-wrap">
+                      <input type="number" className="simple-amt-input" placeholder="Total SAR" step="0.01" required value={r.reservation_total} onChange={(e) => setRes(i, "reservation_total", e.target.value)} />
+                      <span className="cur">SAR</span>
+                    </span>
+                    <button type="button" className="trash-dot" onClick={() => removeRes(i)} aria-label="Remove"><Icon name="trash" size={13} /></button>
+                  </div>
+                  <input type="text" className="simple-sub" placeholder="Hotel Name" value={r.hotel} onChange={(e) => setRes(i, "hotel", e.target.value)} />
+                  <div className="simple-meta-row">
+                    <input type="date" className="simple-date" value={r.check_in} onChange={(e) => setRes(i, "check_in", e.target.value)} />
+                    <span className="sep">–</span>
+                    <input type="date" className="simple-date" min={r.check_in || undefined} value={r.check_out} onChange={(e) => setRes(i, "check_out", e.target.value)} />
+                  </div>
                 </div>
               ))}
+              <button type="button" className="btn-add-row inv-add-mobile" onClick={addRes}>+ Add reservation</button>
+              <div className="section-foot"><span className="lbl">Total</span><span className="val">{fmt(totals.totalRes)} SAR</span></div>
             </div>
           </div>
 
           {/* ── Payments ── */}
           <div className="inv-sec-head">
             <div className="form-section-label">Payments</div>
-            <button type="button" className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={addPay}>+ Add</button>
+            <button type="button" className="btn btn-ghost inv-add-desktop" style={{ height: 28, padding: "0 10px", fontSize: 12 }} onClick={addPay}>+ Add</button>
           </div>
           <div className="inv-sec-body-scroll">
-            <div className="pay-header" style={{ gridTemplateColumns: PAY_COLS }}>
-              <div></div><div>Res#</div><div>Date</div><div>Method</div>
-              <div>Amount</div><div>Cur</div><div>Rate</div><div>Note</div><div>Proof</div><div></div>
-            </div>
-            <div id="payments">
-              {payments.map((p, i) => (
-                <div className="payment-item" key={p._key} style={{ gridTemplateColumns: PAY_COLS }}
-                  onDragOver={onPayDragOver} onDrop={(e) => onPayDrop(e, i)}>
-                  <div className="drag-handle" draggable onDragStart={(e) => onPayDragStart(e, i)} onDragEnd={onPayDragEnd} style={{ cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center" }}><DragIcon /></div>
-                  <select value={p.ref} required onChange={(e) => setPay(i, { ref: e.target.value })}>
-                    <option value="">Res#</option>
-                    {resOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <input type="date" required value={p.date} onChange={(e) => setPay(i, { date: e.target.value })} />
-                  <select value={p.method} required onChange={(e) => setPay(i, { method: e.target.value })}>
-                    {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  <input type="number" step="0.01" placeholder="Amount" required value={p.amount} onChange={(e) => setPay(i, { amount: e.target.value })} />
-                  <select value={p.currency} onChange={(e) => onCurrencyChange(i, e.target.value)}>
-                    {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <input type="number" step="0.0001" placeholder="Rate" value={p.exchange} readOnly={p.currency === "SAR"} onChange={(e) => setPay(i, { exchange: e.target.value })} />
-                  <textarea placeholder="Note" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
-                  <div className="proof-cell">
-                    {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="View proof"><Icon name="proof" size={13} /></a>}
-                    <label className="proof-btn" title="Upload proof">
-                      <Icon name="proof" size={13} />
-                      <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
-                    </label>
-                    <span className="proof-fname">{p.file ? p.file.name : ""}</span>
+            <div className="inv-pay-desktop">
+              <div className="pay-header" style={{ gridTemplateColumns: PAY_COLS }}>
+                <div></div><div>Res#</div><div>Date</div><div>Method</div>
+                <div>Amount</div><div>Cur</div><div>Rate</div><div>Note</div><div>Proof</div><div></div>
+              </div>
+              <div id="payments">
+                {payments.map((p, i) => (
+                  <div className="payment-item" key={p._key} style={{ gridTemplateColumns: PAY_COLS }}
+                    onDragOver={onPayDragOver} onDrop={(e) => onPayDrop(e, i)}>
+                    <div className="drag-handle" draggable onDragStart={(e) => onPayDragStart(e, i)} onDragEnd={onPayDragEnd} style={{ cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center" }}><DragIcon /></div>
+                    <select value={p.ref} required onChange={(e) => setPay(i, { ref: e.target.value })}>
+                      <option value="">Res#</option>
+                      {resOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <input type="date" required value={p.date} onChange={(e) => setPay(i, { date: e.target.value })} />
+                    <select value={p.method} required onChange={(e) => setPay(i, { method: e.target.value })}>
+                      {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <input type="number" step="0.01" placeholder="Amount" required value={p.amount} onChange={(e) => setPay(i, { amount: e.target.value })} />
+                    <select value={p.currency} onChange={(e) => onCurrencyChange(i, e.target.value)}>
+                      {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <input type="number" step="0.0001" placeholder="Rate" value={p.exchange} readOnly={p.currency === "SAR"} onChange={(e) => setPay(i, { exchange: e.target.value })} />
+                    <textarea placeholder="Note" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
+                    <div className="proof-cell">
+                      {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="View proof"><Icon name="proof" size={13} /></a>}
+                      <label className="proof-btn" title="Upload proof">
+                        <Icon name="proof" size={13} />
+                        <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
+                      </label>
+                      <span className="proof-fname">{p.file ? p.file.name : ""}</span>
+                    </div>
+                    <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
                   </div>
-                  <button type="button" className="btn-remove" onClick={() => removePay(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+            <div className="inv-pay-cards">
+              <div className="tl-list">
+                {payments.map((p, i) => (
+                  <div className="tl-item" key={p._key}>
+                    <span className="tl-dot"></span>
+                    <div className="tl-card">
+                      <div className="tl-head">
+                        <input type="date" className="tl-date-input" required value={p.date} onChange={(e) => setPay(i, { date: e.target.value })} />
+                        <span className="tl-amt-wrap">
+                          <input type="number" step="0.01" className="tl-amt-input" placeholder="Amount" required value={p.amount} onChange={(e) => setPay(i, { amount: e.target.value })} />
+                          <select className="tl-cur-select" value={p.currency} onChange={(e) => onCurrencyChange(i, e.target.value)}>
+                            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                        </span>
+                        <button type="button" className="trash-dot" onClick={() => removePay(i)} aria-label="Remove"><Icon name="trash" size={12} /></button>
+                      </div>
+                      <div className="tl-meta">
+                        <select className="tl-chip-select" value={p.method} required onChange={(e) => setPay(i, { method: e.target.value })}>
+                          {METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <select className="tl-meta-select" value={p.ref} required onChange={(e) => setPay(i, { ref: e.target.value })}>
+                          <option value="">Res#</option>
+                          {resOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <input type="text" className="tl-meta-note" placeholder="Note" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
+                        {p.currency !== "SAR" && (
+                          <input type="number" step="0.0001" className="tl-meta-rate" placeholder="Rate" value={p.exchange} onChange={(e) => setPay(i, { exchange: e.target.value })} />
+                        )}
+                        <div className="tl-proof">
+                          {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="proof-link" title="View proof"><Icon name="proof" size={12} /></a>}
+                          <label className="tl-proof-btn" title="Upload proof">
+                            <Icon name="proof" size={12} />
+                            <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
+                          </label>
+                          {p.file && <span className="proof-fname">{p.file.name}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="btn-add-row inv-add-mobile" onClick={addPay}>+ Add payment</button>
+              <div className="section-foot"><span className="lbl">Remaining</span><span className={"val " + remainingClass}>{fmt(totals.remaining)} SAR</span></div>
             </div>
           </div>
 
@@ -286,6 +356,12 @@ export default function Form({ invoice, edit, suggested_number, default_company,
           <div className="form-actions" style={{ borderTop: "1px solid var(--border)" }}>
             <a href={edit ? `/invoice/${src.pk}/` : "/invoice/"} className="btn btn-ghost">Cancel</a>
             <button type="submit" id="submit-btn" className="btn btn-primary" disabled={form.processing}>
+              {form.processing ? "Saving…" : edit ? "Update & Save" : "Save & Open"}
+            </button>
+          </div>
+
+          <div className="inv-mobile-save-wrap">
+            <button type="submit" className="dv-cta" disabled={form.processing}>
               {form.processing ? "Saving…" : edit ? "Update & Save" : "Save & Open"}
             </button>
           </div>
@@ -317,8 +393,17 @@ export default function Form({ invoice, edit, suggested_number, default_company,
                   ) : filteredCls.map((cl) => {
                     const isSel = !!selected[cl.id];
                     return (
-                      <tr key={cl.id} className={"cl-modal-row" + (isSel ? " selected" : "")} onClick={() => toggleSel(cl)}>
-                        <td style={{ textAlign: "center" }}><input type="checkbox" checked={isSel} readOnly style={{ width: "auto", margin: 0, accentColor: "var(--accent)", cursor: "pointer" }} /></td>
+                      <tr
+                        key={cl.id}
+                        className={"cl-modal-row" + (isSel ? " selected" : "")}
+                        onClick={() => toggleSel(cl)}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
+                          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSel(cl); }
+                        }}
+                      >
+                        <td style={{ textAlign: "center" }}><input type="checkbox" checked={isSel} onChange={() => toggleSel(cl)} onClick={(e) => e.stopPropagation()} style={{ width: "auto", margin: 0, accentColor: "var(--accent)", cursor: "pointer" }} /></td>
                         <td style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{cl.ref}{cl.inv && <span style={{ fontSize: 10, color: "var(--accent)", marginLeft: 4 }}>● {cl.inv}</span>}</td>
                         <td>{cl.guest}</td>
                         <td style={{ color: "var(--text-2)" }}>{cl.hotel}</td>
@@ -335,7 +420,7 @@ export default function Form({ invoice, edit, suggested_number, default_company,
               <span className="cl-modal-sel-info"><strong>{Object.keys(selected).length}</strong> CL selected</span>
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="button" className="btn btn-ghost" style={{ height: 32, padding: "0 14px", fontSize: 13 }} onClick={() => setModalOpen(false)}>Cancel</button>
-                <button type="button" className="btn btn-primary" style={{ height: 32, padding: "0 16px", fontSize: 13 }} disabled={!Object.keys(selected).length} onClick={doImport}>Import →</button>
+                <button type="button" className="btn btn-primary" style={{ height: 32, padding: "0 16px", fontSize: 13 }} disabled={!Object.keys(selected).length} onClick={doImport}>Import</button>
               </div>
             </div>
           </div>
@@ -350,7 +435,7 @@ const CSS = `
 .inv-sec-head .form-section-label { margin-bottom:0; }
 .inv-sec-body { padding:14px 20px; }
 .inv-sec-body-scroll { padding:14px 20px; overflow-x:auto; }
-.inv-sec-body-scroll > .pay-header, .inv-sec-body-scroll > #payments { min-width:820px; }
+.inv-sec-body-scroll > .inv-pay-desktop { min-width:820px; }
 .inv-summary { display:grid; grid-template-columns:1fr 1fr 1fr; border-top:1px solid var(--border); background:var(--bg-2); }
 .inv-summary-cell { padding:14px 22px; border-right:1px solid var(--border); }
 .inv-summary-cell:last-child { border-right:none; }
@@ -375,6 +460,7 @@ const CSS = `
 .cl-modal-body table { width:100%; border-collapse:collapse; font-size:12px; }
 .cl-modal-body th { padding:7px 10px; font-size:10px; font-weight:600; color:var(--text-3); font-family:'JetBrains Mono',monospace; text-transform:uppercase; letter-spacing:.5px; background:var(--surface-2); border-bottom:1px solid var(--border); position:sticky; top:0; }
 .cl-modal-body td { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.035); color:var(--text); }
+[data-theme="light"] .cl-modal-body td { border-bottom-color:rgba(31,26,20,.06); }
 .cl-modal-row { cursor:pointer; transition:background .08s; }
 .cl-modal-row:hover { background:var(--surface-2); }
 .cl-modal-row.selected { background:var(--accent-muted); }
@@ -382,4 +468,125 @@ const CSS = `
 .cl-modal-foot { padding:12px 16px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .cl-modal-sel-info { font-size:13px; color:var(--text-2); }
 .cl-modal-sel-info strong { color:var(--text); }
+
+/* ── Mobile-only redesign to match CL form (flat sections, cards, sticky CTA) ── */
+.inv-res-cards, .inv-pay-cards, .inv-mobile-save-wrap { display:none; }
+@media (max-width:600px) {
+  .inv-form .form-panel { background:transparent; border:none; border-radius:0; overflow:visible; margin-bottom:0; }
+  .inv-form .form-section { border-bottom:none; padding:0; margin-top:28px; }
+  .inv-form .form-section:first-child { margin-top:0; }
+  .inv-info-row { grid-template-columns:1fr !important; }
+
+  .inv-sec-head { background:transparent; border:none; padding:0; margin-top:28px; }
+  .inv-sec-head .form-section-label { margin-bottom:0; }
+  .inv-add-desktop { display:none; }
+  .inv-sec-body, .inv-sec-body-scroll { padding:14px 0 0; overflow-x:visible; }
+
+  .res-header, .pay-header, .inv-res-desktop, .inv-pay-desktop { display:none; }
+  .inv-res-cards, .inv-pay-cards { display:flex; flex-direction:column; gap:8px; }
+  .inv-add-mobile { display:inline-flex; margin-top:10px; }
+
+  .inv-summary { display:none; }
+
+  .inv-form .form-actions { display:none; }
+  .inv-mobile-save-wrap { display:block; margin-top:20px; }
+
+  /* .page's default 88px isn't enough clearance above the 70px fixed bottom
+     nav — match .form-page's 112px so the CTA doesn't sit flush against it. */
+  .inv-form.page { padding-bottom: 112px; }
+}
+
+.trash-dot {
+  flex-shrink:0; width:24px; height:24px; border-radius:50%; border:none;
+  background:transparent; color:var(--text-3); display:flex; align-items:center;
+  justify-content:center; cursor:pointer;
+}
+.trash-dot:hover { background:var(--red-muted); color:var(--red); }
+
+.section-foot { display:flex; align-items:baseline; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.section-foot .lbl { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-3); text-transform:uppercase; letter-spacing:.6px; }
+.section-foot .val { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--text); font-variant-numeric:tabular-nums; }
+.section-foot .val.green { color:var(--green); }
+.section-foot .val.yellow { color:var(--yellow); }
+.section-foot .val.red { color:var(--red); }
+
+/* ── Reservation card (mobile) ── */
+.simple-card { background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r-lg); padding:12px 14px; overflow:hidden; }
+.simple-card + .simple-card { margin-top:8px; }
+.simple-top { display:flex; align-items:center; gap:8px; }
+.simple-id {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none; border-bottom:1px solid transparent;
+  padding:0; margin:0; font-family:inherit; font-size:14.5px; font-weight:700; color:var(--text);
+  flex:1; min-width:0;
+}
+.simple-id:focus { outline:none; border-bottom-color:var(--accent); }
+.simple-id::placeholder { color:var(--text-3); }
+.simple-amt-wrap { display:flex; align-items:baseline; gap:3px; flex-shrink:0; }
+.simple-amt-input {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none; border-bottom:1px solid transparent;
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--text);
+  text-align:right; width:70px; padding:0; flex-shrink:0;
+}
+.simple-amt-input:focus { outline:none; border-bottom-color:var(--accent); }
+.simple-amt-wrap .cur { font-size:10px; color:var(--text-3); font-weight:600; flex-shrink:0; }
+.simple-sub {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none;
+  border-bottom:1px solid var(--border-2); border-radius:0; padding:4px 0; margin-top:10px;
+  font-size:12.5px; color:var(--text-2); width:100%; font-family:inherit;
+}
+.simple-sub:focus { outline:none; border-bottom-color:var(--accent); color:var(--text); }
+.simple-sub::placeholder { color:var(--text-3); }
+.simple-meta-row { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; row-gap:4px; }
+.simple-date {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none;
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--text-3); padding:0;
+  width:92px; flex-shrink:0; min-width:0;
+}
+.simple-date:focus { outline:none; color:var(--text); }
+.simple-meta-row .sep { color:var(--text-3); font-size:11px; opacity:.6; flex-shrink:0; }
+
+/* ── Payments compact timeline (mobile) ── */
+.tl-list { position:relative; padding-left:20px; }
+.tl-list::before { content:''; position:absolute; left:5px; top:6px; bottom:6px; width:1px; background:var(--border-2); }
+.tl-item { position:relative; padding-bottom:10px; }
+.tl-item:last-child { padding-bottom:0; }
+.tl-dot { position:absolute; left:-20px; top:5px; width:11px; height:11px; border-radius:50%; background:var(--surface); border:2px solid var(--accent); }
+.tl-card { background:var(--bg-2); border:1px solid var(--border); border-radius:var(--r-lg); padding:11px 13px; overflow:hidden; }
+.tl-head { display:flex; align-items:center; gap:8px; }
+.tl-date-input {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none;
+  font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; color:var(--text);
+  padding:0; width:98px; flex-shrink:0; min-width:0;
+}
+.tl-date-input:focus { outline:none; color:var(--accent); }
+.tl-chip-select {
+  -webkit-appearance:none; appearance:none; font-size:10px; font-weight:600; color:var(--text-2);
+  background:var(--surface-3); padding:3px 8px; border-radius:var(--r-full); border:none; font-family:inherit; flex-shrink:0;
+}
+.tl-chip-select:focus { outline:none; color:var(--accent); }
+.tl-amt-wrap { margin-left:auto; display:flex; align-items:baseline; gap:2px; flex-shrink:0; min-width:0; }
+.tl-amt-input {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none;
+  font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--green);
+  text-align:right; width:68px; padding:0; flex-shrink:0;
+}
+.tl-amt-input:focus { outline:none; }
+.tl-cur-select {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none;
+  font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-3); padding:0; flex-shrink:0;
+}
+.tl-meta { display:flex; align-items:center; gap:6px; margin-top:9px; font-size:11.5px; color:var(--text-3); flex-wrap:wrap; row-gap:6px; }
+.tl-meta-select, .tl-meta-rate {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none; border-bottom:1px dashed var(--border-2);
+  font-family:inherit; font-size:11.5px; color:var(--text-3); padding:1px 0; width:auto; max-width:68px; flex-shrink:0;
+}
+.tl-meta-note {
+  -webkit-appearance:none; appearance:none; background:transparent; border:none; border-bottom:1px dashed var(--border-2);
+  font-family:inherit; font-size:11.5px; color:var(--text-3); padding:1px 0; flex:1; min-width:50px;
+}
+.tl-meta-select:focus, .tl-meta-note:focus, .tl-meta-rate:focus { outline:none; border-bottom-color:var(--accent); color:var(--text-2); }
+.tl-proof { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.tl-proof-btn { position:relative; display:flex; align-items:center; justify-content:center; width:20px; height:20px; color:var(--text-3); cursor:pointer; }
+.tl-proof-btn:hover { color:var(--accent); }
+.tl-meta .proof-fname { max-width:56px; }
 `;

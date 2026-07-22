@@ -24,9 +24,10 @@ const CSS = `
 .doc-tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px 12px; text-decoration:none; color:var(--text); border-radius:var(--r-2xl); border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.04); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); transition:background .2s,border-color .2s,transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .2s; position:relative; overflow:hidden; }
 .doc-tile::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent); opacity:0; transition:opacity .2s; }
 .doc-tile:hover::before { opacity:1; }
-[data-theme="light"] .doc-tile { border:1px solid rgba(0,0,0,.07); background:rgba(255,255,255,.55); }
+[data-theme="light"] .doc-tile::before { background:linear-gradient(90deg,transparent,rgba(209,73,28,.4),transparent); }
+[data-theme="light"] .doc-tile { border:1px solid rgba(31,26,20,.09); background:rgba(253,252,250,.6); }
 .doc-tile:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.13); transform:translateY(-3px) scale(1.01); }
-[data-theme="light"] .doc-tile:hover { background:rgba(255,255,255,.80); border-color:rgba(0,0,0,.12); }
+[data-theme="light"] .doc-tile:hover { background:rgba(253,252,250,.85); border-color:rgba(31,26,20,.15); }
 .doc-tile:active { transform:translateY(0) scale(.98); opacity:.85; }
 .doc-tile:hover .tile-icon { transform:scale(1.13); }
 .doc-tile.cl:hover{box-shadow:0 8px 30px rgba(255,108,55,.18),0 2px 8px rgba(0,0,0,.2);border-color:rgba(255,108,55,.28);}
@@ -211,7 +212,7 @@ export default function Home() {
         </div>
       </div>
 
-      <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" onClick={() => setOpen((v) => !v)}>
+      <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" aria-label="Ask AI" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>
         <svg className="fab-ic-close" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
@@ -227,7 +228,7 @@ export default function Home() {
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
-        <div className="chat-messages" ref={msgRef}>
+        <div className="chat-messages" ref={msgRef} aria-live="polite">
           {messages.length === 0 && !typing && (
             <div className="chat-empty">
               <div className="chat-empty-icon"><svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>

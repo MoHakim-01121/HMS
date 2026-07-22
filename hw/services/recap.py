@@ -18,11 +18,26 @@ TEMPLATE_H0_CLIENT = (
 
 TEMPLATE_H1_CLIENT = (
     "Assalamualaikum Bapak/Ibu {client_name},\n\n"
-    "Kami mengingatkan bahwa check-in berikut dijadwalkan besok, *{check_in_date}*:\n\n"
+    "Kami mengingatkan bahwa check-in berikut dijadwalkan {hari_relatif}, *{check_in_date}*:\n\n"
     "{booking_blocks}\n"
     "Mohon segera informasikan estimasi tiba & PIC untuk tiap hotel.\n\n"
     "Terima kasih."
 )
+
+
+def _hari_relatif(check_in) -> str:
+    """Wording untuk jarak hari ke check-in: H-1 selalu 'besok' meski reminder
+    manual juga dipakai untuk H-2/H-3 dst (tidak dikunci ke H-1 saja)."""
+    if check_in is None:
+        return 'segera'
+    gap = (check_in - date.today()).days
+    if gap == 1:
+        return 'besok'
+    if gap == 2:
+        return 'lusa'
+    if gap > 2:
+        return f'{gap} hari lagi'
+    return 'segera'
 
 
 def _get_template_body(template_type: str, fallback: str) -> str:
@@ -105,6 +120,7 @@ def build_grouped_reminder_message(cls: list, reminder_type: str, recipient_name
     if reminder_type == 'H1_GUEST':
         ci = cls[0].check_in
         kwargs['check_in_date'] = ci.strftime('%d %b %Y') if ci else '-'
+        kwargs['hari_relatif'] = _hari_relatif(ci)
         return _render(_get_template_body('H1_GUEST', TEMPLATE_H1_CLIENT), **kwargs)
     return _render(_get_template_body('H0_GUEST', TEMPLATE_H0_CLIENT), **kwargs)
 

@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import FormPanel from "../../components/form/FormPanel.jsx";
 import FormSection from "../../components/form/FormSection.jsx";
 import FormField from "../../components/form/FormField.jsx";
@@ -57,14 +58,13 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   };
 
   return (
-    <div className="form-page">
+    <div className="form-page cl-form">
       <PageBack href={edit ? `/cl/${c.id}/` : "/cl/"} />
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div>
-          <div className="page-title">{edit ? "Edit Confirmation Letter" : "New Confirmation Letter"}</div>
-          <div className="page-sub">Hotel reservation details</div>
-        </div>
-      </div>
+      <FormHeader
+        kicker="Confirmation Letter"
+        title={edit ? "Edit Confirmation Letter" : "New Confirmation Letter"}
+        sub="Hotel reservation details"
+      />
 
       <form method="post" onSubmit={submit}>
         <FormPanel>
@@ -121,8 +121,18 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 
           <FormSection label="Rooms">
             <RoomRows rooms={form.data.rooms} onChange={(next) => form.setData("rooms", next)} nights={nights} />
-            <div style={{ marginTop: 32, textAlign: "right", fontWeight: 600 }}>
+            <div className="cl-rooms-total-desktop" style={{ marginTop: 32, textAlign: "right", fontWeight: 600 }}>
               Total: {fmt(total)} SAR <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-3)" }}>({nights} {nights === 1 ? "night" : "nights"})</span>
+            </div>
+            <div className="cl-rooms-total-mobile dv-foot">
+              <div>
+                <span className="dv-l">Rooms</span>
+                <div className="cl-rooms-total-nights">{nights} {nights === 1 ? "night" : "nights"} · {form.data.rooms.length} {form.data.rooms.length === 1 ? "room" : "rooms"}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span className="dv-l">Total Price</span>
+                <div className="dv-foot-total">{fmt(total)}<span className="cur"> SAR</span></div>
+              </div>
             </div>
           </FormSection>
 
@@ -136,6 +146,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
             cancelHref={edit ? `/cl/${c.id}/` : "/cl/"}
             submitLabel={edit ? "Save Changes" : "Create CL"}
             processing={form.processing} />
+
+          <div className="cl-mobile-save-wrap">
+            <button type="submit" className="dv-cta" disabled={form.processing}>
+              {edit ? "Save Changes" : "Create CL"}
+            </button>
+          </div>
         </FormPanel>
       </form>
     </div>

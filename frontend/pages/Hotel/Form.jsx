@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useForm } from "@inertiajs/react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
@@ -171,10 +172,10 @@ export default function HotelForm({ hotel, edit }) {
         const lbl = document.getElementById("route-toggle-label");
         const exit = document.getElementById("route-exit-icon");
         mapWrap.classList.toggle("route-active", routeMode);
-        btn.style.borderColor = routeMode ? "rgba(255,108,55,.55)" : "";
-        btn.style.background = routeMode ? "rgba(255,108,55,.18)" : "";
+        btn.style.borderColor = routeMode ? "color-mix(in srgb, var(--accent) 55%, transparent)" : "";
+        btn.style.background = routeMode ? "var(--accent-muted)" : "";
         btn.style.color = routeMode ? "var(--accent-2)" : "";
-        btn.style.boxShadow = routeMode ? "0 2px 16px rgba(255,108,55,.25)" : "0 2px 16px rgba(0,0,0,.45)";
+        btn.style.boxShadow = routeMode ? "var(--shadow-orange)" : "var(--shadow-md)";
         if (lbl) lbl.textContent = routeMode ? "Drawing…" : "Draw Mode";
         if (exit) exit.style.display = routeMode ? "block" : "none";
         ctrl.style.display = routeMode ? "flex" : "none";
@@ -249,9 +250,7 @@ export default function HotelForm({ hotel, edit }) {
     <div className="page page-sm">
       <style>{CSS}</style>
       <PageBack href={edit ? `/hotels/${h.id}/` : "/hotels/"} />
-      <div className="page-header">
-        <div className="page-title">{edit ? `Edit — ${h.name}` : "New Hotel"}</div>
-      </div>
+      <FormHeader kicker="Hotel" title={edit ? `Edit — ${h.name}` : "New Hotel"} />
 
       <form ref={formRef} method="post" onSubmit={submit}>
         {/* ── Detail Hotel ── */}
@@ -307,15 +306,15 @@ export default function HotelForm({ hotel, edit }) {
               <div style={{ position: "absolute", top: 10, right: 10, zIndex: "var(--z-overlay)" }}>
                 <button type="button" id="route-toggle-btn" onClick={() => api.current.toggleRouteMode?.()} style={{
                   display: "flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", padding: "7px 12px", borderRadius: 8, cursor: "pointer",
-                  background: "rgba(13,13,15,.90)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
-                  border: "1px solid rgba(255,255,255,.11)", color: "var(--text-2)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
-                  transition: "border-color .2s,color .2s,background .2s,box-shadow .2s", boxShadow: "0 2px 16px rgba(0,0,0,.45)",
+                  background: "color-mix(in srgb, var(--surface) 90%, transparent)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+                  border: "1px solid var(--border-2)", color: "var(--text-2)", fontSize: 12, fontWeight: 500, fontFamily: "inherit",
+                  transition: "border-color .2s,color .2s,background .2s,box-shadow .2s", boxShadow: "var(--shadow-md)",
                 }}>
                   <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}><path strokeLinecap="round" strokeLinejoin="round" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" /></svg>
                   <span id="route-toggle-label">Draw Mode</span>
                   <svg id="route-exit-icon" style={{ display: "none", marginLeft: 1, opacity: 0.55, flexShrink: 0 }} width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                <div id="route-controls" style={{ display: "none", flexDirection: "column", gap: 6, marginTop: 6, padding: 8, background: "rgba(12,12,14,.93)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid rgba(255,255,255,.11)", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03) inset" }}>
+                <div id="route-controls" style={{ display: "none", flexDirection: "column", gap: 6, marginTop: 6, padding: 8, background: "color-mix(in srgb, var(--surface) 93%, transparent)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", border: "1px solid var(--border-2)", borderRadius: 10, boxShadow: "var(--shadow-lg)" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
                     <button type="button" className="rib rib-amber" onClick={() => api.current.startFromMosque?.()} title="Start point: Mosque plaza">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z" /></svg>
@@ -323,7 +322,7 @@ export default function HotelForm({ hotel, edit }) {
                     <button type="button" className="rib rib-blue" onClick={() => api.current.startFromHotel?.()} title="Start point: Hotel position">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 21V12h6v9" /></svg>
                     </button>
-                    <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.09)", margin: "0 3px", flexShrink: 0 }} />
+                    <div style={{ width: 1, height: 18, background: "var(--border-2)", margin: "0 3px", flexShrink: 0 }} />
                     <button type="button" className="rib" onClick={() => api.current.undoRoute?.()} title="Undo — remove last point (Ctrl+Z)">
                       <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a4 4 0 010 8H7m-4-8l4-4m-4 4l4 4" /></svg>
                     </button>
@@ -340,7 +339,7 @@ export default function HotelForm({ hotel, edit }) {
                   </div>
                 </div>
               </div>
-              <div id="route-hint" style={{ display: "none", position: "absolute", bottom: 30, left: "50%", transform: "translateX(-50%)", zIndex: "var(--z-overlay)", pointerEvents: "none", whiteSpace: "nowrap", background: "rgba(12,12,14,.88)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 99, padding: "5px 14px", fontSize: 10.5, color: "var(--text-2)", letterSpacing: ".01em" }}>
+              <div id="route-hint" style={{ display: "none", position: "absolute", bottom: 30, left: "50%", transform: "translateX(-50%)", zIndex: "var(--z-overlay)", pointerEvents: "none", whiteSpace: "nowrap", background: "color-mix(in srgb, var(--surface) 88%, transparent)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", border: "1px solid var(--border)", borderRadius: 99, padding: "5px 14px", fontSize: 10.5, color: "var(--text-2)", letterSpacing: ".01em" }}>
                 Click map = add &nbsp;·&nbsp; white ○ = bend &nbsp;·&nbsp; drag = move &nbsp;·&nbsp; click point = remove
               </div>
             </div>
@@ -377,16 +376,16 @@ export default function HotelForm({ hotel, edit }) {
 }
 
 const CSS = `
-.rib { width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;flex-shrink:0;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:var(--text-2);transition:background .12s,border-color .12s,transform .1s; }
-.rib:hover  { background:rgba(255,255,255,.11); }
+.rib { width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;flex-shrink:0;font-family:inherit;background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);transition:background .12s,border-color .12s,transform .1s; }
+.rib:hover  { background:var(--surface-3); }
 .rib:active { transform:scale(.92); }
-.rib.rib-amber { color:#F5A623;background:rgba(245,166,35,.09);border-color:rgba(245,166,35,.26); }
-.rib.rib-amber:hover { background:rgba(245,166,35,.18); }
-.rib.rib-blue  { color:var(--accent-2);background:rgba(255,108,55,.09);border-color:rgba(255,108,55,.26); }
-.rib.rib-blue:hover  { background:rgba(255,108,55,.18); }
-.rib.rib-red   { color:var(--red);background:rgba(255,69,58,.07);border-color:rgba(255,69,58,.18); }
-.rib.rib-red:hover   { background:rgba(255,69,58,.16); }
+.rib.rib-amber { color:var(--yellow);background:var(--yellow-muted);border-color:color-mix(in srgb, var(--yellow) 26%, transparent); }
+.rib.rib-amber:hover { background:color-mix(in srgb, var(--yellow) 18%, transparent); }
+.rib.rib-blue  { color:var(--accent-2);background:var(--accent-muted);border-color:color-mix(in srgb, var(--accent) 26%, transparent); }
+.rib.rib-blue:hover  { background:color-mix(in srgb, var(--accent) 18%, transparent); }
+.rib.rib-red   { color:var(--red);background:var(--red-muted);border-color:color-mix(in srgb, var(--red) 18%, transparent); }
+.rib.rib-red:hover   { background:color-mix(in srgb, var(--red) 16%, transparent); }
 @keyframes _panelIn { from { opacity:0; transform:translateY(-5px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
 #route-controls { animation:_panelIn .18s cubic-bezier(.34,1.4,.64,1); }
-#map-wrap.route-active { box-shadow:inset 0 0 0 2px rgba(255,108,55,.45); }
+#map-wrap.route-active { box-shadow:inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
 `;

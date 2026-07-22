@@ -101,9 +101,12 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                     <span className="fp-section-label">Status</span>
                     <button type="button" className="fp-reset" onClick={() => setSel("")}>Reset</button>
                   </div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="radiogroup" aria-label="Status">
                     {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`} onClick={() => setSel(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
+                        role="radio" aria-checked={sel === o.val} tabIndex={0}
+                        onClick={() => setSel(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
                         <span className="fp-status-dot"></span>
                         <span className="fp-status-opt-label">{o.label}</span>
                       </div>
@@ -127,12 +130,28 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
               columns={[
                 { header: "Invoice #", className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
                 { header: "Customer", className: "col-m-secondary", render: (inv) => inv.customer_name },
-                { header: "Issued", className: "col-muted col-nowrap col-m-meta", render: (inv) => inv.issued_date || "—" },
-                { header: "Total", className: "mono col-nowrap col-m-meta", render: (inv) => `${inv.total_sar.toLocaleString("en-US")} SAR` },
+                {
+                  header: "Issued",
+                  className: "col-muted col-nowrap col-m-meta",
+                  render: (inv) => (
+                    <>
+                      <span className="m-hide">{inv.issued_date || "—"}</span>
+                      {inv.issued_date && <span className="m-only">issued {inv.issued_date}</span>}
+                      <span className="m-only" style={{ fontVariantNumeric: "tabular-nums" }}>{inv.total_sar.toLocaleString("en-US")} SAR</span>
+                    </>
+                  ),
+                },
+                { header: "Total", className: "mono col-nowrap col-m-hide", render: (inv) => `${inv.total_sar.toLocaleString("en-US")} SAR` },
                 {
                   header: "Remaining",
                   className: (inv) => "mono col-nowrap col-m-amount " + (inv.remaining_sar === 0 ? "remaining-paid" : inv.remaining_sar > 0 ? "remaining-unpaid" : ""),
-                  render: (inv) => `${inv.remaining_sar.toLocaleString("en-US")} SAR`,
+                  render: (inv) => (
+                    <>
+                      <span className="m-hide">{inv.remaining_sar.toLocaleString("en-US")} SAR</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>Remaining</span>
+                      <span className="m-only">{inv.remaining_sar.toLocaleString("en-US")} SAR</span>
+                    </>
+                  ),
                 },
                 { header: "Status", className: "col-m-badge", render: (inv) => <StatusBadge status={inv.status} /> },
                 { header: "Created", className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },

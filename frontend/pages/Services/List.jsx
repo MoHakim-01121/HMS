@@ -63,9 +63,19 @@ export default function List({ invoices, total_count, q, pagination }) {
             <Table
               columns={[
                 { header: "Invoice #", className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
+                { header: "Currency", className: "col-m-badge", render: (inv) => <span className="badge badge-gray">{inv.currency}</span> },
                 { header: "Customer", className: "col-m-secondary", render: (inv) => inv.customer_name },
-                { header: "Currency", className: "col-m-amount", render: (inv) => <span className="badge badge-gray">{inv.currency}</span> },
-                { header: "Issued", className: "col-muted col-nowrap col-m-hide", render: (inv) => inv.issued_date || "—" },
+                {
+                  header: "Issued",
+                  className: "col-muted col-nowrap col-m-meta",
+                  render: (inv) => (
+                    <>
+                      <span className="m-hide">{inv.issued_date || "—"}</span>
+                      {inv.issued_date && <span className="m-only">issued {inv.issued_date}</span>}
+                      <span className="m-only" style={{ color: "var(--text-3)" }}>{inv.created_at}</span>
+                    </>
+                  ),
+                },
                 { header: "Created", className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
                 {
                   header: "",

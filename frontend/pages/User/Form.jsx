@@ -1,5 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import FormPanel from "../../components/form/FormPanel.jsx";
 import FormSection from "../../components/form/FormSection.jsx";
 import FormField from "../../components/form/FormField.jsx";
@@ -23,9 +24,7 @@ export default function Form({ form_data, errors: serverErrors }) {
   return (
     <div className="form-page">
       <PageBack href="/users/" />
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div><div className="page-title">New User</div><div className="page-sub">Create a new account</div></div>
-      </div>
+      <FormHeader kicker="User" title="New User" sub="Create a new account" />
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label="Account">

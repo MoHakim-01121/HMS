@@ -127,9 +127,12 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                     <span className="fp-section-label">Status</span>
                     <button type="button" className="fp-reset" onClick={() => setSel([])}>Reset</button>
                   </div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="group" aria-label="Status">
                     {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`} onClick={() => toggleStatus(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`}
+                        role="checkbox" aria-checked={sel.includes(o.val)} tabIndex={0}
+                        onClick={() => toggleStatus(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStatus(o.val); } }}>
                         <span className="fp-status-dot"></span>
                         <span className="fp-status-opt-label">{o.label}</span>
                         <span className="fp-status-count">{counts[o.countKey]}</span>
@@ -158,7 +161,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   render: (cl) => (
                     <>
                       <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
-                      {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
+                      {cl.has_invoice && <span className="m-hide" style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
+                      {cl.has_invoice && <span className="badge badge-blue m-only" style={{ fontSize: 9, marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>INV</span>}
                     </>
                   ),
                 },
@@ -171,10 +175,31 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   },
                 },
                 { header: "Client/Travel", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
-                { header: "Hotel", className: "col-ellipsis-sm col-muted col-m-meta", render: (cl) => cl.hotel_name },
-                { header: "Check-in", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_in || "—" },
-                { header: "Check-out", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_out || "—" },
-                { header: "Total", className: "mono col-nowrap col-m-amount", render: (cl) => cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : "—" },
+                {
+                  header: "Hotel",
+                  className: "col-ellipsis-sm col-muted col-m-meta",
+                  render: (cl) => (
+                    <>
+                      <span>{cl.hotel_name}</span>
+                      {(cl.check_in || cl.check_out) && (
+                        <span className="m-only" style={{ fontVariantNumeric: "tabular-nums" }}>{cl.check_in || "?"} - {cl.check_out || "?"}</span>
+                      )}
+                    </>
+                  ),
+                },
+                { header: "Check-in", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_in || "—" },
+                { header: "Check-out", className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_out || "—" },
+                {
+                  header: "Total",
+                  className: "mono col-nowrap col-m-amount",
+                  render: (cl) => (
+                    <>
+                      <span className="m-hide">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : <span className="col-dim">—</span>}</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>Total</span>
+                      <span className="m-only">{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>
+                    </>
+                  ),
+                },
                 {
                   header: "",
                   className: "col-m-actions",

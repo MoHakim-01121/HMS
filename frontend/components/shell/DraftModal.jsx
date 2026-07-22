@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { showToast } from "./Toast.jsx";
@@ -18,6 +18,23 @@ export default function DraftModal() {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
   const [withPdf, setWithPdf] = useState(true);
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") { setOpen(false); return; }
+      if (e.key !== "Tab") return;
+      const focusable = dialogRef.current?.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusable || focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   useEffect(() => {
     async function onOpen(e) {
@@ -85,9 +102,9 @@ export default function DraftModal() {
       style={{ display: "flex", position: "fixed", inset: 0, zIndex: "var(--z-modal)", background: "rgba(0,0,0,.5)", alignItems: "center", justifyContent: "center", padding: 20 }}
       onClick={(e) => e.target === e.currentTarget && setOpen(false)}
     >
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, width: "100%", maxWidth: 480, overflow: "hidden", boxShadow: "0 24px 48px rgba(0,0,0,.4)" }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="draft-modal-title" style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 16, width: "100%", maxWidth: 480, overflow: "hidden", boxShadow: "0 24px 48px rgba(0,0,0,.4)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
+          <div id="draft-modal-title" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
             <Icon name="message" size={16} /> Billing Message
           </div>
           <button onClick={() => setOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 4 }}>

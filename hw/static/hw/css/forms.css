@@ -14,6 +14,10 @@
   .form-page { padding: 14px 12px 112px; }
 }
 
+/* Header dv- halaman form: kicker kapital kecil + judul, tanpa hero
+   (form adalah halaman input, bukan tampilan dokumen). */
+.dv-form-header { margin-bottom: 16px; }
+
 /* ── Form panel: solid surface, sections within ── */
 .form-panel {
   background: var(--surface);
@@ -30,17 +34,18 @@
 }
 .form-section:last-child { border-bottom: none; }
 
-/* Section label */
+/* Section label, direstyle senada .dv-l (Tahap 1): abu-abu kecil kapital,
+   bukan lagi monospace putih. */
 .form-section-label {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  font-weight: 600;
+  font-family: inherit;
+  font-size: 9.5px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .9px;
-  color: #fff;
+  letter-spacing: 1.5px;
+  color: var(--text-3);
   margin-bottom: 16px;
 }
 .form-section-label-right {
@@ -316,7 +321,7 @@
   border-radius: var(--r-lg);
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  box-shadow: var(--shadow-lg);
   min-width: 200px;
 }
 .ac-item {
@@ -517,4 +522,159 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-2);
+}
+
+/* ── CL form: mobile-only redesign (scoped to .cl-form / cl-room-* / cl-mobile-*
+   classes so no other form is affected). Sections, the CTA and the totals
+   footer reuse the CL Detail page's own system (.dv-l / .dv-cta / .dv-foot) —
+   flat, no card boxes — the Rooms list is the one place that keeps a
+   rounded border per room, so a repeating list of similar items still
+   reads as distinct rows. ── */
+.cl-rooms-cards { display: none; }
+.cl-room-add-desktop { display: flex; justify-content: flex-end; margin-top: 10px; }
+.cl-room-add-mobile { display: none; }
+.cl-rooms-total-mobile { display: none; }
+.cl-mobile-save-wrap { display: none; }
+
+/* Room card: each room (type + meals + qty/price group) gets one rounded
+   border so it reads as a single unit in the list. */
+.cl-room-flat {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 13px 14px;
+}
+.cl-room-flat + .cl-room-flat { margin-top: 8px; }
+.cl-room-flat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cl-room-card-type {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.cl-room-card-type:focus { outline: none; color: var(--accent); }
+.cl-room-card-trash {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.cl-room-card-trash:hover { background: var(--red-muted); color: var(--red); }
+/* Qualified with .cl-room-flat + explicit `input` so specificity (0,2,1)
+   ties (and, since forms.css loads after design.css, wins) the global
+   `input:not([type=checkbox]):not([type=radio])` reset in design.css —
+   that selector's two :not() compounds also carry specificity (0,2,1),
+   which a plain single class here would otherwise lose to. */
+.cl-room-flat input.cl-room-card-meals {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-2);
+  border-radius: 0;
+  padding: 4px 0;
+  margin-top: 13px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  width: 100%;
+  font-family: inherit;
+}
+.cl-room-card-meals:focus { outline: none; border-bottom-color: var(--accent); color: var(--text); }
+.cl-room-card-meals::placeholder { color: var(--text-3); }
+.cl-room-card-calc {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 15px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.cl-room-flat .cl-room-card-calc input {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-2);
+  border-radius: 0;
+  padding: 3px 2px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.cl-room-card-calc input:focus { outline: none; border-bottom-color: var(--accent); }
+.cl-room-card-calc input:nth-of-type(1) { width: 40px; text-align: center; }
+.cl-room-card-calc input:nth-of-type(2) { width: 74px; text-align: right; }
+.cl-room-card-eq {
+  margin-left: auto;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.cl-room-card-eq .cur { font-size: 9.5px; color: var(--text-3); font-weight: 700; margin-left: 3px; }
+
+@media (max-width: 600px) {
+  /* Sections stay flat on the page background, spaced like .dv-sec —
+     no per-section card box, no divider lines between sections. */
+  .cl-form .form-panel {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    margin-bottom: 0;
+  }
+  .cl-form .form-section {
+    border-bottom: none;
+    padding: 0;
+    margin-top: 28px;
+  }
+  .cl-form .form-section:first-child { margin-top: 0; }
+  .cl-form .form-section-label { margin-bottom: 11px; }
+
+  /* Bigger touch targets for inputs inside the CL form. */
+  .cl-form .ff input:not([type="checkbox"]):not([type="radio"]),
+  .cl-form .ff select,
+  .cl-form .ff textarea {
+    padding: 11px 12px;
+    font-size: 14.5px;
+  }
+
+  /* Rooms: bordered cards instead of the 6-column grid table. */
+  .cl-rooms-table { display: none; }
+  .cl-rooms-cards { display: block; }
+  .cl-room-add-desktop { display: none; }
+  .cl-room-add-mobile { display: inline-flex; margin-top: 18px; }
+
+  /* Total moves to the bottom of the Rooms section, styled like .dv-foot —
+     but with more top space than .dv-foot's default 4px, since here it
+     follows the dashed Add Room button rather than a tight item list. */
+  .cl-rooms-total-desktop { display: none; }
+  .cl-rooms-total-mobile { display: flex; margin-top: 20px; }
+  .cl-rooms-total-nights { font-size: 11.5px; color: var(--text-2); margin-top: 4px; }
+
+  /* Bottom action: desktop Cancel+Save hidden, mobile gets a bare .dv-cta
+     button — same as the CTA on the CL Detail page, no card wrapper. */
+  .cl-form .form-actions { display: none; }
+  .cl-mobile-save-wrap { display: block; margin-top: 28px; }
+  .cl-mobile-save-wrap .dv-cta { margin-top: 0; }
 }

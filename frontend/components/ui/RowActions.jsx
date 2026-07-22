@@ -27,7 +27,7 @@ export default function RowActions({ actions }) {
           );
         })}
       </span>
-      <button type="button" className="btn btn-ghost btn-icon ra-kebab" aria-label="Actions" onClick={() => setOpen(true)}>
+      <button type="button" className="btn btn-ghost btn-icon ra-kebab" aria-label="Actions" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(true)}>
         <Icon name="dots" size={17} />
       </button>
       <ActionSheet open={open} onClose={() => setOpen(false)} actions={list} />

@@ -1,5 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import PageBack from "../../components/ui/PageBack.jsx";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import FormPanel from "../../components/form/FormPanel.jsx";
 import FormSection from "../../components/form/FormSection.jsx";
 import FormField from "../../components/form/FormField.jsx";
@@ -35,12 +36,11 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
   return (
     <div className="form-page">
       <PageBack href={`/cl/${cl.id}/`} label="Back to CL" />
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div>
-          <div className="page-title">{edit ? "Edit Penalty" : "New Penalty Document"}</div>
-          <div className="page-sub">{cl.guest_name} — {cl.confirmation_number}</div>
-        </div>
-      </div>
+      <FormHeader
+        kicker="Cancellation Penalty"
+        title={edit ? "Edit Penalty" : "New Penalty Document"}
+        sub={<>{cl.guest_name} — {cl.confirmation_number}</>}
+      />
 
       <form method="post" onSubmit={submit}>
         <FormPanel>

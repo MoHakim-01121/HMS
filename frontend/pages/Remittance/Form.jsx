@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import PageBack from "../../components/ui/PageBack.jsx";
 import { REM_TABLE_CSS } from "./remittanceStyles.js";
 
@@ -48,12 +49,7 @@ export default function Form({ reservasi = [], today, error }) {
       <style>{REM_TABLE_CSS + CSS}</style>
 
       <PageBack href="/remittance/" />
-      <div className="page-header" style={{ marginBottom: 14 }}>
-        <div>
-          <div className="page-title">Send to HQ</div>
-          <div className="page-sub">Summary of idle payments to send</div>
-        </div>
-      </div>
+      <FormHeader kicker="Remittance" title="Send to HQ" sub="Summary of idle payments to send" />
 
       {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
 

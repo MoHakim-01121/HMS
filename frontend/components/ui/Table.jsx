@@ -15,6 +15,11 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
               key={rowKey(row, i)}
               style={onRowClick ? { cursor: "pointer" } : undefined}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={onRowClick ? (e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
+              } : undefined}
             >
               {columns.map((col, ci) => {
                 const cls = typeof col.className === "function" ? col.className(row) : col.className;

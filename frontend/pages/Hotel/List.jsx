@@ -97,9 +97,12 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                 <div className="fp-head"><span className="fp-title">Filter</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">City</span><button type="button" className="fp-reset" onClick={() => setCity("")}>Reset</button></div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="radiogroup" aria-label="City">
                     {CITY_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${city === o.val ? " selected" : ""}`} onClick={() => setCity(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${city === o.val ? " selected" : ""}`}
+                        role="radio" aria-checked={city === o.val} tabIndex={0}
+                        onClick={() => setCity(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCity(o.val); } }}>
                         <span className="fp-status-dot"></span><span className="fp-status-opt-label">{o.label}</span>
                       </div>
                     ))}
@@ -107,9 +110,12 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                 </div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">Stars</span><button type="button" className="fp-reset" onClick={() => setStars("")}>Reset</button></div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="radiogroup" aria-label="Stars">
                     {STAR_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${stars === o.val ? " selected" : ""}`} onClick={() => setStars(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${stars === o.val ? " selected" : ""}`}
+                        role="radio" aria-checked={stars === o.val} tabIndex={0}
+                        onClick={() => setStars(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStars(o.val); } }}>
                         <span className="fp-status-dot"></span><span className="fp-status-opt-label">{o.label}</span>
                       </div>
                     ))}
@@ -131,12 +137,49 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
             <Table
               columns={[
                 { header: "Hotel Name", className: "col-m-primary", render: (h) => <span style={{ fontWeight: 600 }}>{h.name}</span> },
-                { header: "City", className: "col-m-secondary", render: (h) => <span className={"badge " + (h.city === "makkah" ? "badge-blue" : "badge-green")}>{h.city_display}</span> },
+                {
+                  header: "Status",
+                  className: "col-m-badge",
+                  render: (h) => h.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span>,
+                },
+                {
+                  header: "City",
+                  className: "col-m-secondary",
+                  render: (h) => (
+                    <>
+                      <span className={"badge " + (h.city === "makkah" ? "badge-blue" : "badge-green")}>{h.city_display}</span>
+                      {h.area && <span className="m-only" style={{ marginLeft: 6, color: "var(--text-3)" }}>{h.area}</span>}
+                    </>
+                  ),
+                },
                 { header: "Area", className: "col-muted col-m-hide", render: (h) => h.area || "—" },
-                { header: "Stars", className: "col-m-amount", render: (h) => <span style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 600 }}>{h.stars}★</span> },
-                { header: "Distance to Mosque", className: "col-m-hide", render: (h) => h.distance !== null ? <span className={distBadge(h.distance)}>{h.distance_label}</span> : <span className="col-dim">—</span> },
-                { header: "Avg", className: "mono col-m-hide", render: (h) => h.avg_occupancy ? h.avg_occupancy : <span className="col-dim">—</span> },
-                { header: "Status", className: "col-m-hide", render: (h) => h.is_active ? <span className="badge badge-green">Active</span> : <span className="badge badge-gray">Inactive</span> },
+                {
+                  header: "Stars",
+                  className: "col-m-hide",
+                  render: (h) => <span style={{ color: "var(--yellow)", fontSize: 12, fontWeight: 600 }}>{h.stars}★</span>,
+                },
+                {
+                  header: "Avg",
+                  className: "col-m-meta",
+                  render: (h) => (
+                    <>
+                      <span className="m-hide">{h.avg_occupancy ? h.avg_occupancy : <span className="col-dim">—</span>}</span>
+                      <span className="m-only">{h.stars}★ hotel</span>
+                      {h.avg_occupancy ? <span className="m-only">Avg {h.avg_occupancy} pax/room</span> : null}
+                    </>
+                  ),
+                },
+                {
+                  header: "Distance to Mosque",
+                  className: "col-m-amount",
+                  render: (h) => (
+                    <>
+                      <span className="m-hide">{h.distance !== null ? <span className={distBadge(h.distance)}>{h.distance_label}</span> : <span className="col-dim">—</span>}</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>Distance</span>
+                      {h.distance !== null ? <span className="m-only" style={h.distance < 500 ? { color: "var(--green)" } : h.distance < 1500 ? { color: "var(--yellow)" } : { color: "var(--red)" }}>{h.distance_label}</span> : <span className="m-only" style={{ color: "var(--text-3)" }}>—</span>}
+                    </>
+                  ),
+                },
                 {
                   header: "",
                   className: "col-m-actions",

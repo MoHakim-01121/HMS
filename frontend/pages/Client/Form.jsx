@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import FormHeader from "../../components/form/FormHeader.jsx";
 import FormPanel from "../../components/form/FormPanel.jsx";
 import FormSection from "../../components/form/FormSection.jsx";
 import FormField from "../../components/form/FormField.jsx";
@@ -29,12 +30,11 @@ export default function Form({ client, edit, errors: serverErrors }) {
   return (
     <div className="form-page">
       <PageBack href={edit ? `/clients/${c.id}/` : "/clients/"} />
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div>
-          <div className="page-title">{edit ? "Edit Client" : "New Client"}</div>
-          <div className="page-sub">Umrah travel agent data</div>
-        </div>
-      </div>
+      <FormHeader
+        kicker="Client"
+        title={edit ? "Edit Client" : "New Client"}
+        sub="Umrah travel agent data"
+      />
 
       <form method="post" onSubmit={submit}>
         <FormPanel>
