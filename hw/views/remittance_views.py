@@ -4,8 +4,7 @@ import json
 from collections import defaultdict
 from datetime import date
 
-from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
@@ -13,10 +12,33 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import Invoice, Payment, Remittance, RemittanceLine
+from ..permissions import require_perm
 from ..utils import convert_to_sar
 
 SURABAYA_METHODS = {'cash', 'bank transfer', 'deposit'}
 KONOZ = 'konoz'
+
+
+def _prev_sent_map(rem, linked_numbers):
+    """Total SAR yang sudah dikirim per reservasi lewat remittance SEBELUM `rem`.
+
+    Urutannya mengikuti Meta.ordering Remittance (date, lalu created_at), jadi
+    remittance yang dibuat setelah `rem` tidak ikut terhitung sebagai "prev sent".
+    """
+    if not linked_numbers:
+        return {}
+    earlier = (
+        Q(remittance__date__lt=rem.date)
+        | Q(remittance__date=rem.date, remittance__created_at__lt=rem.created_at)
+    )
+    return {
+        row['linked_number']: int(row['total'] or 0)
+        for row in RemittanceLine.objects.filter(
+            earlier,
+            linked_number__in=linked_numbers,
+            remittance__company=KONOZ,
+        ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar'))
+    }
 
 
 def _compute_stats():
@@ -132,7 +154,7 @@ def _serialize_reservasi():
     return rows
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_list(request):
     from django.db.models import Q
     status_filter = request.GET.get('status', '')
@@ -164,7 +186,7 @@ def remittance_list(request):
     })
 
 
-@login_required
+@require_perm('remittance', 'create')
 def remittance_new(request):
     if request.method == 'POST':
         remittance_date = request.POST.get('date') or str(date.today())
@@ -224,7 +246,7 @@ def remittance_new(request):
     })
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_detail(request, pk):
     from ..models import Reservation
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -238,13 +260,8 @@ def remittance_detail(request, pk):
         for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
     }
 
-    # Total previously sent (other remittances)
-    prev_map = {}
-    for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers,
-        remittance__company=KONOZ,
-    ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
-        prev_map[row['linked_number']] = int(row['total'] or 0)
+    # Total previously sent (remittance sebelum yang ini)
+    prev_map = _prev_sent_map(rem, linked_numbers)
 
     enriched = []
     for line in lines:
@@ -278,7 +295,7 @@ def remittance_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('remittance', 'export')
 def remittance_export_csv(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines__invoice')
     response = HttpResponse(content_type='text/csv')
@@ -302,7 +319,7 @@ def remittance_export_csv(request):
     return response
 
 
-@login_required
+@require_perm('remittance', 'edit')
 @require_POST
 def remittance_mark_received(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -312,7 +329,7 @@ def remittance_mark_received(request, pk):
     return redirect('remittance_list')
 
 
-@login_required
+@require_perm('remittance', 'edit')
 def remittance_edit(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
     if rem.status == Remittance.STATUS_RECEIVED:
@@ -368,7 +385,7 @@ def remittance_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('remittance', 'export')
 def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
@@ -381,14 +398,11 @@ def remittance_pdf(request, pk):
         r['reservation_number']: r
         for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
     }
-    prev_map = {}
-    for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers,
-        remittance__company=KONOZ,
-    ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
-        prev_map[row['linked_number']] = int(row['total'] or 0)
+    prev_map = _prev_sent_map(rem, linked_numbers)
 
     lines = [{'line': l, 'check_in': res_map.get(l.linked_number, {}).get('check_in'), 'hotel': res_map.get(l.linked_number, {}).get('hotel', '—'), 'prev_sent': prev_map.get(l.linked_number, 0)} for l in raw_lines]
+    # urutkan berdasarkan check-in terdekat lebih dulu; baris tanpa check-in ditaruh paling bawah
+    lines.sort(key=lambda row: (row['check_in'] is None, row['check_in'] or date.max, row['line'].linked_number or ''))
 
     return _render_list_pdf(
         request, rem.lines.none(),
@@ -398,7 +412,7 @@ def remittance_pdf(request, pk):
     )
 
 
-@login_required
+@require_perm('remittance', 'edit')
 @require_POST
 def remittance_upload_proof(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -409,7 +423,7 @@ def remittance_upload_proof(request, pk):
     return redirect('remittance_detail', pk=rem.pk)
 
 
-@login_required
+@require_perm('remittance', 'delete')
 @require_POST
 def remittance_delete(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -417,7 +431,7 @@ def remittance_delete(request, pk):
     return redirect('remittance_list')
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_recap(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
     monthly = {}
@@ -455,7 +469,7 @@ def remittance_recap(request):
     })
 
 
-@login_required
+@require_perm('remittance', 'export')
 def remittance_period_pdf(request):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
