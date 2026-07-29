@@ -71,6 +71,7 @@
   tbody td.c { text-align: center; }
   .mono { font-family: 'Courier New', monospace; font-size: 10px; }
   .nowrap { white-space: nowrap; }
+  .idx { width: 30px; text-align: right; color: #666; }
 
   .badge-status {
     display: inline-block;
@@ -127,7 +128,8 @@
 <table>
   <thead>
     <tr>
-      <th>CL No</th>
+      <th class="idx">#</th>
+      <th>RSV</th>
       <th>Guest</th>
       <th>Hotel</th>
       <th class="c">Status</th>
@@ -141,6 +143,7 @@
   <tbody>
     {% for cl in letters %}
     <tr>
+      <td class="idx">{{ forloop.counter }}</td>
       <td class="mono nowrap">{{ cl.confirmation_number }}</td>
       <td>{{ cl.guest_name }}</td>
       <td>{{ cl.hotel_name }}</td>
@@ -160,11 +163,11 @@
       <td class="r mono">{% if cl.total_price %}{{ cl.total_price|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="9" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
+    <tr><td colspan="10" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
     {% endfor %}
     {% if letters %}
     <tr class="total-row">
-      <td colspan="7" class="label">Total</td>
+      <td colspan="8" class="label">Total</td>
       <td class="r">{{ total_rooms }}</td>
       <td class="r mono">{{ total_sar|floatformat:0|intcomma }}</td>
     </tr>
