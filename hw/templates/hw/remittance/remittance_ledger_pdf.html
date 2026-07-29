@@ -1,0 +1,230 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 40px 48px 36px;
+    @bottom-left {
+      content: string(doc-date);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+    @bottom-right {
+      content: "Page " counter(page) "/" counter(pages);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+  }
+  .doc-date-anchor { string-set: doc-date content(); display: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .watermark-tile {
+    position: fixed;
+    top: 0; left: 0;
+    width: 29.7cm; height: 21cm;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+  .doc-sub { font-size: 12px; color: #555; margin-top: 2px; }
+  .logo { max-height: 56px; width: auto; }
+
+  .meta { position: relative; z-index: 1; margin-bottom: 16px; font-size: 11px; }
+  .meta-row { display: flex; gap: 8px; }
+  .meta-row .mk { font-weight: 700; color: #111; min-width: 110px; }
+  .meta-row .mv { color: #111; }
+
+  table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  thead th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    color: #333;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+  }
+  thead th.r { text-align: right; }
+  thead th.c { text-align: center; }
+  tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+  tbody td.r { text-align: right; }
+  tbody td.c { text-align: center; }
+  .mono { font-family: 'Courier New', monospace; font-size: 10px; }
+  .nowrap { white-space: nowrap; }
+  .muted { color: #bbb; }
+
+  .amt-debit  { color: #b45309; font-weight: 700; }
+  .amt-credit { color: #15803d; font-weight: 700; }
+  .bal-pos { font-weight: 700; }
+  .bal-zero { color: #15803d; font-weight: 700; }
+  .bal-neg { color: #dc2626; font-weight: 700; }
+
+  .badge-status {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .badge-def { background: #d1fae5; color: #065f46; }
+  .badge-ten { background: #fef3c7; color: #92400e; }
+  .badge-can { background: #fee2e2; color: #991b1b; }
+
+  tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  tr.opening-row td {
+    background: #fafafa;
+    font-weight: 700;
+    font-size: 10px;
+    color: #444;
+  }
+  tr.total-row td {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    font-weight: 700;
+    color: #111;
+    font-size: 10.5px;
+  }
+  tr.total-row td.r { text-align: right; }
+  tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
+
+  .note {
+    position: relative;
+    z-index: 1;
+    margin-top: 16px;
+    font-size: 9.5px;
+    color: #666;
+    line-height: 1.7;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+  }
+  .note b { color: #333; }
+</style>
+</head>
+<body>
+
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+
+<div class="watermark-tile">
+  <svg xmlns="http://www.w3.org/2000/svg" width="29.7cm" height="21cm">
+    <g transform="rotate(-35, 420, 300)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100" y="-140">KONOZ UNITED</text><text x="300" y="-140">KONOZ UNITED</text><text x="500" y="-140">KONOZ UNITED</text><text x="700" y="-140">KONOZ UNITED</text><text x="900" y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text><text x="-100" y="0">KONOZ UNITED</text><text x="100" y="0">KONOZ UNITED</text><text x="300" y="0">KONOZ UNITED</text><text x="500" y="0">KONOZ UNITED</text><text x="700" y="0">KONOZ UNITED</text><text x="900" y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text><text x="-100" y="140">KONOZ UNITED</text><text x="100" y="140">KONOZ UNITED</text><text x="300" y="140">KONOZ UNITED</text><text x="500" y="140">KONOZ UNITED</text><text x="700" y="140">KONOZ UNITED</text><text x="900" y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text><text x="-100" y="280">KONOZ UNITED</text><text x="100" y="280">KONOZ UNITED</text><text x="300" y="280">KONOZ UNITED</text><text x="500" y="280">KONOZ UNITED</text><text x="700" y="280">KONOZ UNITED</text><text x="900" y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text><text x="-100" y="420">KONOZ UNITED</text><text x="100" y="420">KONOZ UNITED</text><text x="300" y="420">KONOZ UNITED</text><text x="500" y="420">KONOZ UNITED</text><text x="700" y="420">KONOZ UNITED</text><text x="900" y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text><text x="-100" y="560">KONOZ UNITED</text><text x="100" y="560">KONOZ UNITED</text><text x="300" y="560">KONOZ UNITED</text><text x="500" y="560">KONOZ UNITED</text><text x="700" y="560">KONOZ UNITED</text><text x="900" y="560">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+
+<div class="top">
+  <div>
+    <div class="doc-title">Buku Besar Surabaya - Pusat</div>
+  </div>
+  <img src="{{ logo_url }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Periode</span><span class="mv">{{ period_label }}</span></div>
+  <div class="meta-row"><span class="mk">Reservasi</span><span class="mv">{{ rows|length }}</span></div>
+  <div class="meta-row"><span class="mk">Bayar direct</span><span class="mv">{{ direct_total|floatformat:0|intcomma }} SAR — sudah masuk kolom Credit</span></div>
+  <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
+</div>
+
+
+<table>
+  <thead>
+    <tr>
+      <th class="r">#</th>
+      <th>RSV</th>
+      <th>Hotel</th>
+      <th>Guest</th>
+      <th class="c">Status</th>
+      <th class="c">In</th>
+      <th class="c">Out</th>
+      <th class="r">Total (SAR)</th>
+      <th class="r">Debit (SAR)</th>
+      <th class="r">Credit (SAR)</th>
+      <th class="r">Balance (SAR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td class="r" style="color:#999;">{{ row.no }}</td>
+      <td class="mono nowrap">{{ row.linked_number }}</td>
+      <td>{{ row.hotel }}</td>
+      <td>{{ row.guest }}</td>
+      <td class="c">
+        {% if row.status == 'DEFINITE' %}
+          <span class="badge-status badge-def">Definite</span>
+        {% elif row.status == 'TENTATIVE' %}
+          <span class="badge-status badge-ten">Tentative</span>
+        {% elif row.status == 'CANCELLED' %}
+          <span class="badge-status badge-can">Cancelled</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
+      <td class="c nowrap">{% if row.check_in %}{{ row.check_in|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="c nowrap">{% if row.check_out %}{{ row.check_out|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="r mono">{% if row.total_sar %}{{ row.total_sar|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.debit %}<span class="amt-debit">{{ row.debit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.credit %}<span class="amt-credit">{{ row.credit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">
+        {% if row.balance > 0 %}
+          <span class="bal-pos">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% elif row.balance < 0 %}
+          <span class="bal-neg">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% else %}
+          <span class="bal-zero">0</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="11" style="text-align:center;color:#999;padding:24px;">Tidak ada data pada periode ini</td></tr>
+    {% endfor %}
+    {% if rows %}
+    <tr class="total-row">
+      <td colspan="7" class="label">Total</td>
+      <td class="r mono">{{ total_tagihan|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_debit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_credit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ balance|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="note">
+  <b>Cara baca:</b> satu baris satu reservasi. Debit adalah seluruh uang client yang sudah dibayar.
+  Credit adalah uang yang sudah berada di Pusat, yaitu remittance dari Surabaya ditambah pembayaran
+  metode <b>direct</b> yang langsung masuk ke Pusat. Balance adalah selisihnya, yaitu yang masih
+  mengendap di Surabaya dan belum dikirim. Balance 0 berarti tidak ada titipan yang tertahan di Surabaya.
+  Reservasi Definite dan Tentative tetap ditampilkan walau belum ada pembayaran, untuk pelacakan.
+</div>
+
+</body>
+</html>

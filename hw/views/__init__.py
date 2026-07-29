@@ -43,6 +43,7 @@ from .remittance_views import (
     remittance_list, remittance_new, remittance_detail, remittance_edit,
     remittance_pdf, remittance_delete, remittance_upload_proof, remittance_export_csv,
     remittance_mark_received, remittance_recap, remittance_period_pdf,
+    remittance_ledger_pdf,
 )
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,

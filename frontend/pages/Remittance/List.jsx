@@ -47,6 +47,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
         </div>
         <div className="page-actions">
           <a href="/remittance/recap/" className="btn btn-secondary" style={{ height: 32, padding: "0 12px", fontSize: 13 }}>Recap</a>
+          <a href="/remittance/export/ledger/" target="_blank" rel="noreferrer" className="btn btn-secondary">Ledger PDF</a>
           <a href="/remittance/export/csv/" className="btn btn-secondary">Export CSV</a>
           <a href="/remittance/new/" className="btn btn-primary">+ New Transfer</a>
         </div>
