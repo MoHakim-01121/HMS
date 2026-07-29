@@ -445,8 +445,12 @@ def cl_list_pdf_v2(request):
     for cl in letters:
         counts = {}
         for r in cl.rooms.all():
-            counts[r.room_type] = counts.get(r.room_type, 0) + r.quantity
-        cl.room_types = ", ".join(f"{n} {t}" for t, n in counts.items())
+            key = (r.room_type, (r.meals or '').strip())
+            counts[key] = counts.get(key, 0) + r.quantity
+        cl.room_types = ", ".join(
+            f"{n} {t}" + (f" - {m}" if m else "")
+            for (t, m), n in counts.items()
+        )
     total_rooms  = sum(cl.total_rooms for cl in letters)
     total_sar    = sum(cl.total_price or 0 for cl in letters)
     return _render_list_pdf(
