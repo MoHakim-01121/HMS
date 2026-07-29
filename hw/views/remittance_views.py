@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from datetime import date
 
+from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -12,7 +13,6 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import Invoice, Payment, Remittance, RemittanceLine
-from ..permissions import require_perm
 from ..utils import convert_to_sar
 
 SURABAYA_METHODS = {'cash', 'bank transfer', 'deposit'}
@@ -154,7 +154,7 @@ def _serialize_reservasi():
     return rows
 
 
-@require_perm('remittance', 'view')
+@login_required
 def remittance_list(request):
     from django.db.models import Q
     status_filter = request.GET.get('status', '')
@@ -186,7 +186,7 @@ def remittance_list(request):
     })
 
 
-@require_perm('remittance', 'create')
+@login_required
 def remittance_new(request):
     if request.method == 'POST':
         remittance_date = request.POST.get('date') or str(date.today())
@@ -246,7 +246,7 @@ def remittance_new(request):
     })
 
 
-@require_perm('remittance', 'view')
+@login_required
 def remittance_detail(request, pk):
     from ..models import Reservation
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -295,7 +295,7 @@ def remittance_detail(request, pk):
     })
 
 
-@require_perm('remittance', 'export')
+@login_required
 def remittance_export_csv(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines__invoice')
     response = HttpResponse(content_type='text/csv')
@@ -319,7 +319,7 @@ def remittance_export_csv(request):
     return response
 
 
-@require_perm('remittance', 'edit')
+@login_required
 @require_POST
 def remittance_mark_received(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -329,7 +329,7 @@ def remittance_mark_received(request, pk):
     return redirect('remittance_list')
 
 
-@require_perm('remittance', 'edit')
+@login_required
 def remittance_edit(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
     if rem.status == Remittance.STATUS_RECEIVED:
@@ -385,7 +385,7 @@ def remittance_edit(request, pk):
     })
 
 
-@require_perm('remittance', 'export')
+@login_required
 def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
@@ -412,7 +412,7 @@ def remittance_pdf(request, pk):
     )
 
 
-@require_perm('remittance', 'edit')
+@login_required
 @require_POST
 def remittance_upload_proof(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -423,7 +423,7 @@ def remittance_upload_proof(request, pk):
     return redirect('remittance_detail', pk=rem.pk)
 
 
-@require_perm('remittance', 'delete')
+@login_required
 @require_POST
 def remittance_delete(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -431,7 +431,7 @@ def remittance_delete(request, pk):
     return redirect('remittance_list')
 
 
-@require_perm('remittance', 'view')
+@login_required
 def remittance_recap(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
     monthly = {}
@@ -469,7 +469,7 @@ def remittance_recap(request):
     })
 
 
-@require_perm('remittance', 'export')
+@login_required
 def remittance_period_pdf(request):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
