@@ -117,7 +117,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
                   <RowActions actions={[
                     rem.status === "pending" && { icon: "check", label: "Mark as Received", variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
                     { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
-                    rem.status === "pending" && { icon: "edit", label: "Edit", href: `/remittance/${rem.id}/edit/` },
+                    { icon: "edit", label: "Edit", href: `/remittance/${rem.id}/edit/` },
                     rem.status === "pending" && { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
                   ]} />
                 ),

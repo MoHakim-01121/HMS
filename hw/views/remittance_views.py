@@ -329,11 +329,58 @@ def remittance_mark_received(request, pk):
     return redirect('remittance_list')
 
 
+def _addable_reservasi(rem):
+    """Reservasi yang masih punya uang mengendap dan belum ada di remittance ini."""
+    existing = set(rem.lines.values_list('linked_number', flat=True))
+    rows = []
+    for r in _build_reservasi_mengendap():
+        if r['linked_number'] in existing or r['mengendap'] <= 0:
+            continue
+        ci, co = r.get('check_in'), r.get('check_out')
+        rows.append({
+            'linked_number': r['linked_number'],
+            'invoice_id': r['invoice_id'],
+            'invoice_number': r['invoice_number'],
+            'customer_name': r['customer_name'],
+            'check_in': ci.strftime('%d/%m/%Y') if ci else None,
+            'check_out': co.strftime('%d/%m/%Y') if co else None,
+            'mengendap': r['mengendap'],
+        })
+    return rows
+
+
+def _sync_remittance_lines(rem, raw_lines):
+    """Samakan baris remittance dengan payload dari form.
+
+    Baris dengan line_id diperbarui, baris baru dibuat, dan baris yang tidak
+    ada di payload atau nominalnya nol akan dihapus.
+    """
+    keep_ids = set()
+    for ld in raw_lines:
+        try:
+            amount = int(round(float(ld.get('amount_sar') or 0)))
+        except (ValueError, TypeError):
+            amount = 0
+        line_id = ld.get('line_id')
+        if line_id:
+            if amount > 0 and RemittanceLine.objects.filter(pk=line_id, remittance=rem).update(amount_sar=amount):
+                keep_ids.add(int(line_id))
+        elif amount > 0 and ld.get('linked_number'):
+            line = RemittanceLine.objects.create(
+                remittance=rem,
+                invoice_id=ld.get('invoice_id') or None,
+                linked_number=ld['linked_number'],
+                amount_sar=amount,
+            )
+            keep_ids.add(line.pk)
+    rem.lines.exclude(pk__in=keep_ids).delete()
+
+
 @login_required
 def remittance_edit(request, pk):
+    # remittance yang sudah Received tetap boleh diedit: koreksi kadang baru
+    # ketahuan setelah HQ menandai diterima
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
-    if rem.status == Remittance.STATUS_RECEIVED:
-        return redirect('remittance_detail', pk=rem.pk)
     if request.method == 'POST':
         rem.date = request.POST.get('date') or rem.date
         rem.status = request.POST.get('status', rem.status)
@@ -348,16 +395,13 @@ def remittance_edit(request, pk):
             update_fields.append('proof')
         rem.save(update_fields=update_fields)
 
-        try:
-            raw_lines = json.loads(request.POST.get('lines', '[]'))
-        except (ValueError, TypeError):
-            raw_lines = []
-        for ld in raw_lines:
+        # tanpa key 'lines' sama sekali, baris dibiarkan apa adanya
+        if request.POST.get('lines') is not None:
             try:
-                amt_val = float(ld.get('amount_sar') or 0)
+                raw_lines = json.loads(request.POST.get('lines') or '[]')
             except (ValueError, TypeError):
-                amt_val = 0
-            RemittanceLine.objects.filter(pk=ld.get('line_id'), remittance=rem).update(amount_sar=amt_val)
+                raw_lines = []
+            _sync_remittance_lines(rem, raw_lines)
 
         return redirect('remittance_detail', pk=rem.pk)
 
@@ -382,6 +426,7 @@ def remittance_edit(request, pk):
                 "customer_name": l.invoice.customer_name,
             } if l.invoice_id else None,
         } for l in lines],
+        "reservasi": _addable_reservasi(rem),
     })
 
 

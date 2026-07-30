@@ -32,4 +32,23 @@ export const REM_TABLE_CSS = `
 }
 .rem-total-label { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.7px; color:var(--text-3); }
 .rem-total-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; color:var(--accent-2); }
+
+.rem-input:disabled { opacity:.5; cursor:not-allowed; }
+
+/* aksi per baris di Edit: hapus reservasi dari transfer, atau batalkan */
+.rem-linkbtn {
+  background:none; border:none; padding:0; cursor:pointer;
+  font-family:inherit; font-size:12px; color:var(--text-2);
+  text-decoration:underline; text-underline-offset:2px;
+}
+.rem-linkbtn:hover { color:var(--text); }
+.rem-linkbtn.danger { color:var(--red); }
+.rem-linkbtn.danger:hover { opacity:.8; }
+
+/* peringatan saat mengedit transfer yang sudah ditandai Received */
+.rem-received-note {
+  font-size:12.5px; line-height:1.6; color:var(--text);
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--r); padding:10px 12px; margin-bottom:16px;
+}
 `;
