@@ -1030,6 +1030,10 @@ input:-webkit-autofill:focus {
   text-transform: uppercase; letter-spacing: .6px;
 }
 .notif-head-count { font-size: 10px; font-weight: 500; color: var(--red); letter-spacing: 0; }
+.notif-body { max-height: 320px; overflow-y: auto; }
+.notif-body::-webkit-scrollbar { width: 4px; }
+.notif-body::-webkit-scrollbar-track { background: transparent; }
+.notif-body::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
 .notif-item {
   display: block; padding: 9px 14px; text-decoration: none;
   border-bottom: 1px solid var(--border); transition: background .08s;
@@ -1470,8 +1474,9 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .notif-float {
     top: calc(58px + env(safe-area-inset-top));
     left: 12px; right: 12px; width: auto;
-    max-height: 60dvh; overflow-y: auto;
+    max-height: 60dvh;
   }
+  .notif-float .notif-body { max-height: calc(60dvh - 40px); }
   .notif-float .notif-item { padding: 12px 14px; }
 }
 

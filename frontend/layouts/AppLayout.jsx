@@ -174,26 +174,28 @@ export default function AppLayout({ children }) {
         <span>{t("Notifications")}</span>
         {dueCount > 0 && <span className="notif-head-count">{t("{count} upcoming", { count: dueCount })}</span>}
       </div>
-      {dueNotifs.length ? (
-        dueNotifs.map((n, i) => (
-          <a key={i} href={n.url} className="notif-item">
-            <div className="notif-item-top">
-              <span className="notif-ref">{n.ref}</span>
-              <span className={"notif-days" + (n.days === 0 ? " notif-today" : n.days <= 2 ? " notif-urgent" : "")}>{notifLabel(n)}</span>
-            </div>
-            <div className="notif-item-bot">
-              <span className="notif-customer">{n.title}</span>
-              <span className="notif-amount">
-                {n.type === "invoice_due"
-                  ? `${new Intl.NumberFormat("en-US").format(Math.round(n.remaining))} SAR`
-                  : n.meta}
-              </span>
-            </div>
-          </a>
-        ))
-      ) : (
-        <div className="notif-empty">{t("No notifications")}</div>
-      )}
+      <div className="notif-body">
+        {dueNotifs.length ? (
+          dueNotifs.map((n, i) => (
+            <a key={i} href={n.url} className="notif-item">
+              <div className="notif-item-top">
+                <span className="notif-ref">{n.ref}</span>
+                <span className={"notif-days" + (n.days === 0 ? " notif-today" : n.days <= 2 ? " notif-urgent" : "")}>{notifLabel(n)}</span>
+              </div>
+              <div className="notif-item-bot">
+                <span className="notif-customer">{n.title}</span>
+                <span className="notif-amount">
+                  {n.type === "invoice_due"
+                    ? `${new Intl.NumberFormat("en-US").format(Math.round(n.remaining))} SAR`
+                    : n.meta}
+                </span>
+              </div>
+            </a>
+          ))
+        ) : (
+          <div className="notif-empty">{t("No notifications")}</div>
+        )}
+      </div>
     </>
   );
 
