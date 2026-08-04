@@ -327,6 +327,9 @@ def cl_edit(request, pk):
         cl.rooms.all().delete()
         _save_cl_rooms(cl, request)
 
+        if cl.invoice_id:
+            _sync_invoice_reservation_from_cl(cl)
+
         _after = {
             'Hotel':     cl.hotel_name,
             'Guest':     cl.guest_name,
@@ -574,3 +577,17 @@ def _save_cl_rooms(cl, request):
         except (ValueError, TypeError):
             price = 0
         Room.objects.create(cl=cl, room_type=rt, meals=(r.get("meals") or ""), quantity=qty, price=price)
+
+
+def _sync_invoice_reservation_from_cl(cl):
+    """Update the Invoice's Reservation to match the CL's current data."""
+    from ..models import Reservation
+    try:
+        reservation = cl.invoice.reservations.get(reservation_number=cl.confirmation_number)
+    except Reservation.DoesNotExist:
+        return
+    reservation.check_in = cl.check_in
+    reservation.check_out = cl.check_out
+    reservation.total_sar = round_half_up(cl.total_price) if cl.total_price else 0
+    reservation.hotel = cl.hotel_name or "-"
+    reservation.save()
