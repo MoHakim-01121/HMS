@@ -13,6 +13,13 @@ import { Toaster as Sonner } from "sonner";
 // theme prop is dropped entirely; its CSS variables are mapped directly to
 // this project's --background/--foreground/etc tokens instead, so toasts
 // follow [data-theme] the same way every other shadcn component does.
+
+const CustomToast = ({ children, ...props }) => (
+  <div style={{ maxHeight: "200px", overflowY: "auto" }} {...props}>
+    {children}
+  </div>
+);
+
 const Toaster = ({
   ...props
 }) => {
@@ -21,6 +28,7 @@ const Toaster = ({
       position="top-right"
       offset="72px"
       className="toaster group"
+      toastComponent={CustomToast}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
