@@ -67,7 +67,6 @@ def due_soon(request):
     notifs = []
     notifs += _invoice_notifs(today, threshold, active_company, limit)
     notifs += _cl_notifs('check_in', 'check_in', today, threshold, active_company, limit)
-    notifs += _cl_notifs('check_out', 'check_out', today, threshold, active_company, limit)
     notifs.sort(key=lambda n: n["days"])
 
     result = {

@@ -900,14 +900,11 @@ class DueSoonNotificationsTest(TestCase):
         self.assertEqual(entry['days'], 0)
         self.assertIn('cl/', entry['url'])
 
-    def test_includes_check_out_today(self):
+    def test_excludes_check_out_today(self):
         _make_cl(check_in=date.today() - timedelta(days=3), check_out=date.today(),
                  confirmation_number='CL-COUT1', hotel_name='Marriott', guest_name='Budi')
         co = [n for n in self._notifs() if n['type'] == 'check_out']
-        self.assertEqual(len(co), 1)
-        self.assertEqual(co[0]['ref'], 'CL-COUT1')
-        self.assertEqual(co[0]['days'], 0)
-        self.assertIn('cl/', co[0]['url'])
+        self.assertEqual(len(co), 0)
 
     def test_excludes_cancelled(self):
         _make_cl(check_in=date.today(), confirmation_number='CL-CAN1', reservation_status='CANCELLED')
