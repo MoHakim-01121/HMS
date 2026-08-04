@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from datetime import date
+from django.utils import timezone
 
 from django.conf import settings
 
@@ -53,137 +53,80 @@ def _user(prompt: str) -> list:
     return [{"role": "user", "content": prompt}]
 
 
+_MONTHS_ID = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+              'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
+_SIGNATURES = {'konoz': 'Konoz United Surabaya', 'ijabah': 'Ijabah'}
+
+
+def _fmt_date_id(d):
+    return f"{d.day:02d} {_MONTHS_ID[d.month]} {d.year}"
+
+
 
 def generate_draft_message(invoice_type: str, invoice) -> str | None:
-    today   = date.today()
-    company = invoice.get_company_display()
+    # Impor lokal: hw.views.__init__ mengimpor modul ini, impor top-level
+    # ke hw.views.* akan membuat siklus.
+    from .views.context import _build_visa_services_context
+    from .views.helpers import _billing_client
 
     def _fmt(n):
         return f"{int(round(n)):,}".replace(",", ".")
 
-    if invoice_type == "invoice_lunas":
-        total  = invoice.total_sar
-        hotels = ", ".join(
-            r.hotel for r in invoice.reservations.all() if r.hotel and r.hotel != "-"
-        ) or "-"
-        return (
-            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n\n"
-            f"Kami informasikan bahwa Invoice #{invoice.invoice_number} Anda telah *LUNAS*. \n\n"
-            f"Detail:\n"
-            f"- Hotel: {hotels}\n"
-            f"- Total: {_fmt(total)} SAR\n"
-            f"- Terbayar: {_fmt(total)} SAR\n"
-            f"- Sisa: 0 SAR\n\n"
-            f"Terima kasih atas kepercayaan Anda.\n\n"
-            f"Wassalamualaikum Wr Wb,\n"
-            f"{company}"
-        )
+    client = _billing_client(invoice)
+    name = client.name if client else invoice.customer_name
+    signature = _SIGNATURES.get(invoice.company, invoice.get_company_display())
+    lunas = invoice_type in ('invoice_lunas', 'services_lunas')
 
-    if invoice_type == "services_lunas":
-        items    = invoice.service_items.all()
-        total    = int(sum(i.qty * float(i.price) for i in items))
-        services = ", ".join(i.name for i in items[:4]) or "-"
-        return (
-            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n\n"
-            f"Kami informasikan bahwa Invoice #{invoice.invoice_number} Anda telah *LUNAS*. \n\n"
-            f"Detail:\n"
-            f"- Layanan: {services}\n"
-            f"- Total: {_fmt(total)} {invoice.currency}\n"
-            f"- Terbayar: {_fmt(total)} {invoice.currency}\n"
-            f"- Sisa: 0 {invoice.currency}\n\n"
-            f"Terima kasih atas kepercayaan Anda.\n\n"
-            f"Wassalamualaikum Wr Wb,\n"
-            f"{company}"
-        )
-
-    if invoice_type == "invoice":
-        total     = invoice.total_sar
-        remaining = invoice.remaining_sar
-        paid      = total - remaining
-        hotels    = ", ".join(
-            r.hotel for r in invoice.reservations.all() if r.hotel and r.hotel != "-"
-        ) or "-"
-
-        detail = (
-            f"Detail tagihan:\n"
-            f"- Hotel: {hotels}\n"
-            f"- Total: {_fmt(total)} SAR\n"
-            f"- Terbayar: {_fmt(paid)} SAR\n"
-            f"- Sisa: {_fmt(remaining)} SAR"
-        )
-
-        if invoice.due_date:
-            days    = (invoice.due_date - today).days
-            due_str = invoice.due_date.strftime("%Y-%m-%d")
-            if days < 0:
-                due_block = (
-                    f"\nJatuh Tempo:\n"
-                    f"Sudah lewat jatuh tempo {abs(days)} hari, tanggal jatuh tempo: {due_str}"
-                )
-                middle = f"{detail}\n{due_block}"
-                closing = ""
-            elif days == 0:
-                middle  = f"{detail}\n- Jatuh tempo: {due_str} (hari ini)"
-                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
-            else:
-                middle  = f"{detail}\n- Jatuh tempo: {due_str} (1x24 jam)"
-                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
-        else:
-            middle  = detail
-            closing = ""
-
-        return (
-            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n"
-            f"Invoice #{invoice.invoice_number} Anda telah diterbitkan. \n\n"
-            f"{middle}\n"
-            f"{closing}\n"
-            f"Terima kasih,\n"
-            f"{company}"
-        )
-
+    if invoice_type in ('invoice', 'invoice_lunas'):
+        detail_lines = []
+        for r in invoice.reservations.all():
+            detail_lines.append(f"- RSV : {r.reservation_number}")
+            detail_lines.append(f"  Hotel: {r.hotel or '-'}")
+        total = invoice.total_sar
+        remaining = 0 if lunas else invoice.remaining_sar
+        currency = 'SAR'
     else:
-        items     = invoice.service_items.all()
-        total     = int(sum(i.qty * float(i.price) for i in items))
-        paid      = int(sum(float(p.amount) for p in invoice.payments.all()))
-        remaining = total - paid
-        services  = ", ".join(i.name for i in items[:4]) or "-"
+        services = _build_visa_services_context(invoice)
+        detail_lines = [f"- Layanan: {s['product']} x{s['qty']}" for s in services]
+        total = sum(s['total'] for s in services)
+        remaining = 0 if lunas else sum(s['remaining'] for s in services)
+        currency = invoice.currency
+    paid = total - remaining
 
-        detail = (
-            f"Detail tagihan:\n"
-            f"- Layanan: {services}\n"
-            f"- Total: {_fmt(total)} {invoice.currency}\n"
-            f"- Terbayar: {_fmt(paid)} {invoice.currency}\n"
-            f"- Sisa: {_fmt(remaining)} {invoice.currency}"
-        )
+    if lunas:
+        intro = (f"Pembayaran Invoice {invoice.invoice_number} telah kami terima. "
+                 f"Invoice Anda telah *LUNAS*.")
+    else:
+        intro = f"Invoice {invoice.invoice_number} Anda telah diterbitkan."
 
-        if invoice.due_date:
-            days    = (invoice.due_date - today).days
-            due_str = invoice.due_date.strftime("%Y-%m-%d")
-            if days < 0:
-                due_block = (
-                    f"\nJatuh Tempo:\n"
-                    f"Sudah lewat jatuh tempo {abs(days)} hari, tanggal jatuh tempo: {due_str}"
-                )
-                middle  = f"{detail}\n{due_block}"
-                closing = ""
-            elif days == 0:
-                middle  = f"{detail}\n- Jatuh tempo: {due_str} (hari ini)"
-                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
-            else:
-                middle  = f"{detail}\n- Jatuh tempo: {due_str} (1x24 jam)"
-                closing = "\nMohon lakukan pembayaran sebelum jatuh tempo. "
+    parts = [
+        f"Assalamualaikum Wr Wb team {name},",
+        intro,
+        "",
+        "Detail tagihan:",
+        *detail_lines,
+        "",
+        f"Total: {_fmt(total)} {currency}",
+        f"Terbayar: {_fmt(paid)} {currency}",
+        f"Sisa: {_fmt(remaining)} {currency}",
+    ]
+
+    if not lunas and invoice.due_date:
+        today = timezone.now().date()
+        days_late = (today - invoice.due_date).days
+        parts.append("")
+        parts.append(f"*Jatuh Tempo: {_fmt_date_id(invoice.due_date)}*")
+        if days_late > 0:
+            parts.append(
+                f"Sudah lewat jatuh tempo ({days_late} hari). "
+                f"Mohon segera lakukan pembayaran."
+            )
         else:
-            middle  = detail
-            closing = ""
+            parts.append("Mohon lakukan pembayaran sebelum jatuh tempo.")
 
-        return (
-            f"Assalamualaikum Wr Wb {invoice.customer_name}, \n"
-            f"Invoice #{invoice.invoice_number} Anda telah diterbitkan. \n\n"
-            f"{middle}\n"
-            f"{closing}\n"
-            f"Terima kasih,\n"
-            f"{company}"
-        )
+    parts += ["", "Terima kasih,", f"*{signature}*"]
+    return "\n".join(parts)
 
 
 def get_chat_reply(
@@ -191,7 +134,7 @@ def get_chat_reply(
     company: str | None = None,
     history: list | None = None,
 ) -> str | None:
-    today = date.today()
+    today = timezone.now().date()
     month = today.month
     year  = today.year
 

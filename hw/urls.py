@@ -63,6 +63,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('ai/chat/', views.ai_chat, name='ai_chat'),
     path('ai/draft/', views.ai_draft_message, name='ai_draft_message'),
 
+    # Billing WA send
+    path('billing/send/', views.billing_send, name='billing_send'),
+
     # Clients
     path('clients/', views.client_list, name='client_list'),
     path('clients/new/', views.client_new, name='client_new'),
@@ -95,16 +98,25 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('remittance/<int:pk>/upload-proof/', views.remittance_upload_proof, name='remittance_upload_proof'),
     path('remittance/<int:pk>/delete/', views.remittance_delete, name='remittance_delete'),
 
-    # User management (superuser only)
+    # User management (the 'users' module in hw/permissions.py)
     path('users/', views.user_list, name='user_list'),
     path('users/new/', views.user_new, name='user_new'),
     path('users/<int:pk>/edit/', views.user_edit, name='user_edit'),
     path('users/<int:pk>/delete/', views.user_delete, name='user_delete'),
+    path('users/<int:pk>/credential-card/', views.user_credential_card, name='user_credential_card'),
+
+    # Role & permission matrix editor (same 'users' module gate)
+    path('roles/', views.role_list, name='role_list'),
+    path('roles/new/', views.role_new, name='role_new'),
+    path('roles/<slug:slug>/edit/', views.role_edit, name='role_edit'),
+    path('roles/<slug:slug>/delete/', views.role_delete, name='role_delete'),
 
     # Account / Profile
     path('account/profile/', views.account_profile, name='account_profile'),
+    path('account/profile/update/', views.account_profile_update, name='account_profile_update'),
     path('account/avatar/upload/', views.avatar_upload, name='avatar_upload'),
     path('account/avatar/delete/', views.avatar_delete, name='avatar_delete'),
+    path('account/language/', views.set_language, name='set_language'),
 
 
     # Cancellation Penalty (accessible through CL)
@@ -113,6 +125,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('penalty/<int:pk>/edit/', views.penalty_edit, name='penalty_edit'),
     path('penalty/<int:pk>/delete/', views.penalty_delete, name='penalty_delete'),
     path('penalty/<int:pk>/pdf/', views.penalty_pdf, name='penalty_pdf'),
+
+    # Dev / design system preview (superuser only)
+    path('dev/style-guide/', views.style_guide, name='style_guide'),
 
     # Health check
     path('health/', views.health_check, name='health_check'),

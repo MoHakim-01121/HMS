@@ -118,6 +118,8 @@ class RemittanceEditViewTest(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User
         self.user = User.objects.create_user('editor', password='pw12345')
+        self.user.profile.role = 'manager'
+        self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         session = self.client.session
         session['active_company'] = 'konoz'
@@ -146,6 +148,24 @@ class RemittanceEditViewTest(TestCase):
         self.assertEqual([l['linked_number'] for l in props['lines']], ['R1'])
         self.assertEqual([r['linked_number'] for r in props['reservasi']], ['R2'])
         self.assertEqual(props['reservasi'][0]['mengendap'], 3000)
+
+    def test_lines_are_ordered_by_payment_date(self):
+        # R2 bayar lebih dulu daripada R1, tapi disimpan dengan nomor terbalik.
+        Payment.objects.filter(linked_number='R2').update(payment_date=date(2026, 1, 2))
+        RemittanceLine.objects.create(
+            remittance=self.rem, invoice=self.invoice, linked_number='R2', amount_sar=1200,
+        )
+        resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R2', 'R1'])
+        # Urutan yang sama juga dipakai di halaman detail.
+        resp = self.client.get(f'/remittance/{self.rem.pk}/', HTTP_X_INERTIA='true')
+        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R2', 'R1'])
+
+    def test_lines_without_payment_date_go_last(self):
+        Payment.objects.filter(linked_number='R1').update(payment_date=None)
+        resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
+        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R1'])
 
     def test_post_adds_removes_and_updates_in_one_save(self):
         payload = [

@@ -4,7 +4,7 @@ from django.shortcuts import render
 from .models import (
     ActivityLog, Attachment, Client, ConfirmationLetter,
     Hotel, Invoice, Payment, Remittance, RemittanceLine,
-    Reservation, Room, ServiceItem, UserProfile,
+    Reservation, RoleDefinition, Room, ServiceItem, UserProfile,
 )
 
 
@@ -89,6 +89,15 @@ class RemittanceAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description='Kwitansi')
     def has_proof(self, obj):
         return bool(obj.proof)
+
+
+@admin.register(RoleDefinition)
+class RoleDefinitionAdmin(admin.ModelAdmin):
+    """Break-glass access to the matrix; /roles/ is the normal way in."""
+    list_display  = ('label', 'slug', 'is_system', 'grants_django_staff', 'order')
+    list_filter   = ('is_system', 'grants_django_staff')
+    search_fields = ('slug', 'label')
+    readonly_fields = ('is_system',)
 
 
 admin.site.register(Reservation)

@@ -1,5 +1,7 @@
 // Single source for payment-status badges. Matches design.css badge classes
 // and the labels used across the Django templates.
+import { useI18n } from "../../utils/i18n.jsx";
+
 const MAP = {
   paid: { label: "Paid", cls: "badge badge-green" },
   partial: { label: "Partial", cls: "badge badge-yellow" },
@@ -14,6 +16,7 @@ export function paymentStatus(total, remaining) {
 }
 
 export default function StatusBadge({ status }) {
+  const { t } = useI18n();
   const m = MAP[status] || MAP.unpaid;
-  return <span className={m.cls}>{m.label}</span>;
+  return <span className={m.cls}>{t(m.label)}</span>;
 }

@@ -2,34 +2,40 @@
 Django==5.2.8
 
 # PDF Generation
-WeasyPrint==68.1
+WeasyPrint==69.0
 pydyf==0.12.1
-Pillow==12.0.0
+Pillow==12.3.0
 
 # Dependencies for WeasyPrint
-cffi==2.0.0
+cffi==2.1.1
 pycparser==2.23
-cssselect2==0.8.0
+cssselect2==0.9.0
 tinycss2==1.5.1
-pyphen==0.14.0
-fonttools==4.61.1
+pyphen==0.17.2
+fonttools==4.63.0
 
 
 # Production Server
 gunicorn==23.0.0
 
 # Static files
-whitenoise==6.6.0
+whitenoise==6.12.0
+brotli==1.2.0
 
 # Database
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.12
 dj-database-url==2.3.0
 
 # Environment
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Security
 django-axes==7.0.1
+django-ratelimit==4.1.0
+
+# File type detection (attachment upload validation)
+python-magic==0.4.27; sys_platform != 'win32'
+python-magic-bin==0.4.14; sys_platform == 'win32'
 
 # React / Inertia frontend
 inertia-django==1.2.0
@@ -39,4 +45,4 @@ django-vite==3.1.0
 django-q2==1.10.0
 
 # Error tracking (optional, gated on SENTRY_DSN)
-sentry-sdk==2.19.0
+sentry-sdk==2.66.1

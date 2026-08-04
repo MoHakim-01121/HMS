@@ -124,6 +124,7 @@ class Payment(models.Model):
     proof         = models.FileField(upload_to='payments/proof/', null=True, blank=True)
 
     class Meta:
+        ordering            = ['id']
         verbose_name        = 'Payment'
         verbose_name_plural = 'Payments'
 

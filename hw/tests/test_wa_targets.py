@@ -71,7 +71,7 @@ class WATargetViewTest(TestCase):
             'label': 'B', 'target': '628111222333444',
         })
         self.assertFalse(resp.json()['ok'])
-        self.assertIn('Nomor sudah terdaftar', resp.json()['error'])
+        self.assertIn('Number already registered', resp.json()['error'])
 
     def test_toggle_target(self):
         t = WATarget.objects.create(label='X', target='628999000111222')
@@ -123,7 +123,7 @@ class CalendarSendRecapWATargetTest(TestCase):
     def test_send_recap_no_active_targets_returns_error(self):
         resp = self.client.post('/calendar/send-recap/')
         self.assertFalse(resp.json()['ok'])
-        self.assertIn('Belum ada nomor penerima', resp.json()['message'])
+        self.assertIn('No active recap recipient number yet', resp.json()['message'])
 
     @patch('hw.tasks.send_wa')
     def test_send_recap_uses_only_active_wa_targets(self, mock_send):

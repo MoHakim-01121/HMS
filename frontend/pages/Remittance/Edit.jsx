@@ -1,15 +1,20 @@
 import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
-import PageBack from "../../components/ui/PageBack.jsx";
-import { REM_TABLE_CSS } from "./remittanceStyles.js";
+import FormHeader from "../../components/shadcn/form-header.jsx";
+import FormPanel from "../../components/shadcn/form-panel.jsx";
+import FormSection from "../../components/shadcn/form-section.jsx";
+import FormField from "../../components/shadcn/form-field.jsx";
+import FormActions from "../../components/shadcn/form-actions.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
+import { REM_TABLE_CSS, REM_FORM_CSS } from "./remittanceStyles.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
-const inputStyle = {
-  width: "100%", background: "var(--surface-2)", border: "1px solid var(--border)",
-  borderRadius: "var(--r)", color: "var(--text)", fontSize: 13, padding: "8px 10px", fontFamily: "inherit",
-};
 
 export default function Edit({ rem, lines = [], reservasi = [] }) {
+  const { t } = useI18n();
   const [amounts, setAmounts] = useState(
     Object.fromEntries(lines.map((l) => [l.line_id, String(Math.round(l.amount_sar || 0))]))
   );
@@ -59,188 +64,177 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
   };
 
   return (
-    <div className="page">
-      <style>{REM_TABLE_CSS + CSS}</style>
+    <div className="page rem-form shadcn-root">
+      <style>{REM_TABLE_CSS + REM_FORM_CSS}</style>
       <PageBack href={`/remittance/${rem.id}/`} />
-      <div className="page-header">
-        <div className="page-title">Edit {rem.remittance_number}</div>
-      </div>
+      <FormHeader kicker={t("Remittance")} title={t("Edit {number}", { number: rem.remittance_number })} />
 
       <form method="post" onSubmit={submit}>
-        {rem.status === "received" && (
-          <div className="rem-received-note">
-            Transfer ini sudah ditandai <strong>Received</strong> oleh HQ. Perubahan di sini akan mengubah catatan yang sudah dikonfirmasi.
-          </div>
-        )}
-
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-body">
-            <div className="form-header-grid">
-              <div>
-                <label className="field-label">Transfer Date</label>
-                <input type="date" value={form.data.date} required style={inputStyle}
-                  onChange={(e) => form.setData("date", e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label">Receipt Reference</label>
-                <input type="text" value={form.data.receipt_reference} placeholder="Receipt code from HQ" style={inputStyle}
-                  onChange={(e) => form.setData("receipt_reference", e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label">Status</label>
-                <select value={form.data.status} style={inputStyle}
-                  onChange={(e) => form.setData("status", e.target.value)}>
-                  <option value="pending">Pending</option>
-                  <option value="received">Received</option>
-                </select>
-              </div>
-              <div>
-                <label className="field-label">Note</label>
-                <input type="text" value={form.data.note} placeholder="e.g. BCA Transfer 01/06" style={inputStyle}
-                  onChange={(e) => form.setData("note", e.target.value)} />
-              </div>
-              <div>
-                <label className="field-label">Receipt</label>
-                <input type="file" accept="image/*,.pdf" style={{ ...inputStyle, color: "var(--text-2)", padding: "7px 10px", boxSizing: "border-box" }}
-                  onChange={(e) => form.setData("proof", e.target.files[0] || null)} />
-                {rem.proof_url && !removeProof && (
-                  <div style={{ marginTop: 4, display: "flex", gap: 6 }}>
-                    <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--accent-2)" }}>View ↗</a>
-                    <button type="button" onClick={() => setRemoveProof(true)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--red)", cursor: "pointer", padding: 0 }}>Remove</button>
-                  </div>
-                )}
-                {removeProof && (
-                  <div style={{ marginTop: 4, fontSize: 11, color: "var(--red)" }}>
-                    Receipt will be removed on save. <button type="button" onClick={() => setRemoveProof(false)} style={{ background: "none", border: "none", fontSize: 11, color: "var(--accent-2)", cursor: "pointer", padding: 0 }}>Cancel</button>
-                  </div>
-                )}
-              </div>
+        <FormPanel>
+          {rem.status === "received" && (
+            <div className="rem-received-note">
+              {t("This transfer has been marked")}{" "}<strong>{t("Received")}</strong>{" "}{t("by HQ. Changes here will alter already-confirmed records.")}
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Reservations</span>
-          </div>
-          {lines.length > 0 ? (
-            <>
-              <div className="table-wrap">
+          <FormSection label={t("Transfer Info")}>
+            <div className="fg-4" style={{ marginBottom: 12 }}>
+              <FormField
+                label={t("Transfer Date")} name="date" type="date" required
+                value={form.data.date} onChange={(v) => form.setData("date", v)}
+              />
+              <FormField
+                label={t("Receipt Reference")} name="receipt_reference"
+                value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
+                placeholder={t("Receipt code from HQ")}
+              />
+              <FormField label={t("Status")} name="status">
+                <Select value={form.data.status} onValueChange={(v) => form.setData("status", v)}>
+                  <SelectTrigger id="status" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">{t("Pending")}</SelectItem>
+                    <SelectItem value="received">{t("Received")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField
+                label={t("Note")} name="note"
+                value={form.data.note} onChange={(v) => form.setData("note", v)}
+                placeholder={t("e.g. BCA Transfer 01/06")}
+              />
+            </div>
+            <FormField name="proof" label={t("Receipt")}>
+              <Input
+                id="proof" name="proof" type="file" accept="image/*,.pdf"
+                onChange={(e) => form.setData("proof", e.target.files[0] || null)}
+              />
+            </FormField>
+            {rem.proof_url && !removeProof && (
+              <div style={{ marginTop: 6, display: "flex", gap: 10, fontSize: 12 }}>
+                <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--foreground)", textDecoration: "underline" }}>{t("View receipt")} ↗</a>
+                <button type="button" onClick={() => setRemoveProof(true)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--destructive)", cursor: "pointer", padding: 0 }}>{t("Remove")}</button>
+              </div>
+            )}
+            {removeProof && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "var(--destructive)" }}>
+                {t("Receipt will be removed on save.")} <button type="button" onClick={() => setRemoveProof(false)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--foreground)", textDecoration: "underline", cursor: "pointer", padding: 0 }}>{t("Undo")}</button>
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection label={t("Reservations")}>
+            {lines.length > 0 ? (
+              <>
+                <div className="table-wrap" style={{ overflowX: "auto" }}>
+                  <table className="rem-table">
+                    <thead>
+                      <tr>
+                        <th>{t("Res#")}</th>
+                        <th>{t("Invoice")}</th>
+                        <th>{t("Client")}</th>
+                        <th className="r">{t("Amount (SAR)")}</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line) => {
+                        const removed = removedIds.includes(line.line_id);
+                        return (
+                          <tr key={line.line_id} style={removed ? { opacity: 0.45 } : undefined}>
+                            <td style={{ fontFamily: "var(--font-mono)", fontWeight: 700, textDecoration: removed ? "line-through" : "none" }}>{line.linked_number}</td>
+                            <td>
+                              {line.invoice ? (
+                                <a href={`/invoice/${line.invoice.pk}/`} target="_blank" rel="noreferrer"
+                                  style={{ color: "var(--foreground)", textDecoration: "none", fontSize: 12 }}>{line.invoice.invoice_number}</a>
+                              ) : "—"}
+                            </td>
+                            <td style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{line.invoice?.customer_name || "—"}</td>
+                            <td>
+                              <input type="number" className="rem-input" min="0" step="1" disabled={removed}
+                                value={amounts[line.line_id] ?? ""}
+                                onChange={(e) => setAmount(line.line_id, e.target.value)} />
+                            </td>
+                            <td style={{ textAlign: "right" }}>
+                              {removed ? (
+                                <button type="button" onClick={() => undoRemove(line.line_id)} className="rem-linkbtn">{t("Undo")}</button>
+                              ) : (
+                                <button type="button" onClick={() => removeLine(line.line_id)} className="rem-linkbtn danger" title={t("Remove from this transfer")}>{t("Remove")}</button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="empty" style={{ padding: 40 }}>
+                <div className="empty-title">{t("No reservations")}</div>
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection label={t("Add Reservation")} sub={t("Idle payments not yet included in this transfer")}>
+            {reservasi.length > 0 ? (
+              <div className="table-wrap" style={{ overflowX: "auto" }}>
                 <table className="rem-table">
                   <thead>
                     <tr>
-                      <th>Res#</th>
-                      <th>Invoice</th>
-                      <th>Client</th>
-                      <th className="r">Amount (SAR)</th>
-                      <th></th>
+                      <th>{t("Res#")}</th>
+                      <th>{t("Invoice")}</th>
+                      <th>{t("Client")}</th>
+                      <th>{t("Check-in")}</th>
+                      <th className="r">{t("Idle (SAR)")}</th>
+                      <th className="r">{t("Add (SAR)")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((line) => {
-                      const removed = removedIds.includes(line.line_id);
-                      return (
-                        <tr key={line.line_id} style={removed ? { opacity: 0.45 } : undefined}>
-                          <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textDecoration: removed ? "line-through" : "none" }}>{line.linked_number}</td>
-                          <td>
-                            {line.invoice ? (
-                              <a href={`/invoice/${line.invoice.pk}/`} target="_blank" rel="noreferrer"
-                                style={{ color: "var(--accent-2)", textDecoration: "none", fontSize: 12 }}>{line.invoice.invoice_number}</a>
-                            ) : "—"}
-                          </td>
-                          <td style={{ fontSize: 12, color: "var(--text-2)" }}>{line.invoice?.customer_name || "—"}</td>
-                          <td>
-                            <input type="number" className="rem-input" min="0" step="1" disabled={removed}
-                              value={amounts[line.line_id] ?? ""}
-                              onChange={(e) => setAmount(line.line_id, e.target.value)} />
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            {removed ? (
-                              <button type="button" onClick={() => undoRemove(line.line_id)} className="rem-linkbtn">Undo</button>
-                            ) : (
-                              <button type="button" onClick={() => removeLine(line.line_id)} className="rem-linkbtn danger" title="Remove from this transfer">Remove</button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {reservasi.map((r) => (
+                      <tr key={r.linked_number}>
+                        <td style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}>{r.linked_number}</td>
+                        <td>
+                          {r.invoice_id ? (
+                            <a href={`/invoice/${r.invoice_id}/`} target="_blank" rel="noreferrer"
+                              style={{ color: "var(--foreground)", textDecoration: "none", fontSize: 12 }}>{r.invoice_number}</a>
+                          ) : "—"}
+                        </td>
+                        <td style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{r.customer_name || "—"}</td>
+                        <td style={{ fontSize: 12 }}>{r.check_in || "—"}</td>
+                        <td className="r" style={{ fontFamily: "var(--font-mono)" }}>{fmt(r.mengendap)}</td>
+                        <td>
+                          <input type="number" className="rem-input" min="0" step="1" max={r.mengendap}
+                            placeholder="0"
+                            value={added[r.linked_number] ?? ""}
+                            onChange={(e) => setAdd(r.linked_number, e.target.value)} />
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-            </>
-          ) : (
-            <div className="empty" style={{ padding: 40 }}>
-              <div className="empty-title">No reservations</div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="empty" style={{ padding: 28 }}>
+                <div className="empty-title">{t("Nothing left to add")}</div>
+                <div className="empty-sub">{t("All idle payments are already covered")}</div>
+              </div>
+            )}
+          </FormSection>
 
-        <div className="card" style={{ marginTop: 16 }}>
-          <div className="card-header">
-            <span className="card-title">Add Reservation</span>
-          </div>
-          {reservasi.length > 0 ? (
-            <div className="table-wrap">
-              <table className="rem-table">
-                <thead>
-                  <tr>
-                    <th>Res#</th>
-                    <th>Invoice</th>
-                    <th>Client</th>
-                    <th>Check-in</th>
-                    <th className="r">Idle (SAR)</th>
-                    <th className="r">Add (SAR)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reservasi.map((r) => (
-                    <tr key={r.linked_number}>
-                      <td style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{r.linked_number}</td>
-                      <td>
-                        {r.invoice_id ? (
-                          <a href={`/invoice/${r.invoice_id}/`} target="_blank" rel="noreferrer"
-                            style={{ color: "var(--accent-2)", textDecoration: "none", fontSize: 12 }}>{r.invoice_number}</a>
-                        ) : "—"}
-                      </td>
-                      <td style={{ fontSize: 12, color: "var(--text-2)" }}>{r.customer_name || "—"}</td>
-                      <td style={{ fontSize: 12 }}>{r.check_in || "—"}</td>
-                      <td className="r" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{fmt(r.mengendap)}</td>
-                      <td>
-                        <input type="number" className="rem-input" min="0" step="1" max={r.mengendap}
-                          placeholder="0"
-                          value={added[r.linked_number] ?? ""}
-                          onChange={(e) => setAdd(r.linked_number, e.target.value)} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty" style={{ padding: 28 }}>
-              <div className="empty-title">Nothing left to add</div>
-              <div className="empty-sub">All idle payments are already covered</div>
-            </div>
-          )}
           <div className="rem-total-bar">
-            <span className="rem-total-label">Total transfer</span>
+            <span className="rem-total-label">{t("Total transfer")}</span>
             <span className="rem-total-val">{fmt(total)} SAR</span>
           </div>
-        </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <a href={`/remittance/${rem.id}/`} className="btn btn-secondary">Cancel</a>
-          <button type="submit" className="btn btn-primary" disabled={form.processing}>
-            {form.processing ? "Saving..." : "Save"}
-          </button>
-        </div>
+          <FormActions
+            cancelHref={`/remittance/${rem.id}/`}
+            submitLabel={form.processing ? t("Saving…") : t("Save")}
+            processing={form.processing}
+          />
+        </FormPanel>
       </form>
     </div>
   );
 }
-
-// Edit-specific layout only; shared table/input/total styles come from REM_TABLE_CSS.
-const CSS = `
-.form-header-grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:16px; }
-@media(max-width:600px) { .form-header-grid { grid-template-columns:1fr; } }
-`;

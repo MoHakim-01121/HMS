@@ -1,5 +1,6 @@
 from .choices import Company, HotelCity, InvoiceType
-from .user import UserProfile
+from .user import CompanyAccess, Language, Role, UserProfile
+from .role import RoleDefinition
 from .activity import ActivityLog, log_activity
 from .client import Client
 from .confirmation import ConfirmationLetter, Room
@@ -11,10 +12,11 @@ from .invoice import (
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
 from .reminder import ReminderLog, RecapLog, WATarget, MessageTemplate
+from .billing import BillingLog
 
 __all__ = [
     'Company', 'HotelCity', 'InvoiceType',
-    'UserProfile',
+    'UserProfile', 'Role', 'CompanyAccess', 'Language', 'RoleDefinition',
     'ActivityLog', 'log_activity',
     'Client',
     'ConfirmationLetter', 'Room',
@@ -23,4 +25,5 @@ __all__ = [
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     'CancellationPenalty',
     'ReminderLog', 'RecapLog', 'WATarget', 'MessageTemplate',
+    'BillingLog',
 ]

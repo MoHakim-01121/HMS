@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
-import PageBack from "../../components/ui/PageBack.jsx";
-import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
-import Table from "../../components/ui/Table.jsx";
-import RowActions from "../../components/ui/RowActions.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import Table from "../../components/shadcn/table.jsx";
+import Pagination from "../../components/shadcn/pagination.jsx";
+import RowActions from "../../components/shadcn/row-actions.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const STATUS_OPTS = [
   { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
@@ -56,21 +60,24 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   const resetAll = () => { setSel([]); setFrom(""); setTo(""); setPanelOpen(false); go({ status: [], date_from: "", date_to: "" }); };
 
   const [confirm, confirmDialog] = useConfirm();
-  const del = (e, pk, number) => { e.stopPropagation(); confirm({ message: `Delete CL ${number}?`, onConfirm: () => router.post(`/cl/${pk}/delete/`) }); };
+  const { t } = useI18n();
+  const del = (e, pk, number) => { e.stopPropagation(); confirm({ title: t("Delete CL"), message: t("Delete CL {number}?", { number }), onConfirm: () => router.post(`/cl/${pk}/delete/`) }); };
+  const openForm = useFormModal();
+  const perms = usePerms();
 
   const exportQs = buildQuery({ q, status: status_list, date_from, date_to, sort }).replace("/cl/", "");
 
   return (
-    <div className="page">
+    <div className="page shadcn-root">
       <PageBack />
       <div className="page-header">
         <div>
-          <div className="page-title">Confirmation Letter</div>
-          <div className="page-sub">{total_count} documents saved</div>
+          <div className="page-title">{t("Confirmation Letter")}</div>
+          <div className="page-sub">{t("{count} documents saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
           <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>Export ▾</button>
+            <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>{t("Export")} ▾</button>
             {exportOpen && (
               <div className="export-menu" style={{ display: "block" }}>
                 <a href={`/cl/export/csv/${exportQs}`}><Icon name="invoice" size={13} /> CSV</a>
@@ -79,15 +86,17 @@ export default function List({ letters, total_count, q, status_list, date_from, 
               </div>
             )}
           </div>
-          <a href="/cl/new/" className="btn btn-primary">+ Create New</a>
+          {perms.can("cl", "create") && (
+            <button type="button" onClick={() => openForm("/cl/new/")} onPointerEnter={() => openForm.prefetch("/cl/new/")} onFocus={() => openForm.prefetch("/cl/new/")} className="btn btn-primary">{t("+ Create New")}</button>
+          )}
         </div>
       </div>
 
       <div className="filter-bar">
         <div className="search-wrap">
           <Icon name="search" size={13} />
-          <input type="text" value={query} placeholder="Search guest, hotel, confirmation number…" onChange={(e) => setQuery(e.target.value)} />
-          {query && <button type="button" className="sw-clear" title="Clear search" onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
+          <input type="text" value={query} placeholder={t("Search guest, hotel, confirmation number…")} onChange={(e) => setQuery(e.target.value)} />
+          {query && <button type="button" className="sw-clear" title={t("Clear search")} onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
         </div>
 
         <div className="fbar-actions">
@@ -106,40 +115,43 @@ export default function List({ letters, total_count, q, status_list, date_from, 
 
           <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="fbar-btn" onClick={() => { setPanelOpen((v) => !v); setSortOpen(false); }}>
-              <Icon name="filter" size={13} /> Filter
+              <Icon name="filter" size={13} /> {t("Filter")}
               {active_filters > 0 && <span className="fbar-count">{active_filters}</span>}
             </button>
             {panelOpen && (
               <div className="filter-panel open">
-                <div className="fp-head"><span className="fp-title">Filter</span></div>
+                <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head">
-                    <span className="fp-section-label">Check-in</span>
-                    <button type="button" className="fp-reset" onClick={() => { setFrom(""); setTo(""); }}>Reset</button>
+                    <span className="fp-section-label">{t("Check-in")}</span>
+                    <button type="button" className="fp-reset" onClick={() => { setFrom(""); setTo(""); }}>{t("Reset")}</button>
                   </div>
                   <div className="fp-date-row">
-                    <div className="fp-date-field"><label>From</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-                    <div className="fp-date-field"><label>To</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+                    <div className="fp-date-field"><label>{t("From")}</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+                    <div className="fp-date-field"><label>{t("To")}</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
                   </div>
                 </div>
                 <div className="fp-section">
                   <div className="fp-section-head">
-                    <span className="fp-section-label">Status</span>
-                    <button type="button" className="fp-reset" onClick={() => setSel([])}>Reset</button>
+                    <span className="fp-section-label">{t("Status")}</span>
+                    <button type="button" className="fp-reset" onClick={() => setSel([])}>{t("Reset")}</button>
                   </div>
-                  <div className="fp-status-group">
+                  <div className="fp-status-group" role="group" aria-label={t("Status")}>
                     {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`} onClick={() => toggleStatus(o.val)}>
+                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`}
+                        role="checkbox" aria-checked={sel.includes(o.val)} tabIndex={0}
+                        onClick={() => toggleStatus(o.val)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStatus(o.val); } }}>
                         <span className="fp-status-dot"></span>
-                        <span className="fp-status-opt-label">{o.label}</span>
+                        <span className="fp-status-opt-label">{t(o.label)}</span>
                         <span className="fp-status-count">{counts[o.countKey]}</span>
                       </div>
                     ))}
                   </div>
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>Reset all</button>
-                  <button type="button" className="fp-apply" onClick={applyFilters}>Apply</button>
+                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
+                  <button type="button" className="fp-apply" onClick={applyFilters}>{t("Apply")}</button>
                 </div>
               </div>
             )}
@@ -153,36 +165,58 @@ export default function List({ letters, total_count, q, status_list, date_from, 
             <Table
               columns={[
                 {
-                  header: "No CL",
+                  header: t("No CL"),
                   className: "col-m-primary",
                   render: (cl) => (
                     <>
                       <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
-                      {cl.has_invoice && <span style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={`Already invoiced: ${cl.invoice_number}`}>● INV</span>}
+                      {cl.has_invoice && <span className="m-hide" style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>● INV</span>}
+                      {cl.has_invoice && <span className="badge badge-blue m-only" style={{ fontSize: 9, marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>INV</span>}
                     </>
                   ),
                 },
                 {
-                  header: "Status",
+                  header: t("Status"),
                   className: "col-m-badge",
                   render: (cl) => {
                     const [bcls, blabel] = statusBadge(cl.reservation_status);
-                    return <span className={bcls}>{blabel}</span>;
+                    return <span className={bcls}>{t(blabel)}</span>;
                   },
                 },
-                { header: "Client/Travel", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
-                { header: "Hotel", className: "col-ellipsis-sm col-muted col-m-meta", render: (cl) => cl.hotel_name },
-                { header: "Check-in", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_in || "—" },
-                { header: "Check-out", className: "col-muted col-nowrap col-m-meta", render: (cl) => cl.check_out || "—" },
-                { header: "Total", className: "mono col-nowrap col-m-amount", render: (cl) => cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : "—" },
+                { header: t("Client/Travel"), className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
+                {
+                  header: t("Hotel"),
+                  className: "col-ellipsis-sm col-muted col-m-meta",
+                  render: (cl) => (
+                    <>
+                      <span>{cl.hotel_name}</span>
+                      {(cl.check_in || cl.check_out) && (
+                        <span className="m-only" style={{ fontVariantNumeric: "tabular-nums" }}>{cl.check_in || "?"} - {cl.check_out || "?"}</span>
+                      )}
+                    </>
+                  ),
+                },
+                { header: t("Check-in"), className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_in || "—" },
+                { header: t("Check-out"), className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_out || "—" },
+                {
+                  header: t("Total"),
+                  className: "mono col-nowrap col-m-amount",
+                  render: (cl) => (
+                    <>
+                      <span className="m-hide">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : <span className="col-dim">—</span>}</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
+                      <span className="m-only">{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>
+                    </>
+                  ),
+                },
                 {
                   header: "",
                   className: "col-m-actions",
                   render: (cl) => (
                     <RowActions actions={[
-                      { icon: "pdf", label: "Download PDF", href: `/cl/${cl.id}/pdf/`, variant: "green", external: true },
-                      { icon: "edit", label: "Edit", href: `/cl/${cl.id}/edit/` },
-                      { icon: "trash", label: "Delete", variant: "red", onClick: (e) => del(e, cl.id, cl.confirmation_number) },
+                      { icon: "pdf", label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, variant: "green", external: true },
+                      perms.can("cl", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
+                      perms.can("cl", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, cl.id, cl.confirmation_number) },
                     ]} />
                   ),
                 },
@@ -192,29 +226,15 @@ export default function List({ letters, total_count, q, status_list, date_from, 
               onRowClick={(cl) => router.visit(`/cl/${cl.id}/`)}
             />
 
-            {pagination.has_other_pages && (
-              <div className="pagination">
-                {pagination.has_previous
-                  ? <button className="pag-btn" onClick={() => go({ page: pagination.previous_page_number })}>‹</button>
-                  : <span className="pag-btn pag-disabled">‹</span>}
-                {pagination.range.map((p, i) =>
-                  p === null ? <span key={i} className="pag-ellipsis">…</span>
-                    : p === pagination.number ? <span key={i} className="pag-btn pag-active">{p}</span>
-                      : <button key={i} className="pag-btn" onClick={() => go({ page: p })}>{p}</button>
-                )}
-                {pagination.has_next
-                  ? <button className="pag-btn" onClick={() => go({ page: pagination.next_page_number })}>›</button>
-                  : <span className="pag-btn pag-disabled">›</span>}
-              </div>
-            )}
+            <Pagination pagination={pagination} unit={t("documents")} onPage={(p) => go({ page: p })} />
           </>
         ) : (
           <div className="empty">
             <Icon name="cl" size={36} strokeWidth={1.5} />
             {q ? (
-              <><div className="empty-title">No results</div><div className="empty-sub">Try adjusting your search filters</div></>
+              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
             ) : (
-              <><div className="empty-title">No documents yet</div><div className="empty-sub">Use the Create New button in the top right</div></>
+              <><div className="empty-title">{t("No documents yet")}</div><div className="empty-sub">{t("Use the Create New button in the top right")}</div></>
             )}
           </div>
         )}

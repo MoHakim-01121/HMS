@@ -9,11 +9,24 @@
   "dependencies": {
     "@inertiajs/react": "^1.2.0",
     "axios": "^1.18.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^1.25.0",
+    "radix-ui": "^1.6.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-easy-crop": "^6.2.3",
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "playwright": "^1.62.0",
+    "tailwindcss": "^4.3.3",
     "vite": "^5.4.11"
   }
 }

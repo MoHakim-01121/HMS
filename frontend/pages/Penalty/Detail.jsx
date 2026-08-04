@@ -1,59 +1,67 @@
 import { router } from "@inertiajs/react";
-import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
-import PageBack from "../../components/ui/PageBack.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailAmount from "../../components/shadcn/detail-amount.jsx";
+import FooterSummary, { FooterTotal } from "../../components/shadcn/footer-summary.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
-function Field({ label, children }) {
-  return <div className="field"><div className="field-label">{label}</div><div className="field-value">{children}</div></div>;
-}
-
 export default function Detail({ penalty: p }) {
+  const { t } = useI18n();
+  const openForm = useFormModal();
+  const perms = usePerms();
   const [confirm, confirmDialog] = useConfirm();
-  const del = () => confirm({ title: "Delete penalty", message: `Delete penalty document ${p.penalty_number}?`, onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
-  return (
-    <div className="page">
-      <PageBack href={`/cl/${p.cl.id}/`} label="Back to CL" />
-      <div className="page-header">
-        <div>
-          <div className="page-title">{p.penalty_number}</div>
-          <div className="page-sub">Cancellation penalty — {p.cl.confirmation_number}</div>
-        </div>
-        <div className="page-actions">
-          <a href={`/penalty/${p.id}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
-          <a href={`/penalty/${p.id}/pdf/`} className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer">PDF</a>
-        </div>
-      </div>
+  const del = () => confirm({ title: t("Delete penalty"), message: t("Delete penalty document {number}?", { number: p.penalty_number }), onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
 
-      <div className="detail-grid">
-        <div>
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Penalty Details</span>
-              <span className={"badge " + (p.is_paid ? "badge-green" : "badge-yellow")}>{p.is_paid ? "Paid" : "Unpaid"}</span>
-            </div>
-            <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <Field label="Guest / CL">{p.cl.guest_name} — {p.cl.confirmation_number}</Field>
-              <Field label="Cancellation Date">{p.cancellation_date || "—"}</Field>
-              <Field label="Penalty Amount">{fmt(p.penalty_amount)} {p.penalty_currency}</Field>
-              {p.exchange_rate !== 1 && <Field label="Exchange Rate">{p.exchange_rate}</Field>}
-              {p.reason && <Field label="Reason">{p.reason}</Field>}
-              {p.is_paid && <Field label="Payment Date">{p.payment_date || "—"}</Field>}
-              {p.payment_method && <Field label="Payment Method">{p.payment_method}</Field>}
-              {p.payment_note && <Field label="Payment Note">{p.payment_note}</Field>}
-              {p.note && (
-                <div className="field">
-                  <div className="field-label">Note</div>
-                  <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{p.note}</div>
-                </div>
-              )}
-            </div>
-            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)" }}>
-              <button onClick={del} className="btn btn-danger btn-sm btn-full">Delete Penalty</button>
-            </div>
-          </div>
-        </div>
-      </div>
+  return (
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href={`/cl/${p.cl.id}/`} label={t("Back to CL")} />
+
+      <DetailCard
+        crumbs={[{ label: p.cl.confirmation_number, href: `/cl/${p.cl.id}/` }]}
+        kicker={t("Cancellation Penalty")}
+        title={p.penalty_number}
+        sub={p.cl.guest_name}
+        pill={p.is_paid ? { label: t("Paid"), tone: "green" } : { label: t("Unpaid"), tone: "yellow" }}
+        actions={
+          <>
+            <a className="hms-dv-act" href={`/penalty/${p.id}/pdf/`} target="_blank" rel="noreferrer">{t("PDF")}</a>
+            {perms.can("penalty", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/penalty/${p.id}/edit/`)}>{t("Edit")}</button>
+            )}
+          </>
+        }
+        menuItems={[perms.can("penalty", "delete") && { label: t("Delete"), onClick: del, danger: true }]}
+      >
+        <DetailGrid
+          rows={[
+            { label: t("Guest"), value: p.cl.guest_name, icon: "user" },
+            { label: t("Confirmation Letter"), icon: "cl", value: <a href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</a> },
+            p.cancellation_date && { label: t("Cancellation Date"), value: p.cancellation_date, icon: "calendar" },
+            p.exchange_rate !== 1 && { label: t("Exchange Rate"), value: p.exchange_rate, icon: "invoice" },
+            p.is_paid && { label: t("Payment Method"), value: p.payment_method || "—", icon: "wallet" },
+            p.is_paid && p.payment_date && { label: t("Payment Date"), value: p.payment_date, icon: "calendar" },
+            p.reason && { label: t("Reason"), value: p.reason, icon: "alert-circle", span2: true },
+            p.is_paid && p.payment_note && { label: t("Payment Note"), value: p.payment_note, icon: "message", span2: true, pre: true },
+            p.note && { label: t("Notes"), value: p.note, icon: "file-text", span2: true, pre: true },
+          ]}
+          right={
+            <DetailAmount
+              label={p.is_paid ? t("Paid") : t("Penalty Due")}
+              value={fmt(p.penalty_amount)}
+              currency={p.penalty_currency}
+              tone={p.is_paid ? "green" : "red"}
+            />
+          }
+        />
+
+        <FooterSummary right={<FooterTotal label={t("Total Penalty")} value={fmt(p.penalty_amount)} currency={p.penalty_currency} />} />
+      </DetailCard>
       {confirmDialog}
     </div>
   );

@@ -2,7 +2,6 @@
 from datetime import date, timedelta
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -11,6 +10,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, log_activity
+from ..permissions import require_perm
 from .helpers import get_active_company
 
 
@@ -18,14 +18,14 @@ def _company(request):
     return get_active_company(request)
 
 
-@login_required
+@require_perm('clients', 'view')
 def client_list(request):
     company = _company(request)
     qs = Client.objects.filter(company=company)
 
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(name__icontains=q) | qs.filter(city__icontains=q) | qs.filter(pic__icontains=q)
+        qs = qs.filter(Q(name__icontains=q) | Q(city__icontains=q) | Q(pic__icontains=q))
 
     status = request.GET.get('status', '')
     if status == 'active':
@@ -76,7 +76,7 @@ def _client_echo(data):
     }
 
 
-@login_required
+@require_perm('clients', 'create')
 def client_new(request):
     company = _company(request)
     if request.method == 'POST':
@@ -93,7 +93,7 @@ def client_new(request):
     return inertia_render(request, "Client/Form", props={"client": None, "edit": False})
 
 
-@login_required
+@require_perm('clients', 'edit')
 def client_edit(request, pk):
     c = get_object_or_404(Client, pk=pk, company=_company(request))
     if request.method == 'POST':
@@ -121,7 +121,7 @@ def client_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('clients', 'delete')
 @require_POST
 def client_delete(request, pk):
     c = get_object_or_404(Client, pk=pk, company=_company(request))
@@ -132,7 +132,7 @@ def client_delete(request, pk):
     return redirect('client_list')
 
 
-@login_required
+@require_perm('clients', 'view')
 def client_detail(request, pk):
     company = _company(request)
     qs = Client.objects.filter(company=company).prefetch_related(
@@ -184,14 +184,14 @@ def client_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('clients', 'view')
 def client_map(request):
     company = _company(request)
     qs = Client.objects.filter(company=company, lat__isnull=False, lng__isnull=False)
     return inertia_render(request, "Client/Map", props={"clients_count": qs.count()})
 
 
-@login_required
+@require_perm('clients', 'view')
 def client_map_data(request):
     company = _company(request)
     qs = (

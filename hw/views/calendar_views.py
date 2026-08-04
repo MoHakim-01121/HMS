@@ -2,7 +2,6 @@
 from datetime import date, timedelta
 
 from django.conf import settings
-from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -12,6 +11,8 @@ from django_q.tasks import async_task
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice, RecapLog, WATarget, MessageTemplate
+from ..permissions import require_perm
+from ..i18n import tr, user_language
 from .helpers import get_active_company
 from .pdf import _render_checkin_pdf
 from ..services.recap import (
@@ -20,8 +21,10 @@ from ..services.recap import (
     TEMPLATE_H0_CLIENT, TEMPLATE_H1_CLIENT, TEMPLATE_RECAP,
 )
 
-_MONTH_NAMES = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-                'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+_MONTH_NAMES_EN = ['', 'January', 'February', 'March', 'April', 'May', 'June',
+                   'July', 'August', 'September', 'October', 'November', 'December']
+_MONTH_NAMES_ID = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
 _CL_COLORS = {
     'DEFINITE': 'blue',
@@ -114,12 +117,12 @@ def _get_last_recap():
     return cache.get_or_set('last_recap', _fetch, 60)
 
 
-def _inv_color(remaining, total):
+def _inv_color(request, remaining, total):
     if remaining <= 0:
-        return 'green', 'Lunas'
+        return 'green', tr(request, 'Paid', 'Lunas')
     if remaining < total:
-        return 'yellow', 'Partial'
-    return 'red', 'Belum Bayar'
+        return 'yellow', tr(request, 'Partial', 'Sebagian')
+    return 'red', tr(request, 'Unpaid', 'Belum Bayar')
 
 
 def _clip_day(d, month, year, days_in_month, is_start):
@@ -128,7 +131,7 @@ def _clip_day(d, month, year, days_in_month, is_start):
     return 1 if is_start else days_in_month
 
 
-@login_required
+@require_perm('calendar', 'view')
 def calendar_view(request):
     today = date.today()
     try:
@@ -205,7 +208,7 @@ def calendar_view(request):
     return inertia_render(request, "Calendar/Index", props={
         "year": year,
         "month": month,
-        "month_name": _MONTH_NAMES[month],
+        "month_name": (_MONTH_NAMES_ID if user_language(request) == 'id' else _MONTH_NAMES_EN)[month],
         "days_in_month": days_in_month,
         "days": list(range(1, days_in_month + 1)),
         "today_day": today_day,
@@ -224,7 +227,7 @@ def calendar_view(request):
     })
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def cl_estimasi_save(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
@@ -244,7 +247,7 @@ def cl_estimasi_save(request, pk):
     return JsonResponse({'ok': True})
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def calendar_send_recap(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
@@ -259,11 +262,11 @@ def calendar_send_recap(request):
         except ValueError:
             recap_date = None
             date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
-            err_label = '7 hari ke depan'
+            err_label = tr(request, 'next 7 days', '7 hari ke depan')
     else:
         recap_date = None
         date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
-        err_label = '7 hari ke depan'
+        err_label = tr(request, 'next 7 days', '7 hari ke depan')
     qs = (
         ConfirmationLetter.objects
         .filter(**date_filter, company=get_active_company(request))
@@ -273,26 +276,26 @@ def calendar_send_recap(request):
     )
     cls = list(qs)
     if not cls:
-        return JsonResponse({'ok': False, 'message': f'Tidak ada tamu check-in {err_label}'})
+        return JsonResponse({'ok': False, 'message': tr(request, f'No check-in guests in the {err_label}', f'Tidak ada tamu check-in {err_label}')})
     message = build_recap_message(cls, recap_date)
     wa_targets = list(WATarget.objects.filter(is_active=True))
     if not wa_targets:
-        return JsonResponse({'ok': False, 'message': 'Belum ada nomor penerima rekap yang aktif'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'No active recap recipient number yet', 'Belum ada nomor penerima rekap yang aktif')})
     for t in wa_targets:
         async_task('hw.tasks.send_recap_task', t.target_type, t.target, t.label, message, len(cls))
     cache.delete('last_recap')
     return JsonResponse({'ok': True, 'queued': len(wa_targets)})
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def calendar_send_reminder_group(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
     if not settings.REMINDER_H1_H0_ENABLED:
-        return JsonResponse({'ok': False, 'message': 'Reminder H-1/H-0 sedang dinonaktifkan sementara'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'H-1/H-0 reminders are temporarily disabled', 'Reminder H-1/H-0 sedang dinonaktifkan sementara')})
     cl_ids = request.POST.getlist('cl_ids')
     if not cl_ids:
-        return JsonResponse({'ok': False, 'message': 'Tidak ada booking dipilih'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'No bookings selected', 'Tidak ada booking dipilih')})
     cls = list(
         ConfirmationLetter.objects
         .filter(pk__in=cl_ids, company=get_active_company(request))
@@ -301,25 +304,25 @@ def calendar_send_reminder_group(request):
         .prefetch_related('rooms')
     )
     if len(cls) != len(cl_ids):
-        return JsonResponse({'ok': False, 'message': 'Sebagian booking tidak ditemukan'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'Some bookings were not found', 'Sebagian booking tidak ditemukan')})
     client_ids = {cl.client_id for cl in cls}
     if len(client_ids) == 1 and None not in client_ids:
         client = cls[0].client
         recipient_name = client.name
         resolve_targets = lambda cl_list: resolve_reminder_targets(client, cl_list)
-        no_target_message = 'Client belum punya nomor WA/Group yang aktif'
+        no_target_message = tr(request, 'Client has no active WA number/Group', 'Client belum punya nomor WA/Group yang aktif')
     elif client_ids == {None}:
         if len(group_guests(cls)) != 1:
-            return JsonResponse({'ok': False, 'message': 'Booking harus dari tamu yang sama'})
+            return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same guest', 'Booking harus dari tamu yang sama')})
         recipient_name = cls[0].guest_name
         # Resolve from the whole group: the phone may live on a sibling booking.
         resolve_targets = lambda cl_list: resolve_guest_target(cl_list)
-        no_target_message = 'Tamu belum punya nomor WhatsApp'
+        no_target_message = tr(request, 'Guest has no WhatsApp number', 'Tamu belum punya nomor WhatsApp')
     else:
-        return JsonResponse({'ok': False, 'message': 'Booking harus dari 1 client yang sama'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same client', 'Booking harus dari 1 client yang sama')})
     check_ins = {cl.check_in for cl in cls}
     if len(check_ins) != 1:
-        return JsonResponse({'ok': False, 'message': 'Booking harus di tanggal check-in yang sama'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must have the same check-in date', 'Booking harus di tanggal check-in yang sama')})
     today = date.today()
     check_in_date = next(iter(check_ins))
     if check_in_date == today:
@@ -327,7 +330,7 @@ def calendar_send_reminder_group(request):
     elif check_in_date > today:
         reminder_type = 'H1_GUEST'
     else:
-        return JsonResponse({'ok': False, 'message': 'Tanggal check-in sudah lewat'})
+        return JsonResponse({'ok': False, 'message': tr(request, 'Check-in date has already passed', 'Tanggal check-in sudah lewat')})
     # Manual send never dedups against ReminderLog: the operator may need to
     # resend a reminder that was already sent today (e.g. after editing the
     # booking). Only the scheduled command (send_checkin_reminders) is
@@ -342,16 +345,16 @@ def calendar_send_reminder_group(request):
     return JsonResponse({'ok': True, 'queued': True})
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def wa_target_add(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
     label  = request.POST.get('label', '').strip()
     target = request.POST.get('target', '').strip()
     if not label or not target:
-        return JsonResponse({'ok': False, 'error': 'Label dan nomor wajib diisi'})
+        return JsonResponse({'ok': False, 'error': tr(request, 'Label and number are required', 'Label dan nomor wajib diisi')})
     if WATarget.objects.filter(target=target).exists():
-        return JsonResponse({'ok': False, 'error': 'Nomor sudah terdaftar'})
+        return JsonResponse({'ok': False, 'error': tr(request, 'Number already registered', 'Nomor sudah terdaftar')})
     t = WATarget.objects.create(label=label, target=target)
     return JsonResponse({
         'ok': True, 'id': t.pk, 'label': t.label,
@@ -359,7 +362,7 @@ def wa_target_add(request):
     })
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def wa_target_toggle(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
@@ -369,7 +372,7 @@ def wa_target_toggle(request, pk):
     return JsonResponse({'ok': True, 'is_active': t.is_active})
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def wa_target_delete(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
@@ -378,7 +381,7 @@ def wa_target_delete(request, pk):
     return JsonResponse({'ok': True})
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def calendar_recap_settings(request):
     return inertia_render(request, 'Calendar/RecapSettings', {
         'wa_targets': list(WATarget.objects.values('id', 'label', 'target', 'target_type', 'is_active')),
@@ -386,7 +389,7 @@ def calendar_recap_settings(request):
     })
 
 
-@login_required
+@require_perm('calendar', 'edit')
 def message_template_save(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
@@ -404,7 +407,7 @@ def message_template_save(request):
     return JsonResponse({'ok': True})
 
 
-@login_required
+@require_perm('calendar', 'export')
 def calendar_checkin_pdf(request):
     today = date.today()
     active_company = get_active_company(request)

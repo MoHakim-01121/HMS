@@ -5,6 +5,11 @@ from django.test import TestCase
 class FlashShareTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("tester", password="pw12345")
+        # Deleting is a Manager-and-up action (hw/permissions.py); the default
+        # role for a fresh account is Staff, which cannot delete. This test is
+        # about flash sharing, so grant the role the action needs.
+        self.user.profile.role = "manager"
+        self.user.profile.save(update_fields=["role"])
         self.client.force_login(self.user)
         session = self.client.session
         session["active_company"] = "konoz"
@@ -175,6 +180,40 @@ class UserAdminTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(User.objects.filter(username="carol").exists())
 
+    def test_credential_card_prints_without_changing_password(self):
+        user = User.objects.create_user("bob", password="oldpw")
+        resp = self.client.post(f"/users/{user.pk}/credential-card/", {"password": "shownpw", "password_confirm": "shownpw"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/pdf")
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("oldpw"))
+
+    def test_credential_card_requires_matching_password(self):
+        user = User.objects.create_user("bob", password="oldpw")
+        resp = self.client.post(f"/users/{user.pk}/credential-card/", {"password": "a", "password_confirm": "b"})
+        self.assertEqual(resp.status_code, 400)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("oldpw"))
+
+    def test_username_with_invalid_characters_rejected(self):
+        resp = self._inertia_post("/users/new/", {
+            "username": "evil\r\nX: injected", "password": "x", "password_confirm": "x",
+        })
+        self.assertIn("username", resp.json()["props"]["errors"])
+
+    def test_credential_card_filename_is_sanitized_for_legacy_username(self):
+        # A legacy username created before format validation may still contain
+        # quotes/newlines; it must never leak into the Content-Disposition header.
+        user = User.objects.create_user('sneaky"name\r\nX: header')
+        resp = self.client.post(f"/users/{user.pk}/credential-card/", {"password": "shownpw", "password_confirm": "shownpw"})
+        self.assertEqual(resp.status_code, 200)
+        disposition = resp["Content-Disposition"]
+        self.assertNotIn("\r", disposition)
+        self.assertNotIn("\n", disposition)
+        self.assertNotIn('"sneaky', disposition)
+        self.assertEqual(resp["Cache-Control"], "no-store")
+        self.assertIn("sneaky_name_", disposition)
+
 
 class ClFormTests(TestCase):
     def setUp(self):
@@ -242,6 +281,72 @@ class ProfileTests(TestCase):
         self.assertEqual(edits[0]["object_ref"], "Hilton")
         self.assertEqual(edits[0]["changes"][0]["after"], "B")
 
+    def _post(self, url, data):
+        return self.client.post(url, data, HTTP_X_INERTIA="true")
+
+    def test_profile_update_name_and_email(self):
+        resp = self._post("/account/profile/update/", {
+            "full_name": "Budi Santoso", "email": "budi@example.com",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.get_full_name(), "Budi Santoso")
+        self.assertEqual(self.user.email, "budi@example.com")
+
+    def test_profile_update_requires_name(self):
+        page = self._post("/account/profile/update/", {
+            "full_name": "", "email": "b@example.com",
+        }).json()
+        self.assertEqual(page["component"], "Account/Profile")
+        self.assertIn("full_name", page["props"]["errors"])
+
+    def test_profile_update_rejects_invalid_email(self):
+        page = self._post("/account/profile/update/", {
+            "full_name": "Budi", "email": "not-an-email",
+        }).json()
+        self.assertIn("email", page["props"]["errors"])
+
+    def test_profile_update_rejects_duplicate_email(self):
+        User.objects.create_user("other", "taken@example.com", "pw12345")
+        page = self._post("/account/profile/update/", {
+            "full_name": "Budi", "email": "TAKEN@example.com",
+        }).json()
+        self.assertIn("email", page["props"]["errors"])
+
+    def test_profile_update_email_is_optional(self):
+        resp = self._post("/account/profile/update/", {
+            "full_name": "Budi", "email": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.get_full_name(), "Budi")
+        self.assertEqual(self.user.email, "")
+
+    def test_profile_update_rejects_username_for_non_admin(self):
+        page = self._post("/account/profile/update/", {
+            "username": "hacked",
+        }).json()
+        self.assertIn("username", page["props"]["errors"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "profiler")
+
+    def test_profile_update_username_for_admin(self):
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.user.refresh_from_db()
+        resp = self._post("/account/profile/update/", {"username": "newprofiler"})
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "newprofiler")
+
+    def test_profile_update_rejects_duplicate_username(self):
+        User.objects.create_user("taken_name", password="pw12345")
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.user.refresh_from_db()
+        page = self._post("/account/profile/update/", {"username": "TAKEN_NAME"}).json()
+        self.assertIn("username", page["props"]["errors"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "profiler")
+
 
 class SessionExpiryInertiaTests(TestCase):
     """An expired session must redirect Inertia (XHR) requests cleanly via a
@@ -253,6 +358,19 @@ class SessionExpiryInertiaTests(TestCase):
         resp = self.client.get("/remittance/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 409)
         self.assertIn("/login/", resp["X-Inertia-Location"])
+
+    def test_inertia_profile_when_logged_out_returns_409_location(self):
+        # Regression: account_profile previously lacked @login_required while its
+        # _profile_props helper had it, so the decorator's HttpResponseRedirect
+        # was passed to inertia_render as props ("not a mapping" TypeError).
+        resp = self.client.get("/account/profile/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("/login/", resp["X-Inertia-Location"])
+
+    def test_non_inertia_profile_when_logged_out_redirects_302(self):
+        resp = self.client.get("/account/profile/")
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login/", resp["Location"])
 
     def test_inertia_post_when_logged_out_returns_409_location(self):
         resp = self.client.post("/remittance/1/delete/", HTTP_X_INERTIA="true")

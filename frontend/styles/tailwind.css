@@ -1,0 +1,1680 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+:root,
+[data-theme="light"] {
+  /* Homlu direction (2026-07-26, values extracted directly from the live
+     https://homlu-dashboard-template.vercel.app/ reference via computed-style
+     inspection — not guessed). Homlu's palette is neutral monochrome (chroma
+     0): no colored brand accent at all, color is reserved for semantic
+     status only (task/event badges, dots). --primary inverts light↔dark
+     instead of using a hue. */
+  --background: oklch(0.955 0 0);       /* measured rgb(241,241,241) */
+  --foreground: oklch(0.145 0 0);       /* measured body text color */
+  --primary: oklch(0.145 0 0);          /* black CTA (measured "Sign in"/"Buy template") */
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.94 0 0);
+  --secondary-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.94 0 0);
+  --muted-foreground: oklch(0.55 0 0);  /* measured rgb(114,114,114), inactive nav text */
+  /* NOTE: shadcn's convention names this token "accent" (generic hover/highlight
+     surface for Radix primitives — SelectItem, DropdownMenuItem, etc), but that
+     collides with hw/static/hw/css/design.css's own --accent (HMS's brand color,
+     used across ~30 non-shadcn call sites). Both stylesheets load on every page
+     and both target :root/[data-theme=...], so whichever cascades last would win
+     for BOTH meanings — silently breaking one of them. Named --surface-hover here
+     instead to keep the two systems independent; only --color-accent (the
+     Tailwind utility, e.g. bg-accent) still points at it, so shadcn components
+     are unaffected. */
+  --surface-hover: oklch(0.94 0 0);
+  --surface-hover-foreground: oklch(0.145 0 0);
+  --destructive: oklch(0.52 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(0.922 0 0);           /* measured */
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.145 0 0);
+  --radius: 0.75rem;
+  /* "surface2" card tone (measured rgb(253,253,253)) — brighter than the page
+     background, matching Homlu's card-vs-canvas separation. */
+  --card: oklch(0.995 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.995 0 0);
+  --popover-foreground: var(--foreground);
+}
+
+[data-theme="dark"] {
+  --background: oklch(0.17 0 0);        /* measured */
+  --foreground: oklch(1 0 0);           /* measured, pure white */
+  --primary: oklch(0.985 0 0);          /* white CTA, inverted from light mode */
+  --primary-foreground: oklch(0.17 0 0);
+  --secondary: oklch(0.24 0 0);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.58 0 0);  /* measured rgb(123,123,123) */
+  --surface-hover: oklch(0.24 0 0);
+  --surface-hover-foreground: oklch(1 0 0);
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(1 0 0 / 0.08);        /* measured */
+  --input: oklch(1 0 0 / 0.08);
+  --ring: oklch(0.985 0 0);
+  /* measured rgb(25,25,25) — barely lighter than the page background,
+     exactly as subtle in the real dark-mode screenshot. */
+  --card: oklch(0.2 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.2 0 0);
+  --popover-foreground: var(--foreground);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--surface-hover);
+  --color-accent-foreground: var(--surface-hover-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --radius-lg: var(--radius);
+  /* Superseded 2026-07-26: replaced Fira Sans/Fira Code (the "Data-Dense
+     Dashboard" pairing used for the retired Terminal/Workbench directions)
+     with Inter — the live Homlu reference's measured body font-family is
+     literally "Inter, ui-sans-serif, system-ui, sans-serif" with no separate
+     mono face for numbers, so --font-mono now just aliases the system stack
+     rather than importing a distinct monospace font. */
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* Large "surface" radius (measured rounded-4xl on Homlu's dashboard/KPI
+     cards) — distinct from the smaller --radius used by buttons/inputs/badges. */
+  --radius-card: 2rem;
+  /* Form-control geometry, measured off Homlu's live reference: every
+     interactive control it renders (topbar search box, date-range pills,
+     the appearance drawer's theme/brand/font choice cards) is h-12 with
+     rounded-2xl + border-2 — 48px tall, 16px radius, 2px stroke. That last
+     one matters most: a 2px border is what reads as "Homlu" versus stock
+     shadcn's hairline, and it's the single biggest reason our fields looked
+     like a different system.
+
+     Declared in px, not rem, on purpose: design.css sets `html { font-size:
+     14px }`, so 1rem is 14px here and every rem-based Tailwind utility comes
+     out 12.5% under its name — h-12 is 42px, size-8 is 28px, rounded-2xl is
+     14px. Homlu's numbers were measured in px, so the control tokens and the
+     component classes below both use explicit px to land on them exactly. */
+  --radius-control: 16px;
+}
+
+/* design.css's body already defaults to Fira Sans now that every page carries this class,
+   so this is effectively a no-op — kept as the marker class call sites already apply, and as
+   a safety net if a future page's root element sits outside body's font inheritance. */
+.shadcn-root {
+  font-family: var(--font-sans);
+}
+
+/* design.css has a global `input:not([type=checkbox]):not([type=radio])`
+   reset (background/border/radius/padding + its own :focus ring) that's
+   unlayered plain CSS — it beats every Tailwind utility class regardless of
+   specificity, because Tailwind's own utilities live inside `@layer
+   utilities` and unlayered rules always win the cascade over layered ones.
+   That was silently painting a second bordered "input box" inside the
+   search command palette (cmdk's raw <input>), on top of the dialog's own
+   border — a visible double-border that doesn't exist in Homlu's reference.
+   This selector matches design.css's specificity closely enough that
+   normal source order (this file loads after design.css) settles it. */
+[data-slot="dialog-content"] [data-slot="command"] input[data-slot="command-input"],
+[data-slot="dialog-content"] [data-slot="command"] input[data-slot="command-input"]:focus {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* ── Command palette (search overlay) padding ─────────────────────────────
+   Same unlayered `* { padding: 0 }` reset (design.css line 89) that killed
+   the Button and alert-dialog padding, killing these too: the palette's
+   px-4 input row, p-1 groups, px-2 py-1.5 items, the ↑↓/↵ hint bar and the
+   Esc keycap were all rendering with zero padding, so every line of the
+   search panel sat flush against the panel edge instead of inside the
+   measured 16px/8px rhythm Homlu's ⌘K palette uses.
+
+   Restated in px rather than reusing the utilities: html is 14px here, so a
+   rem-based class (px-4 → 14px) comes out under its Homlu-measured name.
+   The empty/loading/error blocks carry their own data-slots in
+   search-overlay.jsx so the CSS does not have to guess which direct child
+   of the list is which. */
+[data-slot="dialog-content"] [data-slot="command-input-wrapper"] { padding-inline: 16px; }
+[data-slot="dialog-content"] [data-slot="command-input-wrapper"] kbd { padding: 4px 8px; }
+[data-slot="dialog-content"] [data-slot="command-group"] { padding: 4px; }
+[data-slot="dialog-content"] [data-slot="command-group"] [cmdk-group-heading] { padding: 6px 8px; }
+[data-slot="dialog-content"] [data-slot="command-item"] { padding: 6px 8px; }
+[data-slot="dialog-content"] [data-slot="command"] > div:last-child { padding: 7px 16px; }
+[data-slot="dialog-content"] [data-slot="command-state-empty"] { padding: 48px 24px; }
+[data-slot="dialog-content"] [data-slot="command-state-loading"] { padding: 32px 0; }
+[data-slot="dialog-content"] [data-slot="command-state-error"] { padding: 16px; }
+
+/* ── Button padding ───────────────────────────────────────────────────────
+   design.css line 89 is `*, *::before, *::after { box-sizing: border-box;
+   margin: 0; padding: 0 }` — a classic reset, and unlayered. Tailwind's
+   padding utilities live in `@layer utilities`, and unlayered rules beat
+   layered ones outright, so `px-4` / `px-[22px]` on a Button never applied:
+   every shadcn Button in this app has been rendering with zero horizontal
+   padding. On a full-pill button that is not subtle — a 48px-tall submit
+   button with no padding is literally a 48px circle with the label spilling
+   out of it, which is what the form footer was showing.
+
+   Restored here rather than by touching design.css's reset, which the entire
+   legacy stylesheet is built on top of. Keyed off the data-size attribute the
+   Button component already emits, so it tracks the cva sizes below it, and
+   deliberately unscoped by .shadcn-root: Radix portals dialog/dropdown content
+   to document.body, outside every page's root wrapper. Icon sizes are square
+   by design and stay at zero. */
+/* The slot list is load-bearing. Button renders `Slot.Root` under `asChild`,
+   and Radix's Slot lets the CHILD's props win for anything both set — so an
+   AlertDialogAction/Cancel (Button asChild + Primitive.Action) comes out as
+   `data-slot="alert-dialog-action"`, never `"button"`. Keying on
+   `[data-slot="button"]` alone therefore skipped every alert-dialog footer
+   button, which is why they rendered as bare circles. `data-size` survives
+   because only Button sets it. */
+:is(
+  [data-slot="button"],
+  [data-slot="alert-dialog-action"],
+  [data-slot="alert-dialog-cancel"]
+) {
+  &[data-size="default"] { padding-inline: 16px; }
+  &[data-size="default"]:has(> svg) { padding-inline: 12px; }
+  &[data-size="sm"] { padding-inline: 12px; }
+  &[data-size="sm"]:has(> svg) { padding-inline: 10px; }
+  &[data-size="xs"] { padding-inline: 8px; }
+  &[data-size="lg"] { padding-inline: 22px; }
+  &[data-size="lg"]:has(> svg) { padding-inline: 18px; }
+
+  /* design.css line 127 is an unlayered `:focus-visible { outline: 2px solid
+     var(--accent); outline-offset: 2px }`, so it beat the base's `outline-none`
+     and every shadcn control focused with the legacy orange/white outline
+     instead of the designed `ring-ring/50` halo — two focus treatments in one
+     app. Cleared here so the ring utility is the only one left standing;
+     legacy `.btn`/link focus is untouched. */
+  &:focus-visible { outline: none; }
+}
+
+/* ── Alert dialog padding ─────────────────────────────────────────────────
+   Same `* { padding: 0 }` reset, same outcome as the buttons above: the
+   primitive's `p-6` is a layered utility and loses to it, so ConfirmDialog has
+   been painting its title, message and footer flush against the panel edge —
+   text touching the border on all four sides, footer buttons hard against the
+   bottom-right corner.
+
+   Only alert-dialog-content needs this. dialog-content is deliberately p-0
+   (form-modal supplies its own header/body/footer chrome further down this
+   file), and the other Radix surfaces set their padding on inner items.
+
+   Restated in px rather than reusing `p-6`: html is 14px here, so the utility
+   would resolve to 21px, not the 24px the rest of the overlay chrome uses. */
+[data-slot="alert-dialog-content"] { padding: 24px; }
+
+/* ── Plain dialog padding ────────────────────────────────────────────────
+   The same `* { padding: 0 }` reset hits the shadcn DialogContent's `p-6`
+   utility, so any dialog relying on the stock surface (User's Access and
+   Reset-password dialogs, Role's delete dialog) paints its title, fields and
+   footer flush against the panel edge.
+
+   Opt-in rather than a blanket dialog-content rule: two of the other
+   consumers build their own chrome on top of p-0 — form-modal supplies its
+   own header/body/footer strips, and the ⌘K palette is full-bleed — so global
+   padding would double-pad both. .hms-dialog is applied only where the stock
+   surface is wanted. 24px matches the alert-dialog figure above. */
+[data-slot="dialog-content"].hms-dialog { padding: 24px; }
+
+/* ── Select dropdown (shadcn) ────────────────────────────────────────────
+   The shadcn Select ships its content/item padding and radius as layered
+   utilities (p-1, py-1.5 pl-2, rounded-sm), which design.css's `* { padding:
+   0 }` reset kills — every select dropdown in the app opened with its items'
+   text flush against the panel edge and a smaller radius than the rest of the
+   app's menus.
+
+   Matched to the app's own popover language (.hms-ws-panel /
+   .hms-topbar-dropdown .co-option): content 8px radius / 4px padding, items
+   uniform 8px padding / 6px radius. The item keeps 32px on the right so the
+   check indicator (absolute at right-2) never overlaps the label. */
+[data-slot="select-content"] { padding: 4px; border-radius: 8px; }
+[data-slot="select-item"] { padding: 8px 32px 8px 8px; border-radius: 6px; }
+
+/* ── Combobox popover (shadcn Popover+Command) ───────────────────────────
+   The search dropdowns (CL form's Hotel / Guest pickers) are a Popover, not
+   a Select — they render their items through cmdk, whose `p-1` / `px-2 py-1.5`
+   utilities die to the same `* { padding: 0 }` reset, and the palette's own
+   padding restores further down this file are scoped to `[data-slot="dialog-content"]`,
+   which this portal is not inside. So the combobox list opened with its items'
+   text flush against the panel edge and the default 4px-ish radius.
+
+   Same treatment as the select/alert-dialog rules above, keyed to the app's
+   popover language (.hms-ws-panel): content 8px radius, items uniform 8px
+   padding / 6px radius. Scoping through popover-content keeps it off any other
+   Command consumer. */
+[data-slot="popover-content"] { border-radius: 8px; }
+[data-slot="popover-content"] [data-slot="command-group"] { padding: 4px; }
+[data-slot="popover-content"] [data-slot="command-item"] { padding: 8px; border-radius: 6px; }
+
+/* ── Form controls (Homlu direction) ──────────────────────────────────────
+   design.css line ~556 has a global `input:not([type=checkbox]):not([type=radio]),
+   select, textarea` reset — 1px border, var(--r) radius, 13px text, 7px/10px
+   padding — and it is UNLAYERED plain CSS. Tailwind's utilities live inside
+   `@layer utilities`, and unlayered rules beat layered ones no matter the
+   specificity, so every className on our shadcn <Input>/<Textarea>/<SelectTrigger>
+   for background, border, radius, padding and font-size was being silently
+   discarded. The fields on screen have been design.css's, not the components'.
+   That is why restyling the JSX alone never changed how the forms looked.
+
+   So the redesign has to land here, in a rule that actually wins: unlayered,
+   and scoped so the remaining pure-Django pages — login, 403/404/500 — keep
+   the old reset they were built against. Radius and stroke are Homlu's measured
+   16px/2px; height runs at 40px rather than its 48px, one step tighter because
+   HMS forms put far more fields on screen at once than the reference does. The
+   components' Tailwind classes carry the same numbers so the two agree rather
+   than fight.
+
+   SCOPE — this is keyed to FormField, not to `input` generally, and that
+   boundary is load-bearing. All over this app a wrapper draws the box itself
+   and deliberately strips the input inside it to nothing: .search-wrap on the
+   list toolbars, .chat-input-pill on Home, .map-search-wrap on the hotel map,
+   cmdk's palette input, and the .simple-* / .rem-input fields inside Invoice's
+   and Remittance's dynamic row cards. Those overrides are plain class selectors
+   at (0,1,0)–(0,3,1); anything broad enough to cover "inputs on a form page"
+   outranks them and paints a second bordered box inside the wrapper. Both the
+   list search boxes and the invoice reservation cards regressed exactly that
+   way while this was being built.
+
+   FormField is where the design system actually starts, so that is where the
+   design-system styling starts. Every real data-entry field in all 9 form pages
+   goes through it (Client/Penalty/Cl/User use nothing else; Invoice, Services,
+   Remittance and Hotel use it for their fields and keep raw inputs only inside
+   bespoke card/table/map widgets). Nothing else in the app renders one. So the
+   split falls out for free rather than needing an exception list that the next
+   bespoke wrapper would fall off of.
+
+   The :not() pair is not decoration — it lifts specificity to (0,3,1) so this
+   clears design.css's own (0,2,1) reset. */
+[data-slot="form-field"] input:not([type="checkbox"]):not([type="radio"]),
+[data-slot="form-field"] select,
+[data-slot="form-field"] textarea {
+  height: 40px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  font-size: 14px;
+  padding: 0 14px;
+  box-shadow: none;
+  transition: border-color .14s ease;
+}
+[data-slot="form-field"] textarea {
+  height: auto;
+  min-height: 96px;
+  padding: 12px 14px;
+  line-height: 1.55;
+}
+/* Homlu signals focus by darkening the stroke to full-contrast ink rather than
+   painting a colored glow — it has no brand hue to glow with. Keeping a ring
+   here would also re-introduce design.css's orange --accent-muted shadow. */
+[data-slot="form-field"] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-slot="form-field"] select:focus,
+[data-slot="form-field"] textarea:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: none;
+}
+[data-slot="form-field"] input::placeholder,
+[data-slot="form-field"] textarea::placeholder { color: var(--muted-foreground); }
+[data-slot="form-field"] input[aria-invalid="true"],
+[data-slot="form-field"] textarea[aria-invalid="true"] { border-color: var(--destructive); }
+/* Radix's SelectTrigger is a <button>, so the reset above never reaches it —
+   match it to the native controls by hand or the two sit side by side in the
+   same row at different heights. */
+[data-slot="form-field"] [data-slot="select-trigger"] {
+  height: 40px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 0 14px;
+  font-size: 14px;
+  box-shadow: none;
+}
+[data-slot="form-field"] [data-slot="select-trigger"]:focus-visible { border-color: var(--ring); box-shadow: none; }
+/* forms.css's field grids were spaced for 30px-tall fields; at 40px the 12px
+   gutter reads as cramped, especially once a field carries a hint or error. */
+.shadcn-root form .fg-2,
+.shadcn-root form .fg-3,
+.shadcn-root form .fg-4 { gap: 16px; }
+
+/* Native file inputs render their own button + filename text, so a fixed
+   height with the control's side padding clips the label and pushes the widget
+   past the field's right edge (visible on Remittance's "Receipt" field). Let
+   them size to their content and just keep the surface treatment. */
+[data-slot="form-field"] input[type="file"] {
+  height: auto;
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+/* The rules above are scoped to FormField because the app's bespoke wrappers
+   (.search-wrap, .chat-input-pill, .map-search-wrap, cmdk) draw the box
+   themselves around a bare <input>. But a few shadcn <Input>s render directly,
+   outside any FormField — Profile's Name/Email fields and the Activity Log
+   search. Those were silently falling back to design.css's legacy
+   1px/13px/small-radius reset, a visible mismatch sitting beside the 2px/40px
+   controls, and a big part of why the profile page read as unfinished. Same
+   numbers as the FormField rule, keyed off data-slot="input" (which only the
+   shadcn Input component emits) so the raw-input wrappers above are untouched.
+   The :not() pair lifts specificity to (0,3,0), clearing design.css's (0,2,1). */
+[data-slot="input"]:not([type="checkbox"]):not([type="radio"]) {
+  height: 40px;
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--foreground);
+  font-size: 14px;
+  padding: 0 14px;
+  box-shadow: none;
+  transition: border-color .14s ease;
+}
+[data-slot="input"]:not([type="checkbox"]):not([type="radio"]):focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: none;
+}
+[data-slot="input"]::placeholder { color: var(--muted-foreground); }
+[data-slot="input"][aria-invalid="true"] { border-color: var(--destructive); }
+/* Native file inputs render their own button + filename text; a fixed 40px
+   height with the control's side padding clips them (Avatar uploader dialog). */
+[data-slot="input"][type="file"]:not([type="checkbox"]):not([type="radio"]) {
+  height: auto;
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+/* FormPanel and FormSection are flex columns, and a flex item defaults to
+   min-width:auto — it refuses to shrink below its own content. The wide
+   reservation/payment tables in the Remittance, Invoice and Services forms are
+   already wrapped in overflow-x:auto containers, but those containers were
+   flex items, so instead of scrolling they simply grew and pushed the table
+   past the dialog's right edge (the "Paid" column was being cut off). */
+[data-slot="form-panel"] > *,
+[data-slot="form-section"] > * { min-width: 0; }
+
+/* Those 3- and 4-up field grids were laid out for a full-width page. The dialog
+   is narrower, and at 3+ columns the fields get too tight to read their own
+   values — placeholders were being truncated mid-word ("Receipt cod…",
+   "Transfer BC…"). Drop to two columns inside the modal, one on phones. */
+.hms-modal-body .fg-3,
+.hms-modal-body .fg-4 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 640px) {
+  .hms-modal-body .fg-2,
+  .hms-modal-body .fg-3,
+  .hms-modal-body .fg-4 { grid-template-columns: 1fr; }
+}
+
+/* Homlu's reference background is flat solid neutral gray/black — no ambient
+   blobs or dot-grid texture at all (confirmed via live computed-style
+   inspection). shell.css's .base-bg blob/dot-grid decoration predates this
+   direction and visibly contradicts it, so it's suppressed here rather than
+   deleted from shell.css (a large shared stylesheet other pages still read). */
+.base-bg { display: none; }
+
+/* Create/Edit forms open as a dialog (Homlu direction, 2026-07-27) — see
+   form-modal.jsx. DialogContent already supplies the card surface + 24px
+   padding, so the page's own .form-page centering/padding/animation (built
+   for a full-page route) would just double up; neutralize it when nested
+   inside the dialog. */
+/* ── Overlay stacking ─────────────────────────────────────────────────────
+   Every Radix layer ships with Tailwind's `z-50`, but design.css's own scale
+   puts the app shell at --z-sticky (200) — .hms-sidebar and .hms-topbar are
+   both fixed at 200. So the shell has always painted OVER modals, and the
+   scrim has never dimmed it. Nothing showed it until a dialog grew wide
+   enough to reach the sidebar, at which point the sidebar simply covered the
+   dialog's left edge.
+
+   These move onto the scale design.css already defines: --z-modal (400),
+   above the shell and below --z-toast. All seven layers move together, so
+   their order relative to each other is unchanged — it was decided by portal
+   DOM order at equal z-index before, and still is, which is what keeps a
+   dropdown or select opened INSIDE a dialog on top of it.
+
+   Unlayered on purpose: `z-50` is a Tailwind utility and lives in
+   @layer utilities, which any unlayered rule outranks regardless of
+   specificity. */
+[data-slot="dialog-overlay"], [data-slot="dialog-content"],
+[data-slot="alert-dialog-overlay"], [data-slot="alert-dialog-content"],
+[data-slot="drawer-overlay"], [data-slot="drawer-content"],
+[data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"],
+[data-slot="popover-content"], [data-slot="select-content"] {
+  z-index: var(--z-modal, 400);
+}
+
+/* A form page's root wrapper carries full-page chrome — design.css gives both
+   .page and .page-sm `max-width:1040px; padding:28px 20px 60px`, and .form-page
+   its own variant. Inside the dialog the dialog supplies all of that, so the
+   wrapper has to flatten or it pads the page a second time.
+
+   This only listed .form-page, which is what Cl/Client/Penalty/Remittance/Role
+   /User use. Invoice and Services open with .page and Hotel with .page-sm, so
+   those three kept the 60px bottom padding — a dead band below the sticky
+   action row, inside the dialog, with nothing in it. Same for the 28px on top.
+
+   Scoped through .hms-modal-body rather than .form-modal-content alone so this
+   sits at (0,3,0): a page's own stylesheet reaching its root by class lands at
+   (0,2,0) and would otherwise win on document order, since page <style> blocks
+   mount into the body long after this file. Invoice's own
+   `.inv-form.page { padding-bottom: 112px }` phone rule did exactly that. */
+.form-modal-content .hms-modal-body .form-page,
+.form-modal-content .hms-modal-body .page,
+.form-modal-content .hms-modal-body .page-sm {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  animation: none;
+}
+
+/* ── Form modal chrome ────────────────────────────────────────────────────
+   Structure copied from Homlu's appearance sheet, which is the one overlay
+   its live site exposes publicly (measured markup):
+
+       sheet-content : p-0, flex-col              — no padding of its own
+       sheet-header  : px-5 py-5, border-b        — stays put
+       body          : flex-1 overflow-y-auto px-5 py-6   — the only scroller
+
+   Previously the whole DialogContent was the scroller with the close button
+   absolutely positioned inside it, so the X scrolled up out of view along
+   with the fields and there was no visible title at all — the modal opened
+   as a bare stack of inputs. Splitting header/body/footer fixes both.
+
+   Radius sits between the 16px controls and the 32px page cards: the same
+   family, stepped up for the largest floating surface. */
+.form-modal-content {
+  padding: 0;
+  gap: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: min(86vh, 820px);
+  border-radius: 24px;
+}
+.hms-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hms-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+.hms-modal-sub {
+  margin-top: 2px;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  line-height: 1.45;
+}
+.hms-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 20px;
+  /* form-modal.jsx measures the content and writes this height, so the dialog
+     eases between sizes instead of snapping. Without it, a form arriving after
+     its skeleton resized the box by ~455px in a single frame — the modal looked
+     like it glitched rather than opened. Also covers content changing later
+     (adding an Invoice reservation/payment row, an error summary appearing).
+     scrollbar-gutter keeps the fields from shifting sideways at the moment the
+     growing box first overflows. */
+  /* Deliberately not one of the sharp ease-outs used elsewhere in this sheet:
+     over ~400px of travel those put most of the distance into the first two
+     frames, which still reads as a jump. A gentler curve spreads it. */
+  transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  scrollbar-gutter: stable;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hms-modal-body { transition: none; }
+}
+/* flow-root, not plain block: form-modal.jsx measures this wrapper to drive the
+   body's height, and the sticky action bar's negative bottom margin has to be
+   counted inside that measurement rather than collapsing through it. */
+.hms-modal-inner { display: flow-root; }
+/* Content arriving into an already-open dialog fades rather than pops. Keyed
+   off the attribute so it replays on the skeleton → form swap. */
+.hms-modal-inner[data-state="ready"] { animation: hmsModalIn 200ms ease-out both; }
+@keyframes hmsModalIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hms-modal-inner[data-state="ready"] { animation: none; }
+}
+
+/* Placeholder for the cold-open case only (see SKELETON_DELAY). Shaped like a
+   form so the swap to real fields changes content, not layout. */
+.hms-modal-skel { display: flex; flex-direction: column; gap: 26px; }
+.hms-modal-skel .hms-skel-sec { display: flex; flex-direction: column; gap: 14px; }
+.hms-modal-skel .hms-skel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 16px;
+}
+@media (max-width: 640px) {
+  .hms-modal-skel .hms-skel-grid { grid-template-columns: 1fr; }
+}
+.hms-modal-skel .hms-skel-field { display: flex; flex-direction: column; gap: 7px; }
+.hms-skel-bar {
+  border-radius: 8px;
+  background: var(--muted);
+  animation: hmsSkelPulse 1.4s ease-in-out infinite;
+}
+@keyframes hmsSkelPulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.8; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hms-skel-bar { animation: none; opacity: 0.55; }
+}
+/* The submit row lives inside each page's own <form>, so it can't be lifted
+   into a real sibling footer without editing all 11 form pages. Sticking it
+   to the bottom of the scroller gives the same always-reachable footer, and
+   the negative margins let its background span the full width so fields
+   scrolling underneath are covered edge to edge. */
+.hms-modal-body .hms-form-actions {
+  position: sticky;
+  bottom: -24px;
+  margin: 8px -20px -24px;
+  padding: 16px 20px;
+  /* --background, not --card: this strip is part of the dialog surface, and
+     --card is the (lighter) tone the fields themselves sit on. */
+  background: var(--background);
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 600px) {
+  .form-modal-content { max-height: 92vh; border-radius: 20px; }
+  .hms-modal-body { padding: 20px 16px; }
+  .hms-modal-head { padding: 16px; }
+  .hms-modal-body .hms-form-actions { margin: 8px -16px -20px; padding: 14px 16px; bottom: -20px; }
+}
+
+/* ── Scroll-lock shell compensation ───────────────────────────────────────
+   Every Radix overlay (form modal, confirm dialog, search palette, ...) locks
+   the page scroll through react-remove-scroll-bar. In its default "margin" gap
+   mode that library reads body's *margins*, then re-emits them as *paddings*
+   on body[data-scroll-locked]:
+
+       padding-left:  <body marginLeft>px    → 0
+       padding-top:   <body marginTop>px     → 0
+       padding-right: <body marginRight>px   → 0
+       margin-right:  <scrollbar width>px !important;
+
+   design.css sets `body { margin: 0 }`, so those first three land as a flat
+   `padding: 0` — and being an attribute selector they outrank the plain `body`
+   rules that hold the shell offsets (padding-left for the fixed sidebar,
+   padding-top for the fixed topbar). That is why the page behind a dialog
+   jumped: 256px left + 56px up on desktop, 48px up on mobile, sliding under
+   its own chrome. Restored below; the library's padding rules carry no
+   !important, but it injects its <style> into <head> after this sheet, so
+   winning the tie needs it.
+
+   Its margin-right compensation is left alone — that one is doing the right
+   thing, keeping normal-flow content still while the scrollbar is gone. Fixed
+   chrome sits outside that flow, so anything anchored to the right edge has to
+   shift itself by the same gap, which the library publishes as
+   --removed-body-scroll-bar-size. */
+@media (min-width: 601px) {
+  body[data-scroll-locked] {
+    padding-left: var(--sidebar-w) !important;
+    padding-top: var(--topbar-h) !important;
+  }
+  body.sidebar-collapsed[data-scroll-locked] {
+    padding-left: var(--sidebar-w-collapsed) !important;
+  }
+  body[data-scroll-locked] .hms-topbar {
+    right: var(--removed-body-scroll-bar-size, 0px);
+  }
+}
+@media (max-width: 600px) {
+  /* design.css's m-topbar offset */
+  body[data-scroll-locked] { padding-top: 48px !important; }
+}
+
+/* ── List data table — HeroUI v3 Table direction (21st.dev reference, chosen
+   2026-07-30). The reference's signature is a tinted header strip with the
+   body as a lighter "sheet" in front of it, whose rounded top corners let the
+   strip show through at the notches. Scoped to `.hms-table-v2` (set by
+   components/shadcn/table.jsx) so design.css's global table rules keep owning
+   the detail-page and Remittance line-item tables, and confined to ≥601px so
+   the mobile row-as-card collapse is untouched. ── */
+@media (min-width: 601px) {
+  .hms-table-v2 { border-radius: 10px; background: var(--secondary); }
+
+  /* Header strip: muted ink on the tint, no rule underneath — the sheet's
+     edge is what separates it from the body. */
+  .hms-table-v2 thead tr { border-bottom: none; }
+  .hms-table-v2 thead th {
+    position: relative;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    background: transparent;
+    border-bottom: none;
+  }
+  /* Short vertical rules between header cells, as in the reference. Skipped
+     after the bulk-select checkbox, where a rule just reads as clutter. */
+  .hms-table-v2 thead th + th::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 1px;
+    height: 15px;
+    transform: translateY(-50%);
+    background: var(--border);
+  }
+  .hms-table-v2 thead th.hms-th-select + th::before,
+  .hms-table-v2 thead th.hms-th-blank::before { content: none; }
+
+  /* Body sheet. Painted per-cell rather than on <tbody> so the corner cells
+     can round without a square tbody box showing through behind them. */
+  .hms-table-v2 tbody td {
+    padding: 14px 16px;
+    font-weight: 400;
+    background: var(--card);
+  }
+  .hms-table-v2 tbody td.col-bold { font-weight: 600; }
+
+  /* Flat full-bleed hover — the sheet owns the rounding here, so design.css's
+     per-row rounded hover is switched off. This pair must stay ahead of the
+     corner rules below: identical specificity, so later wins. */
+  .hms-table-v2 tbody tr:hover td { background: color-mix(in oklab, var(--secondary) 55%, var(--card)); }
+  .hms-table-v2 tbody tr:hover td:first-child,
+  .hms-table-v2 tbody tr:hover td:last-child { border-radius: 0; }
+
+  /* Sheet corners: top always, bottom only when no footer strip follows. */
+  .hms-table-v2 tbody tr:first-child td:first-child { border-top-left-radius: 10px; }
+  .hms-table-v2 tbody tr:first-child td:last-child { border-top-right-radius: 10px; }
+  .hms-table-v2 table:not(:has(tfoot)) tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
+  .hms-table-v2 table:not(:has(tfoot)) tbody tr:last-child td:last-child { border-bottom-right-radius: 10px; }
+
+  /* Footer summary mirrors the header strip: transparent, letting the wrapper
+     tint through so it reads as the same surface. */
+  .hms-table-v2 tfoot td {
+    padding: 13px 16px;
+    background: transparent;
+    border-top: none;
+  }
+}
+
+/* ── List pagination — the closing band of the table card, same HeroUI v3
+   reference as the skin above. It carries the header's tint so the body sheet
+   reads as floating between two strips; the sheet's own bottom corners (set
+   above) are what let the tint show through at the notches. Replaces
+   design.css's centred `.pagination` row. ── */
+.hms-pag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 11px 16px;
+  background: var(--secondary);
+}
+/* The wrapper rounds its own bottom corners so a table that ends the card
+   looks finished; when the strip follows, that rounding would punch two
+   surface-coloured notches between two same-tinted bands. */
+@media (min-width: 601px) {
+  .hms-table-v2:has(+ .hms-pag) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}
+.hms-pag-count { font-size: 12.5px; color: var(--muted-foreground); }
+.hms-pag-nav { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+
+.hms-pag-step,
+.hms-pag-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.hms-pag-num { min-width: 28px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+
+@media (hover: hover) {
+  .hms-pag-step:not(:disabled):hover,
+  button.hms-pag-num:hover {
+    background: color-mix(in oklab, var(--foreground) 7%, transparent);
+    color: var(--foreground);
+  }
+}
+.hms-pag-step:disabled { opacity: .4; cursor: default; }
+
+/* Current page: filled pill on the tint, matching the reference. */
+.hms-pag-num.is-active {
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+  cursor: default;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .06);
+}
+
+.hms-pag-gap { padding: 0 4px; font-size: 12.5px; color: var(--muted-foreground); user-select: none; }
+
+/* The shared `chevron` glyph points down — rotate it into the step arrows. */
+.hms-pag-chev { display: inline-flex; }
+.hms-pag-chev.back { transform: rotate(90deg); }
+.hms-pag-chev.fwd { transform: rotate(-90deg); }
+
+/* On mobile the table collapses to cards, so the strip is no longer the
+   card's closing band — drop the tint and centre the controls. */
+@media (max-width: 600px) {
+  .hms-pag {
+    justify-content: center;
+    background: transparent;
+    padding: 4px 0 2px;
+  }
+  .hms-pag-count { width: 100%; text-align: center; }
+  .hms-pag-nav { margin: 0 auto; gap: 8px; }
+  /* Compact prev · current · next — a full pill run doesn't fit at 390px, and
+     the counter above already says where you are. Carried over from the old
+     `.pagination` mobile rules design.css used to hold. */
+  .hms-pag-num:not(.is-active),
+  .hms-pag-gap { display: none; }
+  .hms-pag-step,
+  .hms-pag-num { height: 38px; border-radius: 12px; font-size: 13px; }
+  .hms-pag-step { padding: 0 14px; }
+  .hms-pag-num.is-active { min-width: 38px; border: 1px solid var(--border); }
+}
+
+/* ── Data table (bulk-select bar + hover-reveal actions, additive pattern) ── */
+.hms-bulk-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .24);
+  z-index: 300;
+  animation: hms-bulk-in .18s ease;
+}
+@media (max-width: 600px) {
+  .hms-bulk-bar { bottom: 88px; }
+}
+@keyframes hms-bulk-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.hms-bulk-count { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.hms-bulk-actions { display: flex; gap: 8px; }
+
+/* Hover-reveal row content (e.g. row actions) — pointer devices only, so
+   touch stays always-visible since there's no hover gesture to reveal it. */
+@media (hover: hover) {
+  .hms-row-reveal { opacity: 0; transition: opacity .12s; }
+  tr:hover .hms-row-reveal,
+  tr:focus-within .hms-row-reveal {
+    opacity: 1;
+  }
+}
+
+/* ── Desktop sidebar shell (Homlu direction) ──────────────────────────
+   Global chrome change (2026-07-24, restyled 2026-07-26): replaces the old fixed topbar with a
+   persistent left sidebar nav on desktop widths. Mobile (m-topbar +
+   bottom-nav, both in design.css) is untouched — same 600px boundary the
+   rest of the app already uses to separate desktop/mobile chrome, so this
+   introduces no new breakpoint. The old .topbar element is retired (hidden
+   at all widths) rather than deleted from CSS, since design.css is a large
+   shared stylesheet and other selectors may still reference .topbar-* class
+   names used inside the sidebar (icon buttons, account dropdown, etc). */
+.topbar { display: none !important; }
+
+.hms-sidebar {
+  display: none;
+}
+
+@media (min-width: 601px) {
+  /* Sidebar width still measured off the live Homlu reference; internal
+     spacing/nav-row sizing below now follows 21st.dev's "Dashboard Sidebar"
+     reference instead (see the grouped-nav block further down). */
+  :root { --sidebar-w: 256px; --sidebar-w-collapsed: 72px; }
+  body { padding-top: 0; padding-left: var(--sidebar-w); transition: padding-left .18s ease; }
+  body.sidebar-collapsed { padding-left: var(--sidebar-w-collapsed); }
+
+  .hms-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    padding: 20px;
+    gap: 8px;
+    border-right: 1px solid var(--border);
+    background: var(--background);
+    z-index: var(--z-sticky, 200);
+    overflow-y: auto;
+    transition: width .18s ease;
+  }
+  /* Horizontal padding is trimmed 20px→12px here so the usable row width
+     (72 - 24 = 48px) matches .hms-sidebar-link's own 48px min-height —
+     equal width/height is what makes the active/hover highlight read as a
+     square instead of a tall rounded rectangle. */
+  body.sidebar-collapsed .hms-sidebar { width: var(--sidebar-w-collapsed); padding-left: 12px; padding-right: 12px; }
+
+  /* ── Workspace switcher (company: Konoz United / Ijabah) ── */
+  .hms-ws-switcher {
+    position: relative;
+    flex: none;
+    min-width: 0;
+  }
+  .hms-ws-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background .12s;
+  }
+  .hms-ws-trigger:hover { background: var(--secondary); }
+  .hms-ws-mark {
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 8px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+  .hms-ws-text { min-width: 0; flex: 1; overflow: hidden; }
+  .hms-ws-name { display: block; font-size: 14px; font-weight: 600; color: var(--foreground); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hms-ws-role { display: block; font-size: 12px; color: var(--muted-foreground); line-height: 1.2; }
+  .hms-ws-chevron { flex-shrink: 0; color: var(--muted-foreground); transition: transform .15s; }
+  .hms-ws-switcher.open .hms-ws-chevron { transform: rotate(180deg); }
+  .hms-ws-panel {
+    position: absolute;
+    top: calc(100% + 4px); left: 0; right: 0;
+    background: var(--popover);
+    border: 1px solid var(--border);
+    /* 8px + soft two-layer shadow measured off Homlu's live Radix
+       DropdownMenu popover (rounded-lg, shadow-md) — see
+       inspect-homlu-dropdowns2.js in this session's scratchpad. */
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+    padding: 4px;
+    z-index: 10;
+  }
+  .hms-ws-panel-label {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted-foreground);
+  }
+  .hms-ws-panel .co-option,
+  .hms-topbar-dropdown .co-option {
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .hms-collapse-btn {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; background: transparent; border-radius: 6px;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: background .12s, color .12s;
+  }
+  .hms-collapse-btn:hover { background: var(--secondary); color: var(--foreground); }
+
+  /* Grouped nav (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference,
+     arunjdass): headed clusters (Operations/Schedule/Admin) instead of one
+     flat list under a single "Modules" label. Row sizing (min-height 48px,
+     20px icons, 14px labels) is kept at its pre-existing Homlu-direction
+     values on purpose — the grouping/heading structure is new, the physical
+     size of each row is not. */
+  .hms-sidebar-group + .hms-sidebar-group { margin-top: 16px; }
+  .hms-sidebar-heading {
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--foreground);
+    opacity: .7;
+  }
+
+  .hms-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .hms-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+
+  .hms-sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .hms-sidebar-link:hover { color: var(--foreground); background: var(--secondary); }
+  /* Icons are flex children of the link; without this they inherit the
+     default flex-shrink:1 and get visually squeezed down in the collapsed
+     rail, where the link's own padding leaves less width than the icon's
+     20px intrinsic size. */
+  .hms-sidebar-link svg { flex-shrink: 0; }
+  /* Active nav item: a bordered "card" surface (bg var(--card) + 1px
+     var(--border), radius var(--radius)) sitting on the sidebar's own
+     var(--card) background — reproduces Homlu's two-layer active-pill
+     (.gradient-menu border wrapper + inset bg-b-pop panel). Text stays
+     regular weight, not bold — only the card + color change signal "active". */
+  .hms-sidebar-link.active { color: var(--foreground); background: var(--card); border-color: var(--border); font-weight: 400; }
+
+  /* Collapsed state: icon-only rail — hide every text label, center icons,
+     collapse the workspace switcher down to just its mark. */
+  body.sidebar-collapsed .hms-sidebar-heading,
+  body.sidebar-collapsed .hms-sidebar-link span,
+  body.sidebar-collapsed .hms-ws-text,
+  body.sidebar-collapsed .hms-ws-chevron {
+    display: none;
+  }
+  /* Collapsed row is 48px wide (see .hms-sidebar's own collapsed padding
+     override above) — the link's normal 12px horizontal padding would leave
+     just 24px for a 20px icon with barely any breathing room, so it's
+     dropped here in favor of centering. Radius 10px on this now-square
+     48x48 box reads as a rounded box; var(--radius) (12px) was tuned for
+     the wider expanded row and looked stadium-like at this size. */
+  body.sidebar-collapsed .hms-sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; border-radius: 10px; }
+  body.sidebar-collapsed .hms-ws-trigger { justify-content: center; }
+
+  /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
+     h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
+     muted ws + medium foreground page) instead of the old 64px/28px-title bar. */
+  :root { --topbar-h: 56px; }
+  body { padding-top: var(--topbar-h); }
+  .hms-topbar {
+    position: fixed;
+    top: 0; right: 0; left: var(--sidebar-w);
+    height: var(--topbar-h);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 20px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    z-index: var(--z-sticky, 200);
+    transition: left .18s ease;
+  }
+  body.sidebar-collapsed .hms-topbar { left: var(--sidebar-w-collapsed); }
+  .hms-topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .hms-topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 14px; min-width: 0; overflow: hidden; }
+  .hms-topbar-crumb-ws { color: var(--muted-foreground); white-space: nowrap; }
+  .hms-topbar-crumb-sep { color: var(--muted-foreground); opacity: .5; }
+  .hms-topbar-crumb-page { color: var(--foreground); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hms-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .hms-topbar-account { margin-left: 4px; }
+
+  /* Icon buttons (bell/theme) restyled desktop-only to a 36px circular
+     hit-target with a transparent idle state — .topbar-icon-btn's base rules
+     live in design.css (shared with mobile chrome), so this only overrides
+     inside .hms-topbar, mobile's .m-top-btn is untouched. */
+  .hms-topbar .topbar-icon-btn {
+    width: 36px; height: 36px;
+    border-radius: var(--radius-full, 9999px);
+  }
+  .hms-topbar .topbar-icon-btn:hover { background: var(--secondary); }
+
+  .hms-topbar-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: calc(var(--radius) + 4px);
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted-foreground);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
+  }
+  .hms-topbar-search:hover { border-color: var(--ring); }
+  .hms-topbar-search span { white-space: nowrap; }
+  .hms-topbar-search kbd {
+    margin-left: 4px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--secondary);
+    border: 1px solid var(--border);
+    font-size: 10px;
+    font-family: var(--font-mono);
+  }
+  @media (max-width: 900px) {
+    .hms-topbar-search span, .hms-topbar-search kbd { display: none; }
+  }
+
+  /* Account trigger (.account-btn base rules live in design.css, shared
+     with older layouts) — desktop override drops the pill/border chrome for
+     a plain avatar + hover fill, matching Homlu's borderless topbar avatar. */
+  .hms-topbar-account .account-btn {
+    height: 36px;
+    padding: 0 8px 0 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-full, 9999px);
+  }
+  .hms-topbar-account .account-btn:hover { background: var(--secondary); }
+  .hms-topbar-account .account-avatar-img,
+  .hms-topbar-account .account-avatar-default {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-full, 9999px);
+  }
+
+  /* Account dropdown (desktop only — .account-dropdown's base rules in
+     design.css are shared with nothing else, but kept there since it's an
+     old shared class name; this override matches the same 8px/soft-shadow
+     menu treatment as .hms-ws-panel above, both modeled on Homlu's Radix
+     DropdownMenu popover. */
+  .hms-topbar-dropdown {
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+    background: var(--popover);
+    border: 1px solid var(--border);
+  }
+  .hms-topbar-dropdown .account-dd-head { padding: 8px; }
+
+  /* Notification popover — Homlu's own notification dropdown specifically
+     uses a much larger radius (rounded-4xl = 32px = our --radius-card
+     token) than its other menus, plus the same soft shadow and a --card
+     surface tone. Scoped inside this >600px block only, so
+     .notif-dropdown's mobile bottom-sheet appearance (design.css) is
+     untouched. */
+  /* Reposition below the new 64px-tall topbar (.notif-float's base 54px/300px
+     in design.css was tuned for the old 56px topbar). */
+  .notif-float { top: calc(var(--topbar-h) + 8px); right: 20px; }
+  .notif-dropdown {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--border);
+    background: var(--card);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    width: 340px;
+    padding: 12px;
+  }
+  .notif-head {
+    padding: 4px 8px 10px;
+    border-bottom: none;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--foreground);
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .notif-head-count { font-size: 12px; font-weight: 500; letter-spacing: normal; }
+  .notif-item {
+    padding: 10px 8px;
+    border-bottom: none;
+    border-radius: calc(var(--radius) + 4px);
+  }
+  .notif-item:hover { background: var(--secondary); }
+}
+
+/* ── KPI cards (shared shell, 2026-07-28) ──────────────────────────────
+   Restyled after 21st.dev's "Progress Metric Card" (makviesainte): big
+   headline number, footer strip separated by a border, and (where real
+   historical data exists) a faint chart bleeding behind the content.
+   Originally built inline for the Home dashboard (2026-07-27); generalized
+   here so Invoice/Remittance stat rows share the same shell instead of the
+   legacy design.css .rs-grid/.rem-stats cards. Page-specific layout (Home's
+   960px centered column) stays local to that page — this block only owns
+   the card shell + a generic row grid. */
+.hms-kpi-row { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px; position:relative; z-index:1; }
+.hms-kpi-row.cols-3 { grid-template-columns:repeat(3,1fr); }
+.hms-kpi-row.cols-5 { grid-template-columns:repeat(5,1fr); }
+/* 2-up until the content column is wide enough for four side-by-side cards,
+   matching the Homlu reference (grid-cols-2 → xl:grid-cols-4, gap 1rem→1.5rem).
+   The 5-up Invoice row and 3-up Remittance row keep their explicit counts. */
+@media (min-width:1280px) {
+  .hms-kpi-row { grid-template-columns:repeat(4,1fr); gap:20px; }
+}
+/* 5-up rows are noticeably narrower per card than the 3/4-up rows — the
+   default 36px headline plus a currency unit overflows a 6-digit SAR value
+   at that width (clips against .hms-kpi's overflow:hidden), so it steps down
+   a size here specifically. */
+.hms-kpi-row.cols-5 .hms-kpi-val { font-size:25px; }
+.hms-kpi-row.cols-5 .hms-kpi-body { padding:16px 16px 12px; }
+.hms-kpi {
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  min-height:150px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  box-shadow:0 2px 10px rgba(0,0,0,.04);
+  --kpi-positive: oklch(0.6 0.14 150);
+}
+/* Confined to the card's right ~55% and masked so it fades in from the left
+   — full-bleed at 100% width made a short series look like a sharp jagged
+   triangle instead of a soft wave, since the mini card is much narrower than
+   a full-width chart the same data renders smoothly in elsewhere. */
+.hms-kpi-spark {
+  position:absolute; top:0; right:0; bottom:0; width:56%; z-index:0;
+  -webkit-mask-image: linear-gradient(to right, transparent, black 60%);
+  mask-image: linear-gradient(to right, transparent, black 60%);
+}
+.hms-kpi-body { position:relative; z-index:1; padding:20px 22px 16px; display:flex; flex-direction:column; gap:8px; }
+.hms-kpi-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.hms-kpi-icon { width:30px; height:30px; border-radius:10px; background:var(--secondary); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.hms-kpi-icon svg { width:15px; height:15px; }
+.hms-kpi-label { font-size:13px; font-weight:500; color:var(--muted-foreground); }
+.hms-kpi-val-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; }
+.hms-kpi-val { font-size:36px; font-weight:600; color:var(--foreground); line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.hms-kpi-val .hms-kpi-unit { font-size:14px; font-weight:500; color:var(--muted-foreground); margin-left:3px; }
+.hms-kpi-val.warn { color:var(--destructive); }
+/* Tone variants reuse design.css's legacy semantic colors so these cards read
+   consistently with StatusBadge and the rest of Invoice/Remittance, which
+   still use --green/--red/--yellow/--blue everywhere else. */
+.hms-kpi-val.tone-red { color:var(--red); }
+.hms-kpi-val.tone-green { color:var(--green); }
+.hms-kpi-val.tone-yellow { color:var(--yellow); }
+.hms-kpi-val.tone-blue { color:var(--blue, var(--accent)); }
+.hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
+.hms-kpi-trend svg { width:12px; height:12px; }
+.hms-kpi-trend.up { color:var(--kpi-positive); }
+.hms-kpi-trend.down { color:var(--destructive); }
+/* trendGood=false flips the reading: for unpaid/remittance, up = red, down = green. */
+.hms-kpi-trend.bad.up { color:var(--destructive); }
+.hms-kpi-trend.bad.down { color:var(--kpi-positive); }
+.hms-kpi-foot { position:relative; z-index:1; margin-top:auto; padding:12px 22px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted-foreground); }
+@media (max-width:600px) {
+  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); gap:10px; }
+  .hms-kpi { min-height:130px; }
+  .hms-kpi-body { padding:14px 14px 10px; }
+  .hms-kpi-foot { padding:8px 14px; }
+  .hms-kpi-val { font-size:26px; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Detail pages (hms-dv-*)
+
+   Replaces the old dv-* composition (gold inverted DetailHero panel + a
+   loose stack of mono-uppercase sections) with ONE card, sourced from
+   21st.dev "Project Detail View" (@kavikatiyar, demo 8248): a muted header
+   strip carrying the breadcrumb + actions, a large plain title with a status
+   pill beside it, an icon/label/value meta grid, then the line-item blocks.
+
+   Line-item tables follow the second reference, "Invoice History Table"
+   (@cnippet.dev, demo 22187): per-row status badges plus a footer that
+   carries the total / outstanding figure.
+
+   Typography stays on the Homlu direction already established for forms and
+   tables: Inter, normal-case labels, NO mono kickers and no uppercase
+   letter-spacing. The only colors are the semantic status ones
+   (--green/--yellow/--red), which is why the pills below mix those tokens
+   instead of introducing new hues.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Wider than design.css's `.dv-page { max-width: 760px }` — the meta grid
+   wants 3 columns on desktop. Two classes beat one, so no !important. */
+.dv-page.hms-dv-page { max-width: 880px; }
+
+.hms-dv-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,.04);
+}
+.hms-dv-strip {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:9px 20px;
+  background: color-mix(in oklab, var(--secondary) 50%, transparent);
+  border-bottom:1px solid var(--border);
+}
+.hms-dv-crumbs { display:flex; align-items:center; gap:7px; min-width:0; font-size:13px; color:var(--muted-foreground); }
+.hms-dv-crumbs a { color:inherit; text-decoration:none; }
+.hms-dv-crumbs a:hover { color:var(--foreground); }
+.hms-dv-strip-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+/* The kebab lived on the gold inverted hero, so design.css paints its glyph
+   #fff — invisible on this card surface. Repaint to currentColor. */
+.hms-dv-card .dv-kebab { background:transparent; color:var(--muted-foreground); border-radius:8px; }
+.hms-dv-card .dv-kebab:hover { background:var(--secondary); color:var(--foreground); }
+.hms-dv-card .dv-kebab svg { stroke:currentColor; }
+
+.hms-dv-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 20px 0; }
+.hms-dv-title { font-size:28px; font-weight:600; letter-spacing:-.02em; line-height:1.15; color:var(--foreground); margin:0; }
+.hms-dv-sub { font-size:13px; color:var(--muted-foreground); margin-top:7px; line-height:1.5; }
+.hms-dv-sub a, .hms-dv-link { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
+.hms-dv-sub a:hover, .hms-dv-link:hover { border-bottom-color:var(--foreground); }
+.hms-dv-body { padding:0 20px 20px; }
+
+.hms-dv-pill {
+  display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
+  padding:4px 11px; border-radius:9999px;
+  border:1px solid var(--border); background:var(--secondary); color:var(--foreground);
+  font-size:12px; font-weight:500; white-space:nowrap;
+}
+.hms-dv-pill.tone-green  { color:var(--green);  background:var(--green-muted);  border-color:color-mix(in oklch, var(--green) 28%, transparent); }
+.hms-dv-pill.tone-yellow { color:var(--yellow); background:var(--yellow-muted); border-color:color-mix(in oklch, var(--yellow) 28%, transparent); }
+.hms-dv-pill.tone-red    { color:var(--red);    background:var(--red-muted);    border-color:color-mix(in oklch, var(--red) 28%, transparent); }
+.hms-dv-pill.tone-gray   { color:var(--muted-foreground); }
+.hms-dv-pill.sm { padding:2px 8px; font-size:11.5px; }
+
+/* Two fixed columns, not auto-fit: auto-fit resolved to four tracks at card
+   width, and with one item spanning two of them the rows below started in
+   different columns — labels never lined up. A fixed pair keeps every row on
+   the same two gridlines, which also gives each value ~460px so date ranges
+   no longer need a span to avoid wrapping. */
+.hms-dv-meta { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 24px; padding-top:48px; }
+.hms-dv-meta-item { display:flex; gap:10px; min-width:0; }
+.hms-dv-meta-item.span2 { grid-column:1 / -1; }
+.hms-dv-mico { width:28px; height:28px; border-radius:8px; background:var(--secondary); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
+.hms-dv-mlabel { font-size:12px; color:var(--muted-foreground); }
+.hms-dv-mval { font-size:14px; font-weight:500; color:var(--foreground); margin-top:2px; line-height:1.5; overflow-wrap:anywhere; }
+.hms-dv-mval a { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
+.hms-dv-mval .hms-dv-mval-sub { font-weight:400; color:var(--muted-foreground); }
+
+/* Amount tile — replaces .dv-amtbox (gold-tinted, mono-uppercase label). */
+.hms-dv-amt { border:1px solid var(--border); border-radius:14px; padding:12px 14px; min-width:150px; align-self:flex-start; background:color-mix(in oklab, var(--secondary) 40%, transparent); }
+.hms-dv-amt-l { font-size:12px; color:var(--muted-foreground); }
+.hms-dv-amt-num { font-size:24px; font-weight:600; letter-spacing:-.02em; margin-top:3px; font-variant-numeric:tabular-nums; line-height:1.1; }
+.hms-dv-amt-num .cur { font-size:12px; font-weight:500; color:var(--muted-foreground); margin-left:4px; letter-spacing:0; }
+.hms-dv-amt-note { font-size:11.5px; margin-top:6px; font-weight:500; }
+.hms-dv-amt-note.red { color:var(--red); }
+.hms-dv-amt-note.yellow { color:var(--yellow); }
+.hms-dv-amt.tone-green { background:var(--green-muted); border-color:color-mix(in oklch, var(--green) 22%, transparent); }
+.hms-dv-amt.tone-green .hms-dv-amt-num { color:var(--green); }
+.hms-dv-amt.tone-yellow .hms-dv-amt-num { color:var(--yellow); }
+.hms-dv-amt.tone-red .hms-dv-amt-num { color:var(--red); }
+
+/* Each section is fenced off with a hairline so the card reads as a stack of
+   blocks (meta / attachments / line items) instead of one long scroll. */
+.hms-dv-sec { margin-top:24px; padding-top:22px; border-top:1px solid var(--border); }
+.hms-dv-sech { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.hms-dv-sec-title { font-size:14px; font-weight:600; color:var(--foreground); display:inline-flex; align-items:center; gap:8px; }
+.hms-dv-sec-title svg { color:var(--muted-foreground); }
+.hms-dv-count { font-size:11.5px; font-weight:500; color:var(--muted-foreground); background:var(--secondary); border-radius:9999px; padding:1px 8px; }
+.hms-dv-sec-right { font-size:12px; color:var(--muted-foreground); }
+.hms-dv-sec-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.hms-dv-act {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:12.5px; font-weight:500; font-family:inherit; color:var(--foreground);
+  background:transparent; border:1px solid var(--border); border-radius:8px;
+  padding:4px 10px; cursor:pointer; text-decoration:none; white-space:nowrap;
+}
+.hms-dv-act:hover { background:var(--secondary); }
+
+.hms-dv-empty { font-size:13px; color:var(--muted-foreground); padding:12px 0; }
+
+/* Line-item table (reference: Invoice History Table). Deliberately NOT the
+   shared components/shadcn/table.jsx: that one's mobile collapse in
+   design.css turns rows into tappable list cards driven by List-page
+   `col-m-*` classes, which is wrong for read-only detail line items. */
+.hms-dv-table-wrap { overflow-x:auto; }
+table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
+.hms-dv-table th { text-align:left; font-weight:500; font-size:12px; color:var(--muted-foreground); padding:0 12px 8px 0; border-bottom:1px solid var(--border); white-space:nowrap; }
+.hms-dv-table td { padding:11px 12px 11px 0; border-bottom:1px solid var(--border); vertical-align:top; color:var(--foreground); }
+.hms-dv-table th:last-child, .hms-dv-table td:last-child { padding-right:0; }
+.hms-dv-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.hms-dv-table .strong { font-weight:500; }
+.hms-dv-table .sub { display:block; font-size:12px; font-weight:400; color:var(--muted-foreground); margin-top:3px; line-height:1.5; }
+.hms-dv-table a { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
+.hms-dv-table a:hover { border-bottom-color:var(--foreground); }
+/* Empty state spans every column, so it centres under the table instead of
+   sitting under the first header. */
+.hms-dv-table td.hms-dv-empty-cell { text-align:center; padding-right:0; }
+/* design.css's global `tfoot td` paints a tinted band and 14px side padding.
+   That indents the label past the body cells above it and pulls the figure off
+   the last column's right edge — reset both so the total row lands on the same
+   rhythm as the rows it sums, with a hairline instead of a fill. */
+.hms-dv-table tfoot td { background:transparent; border-top:1px solid var(--border); border-bottom:none; padding:12px 12px 2px 0; font-weight:500; }
+.hms-dv-table tfoot td:last-child { padding-right:0; }
+/* Right-aligned so the caption hugs the figure it belongs to instead of
+   drifting to the left edge of its column. */
+.hms-dv-table tfoot .lbl { color:var(--muted-foreground); font-weight:400; text-align:right; }
+.hms-dv-table tfoot tr.total td { font-size:14px; }
+.hms-dv-table tfoot tr.total .val { font-weight:600; }
+
+/* Attachment tiles (reference's Attachment block) — replaces the old
+   dv-item/dv-attach/dv-fico list rows. */
+.hms-dv-att-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+.hms-dv-att { display:flex; align-items:center; gap:10px; min-width:0; padding:10px 12px; border:1px solid var(--border); border-radius:12px; background:color-mix(in oklab, var(--secondary) 40%, transparent); }
+.hms-dv-att-ico { width:30px; height:30px; border-radius:9px; background:var(--card); border:1px solid var(--border); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.hms-dv-att-ico svg { width:15px; height:15px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.hms-dv-att-name { display:block; font-size:13px; font-weight:500; color:var(--foreground); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hms-dv-att-name:hover { text-decoration:underline; text-underline-offset:2px; }
+.hms-dv-att-size { font-size:11.5px; color:var(--muted-foreground); margin-top:1px; }
+.hms-dv-att-act { display:flex; align-items:center; gap:2px; margin-left:auto; flex-shrink:0; }
+.hms-dv-att-btn { width:28px; height:28px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted-foreground); background:transparent; border:none; padding:0; cursor:pointer; position:relative; }
+.hms-dv-att-btn:hover { background:var(--secondary); color:var(--foreground); }
+.hms-dv-att-btn svg { width:14px; height:14px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+/* 44x44 touch target without growing the visual button */
+.hms-dv-att-btn::after { content:""; position:absolute; inset:-8px; }
+.hms-dv-att-add { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 12px; border:1px dashed var(--border); border-radius:12px; color:var(--muted-foreground); font-size:12.5px; cursor:pointer; }
+.hms-dv-att-add:hover { background:var(--secondary); color:var(--foreground); }
+
+.hms-dv-foot { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-top:24px; padding-top:16px; border-top:1px solid var(--border); }
+.hms-dv-foot-r { text-align:right; margin-left:auto; }
+.hms-dv-foot-l { font-size:12px; color:var(--muted-foreground); }
+.hms-dv-foot-total { font-size:26px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; margin-top:4px; line-height:1.1; }
+.hms-dv-foot-total .cur { font-size:13px; font-weight:500; color:var(--muted-foreground); margin-left:4px; letter-spacing:0; }
+.hms-dv-foot-val { font-size:14px; font-weight:500; margin-top:4px; font-variant-numeric:tabular-nums; }
+.hms-dv-foot-val.green { color:var(--green); }
+.hms-dv-foot-sub { font-size:12px; color:var(--muted-foreground); margin-top:3px; }
+
+@media (max-width:600px) {
+  .hms-dv-card { border-radius:16px; }
+  .hms-dv-strip { padding:8px 14px; }
+  .hms-dv-head { padding:18px 14px 0; flex-direction:column; align-items:flex-start; gap:10px; }
+  .hms-dv-title { font-size:22px; }
+  .hms-dv-body { padding:0 14px 16px; }
+  .hms-dv-meta { grid-template-columns:1fr; gap:14px; }
+  .hms-dv-sec { margin-top:18px; padding-top:16px; }
+  .hms-dv-amt { width:100%; }
+  /* Line items stack into label/value pairs; the header row is redundant
+     then, so each cell carries its own label via data-label. */
+  .hms-dv-table thead { display:none; }
+  .hms-dv-table, .hms-dv-table tbody, .hms-dv-table tfoot, .hms-dv-table tr, .hms-dv-table td { display:block; width:auto; }
+  .hms-dv-table tbody tr { padding:10px 0; border-bottom:1px solid var(--border); }
+  .hms-dv-table tbody tr:last-child { border-bottom:none; }
+  .hms-dv-table tbody td { border:none; padding:2px 0; display:flex; gap:14px; align-items:baseline; justify-content:space-between; text-align:right; }
+  .hms-dv-table tbody td::before { content:attr(data-label); font-size:12px; color:var(--muted-foreground); text-align:left; flex-shrink:0; }
+  .hms-dv-table tbody td[data-label=""]::before { display:none; }
+  /* The mobile collapse turns cells into label/value flex rows; the empty
+     state has no label to pair with, so it stays a centred block. */
+  .hms-dv-table tbody td.hms-dv-empty-cell { display:block; text-align:center; }
+  .hms-dv-table .sub { text-align:right; }
+  .hms-dv-table tfoot { border-top:1px solid var(--border); padding-top:8px; }
+  /* label cell + value cell side by side (they are separate <td> blocks, so
+     the flex row has to live on the <tr>, not on the cells) */
+  .hms-dv-table tfoot tr { display:flex; align-items:baseline; justify-content:space-between; gap:14px; }
+  .hms-dv-table tfoot td { display:block; padding:3px 0; }
+  /* The desktop spacer column would take a slot in the label/value flex pair */
+  .hms-dv-table tfoot td.pad { display:none; }
+  /* Two figures on one line would read as a bare pair of numbers, so the label
+     takes its own line and each figure re-states its column. */
+  .hms-dv-table tfoot tr.multi { flex-wrap:wrap; gap:2px 14px; }
+  /* full-width line here, so the desktop right-align would strand it */
+  .hms-dv-table tfoot tr.multi .lbl { flex:1 0 100%; text-align:left; }
+  .hms-dv-table tfoot tr.multi .val { display:flex; gap:8px; align-items:baseline; }
+  .hms-dv-table tfoot tr.multi .val::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); }
+  .hms-dv-foot-total { font-size:22px; }
+}
+
+/* ── Map mode ────────────────────────────────────────────────────────────
+   /hotels/map/ and /clients/map/ render as an immersive fullscreen map:
+   AppLayout toggles body.map-mode, which strips the app sidebar + topbar
+   padding and hides that chrome entirely so Leaflet gets the whole
+   viewport. The map pages' own topbar/filter bar becomes the only chrome,
+   and the map-back button (mobile-only by default) is re-shown on desktop
+   as the escape hatch back to the list pages. */
+body.map-mode { padding-left: 0 !important; padding-top: 0 !important; overflow: hidden; }
+body.map-mode .hms-sidebar { display: none !important; }
+body.map-mode .hms-topbar { display: none !important; }
+body.map-mode .m-topbar { display: none !important; }
+body.map-mode #map-wrap { height: 100dvh !important; }
+body.map-mode .map-back-btn { display: flex !important; }
+
+/* ── Language Switcher ────────────────────────────────────────────────────
+   Desktop: segmented control (EN/ID toggle)
+   Mobile: dropdown matching co-option pattern in account menu
+*/
+.hms-lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2px;
+}
+
+.hms-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.hms-lang-btn:hover {
+  color: var(--foreground);
+  background: var(--surface-hover);
+}
+
+.hms-lang-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.hms-lang-btn.active {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.hms-lang-btn.active:hover {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.hms-lang-flag {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.hms-lang-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* Mobile dropdown */
+.hms-lang-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.hms-lang-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hms-lang-trigger:hover {
+  border-color: var(--ring);
+}
+
+.hms-lang-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.hms-lang-trigger[aria-expanded="true"] {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.hms-lang-chevron {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 0.15s ease;
+}
+
+.hms-lang-trigger[aria-expanded="true"] .hms-lang-chevron {
+  transform: rotate(180deg);
+}
+
+.hms-lang-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 24px -6px rgba(0,0,0,.18), 0 4px 8px -4px rgba(0,0,0,.12);
+  z-index: 100;
+  animation: hms-lang-fade-in 0.12s ease-out;
+}
+
+@keyframes hms-lang-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hms-lang-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.hms-lang-option:hover {
+  background: var(--surface-hover);
+}
+
+.hms-lang-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.hms-lang-option.active {
+  color: var(--primary);
+  background: var(--primary-muted, var(--surface-hover));
+}
+
+.hms-lang-option.active .hms-lang-check {
+  color: var(--primary);
+}
+
+.hms-lang-check {
+  flex-shrink: 0;
+  color: transparent;
+}
+
+.hms-lang-option.active .hms-lang-check {
+  color: currentColor;
+}
+
+/* Ensure dropdown closes on outside click */
+.hms-lang-dropdown:focus-within .hms-lang-list {
+  display: block;
+}
+
+/* Narrow screens: dropdown takes full width near right edge */
+@media (max-width: 420px) {
+  .hms-lang-list {
+    right: -8px;
+    min-width: calc(100vw - 32px);
+  }
+}
+
+/* ── Fullscreen map pages (Client/Hotel maps) ─────────────────────────────
+   AppLayout tags <body> with .map-fullscreen whenever the route is a map
+   (/clients/map/, /hotels/map/). The maps are their own app — they bring
+   their own topbars, legends and sheets — so the shared shell chrome is
+   dropped and the map wrapper gets the full viewport instead of the
+   sidebar/topbar-inset area. body padding must be forced off with
+   !important because design.css's own `body` rules (padding-top for the
+   mobile topbar, etc.) are unlayered plain CSS just like this block. */
+body.map-fullscreen {
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}
+body.map-fullscreen .hms-sidebar,
+body.map-fullscreen .hms-topbar,
+body.map-fullscreen .m-topbar,
+body.map-fullscreen #bottom-nav,
+body.map-fullscreen .notif-dropdown,
+body.map-fullscreen .bnav-account-dd {
+  display: none !important;
+}
+body.map-fullscreen #map-wrap {
+  height: 100vh;
+}

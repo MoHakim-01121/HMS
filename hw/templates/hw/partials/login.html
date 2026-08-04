@@ -8,101 +8,73 @@
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #0A0A0B;
-      --surface:  #111113;
-      --border:   rgba(255,255,255,.07);
-      --border-2: rgba(255,255,255,.12);
-      --text:     #F2F2F2;
-      --text-2:   #A0A0A8;
-      --text-3:   #5A5A65;
-      --accent:   #FF6C37;
-      --accent-m: rgba(255,108,55,.12);
-      --red:      #EF4444;
-      --r:        8px;
-      --r-lg:     12px;
-      --r-xl:     16px;
+      --bg:        #08080A;
+      --surface:   #111113;
+      --field:     rgba(255,255,255,.03);
+      --field-h:   rgba(255,255,255,.05);
+      --border:    rgba(255,255,255,.08);
+      --border-2:  rgba(255,255,255,.16);
+      --text:      #F2F2F2;
+      --text-2:    #9E9EA6;
+      --text-3:    #5A5A65;
+      --accent:    #FFFFFF;
+      --accent-m:  rgba(255,255,255,.10);
+      --grid-line: rgba(255,255,255,.055);
+      --grid-dot:  rgba(255,255,255,.14);
+      --red:       #EF4444;
+      --r:         14px;
+      --r-lg:      20px;
+      --r-xl:      28px;
     }
     [data-theme="light"] {
-      --bg:       #F0F0F2;
-      --surface:  #FFFFFF;
-      --border:   rgba(0,0,0,.09);
-      --border-2: rgba(0,0,0,.16);
-      --text:     #111113;
-      --text-2:   #4A4A55;
-      --text-3:   #9A9AA8;
-      --accent-m: rgba(255,108,55,.08);
+      --bg:        #F3F1EC;
+      --surface:   #FDFCFA;
+      --field:     rgba(0,0,0,.025);
+      --field-h:   rgba(0,0,0,.04);
+      --border:    rgba(31,26,20,.10);
+      --border-2:  rgba(31,26,20,.18);
+      --text:      #1C1917;
+      --text-2:    #5C574F;
+      --text-3:    #8A857D;
+      --accent:    #171717;
+      --accent-m:  rgba(0,0,0,.06);
+      --grid-line: rgba(31,26,20,.07);
+      --grid-dot:  rgba(31,26,20,.16);
     }
 
     html, body {
       height: 100%;
-      font-family: 'DM Sans', system-ui, sans-serif;
+      font-family: 'Inter', system-ui, sans-serif;
       background: var(--bg);
       color: var(--text);
       overflow: hidden;
     }
 
-    /* Grain texture */
-    body::before {
-      content: '';
+    /* Blueprint grid backdrop */
+    .bg-grid {
       position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      opacity: .018;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
-      background-size: 180px 180px;
+      background-image:
+        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+      background-size: 132px 132px;
     }
-
-    /* Ambient drifting blobs */
-    .bg-accents { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
-    .ac {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(56px);
-      will-change: transform;
+    .bg-dots {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+      background-size: 44px 44px;
+      background-position: 66px 66px;
+      opacity: .55;
     }
-    .ac-tl {
-      width: 400px; height: 400px;
-      top: -110px; left: -90px;
-      background: radial-gradient(circle, rgba(255,108,55,.24) 0%, transparent 62%);
-      animation: ac-drift1 15s ease-in-out infinite;
+    .bg-vignette {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+      background: radial-gradient(ellipse 70% 55% at 50% 38%, transparent 0%, var(--bg) 100%);
+      opacity: .55;
     }
-    .ac-br {
-      width: 340px; height: 340px;
-      bottom: -90px; right: -70px;
-      background: radial-gradient(circle, rgba(255,45,0,.18) 0%, transparent 62%);
-      animation: ac-drift2 19s ease-in-out infinite;
-    }
-    .ac-mid {
-      width: 320px; height: 320px;
-      top: 42%; left: 52%;
-      background: radial-gradient(circle, rgba(139,92,246,.13) 0%, transparent 62%);
-      animation: ac-drift3 17s ease-in-out infinite;
-    }
-    @keyframes ac-drift1 {
-      0%,100%{transform:translate(0,0) scale(1);}
-      30%   {transform:translate(75px,65px) scale(1.15);}
-      60%   {transform:translate(120px,-30px) scale(.88);}
-    }
-    @keyframes ac-drift2 {
-      0%,100%{transform:translate(0,0) scale(1);}
-      35%   {transform:translate(-85px,-65px) scale(1.2);}
-      70%   {transform:translate(45px,55px) scale(.84);}
-    }
-    @keyframes ac-drift3 {
-      0%,100%{transform:translate(0,0) scale(1);}
-      40%   {transform:translate(-75px,55px) scale(1.22);}
-      70%   {transform:translate(60px,-55px) scale(.86);}
-    }
-    [data-theme="light"] .ac-tl { opacity: .5; }
-    [data-theme="light"] .ac-br { opacity: .4; }
-    [data-theme="light"] .ac-mid { opacity: .4; }
-    @media (prefers-reduced-motion: reduce) {
-      .ac { animation: none !important; }
-    }
-
     /* Layout */
     .login-wrap {
       position: relative; z-index: 2;
@@ -115,156 +87,158 @@
 
     .login-card {
       width: 100%;
-      max-width: 368px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-    }
-
-    /* Brand header */
-    .login-brand {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 28px;
-    }
-    .login-logo {
-      display: flex; align-items: center; justify-content: center;
-      color: #ffffff;
-    }
-    [data-theme="light"] .login-logo { color: var(--accent); }
-    .login-logo svg { display: block; }
-    .login-appname {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 14px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 3px;
-      color: var(--text-2);
-    }
-
-    /* Panel */
-    .login-panel {
+      max-width: 400px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--r-xl);
-      overflow: hidden;
-      box-shadow: 0 8px 40px rgba(0,0,0,.4), 0 1px 0 rgba(255,255,255,.04) inset;
+      padding: 36px 32px 30px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04) inset;
+    }
+    [data-theme="light"] .login-card {
+      box-shadow: 0 16px 40px rgba(0,0,0,.10), 0 1px 0 rgba(255,255,255,.8) inset;
     }
 
-    /* Error */
+    /* Staggered entrance */
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .reveal { animation: reveal .5s cubic-bezier(.16,1,.3,1) both; }
+
+    /* Brand mark */
+    .login-brand {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-bottom: 26px;
+    }
+    .login-logo { display: flex; color: var(--accent); flex-shrink: 0; }
+    .login-logo svg { display: block; }
+    .login-appname {
+      font-size: 14px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 2.2px;
+      color: var(--text-3);
+    }
+
+    /* Header */
+    .login-heading { font-size: 22px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 5px; }
+    .login-sub { font-size: 12px; color: var(--text-2); margin-bottom: 24px; line-height: 1.5; }
+
+    /* Error banner */
     .login-error {
       display: flex; align-items: center; gap: 8px;
-      padding: 11px 20px;
+      padding: 11px 14px;
       background: rgba(239,68,68,.08);
-      border-bottom: 1px solid rgba(239,68,68,.2);
-      font-size: 12px; color: var(--red); font-weight: 500;
+      border: 1px solid rgba(239,68,68,.22);
+      border-radius: var(--r);
+      font-size: 12.5px; color: var(--red); font-weight: 500;
+      margin-bottom: 20px;
+      animation: reveal .4s cubic-bezier(.16,1,.3,1) both;
     }
     .login-error svg { flex-shrink: 0; }
 
-    /* Form body */
-    .login-body { padding: 24px 24px 20px; }
-
-    /* Company toggle */
+    /* Company segmented tabs */
     .co-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9.5px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: .8px;
-      color: var(--text-3);
-      margin-bottom: 7px;
+      font-size: 12.5px; font-weight: 600; color: var(--text-2);
+      margin-bottom: 8px;
     }
-    .co-toggle {
-      display: flex; gap: 4px;
-      background: rgba(255,255,255,.04);
-      border: 1px solid var(--border);
-      border-radius: var(--r-lg);
-      padding: 3px;
-      margin-bottom: 22px;
-    }
+    .co-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
     .co-btn {
-      flex: 1; height: 32px;
-      background: transparent; border: none; border-radius: var(--r);
-      color: var(--text-3); font-size: 12px; font-weight: 600;
-      font-family: 'DM Sans', sans-serif;
+      flex: 1; height: 46px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--r);
+      color: var(--text-3); font-size: 13px; font-weight: 600;
+      font-family: 'Inter', sans-serif;
       cursor: pointer;
-      transition: background .15s, color .15s, box-shadow .15s;
-      display: flex; align-items: center; justify-content: center; gap: 6px;
+      transition: background .15s, color .15s, border-color .15s, transform .1s;
     }
     .co-btn.active {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(255,108,55,.35);
+      background: var(--field-h);
+      border-color: var(--border-2);
+      color: var(--text);
     }
-    /* Fields */
-    .login-fields { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+    .co-btn:active { transform: scale(.96); }
 
-    .lf {
-      display: flex; flex-direction: column; gap: 5px;
-    }
+    /* Fields */
+    .login-fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
     .lf label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9.5px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: .7px;
-      color: var(--text-3);
+      display: block;
+      font-size: 13px; font-weight: 600;
+      color: var(--text); margin-bottom: 7px;
     }
-    .lf input {
-      height: 38px;
-      background: rgba(255,255,255,.03);
+    .lf-input { position: relative; }
+    .lf-input svg.lf-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--text-3); pointer-events: none;
+    }
+    .lf-input input {
+      height: 48px; width: 100%;
+      background: var(--field);
       border: 1px solid var(--border);
       border-radius: var(--r);
       color: var(--text);
-      font-size: 14px; font-family: 'DM Sans', sans-serif;
-      padding: 0 12px;
+      font-size: 14px; font-family: 'Inter', sans-serif;
+      padding: 0 14px 0 40px;
+      outline: none;
       transition: border-color .12s, background .12s, box-shadow .12s;
-      width: 100%; outline: none;
     }
-    .lf input:focus {
-      border-color: var(--accent);
-      background: var(--accent-m);
-      box-shadow: 0 0 0 3px rgba(255,108,55,.1);
+    .lf-input input.has-toggle { padding-right: 42px; }
+    .lf-input input:focus {
+      border-color: var(--border-2);
+      background: var(--field-h);
+      box-shadow: 0 0 0 3px var(--accent-m);
     }
-    .lf input::placeholder { color: var(--text-3); }
-    [data-theme="light"] .lf input {
-      background: rgba(0,0,0,.025);
-      border-color: rgba(0,0,0,.12);
+    .lf-input input::placeholder { color: var(--text-3); }
+    .lf-toggle {
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+      background: none; border: none; color: var(--text-3); cursor: pointer; border-radius: 8px;
+      transition: color .12s, transform .1s;
     }
-    [data-theme="light"] .login-panel {
-      box-shadow: 0 4px 24px rgba(0,0,0,.1), 0 1px 0 rgba(255,255,255,.8) inset;
+    .lf-toggle:hover { color: var(--text-2); }
+    .lf-toggle:active { transform: translateY(-50%) scale(.9); }
+
+    /* Cross-fade icon swap (theme + password visibility) */
+    .icon-swap { position: relative; display: inline-block; }
+    .icon-swap svg {
+      transition: opacity .2s cubic-bezier(.2,0,0,1), transform .2s cubic-bezier(.2,0,0,1), filter .2s cubic-bezier(.2,0,0,1);
+      opacity: 0; transform: scale(.25); filter: blur(4px);
     }
-    [data-theme="light"] .co-toggle {
-      background: rgba(0,0,0,.04);
-    }
-    [data-theme="light"] .co-btn { color: var(--text-3); }
-    [data-theme="light"] .ambient {
-      background: radial-gradient(circle at 50% 50%, rgba(255,108,55,.05) 0%, transparent 65%);
-    }
-    [data-theme="light"] .theme-btn {
-      background: #fff;
-    }
+    .icon-swap svg:first-child { position: static; }
+    .icon-swap svg:last-child { position: absolute; inset: 0; }
+    .icon-swap svg.active { opacity: 1; transform: scale(1); filter: blur(0); }
 
     /* Submit button */
     .login-btn {
-      width: 100%; height: 40px;
+      width: 100%; height: 50px;
       background: var(--accent);
-      color: #fff; border: none; border-radius: var(--r);
-      font-size: 13px; font-weight: 600;
-      font-family: 'DM Sans', sans-serif;
+      color: var(--bg); border: none; border-radius: var(--r);
+      font-size: 14px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
       cursor: pointer; letter-spacing: .2px;
       display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: opacity .15s, box-shadow .15s;
-      box-shadow: 0 2px 12px rgba(255,108,55,.3);
+      transition: opacity .15s, box-shadow .15s, transform .1s;
+      box-shadow: 0 4px 18px color-mix(in oklch, var(--accent) 25%, transparent);
     }
-    .login-btn:hover { opacity: .9; box-shadow: 0 4px 16px rgba(255,108,55,.4); }
-    .login-btn:active { opacity: .8; }
+    [data-theme="light"] .login-btn { box-shadow: 0 4px 18px rgba(0,0,0,.15); }
+    .login-btn:hover { opacity: .9; }
+    .login-btn:active { opacity: .8; transform: scale(.96); }
     .login-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
     .login-spinner {
       display: none; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,.4);
-      border-top-color: #fff; border-radius: 50%;
+      border: 2px solid color-mix(in oklch, var(--bg) 40%, transparent);
+      border-top-color: var(--bg); border-radius: 50%;
       animation: spin .65s linear infinite; flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .login-btn.loading .login-spinner { display: block; }
+
+    /* Footer */
+    .login-footer {
+      margin-top: 22px; text-align: center;
+      font-size: 12.5px; color: var(--text-3);
+    }
+    .login-footer b { color: var(--text-2); font-weight: 600; }
 
     /* Theme toggle */
     .theme-btn {
@@ -273,9 +247,11 @@
       background: var(--surface); border: 1px solid var(--border);
       color: var(--text-2); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, border-color .15s;
+      transition: background .15s, border-color .15s, transform .1s;
     }
-    .theme-btn:hover { background: rgba(255,255,255,.08); border-color: var(--border-2); }
+    .theme-btn::before { content: ''; position: absolute; inset: -2px; }
+    .theme-btn:hover { background: var(--field-h); border-color: var(--border-2); }
+    .theme-btn:active { transform: scale(.9); }
 
     /* Autofill fix */
     input:-webkit-autofill,
@@ -288,10 +264,7 @@
     }
 
     /* Toast */
-    .toast-container {
-      position: fixed; top: 20px; right: 20px;
-      z-index: 999;
-    }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; }
     @keyframes toast-in {
       from { opacity: 0; transform: translateY(-8px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -300,36 +273,42 @@
       display: flex; align-items: center;
       background: var(--surface);
       border: 1px solid var(--border);
-      padding: 10px 14px; border-radius: var(--r-lg);
+      padding: 10px 14px; border-radius: var(--r);
       font-size: 13px; font-weight: 500; color: var(--text);
       box-shadow: 0 4px 24px rgba(0,0,0,.22);
       backdrop-filter: blur(16px);
       white-space: nowrap;
       animation: toast-in .2s cubic-bezier(.16,1,.3,1) both;
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal, .login-error { animation: none !important; opacity: 1 !important; transform: none !important; }
+      .icon-swap svg { transition: none !important; }
+      .co-btn, .login-btn, .lf-toggle, .theme-btn { transition-duration: 0s !important; }
+    }
   </style>
 </head>
 <body>
 
-  <div class="bg-accents">
-    <div class="ac ac-tl"></div>
-    <div class="ac ac-br"></div>
-    <div class="ac ac-mid"></div>
-  </div>
+  <div class="bg-grid"></div>
+  <div class="bg-dots"></div>
+  <div class="bg-vignette"></div>
 
   <!-- Theme toggle -->
   <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema">
-    <svg id="icon-moon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-    <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <span class="icon-swap">
+      <svg id="icon-moon" class="active" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </span>
   </button>
 
   <div class="login-wrap">
     <div class="login-card">
 
       <!-- Brand -->
-      <div class="login-brand">
+      <div class="login-brand reveal">
         <div class="login-logo">
-          <svg width="44" height="44" viewBox="0 0 26 26" fill="none">
+          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
             <rect x="3"   y="2" width="4.5" height="22" fill="currentColor"/>
             <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor"/>
             <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor"/>
@@ -338,57 +317,74 @@
         <div class="login-appname">Hakim Workspace</div>
       </div>
 
-      <!-- Panel -->
-      <div class="login-panel">
+      <div class="reveal" style="animation-delay:60ms">
+        <div class="login-heading">Welcome back</div>
+        <div class="login-sub">Sign in to continue to your workspace</div>
+      </div>
 
-        {% if request.GET.locked %}
-        <div class="login-error">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-          Account locked. Too many failed attempts.
+      {% if request.GET.locked %}
+      <div class="login-error">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Account locked. Too many failed attempts.
+      </div>
+      {% elif form.errors %}
+      <div class="login-error">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        Invalid username or password
+      </div>
+      {% endif %}
+
+      <form method="post" id="login-form">
+        {% csrf_token %}
+        <input type="hidden" name="company" id="company-val" value="konoz">
+
+        <!-- Company -->
+        <div class="reveal" style="animation-delay:140ms">
+          <div class="co-label">Company</div>
+          <div class="co-toggle">
+            <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
+            <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+          </div>
         </div>
-        {% elif form.errors %}
-        <div class="login-error">
-          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-          Invalid username or password
-        </div>
-        {% endif %}
 
-        <div class="login-body">
-          <form method="post" id="login-form">
-            {% csrf_token %}
-            <input type="hidden" name="company" id="company-val" value="konoz">
-
-            <!-- Company -->
-            <div class="co-label">Company</div>
-            <div class="co-toggle">
-              <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
-              <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+        <!-- Fields -->
+        <div class="login-fields reveal" style="animation-delay:180ms">
+          <div class="lf">
+            <label for="id_username">Username</label>
+            <div class="lf-input">
+              <svg class="lf-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input type="text" id="id_username" name="username"
+                autofocus autocomplete="username" placeholder="Enter username">
             </div>
-
-            <!-- Fields -->
-            <div class="login-fields">
-              <div class="lf">
-                <label for="id_username">Username</label>
-                <input type="text" id="id_username" name="username"
-                  autofocus autocomplete="username" placeholder="Enter username">
-              </div>
-              <div class="lf">
-                <label for="id_password">Password</label>
-                <input type="password" id="id_password" name="password"
-                  autocomplete="current-password" placeholder="Enter password">
-              </div>
+          </div>
+          <div class="lf">
+            <label for="id_password">Password</label>
+            <div class="lf-input">
+              <svg class="lf-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 10V7a5 5 0 0110 0v3"/></svg>
+              <input type="password" id="id_password" name="password" class="has-toggle"
+                autocomplete="current-password" placeholder="Enter password">
+              <button type="button" class="lf-toggle" onclick="togglePassword()" title="Show/hide password">
+                <span class="icon-swap">
+                  <svg id="icon-eye-open" class="active" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg id="icon-eye-closed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+                </span>
+              </button>
             </div>
-
-            <!-- Submit -->
-            <button type="submit" class="login-btn" id="login-btn">
-              <div class="login-spinner"></div>
-              <span class="login-btn-text">Sign in</span>
-            </button>
-          </form>
+          </div>
         </div>
 
-      </div><!-- /.login-panel -->
-    </div>
+        <!-- Submit -->
+        <div class="reveal" style="animation-delay:220ms">
+          <button type="submit" class="login-btn" id="login-btn">
+            <div class="login-spinner"></div>
+            <span class="login-btn-text">Sign in</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="login-footer reveal" style="animation-delay:260ms">Ada kendala saat masuk? <b>Hubungi admin</b></div>
+
+    </div><!-- /.login-card -->
   </div>
 
   <script>
@@ -397,6 +393,17 @@
       document.getElementById('company-val').value = val;
       document.getElementById('btn-konoz').className  = 'co-btn' + (val==='konoz'  ? ' active' : '');
       document.getElementById('btn-ijabah').className = 'co-btn' + (val==='ijabah' ? ' active' : '');
+    }
+
+    /* Password visibility */
+    function togglePassword() {
+      var input = document.getElementById('id_password');
+      var open  = document.getElementById('icon-eye-open');
+      var closed = document.getElementById('icon-eye-closed');
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      open.classList.toggle('active', !show);
+      closed.classList.toggle('active', show);
     }
 
     /* Loading state */
@@ -413,13 +420,13 @@
       var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      document.getElementById('icon-moon').style.display = next === 'dark'  ? '' : 'none';
-      document.getElementById('icon-sun').style.display  = next === 'light' ? '' : 'none';
+      document.getElementById('icon-moon').classList.toggle('active', next === 'dark');
+      document.getElementById('icon-sun').classList.toggle('active', next === 'light');
     }
     (function(){
       var t = localStorage.getItem('theme') || 'dark';
-      document.getElementById('icon-moon').style.display = t === 'dark'  ? '' : 'none';
-      document.getElementById('icon-sun').style.display  = t === 'light' ? '' : 'none';
+      document.getElementById('icon-moon').classList.toggle('active', t === 'dark');
+      document.getElementById('icon-sun').classList.toggle('active', t === 'light');
     })();
 
   </script>

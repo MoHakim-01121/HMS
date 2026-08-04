@@ -1,190 +1,160 @@
-import { useState } from "react";
 import { router } from "@inertiajs/react";
-import PageBack from "../../components/ui/PageBack.jsx";
-import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
-import Table from "../../components/ui/Table.jsx";
-import RowActions from "../../components/ui/RowActions.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailAmount from "../../components/shadcn/detail-amount.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
-const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
-const scoreValCls = (s) => (s >= 70 ? "green" : s >= 40 ? "" : "red");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
-function riskBadge(risk) {
-  if (risk === "high") return ["badge badge-red", "High Risk"];
-  if (risk === "medium") return ["badge badge-yellow", "Overdue"];
-  if (risk === "dormant") return ["badge badge-gray", "Dormant"];
-  return ["badge badge-green", "OK"];
-}
-
-const WaIcon = () => (
-  <svg width="13" height="13" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
-);
-
-function Field({ label, children }) {
-  return <div className="field"><div className="field-label">{label}</div><div className="field-value">{children}</div></div>;
+function riskPill(risk) {
+  if (risk === "high") return { label: "High Risk", tone: "red" };
+  if (risk === "medium") return { label: "Overdue", tone: "yellow" };
+  if (risk === "dormant") return { label: "Dormant", tone: "gray" };
+  return { label: "OK", tone: "green" };
 }
 
 export default function Detail({ client, invoices, cls }) {
+  const { t } = useI18n();
   const c = client;
-  const [rcls, rlabel] = riskBadge(c.risk_label);
+  const openForm = useFormModal();
+  const perms = usePerms();
   const [confirm, confirmDialog] = useConfirm();
-  const [tab, setTab] = useState(invoices.length > 0 || cls.length === 0 ? "invoice" : "cl");
-  const del = () => confirm({ title: "Delete client", message: `Delete client "${c.name}"?`, onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
-  const hasTransactions = invoices.length > 0 || cls.length > 0;
+  const del = () => confirm({ title: t("Delete client"), message: t("Delete client \"{name}\"?", { name: c.name }), onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
+  const scoreColor = c.score >= 70 ? "var(--green)" : c.score >= 40 ? undefined : "var(--red)";
+  const pill = riskPill(c.risk_label);
+  const contactLines = [];
+  if (c.wa) contactLines.push(<a key="wa" href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{c.wa}</a>);
+  if (c.wa_group) contactLines.push(t("Group: {name}", { name: c.wa_group }));
+  if (c.email) contactLines.push(c.email);
 
   return (
-    <div className="page">
-      <PageBack href="/clients/" />
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/clients/" label={t("Back")} />
 
-      <div className="dhero">
-        <div className="dhero-main">
-          <div className="dhero-kicker">Client</div>
-          <div className="dhero-title txt">{c.name}</div>
-          <div className="dhero-meta">
-            <div>
-              <div className="stat-label">Total Billed</div>
-              <div className="dhero-meta-value blue mono">{fmt(c.total_billed)} <span className="stat-sub" style={{ display: "inline" }}>SAR</span></div>
-            </div>
-            <div>
-              <div className="stat-label">Outstanding</div>
-              <div className={"dhero-meta-value mono " + (c.outstanding > 0 ? "red" : "green")}>{fmt(c.outstanding)} <span className="stat-sub" style={{ display: "inline" }}>SAR</span></div>
-            </div>
-            <div>
-              <div className="stat-label">Avg Payment</div>
-              <div className="dhero-meta-value">{c.avg_days_to_pay != null ? `${c.avg_days_to_pay} days` : "—"}</div>
-            </div>
-            <div>
-              <div className="stat-label">Client Score</div>
-              <div className={"dhero-meta-value " + scoreValCls(c.score)}>{c.score}<span style={{ fontSize: 12, color: "var(--text-3)" }}>/100</span></div>
-            </div>
-          </div>
-        </div>
-        <div className="dhero-side">
-          <div className="dhero-badges"><span className={rcls}>{rlabel}</span></div>
-          <div className="dhero-actions">
-            <a href={`/clients/${c.pk}/edit/`} className="btn btn-secondary btn-sm">Edit</a>
-            {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" className="btn btn-success btn-sm"><WaIcon /> WhatsApp</a>}
-            <button onClick={del} className="btn btn-danger btn-sm">Delete</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid-2" style={{ marginBottom: 14 }}>
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-header"><span className="card-title">Contact</span></div>
-          <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {c.city && <Field label="Location">{c.city}{c.province ? `, ${c.province}` : ""}</Field>}
-            {c.pic && <Field label="PIC">{c.pic}</Field>}
-            {c.wa && <Field label="WhatsApp PIC"><a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)" }}>{c.wa}</a></Field>}
-            {c.wa_group && <Field label="WhatsApp Group">{c.wa_group}</Field>}
-            {needsWaGroup(c) && (
-              <div style={{ fontSize: 12, color: "var(--red)" }}>
-                Reminder diset ke {c.reminder_target === "BOTH" ? "PIC & Group" : "Group"} tapi WhatsApp Group belum diisi.
-              </div>
+      <DetailCard
+        crumbs={[{ label: t("Clients"), href: "/clients/" }]}
+        title={c.name}
+        sub={c.city ? `${c.city}${c.province ? `, ${c.province}` : ""}` : null}
+        pill={pill ? { ...pill, label: t(pill.label) } : null}
+        actions={
+          <>
+            {c.wa ? <a className="hms-dv-act" href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{t("WhatsApp")}</a> : null}
+            {perms.can("clients", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/edit/`)}>{t("Edit")}</button>
             )}
-            {c.email && <Field label="Email">{c.email}</Field>}
-            {!c.city && !c.pic && !c.wa && !c.email && (
-              <div style={{ fontSize: 13, color: "var(--text-3)" }}>No contact details on file yet.</div>
-            )}
-          </div>
-        </div>
-
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-header"><span className="card-title">Health &amp; Notes</span></div>
-          <div className="card-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div className="field">
-              <div className="field-label">Score</div>
-              <div className="score-gauge">
-                <div className="score-gauge-track"><div className="score-gauge-fill" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} /></div>
-                <span className="score-gauge-value">{c.score}</span>
-              </div>
-            </div>
-            {c.days_since_last_order != null && (
-              <div className="field">
-                <div className="field-label">Last Order</div>
-                <div className={"field-value" + (c.days_since_last_order > 45 ? " remaining-unpaid" : "")}>{c.days_since_last_order} days ago</div>
-              </div>
-            )}
-            {c.note && (
-              <div className="field">
-                <div className="field-label">Notes</div>
-                <div style={{ fontSize: 13, color: "var(--text-2)", whiteSpace: "pre-wrap" }}>{c.note}</div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {hasTransactions ? (
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="card-header">
-            <div className="tab-strip">
-              <button type="button" className={tab === "invoice" ? "tab-active" : ""} onClick={() => setTab("invoice")}>Invoice ({invoices.length})</button>
-              <button type="button" className={tab === "cl" ? "tab-active" : ""} onClick={() => setTab("cl")}>Confirmation Letter ({cls.length})</button>
-            </div>
-            {tab === "invoice" && invoices.length > 0 && <a href={`/invoice/?client=${c.pk}`} className="btn btn-ghost btn-sm">View all</a>}
-          </div>
-
-          {tab === "invoice" ? (
-            invoices.length > 0 ? (
-              <Table
-                columns={[
-                  { header: "Number", className: "col-m-primary", render: (inv) => <a href={`/invoice/${inv.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{inv.invoice_number}</a> },
-                  { header: "Type", className: "col-m-secondary", render: (inv) => <span className={"badge " + (inv.invoice_type === "hotel" ? "badge-blue" : "badge-purple")}>{inv.invoice_type_display}</span> },
-                  { header: "Billed", className: "mono col-m-hide", render: (inv) => fmt(inv.total_sar) },
-                  {
-                    header: "Remaining",
-                    className: (inv) => "mono col-m-amount " + (inv.remaining_sar > 0 ? "remaining-unpaid" : "remaining-paid"),
-                    render: (inv) => `${fmt(inv.remaining_sar)} SAR`,
-                  },
-                  { header: "Date", className: "col-muted col-m-hide", render: (inv) => inv.issued_date || "—" },
-                  {
-                    header: "",
-                    className: "col-m-actions",
-                    render: (inv) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/invoice/${inv.pk}/` }]} />,
-                  },
-                ]}
-                rows={invoices.slice(0, 10)}
-                rowKey={(inv) => inv.pk}
-                onRowClick={(inv) => router.visit(`/invoice/${inv.pk}/`)}
-              />
-            ) : (
-              <div className="empty" style={{ padding: 32 }}>
-                <div className="empty-title">No invoices yet</div>
-              </div>
-            )
-          ) : cls.length > 0 ? (
-            <Table
-              columns={[
-                { header: "Number", className: "col-m-primary", render: (cl) => <a href={`/cl/${cl.pk}/`} className="col-bold" style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.confirmation_number}</a> },
-                { header: "Guest", className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
-                { header: "Hotel", className: "col-ellipsis col-muted col-m-hide", render: (cl) => cl.hotel_name },
-                { header: "Check-in", className: "col-muted col-m-hide", render: (cl) => cl.check_in || "—" },
-                {
-                  header: "",
-                  className: "col-m-actions",
-                  render: (cl) => <RowActions actions={[{ icon: "search", label: "Detail", href: `/cl/${cl.pk}/` }]} />,
-                },
-              ]}
-              rows={cls.slice(0, 8)}
-              rowKey={(cl) => cl.pk}
-              onRowClick={(cl) => router.visit(`/cl/${cl.pk}/`)}
+          </>
+        }
+        menuItems={[perms.can("clients", "delete") && { label: t("Delete"), onClick: del, danger: true }]}
+      >
+        <DetailGrid
+          rows={[
+            {
+              label: t("Contact"),
+              icon: "user",
+              span2: true,
+              value: (
+                <>
+                  <div>{c.pic || c.name}</div>
+                  {contactLines.length ? (
+                    contactLines.map((l, i) => <div key={i} className="hms-dv-mval-sub">{l}</div>)
+                  ) : (
+                    <div className="hms-dv-mval-sub">{t("No contact details on file yet.")}</div>
+                  )}
+                  {needsWaGroup(c) ? (
+                    <div style={{ color: "var(--red)", fontWeight: 400, marginTop: 4 }}>
+                      {t("Reminder is set to {target} but the WhatsApp Group is not set.", { target: c.reminder_target === "BOTH" ? t("PIC & Group") : t("Group") })}
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+            { label: t("Total Billed"), value: `${fmt(c.total_billed)} SAR`, icon: "invoice" },
+            c.avg_days_to_pay != null && { label: t("Avg Payment"), value: `${c.avg_days_to_pay} days`, icon: "clock" },
+            { label: t("Client Score"), value: `${c.score}/100`, icon: "trend-up", color: scoreColor },
+            c.days_since_last_order != null && {
+              label: t("Last Order"),
+              value: t("{n} days ago", { n: c.days_since_last_order }),
+              icon: "calendar",
+              color: c.days_since_last_order > 45 ? "var(--red)" : undefined,
+            },
+            c.note && { label: t("Notes"), value: c.note, icon: "file-text", span2: true, pre: true },
+          ]}
+          right={
+            <DetailAmount
+              label={c.outstanding > 0 ? t("Outstanding") : t("Clear")}
+              value={fmt(c.outstanding)}
+              currency="SAR"
+              tone={c.outstanding > 0 ? "red" : "green"}
             />
-          ) : (
-            <div className="empty" style={{ padding: 32 }}>
-              <div className="empty-title">No confirmation letters yet</div>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="card" style={{ marginBottom: 0 }}>
-          <div className="empty" style={{ padding: 40 }}>
-            <div className="empty-title">No transactions yet</div>
-            <div className="empty-sub">Invoices and CLs assigned to this client will appear here</div>
-          </div>
-        </div>
-      )}
+          }
+        />
+
+        <Section
+          label={t("Invoices")}
+          icon="invoice"
+          count={invoices.length || null}
+          action={invoices.length > 0 ? <a className="hms-dv-act" href={`/invoice/?client=${c.pk}`}>{t("View all")}</a> : null}
+        >
+          <DetailTable
+            columns={[
+              {
+                header: t("Invoice"),
+                strong: true,
+                render: (inv) => (
+                  <>
+                    <a href={`/invoice/${inv.pk}/`}>{inv.invoice_number}</a>
+                    <span className="sub">{[inv.invoice_type_display, inv.issued_date].filter(Boolean).join(" · ")}</span>
+                  </>
+                ),
+              },
+              { header: t("Billed"), align: "right", render: (inv) => fmt(inv.total_sar) },
+              {
+                header: t("Status"),
+                render: (inv) =>
+                  inv.remaining_sar > 0 ? (
+                    <StatusPill small label={inv.remaining_sar < inv.total_sar ? t("Partial") : t("Unpaid")} tone={inv.remaining_sar < inv.total_sar ? "yellow" : "red"} />
+                  ) : (
+                    <StatusPill small label={t("Paid")} tone="green" />
+                  ),
+              },
+              {
+                header: t("Remaining"),
+                align: "right",
+                strong: true,
+                render: (inv) => (
+                  <span style={{ color: inv.remaining_sar > 0 ? "var(--red)" : "var(--green)" }}>{fmt(inv.remaining_sar)}</span>
+                ),
+              },
+            ]}
+            rows={invoices.slice(0, 10)}
+            rowKey={(inv) => inv.pk}
+            empty={t("No invoices yet")}
+            footer={c.outstanding > 0 ? [{ label: t("Outstanding total"), value: `${fmt(c.outstanding)} SAR`, total: true, tone: "red" }] : null}
+          />
+        </Section>
+
+        <Section label={t("Confirmation Letters")} icon="cl" count={cls.length || null}>
+          <DetailTable
+            columns={[
+              { header: "CL", strong: true, render: (cl) => <a href={`/cl/${cl.pk}/`}>{cl.confirmation_number}</a> },
+              { header: t("Guest"), render: (cl) => cl.guest_name || "—" },
+              { header: t("Hotel"), render: (cl) => cl.hotel_name || "—" },
+              { header: t("Check-in"), align: "right", render: (cl) => cl.check_in || "—" },
+            ]}
+            rows={cls.slice(0, 8)}
+            rowKey={(cl) => cl.pk}
+            empty={t("No confirmation letters yet")}
+          />
+        </Section>
+      </DetailCard>
       {confirmDialog}
     </div>
   );

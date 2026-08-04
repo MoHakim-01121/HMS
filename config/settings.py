@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import re
 from pathlib import Path
 
 import dj_database_url
@@ -67,6 +68,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.middleware.gzip.GZipMiddleware',
+    'hw.brotli_middleware.BrotliMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -138,6 +140,8 @@ CACHES = {
         'TIMEOUT': 300,
     }
 }
+
+WHITENOISE_IMMUTABLE_FILE_TEST = re.compile(r'.*\.[a-fA-F0-9]{8}\.[a-z]+$')
 
 # H-1/H-0 guest reminders. Requires the hworkspace-qcluster.service worker
 # to be running (processes the queued WhatsApp sends) — verified deployed
@@ -231,7 +235,8 @@ DJANGO_VITE = {
     'default': {
         'dev_mode': DEBUG,
         'manifest_path': BASE_DIR / 'hw' / 'static' / 'dist' / 'manifest.json',
-        'static_url_prefix': 'dist',
+        'static_url_prefix': '' if DEBUG else 'dist',
+        'app_client_class': 'hw.vite_loader.FixedDjangoViteAppClient',
     }
 }
 
@@ -255,6 +260,11 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = get_bool_env('SECURE_SSL_REDIRECT', True)
     SESSION_COOKIE_SECURE = get_bool_env('SESSION_COOKIE_SECURE', True)
     CSRF_COOKIE_SECURE = get_bool_env('CSRF_COOKIE_SECURE', True)
+    # TLS terminates at the reverse proxy (nginx/caddy); Django must trust the
+    # forwarded scheme or SECURE_SSL_REDIRECT causes a redirect loop. Only safe
+    # because gunicorn is only reachable through the proxy (firewall blocks the
+    # direct port).
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
     # HSTS Settings
     SECURE_HSTS_SECONDS = 31536000  # 1 year
