@@ -129,7 +129,8 @@ class LedgerTest(TestCase):
         self._pay('R1', 600, 'cash')
         self._remit('R1', 200, 10, 'RMT-L01')
         row = self._row(_build_ledger_rows(), 'R1')
-        self.assertEqual((row['debit'], row['credit'], row['balance']), (600, 200, 400))
+        # balance = total tagihan (10000) - credit (200), bukan debit - credit
+        self.assertEqual((row['debit'], row['credit'], row['balance']), (600, 200, 9800))
 
     def test_payments_for_one_reservation_are_merged_into_one_row(self):
         self._pay('R1', 600, 'cash')
@@ -149,15 +150,16 @@ class LedgerTest(TestCase):
         self.assertEqual(led['total_debit'], 1000)   # 600 sby + 400 direct
         self.assertEqual(led['total_credit'], 400)   # direct sudah di Pusat
         row = self._row(led, 'R2')
-        self.assertEqual((row['debit'], row['credit'], row['balance']), (400, 400, 0))
-        self.assertEqual(led['balance'], 600)        # hanya yang lewat Surabaya yang mengendap
+        # balance = total tagihan R2 (5000) - credit (400): direct baru menutup sebagian kewajiban
+        self.assertEqual((row['debit'], row['credit'], row['balance']), (400, 400, 4600))
+        self.assertEqual(led['balance'], 15000 - 400)  # total tagihan - total credit
 
     def test_direct_plus_surabaya_on_same_reservation(self):
         self._pay('R1', 600, 'cash')
         self._pay('R1', 400, 'direct')
         self._remit('R1', 200, 10, 'RMT-L01')
         row = self._row(_build_ledger_rows(), 'R1')
-        self.assertEqual((row['debit'], row['credit'], row['balance']), (1000, 600, 400))
+        self.assertEqual((row['debit'], row['credit'], row['balance']), (1000, 600, 10000 - 600))
 
     def test_rows_sorted_by_check_in_and_numbered(self):
         rows = _build_ledger_rows()['rows']
@@ -172,12 +174,13 @@ class LedgerTest(TestCase):
         self.assertEqual(led['total_tagihan'], 15000)  # 10000 + 5000
         self.assertEqual(led['total_debit'], 900)
         self.assertEqual(led['total_credit'], 200)
-        self.assertEqual(led['balance'], 700)
+        self.assertEqual(led['balance'], 15000 - 200)  # kewajiban ke hotel, bukan cuma kas mengendap
 
-    def test_balance_zero_when_everything_is_sent(self):
-        self._pay('R1', 600, 'cash')
-        self._remit('R1', 600, 10, 'RMT-L01')
-        self.assertEqual(_build_ledger_rows()['balance'], 0)
+    def test_balance_zero_when_full_amount_remitted(self):
+        # balance nol hanya kalau credit menutup seluruh total tagihan reservasi,
+        # bukan sekadar menyamai jumlah yang sudah dibayar client
+        self._remit('R1', 10000, 10, 'RMT-L01')
+        self.assertEqual(self._row(_build_ledger_rows(), 'R1')['balance'], 0)
 
     def test_check_in_range_filter(self):
         led = _build_ledger_rows(date_from=date(2026, 3, 1))
@@ -200,7 +203,8 @@ class LedgerTest(TestCase):
         self.assertEqual([r['linked_number'] for r in led['rows']], ['R2', 'R1'])
         self.assertEqual(self._row(led, 'R1')['status'], 'DEFINITE')
         self.assertEqual(self._row(led, 'R2')['status'], 'TENTATIVE')
-        self.assertEqual(led['balance'], 0)
+        # belum ada uang bergerak sama sekali, tapi kewajiban ke hotel tetap penuh
+        self.assertEqual(led['balance'], 15000)
         self.assertEqual(led['total_tagihan'], 15000)
 
     def test_cancelled_without_money_is_hidden(self):

@@ -566,7 +566,10 @@ def _build_ledger_rows(date_from=None, date_to=None):
     Debit   = seluruh uang client yang sudah dibayar untuk reservasi itu.
     Kredit  = uang yang sudah berada di Pusat, yaitu remittance dari Surabaya
               ditambah pembayaran metode 'direct' yang langsung masuk ke Pusat.
-    Balance = selisihnya, yaitu yang masih mengendap di Surabaya.
+    Balance = Total tagihan reservasi dikurangi Kredit, yaitu kewajiban yang
+              masih harus dikirim ke Pusat untuk hotel -- tetap muncul walau
+              client belum bayar sama sekali, karena kewajiban ke hotel tidak
+              tergantung status pembayaran client.
 
     Pembayaran 'direct' dihitung sebagai debit sekaligus kredit karena uangnya
     tidak pernah singgah di kas Surabaya, jadi tidak menambah saldo mengendap.
@@ -627,6 +630,7 @@ def _build_ledger_rows(date_from=None, date_to=None):
             continue
         if date_to and check_in and check_in > date_to:
             continue
+        total_sar = int(res.get('total_sar') or (cl.total_price if cl else 0) or 0)
         rows.append({
             'linked_number': linked_number or '—',
             'status': status,
@@ -634,10 +638,10 @@ def _build_ledger_rows(date_from=None, date_to=None):
             'guest': res.get('invoice__customer_name') or (cl.guest_name if cl else '') or '—',
             'check_in': check_in,
             'check_out': check_out,
-            'total_sar': int(res.get('total_sar') or (cl.total_price if cl else 0) or 0),
+            'total_sar': total_sar,
             'debit': data['debit'],
             'credit': data['credit'],
-            'balance': data['debit'] - data['credit'],
+            'balance': total_sar - data['credit'],
         })
 
     # urut check-in terdekat lebih dulu, baris tanpa check-in ditaruh paling bawah
@@ -647,12 +651,13 @@ def _build_ledger_rows(date_from=None, date_to=None):
 
     total_debit = sum(r['debit'] for r in rows)
     total_credit = sum(r['credit'] for r in rows)
+    total_tagihan = sum(r['total_sar'] for r in rows)
     return {
         'rows': rows,
-        'total_tagihan': sum(r['total_sar'] for r in rows),
+        'total_tagihan': total_tagihan,
         'total_debit': total_debit,
         'total_credit': total_credit,
-        'balance': total_debit - total_credit,
+        'balance': total_tagihan - total_credit,
         'direct_total': direct_total,
     }
 

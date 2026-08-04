@@ -221,8 +221,9 @@
 <div class="note">
   <b>Cara baca:</b> satu baris satu reservasi. Debit adalah seluruh uang client yang sudah dibayar.
   Credit adalah uang yang sudah berada di Pusat, yaitu remittance dari Surabaya ditambah pembayaran
-  metode <b>direct</b> yang langsung masuk ke Pusat. Balance adalah selisihnya, yaitu yang masih
-  mengendap di Surabaya dan belum dikirim. Balance 0 berarti tidak ada titipan yang tertahan di Surabaya.
+  metode <b>direct</b> yang langsung masuk ke Pusat. Balance adalah Total tagihan dikurangi Credit,
+  yaitu kewajiban yang masih harus dikirim ke Pusat untuk hotel — tetap muncul walau client belum
+  bayar sama sekali, karena kewajiban ke hotel tidak tergantung status pembayaran client.
   Reservasi Definite dan Tentative tetap ditampilkan walau belum ada pembayaran, untuk pelacakan.
 </div>
 
