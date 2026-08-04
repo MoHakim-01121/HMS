@@ -161,22 +161,33 @@ export default function AppLayout({ children }) {
     return () => document.body.classList.remove("map-fullscreen");
   }, [isMap]);
 
+  const notifLabel = (n) => {
+    const kind = n.type === "check_in" ? "Check-in" : n.type === "check_out" ? "Check-out" : "Due";
+    if (n.days === 0) return t(`${kind} today`);
+    if (n.days === 1) return t(`${kind} tomorrow`);
+    return t(`${kind} in {n} days`, { n: n.days });
+  };
+
   const NotifList = () => (
     <>
       <div className="notif-head">
         <span>{t("Notifications")}</span>
-        {dueCount > 0 && <span className="notif-head-count">{t("{count} due", { count: dueCount })}</span>}
+        {dueCount > 0 && <span className="notif-head-count">{t("{count} upcoming", { count: dueCount })}</span>}
       </div>
       {dueNotifs.length ? (
         dueNotifs.map((n, i) => (
           <a key={i} href={n.url} className="notif-item">
             <div className="notif-item-top">
-              <span className="notif-ref">{n.inv_number}</span>
-              <span className={"notif-days" + (n.days === 0 ? " notif-today" : n.days <= 2 ? " notif-urgent" : "")}>{n.label}</span>
+              <span className="notif-ref">{n.ref}</span>
+              <span className={"notif-days" + (n.days === 0 ? " notif-today" : n.days <= 2 ? " notif-urgent" : "")}>{notifLabel(n)}</span>
             </div>
             <div className="notif-item-bot">
-              <span className="notif-customer">{n.customer}</span>
-              <span className="notif-amount">{new Intl.NumberFormat("en-US").format(Math.round(n.remaining))} SAR</span>
+              <span className="notif-customer">{n.title}</span>
+              <span className="notif-amount">
+                {n.type === "invoice_due"
+                  ? `${new Intl.NumberFormat("en-US").format(Math.round(n.remaining))} SAR`
+                  : n.meta}
+              </span>
             </div>
           </a>
         ))
