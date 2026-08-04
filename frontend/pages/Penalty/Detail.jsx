@@ -1,82 +1,67 @@
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import DetailHero from "../../components/shadcn/detail-hero.jsx";
-import FloatCard from "../../components/shadcn/float-card.jsx";
-import Section from "../../components/shadcn/section.jsx";
-import ItemRow from "../../components/shadcn/item-row.jsx";
-import FooterSummary from "../../components/shadcn/footer-summary.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailAmount from "../../components/shadcn/detail-amount.jsx";
+import FooterSummary, { FooterTotal } from "../../components/shadcn/footer-summary.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
 export default function Detail({ penalty: p }) {
+  const { t } = useI18n();
+  const openForm = useFormModal();
+  const perms = usePerms();
   const [confirm, confirmDialog] = useConfirm();
-  const del = () => confirm({ title: "Delete penalty", message: `Delete penalty document ${p.penalty_number}?`, onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
-  const paySub = [p.payment_date, p.payment_note].filter(Boolean);
+  const del = () => confirm({ title: t("Delete penalty"), message: t("Delete penalty document {number}?", { number: p.penalty_number }), onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
+
   return (
-    <div className="page dv-page">
-      <PageBack href={`/cl/${p.cl.id}/`} label="Back to CL" />
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href={`/cl/${p.cl.id}/`} label={t("Back to CL")} />
 
-      <DetailHero
-        kicker="Cancellation Penalty"
+      <DetailCard
+        crumbs={[{ label: p.cl.confirmation_number, href: `/cl/${p.cl.id}/` }]}
+        kicker={t("Cancellation Penalty")}
         title={p.penalty_number}
-        sub={<>CL : <a href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</a></>}
-        pill={p.is_paid ? { label: "Paid", tone: "green" } : { label: "Unpaid", tone: "yellow" }}
-        menuItems={[
-          { label: "PDF", href: `/penalty/${p.id}/pdf/`, target: "_blank" },
-          { label: "Edit", href: `/penalty/${p.id}/edit/` },
-          { label: "Delete", onClick: del, danger: true },
-        ]}
-      />
-
-      <FloatCard
-        right={
-          <div className={"dv-amtbox" + (p.is_paid ? " paid" : "")}>
-            <div className="dv-l">{p.is_paid ? "Paid" : "Penalty Due"}</div>
-            <div className="dv-amtbox-num">{fmt(p.penalty_amount)}</div>
-            <div className="dv-amtbox-cur">{p.penalty_currency}</div>
-          </div>
-        }
-      >
-        <div className="dv-l">Guest</div>
-        <div className="dv-float-name">{p.cl.guest_name}</div>
-        <div className="dv-item-sub">{p.cl.confirmation_number}</div>
-      </FloatCard>
-
-      <div className="dv-body">
-      <Section label="Details">
-        {p.cancellation_date ? <ItemRow small name={p.cancellation_date} sub="Cancellation Date" /> : null}
-        {p.exchange_rate !== 1 ? <ItemRow small name={p.exchange_rate} sub="Exchange Rate" /> : null}
-        {p.reason ? <div className="dv-item-sub" style={{ marginTop: 6 }}>{p.reason}</div> : null}
-      </Section>
-
-      {p.is_paid ? (
-        <Section label="Payment">
-          <ItemRow
-            small
-            name={p.payment_method || "Paid"}
-            sub={paySub.length ? paySub.map((l, i) => <span key={i}>{i > 0 ? <br /> : null}{l}</span>) : null}
-            amount={fmt(p.penalty_amount)}
-            amountColor="green"
-          />
-        </Section>
-      ) : null}
-
-      {p.note ? (
-        <Section label="Notes">
-          <div className="dv-item-sub" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{p.note}</div>
-        </Section>
-      ) : null}
-
-      <FooterSummary
-        right={
+        sub={p.cl.guest_name}
+        pill={p.is_paid ? { label: t("Paid"), tone: "green" } : { label: t("Unpaid"), tone: "yellow" }}
+        actions={
           <>
-            <div className="dv-l">Total Penalty</div>
-            <div className="dv-foot-total">{fmt(p.penalty_amount)}<span className="cur"> {p.penalty_currency}</span></div>
+            <a className="hms-dv-act" href={`/penalty/${p.id}/pdf/`} target="_blank" rel="noreferrer">{t("PDF")}</a>
+            {perms.can("penalty", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/penalty/${p.id}/edit/`)}>{t("Edit")}</button>
+            )}
           </>
         }
-      />
-      </div>
+        menuItems={[perms.can("penalty", "delete") && { label: t("Delete"), onClick: del, danger: true }]}
+      >
+        <DetailGrid
+          rows={[
+            { label: t("Guest"), value: p.cl.guest_name, icon: "user" },
+            { label: t("Confirmation Letter"), icon: "cl", value: <a href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</a> },
+            p.cancellation_date && { label: t("Cancellation Date"), value: p.cancellation_date, icon: "calendar" },
+            p.exchange_rate !== 1 && { label: t("Exchange Rate"), value: p.exchange_rate, icon: "invoice" },
+            p.is_paid && { label: t("Payment Method"), value: p.payment_method || "—", icon: "wallet" },
+            p.is_paid && p.payment_date && { label: t("Payment Date"), value: p.payment_date, icon: "calendar" },
+            p.reason && { label: t("Reason"), value: p.reason, icon: "alert-circle", span2: true },
+            p.is_paid && p.payment_note && { label: t("Payment Note"), value: p.payment_note, icon: "message", span2: true, pre: true },
+            p.note && { label: t("Notes"), value: p.note, icon: "file-text", span2: true, pre: true },
+          ]}
+          right={
+            <DetailAmount
+              label={p.is_paid ? t("Paid") : t("Penalty Due")}
+              value={fmt(p.penalty_amount)}
+              currency={p.penalty_currency}
+              tone={p.is_paid ? "green" : "red"}
+            />
+          }
+        />
+
+        <FooterSummary right={<FooterTotal label={t("Total Penalty")} value={fmt(p.penalty_amount)} currency={p.penalty_currency} />} />
+      </DetailCard>
       {confirmDialog}
     </div>
   );

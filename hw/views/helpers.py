@@ -7,13 +7,23 @@ from ..models import ConfirmationLetter, Payment
 
 
 def get_active_company(request):
-    """Return the session's active company, defaulting to 'konoz' when unset.
+    """Return the session's active company, clamped to what the user may see.
 
     Callers must always apply this as an unconditional filter, never skip
     filtering when the session key is missing — that gap used to let
     cross-company data leak through list/detail/PDF/CSV views.
+
+    A stored session value the user is no longer allowed to use (access
+    revoked while logged in, or a session carried over from before RBAC)
+    falls back to their first permitted company instead of being trusted.
     """
-    return request.session.get("active_company") or "konoz"
+    from ..permissions import can_use_company, default_company
+
+    user = getattr(request, "user", None)
+    company = request.session.get("active_company")
+    if company and can_use_company(user, company):
+        return company
+    return default_company(user)
 
 
 def _is_mobile(request):
@@ -39,7 +49,7 @@ def _render_list_pdf(request, qs, template, filename, extra_ctx=None):
     from django.conf import settings
     from django.template.loader import render_to_string
     from weasyprint import HTML
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
     q = request.GET.get('q', '').strip()
     ctx = {
         "q": q,

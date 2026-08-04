@@ -1,9 +1,16 @@
-import DetailHero from "../../components/detail/DetailHero.jsx";
-import FloatCard from "../../components/detail/FloatCard.jsx";
-import Section from "../../components/detail/Section.jsx";
-import ItemRow, { DvLink } from "../../components/detail/ItemRow.jsx";
-import FooterSummary from "../../components/detail/FooterSummary.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { DvLink } from "../../components/shadcn/item-row.jsx";
+import FooterSummary from "../../components/shadcn/footer-summary.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import LastBilling from "../../components/ui/LastBilling.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
@@ -29,111 +36,168 @@ function openDraft(type, pk, waSend) {
 }
 
 export default function Detail({ invoice, reservations, payments, due_alert, wa_send, last_billing }) {
+  const openForm = useFormModal();
+  const perms = usePerms();
+  const { t } = useI18n();
   const paid = invoice.remaining_sar === 0;
+  const pill = heroPill(invoice.total_sar, invoice.remaining_sar);
   const range = stayRange(reservations);
+  const receivedTotal = payments.reduce((s, p) => s + (p.amount_sar_int || 0), 0);
+  const reservationsTotal = reservations.reduce((s, r) => s + (r.total_int || 0), 0);
+  const remainingTotal = reservations.reduce((s, r) => s + Math.max(0, r.remaining_int || 0), 0);
+
   return (
-    <div className="page dv-page">
-      <a href="/invoice/" className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back
-      </a>
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/invoice/" label={t("Back")} />
 
-      <DetailHero
-        kicker="Invoice Hotel"
-        title={invoice.invoice_number}
-        sub={invoice.issued_date ? `issued ${invoice.issued_date}` : null}
-        pill={heroPill(invoice.total_sar, invoice.remaining_sar)}
-        menuItems={[
-          { label: "PDF", href: `/invoice/${invoice.pk}/pdf/`, target: "_blank" },
-          { label: "Edit", href: `/invoice/${invoice.pk}/edit/` },
-        ]}
-      />
-
-      <FloatCard
-        right={
-          <div className={"dv-amtbox" + (paid ? " paid" : "")}>
-            <div className="dv-l">{paid ? "Paid" : "Amount Due"}</div>
-            <div className="dv-amtbox-num">{fmt(paid ? invoice.total_paid_sar : invoice.remaining_sar)}</div>
-            <div className="dv-amtbox-cur">SAR</div>
-            {!paid && due_alert ? <div className={`dv-amtbox-due ${due_alert.type}`}>{due_alert.msg}</div> : null}
-          </div>
+      <DetailCard
+        crumbs={[{ label: t("Invoices"), href: "/invoice/" }]}
+        kicker={invoice.invoice_number}
+        title={invoice.customer_name}
+        sub={t("Hotel invoice")}
+        pill={{ label: t(pill.label), tone: pill.tone }}
+        actions={
+          <>
+            <a className="hms-dv-act" href={`/invoice/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
+            {perms.can("invoice", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/invoice/${invoice.pk}/edit/`)}>{t("Edit")}</button>
+            )}
+          </>
         }
       >
-        <div className="dv-l">Invoice For</div>
-        <div className="dv-float-name">{invoice.customer_name}</div>
-        <div className="dv-item-sub">
-          {reservations.length} reservation{reservations.length === 1 ? "" : "s"}
-          {range ? <><br />{range}</> : null}
-        </div>
-      </FloatCard>
+        {/* Empat baris, dua kolom penuh — persis anatomi CL detail. Nomor
+            invoice tidak diulang di sini karena sudah jadi breadcrumb, dan
+            angka sisa tagihan pindah dari tile kanan ke baris grid: tile itu
+            memepetkan grid sampai rentang tanggal Reservations wrap, dan pada
+            invoice yang belum dibayar sama sekali ia hanya mengulang Total
+            Amount di footer. */}
+        <DetailGrid
+          rows={[
+            { label: t("Issued"), value: invoice.issued_date || t("Not issued"), icon: "calendar" },
+            {
+              label: t("Reservations"),
+              icon: "hotels",
+              value: (
+                <>
+                  {reservations.length} {t(reservations.length === 1 ? "reservation" : "reservations")}
+                  {range ? <span className="hms-dv-mval-sub"> · {range}</span> : null}
+                </>
+              ),
+            },
+            { label: t("Payments"), icon: "wallet", value: t("{count} received", { count: payments.length }) },
+            {
+              label: paid ? t("Paid in full") : t("Amount due"),
+              icon: "invoice",
+              color: paid ? "var(--green)" : "var(--red)",
+              value: (
+                <>
+                  {fmt(paid ? invoice.total_paid_sar : invoice.remaining_sar)} SAR
+                  {!paid && due_alert ? <span className="hms-dv-mval-sub"> · {due_alert.msg}</span> : null}
+                </>
+              ),
+            },
+          ]}
+        />
 
-      <div className="dv-body">
-      <Section label="Reservation" right="Total">
-        {reservations.length ? reservations.map((res, i) => (
-          <ItemRow
-            key={i}
-            name={res.hotel}
-            link={res.cl_pk ? <DvLink href={`/cl/${res.cl_pk}/`}>CL</DvLink> : null}
-            sub={
-              <>
-                No {res.number}
-                {res.check_in || res.check_out ? <><br />{res.check_in || "?"} - {res.check_out || "?"}</> : null}
-              </>
+        <Section label={t("Reservations")} icon="hotels" count={reservations.length || null}>
+          <DetailTable
+            columns={[
+              {
+                header: "#RSV",
+                strong: true,
+                render: (res) => (
+                  <>
+                    {res.number}
+                    {res.cl_pk ? <DvLink href={`/cl/${res.cl_pk}/`}>CL</DvLink> : null}
+                  </>
+                ),
+              },
+              { header: t("Hotel"), render: (res) => res.hotel },
+              { header: t("Check in"), render: (res) => res.check_in || t("Not set") },
+              { header: t("Check out"), render: (res) => res.check_out || t("Not set") },
+              {
+                // Remaining now has its own column, so the pill carries the
+                // state word only instead of repeating the figure.
+                header: t("Status"),
+                align: "right",
+                render: (res) =>
+                  res.remaining_int <= 0 ? (
+                    <StatusPill small label={t("Settled")} tone="green" />
+                  ) : res.remaining_int < res.total_int ? (
+                    <StatusPill small label={t("Partial")} tone="yellow" />
+                  ) : (
+                    <StatusPill small label={t("Unpaid")} tone="red" />
+                  ),
+              },
+              { header: t("Total"), align: "right", strong: true, render: (res) => fmt(res.total_int) },
+              {
+                header: t("Remaining"),
+                align: "right",
+                render: (res) => fmt(Math.max(0, res.remaining_int || 0)),
+              },
+            ]}
+            rows={reservations}
+            empty={t("No reservations")}
+            footer={
+              reservations.length
+                ? [{
+                    label: t("Total"),
+                    value: [`${fmt(reservationsTotal)} SAR`, `${fmt(remainingTotal)} SAR`],
+                    tone: [null, remainingTotal > 0 ? "red" : null],
+                    total: true,
+                  }]
+                : null
             }
-            amount={fmt(res.total_int)}
-            amountSub={res.remaining_int > 0 ? <small style={{ color: "var(--red)" }}>sisa {fmt(res.remaining_int)}</small> : null}
           />
-        )) : <div className="dv-empty">No reservations</div>}
-      </Section>
+        </Section>
 
-      <Section label="Payment" right="SAR">
-        {payments.length ? payments.map((p, i) => {
-          const subLines = [];
-          if (p.linked_number || p.payment_date) {
-            subLines.push([p.linked_number ? `Res ${p.linked_number}` : null, p.payment_date].filter(Boolean).join(", "));
+        <Section label={t("Payments")} icon="wallet" count={payments.length || null} right="SAR">
+          <DetailTable
+            columns={[
+              // The payload carries no payment reference of its own; the only
+              // reference a payment has is the reservation it settles.
+              { header: "#REF", strong: true, render: (p) => p.linked_number || t("Unlinked") },
+              { header: t("Date"), render: (p) => p.payment_date || t("Not set") },
+              {
+                header: t("Method"),
+                render: (p) => (
+                  <>
+                    {p.method || t("Payment")}
+                    {p.proof_url ? <DvLink href={p.proof_url} newTab>{t("Proof")}</DvLink> : null}
+                  </>
+                ),
+              },
+              // Original currency and rate get their own columns now, so the
+              // "20,000,000 IDR ÷ 4810.00" sub-line under Method is retired.
+              { header: t("Amount"), align: "right", render: (p) => `${fmt(p.amount_int)} ${p.currency}` },
+              // SAR pays itself at parity, so the column shows 1.00 rather than
+              // a placeholder — every row keeps a real number.
+              { header: t("Rate"), align: "right", render: (p) => (p.currency === "SAR" ? "1.00" : p.exchange_rate_fmt) },
+              { header: t("Amount SAR"), align: "right", strong: true, render: (p) => fmt(p.amount_sar_int) },
+            ]}
+            rows={payments}
+            empty={t("No payments")}
+            footer={payments.length ? [{ label: t("Total received"), value: `${fmt(receivedTotal)} SAR`, total: true, tone: "green" }] : null}
+          />
+        </Section>
+
+        {/* Billing turun jadi strip penutup kartu: isinya satu aksi plus log
+            terakhir, tidak cukup berat untuk section sendiri. Angka Paid /
+            Total Amount yang dulu di sini dihapus — masing-masing tabel sudah
+            membawa totalnya, jadi footer hanya mengulang.
+            Kirim pesan memanggil /billing/send/, yang di server dijaga
+            invoice.edit — role read-only cuma melihat lognya. */}
+        <FooterSummary
+          left={<LastBilling last={last_billing} />}
+          right={
+            perms.can("invoice", "edit") ? (
+              <Button type="button" onClick={() => openDraft(paid ? "invoice_lunas" : "invoice", invoice.pk, wa_send)}>
+                {paid ? t("Paid Message") : t("Draft Message")}
+              </Button>
+            ) : null
           }
-          if (p.currency !== "SAR") subLines.push(`${fmt(p.amount_int)} ${p.currency} ÷ ${p.exchange_rate_fmt}`);
-          return (
-            <ItemRow
-              key={i}
-              small
-              name={p.method || "Payment"}
-              link={p.proof_url ? <DvLink href={p.proof_url} newTab>Proof</DvLink> : null}
-              sub={subLines.length ? subLines.map((l, j) => <span key={j}>{j > 0 ? <br /> : null}{l}</span>) : null}
-              amount={fmt(p.amount_sar_int)}
-              amountColor="green"
-            />
-          );
-        }) : <div className="dv-empty">No payments</div>}
-      </Section>
-
-      <FooterSummary
-        left={
-          <>
-            <div className="dv-l">Paid</div>
-            <div style={{ color: "var(--green)", fontSize: 13, fontWeight: 700, marginTop: 5 }}>{fmt(invoice.total_paid_sar)} SAR</div>
-            <div className="dv-item-sub">{payments.length} pembayaran diterima</div>
-          </>
-        }
-        right={
-          <>
-            <div className="dv-l">Total Amount</div>
-            <div className="dv-foot-total">{fmt(invoice.total_sar)}<span className="cur"> SAR</span></div>
-          </>
-        }
-      />
-
-      <div className="dv-sec">
-        <button type="button" className="dv-cta" onClick={() => openDraft(paid ? "invoice_lunas" : "invoice", invoice.pk, wa_send)}>
-          {paid ? "Paid Message" : "Draft Message"}
-        </button>
-        <div style={{ marginTop: 10 }}>
-          <LastBilling last={last_billing} />
-        </div>
-      </div>
-      </div>
+        />
+      </DetailCard>
     </div>
   );
 }

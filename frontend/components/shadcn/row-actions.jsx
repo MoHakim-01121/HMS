@@ -1,39 +1,33 @@
-import { useState } from "react";
 import { Icon } from "../icons.jsx";
-import ActionSheet from "../ui/ActionSheet.jsx";
 import { Button } from "./ui/button.jsx";
 
-// shadcn Button-based rebuild of ../ui/RowActions.jsx — same `actions` prop
-// shape. The kebab button still opens the existing ActionSheet (mobile bottom
-// sheet) unchanged; that component is out of scope for this batch.
+const VARIANT_COLOR = {
+  red: "var(--destructive)",
+  green: "var(--green, #15803D)",
+};
+
+// Reverted from the single kebab-dropdown trigger back to one icon button
+// per action, inline in the row — matching the pre-shadcn ../ui/RowActions.jsx
+// behavior per user request. Same `actions` prop shape as before.
 export default function RowActions({ actions }) {
-  const [open, setOpen] = useState(false);
   const list = actions.filter(Boolean);
+  if (!list.length) return null;
   return (
-    <div className="row-actions" onClick={(e) => e.stopPropagation()}>
-      <span className="ra-inline">
-        {list.map((a, i) => {
-          const variantCls = a.variant ? `btn-icon-${a.variant}` : undefined;
-          return a.href ? (
-            <Button key={i} asChild variant="ghost" size="icon" className={variantCls} title={a.label}>
-              <a href={a.href} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>
-                <Icon name={a.icon} size={14} strokeWidth={a.strokeWidth} />
-              </a>
-            </Button>
-          ) : (
-            <Button key={i} variant="ghost" size="icon" className={variantCls} title={a.label} onClick={a.onClick}>
+    <div className="row-actions" onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
+      {list.map((a, i) => {
+        const style = VARIANT_COLOR[a.variant] ? { color: VARIANT_COLOR[a.variant] } : undefined;
+        return a.href ? (
+          <Button key={i} asChild variant="ghost" size="icon-sm" title={a.label} style={style}>
+            <a href={a.href} aria-label={a.label} {...(a.external ? { target: "_blank", rel: "noreferrer" } : {})}>
               <Icon name={a.icon} size={14} strokeWidth={a.strokeWidth} />
-            </Button>
-          );
-        })}
-      </span>
-      <Button
-        variant="ghost" size="icon" className="ra-kebab" aria-label="Actions"
-        aria-haspopup="true" aria-expanded={open} onClick={() => setOpen(true)}
-      >
-        <Icon name="dots" size={17} />
-      </Button>
-      <ActionSheet open={open} onClose={() => setOpen(false)} actions={list} />
+            </a>
+          </Button>
+        ) : (
+          <Button key={i} type="button" variant="ghost" size="icon-sm" title={a.label} aria-label={a.label} onClick={a.onClick} style={style}>
+            <Icon name={a.icon} size={14} strokeWidth={a.strokeWidth} />
+          </Button>
+        );
+      })}
     </div>
   );
 }

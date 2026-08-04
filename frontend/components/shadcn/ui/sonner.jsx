@@ -18,6 +18,8 @@ const Toaster = ({
 }) => {
   return (
     <Sonner
+      position="top-right"
+      offset="72px"
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

@@ -1,7 +1,6 @@
 from datetime import date, datetime
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -9,6 +8,7 @@ from django.template.loader import render_to_string
 from inertia import render as inertia_render
 
 from ..models import CancellationPenalty, ConfirmationLetter
+from ..permissions import require_perm
 from .helpers import _parse_date, _to_float, get_active_company
 from .pdf import _logo_file_url
 
@@ -44,7 +44,7 @@ def _penalty_props(penalty):
     }
 
 
-@login_required
+@require_perm('penalty', 'create')
 def penalty_new(request, cl_pk):
     cl = _get_cl(request, cl_pk)
     if hasattr(cl, 'penalty'):
@@ -79,13 +79,13 @@ def penalty_new(request, cl_pk):
     })
 
 
-@login_required
+@require_perm('penalty', 'view')
 def penalty_detail(request, pk):
     penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     return inertia_render(request, "Penalty/Detail", props={"penalty": _penalty_props(penalty)})
 
 
-@login_required
+@require_perm('penalty', 'edit')
 def penalty_edit(request, pk):
     penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     cl = penalty.cl
@@ -115,7 +115,7 @@ def penalty_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('penalty', 'delete')
 def penalty_delete(request, pk):
     penalty = _get_penalty(request, pk)
     cl_pk = penalty.cl_id
@@ -128,7 +128,7 @@ def penalty_delete(request, pk):
     return redirect('cl_detail', pk=cl_pk)
 
 
-@login_required
+@require_perm('penalty', 'export')
 def penalty_pdf(request, pk):
     penalty = _get_penalty(request, pk, CancellationPenalty.objects.select_related('cl'))
     cl = penalty.cl

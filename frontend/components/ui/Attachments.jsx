@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { getCsrf } from "../../utils/csrf.js";
 import { fetchJson } from "../../utils/fetchJson.js";
-import { showToast } from "../shell/Toast.jsx";
-import { useConfirm } from "./ConfirmDialog.jsx";
+import { showToast } from "../shadcn/toast.jsx";
+import { useConfirm } from "../shadcn/confirm-dialog.jsx";
+import Section from "../shadcn/section.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 // Port of _attachments.html + the upload/delete helpers from _base.html.
 // Reusable for both invoice and CL: <Attachments targetType="cl" targetId={pk} initial={[...]} />
@@ -21,8 +24,12 @@ function AttIcon({ icon }) {
 }
 
 export default function Attachments({ targetType, targetId, initial = [] }) {
+  const { t } = useI18n();
   const [items, setItems] = useState(initial);
   const [confirm, confirmDialog] = useConfirm();
+  // Both endpoints (/attachments/upload/, /attachments/<pk>/delete/) are
+  // guarded server-side by invoice.edit; read-only roles get the list only.
+  const canEdit = usePerms().can("invoice", "edit");
 
   const upload = async (e) => {
     const files = Array.from(e.target.files);
@@ -39,7 +46,7 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
         if (d.error) { showToast(d.error, "error"); continue; }
         setItems((prev) => [...prev, { id: d.id, icon: d.icon, url: d.url, name: d.name, size: d.size }]);
       } catch {
-        showToast("Upload failed", "error");
+        showToast(t("Upload failed"), "error");
       }
     }
     e.target.value = "";
@@ -47,8 +54,8 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
 
   const del = (pk) => {
     confirm({
-      title: "Delete attachment",
-      message: "Delete this attachment?",
+      title: t("Delete attachment"),
+      message: t("Delete this attachment?"),
       onConfirm: async () => {
         try {
           const d = await fetchJson(`/attachments/${pk}/delete/`, { method: "POST" });
@@ -58,38 +65,46 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
     });
   };
 
+  // File tiles + a dashed "add" tile, following the Attachment block of the
+  // detail-page reference (21st.dev Project Detail View, demo 8248) instead of
+  // the old full-width dv-item rows. The dashed tile is the only upload
+  // affordance — a second "Upload" button in the section header said the
+  // same thing twice.
   return (
-    <div className="dv-sec">
-      <div className="dv-sech">
-        <span className="dv-l">Attachments</span>
-        <label className="dv-sec-action" style={{ cursor: "pointer" }}>
-          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          Upload
-          <input type="file" style={{ display: "none" }} multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={upload} />
-        </label>
-      </div>
-      {items.length ? items.map((att) => (
-        <div className="dv-item" key={att.id}>
-          <div className="dv-attach">
-            <span className="dv-fico"><AttIcon icon={att.icon} /></span>
-            <div style={{ minWidth: 0 }}>
-              <a href={att.url} target="_blank" rel="noreferrer" className="dv-attach-name" title={att.name}>{att.name}</a>
-              <div className="dv-item-sub" style={{ marginTop: 1 }}>{fmtSize(att.size)}</div>
+    <Section label={t("Attachments")} icon="paperclip" count={items.length || null}>
+      {items.length || canEdit ? (
+        <div className="hms-dv-att-grid">
+          {items.map((att) => (
+            <div className="hms-dv-att" key={att.id}>
+              <span className="hms-dv-att-ico"><AttIcon icon={att.icon} /></span>
+              <div style={{ minWidth: 0 }}>
+                <a href={att.url} target="_blank" rel="noreferrer" className="hms-dv-att-name" title={att.name}>{att.name}</a>
+                <div className="hms-dv-att-size">{fmtSize(att.size)}</div>
+              </div>
+              <div className="hms-dv-att-act">
+                <a className="hms-dv-att-btn" href={att.url} target="_blank" rel="noreferrer" title={t("Download")} aria-label={t("Download {name}", { name: att.name })}>
+                  <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
+                </a>
+                {canEdit && (
+                  <button type="button" className="hms-dv-att-btn" onClick={() => del(att.id)} title={t("Delete")} aria-label={t("Delete {name}", { name: att.name })}>
+                    <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="dv-attach-actions">
-            <a className="dv-fico ghost" href={att.url} target="_blank" rel="noreferrer" title="Download">
-              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>
-            </a>
-            <button type="button" className="dv-fico ghost" onClick={() => del(att.id)} title="Delete">
-              <svg viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
+          ))}
+          {canEdit && (
+            <label className="hms-dv-att-add">
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+              {items.length ? t("Add file") : t("Add the first file")}
+              <input type="file" style={{ display: "none" }} multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={upload} />
+            </label>
+          )}
         </div>
-      )) : (
-        <div className="dv-empty">No attachments yet</div>
+      ) : (
+        <div className="hms-dv-empty">{t("No attachments yet")}</div>
       )}
       {confirmDialog}
-    </div>
+    </Section>
   );
 }

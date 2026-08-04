@@ -1,5 +1,6 @@
 from .choices import Company, HotelCity, InvoiceType
-from .user import UserProfile
+from .user import CompanyAccess, Language, Role, UserProfile
+from .role import RoleDefinition
 from .activity import ActivityLog, log_activity
 from .client import Client
 from .confirmation import ConfirmationLetter, Room
@@ -15,7 +16,7 @@ from .billing import BillingLog
 
 __all__ = [
     'Company', 'HotelCity', 'InvoiceType',
-    'UserProfile',
+    'UserProfile', 'Role', 'CompanyAccess', 'Language', 'RoleDefinition',
     'ActivityLog', 'log_activity',
     'Client',
     'ConfirmationLetter', 'Room',

@@ -1,17 +1,12 @@
-from django.http import Http404
-from django.shortcuts import redirect
-
 from inertia import render as inertia_render
 
+from ..permissions import hide_unless
 
+
+# Internal-only design-system preview. `hide_unless` answers 404 rather than a
+# flash+redirect so the route's existence isn't advertised to non-admins, and
+# still bounces anonymous visitors to the login page — same shape as
+# health_check in hw/views/__init__.py.
+@hide_unless('dev', 'view')
 def style_guide(request):
-    # Same shape as health_check (hw/views/__init__.py:134-139): manual
-    # is_authenticated check + redirect, rather than @login_required —
-    # @login_required's own redirect-anonymous-to-login behavior is fine,
-    # but this keeps both checks (auth, then superuser) visible in one
-    # place and consistent with the one other internal-only view in HMS.
-    if not request.user.is_authenticated:
-        return redirect(f"/login/?next=/dev/style-guide/")
-    if not request.user.is_superuser:
-        raise Http404()
     return inertia_render(request, "Dev/StyleGuide", props={})

@@ -1,11 +1,15 @@
 ﻿import json
+from datetime import date, timedelta
 from urllib.parse import urlparse
 
 from django.contrib.auth.decorators import login_required
 from django.db import connection
+from django.db.models import Count
+from django.db.models.functions import TruncMonth
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
+from django_ratelimit.decorators import ratelimit
 
 from inertia import render as inertia_render
 
@@ -31,7 +35,8 @@ from .calendar_views import (
 from .billing_views import billing_send
 from .search_views import global_search
 from .attachment_views import attachment_delete, attachment_upload
-from .user_views import account_profile, avatar_delete, avatar_upload, user_delete, user_edit, user_list, user_new
+from .user_views import account_profile, account_profile_update, avatar_delete, avatar_upload, user_credential_card, user_delete, user_edit, user_list, user_new, set_language
+from .role_views import role_delete, role_edit, role_list, role_new
 from .client_views import (
     client_list, client_new, client_edit, client_delete,
     client_detail, client_map, client_map_data,
@@ -44,6 +49,7 @@ from .remittance_views import (
     remittance_list, remittance_new, remittance_detail, remittance_edit,
     remittance_pdf, remittance_delete, remittance_upload_proof, remittance_export_csv,
     remittance_mark_received, remittance_recap, remittance_period_pdf,
+    remittance_ledger_pdf,
 )
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
@@ -51,7 +57,9 @@ from .penalty_views import (
 from .dev_views import style_guide
 
 from ..ai import generate_draft_message, get_chat_reply
-from ..models import Invoice
+from ..models import ActivityLog, ConfirmationLetter, Invoice, Remittance, log_activity
+from ..models.choices import Company
+from ..permissions import can, can_use_company, default_company, hide_unless
 from .helpers import get_active_company
 
 
@@ -60,9 +68,14 @@ from .helpers import get_active_company
 @require_POST
 def company_quick_set(request):
     company = request.POST.get("company")
-    if company in ("konoz", "ijabah"):
+    # Silently ignore a company the user has no access to — the switcher never
+    # offers it, so a request for one is either a stale tab or a hand-crafted
+    # POST. Either way the session must not adopt it.
+    if company in ("konoz", "ijabah") and can_use_company(request.user, company):
         request.session["active_company"] = company
         request.session.modified = True
+    else:
+        company = get_active_company(request)
 
     referer = request.META.get("HTTP_REFERER", "/")
     try:
@@ -81,14 +94,200 @@ def company_quick_set(request):
 
 @login_required
 def home(request):
-    if not request.session.get("active_company"):
-        request.session["active_company"] = "konoz"
+    company = get_active_company(request)
+    if request.session.get("active_company") != company:
+        # Either unset, or pointing at a company this user may no longer use.
+        request.session["active_company"] = company
         request.session.modified = True
-    return inertia_render(request, "Home/Index", props={})
+
+    today = date.today()
+    week_ahead = today + timedelta(days=7)
+    month_start = today.replace(day=1)
+    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    next_month_start = (month_start + timedelta(days=31)).replace(day=1)
+
+    cl_month_count = ConfirmationLetter.objects.filter(
+        company=company, created_at__year=today.year, created_at__month=today.month,
+    ).count()
+
+    upcoming_checkins = ConfirmationLetter.objects.filter(
+        company=company, check_in__gte=today, check_in__lte=week_ahead,
+    ).count()
+
+    # Prior 7-day window (actual check-ins) — the reference for the
+    # "Check-ins Next 7 Days" MoM-style delta.
+    prev_checkins = ConfirmationLetter.objects.filter(
+        company=company, check_in__gte=today - timedelta(days=7), check_in__lt=today,
+    ).count()
+
+    unpaid_count = 0
+    unpaid_total = 0
+    total_billed = 0
+    total_paid = 0
+    hotel_invoices = Invoice.objects.filter(
+        invoice_type="hotel", company=company,
+    ).prefetch_related('reservations', 'payments')
+    for inv in hotel_invoices:
+        total_billed += inv.total_sar
+        total_paid += inv.total_paid_sar
+        remaining = inv.remaining_sar
+        if remaining > 0:
+            unpaid_count += 1
+            unpaid_total += remaining
+
+    # Outstanding SAR as of the end of last month — bills issued before this
+    # month minus payments dated before this month. Powers the unpaid delta.
+    prev_unpaid_total = 0
+    for inv in hotel_invoices.filter(created_at__date__lt=month_start):
+        paid_before = sum(
+            p.amount_sar for p in inv.payments.all()
+            if p.payment_date and p.payment_date < month_start
+        )
+        remaining = max(inv.total_sar - paid_before, 0)
+        if remaining > 0:
+            prev_unpaid_total += remaining
+
+    remittance_pending = (
+        Remittance.objects.filter(company=Company.KONOZ, status=Remittance.STATUS_PENDING).count()
+        if company == Company.KONOZ and can(request.user, 'remittance', 'view') else None
+    )
+
+    # Remittance MoM: pending remittances dated this month vs last month.
+    rem_pending_this = Remittance.objects.filter(
+        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
+        date__gte=month_start, date__lt=next_month_start,
+    ).count()
+    rem_pending_prev = Remittance.objects.filter(
+        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
+        date__gte=prev_month_start, date__lt=month_start,
+    ).count()
+
+    # Dashboard trend chart (Homlu-style Dashboard & Analytics section): CL
+    # volume for the trailing 6 months, oldest first, zero-filled so months
+    # with no CLs still show a labeled bar instead of a gap.
+    # CL trend series for the chart period toggle: monthly for 6M/12M, daily
+    # for 7D/30D. Both are zero-filled so quiet spans still show a labeled
+    # baseline instead of a gap.
+    twelve_months_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    for _ in range(11):
+        twelve_months_start = (twelve_months_start - timedelta(days=1)).replace(day=1)
+    monthly_counts = (
+        ConfirmationLetter.objects.filter(company=company, created_at__date__gte=twelve_months_start)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(count=Count("id"))
+    )
+    counts_by_month = {row["month"].strftime("%Y-%m"): row["count"] for row in monthly_counts}
+    cl_trend = []
+    cursor = twelve_months_start
+    for _ in range(12):
+        key = cursor.strftime("%Y-%m")
+        cl_trend.append({"label": cursor.strftime("%b"), "count": counts_by_month.get(key, 0)})
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    thirty_days_start = today - timedelta(days=29)
+    daily_counts = (
+        ConfirmationLetter.objects.filter(company=company, created_at__date__gte=thirty_days_start)
+        .values("created_at__date")
+        .annotate(count=Count("id"))
+    )
+    counts_by_day = {row["created_at__date"]: row["count"] for row in daily_counts}
+    cl_daily = []
+    for i in range(30):
+        d = thirty_days_start + timedelta(days=i)
+        cl_daily.append({"label": d.strftime("%b %d"), "count": counts_by_day.get(d, 0)})
+
+    def _pct(cur, prev):
+        if not prev:
+            return None
+        pct = round(((cur - prev) / prev) * 100)
+        return {"dir": "flat" if pct == 0 else ("up" if pct > 0 else "down"),
+                "pct": abs(pct), "cur": cur, "prev": prev}
+
+    deltas = {
+        "cl_month": _pct(cl_month_count, counts_by_month.get(prev_month_start.strftime("%Y-%m"), 0)),
+        "checkins": _pct(upcoming_checkins, prev_checkins),
+        "unpaid": _pct(unpaid_total, prev_unpaid_total),
+        "remittance": _pct(rem_pending_this, rem_pending_prev) if remittance_pending is not None else None,
+    }
+
+    # Third-row widgets — Homlu "Top countries" becomes top hotels by total CL
+    # volume (all-time), "World map" becomes an Indonesia client-region heat
+    # map, and "Conversion funnel" becomes the reservation lifecycle. All are
+    # honest to current data: quiet panels simply show their empty state and
+    # light up as hotels/provinces/statuses get recorded.
+    payment_snapshot = {
+        "billed": total_billed,
+        "collected": total_paid,
+        "outstanding": max(total_billed - total_paid, 0),
+    }
+    top_hotels = [
+        {"hotel": row["hotel_name"], "count": row["n"]}
+        for row in (
+            ConfirmationLetter.objects.filter(company=company)
+            .values("hotel_name")
+            .annotate(n=Count("id"))
+            .order_by("-n")[:5]
+        )
+    ]
+    top_hotels_total = ConfirmationLetter.objects.filter(company=company).count()
+
+    region_data = [
+        {"province": row["client__province"], "count": row["n"]}
+        for row in (
+            ConfirmationLetter.objects.filter(company=company)
+            .exclude(client__isnull=True)
+            .exclude(client__province="")
+            .values("client__province")
+            .annotate(n=Count("id"))
+            .order_by("-n")
+        )
+    ]
+
+    # Each funnel stage is a strict subset of the previous one so the bars
+    # shrink monotonically: every CL → confirmed (DEFINITE) → completed.
+    funnel_cls = ConfirmationLetter.objects.filter(company=company)
+    reservation_funnel = [
+        {"label": "total", "value": funnel_cls.count()},
+        {"label": "confirmed", "value": funnel_cls.filter(reservation_status="DEFINITE").count()},
+        {"label": "completed", "value": funnel_cls.filter(reservation_status="DEFINITE", check_out__lte=today).count()},
+    ]
+
+    recent_cls = [
+        {
+            "id": cl.id,
+            "confirmation_number": cl.confirmation_number,
+            "guest_name": cl.guest_name,
+            "hotel_name": cl.hotel_name,
+            "check_in": cl.check_in.isoformat() if cl.check_in else None,
+            "reservation_status": cl.reservation_status,
+        }
+        for cl in ConfirmationLetter.objects.filter(company=company).order_by("-created_at")[:6]
+    ]
+
+    return inertia_render(request, "Home/Index", props={
+        "kpis": {
+            "cl_month": cl_month_count,
+            "upcoming_checkins": upcoming_checkins,
+            "unpaid_invoices": unpaid_count,
+            "unpaid_total": unpaid_total,
+            "remittance_pending": remittance_pending,
+            "deltas": deltas,
+        },
+        "cl_trend": cl_trend,
+        "cl_daily": cl_daily,
+        "recent_cls": recent_cls,
+        "payment_snapshot": payment_snapshot,
+        "top_hotels": top_hotels,
+        "top_hotels_total": top_hotels_total,
+        "region_data": region_data,
+        "reservation_funnel": reservation_funnel,
+    })
 
 
 @login_required
 @require_POST
+@ratelimit(key='user', rate='10/m', method='POST', block=True)
 def ai_draft_message(request):
     try:
         data = json.loads(request.body)
@@ -102,11 +301,13 @@ def ai_draft_message(request):
         return JsonResponse({"error": "Invoice not found."}, status=404)
 
     result = generate_draft_message(invoice_type, invoice)
+    log_activity(request.user, ActivityLog.ACTION_PDF, f'AI Draft: {invoice_type}', invoice.invoice_number, invoice.company)
     return JsonResponse({"message": result or "Failed to generate message."})
 
 
 @login_required
 @require_POST
+@ratelimit(key='user', rate='20/m', method='POST', block=True)
 def ai_chat(request):
     try:
         data = json.loads(request.body)
@@ -117,7 +318,7 @@ def ai_chat(request):
     if not message:
         return JsonResponse({"reply": "Question cannot be empty."})
 
-    active_company = request.session.get("active_company")
+    active_company = get_active_company(request)
     history = request.session.get("ai_history", [])
 
     reply = get_chat_reply(message, company=active_company, history=history)
@@ -128,16 +329,13 @@ def ai_chat(request):
             {"role": "assistant", "content": reply},
         ]
         request.session["ai_history"] = history[-6:]  # keep last 3 exchanges
+        log_activity(request.user, ActivityLog.ACTION_PDF, 'AI Chat', message[:100], active_company)
 
     return JsonResponse({"reply": reply or "Sorry, unable to process your question right now."})
 
 
+@hide_unless('dev', 'view')
 def health_check(request):
-    if not request.user.is_authenticated:
-        return redirect(f'/login/?next=/health/')
-    if not request.user.is_superuser:
-        from django.http import Http404
-        raise Http404
     try:
         connection.ensure_connection()
         return JsonResponse({"status": "ok", "db": "ok"})

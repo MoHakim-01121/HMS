@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/popover.jsx";
 import { Command, CommandGroup, CommandItem, CommandList } from "./ui/command.jsx";
+import { useI18n } from "../../utils/i18n.jsx";
 
 // shadcn Popover+Command rebuild of ../form/Combobox.jsx — same props.
 // PopoverAnchor wraps a real <input> (not shadcn's Input component, which
@@ -15,7 +16,9 @@ export default function Combobox({
   emptyLabel = "No client — used as guest name",
   "aria-describedby": describedBy,
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
 
   const q = (value || "").trim().toLowerCase();
   const filtered = q ? options.filter((o) => getLabel(o).toLowerCase().includes(q)) : options;
@@ -29,6 +32,7 @@ export default function Combobox({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverAnchor asChild>
         <input
+          ref={anchorRef}
           id={name} name={name} autoComplete="off"
           value={value ?? ""}
           onChange={(e) => { onTextChange(e.target.value); setOpen(true); }}
@@ -45,18 +49,22 @@ export default function Combobox({
         className="p-0"
         style={{ width: "var(--radix-popover-trigger-width)" }}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          const target = e.target;
+          if (anchorRef.current && (target === anchorRef.current || anchorRef.current.contains(target))) e.preventDefault();
+        }}
       >
         <Command shouldFilter={false}>
           <CommandList>
             {filtered.length === 0 ? (
-              <div style={{ padding: 12, fontSize: 13, color: "var(--muted-foreground)" }}>{emptyLabel}</div>
+              <div style={{ padding: 12, fontSize: 13, color: "var(--muted-foreground)" }}>{t(emptyLabel)}</div>
             ) : (
               <CommandGroup>
                 {filtered.map((o, i) => (
                   <CommandItem key={o.id ?? i} value={String(o.id ?? i)} onSelect={() => choose(o)}>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <span>{getLabel(o)}</span>
-                      {getSub && getSub(o) && <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{getSub(o)}</span>}
+                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flex: 1, minWidth: 0, gap: 16 }}>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getLabel(o)}</span>
+                      {getSub && getSub(o) && <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0 }}>{getSub(o)}</span>}
                     </div>
                   </CommandItem>
                 ))}

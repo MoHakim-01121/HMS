@@ -8,10 +8,12 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const CURRENCIES = ["SAR", "IDR", "USD"];
 
 export default function Form({ penalty, cl, suggested_number, today, edit, errors: serverErrors }) {
+  const { t } = useI18n();
   const p = penalty || {};
   const form = useForm({
     penalty_number: p.penalty_number || suggested_number || "",
@@ -37,30 +39,30 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
   };
 
   return (
-    <div className="form-page">
-      <PageBack href={`/cl/${cl.id}/`} label="Back to CL" />
+    <div className="form-page shadcn-root">
+      <PageBack href={`/cl/${cl.id}/`} label={t("Back to CL")} />
       <FormHeader
-        kicker="Cancellation Penalty"
-        title={edit ? "Edit Penalty" : "New Penalty Document"}
+        kicker={t("Cancellation Penalty")}
+        title={edit ? t("Edit Penalty") : t("New Penalty Document")}
         sub={<>{cl.guest_name} — {cl.confirmation_number}</>}
       />
 
       <form method="post" onSubmit={submit}>
         <FormPanel>
-          <FormSection label="Penalty Information">
+          <FormSection label={t("Penalty Information")}>
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Penalty Number" name="penalty_number" value={form.data.penalty_number} onChange={set("penalty_number")} error={errors.penalty_number} />
-              <FormField label="Cancellation Date" name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
+              <FormField label={t("Penalty Number")} name="penalty_number" value={form.data.penalty_number} onChange={set("penalty_number")} error={errors.penalty_number} />
+              <FormField label={t("Cancellation Date")} name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
             </div>
-            <FormField name="reason" label="Reason">
-              <Textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder="Cancellation reason…" />
+            <FormField name="reason" label={t("Reason")}>
+              <Textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder={t("Cancellation reason…")} />
             </FormField>
           </FormSection>
 
-          <FormSection label="Amount">
+          <FormSection label={t("Amount")}>
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label="Amount" name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
-              <FormField label="Currency" name="penalty_currency">
+              <FormField label={t("Amount")} name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
+              <FormField label={t("Currency")} name="penalty_currency">
                 <Select name="penalty_currency" value={form.data.penalty_currency} onValueChange={(v) => form.setData("penalty_currency", v)}>
                   <SelectTrigger id="penalty_currency" className="w-full">
                     <SelectValue />
@@ -71,26 +73,26 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
                 </Select>
               </FormField>
             </div>
-            <FormField label="Exchange Rate to SAR" name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
+            <FormField label={t("Exchange Rate to SAR")} name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
           </FormSection>
 
-          <FormSection label="Payment">
+          <FormSection label={t("Payment")}>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <Checkbox checked={form.data.is_paid} onCheckedChange={(v) => form.setData("is_paid", !!v)} />
-              <span>Already paid</span>
+              <span>{t("Already paid")}</span>
             </label>
             {form.data.is_paid && (
               <div className="fg-2" style={{ marginTop: 12 }}>
-                <FormField label="Payment Date" name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
-                <FormField label="Method" name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder="Transfer / Cash" />
-                <FormField span={2} name="payment_note" label="Payment Note">
+                <FormField label={t("Payment Date")} name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
+                <FormField label={t("Method")} name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder={t("Transfer / Cash")} />
+                <FormField span={2} name="payment_note" label={t("Payment Note")}>
                   <Textarea name="payment_note" rows={2} value={form.data.payment_note} onChange={(e) => form.setData("payment_note", e.target.value)} />
                 </FormField>
               </div>
             )}
           </FormSection>
 
-          <FormSection label="Internal Notes">
+          <FormSection label={t("Internal Notes")}>
             <FormField name="note">
               <Textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} />
             </FormField>
@@ -98,7 +100,7 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
 
           <FormActions
             cancelHref={edit ? `/penalty/${p.id}/` : `/cl/${cl.id}/`}
-            submitLabel={edit ? "Save Changes" : "Create Penalty"}
+            submitLabel={edit ? t("Save Changes") : t("Create Penalty")}
             processing={form.processing} />
         </FormPanel>
       </form>

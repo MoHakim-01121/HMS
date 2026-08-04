@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { showToast } from "./toast.jsx";
+import { useI18n } from "../../utils/i18n.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog.jsx";
 
 // shadcn Dialog-based rebuild of ../shell/DraftModal.jsx — business logic
@@ -9,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog.js
 // which owns focus trap + Escape + the close button (so the old manual
 // close button and keydown listener are both gone).
 export default function DraftModal() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState({ kind: "loading" }); // loading | ready | error
   const [text, setText] = useState("");
@@ -61,13 +63,13 @@ export default function DraftModal() {
         json: { pk, message: text, target_kind: targetKind, manual_target: manualTarget, with_pdf: withPdf },
       });
       if (data.ok) {
-        showToast("Pesan masuk antrean");
+        showToast(t("Message queued"));
         setOpen(false);
       } else {
-        setSendError(data.message || "Gagal mengirim pesan");
+        setSendError(data.message || t("Failed to send message"));
       }
     } catch {
-      setSendError("Gagal mengirim pesan");
+      setSendError(t("Failed to send message"));
     } finally {
       setSending(false);
     }
@@ -82,15 +84,15 @@ export default function DraftModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[480px] hms-dialog">
         <DialogHeader>
           <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="message" size={16} /> Billing Message
+            <Icon name="message" size={16} /> {t("Billing Message")}
           </DialogTitle>
         </DialogHeader>
         <div style={{ minHeight: 120 }}>
-          {state.kind === "loading" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--muted-foreground)", fontSize: 13 }}>Generating message…</div>}
-          {state.kind === "error" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--destructive)", fontSize: 13 }}>Failed to reach the server.</div>}
+          {state.kind === "loading" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--muted-foreground)", fontSize: 13 }}>{t("Generating message…")}</div>}
+          {state.kind === "error" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--destructive)", fontSize: 13 }}>{t("Failed to reach the server.")}</div>}
           {state.kind === "ready" && (
             <>
               <textarea
@@ -102,17 +104,17 @@ export default function DraftModal() {
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--foreground)", cursor: "pointer", marginBottom: 14 }}>
                   <input type="checkbox" checked={withPdf} onChange={(e) => setWithPdf(e.target.checked)} />
-                  Lampirkan PDF invoice
+                  {t("Attach invoice PDF")}
                 </label>
-                {radio("client_wa", `WA Client${waSend?.client_wa ? ` — ${waSend.client_wa}` : ""}`, !waSend?.has_wa)}
-                {radio("client_group", "WA Group Client", !waSend?.has_group)}
-                {radio("manual", "Nomor lain", false)}
+                {radio("client_wa", t("WA Client") + (waSend?.client_wa ? ` — ${waSend.client_wa}` : ""), !waSend?.has_wa)}
+                {radio("client_group", t("WA Group Client"), !waSend?.has_group)}
+                {radio("manual", t("Other number"), false)}
                 {targetKind === "manual" && (
                   <input
                     type="text"
                     value={manualTarget}
                     onChange={(e) => setManualTarget(e.target.value)}
-                    placeholder="628xxx atau ID group (…@g.us)"
+                    placeholder={t("628xxx or group ID (…@g.us)")}
                     style={{ fontSize: 13, padding: "8px 10px", border: "1px solid var(--border)", borderRadius: 8, background: "transparent", color: "var(--foreground)" }}
                   />
                 )}
@@ -124,10 +126,10 @@ export default function DraftModal() {
         {state.kind === "ready" && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
             <button className="btn btn-ghost btn-sm" onClick={copy}>
-              <Icon name="copy" size={13} /> {copied ? "Copied!" : "Copy"}
+              <Icon name="copy" size={13} /> {copied ? t("Copied!") : t("Copy")}
             </button>
             <button className="btn btn-primary btn-sm" onClick={send} disabled={sending}>
-              <Icon name="message" size={13} /> {sending ? "Mengirim…" : "Kirim WA"}
+              <Icon name="message" size={13} /> {sending ? t("Sending…") : t("Send WA")}
             </button>
           </div>
         )}

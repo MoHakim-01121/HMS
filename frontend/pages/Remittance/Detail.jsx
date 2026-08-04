@@ -1,73 +1,81 @@
-import DetailHero from "../../components/detail/DetailHero.jsx";
-import FloatCard from "../../components/detail/FloatCard.jsx";
-import Section from "../../components/detail/Section.jsx";
-import ItemRow, { DvLink } from "../../components/detail/ItemRow.jsx";
-import FooterSummary from "../../components/detail/FooterSummary.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import { DvLink } from "../../components/shadcn/item-row.jsx";
+import FooterSummary, { FooterTotal } from "../../components/shadcn/footer-summary.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
 export default function Detail({ rem, lines }) {
-  const cardSub = [rem.receipt_reference, rem.note].filter(Boolean);
+  const { t } = useI18n();
+  const openForm = useFormModal();
+  const perms = usePerms();
+
   return (
-    <div className="page dv-page">
-      <a href="/remittance/" className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back
-      </a>
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/remittance/" />
 
-      <DetailHero
-        kicker="Remittance"
-        title={rem.remittance_number}
-        sub={rem.date}
-        pill={rem.status === "received" ? { label: "Received", tone: "green" } : { label: "Pending", tone: "yellow" }}
-        menuItems={[
-          { label: "Edit", href: `/remittance/${rem.id}/edit/` },
-          ...(rem.proof_url ? [{ label: "View Receipt", href: rem.proof_url, target: "_blank" }] : []),
-        ]}
-      />
-
-      <FloatCard>
-        <div className="dv-l">Remittance</div>
-        <div className="dv-float-name">{rem.remittance_number}</div>
-        {cardSub.length ? (
-          <div className="dv-item-sub">
-            {cardSub.map((l, i) => <span key={i}>{i > 0 ? <br /> : null}{l}</span>)}
-          </div>
-        ) : null}
-      </FloatCard>
-
-      <div className="dv-body">
-      <Section label="Per Reservation" right="Sent Now">
-        {lines.length ? lines.map((row, i) => {
-          const subLines = [];
-          const stay = [row.hotel, row.check_in].filter(Boolean).join(", ");
-          if (stay) subLines.push(stay);
-          const who = [row.invoice ? row.invoice.customer_name : null, row.prev_sent ? `prev ${fmt(row.prev_sent)}` : null].filter(Boolean).join(", ");
-          if (who) subLines.push(who);
-          return (
-            <ItemRow
-              key={i}
-              small
-              name={row.linked_number}
-              link={row.invoice ? <DvLink href={`/invoice/${row.invoice.pk}/`}>INV</DvLink> : null}
-              sub={subLines.length ? subLines.map((l, j) => <span key={j}>{j > 0 ? <br /> : null}{l}</span>) : null}
-              amount={fmt(row.amount_sar)}
-            />
-          );
-        }) : <div className="dv-empty">No reservation lines</div>}
-      </Section>
-
-      <FooterSummary
-        right={
+      <DetailCard
+        crumbs={[{ label: t("Remittance"), href: "/remittance/" }]}
+        kicker={rem.remittance_number}
+        title={`${fmt(rem.total_sar)} SAR`}
+        sub={t("Sent to HQ · {date}", { date: rem.date })}
+        pill={rem.status === "received" ? { label: t("Received"), tone: "green" } : { label: t("Pending"), tone: "yellow" }}
+        actions={
           <>
-            <div className="dv-l">Total</div>
-            <div className="dv-foot-total">{fmt(rem.total_sar)}<span className="cur"> SAR</span></div>
+            {rem.proof_url ? (
+              <a className="hms-dv-act" href={rem.proof_url} target="_blank" rel="noreferrer">{t("Receipt")}</a>
+            ) : null}
+            {perms.can("remittance", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/remittance/${rem.id}/edit/`)}>{t("Edit")}</button>
+            )}
           </>
         }
-      />
-      </div>
+      >
+        <DetailGrid
+          rows={[
+            { label: t("Remittance no"), value: rem.remittance_number, icon: "remittance" },
+            { label: t("Date"), value: rem.date, icon: "calendar" },
+            rem.receipt_reference && { label: t("Reference"), value: rem.receipt_reference, icon: "file-text" },
+            { label: t("Reservations"), value: lines.length === 1 ? t("1 line") : t("{n} lines", { n: lines.length }), icon: "hotels" },
+            rem.note && { label: t("Note"), value: rem.note, icon: "message", span2: true, pre: true },
+          ]}
+        />
+
+        <Section label={t("Per Reservation")} icon="hotels" count={lines.length || null} right={t("Sent Now")}>
+          <DetailTable
+            columns={[
+              {
+                header: t("Reservation"),
+                strong: true,
+                render: (row) => (
+                  <>
+                    {row.linked_number}
+                    {row.invoice ? <DvLink href={`/invoice/${row.invoice.pk}/`}>INV</DvLink> : null}
+                    {row.invoice ? <span className="sub">{row.invoice.customer_name}</span> : null}
+                  </>
+                ),
+              },
+              {
+                header: t("Stay"),
+                render: (row) => [row.hotel, row.check_in].filter(Boolean).join(", ") || "—",
+              },
+              { header: t("Sent before"), align: "right", render: (row) => (row.prev_sent ? fmt(row.prev_sent) : "—") },
+              { header: t("Sent now"), align: "right", strong: true, render: (row) => fmt(row.amount_sar) },
+            ]}
+            rows={lines}
+            empty={t("No reservation lines")}
+            footer={lines.length ? [{ label: t("Total sent"), value: `${fmt(rem.total_sar)} SAR`, total: true }] : null}
+          />
+        </Section>
+
+        <FooterSummary right={<FooterTotal label={t("Total")} value={fmt(rem.total_sar)} currency="SAR" />} />
+      </DetailCard>
     </div>
   );
 }

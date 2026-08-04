@@ -1,9 +1,15 @@
 import { router } from "@inertiajs/react";
-import { useConfirm } from "../../components/ui/ConfirmDialog.jsx";
-import DetailHero from "../../components/detail/DetailHero.jsx";
-import FloatCard from "../../components/detail/FloatCard.jsx";
-import Section from "../../components/detail/Section.jsx";
-import ItemRow from "../../components/detail/ItemRow.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailAmount from "../../components/shadcn/detail-amount.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
@@ -16,104 +22,139 @@ function riskPill(risk) {
 }
 
 export default function Detail({ client, invoices, cls }) {
+  const { t } = useI18n();
   const c = client;
+  const openForm = useFormModal();
+  const perms = usePerms();
   const [confirm, confirmDialog] = useConfirm();
-  const del = () => confirm({ title: "Delete client", message: `Delete client "${c.name}"?`, onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
-  const scoreColor = c.score >= 70 ? "green" : c.score >= 40 ? null : "red";
+  const del = () => confirm({ title: t("Delete client"), message: t("Delete client \"{name}\"?", { name: c.name }), onConfirm: () => router.post(`/clients/${c.pk}/delete/`) });
+  const scoreColor = c.score >= 70 ? "var(--green)" : c.score >= 40 ? undefined : "var(--red)";
+  const pill = riskPill(c.risk_label);
   const contactLines = [];
-  if (c.city) contactLines.push(`${c.city}${c.province ? `, ${c.province}` : ""}`);
-  if (c.wa) contactLines.push(<a key="wa" href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ color: "var(--green)", textDecoration: "none" }}>{c.wa}</a>);
-  if (c.wa_group) contactLines.push(`Group: ${c.wa_group}`);
+  if (c.wa) contactLines.push(<a key="wa" href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{c.wa}</a>);
+  if (c.wa_group) contactLines.push(t("Group: {name}", { name: c.wa_group }));
   if (c.email) contactLines.push(c.email);
+
   return (
-    <div className="page dv-page">
-      <a href="/clients/" className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back
-      </a>
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/clients/" label={t("Back")} />
 
-      <DetailHero
-        kicker="Client"
+      <DetailCard
+        crumbs={[{ label: t("Clients"), href: "/clients/" }]}
         title={c.name}
-        pill={riskPill(c.risk_label)}
-        menuItems={[
-          { label: "Edit", href: `/clients/${c.pk}/edit/` },
-          ...(c.wa ? [{ label: "WhatsApp", href: `https://wa.me/${c.wa}`, target: "_blank" }] : []),
-          { label: "Delete", onClick: del, danger: true },
-        ]}
-      />
-
-      <FloatCard
-        right={
-          <div className={"dv-amtbox" + (c.outstanding > 0 ? "" : " paid")}>
-            <div className="dv-l">{c.outstanding > 0 ? "Outstanding" : "Clear"}</div>
-            <div className="dv-amtbox-num" style={c.outstanding > 0 ? { color: "var(--red)" } : undefined}>{fmt(c.outstanding)}</div>
-            <div className="dv-amtbox-cur">SAR</div>
-          </div>
+        sub={c.city ? `${c.city}${c.province ? `, ${c.province}` : ""}` : null}
+        pill={pill ? { ...pill, label: t(pill.label) } : null}
+        actions={
+          <>
+            {c.wa ? <a className="hms-dv-act" href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{t("WhatsApp")}</a> : null}
+            {perms.can("clients", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/edit/`)}>{t("Edit")}</button>
+            )}
+          </>
         }
+        menuItems={[perms.can("clients", "delete") && { label: t("Delete"), onClick: del, danger: true }]}
       >
-        <div className="dv-l">Contact</div>
-        <div className="dv-float-name">{c.pic || c.name}</div>
-        {contactLines.length ? (
-          <div className="dv-item-sub">
-            {contactLines.map((l, i) => <span key={i}>{i > 0 ? <br /> : null}{l}</span>)}
-          </div>
-        ) : (
-          <div className="dv-item-sub">No contact details on file yet.</div>
-        )}
-        {needsWaGroup(c) ? (
-          <div className="dv-item-sub" style={{ color: "var(--red)", marginTop: 6 }}>
-            Reminder diset ke {c.reminder_target === "BOTH" ? "PIC & Group" : "Group"} tapi WhatsApp Group belum diisi.
-          </div>
-        ) : null}
-      </FloatCard>
+        <DetailGrid
+          rows={[
+            {
+              label: t("Contact"),
+              icon: "user",
+              span2: true,
+              value: (
+                <>
+                  <div>{c.pic || c.name}</div>
+                  {contactLines.length ? (
+                    contactLines.map((l, i) => <div key={i} className="hms-dv-mval-sub">{l}</div>)
+                  ) : (
+                    <div className="hms-dv-mval-sub">{t("No contact details on file yet.")}</div>
+                  )}
+                  {needsWaGroup(c) ? (
+                    <div style={{ color: "var(--red)", fontWeight: 400, marginTop: 4 }}>
+                      {t("Reminder is set to {target} but the WhatsApp Group is not set.", { target: c.reminder_target === "BOTH" ? t("PIC & Group") : t("Group") })}
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+            { label: t("Total Billed"), value: `${fmt(c.total_billed)} SAR`, icon: "invoice" },
+            c.avg_days_to_pay != null && { label: t("Avg Payment"), value: `${c.avg_days_to_pay} days`, icon: "clock" },
+            { label: t("Client Score"), value: `${c.score}/100`, icon: "trend-up", color: scoreColor },
+            c.days_since_last_order != null && {
+              label: t("Last Order"),
+              value: t("{n} days ago", { n: c.days_since_last_order }),
+              icon: "calendar",
+              color: c.days_since_last_order > 45 ? "var(--red)" : undefined,
+            },
+            c.note && { label: t("Notes"), value: c.note, icon: "file-text", span2: true, pre: true },
+          ]}
+          right={
+            <DetailAmount
+              label={c.outstanding > 0 ? t("Outstanding") : t("Clear")}
+              value={fmt(c.outstanding)}
+              currency="SAR"
+              tone={c.outstanding > 0 ? "red" : "green"}
+            />
+          }
+        />
 
-      <div className="dv-body">
-      <Section label="Stats">
-        <ItemRow small name="Total Billed" amount={`${fmt(c.total_billed)} SAR`} />
-        {c.avg_days_to_pay != null ? <ItemRow small name="Avg Payment" amount={`${c.avg_days_to_pay} days`} /> : null}
-        <ItemRow small name="Client Score" amount={`${c.score}/100`} amountColor={scoreColor || undefined} />
-        {c.days_since_last_order != null ? (
-          <ItemRow small name="Last Order" amount={`${c.days_since_last_order} days ago`} amountColor={c.days_since_last_order > 45 ? "red" : undefined} />
-        ) : null}
-      </Section>
-
-      {c.note ? (
-        <Section label="Notes">
-          <div className="dv-item-sub" style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{c.note}</div>
+        <Section
+          label={t("Invoices")}
+          icon="invoice"
+          count={invoices.length || null}
+          action={invoices.length > 0 ? <a className="hms-dv-act" href={`/invoice/?client=${c.pk}`}>{t("View all")}</a> : null}
+        >
+          <DetailTable
+            columns={[
+              {
+                header: t("Invoice"),
+                strong: true,
+                render: (inv) => (
+                  <>
+                    <a href={`/invoice/${inv.pk}/`}>{inv.invoice_number}</a>
+                    <span className="sub">{[inv.invoice_type_display, inv.issued_date].filter(Boolean).join(" · ")}</span>
+                  </>
+                ),
+              },
+              { header: t("Billed"), align: "right", render: (inv) => fmt(inv.total_sar) },
+              {
+                header: t("Status"),
+                render: (inv) =>
+                  inv.remaining_sar > 0 ? (
+                    <StatusPill small label={inv.remaining_sar < inv.total_sar ? t("Partial") : t("Unpaid")} tone={inv.remaining_sar < inv.total_sar ? "yellow" : "red"} />
+                  ) : (
+                    <StatusPill small label={t("Paid")} tone="green" />
+                  ),
+              },
+              {
+                header: t("Remaining"),
+                align: "right",
+                strong: true,
+                render: (inv) => (
+                  <span style={{ color: inv.remaining_sar > 0 ? "var(--red)" : "var(--green)" }}>{fmt(inv.remaining_sar)}</span>
+                ),
+              },
+            ]}
+            rows={invoices.slice(0, 10)}
+            rowKey={(inv) => inv.pk}
+            empty={t("No invoices yet")}
+            footer={c.outstanding > 0 ? [{ label: t("Outstanding total"), value: `${fmt(c.outstanding)} SAR`, total: true, tone: "red" }] : null}
+          />
         </Section>
-      ) : null}
 
-      <Section
-        label={`Invoices (${invoices.length})`}
-        right="Remaining"
-        action={invoices.length > 0 ? <a className="dv-sec-action" href={`/invoice/?client=${c.pk}`}>View all</a> : null}
-      >
-        {invoices.length ? invoices.slice(0, 10).map((inv) => (
-          <ItemRow
-            key={inv.pk}
-            small
-            name={<a href={`/invoice/${inv.pk}/`} style={{ color: "var(--text)", textDecoration: "none" }}>{inv.invoice_number}</a>}
-            sub={[inv.invoice_type_display, inv.issued_date, `billed ${fmt(inv.total_sar)}`].filter(Boolean).join(", ")}
-            amount={`${fmt(inv.remaining_sar)} SAR`}
-            amountColor={inv.remaining_sar > 0 ? "red" : "green"}
+        <Section label={t("Confirmation Letters")} icon="cl" count={cls.length || null}>
+          <DetailTable
+            columns={[
+              { header: "CL", strong: true, render: (cl) => <a href={`/cl/${cl.pk}/`}>{cl.confirmation_number}</a> },
+              { header: t("Guest"), render: (cl) => cl.guest_name || "—" },
+              { header: t("Hotel"), render: (cl) => cl.hotel_name || "—" },
+              { header: t("Check-in"), align: "right", render: (cl) => cl.check_in || "—" },
+            ]}
+            rows={cls.slice(0, 8)}
+            rowKey={(cl) => cl.pk}
+            empty={t("No confirmation letters yet")}
           />
-        )) : <div className="dv-empty">No invoices yet</div>}
-      </Section>
-
-      <Section label={`Confirmation Letters (${cls.length})`}>
-        {cls.length ? cls.slice(0, 8).map((cl) => (
-          <ItemRow
-            key={cl.pk}
-            small
-            name={<a href={`/cl/${cl.pk}/`} style={{ color: "var(--text)", textDecoration: "none" }}>{cl.confirmation_number}</a>}
-            sub={[cl.guest_name, cl.hotel_name, cl.check_in].filter(Boolean).join(", ")}
-          />
-        )) : <div className="dv-empty">No confirmation letters yet</div>}
-      </Section>
-      </div>
+        </Section>
+      </DetailCard>
       {confirmDialog}
     </div>
   );

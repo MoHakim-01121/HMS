@@ -1,9 +1,14 @@
 import Attachments from "../../components/ui/Attachments.jsx";
-import DetailHero from "../../components/detail/DetailHero.jsx";
-import FloatCard from "../../components/detail/FloatCard.jsx";
-import Section from "../../components/detail/Section.jsx";
-import ItemRow from "../../components/detail/ItemRow.jsx";
-import FooterSummary from "../../components/detail/FooterSummary.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailGrid from "../../components/shadcn/detail-grid.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import Section from "../../components/shadcn/section.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import FooterSummary, { FooterTotal } from "../../components/shadcn/footer-summary.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { usePerms } from "../../utils/perms.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const fmtPrice = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -15,120 +20,133 @@ function heroPill(s) {
 }
 
 function PenaltySection({ cl, penalty }) {
+  const openForm = useFormModal();
+  const perms = usePerms();
+  const { t } = useI18n();
   return (
     <Section
-      label="Cancellation Penalty"
+      label={t("Cancellation Penalty")}
+      icon="alert-circle"
       action={
         penalty ? (
-          <span style={{ display: "inline-flex", gap: 14 }}>
-            <a className="dv-sec-action" href={`/penalty/${penalty.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
-            <a className="dv-sec-action" href={`/penalty/${penalty.pk}/edit/`}>Edit</a>
-          </span>
-        ) : (
-          <a className="dv-sec-action" href={`/cl/${cl.pk}/penalty/new/`}>+ Create Penalty Document</a>
-        )
+          <>
+            <a className="hms-dv-act" href={`/penalty/${penalty.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
+            {perms.can("penalty", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/penalty/${penalty.pk}/edit/`)}>{t("Edit")}</button>
+            )}
+          </>
+        ) : perms.can("penalty", "create") ? (
+          <button type="button" className="hms-dv-act" onClick={() => openForm(`/cl/${cl.pk}/penalty/new/`)}>{t("+ Create penalty document")}</button>
+        ) : null
       }
     >
-      {penalty ? (
-        <ItemRow
-          small
-          name={<a href={`/penalty/${penalty.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none" }}>{penalty.penalty_number}</a>}
-          sub={penalty.cancellation_date}
-          amount={`${fmt(penalty.penalty_amount)} ${penalty.penalty_currency}`}
-          amountSub={
-            <small style={{ color: penalty.is_paid ? "var(--green)" : "var(--red)" }}>
-              {penalty.is_paid ? "Paid" : "Unpaid"}
-            </small>
-          }
-        />
-      ) : (
-        <div className="dv-empty">No penalty document for this CL yet.</div>
-      )}
+      <DetailTable
+        columns={[
+          { header: t("Document"), strong: true, render: (p) => <a href={`/penalty/${p.pk}/`}>{p.penalty_number}</a> },
+          { header: t("Cancelled"), render: (p) => p.cancellation_date || "—" },
+          { header: t("Status"), render: (p) => <StatusPill small label={t(p.is_paid ? "Paid" : "Unpaid")} tone={p.is_paid ? "green" : "red"} /> },
+          { header: t("Penalty"), align: "right", strong: true, render: (p) => `${fmt(p.penalty_amount)} ${p.penalty_currency}` },
+        ]}
+        rows={penalty ? [penalty] : []}
+        rowKey={(p) => p.pk}
+        empty={t("No penalty document for this CL yet.")}
+      />
     </Section>
   );
 }
 
 export default function Detail({ cl, rooms, penalty, attachments }) {
-  const guestLines = [];
-  if (cl.client) {
-    guestLines.push(
-      <a key="travel" href={`/clients/${cl.client.pk}/`} style={{ color: "var(--accent-2)", textDecoration: "none" }}>{cl.client.name}</a>
-    );
-  }
-  if (cl.guest_phone) guestLines.push(cl.guest_phone);
-  if (cl.hotel_name) guestLines.push(cl.hotel_name);
+  const openForm = useFormModal();
+  const perms = usePerms();
+  const { t } = useI18n();
+
+  // guest_name pada CL adalah nama client, jadi judul kartu sudah mewakili
+  // client-nya: baris "Client" di grid hanya muncul kalau namanya memang beda.
+  const sameName = (a, b) => (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+  const clientRow = cl.client && !sameName(cl.client.name, cl.guest_name);
+  const totalRooms = rooms.reduce((s, r) => s + (r.quantity || 0), 0);
+  const cancelled = cl.reservation_status === "CANCELLED";
+  const hero = heroPill(cl.reservation_status);
 
   return (
-    <div className="page dv-page">
-      <a href="/cl/" className="page-back">
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7l-7 7 7 7" />
-        </svg>
-        Back
-      </a>
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/cl/" />
 
-      <DetailHero
-        kicker="Confirmation Letter"
-        title={cl.confirmation_number}
-        sub={cl.invoice ? <>Invoiced : <a href={`/invoice/${cl.invoice.pk}/`}>{cl.invoice.invoice_number}</a></> : null}
-        pill={heroPill(cl.reservation_status)}
-        menuItems={[
-          { label: "PDF", href: `/cl/${cl.pk}/pdf/`, target: "_blank" },
-          { label: "Edit", href: `/cl/${cl.pk}/edit/` },
-        ]}
-      />
-
-      <FloatCard>
-        <div className="dv-l">Guest</div>
-        <div className="dv-float-name">{cl.guest_name}</div>
-        {guestLines.length ? (
-          <div className="dv-item-sub">
-            {guestLines.map((line, i) => <span key={i}>{i > 0 ? <br /> : null}{line}</span>)}
-          </div>
-        ) : null}
-      </FloatCard>
-
-      <div className="dv-body">
-      <Attachments targetType="cl" targetId={cl.pk} initial={attachments} />
-
-      {cl.reservation_status === "CANCELLED" ? <PenaltySection cl={cl} penalty={penalty} /> : null}
-
-      <Section label="Stay">
-        <ItemRow
-          small
-          name={`${cl.check_in || "?"} - ${cl.check_out || "?"}`}
-          sub="Check-in sampai Check-out"
-          amount={`${cl.num_nights} nights`}
-          amountSub={<small style={{ color: "var(--text-2)" }}>{cl.num_guests} guests</small>}
-        />
-      </Section>
-
-      <Section label="Rooms" right="Subtotal">
-        {rooms.length ? rooms.map((room, i) => (
-          <ItemRow
-            key={i}
-            name={room.room_type}
-            sub={`${room.quantity} kamar × ${fmtPrice(room.price)}/night${room.meals ? `, ${room.meals}` : ""}`}
-            amount={fmt(room.subtotal)}
-          />
-        )) : <div className="dv-empty">No room data</div>}
-      </Section>
-
-      {cl.note ? (
-        <Section label="Notes">
-          <div className="dv-item-sub" style={{ marginTop: 6 }}>{cl.note}</div>
-        </Section>
-      ) : null}
-
-      <FooterSummary
-        right={
+      <DetailCard
+        crumbs={[{ label: t("Confirmation Letters"), href: "/cl/" }]}
+        kicker={cl.confirmation_number}
+        title={cl.guest_name}
+        sub={cl.hotel_name}
+        pill={{ ...hero, label: t(hero.label) }}
+        actions={
           <>
-            <div className="dv-l">Total Price</div>
-            <div className="dv-foot-total">{fmt(cl.total_price)}<span className="cur"> SAR</span></div>
+            {cl.client ? (
+              <a className="hms-dv-act" href={`/clients/${cl.client.pk}/`}>{t("Client")}</a>
+            ) : null}
+            <a className="hms-dv-act" href={`/cl/${cl.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
+            {perms.can("cl", "edit") && (
+              <button type="button" className="hms-dv-act" onClick={() => openForm(`/cl/${cl.pk}/edit/`)}>{t("Edit")}</button>
+            )}
           </>
         }
-      />
-      </div>
+      >
+        {/* Fakta booking dulu (kapan, berapa orang), lalu tautan ke dokumen
+            terkait, lalu catatan. Nomor CL tidak diulang di sini — sudah jadi
+            breadcrumb — dan total harga tetap di footer kartu. */}
+        <DetailGrid
+          rows={[
+            {
+              label: t("Stay"),
+              icon: "calendar",
+              value: (
+                <>
+                  {cl.check_in || "?"} - {cl.check_out || "?"}
+                  <span className="hms-dv-mval-sub" style={{ marginLeft: 6 }}>
+                    ({cl.num_nights} {t(cl.num_nights === 1 ? "night" : "nights")})
+                  </span>
+                </>
+              ),
+            },
+            { label: t("Guests"), value: `${cl.num_guests} pax`, icon: "users" },
+            clientRow && {
+              label: t("Client"),
+              icon: "clients",
+              value: <a href={`/clients/${cl.client.pk}/`}>{cl.client.name}</a>,
+            },
+            {
+              label: t("Invoice"),
+              icon: "invoice",
+              value: cl.invoice ? (
+                <a href={`/invoice/${cl.invoice.pk}/`}>{cl.invoice.invoice_number}</a>
+              ) : (
+                <span className="hms-dv-mval-sub">{t("Not invoiced yet")}</span>
+              ),
+            },
+            cl.guest_phone && { label: t("Phone"), value: cl.guest_phone, icon: "message" },
+            cl.note && { label: t("Notes"), value: cl.note, icon: "file-text", span2: true, pre: true },
+          ]}
+        />
+
+        <Attachments targetType="cl" targetId={cl.pk} initial={attachments} />
+
+        {cancelled ? <PenaltySection cl={cl} penalty={penalty} /> : null}
+
+        <Section label={t("Rooms")} icon="hotels" count={totalRooms || null}>
+          <DetailTable
+            columns={[
+              { header: t("Room type"), strong: true, render: (r) => r.room_type },
+              { header: t("Meal"), render: (r) => r.meals || "—" },
+              { header: t("Qty"), render: (r) => r.quantity },
+              { header: t("Rate"), render: (r) => `${fmtPrice(r.price)} / ${t("night")}` },
+              { header: t("Subtotal"), align: "right", strong: true, render: (r) => fmt(r.subtotal) },
+            ]}
+            rows={rooms}
+            empty={t("No room data")}
+          />
+        </Section>
+
+        <FooterSummary right={<FooterTotal label={t("Total Price")} value={fmt(cl.total_price)} currency="SAR" />} />
+      </DetailCard>
     </div>
   );
 }

@@ -75,8 +75,6 @@
       background: radial-gradient(ellipse 70% 55% at 50% 38%, transparent 0%, var(--bg) 100%);
       opacity: .55;
     }
-    @media (prefers-reduced-motion: reduce) { .ac { animation: none !important; } }
-
     /* Layout */
     .login-wrap {
       position: relative; z-index: 2;
@@ -99,6 +97,13 @@
     [data-theme="light"] .login-card {
       box-shadow: 0 16px 40px rgba(0,0,0,.10), 0 1px 0 rgba(255,255,255,.8) inset;
     }
+
+    /* Staggered entrance */
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .reveal { animation: reveal .5s cubic-bezier(.16,1,.3,1) both; }
 
     /* Brand mark */
     .login-brand {
@@ -126,6 +131,7 @@
       border-radius: var(--r);
       font-size: 12.5px; color: var(--red); font-weight: 500;
       margin-bottom: 20px;
+      animation: reveal .4s cubic-bezier(.16,1,.3,1) both;
     }
     .login-error svg { flex-shrink: 0; }
 
@@ -143,13 +149,14 @@
       color: var(--text-3); font-size: 13px; font-weight: 600;
       font-family: 'Inter', sans-serif;
       cursor: pointer;
-      transition: background .15s, color .15s, border-color .15s;
+      transition: background .15s, color .15s, border-color .15s, transform .1s;
     }
     .co-btn.active {
       background: var(--field-h);
       border-color: var(--border-2);
       color: var(--text);
     }
+    .co-btn:active { transform: scale(.96); }
 
     /* Fields */
     .login-fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
@@ -182,12 +189,23 @@
     }
     .lf-input input::placeholder { color: var(--text-3); }
     .lf-toggle {
-      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
       background: none; border: none; color: var(--text-3); cursor: pointer; border-radius: 8px;
-      transition: color .12s;
+      transition: color .12s, transform .1s;
     }
     .lf-toggle:hover { color: var(--text-2); }
+    .lf-toggle:active { transform: translateY(-50%) scale(.9); }
+
+    /* Cross-fade icon swap (theme + password visibility) */
+    .icon-swap { position: relative; display: inline-block; }
+    .icon-swap svg {
+      transition: opacity .2s cubic-bezier(.2,0,0,1), transform .2s cubic-bezier(.2,0,0,1), filter .2s cubic-bezier(.2,0,0,1);
+      opacity: 0; transform: scale(.25); filter: blur(4px);
+    }
+    .icon-swap svg:first-child { position: static; }
+    .icon-swap svg:last-child { position: absolute; inset: 0; }
+    .icon-swap svg.active { opacity: 1; transform: scale(1); filter: blur(0); }
 
     /* Submit button */
     .login-btn {
@@ -198,12 +216,12 @@
       font-family: 'Inter', sans-serif;
       cursor: pointer; letter-spacing: .2px;
       display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: opacity .15s, box-shadow .15s;
+      transition: opacity .15s, box-shadow .15s, transform .1s;
       box-shadow: 0 4px 18px color-mix(in oklch, var(--accent) 25%, transparent);
     }
     [data-theme="light"] .login-btn { box-shadow: 0 4px 18px rgba(0,0,0,.15); }
     .login-btn:hover { opacity: .9; }
-    .login-btn:active { opacity: .8; }
+    .login-btn:active { opacity: .8; transform: scale(.96); }
     .login-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
     .login-spinner {
@@ -229,9 +247,11 @@
       background: var(--surface); border: 1px solid var(--border);
       color: var(--text-2); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, border-color .15s;
+      transition: background .15s, border-color .15s, transform .1s;
     }
+    .theme-btn::before { content: ''; position: absolute; inset: -2px; }
     .theme-btn:hover { background: var(--field-h); border-color: var(--border-2); }
+    .theme-btn:active { transform: scale(.9); }
 
     /* Autofill fix */
     input:-webkit-autofill,
@@ -260,6 +280,12 @@
       white-space: nowrap;
       animation: toast-in .2s cubic-bezier(.16,1,.3,1) both;
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      .reveal, .login-error { animation: none !important; opacity: 1 !important; transform: none !important; }
+      .icon-swap svg { transition: none !important; }
+      .co-btn, .login-btn, .lf-toggle, .theme-btn { transition-duration: 0s !important; }
+    }
   </style>
 </head>
 <body>
@@ -270,15 +296,17 @@
 
   <!-- Theme toggle -->
   <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema">
-    <svg id="icon-moon" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-    <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    <span class="icon-swap">
+      <svg id="icon-moon" class="active" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+      <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </span>
   </button>
 
   <div class="login-wrap">
     <div class="login-card">
 
       <!-- Brand -->
-      <div class="login-brand">
+      <div class="login-brand reveal">
         <div class="login-logo">
           <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
             <rect x="3"   y="2" width="4.5" height="22" fill="currentColor"/>
@@ -289,8 +317,10 @@
         <div class="login-appname">Hakim Workspace</div>
       </div>
 
-      <div class="login-heading">Welcome back</div>
-      <div class="login-sub">Sign in to continue to your workspace</div>
+      <div class="reveal" style="animation-delay:60ms">
+        <div class="login-heading">Welcome back</div>
+        <div class="login-sub">Sign in to continue to your workspace</div>
+      </div>
 
       {% if request.GET.locked %}
       <div class="login-error">
@@ -309,14 +339,16 @@
         <input type="hidden" name="company" id="company-val" value="konoz">
 
         <!-- Company -->
-        <div class="co-label">Company</div>
-        <div class="co-toggle">
-          <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
-          <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+        <div class="reveal" style="animation-delay:140ms">
+          <div class="co-label">Company</div>
+          <div class="co-toggle">
+            <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
+            <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
+          </div>
         </div>
 
         <!-- Fields -->
-        <div class="login-fields">
+        <div class="login-fields reveal" style="animation-delay:180ms">
           <div class="lf">
             <label for="id_username">Username</label>
             <div class="lf-input">
@@ -332,21 +364,25 @@
               <input type="password" id="id_password" name="password" class="has-toggle"
                 autocomplete="current-password" placeholder="Enter password">
               <button type="button" class="lf-toggle" onclick="togglePassword()" title="Show/hide password">
-                <svg id="icon-eye-open" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                <svg id="icon-eye-closed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="display:none;"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+                <span class="icon-swap">
+                  <svg id="icon-eye-open" class="active" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg id="icon-eye-closed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+                </span>
               </button>
             </div>
           </div>
         </div>
 
         <!-- Submit -->
-        <button type="submit" class="login-btn" id="login-btn">
-          <div class="login-spinner"></div>
-          <span class="login-btn-text">Sign in</span>
-        </button>
+        <div class="reveal" style="animation-delay:220ms">
+          <button type="submit" class="login-btn" id="login-btn">
+            <div class="login-spinner"></div>
+            <span class="login-btn-text">Sign in</span>
+          </button>
+        </div>
       </form>
 
-      <div class="login-footer">Ada kendala saat masuk? <b>Hubungi admin</b></div>
+      <div class="login-footer reveal" style="animation-delay:260ms">Ada kendala saat masuk? <b>Hubungi admin</b></div>
 
     </div><!-- /.login-card -->
   </div>
@@ -366,8 +402,8 @@
       var closed = document.getElementById('icon-eye-closed');
       var show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      open.style.display   = show ? 'none' : '';
-      closed.style.display = show ? '' : 'none';
+      open.classList.toggle('active', !show);
+      closed.classList.toggle('active', show);
     }
 
     /* Loading state */
@@ -384,13 +420,13 @@
       var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      document.getElementById('icon-moon').style.display = next === 'dark'  ? '' : 'none';
-      document.getElementById('icon-sun').style.display  = next === 'light' ? '' : 'none';
+      document.getElementById('icon-moon').classList.toggle('active', next === 'dark');
+      document.getElementById('icon-sun').classList.toggle('active', next === 'light');
     }
     (function(){
       var t = localStorage.getItem('theme') || 'dark';
-      document.getElementById('icon-moon').style.display = t === 'dark'  ? '' : 'none';
-      document.getElementById('icon-sun').style.display  = t === 'light' ? '' : 'none';
+      document.getElementById('icon-moon').classList.toggle('active', t === 'dark');
+      document.getElementById('icon-sun').classList.toggle('active', t === 'light');
     })();
 
   </script>

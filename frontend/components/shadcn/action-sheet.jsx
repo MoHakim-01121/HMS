@@ -1,10 +1,12 @@
 import { Icon } from "../icons.jsx";
 import { Drawer, DrawerClose, DrawerContent, DrawerHeader, DrawerTitle } from "./ui/drawer.jsx";
+import { useI18n } from "../../utils/i18n.jsx";
 
 // shadcn/vaul rebuild of ../ui/ActionSheet.jsx — same props. Drawer already
 // owns the drag handle, focus trap, Escape-to-close, and drag-to-dismiss
 // that the old manual createPortal + CSS implementation didn't have.
 export default function ActionSheet({ open, onClose, title, actions }) {
+  const { t } = useI18n();
   return (
     <Drawer open={open} onOpenChange={(next) => { if (!next) onClose(); }} direction="bottom">
       <DrawerContent>
@@ -30,7 +32,7 @@ export default function ActionSheet({ open, onClose, title, actions }) {
           })}
           <DrawerClose asChild>
             <button type="button" style={{ marginTop: 8, padding: "12px 8px", borderRadius: 8, border: "1px solid var(--border)", background: "none", color: "var(--muted-foreground)", fontSize: 14, cursor: "pointer" }}>
-              Cancel
+              {t("Cancel")}
             </button>
           </DrawerClose>
         </div>

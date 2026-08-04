@@ -1,6 +1,6 @@
 import os
+import magic
 
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
@@ -8,6 +8,7 @@ from django.views.decorators.http import require_POST
 from django.db.models import Q
 
 from ..models import Attachment, ConfirmationLetter, Invoice
+from ..permissions import require_perm
 from .helpers import get_active_company
 
 _ALLOWED_MIME = {
@@ -18,8 +19,16 @@ _ALLOWED_MIME = {
     'text/csv', 'text/plain',
 }
 
+_MIME_TO_EXT = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
+    'application/pdf': '.pdf',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'text/csv': '.csv', 'text/plain': '.txt',
+}
 
-@login_required
+
+@require_perm('invoice', 'edit')
 @require_POST
 def attachment_upload(request):
     f = request.FILES.get("file")
@@ -34,8 +43,19 @@ def attachment_upload(request):
     if f.size > 10 * 1024 * 1024:
         return JsonResponse({"error": "File too large (max 10 MB)"}, status=400)
 
-    if f.content_type not in _ALLOWED_MIME:
+    # Read first 2048 bytes for magic detection
+    header = f.read(2048)
+    f.seek(0)
+    detected_mime = magic.from_buffer(header, mime=True)
+
+    if detected_mime not in _ALLOWED_MIME:
         return JsonResponse({"error": "File type not allowed. Use PDF, image, Excel, or CSV."}, status=400)
+
+    # Optional: verify extension matches detected type
+    ext = os.path.splitext(f.name)[1].lower()
+    expected_ext = _MIME_TO_EXT.get(detected_mime)
+    if expected_ext and ext != expected_ext:
+        return JsonResponse({"error": f"File extension {ext} does not match content type {detected_mime}."}, status=400)
 
     active_company = get_active_company(request)
     att = Attachment(name=f.name, size=f.size)
@@ -56,7 +76,7 @@ def attachment_upload(request):
     })
 
 
-@login_required
+@require_perm('invoice', 'edit')
 @require_POST
 def attachment_delete(request, pk):
     active_company = get_active_company(request)

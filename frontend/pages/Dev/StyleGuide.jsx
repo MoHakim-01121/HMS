@@ -15,11 +15,14 @@ import FormSection from "@/components/shadcn/form-section.jsx";
 import FormField from "@/components/shadcn/form-field.jsx";
 import Combobox from "@/components/shadcn/combobox.jsx";
 import FormActions from "@/components/shadcn/form-actions.jsx";
-import DetailHero from "@/components/shadcn/detail-hero.jsx";
-import FloatCard from "@/components/shadcn/float-card.jsx";
+import DetailCard from "@/components/shadcn/detail-card.jsx";
+import DetailGrid from "@/components/shadcn/detail-grid.jsx";
+import DetailAmount from "@/components/shadcn/detail-amount.jsx";
+import DetailTable from "@/components/shadcn/detail-table.jsx";
 import Section from "@/components/shadcn/section.jsx";
+import StatusPill from "@/components/shadcn/status-pill.jsx";
 import ItemRow from "@/components/shadcn/item-row.jsx";
-import FooterSummary from "@/components/shadcn/footer-summary.jsx";
+import FooterSummary, { FooterFigure, FooterTotal } from "@/components/shadcn/footer-summary.jsx";
 import Table from "@/components/shadcn/table.jsx";
 import ActionSheet from "@/components/shadcn/action-sheet.jsx";
 
@@ -53,13 +56,13 @@ function Swatch({ name, value }) {
 function Panel({ theme }) {
   const [text, setText] = useState("");
   return (
-    <div data-theme={theme} style={{ background: "var(--background)", color: "var(--foreground)", padding: 32, borderRadius: 16, flex: 1, minWidth: 0 }}>
+    <div data-theme={theme} className="shadcn-root" style={{ background: "var(--background)", color: "var(--foreground)", padding: 32, borderRadius: 16, flex: 1, minWidth: 0 }}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "var(--muted-foreground)", marginBottom: 16 }}>
         {theme} mode
       </div>
 
       <h2 style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 600, marginBottom: 24 }}>
-        Aa — Playfair Display / IBM Plex Mono
+        Aa — Fira Sans / Fira Code
       </h2>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
@@ -119,7 +122,7 @@ export default function StyleGuide() {
         <Panel theme="dark" />
       </div>
 
-      <div data-theme={theme} style={{ background: "var(--background)", color: "var(--foreground)", padding: 32, borderRadius: 16, marginTop: 24 }}>
+      <div data-theme={theme} className="shadcn-root" style={{ background: "var(--background)", color: "var(--foreground)", padding: 32, borderRadius: 16, marginTop: 24 }}>
         <Card>
           <CardHeader>
             <CardTitle>Overlays ({theme} — follows the toggle above)</CardTitle>
@@ -209,33 +212,51 @@ export default function StyleGuide() {
             <CardTitle>Detail page</CardTitle>
           </CardHeader>
           <CardContent style={{ padding: 0 }}>
+            {/* Mini invoice detail: the whole hms-dv-* family in the same
+                arrangement the real pages use (21st.dev Project Detail View +
+                Invoice History Table). */}
             <div style={{ padding: 20 }}>
-              <DetailHero
-                kicker="Invoice"
-                title="INV-2026-0042"
-                sub="PT. Anugerah Wisata"
-                pill={{ label: "Unpaid", tone: "red" }}
-                menuItems={[{ label: "Edit" }, { label: "Download PDF" }]}
-              />
-              <FloatCard
-                right={
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Outstanding</div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: "var(--destructive)" }}>4,500,000</div>
-                  </div>
-                }
+              <DetailCard
+                crumbs={[{ label: "Invoices", href: "#" }]}
+                kicker="INV-2026-0042"
+                title="PT. Anugerah Wisata"
+                sub="Hotel invoice · issued 12 Jul 2026"
+                pill={{ label: "Partial", tone: "yellow" }}
+                actions={<><a className="hms-dv-act" href="#">PDF</a><button type="button" className="hms-dv-act">Edit</button></>}
+                menuItems={[{ label: "Delete", danger: true }]}
               >
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Contact</div>
-                <div style={{ fontWeight: 600 }}>Ahmad Rahman</div>
-              </FloatCard>
-              <Section label="Payments" right="Amount">
-                <ItemRow name="Bank Transfer" sub="12 Jul 2026" amount="2,000,000" small />
-                <ItemRow name="Cash" sub="15 Jul 2026" amount="1,000,000" small amountColor="green" />
-              </Section>
-              <FooterSummary
-                left={<span style={{ fontSize: 13, color: "var(--muted-foreground)" }}>2 payments</span>}
-                right={<div style={{ fontSize: 20, fontWeight: 700 }}>3,000,000 SAR</div>}
-              />
+                <DetailGrid
+                  rows={[
+                    { label: "Invoice no", value: "INV-2026-0042", icon: "invoice" },
+                    { label: "Issued", value: "12 Jul 2026", icon: "calendar" },
+                    { label: "Reservations", value: "2 reservations", icon: "hotels" },
+                    { label: "Notes", value: "Deposit paid, remaining due before check-in.", icon: "file-text", span2: true },
+                  ]}
+                  right={<DetailAmount label="Amount Due" value="4,500" currency="SAR" tone="red" note="Due in 3 days" noteTone="yellow" />}
+                />
+                <Section label="Payments" icon="wallet" count={2} right="SAR">
+                  <DetailTable
+                    columns={[
+                      { header: "Method", strong: true, render: (r) => r.method },
+                      { header: "Date", render: (r) => r.date },
+                      { header: "Status", render: (r) => <StatusPill small label={r.status} tone={r.status === "Cleared" ? "green" : "yellow"} /> },
+                      { header: "Amount", align: "right", strong: true, render: (r) => r.amount },
+                    ]}
+                    rows={[
+                      { method: "Bank Transfer", date: "12 Jul 2026", status: "Cleared", amount: "2,000" },
+                      { method: "Cash", date: "18 Jul 2026", status: "Pending", amount: "1,000" },
+                    ]}
+                    footer={[{ label: "Total received", value: "3,000 SAR", total: true, tone: "green" }]}
+                  />
+                </Section>
+                <Section label="Rooms" icon="hotels">
+                  <ItemRow small name="Double" sub="3 rooms × 400/night" amount="3,600" />
+                </Section>
+                <FooterSummary
+                  left={<FooterFigure label="Paid" value="3,000 SAR" tone="green" sub="2 payments received" />}
+                  right={<FooterTotal label="Total Amount" value="7,500" currency="SAR" />}
+                />
+              </DetailCard>
             </div>
           </CardContent>
         </Card>
@@ -257,6 +278,10 @@ export default function StyleGuide() {
               ]}
               rowKey={(r) => r.id}
               onRowClick={(r) => showToast(`Clicked ${r.name}`)}
+              bulkActions={[
+                { label: "Export", onClick: (rows, clear) => { showToast(`Export ${rows.length} row(s)`); clear(); } },
+                { label: "Delete", variant: "destructive", onClick: (rows, clear) => confirm({ message: `Delete ${rows.length} row(s)?`, onConfirm: () => { showToast("Deleted", "success"); clear(); } }) },
+              ]}
             />
             <div>
               <Button variant="outline" onClick={() => setSheetOpen(true)}>Open sheet</Button>

@@ -16,7 +16,6 @@
 
 /* Header dv- halaman form: kicker kapital kecil + judul, tanpa hero
    (form adalah halaman input, bukan tampilan dokumen). */
-.dv-form-header { margin-bottom: 16px; }
 
 /* ── Form panel: solid surface, sections within ── */
 .form-panel {
@@ -48,12 +47,6 @@
   color: var(--text-3);
   margin-bottom: 16px;
 }
-.form-section-label-right {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 /* ── Field ── */
 .ff {
@@ -62,7 +55,6 @@
   gap: 5px;
 }
 .ff label, .ff > span.lbl {
-  font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -74,11 +66,6 @@
   font-size: 11px;
   color: var(--text-3);
   margin-top: 2px;
-}
-.ff .error-msg {
-  font-size: 11px;
-  color: var(--red);
-  display: none;
 }
 
 /* Inputs inside .ff — enhanced focus */
@@ -105,12 +92,6 @@
   box-shadow: 0 0 0 3px var(--accent-muted);
   background: var(--surface-2);
 }
-.ff input.is-invalid,
-.ff select.is-invalid,
-.ff textarea.is-invalid {
-  border-color: var(--red);
-  box-shadow: 0 0 0 3px var(--red-muted);
-}
 .ff textarea {
   min-height: 76px;
   resize: vertical;
@@ -122,101 +103,24 @@
 .ff input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.6); }
 
 /* Checkbox field */
-.ff-check {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  cursor: pointer;
-  padding: 2px 0;
-}
-.ff-check input[type="checkbox"] {
-  width: 16px; height: 16px;
-  accent-color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.ff-check span {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  line-height: 1.3;
-}
-.ff-check .check-sub {
-  font-size: 11px;
-  color: var(--text-3);
-  display: block;
-  margin-top: 1px;
-}
 
 /* ── Form grids ── */
 .fg-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .fg-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .fg-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .fg-span2 { grid-column: span 2; }
-.fg-span3 { grid-column: span 3; }
-.fg-span4 { grid-column: span 4; }
 @media (max-width: 640px) {
   .fg-2, .fg-3, .fg-4 { grid-template-columns: 1fr; }
-  .fg-2 .fg-span2, .fg-3 .fg-span2, .fg-3 .fg-span3,
-  .fg-4 .fg-span2, .fg-4 .fg-span3, .fg-4 .fg-span4 { grid-column: span 1; }
+  .fg-2 .fg-span2,
+.fg-3 .fg-span2,
+.fg-4 .fg-span2 { grid-column: span 1; }
 }
 
 /* ── Conditional reveal ── */
-.form-reveal {
-  overflow: hidden;
-  transition: max-height .2s ease, opacity .2s ease;
-}
-.form-reveal.hidden { max-height: 0 !important; opacity: 0; pointer-events: none; }
 
 /* ── Dynamic row items ── */
-.dyn-rows { display: flex; flex-direction: column; gap: 6px; }
-
-.dyn-row {
-  display: grid;
-  gap: 8px;
-  align-items: end;
-  padding: 10px 12px;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  border-left: 2px solid var(--border-2);
-  transition: border-color .12s, background .12s;
-  position: relative;
-}
-.dyn-row:hover {
-  background: var(--surface-2);
-  border-left-color: var(--accent);
-}
-.dyn-row .dyn-remove {
-  width: 24px; height: 24px;
-  display: flex; align-items: center; justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-3);
-  cursor: pointer;
-  border-radius: var(--r);
-  font-size: 14px;
-  transition: color .12s, background .12s;
-  align-self: center;
-  flex-shrink: 0;
-}
-.dyn-row .dyn-remove:hover {
-  color: var(--red);
-  background: var(--red-muted);
-}
 
 /* Rows header labels */
-.dyn-rows-head {
-  display: grid;
-  gap: 8px;
-  padding: 0 12px 6px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  font-weight: 600;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: .7px;
-}
 
 /* Add row button */
 .btn-add-row {
@@ -257,13 +161,11 @@
 }
 .form-summary-cell:last-child { border-right: none; }
 .form-summary-cell .lbl {
-  font-family: 'JetBrains Mono', monospace;
   font-size: 9.5px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .6px;
   color: var(--text-3); margin-bottom: 5px;
 }
 .form-summary-cell .val {
-  font-family: 'JetBrains Mono', monospace;
   font-size: 16px; font-weight: 700;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -278,24 +180,6 @@
 }
 
 /* ── Draft banner ── */
-.form-draft-banner {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(245,166,35,.07);
-  border: 1px solid rgba(245,166,35,.2);
-  border-radius: var(--r-lg);
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-.form-draft-banner.visible { display: flex; }
-.form-draft-banner .draft-text {
-  font-size: 12px;
-  color: var(--yellow);
-}
-.form-draft-banner .draft-actions { display: flex; gap: 5px; }
 
 /* ── Inline form actions (bottom of panel) ── */
 .form-actions {
@@ -312,66 +196,6 @@
 }
 
 /* ── Autocomplete dropdown ── */
-.ac-dropdown {
-  display: none;
-  position: fixed;
-  z-index: var(--z-top);
-  background: var(--surface-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r-lg);
-  max-height: 240px;
-  overflow-y: auto;
-  box-shadow: var(--shadow-lg);
-  min-width: 200px;
-}
-.ac-item {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--text);
-  transition: background .08s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ac-item:hover, .ac-item.focused {
-  background: rgba(255,108,55,.08);
-  color: var(--text);
-}
-.ac-item-sub {
-  font-size: 11px;
-  color: var(--text-3);
-  margin-left: auto;
-}
-.ac-empty {
-  padding: 10px 12px;
-  font-size: 12px;
-  color: var(--text-3);
-  text-align: center;
-}
-.ac-new-link {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: var(--accent);
-  text-decoration: none;
-  border-top: 1px solid var(--border);
-  transition: background .08s;
-}
-.ac-new-link:hover { background: var(--accent-muted); }
-.ac-section {
-  padding: 4px 12px 3px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .8px;
-  color: var(--text-3);
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
-}
 
 /* ── Proof/attachment inline upload ── */
 .proof-cell {
@@ -391,14 +215,13 @@
   overflow: hidden; position: relative; flex-shrink: 0;
   transition: background .12s, border-color .12s;
 }
-.proof-btn:hover { background: var(--accent-muted); border-color: rgba(255,108,55,.3); color: var(--accent); }
+.proof-btn:hover { background: var(--accent-muted); border-color: color-mix(in oklch, var(--accent) 30%, transparent); color: var(--accent); }
 .proof-btn input[type="file"] {
   position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; width: 100%;
 }
 .proof-fname {
   font-size: 11px; color: var(--green);
   max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: 'JetBrains Mono', monospace;
 }
 .proof-link { text-decoration: none; opacity: .8; }
 .proof-link:hover { opacity: 1; }
@@ -410,68 +233,23 @@
   width: 20px; align-self: center;
   transition: opacity .12s;
 }
-.dyn-row:hover .drag-handle { opacity: .5; }
 .drag-handle:active { cursor: grabbing; opacity: 1; }
-.dyn-row.is-dragging { opacity: .35; }
-.dyn-row.drop-above { border-top: 2px solid var(--accent); }
-.dyn-row.drop-below { border-bottom: 2px solid var(--accent); }
 
 /* ── Page sub info (context under title) ── */
-.form-context {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 22px;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-3);
-  flex-wrap: wrap;
-}
-.form-context strong { color: var(--text-2); font-weight: 500; }
-.form-context-sep { color: var(--border-2); }
 
 /* ── Toggle switch ── */
-.toggle-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .toggle {
   position: relative;
   width: 34px; height: 20px;
   flex-shrink: 0;
 }
 .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-.toggle-slider {
-  position: absolute; inset: 0;
-  background: var(--surface-3);
-  border: 1px solid var(--border-2);
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background .18s, border-color .18s;
-}
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 14px; height: 14px;
-  background: var(--text-3);
-  border-radius: 50%;
-  top: 2px; left: 2px;
-  transition: transform .18s, background .18s;
-}
-.toggle input:checked + .toggle-slider { background: var(--accent); border-color: var(--accent); }
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(14px);
-  background: #fff;
-}
 .toggle-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
   cursor: pointer;
 }
-.toggle-label-sub { font-size: 11px; color: var(--text-3); display: block; }
 
 /* ── CL room rows ─────────────────────────────────────────── */
 /* No card here — the form section is already a panel; avoid card-in-card. */
@@ -487,7 +265,6 @@
 .cl-rooms-head {
   padding: 12px 0 9px;
   border-bottom: 1px solid var(--border);
-  font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -517,7 +294,6 @@
   background: var(--bg-2);
   border: 1px dashed var(--border-2);
   border-radius: var(--r);
-  font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
   font-weight: 600;

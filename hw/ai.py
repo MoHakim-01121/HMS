@@ -2,7 +2,7 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from datetime import date
+from django.utils import timezone
 
 from django.conf import settings
 
@@ -113,7 +113,8 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     ]
 
     if not lunas and invoice.due_date:
-        days_late = (date.today() - invoice.due_date).days
+        today = timezone.now().date()
+        days_late = (today - invoice.due_date).days
         parts.append("")
         parts.append(f"*Jatuh Tempo: {_fmt_date_id(invoice.due_date)}*")
         if days_late > 0:
@@ -133,7 +134,7 @@ def get_chat_reply(
     company: str | None = None,
     history: list | None = None,
 ) -> str | None:
-    today = date.today()
+    today = timezone.now().date()
     month = today.month
     year  = today.year
 

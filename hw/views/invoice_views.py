@@ -1,9 +1,9 @@
 ﻿import csv
 import json
 from datetime import date, timedelta
+from django.utils import timezone
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.db.models import ExpressionWrapper, F, FloatField, Q, Sum
 from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator
@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
 from .helpers import (
@@ -28,7 +29,7 @@ from .helpers import (
 from .pdf import _render_invoice_pdf
 
 
-@login_required
+@require_perm('invoice', 'view')
 def invoice_list(request):
     active_company = get_active_company(request)
     base_qs = Invoice.objects.filter(
@@ -48,17 +49,19 @@ def invoice_list(request):
     if status in ('lunas', 'belum', 'partial'):
         qs = qs.annotate(
             _res=Coalesce(Sum('reservations__total_sar'), 0),
-            _paid=Coalesce(Sum(ExpressionWrapper(
-                F('payments__amount') * F('payments__exchange_rate'),
-                output_field=FloatField()
-            )), 0.0),
         )
-        if status == 'lunas':
-            qs = qs.filter(_paid__gte=F('_res'))
-        elif status == 'belum':
-            qs = qs.filter(_paid__lt=1)
-        elif status == 'partial':
-            qs = qs.filter(_paid__gte=1).exclude(_paid__gte=F('_res'))
+        # We'll filter in Python since we need convert_to_sar for multi-currency payments
+        invoices_list = list(qs)
+        filtered_ids = []
+        for inv in invoices_list:
+            paid = inv.total_paid_sar
+            if status == 'lunas' and paid >= inv.total_sar:
+                filtered_ids.append(inv.pk)
+            elif status == 'belum' and paid < 1:
+                filtered_ids.append(inv.pk)
+            elif status == 'partial' and paid >= 1 and paid < inv.total_sar:
+                filtered_ids.append(inv.pk)
+        qs = qs.filter(pk__in=filtered_ids)
 
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -92,6 +95,9 @@ def invoice_list(request):
             "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
             "has_other_pages": page_obj.has_other_pages(),
             "range": _page_range_display(page_obj),
+            "start_index": page_obj.start_index(),
+            "end_index": page_obj.end_index(),
+            "count": paginator.count,
         },
     }
     if active_company == 'konoz':
@@ -135,7 +141,7 @@ def _invoice_stats(invoice_qs, company):
     }
 
 
-@login_required
+@require_perm('invoice', 'create')
 def invoice_new(request):
     suggested_number = Invoice.generate_number("hotel")
     active_company = get_active_company(request)
@@ -147,14 +153,19 @@ def invoice_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": invoice_number,
-                "default_company": active_company or "konoz",
                 "cl_data": _cl_data_for_form(active_company),
                 "initial": _invoice_echo(request),
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         invoice = Invoice.objects.create(
-            company=request.POST.get("company", "konoz"),
+            # Server-assigned, never read from the POST body. The form used to
+            # submit a company of its own, unchecked against can_use_company —
+            # so a user restricted to one company could file a record under the
+            # other, and every read path here (list/detail/edit/delete/PDF/CSV)
+            # filters by the active company, meaning the row simply vanished
+            # from the list it was created in.
+            company=active_company,
             invoice_type="hotel",
             invoice_number=invoice_number,
             customer_name=request.POST.get("customer_name", ""),
@@ -177,12 +188,11 @@ def invoice_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
-        "default_company": active_company or "konoz",
         "cl_data": _cl_data_for_form(active_company),
     })
 
 
-@login_required
+@require_perm('invoice', 'view')
 def invoice_detail(request, pk):
     filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
@@ -213,7 +223,7 @@ def invoice_detail(request, pk):
 
     due_alert = None
     if invoice.due_date and invoice.remaining_sar > 0:
-        days = (invoice.due_date - date.today()).days
+        days = (invoice.due_date - timezone.now().date()).days
         if days < 0:
             due_alert = {"type": "red", "msg": f"Payment is {abs(days)} day(s) overdue."}
         elif days == 0:
@@ -238,7 +248,7 @@ def invoice_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
     active_company = get_active_company(request)
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=active_company)
@@ -269,7 +279,9 @@ def invoice_edit(request, pk):
                 "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
 
-        invoice.company = request.POST.get("company", "konoz")
+        # invoice.company is deliberately left alone: the fetch above already
+        # constrains it to active_company, so any value arriving in the POST
+        # body could only ever move the record OUT of the caller's own scope.
         invoice.invoice_number = new_number
         invoice.customer_name = request.POST.get("customer_name", "")
         invoice.issued_date = _parse_date(request.POST.get("issued_date"))
@@ -304,7 +316,7 @@ def invoice_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('invoice', 'delete')
 def invoice_delete(request, pk):
     filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
@@ -318,14 +330,14 @@ def invoice_delete(request, pk):
     return redirect("invoice_list")
 
 
-@login_required
+@require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
     filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     return _render_invoice_pdf(invoice)
 
 
-@login_required
+@require_perm('invoice', 'export')
 def invoice_list_pdf(request):
     qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
@@ -347,7 +359,7 @@ def invoice_list_pdf(request):
     )
 
 
-@login_required
+@require_perm('invoice', 'export')
 def invoice_export_csv(request):
     qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
@@ -367,7 +379,7 @@ def invoice_export_csv(request):
     return response
 
 
-@login_required
+@require_perm('invoice', 'create')
 def invoice_duplicate(request, pk):
     original = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=get_active_company(request))
     new_num = Invoice.generate_number("hotel")
@@ -418,7 +430,8 @@ def _invoice_echo(request):
         except (ValueError, TypeError):
             return []
     return {
-        "company": request.POST.get("company", "konoz"),
+        # No "company" key — the form no longer submits one and the server
+        # assigns it from the session, so there is nothing to echo back.
         "customer_name": request.POST.get("customer_name", ""),
         "invoice_number": request.POST.get("invoice_number", ""),
         "issued_date": request.POST.get("issued_date", ""),
@@ -469,7 +482,17 @@ def _parse_cl_ids(request):
 
 
 def _cl_data_for_form(active_company):
-    cl_qs = ConfirmationLetter.objects.select_related("invoice").filter(company=active_company)
+    # prefetch_related("rooms"): `total` below reads cl.total_price, which sums
+    # cl.rooms.all() — one extra query per CL without this, i.e. up to 100 on
+    # the [:100] slice. It made /invoice/new/ and /invoice/<pk>/edit/ issue 56
+    # queries against 7-12 for every other form, and they are the two slowest
+    # form endpoints in the app by roughly 10x. Room.subtotal also walks back to
+    # room.cl for num_nights; a reverse-FK prefetch populates that back
+    # reference, so it stays free.
+    cl_qs = (ConfirmationLetter.objects
+             .select_related("invoice")
+             .prefetch_related("rooms")
+             .filter(company=active_company))
     return [{
         "id": cl.pk,
         "ref": cl.confirmation_number,

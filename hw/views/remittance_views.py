@@ -4,8 +4,7 @@ import json
 from collections import defaultdict
 from datetime import date
 
-from django.contrib.auth.decorators import login_required
-from django.db.models import Sum
+from django.db.models import Min, Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
@@ -13,10 +12,54 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import Invoice, Payment, Remittance, RemittanceLine
+from ..permissions import require_perm
 from ..utils import convert_to_sar
 
 SURABAYA_METHODS = {'cash', 'bank transfer', 'deposit'}
 KONOZ = 'konoz'
+
+
+def _prev_sent_map(rem, linked_numbers):
+    """Total SAR yang sudah dikirim per reservasi lewat remittance SEBELUM `rem`.
+
+    Urutannya mengikuti Meta.ordering Remittance (date, lalu created_at), jadi
+    remittance yang dibuat setelah `rem` tidak ikut terhitung sebagai "prev sent".
+    """
+    if not linked_numbers:
+        return {}
+    earlier = (
+        Q(remittance__date__lt=rem.date)
+        | Q(remittance__date=rem.date, remittance__created_at__lt=rem.created_at)
+    )
+    return {
+        row['linked_number']: int(row['total'] or 0)
+        for row in RemittanceLine.objects.filter(
+            earlier,
+            linked_number__in=linked_numbers,
+            remittance__company=KONOZ,
+        ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar'))
+    }
+
+
+def _sort_lines_by_payment_date(lines):
+    """Urutkan baris remittance sesuai tanggal pembayaran terkait per reservasi.
+
+    Baris tanpa tanggal pembayaran ditaruh paling bawah. Urutan antar render
+    tetap stabil (tidak berubah-ubah) lewat fallback linked_number.
+    """
+    linked_numbers = [l.linked_number for l in lines]
+    first_payment = dict(Payment.objects.filter(
+        linked_number__in=linked_numbers,
+        payment_date__isnull=False,
+    ).values('linked_number').annotate(first=Min('payment_date')).values_list('linked_number', 'first'))
+    return sorted(
+        lines,
+        key=lambda l: (
+            first_payment.get(l.linked_number) is None,
+            first_payment.get(l.linked_number) or date.max,
+            l.linked_number or '',
+        ),
+    )
 
 
 def _compute_stats():
@@ -55,7 +98,13 @@ def _compute_stats():
 
 
 def _build_reservasi_mengendap():
-    from ..models import Reservation
+    """Semua reservasi Konoz, termasuk yang belum ada pembayaran sama sekali.
+
+    Reservasi Cancelled disembunyikan kecuali uangnya terlanjur bergerak
+    (sudah dibayar client dan/atau sudah dikirim), sama seperti aturan di
+    `_build_ledger_rows`.
+    """
+    from ..models import ConfirmationLetter, Reservation
 
     # Semua payments untuk Konoz
     all_payments = Payment.objects.filter(
@@ -82,12 +131,26 @@ def _build_reservasi_mengendap():
         pool[key]['invoice_number'] = p['invoice__invoice_number']
         pool[key]['customer_name'] = p['invoice__customer_name']
 
-    # Fetch reservation details (check_in, check_out, total_sar)
-    res_data = Reservation.objects.filter(
-        reservation_number__in=list(pool.keys()),
-        invoice__company=KONOZ,
-    ).values('reservation_number', 'check_in', 'check_out', 'total_sar')
-    res_details = {r['reservation_number']: r for r in res_data}
+    # Semua reservasi Konoz ikut, bukan hanya yang sudah ada uangnya
+    res_data = Reservation.objects.filter(invoice__company=KONOZ).values(
+        'reservation_number', 'check_in', 'check_out', 'total_sar',
+        'invoice_id', 'invoice__invoice_number', 'invoice__customer_name',
+    )
+    res_details = {}
+    for r in res_data:
+        key = r['reservation_number']
+        res_details[key] = r
+        entry = pool[key]  # daftarkan reservasi tanpa payment supaya tetap muncul
+        if not entry['invoice_id']:
+            entry['invoice_id'] = r['invoice_id']
+            entry['invoice_number'] = r['invoice__invoice_number']
+            entry['customer_name'] = r['invoice__customer_name']
+
+    cancelled_numbers = set(
+        ConfirmationLetter.objects.filter(
+            company=KONOZ, reservation_status__iexact='CANCELLED',
+        ).values_list('confirmation_number', flat=True)
+    )
 
     # Sudah dikirim via RemittanceLine
     lines = RemittanceLine.objects.filter(
@@ -100,6 +163,11 @@ def _build_reservasi_mengendap():
         terbayar_sby = data['sar_sby']
         terbayar_direct = data['sar_direct']
         remit_amount = remit_by_res.get(linked_number, 0)
+        if (
+            linked_number in cancelled_numbers
+            and not terbayar_sby and not terbayar_direct and not remit_amount
+        ):
+            continue
         sudah_dikirim = remit_amount + terbayar_direct
         mengendap = max(0, terbayar_sby - remit_amount)
         rd = res_details.get(linked_number, {})
@@ -132,7 +200,7 @@ def _serialize_reservasi():
     return rows
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_list(request):
     from django.db.models import Q
     status_filter = request.GET.get('status', '')
@@ -164,7 +232,7 @@ def remittance_list(request):
     })
 
 
-@login_required
+@require_perm('remittance', 'create')
 def remittance_new(request):
     if request.method == 'POST':
         remittance_date = request.POST.get('date') or str(date.today())
@@ -224,11 +292,11 @@ def remittance_new(request):
     })
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_detail(request, pk):
     from ..models import Reservation
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
-    lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
+    lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice')))
 
     linked_numbers = [l.linked_number for l in lines]
 
@@ -238,13 +306,8 @@ def remittance_detail(request, pk):
         for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
     }
 
-    # Total previously sent (other remittances)
-    prev_map = {}
-    for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers,
-        remittance__company=KONOZ,
-    ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
-        prev_map[row['linked_number']] = int(row['total'] or 0)
+    # Total previously sent (remittance sebelum yang ini)
+    prev_map = _prev_sent_map(rem, linked_numbers)
 
     enriched = []
     for line in lines:
@@ -278,7 +341,7 @@ def remittance_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('remittance', 'export')
 def remittance_export_csv(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines__invoice')
     response = HttpResponse(content_type='text/csv')
@@ -302,7 +365,7 @@ def remittance_export_csv(request):
     return response
 
 
-@login_required
+@require_perm('remittance', 'edit')
 @require_POST
 def remittance_mark_received(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -312,11 +375,58 @@ def remittance_mark_received(request, pk):
     return redirect('remittance_list')
 
 
-@login_required
+def _addable_reservasi(rem):
+    """Reservasi yang masih punya uang mengendap dan belum ada di remittance ini."""
+    existing = set(rem.lines.values_list('linked_number', flat=True))
+    rows = []
+    for r in _build_reservasi_mengendap():
+        if r['linked_number'] in existing or r['mengendap'] <= 0:
+            continue
+        ci, co = r.get('check_in'), r.get('check_out')
+        rows.append({
+            'linked_number': r['linked_number'],
+            'invoice_id': r['invoice_id'],
+            'invoice_number': r['invoice_number'],
+            'customer_name': r['customer_name'],
+            'check_in': ci.strftime('%d/%m/%Y') if ci else None,
+            'check_out': co.strftime('%d/%m/%Y') if co else None,
+            'mengendap': r['mengendap'],
+        })
+    return rows
+
+
+def _sync_remittance_lines(rem, raw_lines):
+    """Samakan baris remittance dengan payload dari form.
+
+    Baris dengan line_id diperbarui, baris baru dibuat, dan baris yang tidak
+    ada di payload atau nominalnya nol akan dihapus.
+    """
+    keep_ids = set()
+    for ld in raw_lines:
+        try:
+            amount = int(round(float(ld.get('amount_sar') or 0)))
+        except (ValueError, TypeError):
+            amount = 0
+        line_id = ld.get('line_id')
+        if line_id:
+            if amount > 0 and RemittanceLine.objects.filter(pk=line_id, remittance=rem).update(amount_sar=amount):
+                keep_ids.add(int(line_id))
+        elif amount > 0 and ld.get('linked_number'):
+            line = RemittanceLine.objects.create(
+                remittance=rem,
+                invoice_id=ld.get('invoice_id') or None,
+                linked_number=ld['linked_number'],
+                amount_sar=amount,
+            )
+            keep_ids.add(line.pk)
+    rem.lines.exclude(pk__in=keep_ids).delete()
+
+
+@require_perm('remittance', 'edit')
 def remittance_edit(request, pk):
+    # remittance yang sudah Received tetap boleh diedit: koreksi kadang baru
+    # ketahuan setelah HQ menandai diterima
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
-    if rem.status == Remittance.STATUS_RECEIVED:
-        return redirect('remittance_detail', pk=rem.pk)
     if request.method == 'POST':
         rem.date = request.POST.get('date') or rem.date
         rem.status = request.POST.get('status', rem.status)
@@ -331,20 +441,17 @@ def remittance_edit(request, pk):
             update_fields.append('proof')
         rem.save(update_fields=update_fields)
 
-        try:
-            raw_lines = json.loads(request.POST.get('lines', '[]'))
-        except (ValueError, TypeError):
-            raw_lines = []
-        for ld in raw_lines:
+        # tanpa key 'lines' sama sekali, baris dibiarkan apa adanya
+        if request.POST.get('lines') is not None:
             try:
-                amt_val = float(ld.get('amount_sar') or 0)
+                raw_lines = json.loads(request.POST.get('lines') or '[]')
             except (ValueError, TypeError):
-                amt_val = 0
-            RemittanceLine.objects.filter(pk=ld.get('line_id'), remittance=rem).update(amount_sar=amt_val)
+                raw_lines = []
+            _sync_remittance_lines(rem, raw_lines)
 
         return redirect('remittance_detail', pk=rem.pk)
 
-    lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
+    lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice')))
     return inertia_render(request, "Remittance/Edit", props={
         "rem": {
             "id": rem.id,
@@ -365,10 +472,11 @@ def remittance_edit(request, pk):
                 "customer_name": l.invoice.customer_name,
             } if l.invoice_id else None,
         } for l in lines],
+        "reservasi": _addable_reservasi(rem),
     })
 
 
-@login_required
+@require_perm('remittance', 'export')
 def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
@@ -381,14 +489,11 @@ def remittance_pdf(request, pk):
         r['reservation_number']: r
         for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
     }
-    prev_map = {}
-    for row in RemittanceLine.objects.filter(
-        linked_number__in=linked_numbers,
-        remittance__company=KONOZ,
-    ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar')):
-        prev_map[row['linked_number']] = int(row['total'] or 0)
+    prev_map = _prev_sent_map(rem, linked_numbers)
 
     lines = [{'line': l, 'check_in': res_map.get(l.linked_number, {}).get('check_in'), 'hotel': res_map.get(l.linked_number, {}).get('hotel', '—'), 'prev_sent': prev_map.get(l.linked_number, 0)} for l in raw_lines]
+    # urutkan berdasarkan check-in terdekat lebih dulu; baris tanpa check-in ditaruh paling bawah
+    lines.sort(key=lambda row: (row['check_in'] is None, row['check_in'] or date.max, row['line'].linked_number or ''))
 
     return _render_list_pdf(
         request, rem.lines.none(),
@@ -398,7 +503,7 @@ def remittance_pdf(request, pk):
     )
 
 
-@login_required
+@require_perm('remittance', 'edit')
 @require_POST
 def remittance_upload_proof(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -409,7 +514,7 @@ def remittance_upload_proof(request, pk):
     return redirect('remittance_detail', pk=rem.pk)
 
 
-@login_required
+@require_perm('remittance', 'delete')
 @require_POST
 def remittance_delete(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
@@ -417,7 +522,7 @@ def remittance_delete(request, pk):
     return redirect('remittance_list')
 
 
-@login_required
+@require_perm('remittance', 'view')
 def remittance_recap(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
     monthly = {}
@@ -455,7 +560,134 @@ def remittance_recap(request):
     })
 
 
-@login_required
+def _build_ledger_rows(date_from=None, date_to=None):
+    """Buku besar Surabaya <-> Pusat, satu baris per reservasi.
+
+    Debit   = seluruh uang client yang sudah dibayar untuk reservasi itu.
+    Kredit  = uang yang sudah berada di Pusat, yaitu remittance dari Surabaya
+              ditambah pembayaran metode 'direct' yang langsung masuk ke Pusat.
+    Balance = selisihnya, yaitu yang masih mengendap di Surabaya.
+
+    Pembayaran 'direct' dihitung sebagai debit sekaligus kredit karena uangnya
+    tidak pernah singgah di kas Surabaya, jadi tidak menambah saldo mengendap.
+
+    Semua reservasi Definite dan Tentative ikut ditampilkan walau belum ada
+    uang masuk atau kiriman, supaya bisa dipakai untuk pelacakan. Reservasi
+    Cancelled hanya muncul kalau uangnya terlanjur bergerak.
+    """
+    from ..models import ConfirmationLetter, Reservation
+
+    pool = defaultdict(lambda: {'debit': 0, 'credit': 0})
+    direct_total = 0
+
+    for p in Payment.objects.filter(invoice__company=KONOZ).values(
+        'linked_number', 'method', 'amount', 'currency', 'exchange_rate',
+    ):
+        method = (p['method'] or '').lower()
+        sar = int(round(convert_to_sar(float(p['amount']), p['currency'], float(p['exchange_rate']))))
+        if method == 'direct':
+            # client bayar langsung ke Pusat: uangnya masuk sekaligus dianggap sudah terkirim
+            direct_total += sar
+            pool[p['linked_number']]['debit'] += sar
+            pool[p['linked_number']]['credit'] += sar
+        elif method in SURABAYA_METHODS:
+            pool[p['linked_number']]['debit'] += sar
+
+    for l in RemittanceLine.objects.filter(remittance__company=KONOZ).values(
+        'linked_number',
+    ).annotate(total=Sum('amount_sar')):
+        pool[l['linked_number']]['credit'] += int(l['total'] or 0)
+
+    # semua reservasi Konoz ikut dilacak, bukan hanya yang sudah ada uangnya
+    res_map = {
+        r['reservation_number']: r
+        for r in Reservation.objects.filter(invoice__company=KONOZ).values(
+            'reservation_number', 'hotel', 'check_in', 'check_out', 'total_sar',
+            'invoice__customer_name',
+        )
+    }
+    # CL ikut jadi basis baris supaya reservasi yang belum punya invoice tetap terlacak
+    cl_map = {
+        c.confirmation_number: c
+        for c in ConfirmationLetter.objects.filter(company=KONOZ).prefetch_related('rooms')
+    }
+
+    rows = []
+    for linked_number in sorted(set(res_map) | set(cl_map) | set(pool)):
+        data = pool.get(linked_number, {'debit': 0, 'credit': 0})
+        res = res_map.get(linked_number, {})
+        cl = cl_map.get(linked_number)
+        status = (cl.reservation_status or '').upper() if cl else ''
+        # Cancelled hanya relevan kalau uangnya terlanjur bergerak
+        if status == 'CANCELLED' and not data['debit'] and not data['credit']:
+            continue
+        check_in = res.get('check_in') or (cl.check_in if cl else None)
+        check_out = res.get('check_out') or (cl.check_out if cl else None)
+        if date_from and check_in and check_in < date_from:
+            continue
+        if date_to and check_in and check_in > date_to:
+            continue
+        rows.append({
+            'linked_number': linked_number or '—',
+            'status': status,
+            'hotel': res.get('hotel') or (cl.hotel_name if cl else '') or '—',
+            'guest': res.get('invoice__customer_name') or (cl.guest_name if cl else '') or '—',
+            'check_in': check_in,
+            'check_out': check_out,
+            'total_sar': int(res.get('total_sar') or (cl.total_price if cl else 0) or 0),
+            'debit': data['debit'],
+            'credit': data['credit'],
+            'balance': data['debit'] - data['credit'],
+        })
+
+    # urut check-in terdekat lebih dulu, baris tanpa check-in ditaruh paling bawah
+    rows.sort(key=lambda r: (r['check_in'] is None, r['check_in'] or date.max, r['linked_number']))
+    for i, row in enumerate(rows, start=1):
+        row['no'] = i
+
+    total_debit = sum(r['debit'] for r in rows)
+    total_credit = sum(r['credit'] for r in rows)
+    return {
+        'rows': rows,
+        'total_tagihan': sum(r['total_sar'] for r in rows),
+        'total_debit': total_debit,
+        'total_credit': total_credit,
+        'balance': total_debit - total_credit,
+        'direct_total': direct_total,
+    }
+
+
+@require_perm('remittance', 'export')
+def remittance_ledger_pdf(request):
+    from .helpers import _parse_date, _render_list_pdf
+    from .pdf import _logo_file_url
+
+    date_from = _parse_date(request.GET.get('from', ''))
+    date_to = _parse_date(request.GET.get('to', ''))
+    ledger = _build_ledger_rows(date_from, date_to)
+
+    if date_from and date_to:
+        period_label = f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}"
+    elif date_from:
+        period_label = f"Sejak {date_from.strftime('%d %b %Y')}"
+    elif date_to:
+        period_label = f"Sampai {date_to.strftime('%d %b %Y')}"
+    else:
+        period_label = 'Semua transaksi'
+
+    return _render_list_pdf(
+        request, Remittance.objects.none(),
+        template='hw/remittance/remittance_ledger_pdf.html',
+        filename='remittance_ledger_surabaya_pusat.pdf',
+        extra_ctx={
+            'period_label': period_label,
+            'logo_url': _logo_file_url('konoz'),
+            **ledger,
+        },
+    )
+
+
+@require_perm('remittance', 'export')
 def remittance_period_pdf(request):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url

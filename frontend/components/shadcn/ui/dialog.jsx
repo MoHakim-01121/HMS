@@ -29,50 +29,95 @@ function DialogClose({
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogOverlay({
+const DialogOverlay = React.forwardRef(function DialogOverlay({
   className,
   ...props
-}) {
+}, ref) {
   return (
     <DialogPrimitive.Overlay
+      ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        // backdrop-blur-xs lives on the base scrim, not on individual call
+        // sites. Homlu's own overlay measures as a flat black/50 with no
+        // backdrop-filter, and the form modal was built to match that — but
+        // that left it the only overlay in HMS without blur, while the ⌘K
+        // palette, the Invoice CL-import modal and design.css's legacy
+        // .modal-overlay all had it. One scrim treatment for every overlay
+        // beats literal fidelity to the reference on this one detail.
+        "fixed inset-0 z-50 bg-black/50 backdrop-blur-xs data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props} />
   );
-}
+});
 
-function DialogContent({
+// Stock shadcn ships this as a bare 16px glyph at 70% opacity with a 2px
+// radius and no hit area of its own — it reads as a stray icon rather than a
+// control, and none of it (the faded ink, the square corner) belongs to the
+// monochrome/full-pill language the rest of the app was moved to. Rebuilt as a
+// real circular icon button on the same footing as every other Button: muted
+// until hovered, then it picks up the standard hover surface. Exported so the
+// form modal can place its own copy inside the header row instead of having
+// one absolutely positioned over the content.
+// Built on Button rather than styling the raw Radix Close directly: Tailwind's
+// Preflight is off in this project, so a bare <button> keeps the UA's own
+// chrome — a grey background and a 2px outset bevel — unless something
+// explicitly clears it. Styling the primitive by hand missed that (the X
+// rendered as a grey 3D-bevelled box), and Button's base already carries the
+// `border-0 bg-transparent` reset plus the full-pill shape everything else
+// uses. Button is forwardRef, so asChild passes the ref through correctly.
+const DialogCloseButton = React.forwardRef(function DialogCloseButton({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Close ref={ref} data-slot="dialog-close" asChild {...props}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Close"
+        className={cn("size-[32px] rounded-full text-muted-foreground hover:text-foreground", className)}>
+        <XIcon />
+        <span className="sr-only">Close</span>
+      </Button>
+    </DialogPrimitive.Close>
+  );
+});
+
+const DialogContent = React.forwardRef(function DialogContent({
   className,
+  overlayClassName,
   children,
   showCloseButton = true,
   ...props
-}) {
+}, ref) {
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
+        ref={ref}
         data-slot="dialog-content"
         className={cn(
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          // font-sans: Radix portals to document.body, outside every page's
+          // .shadcn-root wrapper — see dropdown-menu.jsx for the full story.
+          // Without it this falls back to body's "Fira Sans".
+          // border-border, not stock shadcn's bare `border`: Preflight is off in
+          // this project (tailwind.css imports only theme.css + utilities.css),
+          // so the base rule that would have set a default border-color never
+          // lands. `border` alone sets width/style only and the colour falls
+          // back to CSS's initial value, currentColor — i.e. --foreground, pure
+          // white in dark mode — instead of the 8%-white --border every
+          // hand-written surface in tailwind.css uses. Every shadcn primitive
+          // that draws a border must name its colour explicitly here.
+          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-background p-6 font-sans shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}>
         {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
+        {showCloseButton && <DialogCloseButton className="absolute top-4 right-4" />}
       </DialogPrimitive.Content>
     </DialogPortal>
   );
-}
+});
 
 function DialogHeader({
   className,
@@ -134,6 +179,7 @@ function DialogDescription({
 export {
   Dialog,
   DialogClose,
+  DialogCloseButton,
   DialogContent,
   DialogDescription,
   DialogFooter,

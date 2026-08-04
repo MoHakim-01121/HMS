@@ -7,11 +7,11 @@ import { Input } from "./ui/input.jsx";
 // `children` (e.g. a <select> or <textarea> passed in by a page).
 export default function FormField({
   label, name, error, required, hint, type = "text",
-  value, onChange, placeholder, autoFocus, span, inputMode, step, children,
+  value, onChange, placeholder, autoFocus, span, inputMode, step, className, children,
 }) {
   const describedBy = error ? `${name}-error` : hint ? `${name}-hint` : undefined;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
+    <div data-slot="form-field" className={className} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
       {label && <Label htmlFor={name}>{label}{required ? " *" : ""}</Label>}
       {children
         ? (describedBy && isValidElement(children) ? cloneElement(children, { "aria-describedby": describedBy }) : children)

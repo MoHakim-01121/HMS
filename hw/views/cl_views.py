@@ -3,7 +3,6 @@ import json
 from datetime import date
 
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
@@ -14,6 +13,8 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
+from ..permissions import require_perm
+from ..i18n import tr
 from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf, get_active_company
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
@@ -34,7 +35,7 @@ def _parse_search_tokens(q):
     return [t.strip()[:100] for t in q.split(',') if t.strip()]
 
 
-@login_required
+@require_perm('cl', 'view')
 def cl_list(request):
     active_company = get_active_company(request)
     base_qs = (
@@ -55,10 +56,10 @@ def cl_list(request):
         '-created_at': '-created_at',
     }
     _sort_labels = {
-        'check_in':    'Check-in (oldest)',
-        '-check_in':   'Check-in (newest)',
-        'guest_name':  'Guest name (A–Z)',
-        '-created_at': 'Created (newest)',
+        'check_in':    tr(request, 'Check-in (oldest)', 'Check-in (terlama)'),
+        '-check_in':   tr(request, 'Check-in (newest)', 'Check-in (terbaru)'),
+        'guest_name':  tr(request, 'Guest name (A–Z)', 'Nama tamu (A–Z)'),
+        '-created_at': tr(request, 'Created (newest)', 'Dibuat (terbaru)'),
     }
 
     qs = base_qs
@@ -116,7 +117,7 @@ def cl_list(request):
         "date_from": date_from.isoformat() if date_from else "",
         "date_to": date_to.isoformat() if date_to else "",
         "sort": sort,
-        "sort_label": _sort_labels.get(sort, 'Check-in (terbaru)'),
+        "sort_label": _sort_labels.get(sort, tr(request, 'Check-in (newest)', 'Check-in (terbaru)')),
         "sort_labels": _sort_labels,
         "active_filters": active_filters,
         "counts": counts,
@@ -129,6 +130,9 @@ def cl_list(request):
             "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
             "has_other_pages": page_obj.has_other_pages(),
             "range": _page_range_display(page_obj),
+            "start_index": page_obj.start_index(),
+            "end_index": page_obj.end_index(),
+            "count": paginator.count,
         },
     })
 
@@ -175,6 +179,7 @@ def _cl_echo(data):
     }
 
 
+@require_perm('cl', 'create')
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
     default_company = request.session.get("active_company", "konoz")
@@ -217,7 +222,7 @@ def cl_new(request):
     })
 
 
-@login_required
+@require_perm('cl', 'view')
 def cl_detail(request, pk):
     cl = _get_cl(
         request, pk,
@@ -274,7 +279,7 @@ def cl_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('cl', 'edit')
 def cl_edit(request, pk):
     cl = _get_cl(request, pk)
 
@@ -357,7 +362,7 @@ def cl_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('cl', 'delete')
 def cl_delete(request, pk):
     cl = _get_cl(request, pk)
     if request.method == "POST":
@@ -370,7 +375,7 @@ def cl_delete(request, pk):
     return redirect("cl_list")
 
 
-@login_required
+@require_perm('cl', 'export')
 def cl_pdf(request, pk):
     cl = _get_cl(request, pk)
     return _render_cl_pdf(cl)
@@ -409,7 +414,7 @@ def _filter_cl_qs(qs, request):
     return qs.order_by(_SORT_MAP.get(sort, '-check_in'))
 
 
-@login_required
+@require_perm('cl', 'export')
 def cl_list_pdf(request):
     active_company = get_active_company(request)
     qs = ConfirmationLetter.objects.filter(company=active_company)
@@ -436,7 +441,7 @@ def cl_list_pdf(request):
     )
 
 
-@login_required
+@require_perm('cl', 'export')
 def cl_list_pdf_v2(request):
     active_company = get_active_company(request)
     qs = ConfirmationLetter.objects.filter(company=active_company)
@@ -466,7 +471,7 @@ def cl_list_pdf_v2(request):
     )
 
 
-@login_required
+@require_perm('cl', 'export')
 def cl_export_csv(request):
     active_company = get_active_company(request)
     qs = ConfirmationLetter.objects.filter(company=active_company)
@@ -485,7 +490,7 @@ def cl_export_csv(request):
     return response
 
 
-@login_required
+@require_perm('cl', 'create')
 def cl_duplicate(request, pk):
     original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()
@@ -512,7 +517,7 @@ def cl_duplicate(request, pk):
     return redirect("cl_edit", pk=new_cl.pk)
 
 
-@login_required
+@require_perm('invoice', 'create')
 @require_POST
 def invoice_from_cls(request):
     cl_ids = request.POST.getlist("cl_ids")

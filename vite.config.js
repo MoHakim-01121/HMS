@@ -3,10 +3,12 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   root: resolve("./frontend"),
-  base: "/static/dist/",
+  base: isDev ? "/" : "/static/dist/",
   resolve: {
     alias: {
       "@": resolve("./frontend"),

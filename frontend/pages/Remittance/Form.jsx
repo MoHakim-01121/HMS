@@ -1,12 +1,22 @@
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
-import FormHeader from "../../components/form/FormHeader.jsx";
-import PageBack from "../../components/ui/PageBack.jsx";
-import { REM_TABLE_CSS } from "./remittanceStyles.js";
+import FormHeader from "../../components/shadcn/form-header.jsx";
+import FormPanel from "../../components/shadcn/form-panel.jsx";
+import FormSection from "../../components/shadcn/form-section.jsx";
+import FormField from "../../components/shadcn/form-field.jsx";
+import FormActions from "../../components/shadcn/form-actions.jsx";
+import PageBack from "../../components/shadcn/page-back.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
+import { FormModalContext } from "../../components/shadcn/form-modal.jsx";
+import { REM_TABLE_CSS, REM_FORM_CSS } from "./remittanceStyles.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 export default function Form({ reservasi = [], today, error }) {
+  const { t } = useI18n();
+  const modalCtx = useContext(FormModalContext);
   const [amounts, setAmounts] = useState({});
   const form = useForm({
     date: today || "",
@@ -45,125 +55,118 @@ export default function Form({ reservasi = [], today, error }) {
   };
 
   return (
-    <div className="page">
-      <style>{REM_TABLE_CSS + CSS}</style>
+    <div className="page rem-form shadcn-root">
+      <style>{REM_TABLE_CSS + REM_FORM_CSS + CSS}</style>
 
       <PageBack href="/remittance/" />
-      <FormHeader kicker="Remittance" title="Send to HQ" sub="Summary of idle payments to send" />
+      <FormHeader kicker={t("Remittance")} title={t("Send to HQ")} sub={t("Summary of idle payments to send")} />
 
       {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
 
       <form method="post" onSubmit={submit}>
-        {/* ── Header ── */}
-        <div className="form-panel" style={{ marginBottom: 12 }}>
-          <div className="form-section">
-            <div className="form-section-label">Transfer Info</div>
+        <FormPanel>
+          <FormSection label={t("Transfer Info")}>
             <div className="fg-4">
-              <div className="ff">
-                <label>Transfer Date *</label>
-                <input type="date" value={form.data.date} required
-                  onChange={(e) => form.setData("date", e.target.value)} />
-              </div>
-              <div className="ff">
-                <label>Receipt Reference</label>
-                <input type="text" value={form.data.receipt_reference} placeholder="Receipt code from HQ"
-                  onChange={(e) => form.setData("receipt_reference", e.target.value)} />
-              </div>
-              <div className="ff">
-                <label>Note</label>
-                <input type="text" value={form.data.note} placeholder="Transfer BCA 01/06"
-                  onChange={(e) => form.setData("note", e.target.value)} />
-              </div>
-              <div className="ff">
-                <label>Receipt <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "inherit" }}>(optional)</span></label>
-                <input type="file" accept="image/*,.pdf"
-                  onChange={(e) => form.setData("proof", e.target.files[0] || null)} />
-              </div>
+              <FormField
+                label={t("Transfer Date")} name="date" type="date" required
+                value={form.data.date} onChange={(v) => form.setData("date", v)}
+              />
+              <FormField
+                label={t("Receipt Reference")} name="receipt_reference"
+                value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
+                placeholder={t("Receipt code from HQ")}
+              />
+              <FormField
+                label={t("Note")} name="note"
+                value={form.data.note} onChange={(v) => form.setData("note", v)}
+                placeholder={t("Transfer BCA 01/06")}
+              />
+              <FormField
+                name="proof"
+                label={<>{t("Receipt")} <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontFamily: "inherit", color: "var(--muted-foreground)" }}>{t("(optional)")}</span></>}
+              >
+                <Input
+                  id="proof" name="proof" type="file" accept="image/*,.pdf"
+                  onChange={(e) => form.setData("proof", e.target.files[0] || null)}
+                />
+              </FormField>
             </div>
-          </div>
-        </div>
+          </FormSection>
 
-        {/* ── Reservasi ── */}
-        <div className="form-panel">
-          <div className="form-section" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 }}>
-            <div className="form-section-label" style={{ marginBottom: 0 }}>Reservations</div>
-            {hasRows && (
-              <button type="button" className="btn btn-ghost" style={{ height: 26, padding: "0 10px", fontSize: 12 }} onClick={isiSemua}>Fill All</button>
+          <FormSection
+            label={t("Reservations")}
+            action={hasRows && <Button type="button" variant="ghost" size="sm" onClick={isiSemua}>{t("Fill All")}</Button>}
+          >
+            {hasRows ? (
+              <>
+                <div className="table-wrap" style={{ overflowX: "auto" }}>
+                  <table className="rem-table">
+                    <thead>
+                      <tr>
+                        <th>{t("Res#")}</th>
+                        <th>{t("Invoice")}</th>
+                        <th>{t("Client")}</th>
+                        <th className="r">{t("Check-in")}</th>
+                        <th className="r">{t("Check-out")}</th>
+                        <th className="r">{t("Total")}</th>
+                        <th className="r">{t("Paid")}</th>
+                        <th className="r">{t("Already Sent")}</th>
+                        <th className="r">{t("Idle")}</th>
+                        <th className="r">{t("Send Now")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservasi.map((res) => {
+                        const lunas = res.mengendap <= 0 && res.sudah_dikirim >= res.total_sar;
+                        return (
+                          <tr key={res.linked_number} className={res.mengendap > 0 ? "row-pending" : lunas ? "row-lunas" : ""}>
+                            <td className="td-res">{res.linked_number}</td>
+                            <td>
+                              <a href={`/invoice/${res.invoice_id}/`} target="_blank" rel="noreferrer" className="td-link">{res.invoice_number}</a>
+                            </td>
+                            <td className="td-muted">{res.customer_name}</td>
+                            <td className="td-date" style={{ textAlign: "right" }}>{res.check_in || "-"}</td>
+                            <td className="td-date" style={{ textAlign: "right" }}>{res.check_out || "-"}</td>
+                            <td className="td-mono">{fmt(res.total_sar)}</td>
+                            <td className="td-mono">{fmt(res.terbayar_total)}</td>
+                            <td className="td-mono">{fmt(res.sudah_dikirim)}</td>
+                            <td className="td-pending">{res.mengendap > 0 ? fmt(res.mengendap) : "-"}</td>
+                            <td>
+                              {res.mengendap > 0 ? (
+                                <input type="number" className="rem-input" min="0" max={res.mengendap} step="1" placeholder="0"
+                                  value={amounts[res.linked_number] ?? ""}
+                                  onChange={(e) => setAmount(res.linked_number, e.target.value)} />
+                              ) : lunas ? (
+                                <span className="badge-lunas">{t("Paid")}</span>
+                              ) : (
+                                <span style={{ float: "right", color: "var(--muted-foreground)", fontSize: 12 }}>-</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="rem-total-bar">
+                  <span className="rem-total-label">{t("Total sent now")}</span>
+                  <span className="rem-total-val">{fmt(total)} SAR</span>
+                </div>
+              </>
+            ) : (
+              <div className="empty" style={{ padding: 40 }}>
+                <div className="empty-title">{t("No reservations")}</div>
+                <div className="empty-sub">{t("No active reservations yet")}</div>
+              </div>
             )}
-          </div>
+          </FormSection>
 
-          {hasRows ? (
-            <>
-              <div className="table-wrap" style={{ overflowX: "auto" }}>
-                <table className="rem-table">
-                  <thead>
-                    <tr>
-                      <th>Res#</th>
-                      <th>Invoice</th>
-                      <th>Client</th>
-                      <th className="r">Check-in</th>
-                      <th className="r">Check-out</th>
-                      <th className="r">Total</th>
-                      <th className="r">Paid</th>
-                      <th className="r">Already Sent</th>
-                      <th className="r">Idle</th>
-                      <th className="r">Send Now</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reservasi.map((res) => {
-                      const lunas = res.mengendap <= 0 && res.sudah_dikirim >= res.total_sar;
-                      return (
-                        <tr key={res.linked_number} className={res.mengendap > 0 ? "row-pending" : lunas ? "row-lunas" : ""}>
-                          <td className="td-res">{res.linked_number}</td>
-                          <td>
-                            <a href={`/invoice/${res.invoice_id}/`} target="_blank" rel="noreferrer" className="td-link">{res.invoice_number}</a>
-                          </td>
-                          <td className="td-muted">{res.customer_name}</td>
-                          <td className="td-date" style={{ textAlign: "right" }}>{res.check_in || "-"}</td>
-                          <td className="td-date" style={{ textAlign: "right" }}>{res.check_out || "-"}</td>
-                          <td className="td-mono">{fmt(res.total_sar)}</td>
-                          <td className="td-mono">{fmt(res.terbayar_total)}</td>
-                          <td className="td-mono">{fmt(res.sudah_dikirim)}</td>
-                          <td className="td-pending">{res.mengendap > 0 ? fmt(res.mengendap) : "-"}</td>
-                          <td>
-                            {res.mengendap > 0 ? (
-                              <input type="number" className="rem-input" min="0" max={res.mengendap} step="1" placeholder="0"
-                                value={amounts[res.linked_number] ?? ""}
-                                onChange={(e) => setAmount(res.linked_number, e.target.value)} />
-                            ) : lunas ? (
-                              <span className="badge-lunas">Paid</span>
-                            ) : (
-                              <span style={{ float: "right", color: "var(--text-3)", fontSize: 12 }}>-</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="rem-total-bar">
-                <span className="rem-total-label">Total sent now</span>
-                <span className="rem-total-val">{fmt(total)} SAR</span>
-              </div>
-            </>
-          ) : (
-            <div className="empty" style={{ padding: 40 }}>
-              <div className="empty-title">No reservations</div>
-              <div className="empty-sub">No payments recorded yet</div>
-            </div>
-          )}
-        </div>
-
-        <div className="form-actions" style={{ padding: "14px 0 4px" }}>
-          <a href="/remittance/" className="btn btn-ghost">Cancel</a>
-          {hasRows && (
-            <button type="submit" className="btn btn-primary" disabled={form.processing}>
-              {form.processing ? "Saving..." : "Save Remittance"}
-            </button>
-          )}
-        </div>
+          <FormActions
+            cancelHref="/remittance/"
+            submitLabel={hasRows ? (form.processing ? t("Saving…") : t("Save Remittance")) : undefined}
+            processing={form.processing}
+          />
+        </FormPanel>
       </form>
     </div>
   );
@@ -174,18 +177,18 @@ const CSS = `
 .rem-table tbody tr.row-pending { background:color-mix(in srgb, var(--yellow) 5%, transparent); }
 .rem-table tbody tr.row-lunas td { opacity:.5; }
 
-.td-res  { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; color:var(--text); white-space:nowrap; }
-.td-link { color:var(--accent-2); text-decoration:none; font-size:12px; white-space:nowrap; }
+.td-res  { font-family:var(--font-mono); font-weight:700; font-size:12px; color:var(--foreground); white-space:nowrap; }
+.td-link { color:var(--foreground); text-decoration:none; font-size:12px; white-space:nowrap; }
 .td-link:hover { text-decoration:underline; }
-.td-muted { font-size:12px; color:var(--text-2); }
-.td-date  { font-size:12px; color:var(--text-2); white-space:nowrap; }
-.td-mono  { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-2); text-align:right; white-space:nowrap; }
-.td-pending { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; color:var(--yellow); text-align:right; white-space:nowrap; }
+.td-muted { font-size:12px; color:var(--muted-foreground); }
+.td-date  { font-size:12px; color:var(--muted-foreground); white-space:nowrap; }
+.td-mono  { font-family:var(--font-mono); font-size:12px; color:var(--muted-foreground); text-align:right; white-space:nowrap; }
+.td-pending { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--yellow); text-align:right; white-space:nowrap; }
 
 .badge-lunas {
   font-size:11px; font-weight:600; color:var(--green);
   background:color-mix(in srgb, var(--green) 12%, transparent);
-  border-radius:var(--r); padding:3px 8px;
+  border-radius:calc(var(--radius) - 4px); padding:3px 8px;
   float:right;
 }
 `;

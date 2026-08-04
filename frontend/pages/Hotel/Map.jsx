@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
 import { distColor } from "../../components/mapColors.js";
+import { useI18n } from "../../utils/i18n.jsx";
 
 // Hotel map — full imperative Leaflet app ported from the original hotel_map
 // template. The DOM below mirrors the original (same ids/classes); the script
 // runs once on mount and exposes the handlers it needs on window so the
 // dynamically-rendered hotel cards (built via innerHTML) can call them.
 export default function HotelMap() {
+  const { t } = useI18n();
   useEffect(() => {
     let map = null;
     let disposed = false;
@@ -45,9 +47,9 @@ export default function HotelMap() {
 
       const refIcon = () => L.divIcon({ className: "", html: '<div style="width:12px;height:12px;border-radius:3px;background:var(--accent);border:2px solid rgba(255,255,255,.6);box-shadow:0 0 8px var(--accent);"></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
       const mosqueIcon = () => L.divIcon({ className: "", html: '<div style="width:10px;height:10px;border-radius:3px;background:var(--red);border:2px solid rgba(255,255,255,.5);box-shadow:0 0 6px var(--red);"></div>', iconSize: [10, 10], iconAnchor: [5, 5] });
-      L.marker(HARAM, { icon: refIcon() }).bindTooltip("Pelataran Al-Haram").addTo(map);
-      L.marker(HARAM_INFO, { icon: mosqueIcon() }).bindTooltip("Masjid Al-Haram").addTo(map);
-      L.marker(NABAWI, { icon: mosqueIcon() }).bindTooltip("Masjid Nabawi").addTo(map);
+      L.marker(HARAM, { icon: refIcon() }).bindTooltip(t("Pelataran Al-Haram")).addTo(map);
+      L.marker(HARAM_INFO, { icon: mosqueIcon() }).bindTooltip(t("Masjid Al-Haram")).addTo(map);
+      L.marker(NABAWI, { icon: mosqueIcon() }).bindTooltip(t("Masjid Nabawi")).addTo(map);
 
       let allHotels = [];
       const markerGroup = L.layerGroup().addTo(map);
@@ -85,8 +87,8 @@ export default function HotelMap() {
 
       function buildPopup(h) {
         const dist = fmtDistLabel(h.distance_label);
-        const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">Avg</span><span class="pop-val">' + _esc(h.avg) + " pax/room</span></div>" : "";
-        return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">Distance</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
+        const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">' + t("Avg") + '</span><span class="pop-val">' + _esc(h.avg) + " pax/room</span></div>" : "";
+        return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">' + t("Distance") + '</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
       }
 
       const getCityFilter = () => { const el = document.querySelector('input[name="fp-city"]:checked'); return el ? el.value : "all"; };
@@ -130,7 +132,7 @@ export default function HotelMap() {
         setTimeout(() => { renderMarkers(filtered); updateCounter(filtered.length); renderPanel(filtered); }, 120);
         updateFilterBadge(); syncRadioStyles();
       }
-      function updateCounter(n) { const label = n + " Hotel"; document.getElementById("hp-count").textContent = label; const mc = document.getElementById("mob-sheet-count"); if (mc) mc.textContent = label; }
+      function updateCounter(n) { const label = n + " " + t("Hotel"); document.getElementById("hp-count").textContent = label; const mc = document.getElementById("mob-sheet-count"); if (mc) mc.textContent = label; }
 
       const toggleLegend = () => { document.getElementById("leg-body").classList.toggle("hidden"); document.getElementById("leg-arrow").classList.toggle("up"); };
 
@@ -151,13 +153,13 @@ export default function HotelMap() {
           '<div class="hp-dot" style="background:' + color + ';"></div>' +
           '<span class="hp-card-name">' + _esc(h.name) + "</span>" +
           '<span class="hp-card-dist ' + dc + '">' + dist + "</span>" +
-          '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="Hotel details">' +
+          '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="' + t("Hotel details") + '">' +
           '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
           "</a></div>" +
           '<div class="hp-card-sub"><span style="color:var(--yellow);letter-spacing:1px;">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
       }
       function renderPanel(hotels) {
-        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--text-2);margin-bottom:16px;">No matching hotels</div><button onclick="resetFilters()" style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 16px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Reset Filter</button></div>';
+        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--text-2);margin-bottom:16px;">' + t("No matching hotels") + '</div><button onclick="resetFilters()" style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 16px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">' + t("Reset Filter") + "</button></div>";
         const html = hotels.length === 0 ? empty : hotels.map((h, i) => buildCardHtml(h, i)).join("");
         if (!isMobile()) document.getElementById("hotel-list").innerHTML = html;
         const mobList = document.getElementById("mob-sheet-list");
@@ -225,7 +227,7 @@ export default function HotelMap() {
         _sheetStates.forEach((s) => sheet.classList.remove("state-" + s));
         sheet.classList.add("state-" + state);
         const hint = document.getElementById("mob-sheet-hint");
-        if (hint) hint.textContent = state === "closed" ? "▲ Open list" : state === "full" ? "▼ Close" : "▲▼ Drag";
+        if (hint) hint.textContent = state === "closed" ? t("▲ Open list") : state === "full" ? t("▼ Close") : t("▲▼ Drag");
         if ((state === "half" || state === "full") && activeCardPk) { setTimeout(() => { const card = document.querySelector('#mob-sheet-list .hp-card[data-pk="' + activeCardPk + '"]'); if (card) card.scrollIntoView({ block: "nearest" }); }, 320); }
       }
       function lockSheet(ms) { _sheetLocked = true; setTimeout(() => { _sheetLocked = false; }, ms || 400); }
@@ -314,13 +316,13 @@ export default function HotelMap() {
       <div id="map" />
 
       <div className="map-topbar">
-        <a href="/hotels/" className="map-back-btn" title="Back to hotel list">
+        <a href="/hotels/" className="map-back-btn" title={t("Back to hotel list")}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
         <div className="map-search-wrap">
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
-          <input type="text" id="hotel-search" placeholder="Search hotel or area..." onInput={() => window.debounceSearch?.()} />
-          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title="Clear">
+          <input type="text" id="hotel-search" placeholder={t("Search hotel or area...")} onInput={() => window.debounceSearch?.()} />
+          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title={t("Clear")}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -328,29 +330,29 @@ export default function HotelMap() {
         <div className="filter-btn-wrap">
           <button className="map-tb-btn" id="filter-open-btn" onClick={() => window.toggleFilter?.()}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 8h10M10 12h4" /></svg>
-            Filter
+            {t("Filter")}
             <span id="filter-badge" style={{ display: "none", background: "var(--accent)", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }} />
           </button>
 
           <div id="filter-dropdown" className="map-filter-dropdown">
-            <div className="fp-section"><div className="fp-section-title">City</div></div>
-            <label className="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> All Cities</label>
+            <div className="fp-section"><div className="fp-section-title">{t("City")}</div></div>
+            <label className="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> {t("All Cities")}</label>
             <label className="fp-radio" id="fp-city-makkah"><input type="radio" name="fp-city" value="makkah" onChange={() => window.applyFilters?.()} /> Makkah</label>
             <label className="fp-radio" id="fp-city-madinah"><input type="radio" name="fp-city" value="madinah" onChange={() => window.applyFilters?.()} /> Madinah</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">Distance to Mosque</div></div>
-            <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} /> ≤ 500 M</label>
-            <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--yellow)", display: "inline-block", flexShrink: 0 }} /> 500 M – 1.5 KM</label>
-            <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--red)", display: "inline-block", flexShrink: 0 }} /> {">"} 1.5 KM</label>
+            <div className="fp-section"><div className="fp-section-title">{t("Distance to Mosque")}</div></div>
+            <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} /> {t("≤ 500 M")}</label>
+            <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--yellow)", display: "inline-block", flexShrink: 0 }} /> {t("500 M – 1.5 KM")}</label>
+            <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--red)", display: "inline-block", flexShrink: 0 }} /> {t("> 1.5 KM")}</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">Stars</div></div>
+            <div className="fp-section"><div className="fp-section-title">{t("Stars")}</div></div>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★</span></label>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★</span></label>
             <label className="fp-check"><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★★</span></label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">Has Avg / Capacity</span><div id="sw-avg" className="fp-toggle-switch" /></div>
-            <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">Show Routes</span><div id="sw-route" className="fp-toggle-switch on" /></div>
-            <div className="fp-reset-wrap"><button className="fp-reset" onClick={() => window.resetFilters?.()}>Reset Filter</button></div>
+            <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">{t("Has Avg / Capacity")}</span><div id="sw-avg" className="fp-toggle-switch" /></div>
+            <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">{t("Show Routes")}</span><div id="sw-route" className="fp-toggle-switch on" /></div>
+            <div className="fp-reset-wrap"><button className="fp-reset" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
           </div>
         </div>
       </div>
@@ -359,17 +361,17 @@ export default function HotelMap() {
 
       <div className="map-legend">
         <div className="leg-toggle" onClick={() => window.toggleLegend?.()}>
-          <span className="leg-toggle-title">Legend</span>
+          <span className="leg-toggle-title">{t("Legend")}</span>
           <svg className="leg-arrow" id="leg-arrow" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </div>
         <div id="leg-body">
-          <div className="leg-section">Distance to Mosque</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> ≤ 500 M</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--yellow)" }} /> 500 M – 1.5 KM</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {">"} 1.5 KM</div>
-          <div className="leg-section">Reference Points</div>
+          <div className="leg-section">{t("Distance to Mosque")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> {t("≤ 500 M")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--yellow)" }} /> {t("500 M – 1.5 KM")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {t("> 1.5 KM")}</div>
+          <div className="leg-section">{t("Reference Points")}</div>
           <div className="leg-row"><div className="leg-dot" style={{ background: "var(--accent)" }} /> Al-Haram Plaza</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> Mosque</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {t("Mosque")}</div>
         </div>
       </div>
 
@@ -377,8 +379,8 @@ export default function HotelMap() {
         <div className="mob-sheet-handle-area" id="mob-sheet-handle">
           <div className="mob-sheet-pill" />
           <div className="mob-sheet-meta">
-            <span className="mob-sheet-count" id="mob-sheet-count">0 Hotel</span>
-            <span className="mob-sheet-hint" id="mob-sheet-hint">▲ Open list</span>
+            <span className="mob-sheet-count" id="mob-sheet-count">{t("0 Hotel")}</span>
+            <span className="mob-sheet-hint" id="mob-sheet-hint">{t("▲ Open list")}</span>
           </div>
         </div>
         <div className="mob-sheet-list" id="mob-sheet-list">
@@ -387,11 +389,11 @@ export default function HotelMap() {
       </div>
 
       <div className="hotel-panel" id="hotel-panel">
-        <button className="panel-toggle" onClick={() => window.togglePanel?.()} title="Hide / show panel">
+        <button className="panel-toggle" onClick={() => window.togglePanel?.()} title={t("Hide / show panel")}>
           <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
         </button>
         <div className="hotel-panel-inner">
-          <div className="hp-header"><div className="hp-meta"><span className="hp-count" id="hp-count">0 Hotel</span></div></div>
+          <div className="hp-header"><div className="hp-meta"><span className="hp-count" id="hp-count">{t("0 Hotel")}</span></div></div>
           <div className="hp-list" id="hotel-list">
             <div className="map-loading" id="desk-loading"><span /><span /><span /></div>
           </div>
@@ -522,9 +524,8 @@ const CSS = `
   .map-filter-dropdown { width: calc(100vw - 24px); left: auto; right: 0; max-height: 55dvh; overflow-y: auto; }
   .leaflet-bottom.leaflet-right { bottom: auto !important; top: 66px !important; right: 12px !important; }
 }
-.map-back-btn { display: none; align-items: center; justify-content: center; width: 28px; height: 36px; flex-shrink: 0; background: none; border: none; color: var(--text-2); text-decoration: none; transition: color .15s; }
-.map-back-btn:hover { color: var(--text); }
-@media (max-width: 600px) { .map-back-btn { display: flex; } }
+.map-back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; background: var(--card); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); text-decoration: none; transition: color .15s, border-color .15s; }
+.map-back-btn:hover { color: var(--foreground); border-color: var(--foreground); }
 .mob-list-sheet { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% - 57px - env(safe-area-inset-top)); background: rgba(20,20,23,.98); background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top-left-radius: 16px; border-top-right-radius: 16px; border: 1px solid var(--border); border-bottom: none; z-index: var(--z-dropdown); transition: transform .35s cubic-bezier(.175,.885,.32,1.1); box-shadow: 0 -6px 28px rgba(0,0,0,.4); flex-direction: column; overflow: hidden; }
 @media (max-width: 600px) { .mob-list-sheet { display: flex; } }
 .mob-list-sheet.state-closed { transform: translateY(calc(100% - 62px)); }

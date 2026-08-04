@@ -1,6 +1,5 @@
 ﻿import json as _json
 
-from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
@@ -11,6 +10,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, log_activity
+from ..permissions import require_perm
 from .helpers import _is_mobile, _page_range_display, get_active_company
 
 
@@ -43,7 +43,7 @@ def _save_hotel(h, data):
     h.save()
 
 
-@login_required
+@require_perm('hotels', 'view')
 def hotel_list(request):
     company = get_active_company(request)
     qs = Hotel.objects.filter(company=company)
@@ -90,11 +90,14 @@ def hotel_list(request):
             "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
             "has_other_pages": page_obj.has_other_pages(),
             "range": _page_range_display(page_obj),
+            "start_index": page_obj.start_index(),
+            "end_index": page_obj.end_index(),
+            "count": paginator.count,
         },
     })
 
 
-@login_required
+@require_perm('hotels', 'create')
 def hotel_new(request):
     company = get_active_company(request)
     if request.method == 'POST':
@@ -105,7 +108,7 @@ def hotel_new(request):
     return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})
 
 
-@login_required
+@require_perm('hotels', 'edit')
 def hotel_edit(request, pk):
     h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     if request.method == 'POST':
@@ -126,7 +129,7 @@ def hotel_edit(request, pk):
     })
 
 
-@login_required
+@require_perm('hotels', 'delete')
 @require_POST
 def hotel_delete(request, pk):
     h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
@@ -136,7 +139,7 @@ def hotel_delete(request, pk):
     return redirect('hotel_list')
 
 
-@login_required
+@require_perm('hotels', 'view')
 def hotel_detail(request, pk):
     h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     return inertia_render(request, "Hotel/Detail", props={
@@ -160,12 +163,12 @@ def hotel_detail(request, pk):
     })
 
 
-@login_required
+@require_perm('hotels', 'view')
 def hotel_map(request):
     return inertia_render(request, "Hotel/Map")
 
 
-@login_required
+@require_perm('hotels', 'view')
 def hotel_map_data(request):
     company = get_active_company(request)
     hotels = []

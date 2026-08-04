@@ -41,3 +41,46 @@ class SessionMissingCompanyTests(TestCase):
         # Default company is 'konoz', so an ijabah invoice must 404 — not be
         # returned just because the session key was never set.
         self.assertEqual(resp.status_code, 404)
+
+
+class HotelInvoiceCompanyIsServerAssignedTests(TestCase):
+    """The hotel invoice form used to submit its own `company` field, which the
+    create/edit views wrote straight to the model with no can_use_company check.
+    Company must come from the session, and a POSTed one must be ignored."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("scoped", password="pw12345")
+        self.client.force_login(self.user)
+        session = self.client.session
+        session["active_company"] = "ijabah"
+        session.save()
+
+    def _payload(self, **over):
+        data = {
+            "invoice_number": "INV-SCOPE-001",
+            "customer_name": "Cust",
+            "issued_date": "2026-07-01",
+            "due_date": "2026-07-31",
+            "reservations": "[]",
+            "payments": "[]",
+            "linked_cl_ids": "[]",
+        }
+        data.update(over)
+        return data
+
+    def test_create_ignores_posted_company_and_uses_active(self):
+        self.client.post("/invoice/new/", self._payload(company="konoz"))
+        invoice = Invoice.objects.get(invoice_number="INV-SCOPE-001")
+        self.assertEqual(invoice.company, "ijabah")
+
+    def test_edit_cannot_move_invoice_out_of_active_company(self):
+        invoice = Invoice.objects.create(
+            company="ijabah", invoice_type="hotel",
+            invoice_number="INV-SCOPE-002", customer_name="Cust",
+        )
+        self.client.post(
+            f"/invoice/{invoice.pk}/edit/",
+            self._payload(invoice_number="INV-SCOPE-002", company="konoz"),
+        )
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.company, "ijabah")

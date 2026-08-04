@@ -92,6 +92,10 @@ def _build_visa_payments_context(invoice):
             else:
                 amt_main = amt / exch
         result.append({
+            # Which service_number this payment settles — the only reference a
+            # services payment carries. _build_visa_services_context above keys
+            # its per-service paid totals off the same field.
+            "linked_number": p.linked_number,
             "payment_date": p.payment_date,
             "payment_method": p.method,
             "payment_amount": amt,
