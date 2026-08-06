@@ -1,91 +1,184 @@
+{% load humanize %}
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-@page { size: A4 landscape; margin: 14mm 16mm; }
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 11px; color: #1c1c1c; }
-h1 { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
-.meta { font-size: 10px; color: #666; margin-bottom: 14px; }
-table { width: 100%; border-collapse: collapse; }
-th {
-  background: #1c1c1c; color: #fff;
-  padding: 6px 8px; text-align: left;
-  font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
-}
-td { padding: 6px 8px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
-tr:last-child td { border-bottom: none; }
-.mono { font-family: monospace; }
-.right { text-align: right; }
-.badge {
-  display: inline-block; padding: 1px 6px; border-radius: 4px;
-  font-size: 10px; font-weight: 600;
-}
-.badge-lunas  { background:#e8f5e9; color:#2e7d32; }
-.badge-partial{ background:#fff8e1; color:#f57f17; }
-.badge-unpaid { background:#fce4ec; color:#c62828; }
-tfoot td { font-weight: 700; background: #f5f5f5; padding: 7px 8px; }
+  @page {
+    size: A4 landscape;
+    margin: 40px 48px 36px;
+    @bottom-left {
+      content: string(doc-date);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+    @bottom-right {
+      content: "Page " counter(page) "/" counter(pages);
+      font-size: 10px; color: #111;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+  }
+  .doc-date-anchor { string-set: doc-date content(); display: none; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .watermark-tile {
+    position: fixed;
+    top: 0; left: 0;
+    width: 29.7cm; height: 21cm;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+  }
+  .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+  .logo { max-height: 56px; width: auto; }
+
+  .meta { position: relative; z-index: 1; margin-bottom: 20px; font-size: 11px; }
+  .meta-row { display: flex; gap: 8px; }
+  .meta-row .mk { font-weight: 700; color: #111; min-width: 110px; }
+  .meta-row .mv { color: #111; }
+
+  table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 10.5px; }
+  thead th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    color: #333;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    white-space: nowrap;
+  }
+  thead th.r { text-align: right; }
+  thead th.c { text-align: center; }
+  tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+  tbody td.r { text-align: right; }
+  tbody td.c { text-align: center; }
+  .mono { font-family: 'Courier New', monospace; font-size: 10px; }
+  .nowrap { white-space: nowrap; }
+  .idx { width: 30px; text-align: right; color: #666; }
+
+  .badge-status {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+  }
+  .badge-pai { background: #d1fae5; color: #065f46; }
+  .badge-par { background: #fef3c7; color: #92400e; }
+  .badge-unp { background: #fee2e2; color: #991b1b; }
+
+  .rem-paid   { color: #16a34a; font-weight: 700; }
+  .rem-unpaid { color: #dc2626; font-weight: 700; }
+
+  tbody tr { break-inside: avoid; page-break-inside: avoid; }
+  tr.total-row td {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    font-weight: 700;
+    color: #111;
+    font-size: 10.5px;
+  }
+  tr.total-row td.r { text-align: right; }
+  tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
 </style>
 </head>
 <body>
-<h1>Invoice Hotel</h1>
-<div class="meta">
-  Digenerate: {{ now|date:"d/m/Y H:i" }}
-  {% if q %} &nbsp;·&nbsp; Filter: "{{ q }}"{% endif %}
-  {% if company_filter %} &nbsp;·&nbsp; Company: {{ company_filter }}{% endif %}
-  &nbsp;·&nbsp; {{ invoices|length }} records
+
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+
+<div class="watermark-tile">
+  <svg xmlns="http://www.w3.org/2000/svg" width="29.7cm" height="21cm">
+    <g transform="rotate(-35, 420, 300)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">{{ company_label|upper }}</text><text x="-100" y="-140">{{ company_label|upper }}</text><text x="100" y="-140">{{ company_label|upper }}</text><text x="300" y="-140">{{ company_label|upper }}</text><text x="500" y="-140">{{ company_label|upper }}</text><text x="700" y="-140">{{ company_label|upper }}</text><text x="900" y="-140">{{ company_label|upper }}</text>
+      <text x="-300" y="0">{{ company_label|upper }}</text><text x="-100" y="0">{{ company_label|upper }}</text><text x="100" y="0">{{ company_label|upper }}</text><text x="300" y="0">{{ company_label|upper }}</text><text x="500" y="0">{{ company_label|upper }}</text><text x="700" y="0">{{ company_label|upper }}</text><text x="900" y="0">{{ company_label|upper }}</text>
+      <text x="-300" y="140">{{ company_label|upper }}</text><text x="-100" y="140">{{ company_label|upper }}</text><text x="100" y="140">{{ company_label|upper }}</text><text x="300" y="140">{{ company_label|upper }}</text><text x="500" y="140">{{ company_label|upper }}</text><text x="700" y="140">{{ company_label|upper }}</text><text x="900" y="140">{{ company_label|upper }}</text>
+      <text x="-300" y="280">{{ company_label|upper }}</text><text x="-100" y="280">{{ company_label|upper }}</text><text x="100" y="280">{{ company_label|upper }}</text><text x="300" y="280">{{ company_label|upper }}</text><text x="500" y="280">{{ company_label|upper }}</text><text x="700" y="280">{{ company_label|upper }}</text><text x="900" y="280">{{ company_label|upper }}</text>
+      <text x="-300" y="420">{{ company_label|upper }}</text><text x="-100" y="420">{{ company_label|upper }}</text><text x="100" y="420">{{ company_label|upper }}</text><text x="300" y="420">{{ company_label|upper }}</text><text x="500" y="420">{{ company_label|upper }}</text><text x="700" y="420">{{ company_label|upper }}</text><text x="900" y="420">{{ company_label|upper }}</text>
+      <text x="-300" y="560">{{ company_label|upper }}</text><text x="-100" y="560">{{ company_label|upper }}</text><text x="100" y="560">{{ company_label|upper }}</text><text x="300" y="560">{{ company_label|upper }}</text><text x="500" y="560">{{ company_label|upper }}</text><text x="700" y="560">{{ company_label|upper }}</text><text x="900" y="560">{{ company_label|upper }}</text>
+    </g>
+  </svg>
 </div>
+
+<div class="top">
+  <div class="doc-title">Invoice Hotel</div>
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Company</span><span class="mv">{{ company_label }}</span></div>
+  <div class="meta-row"><span class="mk">Records</span><span class="mv">{{ invoices|length }}</span></div>
+  {% if q %}<div class="meta-row"><span class="mk">Filter</span><span class="mv">"{{ q }}"</span></div>{% endif %}
+  <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
+</div>
+
 <table>
   <thead>
     <tr>
-      <th>Invoice #</th>
-      <th>Company</th>
-      <th>Customer</th>
-      <th>Issued</th>
-      <th>Due</th>
-      <th class="right">Total SAR</th>
-      <th class="right">Paid SAR</th>
-      <th class="right">Sisa SAR</th>
-      <th>Status</th>
+      <th class="idx">#</th>
+      <th>INV NO</th>
+      <th>Guest</th>
+      <th>RSV</th>
+      <th class="c">Issued</th>
+      <th class="c">Due</th>
+      <th class="c">Status</th>
+      <th class="r">Total SAR</th>
+      <th class="r">Paid SAR</th>
+      <th class="r">Remaining SAR</th>
     </tr>
   </thead>
   <tbody>
     {% for inv in invoices %}
     <tr>
-      <td class="mono">{{ inv.invoice_number }}</td>
-      <td>{{ inv.company|capfirst }}</td>
+      <td class="idx">{{ forloop.counter }}</td>
+      <td class="mono nowrap">{{ inv.invoice_number }}</td>
       <td>{{ inv.customer_name }}</td>
-      <td>{% if inv.issued_date %}{{ inv.issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-      <td>{% if inv.due_date %}{{ inv.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
-      <td class="mono right">{{ inv.total_sar|floatformat:0 }}</td>
-      <td class="mono right">{{ inv.total_paid_sar|floatformat:0 }}</td>
-      <td class="mono right">{{ inv.remaining_sar|floatformat:0 }}</td>
-      <td>
+      <td class="mono nowrap">{% for r in inv.reservations.all %}{{ r.reservation_number }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+      <td class="c nowrap">{% if inv.issued_date %}{{ inv.issued_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="c nowrap">{% if inv.due_date %}{{ inv.due_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td class="c">
         {% if inv.remaining_sar == 0 %}
-          <span class="badge badge-lunas">Lunas</span>
+          <span class="badge-status badge-pai">Paid</span>
         {% elif inv.remaining_sar < inv.total_sar %}
-          <span class="badge badge-partial">Partial</span>
+          <span class="badge-status badge-par">Partial</span>
         {% else %}
-          <span class="badge badge-unpaid">Belum Bayar</span>
+          <span class="badge-status badge-unp">Unpaid</span>
         {% endif %}
       </td>
+      <td class="r mono">{{ inv.total_sar|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ inv.total_paid_sar|floatformat:0|intcomma }}</td>
+      <td class="r mono {% if inv.remaining_sar == 0 %}rem-paid{% else %}rem-unpaid{% endif %}">{{ inv.remaining_sar|floatformat:0|intcomma }}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="9" style="text-align:center;color:#999;padding:20px;">Tidak ada data</td></tr>
+    <tr><td colspan="10" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
     {% endfor %}
-  </tbody>
-  {% if invoices %}
-  <tfoot>
-    <tr>
-      <td colspan="5">Total ({{ invoices|length }} invoice)</td>
-      <td class="mono right">{{ total_sar|floatformat:0 }}</td>
-      <td class="mono right">{{ total_paid|floatformat:0 }}</td>
-      <td class="mono right">{{ total_remaining|floatformat:0 }}</td>
-      <td></td>
+    {% if invoices %}
+    <tr class="total-row">
+      <td colspan="7" class="label">Total</td>
+      <td class="r mono">{{ total_sar|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_paid|floatformat:0|intcomma }}</td>
+      <td class="r mono {% if total_remaining == 0 %}rem-paid{% else %}rem-unpaid{% endif %}">{{ total_remaining|floatformat:0|intcomma }}</td>
     </tr>
-  </tfoot>
-  {% endif %}
+    {% endif %}
+  </tbody>
 </table>
+
 </body>
 </html>
