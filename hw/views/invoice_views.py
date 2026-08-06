@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..models import ActivityLog, Company, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
@@ -26,7 +26,7 @@ from .helpers import (
     _to_float,
     get_active_company,
 )
-from .pdf import _render_invoice_pdf
+from .pdf import _logo_file_url, _render_invoice_pdf
 
 
 @require_perm('invoice', 'view')
@@ -351,7 +351,8 @@ def invoice_pdf(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
-    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
+    active_company = get_active_company(request)
+    qs = Invoice.objects.filter(invoice_type="hotel", company=active_company).prefetch_related('reservations')
     q = request.GET.get('q', '').strip()
     date_from = request.GET.get('date_from', '').strip()
     date_to = request.GET.get('date_to', '').strip()
@@ -373,6 +374,8 @@ def invoice_list_pdf(request):
             "total_sar": total_sar,
             "total_paid": total_sar - total_remaining,
             "total_remaining": total_remaining,
+            "logo_rel_path": _logo_file_url(active_company),
+            "company_label": dict(Company.choices).get(active_company, active_company),
         },
     )
 
