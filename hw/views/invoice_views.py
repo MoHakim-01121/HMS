@@ -350,6 +350,7 @@ def invoice_list_pdf(request):
         qs = qs.filter(due_date__gte=date_from)
     if date_to:
         qs = qs.filter(due_date__lte=date_to)
+    qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
     total_remaining = sum(i.remaining_sar for i in inv_list)
