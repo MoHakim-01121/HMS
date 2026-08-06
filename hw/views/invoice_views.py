@@ -39,6 +39,8 @@ def invoice_list(request):
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
     due_soon = request.GET.get('due_soon')
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
 
     qs = base_qs
     if q:
@@ -46,6 +48,10 @@ def invoice_list(request):
     if due_soon:
         threshold = date.today() + timedelta(days=7)
         qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
     if status in ('lunas', 'belum', 'partial'):
         qs = qs.annotate(
             _res=Coalesce(Sum('reservations__total_sar'), 0),
@@ -90,6 +96,8 @@ def invoice_list(request):
         "total_count": paginator.count,
         "q": q,
         "status_filter": status,
+        "date_from": date_from,
+        "date_to": date_to,
         "pagination": {
             "number": page_obj.number,
             "num_pages": paginator.num_pages,
@@ -345,8 +353,14 @@ def invoice_pdf(request, pk):
 def invoice_list_pdf(request):
     qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
     total_remaining = sum(i.remaining_sar for i in inv_list)
@@ -367,8 +381,14 @@ def invoice_list_pdf(request):
 def invoice_export_csv(request):
     qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="invoices_hotel.csv"'
     response.write('﻿')

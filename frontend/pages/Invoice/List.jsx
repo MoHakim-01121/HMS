@@ -21,16 +21,28 @@ const STATUS_OPTS = [
   { val: "belum", label: "Unpaid", cls: "c-bel" },
 ];
 
-function visit(params) {
-  router.get("/invoice/", params, { preserveState: true, preserveScroll: true, replace: true });
+function buildQuery({ q, status, date_from, date_to, page }) {
+  const p = new URLSearchParams();
+  if (q) p.append("q", q);
+  if (status) p.append("status", status);
+  if (date_from) p.append("date_from", date_from);
+  if (date_to) p.append("date_to", date_to);
+  if (page) p.append("page", page);
+  return "/invoice/?" + p.toString();
 }
 
-export default function List({ invoices, total_count, q, status_filter, remit_stats, pagination }) {
+function visit(params) {
+  router.get(buildQuery(params), {}, { preserveState: true, preserveScroll: true, replace: true });
+}
+
+export default function List({ invoices, total_count, q, status_filter, date_from, date_to, remit_stats, pagination }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(q || "");
   const [panelOpen, setPanelOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [sel, setSel] = useState(status_filter || "");
+  const [from, setFrom] = useState(date_from || "");
+  const [to, setTo] = useState(date_to || "");
   const debounce = useRef(null);
   const first = useRef(true);
 
@@ -38,12 +50,12 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query, status: status_filter || "" }), 300);
+    debounce.current = setTimeout(() => visit({ q: query }), 300);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
-  const applyStatus = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
-  const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
+  const applyFilters = () => { setPanelOpen(false); visit({ status: sel, date_from: from, date_to: to }); };
+  const resetAll = () => { setSel(""); setFrom(""); setTo(""); setPanelOpen(false); visit({ status: "", date_from: "", date_to: "" }); };
 
   const [confirm, confirmDialog] = useConfirm();
   const openForm = useFormModal();
@@ -53,7 +65,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
     confirm({ title: t("Delete invoice"), message: t("Delete invoice {number}?", { number }), onConfirm: () => router.post(`/invoice/${pk}/delete/`) });
   };
 
-  const qs = `?q=${encodeURIComponent(q || "")}&status=${status_filter || ""}`;
+  const exportQs = buildQuery({ q, status: status_filter, date_from, date_to }).replace("/invoice/", "");
 
   return (
     <div className="page shadcn-root">
@@ -68,8 +80,8 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
             <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>{t("Export")} ▾</button>
             {exportOpen && (
               <div className="export-menu" style={{ display: "block" }}>
-                <a href={`/invoice/export/csv/${qs}`}><Icon name="invoice" size={13} /> CSV</a>
-                <a href={`/invoice/export/pdf/${qs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
+                <a href={`/invoice/export/csv/${exportQs}`}><Icon name="invoice" size={13} /> CSV</a>
+                <a href={`/invoice/export/pdf/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
               </div>
             )}
           </div>
@@ -117,11 +129,21 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
           <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="fbar-btn" onClick={() => setPanelOpen((v) => !v)}>
               <Icon name="filter" size={13} /> {t("Filter")}
-              {status_filter && <span className="fbar-count">1</span>}
+              {(status_filter || date_from || date_to) && <span className="fbar-count">1</span>}
             </button>
             {panelOpen && (
               <div className="filter-panel open">
                 <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
+                <div className="fp-section">
+                  <div className="fp-section-head">
+                    <span className="fp-section-label">{t("Due Date")}</span>
+                    <button type="button" className="fp-reset" onClick={() => { setFrom(""); setTo(""); }}>{t("Reset")}</button>
+                  </div>
+                  <div className="fp-date-row">
+                    <div className="fp-date-field"><label>{t("From")}</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
+                    <div className="fp-date-field"><label>{t("To")}</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+                  </div>
+                </div>
                 <div className="fp-section">
                   <div className="fp-section-head">
                     <span className="fp-section-label">{t("Status")}</span>
@@ -141,7 +163,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                 </div>
                 <div className="fp-footer">
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
-                  <button type="button" className="fp-apply" onClick={applyStatus}>{t("Apply")}</button>
+                  <button type="button" className="fp-apply" onClick={applyFilters}>{t("Apply")}</button>
                 </div>
               </div>
             )}
@@ -201,7 +223,7 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
             <Pagination
               pagination={pagination}
               unit={t("invoices")}
-              onPage={(p) => visit({ q: query, status: status_filter || "", page: p })}
+              onPage={(p) => visit({ page: p })}
             />
           </>
         ) : (
