@@ -63,6 +63,8 @@ def invoice_list(request):
                 filtered_ids.append(inv.pk)
         qs = qs.filter(pk__in=filtered_ids)
 
+    qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
+
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
 
@@ -71,11 +73,13 @@ def invoice_list(request):
         "invoice_number": inv.invoice_number,
         "customer_name": inv.customer_name,
         "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+        "due_date": inv.due_date.strftime("%d/%m/%Y") if inv.due_date else None,
         "created_at": inv.created_at.strftime("%d/%m/%Y"),
         "total_sar": inv.total_sar,
         "remaining_sar": inv.remaining_sar,
         "status": (
-            "paid" if inv.remaining_sar == 0
+            "overpaid" if inv.remaining_sar < 0
+            else "paid" if inv.remaining_sar == 0
             else "partial" if inv.remaining_sar < inv.total_sar
             else "unpaid"
         ),

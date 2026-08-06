@@ -157,12 +157,12 @@ export default function List({ invoices, total_count, q, status_filter, remit_st
                 { header: t("Invoice #"), className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
                 { header: t("Customer"), className: "col-m-secondary", render: (inv) => inv.customer_name },
                 {
-                  header: t("Issued"),
+                  header: t("Due Date"),
                   className: "col-muted col-nowrap col-m-meta",
                   render: (inv) => (
                     <>
-                      <span className="m-hide">{inv.issued_date || "—"}</span>
-                      {inv.issued_date && <span className="m-only">{t("issued {date}", { date: inv.issued_date })}</span>}
+                      <span className="m-hide">{inv.due_date || "—"}</span>
+                      {inv.due_date && <span className="m-only">{t("due {date}", { date: inv.due_date })}</span>}
                       <span className="m-only" style={{ fontVariantNumeric: "tabular-nums" }}>{inv.total_sar.toLocaleString("en-US")} SAR</span>
                     </>
                   ),
