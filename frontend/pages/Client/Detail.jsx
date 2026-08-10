@@ -35,6 +35,13 @@ export default function Detail({ client, invoices, cls }) {
   if (c.wa_group) contactLines.push(t("Group: {name}", { name: c.wa_group }));
   if (c.email) contactLines.push(c.email);
 
+  const locationLine = c.address
+    ? c.address + (c.city ? ` · ${c.city}${c.province ? `, ${c.province}` : ""}` : "")
+    : c.city
+      ? `${c.city}${c.province ? `, ${c.province}` : ""}`
+      : null;
+  const subLines = [c.brand, locationLine].filter(Boolean);
+
   return (
     <div className="page dv-page hms-dv-page shadcn-root">
       <PageBack href="/clients/" label={t("Back")} />
@@ -42,7 +49,7 @@ export default function Detail({ client, invoices, cls }) {
       <DetailCard
         crumbs={[{ label: t("Clients"), href: "/clients/" }]}
         title={c.name}
-        sub={c.city ? `${c.city}${c.province ? `, ${c.province}` : ""}` : null}
+        sub={subLines.length ? subLines.map((l, i) => <div key={i}>{l}</div>) : null}
         pill={pill ? { ...pill, label: t(pill.label) } : null}
         actions={
           <>

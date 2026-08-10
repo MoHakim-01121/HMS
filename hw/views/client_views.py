@@ -26,7 +26,7 @@ def client_list(request):
 
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(city__icontains=q) | Q(pic__icontains=q))
+        qs = qs.filter(Q(name__icontains=q) | Q(brand__icontains=q) | Q(city__icontains=q) | Q(pic__icontains=q))
 
     status = request.GET.get('status', '')
     if status == 'active':
@@ -41,6 +41,7 @@ def client_list(request):
     data = [{
         "id": c.pk,
         "name": c.name,
+        "brand": c.brand,
         "city": c.city,
         "province": c.province,
         "pic": c.pic,
@@ -68,8 +69,10 @@ def _validate_client(data):
 def _client_echo(data):
     """Echo submitted values back to the form on validation error."""
     return {
-        "name": data.get("name", ""), "city": data.get("city", ""),
-        "province": data.get("province", ""), "pic": data.get("pic", ""),
+        "name": data.get("name", ""), "brand": data.get("brand", ""),
+        "city": data.get("city", ""),
+        "province": data.get("province", ""), "address": data.get("address", ""),
+        "pic": data.get("pic", ""),
         "wa": data.get("wa", ""), "wa_group": data.get("wa_group", ""),
         "reminder_target": data.get("reminder_target", "GROUP"), "email": data.get("email", ""),
         "note": data.get("note", ""), "lat": data.get("lat", ""),
@@ -104,16 +107,17 @@ def client_edit(request, pk):
             return inertia_render(request, "Client/Form", props={
                 "client": echo, "edit": True, "errors": errors,
             })
-        _before = {'Name': c.name, 'City': c.city, 'Province': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        _before = {'Name': c.name, 'Brand': c.brand, 'City': c.city, 'Province': c.province, 'Address': c.address, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         _save_client(c, request.POST)
-        _after  = {'Name': c.name, 'City': c.city, 'Province': c.province, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        _after  = {'Name': c.name, 'Brand': c.brand, 'City': c.city, 'Province': c.province, 'Address': c.address, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
         changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
         messages.success(request, f'Client "{c.name}" updated successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
         "client": {
-            "id": c.pk, "name": c.name, "city": c.city, "province": c.province,
+            "id": c.pk, "name": c.name, "brand": c.brand, "city": c.city, "province": c.province,
+            "address": c.address,
             "pic": c.pic, "wa": c.wa, "wa_group": c.wa_group, "reminder_target": c.reminder_target,
             "email": c.email, "note": c.note,
             "lat": c.lat, "lng": c.lng, "is_active": c.is_active,
@@ -164,8 +168,10 @@ def client_detail(request, pk):
         "client": {
             "pk": c.pk,
             "name": c.name,
+            "brand": c.brand,
             "city": c.city,
             "province": c.province,
+            "address": c.address,
             "pic": c.pic,
             "wa": c.wa,
             "wa_group": c.wa_group,
@@ -205,6 +211,7 @@ def client_map_data(request):
         {
             'id': c.pk,
             'name': c.name,
+            'brand': c.brand,
             'city': c.city,
             'province': c.province,
             'lat': c.lat,
@@ -224,8 +231,10 @@ def client_map_data(request):
 
 def _save_client(c, data):
     c.name      = data.get('name', '').strip()
+    c.brand     = data.get('brand', '').strip()
     c.city      = data.get('city', '').strip()
     c.province  = data.get('province', '').strip()
+    c.address   = data.get('address', '').strip()
     c.pic       = data.get('pic', '').strip()
     c.wa        = data.get('wa', '').strip()
     c.wa_group  = data.get('wa_group', '').strip()

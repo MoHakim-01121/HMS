@@ -14,7 +14,8 @@ export default function Form({ client, edit, errors: serverErrors }) {
   const { t } = useI18n();
   const c = client || {};
   const form = useForm({
-    name: c.name || "", city: c.city || "", province: c.province || "",
+    name: c.name || "", brand: c.brand || "", city: c.city || "", province: c.province || "",
+    address: c.address || "",
     pic: c.pic || "", wa: c.wa || "", wa_group: c.wa_group || "",
     reminder_target: c.reminder_target || "GROUP",
     email: c.email || "",
@@ -45,11 +46,15 @@ export default function Form({ client, edit, errors: serverErrors }) {
         <FormPanel>
           <FormSection label={t("Identity")}>
             <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField span={2} label={t("Agent Name")} name="name" required
+              <FormField label={t("Company Name")} name="name" required
                 value={form.data.name} onChange={set("name")} error={errors.name}
                 placeholder="PT. Anugerah Wisata" autoFocus />
+              <FormField label={t("Brand")} name="brand" value={form.data.brand} onChange={set("brand")} placeholder={t("Trade name / brand")} />
               <FormField label={t("City")} name="city" value={form.data.city} onChange={set("city")} placeholder="Surabaya" />
               <FormField label={t("Province")} name="province" value={form.data.province} onChange={set("province")} placeholder="Jawa Timur" />
+              <FormField span={2} label={t("Address")} name="address">
+                <Textarea name="address" rows={3} value={form.data.address} onChange={(e) => form.setData("address", e.target.value)} placeholder={t("Street, building, RT/RW")} />
+              </FormField>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <Checkbox checked={form.data.is_active} onCheckedChange={(v) => form.setData("is_active", !!v)} />

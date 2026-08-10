@@ -115,13 +115,14 @@ export default function List({ clients, q, status }) {
           <Table
             columns={[
               {
-                header: t("Agent Name"),
+                header: t("Company Name"),
                 className: "col-m-primary",
                 render: (c) => {
                   const rb = riskBadge(c.risk_label);
                   return (
                     <>
                       <span style={{ fontWeight: 600 }}>{c.name}</span>
+                      {c.brand ? <span className="sub">{c.brand}</span> : null}
                       {rb && <span className={rb[0]} style={{ marginLeft: 6 }}>{t(rb[1])}</span>}
                     </>
                   );
