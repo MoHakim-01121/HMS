@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('hw', '0048_visit_end_time_visit_start_time'),
+        ('hw', '0038_userprofile_language'),
     ]
 
     operations = [
