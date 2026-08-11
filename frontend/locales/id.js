@@ -414,7 +414,7 @@ export const id = {
   "Phone": "Telepon",
   "Phone No.": "No. Telepon",
   "PIC": "PIC",
-  "PIC / Score": "PIC / Skor",
+  "PIC / Avg Payment": "PIC / Rata-rata Bayar",
   "PIC / WA": "PIC / WA",
   "PIC & Group": "PIC & Grup",
   "PIC name": "Nama PIC",

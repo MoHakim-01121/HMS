@@ -21,7 +21,6 @@ function riskBadge(risk) {
   if (risk === "dormant") return ["badge badge-gray", "Dormant"];
   return null;
 }
-const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 function visit(params) {
@@ -122,20 +121,20 @@ export default function List({ clients, q, status }) {
                   return (
                     <>
                       <span style={{ fontWeight: 600 }}>{c.name}</span>
-                      {c.brand ? <span className="sub">{c.brand}</span> : null}
                       {rb && <span className={rb[0]} style={{ marginLeft: 6 }}>{t(rb[1])}</span>}
                     </>
                   );
                 },
               },
+              { header: t("Brand"), className: "col-muted col-m-hide", render: (c) => c.brand || <span className="col-dim">—</span> },
               { header: t("City"), className: "col-muted col-m-secondary", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
               {
-                header: t("PIC / Score"),
+                header: t("PIC / Avg Payment"),
                 className: "col-mobile-only col-m-meta",
                 render: (c) => (
                   <>
                     <span>{c.pic || ""}</span>
-                    {c.score != null && <span style={{ color: scoreColor(c.score) }}>{c.score}/100</span>}
+                    {c.avg_days_to_pay != null && <span>{c.avg_days_to_pay}d</span>}
                   </>
                 ),
               },
@@ -150,22 +149,25 @@ export default function List({ clients, q, status }) {
                   </>
                 ),
               },
-              { header: t("Invoice"), className: "col-muted mono col-m-hide", render: (c) => c.invoices_count },
               {
-                header: t("Outstanding"),
+                header: t("Last Order"),
                 className: "col-m-amount",
-                render: (c) => (
-                  <>
-                    <span className="m-hide">{c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>}</span>
-                    <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Outstanding")}</span>
-                    <span className="m-only" style={{ color: c.outstanding > 0 ? "var(--red)" : "var(--green)" }}>{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span>
-                  </>
-                ),
+                render: (c) => {
+                  const dormant = c.days_since_last_order != null && c.days_since_last_order > 45;
+                  const val = c.days_since_last_order != null ? t("{n} days ago", { n: c.days_since_last_order }) : "—";
+                  return (
+                    <>
+                      <span className="m-hide" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Last Order")}</span>
+                      <span className="m-only" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+                    </>
+                  );
+                },
               },
               {
-                header: t("Score"),
+                header: t("Avg Payment"),
                 className: "col-m-hide col-num",
-                render: (c) => <span className="mono" style={{ color: scoreColor(c.score) }}>{c.score}</span>,
+                render: (c) => c.avg_days_to_pay != null ? <span className="mono">{c.avg_days_to_pay}d</span> : <span className="col-dim">—</span>,
               },
               { header: t("Status"), className: "col-m-hide", render: (c) => c.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span> },
               {

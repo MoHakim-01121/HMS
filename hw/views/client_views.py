@@ -48,9 +48,8 @@ def client_list(request):
         "wa": c.wa,
         "wa_group": c.wa_group,
         "reminder_target": c.reminder_target,
-        "invoices_count": len(c.invoices.all()),
-        "outstanding": c.outstanding,
-        "score": c.score,
+        "avg_days_to_pay": c.avg_days_to_pay,
+        "days_since_last_order": c.days_since_last_order,
         "risk_label": c.risk_label,
         "is_active": c.is_active,
     } for c in clients]
