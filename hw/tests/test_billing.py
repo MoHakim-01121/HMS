@@ -334,6 +334,10 @@ class BillingMessageTemplateTest(TestCase):
         self.assertIn('Terbayar: 0 SAR', msg)
         self.assertIn('Sisa: 15.000 SAR', msg)
         self.assertIn('Mohon lakukan pembayaran sebelum jatuh tempo.', msg)
+        self.assertIn('Informasi Pembayaran:', msg)
+        self.assertIn('Nama Bank : Mandiri', msg)
+        self.assertIn('No. Rekening : 1400550111117', msg)
+        self.assertIn('Atas Nama : Konoz Almotaheda Indonesia', msg)
         self.assertIn('Terima kasih,\n*Konoz United Surabaya*', msg)
 
     def test_hotel_due_date_bold_and_indonesian_month(self):
@@ -365,6 +369,7 @@ class BillingMessageTemplateTest(TestCase):
         self.assertIn('Terbayar: 15.000 SAR', msg)
         self.assertIn('Sisa: 0 SAR', msg)
         self.assertNotIn('Jatuh Tempo', msg)
+        self.assertNotIn('Informasi Pembayaran', msg)
 
     def test_services_lines_and_currency(self):
         inv = _make_invoice(
@@ -392,6 +397,7 @@ class BillingMessageTemplateTest(TestCase):
         inv = self._hotel_invoice(invoice_number='INV-TM-008', company='ijabah')
         msg = generate_draft_message('invoice', inv)
         self.assertIn('Terima kasih,\n*Ijabah*', msg)
+        self.assertNotIn('Informasi Pembayaran', msg)
 
 
 class SendWaFileTest(TestCase):
