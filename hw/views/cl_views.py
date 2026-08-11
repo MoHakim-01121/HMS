@@ -140,7 +140,7 @@ def cl_list(request):
 def _form_context_data(active_company):
     return {
         "hotels": list(Hotel.objects.filter(is_active=True, company=active_company).values("name", "company", "city").order_by("city", "name")),
-        "clients": list(Client.objects.filter(is_active=True, company=active_company).values("id", "name", "company").order_by("name")),
+        "clients": list(Client.objects.filter(is_active=True, company=active_company).values("id", "name", "brand", "company").order_by("name")),
     }
 
 

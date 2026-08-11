@@ -51,7 +51,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     form.setData("client_id", match ? String(match.id) : "");
   };
   const onGuestSelect = (c) => {
-    form.setData("guest_name", c.name);
+    form.setData("guest_name", c.brand || c.name);
     form.setData("client_id", String(c.id));
   };
 
