@@ -199,7 +199,8 @@ def cl_new(request):
             client_id = None
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and client_id:
-            guest_name = Client.objects.filter(pk=client_id).values_list("name", flat=True).first() or ""
+            picked = Client.objects.filter(pk=client_id).values("name", "brand").first()
+            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
         cl = ConfirmationLetter.objects.create(
             # Scope the CL to the active company (same as the detail/list views
             # filter by). Trusting the form's company field would let a CL be
@@ -323,7 +324,8 @@ def cl_edit(request, pk):
         cl.hotel_name = request.POST.get("hotel_name", "")
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and cl.client_id:
-            guest_name = Client.objects.filter(pk=cl.client_id).values_list("name", flat=True).first() or ""
+            picked = Client.objects.filter(pk=cl.client_id).values("name", "brand").first()
+            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
         cl.guest_name = guest_name
         cl.guest_phone = request.POST.get("guest_phone", "")
         cl.check_in = _parse_date(request.POST.get("check_in"))
