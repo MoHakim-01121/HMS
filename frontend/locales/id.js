@@ -147,6 +147,7 @@ export const id = {
   "Client Score": "Skor Klien",
   "Client/Guest name": "Nama Klien/Tamu",
   "Client/Travel": "Klien/Travel",
+  "clients": "klien",
   "Clients": "Klien",
   "Close": "Tutup",
   "Close editor": "Tutup editor",

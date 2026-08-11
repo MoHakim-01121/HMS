@@ -4,6 +4,7 @@ import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
+import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -27,7 +28,7 @@ function visit(params) {
   router.get("/clients/", params, { preserveState: true, preserveScroll: true, replace: true });
 }
 
-export default function List({ clients, q, status }) {
+export default function List({ clients, total_count, q, status, pagination }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(q || "");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -55,7 +56,7 @@ export default function List({ clients, q, status }) {
       <div className="page-header">
         <div>
           <div className="page-title">{t("Clients")}</div>
-          <div className="page-sub">{t("{count} travel agents registered", { count: clients.length })}</div>
+          <div className="page-sub">{t("{count} travel agents registered", { count: total_count })}</div>
         </div>
         <div className="page-actions">
           <a href="/clients/map/" className="btn btn-secondary">
@@ -111,6 +112,7 @@ export default function List({ clients, q, status }) {
 
       <div className="card">
         {clients.length ? (
+          <>
           <Table
             columns={[
               {
@@ -183,6 +185,8 @@ export default function List({ clients, q, status }) {
             rowKey={(c) => c.id}
             onRowClick={(c) => router.visit(`/clients/${c.id}/`)}
           />
+          <Pagination pagination={pagination} unit={t("clients")} onPage={(p) => visit({ q: query, status: status || "", page: p })} />
+          </>
         ) : (
           <div className="empty">
             <Icon name="user" size={36} strokeWidth={1.5} />

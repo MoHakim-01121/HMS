@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -12,7 +13,7 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, log_activity
 from ..permissions import require_perm
-from .helpers import get_active_company
+from .helpers import _is_mobile, _page_range_display, get_active_company
 
 
 def _company(request):
@@ -34,10 +35,10 @@ def client_list(request):
     elif status == 'inactive':
         qs = qs.filter(is_active=False)
 
-    clients = list(
-        qs.order_by('name')
-        .prefetch_related('invoices__payments', 'invoices__reservations', 'cls')
-    )
+    qs = qs.order_by('name')
+    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
     data = [{
         "id": c.pk,
         "name": c.name,
@@ -52,9 +53,23 @@ def client_list(request):
         "days_since_last_order": c.days_since_last_order,
         "risk_label": c.risk_label,
         "is_active": c.is_active,
-    } for c in clients]
+    } for c in page_obj]
     return inertia_render(request, "Client/List", props={
         "clients": data, "q": q, "status": status,
+        "total_count": paginator.count,
+        "pagination": {
+            "number": page_obj.number,
+            "num_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "has_other_pages": page_obj.has_other_pages(),
+            "range": _page_range_display(page_obj),
+            "start_index": page_obj.start_index(),
+            "end_index": page_obj.end_index(),
+            "count": paginator.count,
+        },
     })
 
 

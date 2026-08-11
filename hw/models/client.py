@@ -1,6 +1,7 @@
 from datetime import date
 
 from django.db import models
+from django.db.models import Q
 from django.urls import reverse
 from django.utils import timezone
 
@@ -44,25 +45,39 @@ class Client(models.Model):
         return reverse('client_detail', args=[self.pk])
 
     @property
+    def resolved_invoices(self):
+        """Invoices belonging to this client.
+
+        `Invoice.client` is never filled by the invoice form (see
+        helpers._billing_client), so the direct FK is almost always empty.
+        The reliable link is via the ConfirmationLetters attached to the
+        invoice — mirrors _billing_client's resolution the other way round.
+        """
+        from .invoice import Invoice
+        return Invoice.objects.filter(
+            Q(client=self) | Q(confirmation_letters__client=self)
+        ).distinct()
+
+    @property
     def total_invoices(self):
-        return len(self.invoices.all()) + len(self.cls.all())
+        return len(self.resolved_invoices) + len(self.cls.all())
 
     @property
     def total_billed(self):
-        return sum(inv.total_sar for inv in self.invoices.all())
+        return sum(inv.total_sar for inv in self.resolved_invoices)
 
     @property
     def total_paid(self):
-        return sum(inv.total_paid_sar for inv in self.invoices.all())
+        return sum(inv.total_paid_sar for inv in self.resolved_invoices)
 
     @property
     def outstanding(self):
-        return sum(inv.remaining_sar for inv in self.invoices.all() if inv.remaining_sar > 0)
+        return sum(inv.remaining_sar for inv in self.resolved_invoices if inv.remaining_sar > 0)
 
     @property
     def avg_days_to_pay(self):
         days_list = []
-        for inv in self.invoices.all():
+        for inv in self.resolved_invoices:
             if inv.remaining_sar <= 0 and inv.issued_date:
                 payments = sorted(
                     inv.payments.all(),
@@ -75,7 +90,7 @@ class Client(models.Model):
 
     @property
     def last_transaction_date(self):
-        invs = list(self.invoices.all())
+        invs = list(self.resolved_invoices)
         if not invs:
             return None
         return max(inv.created_at for inv in invs)
@@ -115,7 +130,7 @@ class Client(models.Model):
     def risk_label(self):
         if self.outstanding > 0:
             due_invs = sorted(
-                [i for i in self.invoices.all() if i.due_date is not None],
+                [i for i in self.resolved_invoices if i.due_date is not None],
                 key=lambda i: i.due_date,
             )
             if due_invs:
