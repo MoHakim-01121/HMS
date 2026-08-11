@@ -126,8 +126,8 @@ export default function List({ clients, q, status }) {
                   );
                 },
               },
-              { header: t("Brand"), className: "col-muted col-m-hide", render: (c) => c.brand || <span className="col-dim">—</span> },
-              { header: t("City"), className: "col-muted col-m-secondary", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
+              { header: t("Brand"), className: "col-muted col-m-hide col-ellipsis-sm", render: (c) => c.brand || <span className="col-dim">—</span> },
+              { header: t("City"), className: "col-muted col-m-secondary col-ellipsis", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
               {
                 header: t("PIC / Avg Payment"),
                 className: "col-mobile-only col-m-meta",
