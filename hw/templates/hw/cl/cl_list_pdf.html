@@ -172,6 +172,8 @@
       <td class="r mono">
         {% if cl.remaining_sar > 0 %}
           <span class="remain-due">{{ cl.remaining_sar|floatformat:0|intcomma }}</span>
+        {% elif cl.remaining_sar < 0 %}
+          <span class="remain-ok">-{{ cl.remaining_sar|floatformat:0|cut:"-"|intcomma }}</span>
         {% else %}
           <span class="remain-ok">0</span>
         {% endif %}
