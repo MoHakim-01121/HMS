@@ -7,7 +7,6 @@ from ..utils import convert_to_sar
 
 class Invoice(models.Model):
     company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
-    client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='invoices')
     invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
     invoice_number = models.CharField(max_length=100, db_index=True)
     customer_name  = models.CharField(max_length=200)
@@ -40,14 +39,16 @@ class Invoice(models.Model):
 
     @property
     def total_sar(self):
-        return sum(r.total_sar for r in self.reservations.all())
+        # Satu invoice hanya berisi reservasi (hotel) ATAU service items
+        # (visa), jadi menjumlahkan keduanya aman -- untuk invoice visa
+        # total_sar sebelumnya selalu 0 sehingga remaining_sar jadi negatif
+        # saat sudah dibayar.
+        return sum(r.total_sar for r in self.reservations.all()) + sum(s.total for s in self.service_items.all())
 
     @property
     def total_paid_sar(self):
-        return sum(
-            int(round(convert_to_sar(p.amount, p.currency, float(p.exchange_rate))))
-            for p in self.payments.all()
-        )
+        from .. import ledger
+        return ledger.invoice_paid_sar(self.id)
 
     @property
     def remaining_sar(self):
@@ -172,7 +173,8 @@ class Remittance(models.Model):
 
     @property
     def total_sar(self):
-        return int(sum(line.amount_sar for line in self.lines.all()))
+        from .. import ledger
+        return int(ledger.remittance_total_sar(self.id))
 
 
 class RemittanceLine(models.Model):

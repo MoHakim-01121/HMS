@@ -163,6 +163,9 @@ const PATHS = {
   sort: (
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M6 12h12M10 17h4" />
   ),
+  menu: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+  ),
   proof: (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
   ),
@@ -285,6 +288,42 @@ const PATHS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
     </>
   ),
+  visits: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+    </>
+  ),
+  arrowRight: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+  ),
+  "arrow-up-right": (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h10v10" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 17 17 7" />
+    </>
+  ),
+  star: (
+    <path
+      fill="currentColor"
+      stroke="none"
+      d="M12 2.5l3.09 6.26 6.91 1.01-5 4.87 1.18 6.87L12 17.77l-6.18 3.24L7 14.14l-5-4.87 6.91-1.01L12 2.5z"
+    />
+  ),
+  building: (
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M3 21h18M6 21V5a1 1 0 011-1h6a1 1 0 011 1v16M9 7h1m-1 3h1m-1 3h1m4-6h1m-1 3h1m-1 3h1M15 21v-4a1 1 0 011-1h2a1 1 0 011 1v4"
+    />
+  ),
+  globe: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 100-18 9 9 0 000 18z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.6 9h16.8M3.6 15h16.8" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 15, strokeWidth = 2, ...rest }) {
@@ -310,6 +349,17 @@ export function BrandMark({ size = 16 }) {
       <rect x="3" y="2" width="4.5" height="22" fill="currentColor" />
       <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor" />
       <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+// WhatsApp brand glyph (Simple Icons "whatsapp" path) — filled, unlike the
+// stroke-based line icons in PATHS above, so it gets its own component
+// rather than an Icon-name entry.
+export function WhatsAppIcon({ size = 16 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
     </svg>
   );
 }

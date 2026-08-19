@@ -1,10 +1,12 @@
 import csv
 import json
+import logging
 from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -12,12 +14,14 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity, Charge, ChargeReason
 from ..permissions import require_perm
 from ..i18n import tr
 from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf, get_active_company
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
+
+logger = logging.getLogger(__name__)
 
 
 def _get_cl(request, pk, qs=None):
@@ -140,7 +144,7 @@ def cl_list(request):
 def _form_context_data():
     return {
         "hotels": list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")),
-        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "company").order_by("company", "name")),
+        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "brand", "company").order_by("company", "name")),
     }
 
 
@@ -194,7 +198,8 @@ def cl_new(request):
         client_id = request.POST.get("client_id") or None
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and client_id:
-            guest_name = Client.objects.filter(pk=client_id).values_list("name", flat=True).first() or ""
+            picked = Client.objects.filter(pk=client_id).values("name", "brand").first()
+            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
         cl = ConfirmationLetter.objects.create(
             # Scope the CL to the active company (same as the detail/list views
             # filter by). Trusting the form's company field would let a CL be
@@ -314,7 +319,8 @@ def cl_edit(request, pk):
         cl.hotel_name = request.POST.get("hotel_name", "")
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and cl.client_id:
-            guest_name = Client.objects.filter(pk=cl.client_id).values_list("name", flat=True).first() or ""
+            picked = Client.objects.filter(pk=cl.client_id).values("name", "brand").first()
+            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
         cl.guest_name = guest_name
         cl.guest_phone = request.POST.get("guest_phone", "")
         cl.check_in = _parse_date(request.POST.get("check_in"))
@@ -328,7 +334,7 @@ def cl_edit(request, pk):
         _save_cl_rooms(cl, request)
 
         if cl.invoice_id:
-            _sync_invoice_reservation_from_cl(cl)
+            _sync_invoice_reservation_from_cl(cl, request.user)
 
         _after = {
             'Hotel':     cl.hotel_name,
@@ -534,27 +540,39 @@ def invoice_from_cls(request):
         return redirect("cl_list")
 
     first_cl = cls.order_by('created_at').first()
-    invoice = Invoice.objects.create(
-        company=first_cl.company,
-        invoice_type="hotel",
-        invoice_number=Invoice.generate_number("hotel"),
-        customer_name=first_cl.guest_name,
-        issued_date=date.today(),
-        currency="SAR",
-    )
-
-    for cl in cls:
-        Reservation.objects.create(
-            invoice=invoice,
-            reservation_number=cl.confirmation_number,
-            hotel=cl.hotel_name or "-",
-            check_in=cl.check_in,
-            check_out=cl.check_out,
-            total_sar=round_half_up(cl.total_price) if cl.total_price else 0,
+    with transaction.atomic():
+        invoice = Invoice.objects.create(
+            company=first_cl.company,
+            invoice_type="hotel",
+            invoice_number=Invoice.generate_number("hotel"),
+            customer_name=first_cl.guest_name,
+            issued_date=date.today(),
+            currency="SAR",
         )
-        cl.invoice = invoice
-        cl.save(update_fields=["invoice"])
 
+        for cl in cls:
+            total_sar = round_half_up(cl.total_price) if cl.total_price else 0
+            reservation = Reservation.objects.create(
+                invoice=invoice,
+                reservation_number=cl.confirmation_number,
+                hotel=cl.hotel_name or "-",
+                check_in=cl.check_in,
+                check_out=cl.check_out,
+                total_sar=total_sar,
+            )
+            if total_sar:
+                Charge.objects.create(
+                    company=invoice.company, client=cl.client, invoice=invoice, date=date.today(),
+                    amount_sar=total_sar, reservation=reservation, reason=ChargeReason.INITIAL,
+                    description=f'Sinkron dari CL {cl.confirmation_number}', created_by=request.user,
+                )
+            cl.invoice = invoice
+            cl.save(update_fields=["invoice"])
+
+    logger.info(
+        "ledger: invoice %s created from %d CL(s), company %s",
+        invoice.invoice_number, cls.count(), invoice.company,
+    )
     messages.success(request, f"Invoice {invoice.invoice_number} created from {cls.count()} CL(s).")
     return redirect("invoice_edit", pk=invoice.pk)
 
@@ -579,15 +597,30 @@ def _save_cl_rooms(cl, request):
         Room.objects.create(cl=cl, room_type=rt, meals=(r.get("meals") or ""), quantity=qty, price=price)
 
 
-def _sync_invoice_reservation_from_cl(cl):
+def _sync_invoice_reservation_from_cl(cl, user=None):
     """Update the Invoice's Reservation to match the CL's current data."""
-    from ..models import Reservation
+    from datetime import date as _date
+    from ..models import Reservation, Charge, ChargeReason
     try:
         reservation = cl.invoice.reservations.get(reservation_number=cl.confirmation_number)
     except Reservation.DoesNotExist:
         return
-    reservation.check_in = cl.check_in
-    reservation.check_out = cl.check_out
-    reservation.total_sar = round_half_up(cl.total_price) if cl.total_price else 0
-    reservation.hotel = cl.hotel_name or "-"
-    reservation.save()
+    old_total = reservation.total_sar
+    with transaction.atomic():
+        reservation.check_in = cl.check_in
+        reservation.check_out = cl.check_out
+        reservation.total_sar = round_half_up(cl.total_price) if cl.total_price else 0
+        reservation.hotel = cl.hotel_name or "-"
+        reservation.save()
+
+        delta = reservation.total_sar - old_total
+        if delta:
+            Charge.objects.create(
+                company=cl.company, client=cl.client, invoice=cl.invoice, date=_date.today(),
+                amount_sar=delta, reservation=reservation, reason=ChargeReason.REVISION,
+                description=f'Sinkron dari CL {cl.confirmation_number} (perubahan kamar)', created_by=user,
+            )
+            logger.info(
+                "ledger: revision charge %s SAR for reservation %s (CL %s edit)",
+                delta, reservation.pk, cl.confirmation_number,
+            )

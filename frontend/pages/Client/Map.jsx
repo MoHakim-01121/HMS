@@ -178,7 +178,6 @@ export default function ClientMap() {
 }
 
 const CSS = `
-@media (max-width: 600px) { .m-topbar { display: none !important; } }
 #map-wrap { position: relative; height: calc(100vh - var(--topbar-h, 56px)); overflow: hidden; }
 #map { position: absolute; inset: 0; isolation: isolate; }
 .map-filter { position: absolute; top: 12px; left: 12px; z-index: var(--z-overlay); display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100% - 24px); }

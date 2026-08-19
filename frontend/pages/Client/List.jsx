@@ -4,6 +4,7 @@ import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
+import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -21,14 +22,13 @@ function riskBadge(risk) {
   if (risk === "dormant") return ["badge badge-gray", "Dormant"];
   return null;
 }
-const scoreColor = (s) => (s >= 70 ? "var(--green)" : s >= 40 ? "var(--yellow)" : "var(--red)");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 function visit(params) {
   router.get("/clients/", params, { preserveState: true, preserveScroll: true, replace: true });
 }
 
-export default function List({ clients, q, status }) {
+export default function List({ clients, total_count, q, status, pagination }) {
   const { t } = useI18n();
   const [query, setQuery] = useState(q || "");
   const [panelOpen, setPanelOpen] = useState(false);
@@ -56,7 +56,7 @@ export default function List({ clients, q, status }) {
       <div className="page-header">
         <div>
           <div className="page-title">{t("Clients")}</div>
-          <div className="page-sub">{t("{count} travel agents registered", { count: clients.length })}</div>
+          <div className="page-sub">{t("{count} travel agents registered", { count: total_count })}</div>
         </div>
         <div className="page-actions">
           <a href="/clients/map/" className="btn btn-secondary">
@@ -112,10 +112,11 @@ export default function List({ clients, q, status }) {
 
       <div className="card">
         {clients.length ? (
+          <>
           <Table
             columns={[
               {
-                header: t("Agent Name"),
+                header: t("Company Name"),
                 className: "col-m-primary",
                 render: (c) => {
                   const rb = riskBadge(c.risk_label);
@@ -127,14 +128,15 @@ export default function List({ clients, q, status }) {
                   );
                 },
               },
-              { header: t("City"), className: "col-muted col-m-secondary", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
+              { header: t("Brand"), className: "col-muted col-m-hide col-ellipsis-sm", render: (c) => c.brand || <span className="col-dim">—</span> },
+              { header: t("City"), className: "col-muted col-m-secondary col-ellipsis", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
               {
-                header: t("PIC / Score"),
+                header: t("PIC / Avg Payment"),
                 className: "col-mobile-only col-m-meta",
                 render: (c) => (
                   <>
                     <span>{c.pic || ""}</span>
-                    {c.score != null && <span style={{ color: scoreColor(c.score) }}>{c.score}/100</span>}
+                    {c.avg_days_to_pay != null && <span>{c.avg_days_to_pay}d</span>}
                   </>
                 ),
               },
@@ -149,22 +151,25 @@ export default function List({ clients, q, status }) {
                   </>
                 ),
               },
-              { header: t("Invoice"), className: "col-muted mono col-m-hide", render: (c) => c.invoices_count },
               {
-                header: t("Outstanding"),
+                header: t("Last Order"),
                 className: "col-m-amount",
-                render: (c) => (
-                  <>
-                    <span className="m-hide">{c.outstanding > 0 ? <span className="remaining-unpaid mono">{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span> : <span className="col-dim">—</span>}</span>
-                    <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Outstanding")}</span>
-                    <span className="m-only" style={{ color: c.outstanding > 0 ? "var(--red)" : "var(--green)" }}>{Math.round(c.outstanding).toLocaleString("en-US")} SAR</span>
-                  </>
-                ),
+                render: (c) => {
+                  const dormant = c.days_since_last_order != null && c.days_since_last_order > 45;
+                  const val = c.days_since_last_order != null ? t("{n} days ago", { n: c.days_since_last_order }) : "—";
+                  return (
+                    <>
+                      <span className="m-hide" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Last Order")}</span>
+                      <span className="m-only" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+                    </>
+                  );
+                },
               },
               {
-                header: t("Score"),
+                header: t("Avg Payment"),
                 className: "col-m-hide col-num",
-                render: (c) => <span className="mono" style={{ color: scoreColor(c.score) }}>{c.score}</span>,
+                render: (c) => c.avg_days_to_pay != null ? <span className="mono">{c.avg_days_to_pay}d</span> : <span className="col-dim">—</span>,
               },
               { header: t("Status"), className: "col-m-hide", render: (c) => c.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span> },
               {
@@ -180,6 +185,8 @@ export default function List({ clients, q, status }) {
             rowKey={(c) => c.id}
             onRowClick={(c) => router.visit(`/clients/${c.id}/`)}
           />
+          <Pagination pagination={pagination} unit={t("clients")} onPage={(p) => visit({ q: query, status: status || "", page: p })} />
+          </>
         ) : (
           <div className="empty">
             <Icon name="user" size={36} strokeWidth={1.5} />

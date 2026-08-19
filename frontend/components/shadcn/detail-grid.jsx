@@ -32,7 +32,7 @@ export default function DetailGrid({ rows, right }) {
           </div>
         ))}
       </div>
-      {right ? <div style={{ paddingTop: 22 }}>{right}</div> : null}
+      {right ? <div className="hms-dv-grid-right" style={{ paddingTop: 22 }}>{right}</div> : null}
     </div>
   );
 }

@@ -3,7 +3,7 @@ from datetime import date
 
 from django.test import TestCase
 
-from hw.models import Invoice, Payment, Remittance, RemittanceLine, Reservation
+from hw.models import Invoice, Payment, CashMovement, Remittance, RemittanceLine, Reservation
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
 
 
@@ -74,21 +74,22 @@ class AddableReservasiTest(TestCase):
             company='konoz', invoice_type='hotel',
             invoice_number='INV-EDIT-002', customer_name='Budi',
         )
-        Reservation.objects.create(
+        self.r1 = Reservation.objects.create(
             invoice=self.invoice, reservation_number='R1', total_sar=10000,
             check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
+        self.r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E10')
 
-    def _pay(self, res, amount, method='cash'):
-        Payment.objects.create(
-            invoice=self.invoice, linked_number=res, amount=amount, currency='SAR',
-            exchange_rate=1, method=method, payment_date=date(2026, 1, 5),
+    def _pay(self, res, amount, to_account='sby'):
+        CashMovement.objects.create(
+            company='konoz', invoice=self.invoice, reservation_label=res,
+            from_account='client', to_account=to_account,
+            amount=amount, currency='SAR', exchange_rate=1, date=date(2026, 1, 5),
         )
 
     def test_lists_reservation_with_idle_money(self):
-        self._pay('R1', 5000)
+        self._pay(self.r1, 5000)
         rows = _addable_reservasi(self.rem)
         self.assertEqual([r['linked_number'] for r in rows], ['R1'])
         self.assertEqual(rows[0]['mengendap'], 5000)
@@ -96,19 +97,24 @@ class AddableReservasiTest(TestCase):
         self.assertEqual(rows[0]['customer_name'], 'Budi')
 
     def test_excludes_reservation_already_in_this_remittance(self):
-        self._pay('R1', 5000)
-        self._pay('R2', 3000)
+        self._pay(self.r1, 5000)
+        self._pay(self.r2, 3000)
         RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=1000)
         self.assertEqual([r['linked_number'] for r in _addable_reservasi(self.rem)], ['R2'])
 
     def test_excludes_reservation_already_fully_sent(self):
-        self._pay('R1', 5000)
+        self._pay(self.r1, 5000)
         other = Remittance.objects.create(company='konoz', date=date(2026, 1, 9), remittance_number='RMT-E11')
         RemittanceLine.objects.create(remittance=other, invoice=self.invoice, linked_number='R1', amount_sar=5000)
+        CashMovement.objects.create(
+            company='konoz', invoice=self.invoice, reservation_label=self.r1, remittance=other,
+            from_account='sby', to_account='pusat',
+            amount=5000, currency='SAR', exchange_rate=1, date=date(2026, 1, 9),
+        )
         self.assertEqual(_addable_reservasi(self.rem), [])
 
     def test_direct_payment_is_not_addable(self):
-        self._pay('R1', 5000, method='direct')
+        self._pay(self.r1, 5000, to_account='pusat')
         self.assertEqual(_addable_reservasi(self.rem), [])
 
 
@@ -129,12 +135,21 @@ class RemittanceEditViewTest(TestCase):
             company='konoz', invoice_type='hotel',
             invoice_number='INV-EDIT-003', customer_name='Budi',
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        for res, amount in (('R1', 5000), ('R2', 3000)):
+        r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
+        r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
+        for res, amount in ((r1, 5000), (r2, 3000)):
+            # Post-migrasi, Payment lama dan CashMovement baru hidup berdampingan
+            # (migrate_to_ledger tidak menghapus Payment) -- _sort_lines_by_payment_date
+            # belum dialihkan di Fase 3 ini (baru ikut pindah waktu RemittanceLine
+            # digantikan CashMovement di Fase 4), jadi tetap butuh Payment di sini.
             Payment.objects.create(
-                invoice=self.invoice, linked_number=res, amount=amount, currency='SAR',
-                exchange_rate=1, method='cash', payment_date=date(2026, 1, 5),
+                invoice=self.invoice, linked_number=res.reservation_number, amount=amount,
+                currency='SAR', exchange_rate=1, method='cash', payment_date=date(2026, 1, 5),
+            )
+            CashMovement.objects.create(
+                company='konoz', invoice=self.invoice, reservation_label=res,
+                from_account='client', to_account='sby',
+                amount=amount, currency='SAR', exchange_rate=1, date=date(2026, 1, 5),
             )
         self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E20')
         self.line = RemittanceLine.objects.create(

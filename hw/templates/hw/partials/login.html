@@ -1,4 +1,4 @@
-{% load static %}
+ {% load static %}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -80,6 +80,7 @@
       position: relative; z-index: 2;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 24px 16px 80px;
@@ -108,7 +109,7 @@
     /* Brand mark */
     .login-brand {
       display: flex; align-items: center; justify-content: center; gap: 10px;
-      margin-bottom: 26px;
+      margin-bottom: 28px;
     }
     .login-logo { display: flex; color: var(--accent); flex-shrink: 0; }
     .login-logo svg { display: block; }
@@ -303,19 +304,15 @@
   </button>
 
   <div class="login-wrap">
-    <div class="login-card">
 
-      <!-- Brand -->
-      <div class="login-brand reveal">
-        <div class="login-logo">
-          <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-            <rect x="3"   y="2" width="4.5" height="22" fill="currentColor"/>
-            <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor"/>
-            <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor"/>
-          </svg>
-        </div>
-        <div class="login-appname">Hakim Workspace</div>
+    <!-- Brand -->
+    <div class="login-brand reveal">
+      <div class="login-logo">
+        <img src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United" style="height:140px;width:auto;display:block;">
       </div>
+    </div>
+
+    <div class="login-card">
 
       <div class="reveal" style="animation-delay:60ms">
         <div class="login-heading">Welcome back</div>

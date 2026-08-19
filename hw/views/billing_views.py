@@ -6,7 +6,8 @@ from django_q.tasks import async_task
 from ..models import Invoice
 from ..permissions import require_perm
 from ..i18n import tr
-from .helpers import _billing_client, get_active_company
+from .helpers import get_active_company
+from .invoice_billing import _billing_client
 
 
 @require_perm('invoice', 'edit')
@@ -23,7 +24,6 @@ def billing_send(request):
     invoice = (
         Invoice.objects
         .filter(pk=pk, company=get_active_company(request))
-        .select_related('client')
         .first()
     )
     if not invoice:

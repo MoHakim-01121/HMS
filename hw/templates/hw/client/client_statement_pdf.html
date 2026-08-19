@@ -1,0 +1,201 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Statement — {{ client.name }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 56px 64px 48px;
+      @bottom-left {
+        content: string(doc-date);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " / " counter(pages);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+    }
+    .doc-date-anchor { string-set: doc-date content(); display: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+    .logo { max-height: 68px; width: auto; }
+
+    .meta { margin-bottom: 28px; font-size: 12px; }
+    .meta-row { display: flex; gap: 8px; }
+    .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
+    .meta-row .mv { color: #111; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #333;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      white-space: nowrap;
+    }
+    thead th.r { text-align: right; }
+    tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+    tbody td.r { text-align: right; }
+    .mono { font-family: 'Courier New', monospace; font-size: 11px; }
+    .nowrap { white-space: nowrap; }
+    .muted { color: #bbb; }
+    .sub { font-size: 10px; color: #888; }
+
+    .amt-debit  { color: #b45309; font-weight: 700; }
+    .amt-credit { color: #15803d; font-weight: 700; }
+    .bal-pos { font-weight: 700; }
+    .bal-zero { color: #15803d; font-weight: 700; }
+    .bal-neg { color: #dc2626; font-weight: 700; }
+
+    tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    tr.opening-row td {
+      background: #fafafa;
+      font-weight: 700;
+      font-size: 10.5px;
+      color: #444;
+    }
+    tr.total-row td {
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      font-weight: 700;
+      color: #111;
+      font-size: 11.5px;
+    }
+    tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
+
+    .summary {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 32px;
+    }
+    .summary-box { text-align: right; }
+    .summary-box .sk { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: .5px; }
+    .summary-box .sv { font-size: 16px; font-weight: 700; margin-top: 2px; }
+
+    .note {
+      margin-top: 24px;
+      font-size: 9.5px;
+      color: #666;
+      line-height: 1.7;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+    .note b { color: #333; }
+
+    .watermark {
+      position: fixed;
+      top: 45%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-40deg);
+      font-size: 90px; font-weight: 900;
+      color: rgba(0,0,0,0.04);
+      white-space: nowrap;
+      letter-spacing: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+<div class="watermark">STATEMENT</div>
+
+<div class="top">
+  <div class="doc-title">Customer Statement</div>
+  <img src="{{ logo_url }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Client</span><span class="mv">{{ client.name }}</span></div>
+  <div class="meta-row"><span class="mk">Periode</span><span class="mv">{{ period_label }}</span></div>
+  <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th class="nowrap">Tanggal</th>
+      <th>Keterangan</th>
+      <th class="r">Debit (SAR)</th>
+      <th class="r">Credit (SAR)</th>
+      <th class="r">Saldo (SAR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% if opening_balance %}
+    <tr class="opening-row">
+      <td colspan="4">Saldo awal periode</td>
+      <td class="r mono">{{ opening_balance|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
+    {% for row in rows %}
+    <tr>
+      <td class="nowrap">{{ row.date }}</td>
+      <td>
+        {{ row.description }}
+        {% if row.type == 'memo' %}<div class="sub">Transfer — tidak mengubah saldo</div>{% endif %}
+      </td>
+      <td class="r mono">{% if row.debit %}<span class="amt-debit">{{ row.debit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.credit %}<span class="amt-credit">{{ row.credit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">
+        {% if row.balance > 0 %}
+          <span class="bal-pos">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% elif row.balance < 0 %}
+          <span class="bal-neg">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% else %}
+          <span class="bal-zero">0</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">Tidak ada transaksi pada periode ini</td></tr>
+    {% endfor %}
+    {% if rows %}
+    <tr class="total-row">
+      <td colspan="2" class="label">Total periode</td>
+      <td class="r mono">{{ total_debit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ total_credit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ closing_balance|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<div class="summary">
+  <div class="summary-box">
+    <div class="sk">Saldo Akhir</div>
+    <div class="sv" style="color: {% if closing_balance > 0 %}#dc2626{% elif closing_balance < 0 %}#b45309{% else %}#15803d{% endif %};">
+      {{ closing_balance|floatformat:0|intcomma }} SAR
+    </div>
+  </div>
+</div>
+
+<div class="note">
+  <b>Cara baca:</b> Saldo positif berarti client masih memiliki kewajiban bayar (piutang).
+  Saldo negatif berarti client memiliki dana lebih yang belum dialokasikan. Baris "Transfer"
+  memindahkan dana antar reservasi tanpa mengubah saldo total. Statement ini dikunci per tanggal
+  cetak — koreksi yang dicatat setelah tanggal generate di atas tidak memengaruhi angka pada
+  cetakan ini.
+</div>
+
+</body>
+</html>

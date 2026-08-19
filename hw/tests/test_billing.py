@@ -124,7 +124,12 @@ class BillingSendEndpointTest(TestCase):
             company='konoz', name='Travel Amanah',
             wa='628111222333', wa_group='120363abc@g.us',
         )
-        self.invoice = _make_invoice(invoice_number='INV-EP-001', client=self.wa_client)
+        self.invoice = _make_invoice(invoice_number='INV-EP-001')
+        # Invoice has no client FK of its own -- client resolves via a linked CL.
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-EP-SETUP', invoice=self.invoice, client=self.wa_client,
+        )
 
     def _post(self, payload):
         return self.client.post(
@@ -242,7 +247,11 @@ class DetailBillingPropsTest(TestCase):
         )
 
     def test_invoice_detail_has_wa_send_and_last_billing(self):
-        invoice = _make_invoice(invoice_number='INV-PR-001', client=self.wa_client)
+        invoice = _make_invoice(invoice_number='INV-PR-001')
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-PR-001', invoice=invoice, client=self.wa_client,
+        )
         BillingLog.objects.create(
             invoice=invoice, target='628111222333', message='m', status='SENT',
         )
@@ -300,8 +309,10 @@ class DetailBillingPropsTest(TestCase):
         self.assertFalse(props['wa_send']['has_wa'])
 
     def test_services_detail_has_wa_send_and_last_billing(self):
-        invoice = _make_invoice(
-            invoice_number='INV-PR-003', invoice_type='visa', client=self.wa_client,
+        invoice = _make_invoice(invoice_number='INV-PR-003', invoice_type='visa')
+        ConfirmationLetter.objects.create(
+            company='konoz', hotel_name='Hilton', guest_name='Ahmad',
+            confirmation_number='CL-PR-003', invoice=invoice, client=self.wa_client,
         )
         resp = self.client.get(f'/services/{invoice.pk}/', HTTP_X_INERTIA='true')
         props = resp.json()['props']
@@ -334,6 +345,10 @@ class BillingMessageTemplateTest(TestCase):
         self.assertIn('Terbayar: 0 SAR', msg)
         self.assertIn('Sisa: 15.000 SAR', msg)
         self.assertIn('Mohon lakukan pembayaran sebelum jatuh tempo.', msg)
+        self.assertIn('Informasi Pembayaran:', msg)
+        self.assertIn('Nama Bank : Mandiri', msg)
+        self.assertIn('No. Rekening : 1400550111117', msg)
+        self.assertIn('Atas Nama : Konoz Almotaheda Indonesia', msg)
         self.assertIn('Terima kasih,\n*Konoz United Surabaya*', msg)
 
     def test_hotel_due_date_bold_and_indonesian_month(self):
@@ -365,6 +380,7 @@ class BillingMessageTemplateTest(TestCase):
         self.assertIn('Terbayar: 15.000 SAR', msg)
         self.assertIn('Sisa: 0 SAR', msg)
         self.assertNotIn('Jatuh Tempo', msg)
+        self.assertNotIn('Informasi Pembayaran', msg)
 
     def test_services_lines_and_currency(self):
         inv = _make_invoice(
@@ -392,6 +408,7 @@ class BillingMessageTemplateTest(TestCase):
         inv = self._hotel_invoice(invoice_number='INV-TM-008', company='ijabah')
         msg = generate_draft_message('invoice', inv)
         self.assertIn('Terima kasih,\n*Ijabah*', msg)
+        self.assertNotIn('Informasi Pembayaran', msg)
 
 
 class SendWaFileTest(TestCase):

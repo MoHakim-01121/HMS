@@ -3,8 +3,8 @@ from django.shortcuts import render
 
 from .models import (
     ActivityLog, Attachment, Client, ConfirmationLetter,
-    Hotel, Invoice, Payment, Remittance, RemittanceLine,
-    Reservation, RoleDefinition, Room, ServiceItem, UserProfile,
+    Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceLine,
+    Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
 )
 
 
@@ -104,3 +104,5 @@ admin.site.register(Reservation)
 admin.site.register(Room)
 admin.site.register(ServiceItem)
 admin.site.register(Attachment)
+admin.site.register(TeamMember)
+admin.site.register(Pricelist)

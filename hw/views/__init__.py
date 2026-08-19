@@ -4,10 +4,11 @@ from urllib.parse import urlparse
 
 from django.contrib.auth.decorators import login_required
 from django.db import connection
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.templatetags.static import static
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
@@ -40,6 +41,7 @@ from .role_views import role_delete, role_edit, role_list, role_new
 from .client_views import (
     client_list, client_new, client_edit, client_delete,
     client_detail, client_map, client_map_data,
+    client_transfer, client_refund, client_statement_pdf,
 )
 from .hotel_views import (
     hotel_list, hotel_new, hotel_edit, hotel_delete,
@@ -55,9 +57,17 @@ from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
 )
 from .dev_views import style_guide
+from .visit_views import (
+    visit_cancel, visit_complete, visit_detail, visit_edit, visit_list,
+    visit_new, visit_pdf, visit_photo_delete, visit_photo_upload, visit_recap,
+)
+from .landing_views import (
+    landing_manage, team_new, team_edit, team_delete,
+    pricelist_new, pricelist_edit, pricelist_delete,
+)
 
 from ..ai import generate_draft_message, get_chat_reply
-from ..models import ActivityLog, ConfirmationLetter, Invoice, Remittance, log_activity
+from ..models import ActivityLog, ConfirmationLetter, Hotel, Invoice, Pricelist, Remittance, TeamMember, log_activity
 from ..models.choices import Company
 from ..permissions import can, can_use_company, default_company, hide_unless
 from .helpers import get_active_company
@@ -71,25 +81,166 @@ def company_quick_set(request):
     # Silently ignore a company the user has no access to — the switcher never
     # offers it, so a request for one is either a stale tab or a hand-crafted
     # POST. Either way the session must not adopt it.
-    if company in ("konoz", "ijabah") and can_use_company(request.user, company):
+    if company in Company.values and can_use_company(request.user, company):
         request.session["active_company"] = company
         request.session.modified = True
     else:
         company = get_active_company(request)
 
-    referer = request.META.get("HTTP_REFERER", "/")
+    referer = request.META.get("HTTP_REFERER", "/dashboard/")
     try:
         parsed = urlparse(referer)
         # Reject external redirects — only allow same host
         if parsed.netloc and parsed.netloc != request.get_host():
-            safe_url = "/"
+            safe_url = "/dashboard/"
         else:
             safe_url = parsed.path + (f"?{parsed.query}" if parsed.query else "")
     except Exception:
-        safe_url = "/"
+        safe_url = "/dashboard/"
 
     sep = "&" if "?" in safe_url else "?"
     return redirect(f"{safe_url}{sep}company_changed={company}")
+
+
+def landing(request):
+    # A signed-in staff member has no reason to see the marketing page —
+    # bookmarks and links to "/" (old dashboard URL, error-page "Back to
+    # Home" links, LOGIN_REDIRECT_URL fallbacks) should still land them on
+    # their dashboard. Staff who manage the landing page's content can add
+    # ?preview=1 to see the live public page instead of being bounced.
+    preview = request.GET.get('preview') == '1' and can(request.user, 'landing', 'view')
+    if request.user.is_authenticated and not preview:
+        return redirect('home')
+
+    active_hotels = Hotel.objects.filter(is_active=True)
+    featured_hotels = [
+        {
+            "id": h.id,
+            "name": h.name,
+            "city": h.city,
+            "city_display": h.get_city_display(),
+            "area": h.area,
+            "stars": h.stars,
+            "distance_label": h.distance_label,
+            "walk_label": h.walk_label,
+            "note": h.note,
+        }
+        for h in active_hotels.order_by("-stars", "name")[:6]
+    ]
+    team_members = [
+        {
+            "id": m.id,
+            "name": m.name,
+            "position": m.position,
+            "wa": m.wa,
+            "photo_url": m.photo.url if m.photo else None,
+        }
+        for m in TeamMember.objects.filter(is_active=True).order_by("order", "id")
+    ]
+    pricelist = Pricelist.objects.filter(is_active=True).order_by("-updated_at").first()
+    return inertia_render(request, "Landing/Index", props={
+        "stats": {
+            "total_hotels": active_hotels.count(),
+            "cities_covered": active_hotels.values_list("city", flat=True).distinct().count(),
+        },
+        "featured_hotels": featured_hotels,
+        "team_members": team_members,
+        "pricelist": {
+            "id": pricelist.id,
+            "title": pricelist.title,
+            "file_url": pricelist.file.url if pricelist.file else None,
+        } if pricelist else None,
+    }, template_data={
+        # Server-rendered (not JS-injected) so link-preview crawlers that
+        # never execute JS — WhatsApp, Telegram, Facebook — see a real
+        # title/image instead of the generic "Workspace" shell default.
+        "page_title": "Konoz United — Broker Hotel Umrah & Haji di Makkah & Madinah",
+        "meta_description": (
+            "Konoz United melayani agen travel Umrah & Haji dengan inventori hotel "
+            "berkontrak langsung di Makkah & Madinah: reservasi, Confirmation Letter, "
+            "hingga pembayaran."
+        ),
+        "og_image": request.build_absolute_uri(static("hw/img/og-landing.jpg")),
+    })
+
+
+def public_hotels(request):
+    active_hotels = Hotel.objects.filter(is_active=True)
+    qs = active_hotels
+    q            = request.GET.get('q', '').strip()
+    city_filter  = request.GET.get('city', '').strip()
+    stars_filter = request.GET.get('stars', '').strip()
+    if q:
+        qs = qs.filter(Q(name__icontains=q) | Q(area__icontains=q))
+    if city_filter in ('makkah', 'madinah'):
+        qs = qs.filter(city=city_filter)
+    if stars_filter.isdigit():
+        qs = qs.filter(stars=int(stars_filter))
+    qs = qs.order_by('city', '-stars', 'name')
+
+    hotels = [{
+        "id": h.id,
+        "name": h.name,
+        "city": h.city,
+        "city_display": h.get_city_display(),
+        "area": h.area,
+        "stars": h.stars,
+        "distance": h.distance_to_haram,
+        "distance_label": h.distance_label,
+        "walk_label": h.walk_label,
+        "note": h.note,
+    } for h in qs]
+
+    pricelist = Pricelist.objects.filter(is_active=True).order_by('-updated_at').first()
+
+    # Facet counts — Booking.com/Trivago pattern: each facet is counted over
+    # the current query with that facet itself removed, so the numbers stay
+    # stable and meaningful while the user narrows down.
+    base = active_hotels
+    if q:
+        base = base.filter(Q(name__icontains=q) | Q(area__icontains=q))
+    base_for_city   = base.filter(stars=int(stars_filter)) if stars_filter.isdigit() else base
+    base_for_star   = base.filter(city=city_filter) if city_filter in ('makkah', 'madinah') else base
+
+    count_by_star = {}
+    for s in (3, 4, 5):
+        count_by_star[str(s)] = base_for_star.filter(stars=s).count()
+
+    dist_hotels = list(base_for_star)
+    count_by_distance = {
+        "500": sum(1 for h in dist_hotels if h.distance_to_haram is not None and h.distance_to_haram <= 500),
+        "1000": sum(1 for h in dist_hotels if h.distance_to_haram is not None and h.distance_to_haram <= 1000),
+        "2000": sum(1 for h in dist_hotels if h.distance_to_haram is not None and h.distance_to_haram <= 2000),
+    }
+
+    return inertia_render(request, "Landing/Hotels", props={
+        "hotels": hotels,
+        "q": q,
+        "city_filter": city_filter,
+        "stars_filter": stars_filter,
+        "stats": {
+            "total_hotels": active_hotels.count(),
+            "cities_covered": active_hotels.values_list("city", flat=True).distinct().count(),
+            "count_by_city": {
+                "makkah": base_for_city.filter(city="makkah").count(),
+                "madinah": base_for_city.filter(city="madinah").count(),
+            },
+            "count_by_star": count_by_star,
+            "count_by_distance": count_by_distance,
+        },
+        "pricelist": {
+            "id": pricelist.id,
+            "title": pricelist.title,
+            "file_url": pricelist.file.url if pricelist.file else None,
+        } if pricelist else None,
+    }, template_data={
+        "page_title": "Hotel Kami — Konoz United",
+        "meta_description": (
+            "Jelajahi seluruh hotel partner Konoz United di Makkah & Madinah — "
+            "reservasi hotel berkontrak langsung untuk agen travel Umrah & Haji."
+        ),
+        "og_image": request.build_absolute_uri(static("hw/img/og-landing.jpg")),
+    })
 
 
 @login_required

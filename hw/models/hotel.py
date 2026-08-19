@@ -11,7 +11,7 @@ NABAWI_LAT = 24.4672;   NABAWI_LNG = 39.6112
 
 
 class Hotel(models.Model):
-    company       = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    company       = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     name          = models.CharField(max_length=200)
     city          = models.CharField(max_length=20, choices=HotelCity.choices, default=HotelCity.MAKKAH)
     stars         = models.PositiveSmallIntegerField(default=3)
@@ -67,6 +67,16 @@ class Hotel(models.Model):
         d = self.distance_to_haram
         if d is None: return '—'
         return f'{d} m' if d < 1000 else f'{d/1000:.1f} km'
+
+    @property
+    def walk_label(self):
+        d = self.distance_to_haram
+        if d is None: return None
+        # ~80 m/min walking pace, the metric Makkah/Madinah hotel directories
+        # lead with ("2 min walk from Masjid al-Haram") because raw meters
+        # mean little to pilgrims planning the Fajr walk.
+        minutes = max(1, round(d / 80))
+        return f'±{minutes} mnt jalan kaki'
 
     @property
     def stars_display(self):

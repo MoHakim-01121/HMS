@@ -404,7 +404,6 @@ export default function HotelMap() {
 }
 
 const CSS = `
-@media (max-width: 600px) { .m-topbar { display: none !important; } }
 #map-wrap { position: relative; height: calc(100vh - 48px); overflow: hidden; }
 #map { position: absolute; inset: 0; isolation: isolate; }
 .hotel-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; background: rgba(20,20,23,.92); background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: visible; z-index: var(--z-dropdown); transition: transform .25s cubic-bezier(.4,0,.2,1); }

@@ -1,5 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
-   Raycast Form Design System
+   Legacy shared form base layer (pre-Homlu) — see design.css's own
+   header comment for how this coexists with tailwind.css's Homlu tokens.
    Imported per-page via {% block extra_css %}
    ══════════════════════════════════════════════════════════════ */
 

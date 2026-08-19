@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import DetailCard from "../../components/shadcn/detail-card.jsx";
@@ -14,6 +15,31 @@ import { useI18n } from "../../utils/i18n.jsx";
 const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
+const dateInputStyle = {
+  fontSize: 12.5, fontFamily: "inherit", color: "var(--foreground)",
+  background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
+  padding: "3px 8px", colorScheme: "light dark",
+};
+
+function StatementExport({ pk, t }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const qs = params.toString();
+  return (
+    <>
+      <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} style={dateInputStyle} />
+      <span style={{ color: "var(--muted-foreground)" }}>–</span>
+      <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} style={dateInputStyle} />
+      <a className="hms-dv-act" href={`/clients/${pk}/statement/pdf/${qs ? `?${qs}` : ""}`} target="_blank" rel="noreferrer">
+        {t("Export Statement")}
+      </a>
+    </>
+  );
+}
+
 function riskPill(risk) {
   if (risk === "high") return { label: "High Risk", tone: "red" };
   if (risk === "medium") return { label: "Overdue", tone: "yellow" };
@@ -21,7 +47,7 @@ function riskPill(risk) {
   return { label: "OK", tone: "green" };
 }
 
-export default function Detail({ client, invoices, cls }) {
+export default function Detail({ client, invoices, cls, activity }) {
   const { t } = useI18n();
   const c = client;
   const openForm = useFormModal();
@@ -35,6 +61,13 @@ export default function Detail({ client, invoices, cls }) {
   if (c.wa_group) contactLines.push(t("Group: {name}", { name: c.wa_group }));
   if (c.email) contactLines.push(c.email);
 
+  const locationLine = c.address
+    ? c.address + (c.city ? ` · ${c.city}${c.province ? `, ${c.province}` : ""}` : "")
+    : c.city
+      ? `${c.city}${c.province ? `, ${c.province}` : ""}`
+      : null;
+  const subLines = [c.brand, locationLine].filter(Boolean);
+
   return (
     <div className="page dv-page hms-dv-page shadcn-root">
       <PageBack href="/clients/" label={t("Back")} />
@@ -42,7 +75,7 @@ export default function Detail({ client, invoices, cls }) {
       <DetailCard
         crumbs={[{ label: t("Clients"), href: "/clients/" }]}
         title={c.name}
-        sub={c.city ? `${c.city}${c.province ? `, ${c.province}` : ""}` : null}
+        sub={subLines.length ? subLines.map((l, i) => <div key={i}>{l}</div>) : null}
         pill={pill ? { ...pill, label: t(pill.label) } : null}
         actions={
           <>
@@ -52,7 +85,11 @@ export default function Detail({ client, invoices, cls }) {
             )}
           </>
         }
-        menuItems={[perms.can("clients", "delete") && { label: t("Delete"), onClick: del, danger: true }]}
+        menuItems={[
+          perms.can("clients", "edit") && { label: t("Move Funds"), onClick: () => openForm(`/clients/${c.pk}/transfer/`) },
+          perms.can("clients", "edit") && { label: t("Refund"), onClick: () => openForm(`/clients/${c.pk}/refund/`) },
+          perms.can("clients", "delete") && { label: t("Delete"), onClick: del, danger: true },
+        ]}
       >
         <DetailGrid
           rows={[
@@ -88,12 +125,22 @@ export default function Detail({ client, invoices, cls }) {
             c.note && { label: t("Notes"), value: c.note, icon: "file-text", span2: true, pre: true },
           ]}
           right={
-            <DetailAmount
-              label={c.outstanding > 0 ? t("Outstanding") : t("Clear")}
-              value={fmt(c.outstanding)}
-              currency="SAR"
-              tone={c.outstanding > 0 ? "red" : "green"}
-            />
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "flex-end" }}>
+              <DetailAmount
+                label={c.outstanding > 0 ? t("Outstanding") : t("Clear")}
+                value={fmt(c.outstanding)}
+                currency="SAR"
+                tone={c.outstanding > 0 ? "red" : "green"}
+              />
+              {c.saldo_dana !== 0 && (
+                <DetailAmount
+                  label={t("Fund Balance")}
+                  value={fmt(c.saldo_dana)}
+                  currency="SAR"
+                  tone={c.saldo_dana > 0 ? "yellow" : "green"}
+                />
+              )}
+            </div>
           }
         />
 
@@ -138,6 +185,44 @@ export default function Detail({ client, invoices, cls }) {
             rowKey={(inv) => inv.pk}
             empty={t("No invoices yet")}
             footer={c.outstanding > 0 ? [{ label: t("Outstanding total"), value: `${fmt(c.outstanding)} SAR`, total: true, tone: "red" }] : null}
+          />
+        </Section>
+
+        <Section
+          label={t("Fund Activity")}
+          icon="wallet"
+          count={activity.length || null}
+          action={perms.can("clients", "export") ? <StatementExport pk={c.pk} t={t} /> : null}
+        >
+          <DetailTable
+            columns={[
+              { header: t("Date"), render: (r) => r.date || "—" },
+              {
+                header: t("Description"),
+                strong: true,
+                render: (r) => (
+                  <>
+                    {r.description}
+                    {r.type === "memo" && <span className="sub">{t("Transfer — no cash movement")}</span>}
+                  </>
+                ),
+              },
+              { header: t("Debit"), align: "right", render: (r) => (r.debit ? fmt(r.debit) : "—") },
+              { header: t("Credit"), align: "right", render: (r) => (r.credit ? fmt(r.credit) : "—") },
+              {
+                header: t("Balance"),
+                align: "right",
+                strong: true,
+                render: (r) => (
+                  <span style={{ color: r.balance > 0 ? "var(--red)" : r.balance < 0 ? "var(--yellow)" : "var(--green)" }}>
+                    {fmt(r.balance)}
+                  </span>
+                ),
+              },
+            ]}
+            rows={activity}
+            rowKey={(r, i) => i}
+            empty={t("No fund activity yet")}
           />
         </Section>
 

@@ -3,7 +3,7 @@ import json
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import ConfirmationLetter, Invoice
+from hw.models import Charge, Client, ConfirmationLetter, Invoice
 
 
 class InvoiceEditClLinkTests(TestCase):
@@ -50,3 +50,69 @@ class InvoiceEditClLinkTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.cl.refresh_from_db()
         self.assertEqual(self.cl.invoice_id, self.invoice.pk)
+
+
+class InvoiceChargeClientResolutionTests(TestCase):
+    """Regression: linking a CL to a hotel invoice must resolve Charge.client
+    immediately, not one save behind. _billing_client() reads
+    invoice.confirmation_letters, so the CL link has to land before
+    _save_reservations/_save_hotel_payments run (see invoice_views.py)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("tester2", password="pw12345")
+        self.client.force_login(self.user)
+        s = self.client.session
+        s["active_company"] = "konoz"
+        s.save()
+        self.customer = Client.objects.create(company="konoz", name="PT Regression Client")
+        self.cl = ConfirmationLetter.objects.create(
+            company="konoz", hotel_name="Hotel Regress", guest_name="Guest Regress",
+            confirmation_number="CL-REGRESS-001", client=self.customer,
+        )
+
+    def test_invoice_new_with_linked_cl_resolves_charge_client(self):
+        resp = self.client.post("/invoice/new/", {
+            "invoice_number": "INV-REGRESS-001",
+            "customer_name": "PT Regression Client",
+            "issued_date": "",
+            "due_date": "",
+            "linked_cl_ids": json.dumps([self.cl.pk]),
+            "reservations": json.dumps([{
+                "reservation_number": "CL-REGRESS-001",
+                "hotel": "Hotel Regress",
+                "check_in": "",
+                "check_out": "",
+                "reservation_total": "1000",
+            }]),
+            "payments": "[]",
+        })
+        self.assertEqual(resp.status_code, 302)
+        invoice = Invoice.objects.get(invoice_number="INV-REGRESS-001")
+        charge = Charge.objects.get(invoice=invoice)
+        self.assertEqual(charge.client_id, self.customer.pk)
+        self.assertIn(invoice, self.customer.resolved_invoices)
+
+    def test_invoice_edit_relinking_cl_resolves_charge_client(self):
+        invoice = Invoice.objects.create(
+            company="konoz", invoice_type="hotel",
+            invoice_number="INV-REGRESS-002", customer_name="Test Customer",
+            currency="SAR",
+        )
+        resp = self.client.post(f"/invoice/{invoice.pk}/edit/", {
+            "invoice_number": "INV-REGRESS-002",
+            "customer_name": "Test Customer",
+            "issued_date": "",
+            "due_date": "",
+            "linked_cl_ids": json.dumps([self.cl.pk]),
+            "reservations": json.dumps([{
+                "reservation_number": "CL-REGRESS-001",
+                "hotel": "Hotel Regress",
+                "check_in": "",
+                "check_out": "",
+                "reservation_total": "500",
+            }]),
+            "payments": "[]",
+        })
+        self.assertEqual(resp.status_code, 302)
+        charge = Charge.objects.get(invoice=invoice)
+        self.assertEqual(charge.client_id, self.customer.pk)

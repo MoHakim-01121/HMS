@@ -39,7 +39,8 @@ from .models.user import CompanyAccess, Role
 # frontend/layouts/AppLayout.jsx so nav gating and view gating agree.
 MODULES = (
     'cl', 'invoice', 'services', 'hotels', 'clients',
-    'remittance', 'calendar', 'penalty', 'users', 'dev',
+    'remittance', 'calendar', 'penalty', 'users', 'dev', 'visits',
+    'landing',
 )
 
 ACTIONS = ('view', 'create', 'edit', 'delete', 'export')
@@ -73,6 +74,8 @@ DEFAULT_ROLE_MATRIX = {
         'clients':  set(_NO_DELETE),
         'calendar': set(_NO_DELETE),
         'penalty':  set(_NO_DELETE),
+        'visits':   set(_NO_DELETE),
+        'landing':  set(_NO_DELETE),
         'remittance': set(_READ),
     },
 
@@ -85,6 +88,8 @@ DEFAULT_ROLE_MATRIX = {
         'clients':    set(_READ),
         'calendar':   set(_READ),
         'penalty':    set(_READ),
+        'visits':     set(_READ),
+        'landing':    set(_READ),
         'remittance': set(_READ),
     },
 }
@@ -241,7 +246,7 @@ def perms_payload(user):
 
 def allowed_companies(user):
     """Companies this user may switch the workspace to."""
-    everything = [Company.KONOZ.value, Company.IJABAH.value]
+    everything = [Company.KONOZ.value]
     if not user or not user.is_authenticated:
         return everything
     if user.is_superuser:

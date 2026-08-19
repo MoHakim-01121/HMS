@@ -7,15 +7,14 @@ Covers the three things RBAC has to get right:
     hand-crafting the session or POSTing the switcher directly.
 """
 from django.contrib.auth.models import User
-from django.test import RequestFactory, TestCase
+from django.test import TestCase
 
-from hw.models import ConfirmationLetter, Invoice, UserProfile
+from hw.models import ConfirmationLetter, UserProfile
 from hw.models.user import CompanyAccess, Role
 from hw.permissions import (
     allowed_companies, can, can_use_company, default_company,
     get_role, perms_payload, role_matrix,
 )
-from hw.views.helpers import get_active_company
 
 
 def make_user(username, role=Role.STAFF.value, company_access=CompanyAccess.ALL.value,
@@ -111,20 +110,20 @@ class ViewGuardTests(TestCase):
         self.assertEqual(self.client.get("/cl/").status_code, 200)
         resp = self.client.get("/cl/new/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(resp["Location"], "/dashboard/")
 
     def test_viewer_post_to_delete_is_refused(self):
         self.login(role=Role.VIEWER.value)
         resp = self.client.post(f"/cl/{self.cl.pk}/delete/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(resp["Location"], "/dashboard/")
         self.assertTrue(ConfirmationLetter.objects.filter(pk=self.cl.pk).exists())
 
     def test_staff_delete_is_refused_but_edit_is_allowed(self):
         self.login(role=Role.STAFF.value)
         resp = self.client.post(f"/cl/{self.cl.pk}/delete/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(resp["Location"], "/dashboard/")
         self.assertTrue(ConfirmationLetter.objects.filter(pk=self.cl.pk).exists())
         self.assertEqual(self.client.get(f"/cl/{self.cl.pk}/edit/").status_code, 200)
 
@@ -137,7 +136,7 @@ class ViewGuardTests(TestCase):
         self.login(role=Role.MANAGER.value)
         resp = self.client.get("/users/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(resp["Location"], "/dashboard/")
 
         self.client.logout()
         self.login(role=Role.ADMIN.value)
@@ -158,64 +157,43 @@ class ViewGuardTests(TestCase):
         self.assertEqual(self.client.get("/remittance/").status_code, 200)
         resp = self.client.get("/remittance/new/")
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/")
+        self.assertEqual(resp["Location"], "/dashboard/")
 
 
 class CompanyAccessTests(TestCase):
+    """Single-company deployment: ALL and KONOZ both resolve to the one
+    company. The old cross-company isolation scenarios (a user restricted to
+    a *different* company than the one holding the record) no longer exist
+    now that Ijabah has been retired."""
+
     def setUp(self):
-        self.ijabah_only = make_user(
-            "ijonly", Role.MANAGER.value, CompanyAccess.IJABAH.value,
-        )
+        self.restricted = make_user("restricted", Role.MANAGER.value, CompanyAccess.KONOZ.value)
         self.both = make_user("bothco", Role.MANAGER.value, CompanyAccess.ALL.value)
 
     def test_allowed_companies_reflects_profile(self):
-        self.assertEqual(allowed_companies(self.ijabah_only), ["ijabah"])
-        self.assertEqual(allowed_companies(self.both), ["konoz", "ijabah"])
-        self.assertEqual(default_company(self.ijabah_only), "ijabah")
+        self.assertEqual(allowed_companies(self.restricted), ["konoz"])
+        self.assertEqual(allowed_companies(self.both), ["konoz"])
+        self.assertEqual(default_company(self.restricted), "konoz")
 
     def test_superuser_may_use_every_company(self):
         root = make_user("root2", Role.VIEWER.value, CompanyAccess.KONOZ.value, superuser=True)
-        self.assertEqual(allowed_companies(root), ["konoz", "ijabah"])
-
-    def test_session_company_outside_access_is_clamped(self):
-        request = RequestFactory().get("/")
-        request.user = self.ijabah_only
-        request.session = self.client.session
-        request.session["active_company"] = "konoz"  # no longer permitted
-        self.assertEqual(get_active_company(request), "ijabah")
-
-    def test_quick_set_ignores_a_company_the_user_cannot_use(self):
-        self.client.force_login(self.ijabah_only)
-        self.client.get("/")  # seeds the session with the permitted company
-        self.client.post("/company/set/", {"company": "konoz"})
-        self.assertEqual(self.client.session["active_company"], "ijabah")
+        self.assertEqual(allowed_companies(root), ["konoz"])
 
     def test_quick_set_accepts_a_permitted_company(self):
         self.client.force_login(self.both)
-        self.client.post("/company/set/", {"company": "ijabah"})
-        self.assertEqual(self.client.session["active_company"], "ijabah")
-
-    def test_restricted_user_cannot_read_the_other_companys_records(self):
-        Invoice.objects.create(
-            company="konoz", invoice_type="visa",
-            invoice_number="KU-VISA-777", customer_name="Konoz Cust",
-        )
-        konoz_invoice = Invoice.objects.get(invoice_number="KU-VISA-777")
-        self.client.force_login(self.ijabah_only)
-        self.client.get("/")
-        resp = self.client.get(f"/services/{konoz_invoice.pk}/", HTTP_X_INERTIA="true")
-        self.assertEqual(resp.status_code, 404)
+        self.client.post("/company/set/", {"company": "konoz"})
+        self.assertEqual(self.client.session["active_company"], "konoz")
 
     def test_can_use_company_helper(self):
-        self.assertFalse(can_use_company(self.ijabah_only, "konoz"))
-        self.assertTrue(can_use_company(self.ijabah_only, "ijabah"))
+        self.assertTrue(can_use_company(self.restricted, "konoz"))
+        self.assertFalse(can_use_company(self.restricted, "ijabah"))
 
 
 class SharedPropsTests(TestCase):
     def test_inertia_props_carry_role_and_perms(self):
         user = make_user("propuser", Role.STAFF.value, CompanyAccess.KONOZ.value)
         self.client.force_login(user)
-        resp = self.client.get("/", HTTP_X_INERTIA="true")
+        resp = self.client.get("/dashboard/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 200)
         auth_user = resp.json()["props"]["auth"]["user"]
         self.assertEqual(auth_user["role"], Role.STAFF.value)
@@ -234,11 +212,11 @@ class UserManagementTests(TestCase):
     def test_set_access_updates_role_and_company(self):
         self.client.post(f"/users/{self.target.pk}/edit/", {
             "action": "set_access", "role": Role.VIEWER.value,
-            "company_access": CompanyAccess.IJABAH.value,
+            "company_access": CompanyAccess.KONOZ.value,
         })
         profile = UserProfile.objects.get(user=self.target)
         self.assertEqual(profile.role, Role.VIEWER.value)
-        self.assertEqual(profile.company_access, CompanyAccess.IJABAH.value)
+        self.assertEqual(profile.company_access, CompanyAccess.KONOZ.value)
 
     def test_is_staff_follows_the_role(self):
         self.client.post(f"/users/{self.target.pk}/edit/", {

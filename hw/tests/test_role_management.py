@@ -111,7 +111,7 @@ class RoleViewAccessTests(TestCase):
         make_user("mgr", Role.MANAGER.value)
         self.client.force_login(User.objects.get(username="mgr"))
         response = self.client.get(reverse('role_list'))
-        self.assertRedirects(response, '/', fetch_redirect_response=False)
+        self.assertRedirects(response, '/dashboard/', fetch_redirect_response=False)
 
     def test_admin_sees_the_matrix_shape(self):
         self.client.force_login(User.objects.get(username="boss"))

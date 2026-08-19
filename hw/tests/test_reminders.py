@@ -881,7 +881,7 @@ class DueSoonNotificationsTest(TestCase):
         cache.clear()
 
     def _notifs(self):
-        resp = self.client.get('/', HTTP_X_INERTIA='true')
+        resp = self.client.get('/dashboard/', HTTP_X_INERTIA='true')
         self.assertEqual(resp.status_code, 200)
         return resp.json()['props'].get('due_soon_notifs', [])
 
@@ -943,6 +943,6 @@ class DueSoonNotificationsTest(TestCase):
 
     def test_due_soon_count_matches_notifs(self):
         _make_cl(check_in=date.today(), confirmation_number='CL-CNT1')
-        resp = self.client.get('/', HTTP_X_INERTIA='true')
+        resp = self.client.get('/dashboard/', HTTP_X_INERTIA='true')
         props = resp.json()['props']
         self.assertEqual(props['due_soon_count'], len(props['due_soon_notifs']))
