@@ -13,6 +13,8 @@ from ..models import (
     CancellationPenalty, ConfirmationLetter,
     Charge, Allocation, CashMovement, ChargeReason, AllocationReason, Account,
 )
+from ..models.journal import JournalEntry, JournalLine, Account as LedgerAccount
+from ..finance_helpers import create_journal_entry, FinanceError
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float, get_active_company
 from .pdf import _logo_file_url
@@ -39,6 +41,40 @@ def _sync_penalty_ledger(penalty):
             amount_sar=penalty.penalty_amount_sar, penalty=penalty, reason=ChargeReason.CANCELLATION,
             description=f'Penalty {penalty.penalty_number}',
         )
+
+        # ── NEW: Create JournalEntry for penalty charge ──────────
+        try:
+            journal_lines = [
+                {
+                    'account': LedgerAccount.EXPENSE_PENALTY,
+                    'amount_sar': penalty.penalty_amount_sar,  # Debit: beban penalty
+                    'client': cl.client,
+                    'invoice': cl.invoice,
+                    'penalty': penalty,
+                    'note': f'Penalty {penalty.penalty_number}',
+                },
+                {
+                    'account': LedgerAccount.RECEIVABLE,
+                    'amount_sar': -penalty.penalty_amount_sar,  # Credit: piutang client
+                    'client': cl.client,
+                    'invoice': cl.invoice,
+                    'penalty': penalty,
+                    'note': f'Penalty {penalty.penalty_number}',
+                },
+            ]
+            create_journal_entry(
+                entry_type=JournalEntry.TYPE_PENALTY,
+                description=f'Penalty {penalty.penalty_number}',
+                entry_date=penalty.cancellation_date or date.today(),
+                lines=journal_lines,
+                company=cl.company,
+                reference_type='CancellationPenalty',
+                reference_id=penalty.pk,
+                created_by=None,  # TODO: pass user from view
+            )
+        except FinanceError as e:
+            logger.warning("Finance redesign: failed to create penalty journal: %s", e)
+
         if penalty.is_paid:
             pay_date = penalty.payment_date or penalty.cancellation_date or date.today()
             to_account = Account.PUSAT if (penalty.payment_method or '').strip().lower() == 'direct' else Account.SBY
@@ -54,6 +90,38 @@ def _sync_penalty_ledger(penalty):
                 amount_sar=mov.amount_sar, penalty=penalty, reason=AllocationReason.CANCELLATION,
                 note=f'Pembayaran penalty {penalty.penalty_number}',
             )
+
+            # ── NEW: Create JournalEntry for penalty payment ──────
+            try:
+                cash_account = LedgerAccount.CASH_PUSAT if to_account == Account.PUSAT else LedgerAccount.CASH_SBY
+                payment_lines = [
+                    {
+                        'account': cash_account,
+                        'amount_sar': penalty.penalty_amount_sar,  # Debit: money masuk
+                        'client': cl.client,
+                        'invoice': cl.invoice,
+                        'penalty': penalty,
+                    },
+                    {
+                        'account': LedgerAccount.RECEIVABLE,
+                        'amount_sar': -penalty.penalty_amount_sar,  # Credit: piutang berkurang
+                        'client': cl.client,
+                        'invoice': cl.invoice,
+                        'penalty': penalty,
+                    },
+                ]
+                create_journal_entry(
+                    entry_type=JournalEntry.TYPE_PENALTY,
+                    description=f'Pembayaran penalty {penalty.penalty_number}',
+                    entry_date=pay_date,
+                    lines=payment_lines,
+                    company=cl.company,
+                    reference_type='CancellationPenalty',
+                    reference_id=penalty.pk,
+                    created_by=None,
+                )
+            except FinanceError as e:
+                logger.warning("Finance redesign: failed to create penalty payment journal: %s", e)
     logger.info(
         "ledger: penalty %s synced (%s SAR, paid=%s)",
         penalty.penalty_number, penalty.penalty_amount_sar, penalty.is_paid,
