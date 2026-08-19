@@ -6,15 +6,41 @@ from ..utils import convert_to_sar
 
 
 class Invoice(models.Model):
+    # ── Status lifecycle ──────────────────────────────────────
+    STATUS_DRAFT    = 'draft'
+    STATUS_SENT     = 'sent'
+    STATUS_PARTIAL  = 'partial'
+    STATUS_PAID     = 'paid'
+    STATUS_OVERDUE  = 'overdue'
+    STATUS_VOID     = 'void'
+    STATUS_CHOICES  = [
+        (STATUS_DRAFT,   'Draft'),
+        (STATUS_SENT,    'Sent'),
+        (STATUS_PARTIAL, 'Partial Payment'),
+        (STATUS_PAID,    'Paid'),
+        (STATUS_OVERDUE, 'Overdue'),
+        (STATUS_VOID,    'Void'),
+    ]
+
+    # ── Core fields ───────────────────────────────────────────
     company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
     invoice_number = models.CharField(max_length=100, db_index=True)
+    client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='invoices')
     customer_name  = models.CharField(max_length=200)
     issued_date    = models.DateField(null=True, blank=True)
     due_date       = models.DateField(null=True, blank=True, db_index=True)
     currency       = models.CharField(max_length=10, default='SAR')
-    created_at     = models.DateTimeField(auto_now_add=True)
-    updated_at     = models.DateTimeField(auto_now=True)
+
+    # ── Status & amounts ──────────────────────────────────────
+    status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    total_sar  = models.PositiveIntegerField(default=0)
+    paid_sar   = models.PositiveIntegerField(default=0)
+
+    # ── Audit ─────────────────────────────────────────────────
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering            = ['-created_at']
@@ -38,21 +64,12 @@ class Invoice(models.Model):
         return reverse('invoice_detail', args=[self.pk])
 
     @property
-    def total_sar(self):
-        # Satu invoice hanya berisi reservasi (hotel) ATAU service items
-        # (visa), jadi menjumlahkan keduanya aman -- untuk invoice visa
-        # total_sar sebelumnya selalu 0 sehingga remaining_sar jadi negatif
-        # saat sudah dibayar.
-        return sum(r.total_sar for r in self.reservations.all()) + sum(s.total for s in self.service_items.all())
-
-    @property
-    def total_paid_sar(self):
-        from .. import ledger
-        return ledger.invoice_paid_sar(self.id)
-
-    @property
     def remaining_sar(self):
-        return self.total_sar - self.total_paid_sar
+        return self.total_sar - self.paid_sar
+
+    @property
+    def is_fully_paid(self):
+        return self.paid_sar >= self.total_sar and self.total_sar > 0
 
     @classmethod
     def generate_number(cls, invoice_type):
@@ -75,6 +92,7 @@ class Invoice(models.Model):
 
 class Reservation(models.Model):
     invoice            = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='reservations')
+    client             = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='reservations')
     reservation_number = models.CharField(max_length=100)
     hotel              = models.CharField(max_length=200, blank=True)
     check_in           = models.DateField(null=True, blank=True)
