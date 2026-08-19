@@ -8,6 +8,8 @@ from ..models import (
     ConfirmationLetter, Payment, InvoiceType,
     Account, AllocationReason, CashMovement, Allocation,
 )
+from ..models.payment import PaymentRecord, PaymentLog
+from ..finance_helpers import create_payment_record, confirm_payment, allocate_payment
 from .helpers import validate_proof_file, _parse_date, _to_float
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ def _save_payments(invoice, request, ref_field, default_currency):
             method = (r.get('method') or '').strip()
             payment_date = _parse_date(r.get('date'))
 
+            # ── Legacy: keep old Payment for backward compat ──────
             p = Payment.objects.create(
                 invoice=invoice,
                 cl=cl_by_number.get(ref_clean),
@@ -122,6 +125,31 @@ def _save_payments(invoice, request, ref_field, default_currency):
                     note=f'Sinkron dari pembayaran invoice {invoice.invoice_number}',
                     created_by=request.user,
                 )
+
+            # ── NEW: Create PaymentRecord + JournalEntry ──────────
+            try:
+                if client and invoice.client:
+                    pay_rec = create_payment_record(
+                        invoice=invoice,
+                        client=client,
+                        payment_date=payment_date or invoice.issued_date or datetime.now().date(),
+                        amount=amount,
+                        currency=currency,
+                        exchange_rate=exchange_rate,
+                        method=method,
+                        reference=ref_clean,
+                        note=(r.get('note') or '').strip(),
+                        proof=proof or keep if keep else None,
+                        created_by=request.user,
+                        reservation=reservation,
+                        service_item=service_item,
+                    )
+                    # Auto-confirm + allocate
+                    confirm_payment(pay_rec, confirmed_by=request.user, note='Auto-confirmed on creation')
+                    allocate_payment(pay_rec, allocation_date=pay_rec.payment_date, created_by=request.user)
+            except Exception as e:
+                # New system should not break existing flow
+                logger.warning("Finance redesign: failed to create PaymentRecord for %s: %s", invoice.invoice_number, e)
     logger.info(
         "ledger: %d payment(s) synced for invoice %s",
         len(rows), invoice.invoice_number,
