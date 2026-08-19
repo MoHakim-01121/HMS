@@ -62,18 +62,49 @@ export default function List({ remittances, stats, status_filter, q, total_count
         </div>
       </div>
 
-      <div className="hms-kpi-row cols-3">
+      <div className="hms-kpi-row cols-5">
         <KpiCard label={t("Total Billed")} value={fmt(stats.total_tagihan)} unit="SAR" icon="invoice" foot={t("all remittances")} />
         <KpiCard label={t("Sent to HQ")} value={fmt(stats.terkirim_ke_pusat)} unit="SAR" icon="remittance" tone="blue" foot={t("transferred to HQ")} />
         <KpiCard
-          label={t("Idle Funds")}
-          value={fmt(stats.mengendap)}
+          label={stats.mengendap < 0 ? t("Credit at HQ") : t("Idle Funds")}
+          value={fmt(Math.abs(stats.mengendap))}
           unit="SAR"
           icon="clock"
-          tone={stats.mengendap > 0 ? "yellow" : "green"}
-          foot={t("pending transfer")}
+          tone={stats.mengendap > 0 ? "yellow" : stats.mengendap < 0 ? "blue" : "green"}
+          foot={stats.mengendap < 0 ? t("HQ sent more than received") : t("pending transfer")}
+        />
+        {/* Kewajiban kirim & saldo dana klien wajib berdampingan: kewajiban
+            kirim negatif tanpa konteks saldo klien bisa salah dibaca sebagai
+            kredit murni Surabaya, padahal bisa jadi kelebihan bayar klien. */}
+        <KpiCard
+          label={stats.kewajiban_kirim < 0 ? t("Credit Owed by HQ") : t("Owed to HQ")}
+          value={fmt(Math.abs(stats.kewajiban_kirim))}
+          unit="SAR"
+          icon="remittance"
+          tone={stats.kewajiban_kirim > 0 ? "yellow" : stats.kewajiban_kirim < 0 ? "blue" : "green"}
+          foot={t("what Surabaya still owes HQ")}
+        />
+        <KpiCard
+          label={t("Client Fund Balance")}
+          value={fmt(stats.saldo_dana_klien)}
+          unit="SAR"
+          icon="invoice"
+          tone={stats.saldo_dana_klien > 0 ? "yellow" : "green"}
+          foot={t("client cash not yet allocated")}
         />
       </div>
+      {stats.selisih_kurs !== 0 && (
+        <div className="hms-kpi-row cols-5">
+          <KpiCard
+            label={stats.selisih_kurs > 0 ? t("Exchange Gain") : t("Exchange Loss")}
+            value={fmt(Math.abs(stats.selisih_kurs))}
+            unit="SAR"
+            icon="invoice"
+            tone={stats.selisih_kurs > 0 ? "green" : "red"}
+            foot={t("this period's FX difference")}
+          />
+        </div>
+      )}
 
       <div className="filter-bar">
         <div className="search-wrap">

@@ -1678,3 +1678,10 @@ body.map-fullscreen .bnav-account-dd {
 body.map-fullscreen #map-wrap {
   height: 100vh;
 }
+
+/* Public / landing pages — no sidebar or topbar, so drop the body insets
+   that design.css and the base tailwind rules set unconditionally. */
+body.public-page {
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}

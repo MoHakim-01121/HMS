@@ -19,9 +19,8 @@ class Role(models.TextChoices):
 
 
 class CompanyAccess(models.TextChoices):
-    ALL    = 'all',    'All companies'
-    KONOZ  = 'konoz',  'Konoz United only'
-    IJABAH = 'ijabah', 'Ijabah only'
+    ALL   = 'all',   'All companies'
+    KONOZ = 'konoz', 'Konoz United only'
 
 
 class Language(models.TextChoices):
@@ -51,5 +50,5 @@ class UserProfile(models.Model):
     def companies(self):
         """Companies this profile may switch to, in menu order."""
         if self.company_access == CompanyAccess.ALL:
-            return [Company.KONOZ.value, Company.IJABAH.value]
+            return [Company.KONOZ.value]
         return [self.company_access]

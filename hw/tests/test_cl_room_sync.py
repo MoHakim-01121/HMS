@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from django.test import TestCase
-from hw.models import ConfirmationLetter, Room, Invoice, Reservation
+from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client, Charge
+from hw import ledger
 
 
 class CLTotalPriceTest(TestCase):
@@ -57,3 +58,29 @@ class RoomTotalChangedSignalTest(TestCase):
         )
         # Should not raise even though there's no invoice/reservation to sync
         Room.objects.create(cl=cl_no_invoice, room_type='Deluxe', quantity=1, price=500)
+
+    def test_creating_a_room_writes_a_revision_charge_keeping_ledger_in_sync(self):
+        # Regression: this signal used to bypass the ledger entirely (a raw
+        # .update()), so Sum(Charge) silently drifted from total_sar's cache
+        # every time a CL's rooms changed -- exactly what check_ledger exists
+        # to catch.
+        Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
+        self.reservation.refresh_from_db()
+        self.assertEqual(ledger.tagihan(self.reservation), self.reservation.total_sar)
+
+    def test_price_change_writes_delta_not_a_duplicate_full_amount(self):
+        room = Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
+        room.price = 1000
+        room.save()
+        self.reservation.refresh_from_db()
+        self.assertEqual(self.reservation.total_sar, 1000)
+        self.assertEqual(ledger.tagihan(self.reservation), 1000)
+        self.assertEqual(Charge.objects.filter(reservation=self.reservation).count(), 2)  # +750, then +250
+
+    def test_charge_client_matches_cl_client(self):
+        client_obj = Client.objects.create(company='konoz', name='PT Sync Client')
+        self.cl.client = client_obj
+        self.cl.save(update_fields=['client'])
+        Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
+        charge = Charge.objects.get(reservation=self.reservation)
+        self.assertEqual(charge.client, client_obj)

@@ -1,16 +1,63 @@
+import logging
 from datetime import date, datetime
 
 from django.contrib import messages
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 
 from inertia import render as inertia_render
 
-from ..models import CancellationPenalty, ConfirmationLetter
+from ..models import (
+    CancellationPenalty, ConfirmationLetter,
+    Charge, Allocation, CashMovement, ChargeReason, AllocationReason, Account,
+)
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float, get_active_company
 from .pdf import _logo_file_url
+
+logger = logging.getLogger(__name__)
+
+
+def _sync_penalty_ledger(penalty):
+    """Dual-write (remittance ledger redesign, Fase 5): a penalty always
+    represents a charge, and -- once marked paid -- a real cash movement.
+    Full resync scoped to `penalty=penalty`, which only this function ever
+    sets, so it's safe to call on every create/edit."""
+    cl = penalty.cl
+    with transaction.atomic():
+        Charge.objects.filter(penalty=penalty).delete()
+        Allocation.objects.filter(penalty=penalty).delete()
+        CashMovement.objects.filter(penalty_label=penalty).delete()
+
+        if not penalty.penalty_amount_sar:
+            return
+
+        Charge.objects.create(
+            company=cl.company, client=cl.client, invoice=cl.invoice, date=penalty.cancellation_date or date.today(),
+            amount_sar=penalty.penalty_amount_sar, penalty=penalty, reason=ChargeReason.CANCELLATION,
+            description=f'Penalty {penalty.penalty_number}',
+        )
+        if penalty.is_paid:
+            pay_date = penalty.payment_date or penalty.cancellation_date or date.today()
+            to_account = Account.PUSAT if (penalty.payment_method or '').strip().lower() == 'direct' else Account.SBY
+            mov = CashMovement.objects.create(
+                company=cl.company, client=cl.client, invoice=cl.invoice, date=pay_date,
+                from_account=Account.CLIENT, to_account=to_account,
+                amount=penalty.penalty_amount, currency=penalty.penalty_currency, exchange_rate=penalty.exchange_rate,
+                method=penalty.payment_method, penalty_label=penalty,
+                note=f'Pembayaran penalty {penalty.penalty_number}',
+            )
+            Allocation.objects.create(
+                company=cl.company, client=cl.client, invoice=cl.invoice, date=pay_date,
+                amount_sar=mov.amount_sar, penalty=penalty, reason=AllocationReason.CANCELLATION,
+                note=f'Pembayaran penalty {penalty.penalty_number}',
+            )
+    logger.info(
+        "ledger: penalty %s synced (%s SAR, paid=%s)",
+        penalty.penalty_number, penalty.penalty_amount_sar, penalty.is_paid,
+    )
 
 
 def _get_cl(request, cl_pk):
@@ -67,6 +114,7 @@ def penalty_new(request, cl_pk):
             payment_note=request.POST.get('payment_note', ''),
             note=request.POST.get('note', ''),
         )
+        _sync_penalty_ledger(penalty)
         messages.success(request, f"Penalty document {penalty.penalty_number} created successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
@@ -103,6 +151,7 @@ def penalty_edit(request, pk):
         penalty.payment_note    = request.POST.get('payment_note', '')
         penalty.note            = request.POST.get('note', '')
         penalty.save()
+        _sync_penalty_ledger(penalty)
         messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
@@ -121,6 +170,17 @@ def penalty_delete(request, pk):
     cl_pk = penalty.cl_id
     if request.method == 'POST':
         num = penalty.penalty_number
+        # System of record: dokumen yang sudah masuk ledger tidak bisa
+        # dihapus -- Charge/Allocation mereferensikan penalty via CASCADE,
+        # jadi hapus = menghilangkan jejak tagihan. Nolkan nominalnya untuk
+        # membatalkan dampak ledger (lihat _sync_penalty_ledger).
+        has_ledger = (
+            Charge.objects.filter(penalty=penalty).exists()
+            or Allocation.objects.filter(penalty=penalty).exists()
+        )
+        if has_ledger:
+            messages.error(request, f'Penalty {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+            return redirect('penalty_detail', pk=penalty.pk)
         penalty.delete()
         messages.success(request, f"Penalty document {num} deleted successfully.")
         return redirect('cl_detail', pk=cl_pk)

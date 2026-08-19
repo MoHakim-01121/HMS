@@ -1,11 +1,12 @@
 ﻿import csv
 import json
+import logging
 from datetime import date, timedelta
 from django.utils import timezone
 
 from django.contrib import messages
-from django.db.models import ExpressionWrapper, F, FloatField, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db import transaction
+from django.db.models import ExpressionWrapper, F, FloatField, Q
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -17,16 +18,37 @@ from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
 from .helpers import (
-    _billing_props,
     _is_mobile,
     _page_range_display,
     _parse_date,
     _render_list_pdf,
-    _save_hotel_payments,
     _to_float,
     get_active_company,
 )
+from .invoice_billing import _billing_client, _billing_props, _save_hotel_payments
 from .pdf import _logo_file_url, _render_invoice_pdf
+
+logger = logging.getLogger(__name__)
+
+
+def _filter_by_status(qs, status):
+    """Filter a hotel Invoice queryset by payment status (lunas/belum/partial).
+
+    Done in Python, not SQL: total_paid_sar needs per-payment currency
+    conversion, which isn't expressible as a queryset filter.
+    """
+    if status not in ('lunas', 'belum', 'partial'):
+        return qs
+    filtered_ids = []
+    for inv in qs:
+        paid = inv.total_paid_sar
+        if status == 'lunas' and paid >= inv.total_sar:
+            filtered_ids.append(inv.pk)
+        elif status == 'belum' and paid < 1:
+            filtered_ids.append(inv.pk)
+        elif status == 'partial' and paid >= 1 and paid < inv.total_sar:
+            filtered_ids.append(inv.pk)
+    return qs.filter(pk__in=filtered_ids)
 
 
 @require_perm('invoice', 'view')
@@ -39,6 +61,8 @@ def invoice_list(request):
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
     due_soon = request.GET.get('due_soon')
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
 
     qs = base_qs
     if q:
@@ -46,22 +70,13 @@ def invoice_list(request):
     if due_soon:
         threshold = date.today() + timedelta(days=7)
         qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
-    if status in ('lunas', 'belum', 'partial'):
-        qs = qs.annotate(
-            _res=Coalesce(Sum('reservations__total_sar'), 0),
-        )
-        # We'll filter in Python since we need convert_to_sar for multi-currency payments
-        invoices_list = list(qs)
-        filtered_ids = []
-        for inv in invoices_list:
-            paid = inv.total_paid_sar
-            if status == 'lunas' and paid >= inv.total_sar:
-                filtered_ids.append(inv.pk)
-            elif status == 'belum' and paid < 1:
-                filtered_ids.append(inv.pk)
-            elif status == 'partial' and paid >= 1 and paid < inv.total_sar:
-                filtered_ids.append(inv.pk)
-        qs = qs.filter(pk__in=filtered_ids)
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
+    qs = _filter_by_status(qs, status)
+
+    qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
 
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -71,11 +86,13 @@ def invoice_list(request):
         "invoice_number": inv.invoice_number,
         "customer_name": inv.customer_name,
         "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+        "due_date": inv.due_date.strftime("%d/%m/%Y") if inv.due_date else None,
         "created_at": inv.created_at.strftime("%d/%m/%Y"),
         "total_sar": inv.total_sar,
         "remaining_sar": inv.remaining_sar,
         "status": (
-            "paid" if inv.remaining_sar == 0
+            "overpaid" if inv.remaining_sar < 0
+            else "paid" if inv.remaining_sar == 0
             else "partial" if inv.remaining_sar < inv.total_sar
             else "unpaid"
         ),
@@ -86,6 +103,8 @@ def invoice_list(request):
         "total_count": paginator.count,
         "q": q,
         "status_filter": status,
+        "date_from": date_from,
+        "date_to": date_to,
         "pagination": {
             "number": page_obj.number,
             "num_pages": paginator.num_pages,
@@ -107,35 +126,20 @@ def invoice_list(request):
 
 
 def _invoice_stats(invoice_qs, company):
-    from ..models import Payment, RemittanceLine
-    from django.db.models import Sum as _Sum
+    from .. import ledger
+    from ..models import Account
 
-    total_tagihan = int(invoice_qs.aggregate(
-        t=_Sum('reservations__total_sar')
-    )['t'] or 0)
-
-    invoice_ids = invoice_qs.values_list('id', flat=True)
-    payments = Payment.objects.filter(invoice_id__in=invoice_ids).values(
-        'method', 'amount', 'currency', 'exchange_rate'
-    )
-    terbayar_surabaya = 0
-    terbayar_pusat = 0
-    for p in payments:
-        sar = int(round(convert_to_sar(float(p['amount']), p['currency'], float(p['exchange_rate']))))
-        m = (p['method'] or '').lower()
-        if m == 'direct':
-            terbayar_pusat += sar
-        elif m in ('cash', 'bank transfer', 'deposit'):
-            terbayar_surabaya += sar
-
-    sudah_dikirim = int(RemittanceLine.objects.filter(
-        remittance__company=company, invoice_id__in=invoice_ids
-    ).aggregate(t=_Sum('amount_sar'))['t'] or 0)
+    invoice_ids = list(invoice_qs.values_list('id', flat=True))
+    total_tagihan = ledger.total_charge(company, invoice_ids)
+    terbayar_surabaya = ledger.client_paid_to(Account.SBY, company, invoice_ids)
+    terbayar_pusat = ledger.client_paid_to(Account.PUSAT, company, invoice_ids)
 
     return {
         'total_tagihan': total_tagihan,
         'belum_terbayar': max(0, total_tagihan - terbayar_surabaya - terbayar_pusat),
-        'mengendap': max(0, terbayar_surabaya - sudah_dikirim),
+        # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang pernah
+        # diterima untuk invoice-invoice ini (kredit di pusat), lihat hw/ledger.py.
+        'mengendap': ledger.kas_surabaya(company, invoice_ids),
         'terbayar_surabaya': terbayar_surabaya,
         'terbayar_pusat': terbayar_pusat,
     }
@@ -158,27 +162,32 @@ def invoice_new(request):
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
-        invoice = Invoice.objects.create(
-            # Server-assigned, never read from the POST body. The form used to
-            # submit a company of its own, unchecked against can_use_company —
-            # so a user restricted to one company could file a record under the
-            # other, and every read path here (list/detail/edit/delete/PDF/CSV)
-            # filters by the active company, meaning the row simply vanished
-            # from the list it was created in.
-            company=active_company,
-            invoice_type="hotel",
-            invoice_number=invoice_number,
-            customer_name=request.POST.get("customer_name", ""),
-            issued_date=_parse_date(request.POST.get("issued_date")),
-            due_date=_parse_date(request.POST.get("due_date")),
-            currency="SAR",
-        )
-        _save_reservations(invoice, request)
-        _save_hotel_payments(invoice, request)
+        with transaction.atomic():
+            invoice = Invoice.objects.create(
+                # Server-assigned, never read from the POST body. The form used to
+                # submit a company of its own, unchecked against can_use_company —
+                # so a user restricted to one company could file a record under the
+                # other, and every read path here (list/detail/edit/delete/PDF/CSV)
+                # filters by the active company, meaning the row simply vanished
+                # from the list it was created in.
+                company=active_company,
+                invoice_type="hotel",
+                invoice_number=invoice_number,
+                customer_name=request.POST.get("customer_name", ""),
+                issued_date=_parse_date(request.POST.get("issued_date")),
+                due_date=_parse_date(request.POST.get("due_date")),
+                currency="SAR",
+            )
+            # CL must be linked before _save_reservations/_save_hotel_payments run --
+            # both call _billing_client(invoice), which resolves the client from
+            # invoice.confirmation_letters. Linking after would leave every Charge
+            # created here with client=None even when a CL was selected.
+            cl_ids = _parse_cl_ids(request)
+            if cl_ids:
+                ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
-        cl_ids = _parse_cl_ids(request)
-        if cl_ids:
-            ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
+            _save_reservations(invoice, request)
+            _save_hotel_payments(invoice, request)
 
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
@@ -282,20 +291,25 @@ def invoice_edit(request, pk):
         # invoice.company is deliberately left alone: the fetch above already
         # constrains it to active_company, so any value arriving in the POST
         # body could only ever move the record OUT of the caller's own scope.
-        invoice.invoice_number = new_number
-        invoice.customer_name = request.POST.get("customer_name", "")
-        invoice.issued_date = _parse_date(request.POST.get("issued_date"))
-        invoice.due_date = _parse_date(request.POST.get("due_date"))
-        invoice.save()
+        with transaction.atomic():
+            invoice.invoice_number = new_number
+            invoice.customer_name = request.POST.get("customer_name", "")
+            invoice.issued_date = _parse_date(request.POST.get("issued_date"))
+            invoice.due_date = _parse_date(request.POST.get("due_date"))
+            invoice.save()
 
-        invoice.reservations.all().delete()
-        invoice.payments.all().delete()
-        _save_reservations(invoice, request)
-        _save_hotel_payments(invoice, request)
-        cl_ids = _parse_cl_ids(request)
-        ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
-        if cl_ids:
-            ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
+            invoice.reservations.all().delete()
+            invoice.payments.all().delete()
+
+            # Relink CL selection before recreating reservations/payments -- see
+            # the matching comment in invoice_new for why the order matters.
+            cl_ids = _parse_cl_ids(request)
+            ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
+            if cl_ids:
+                ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
+
+            _save_reservations(invoice, request)
+            _save_hotel_payments(invoice, request)
         _after = {
             'Customer Name':    invoice.customer_name,
             'Invoice No.':      invoice.invoice_number,
@@ -322,6 +336,18 @@ def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, **filters)
     if request.method == "POST":
         num = invoice.invoice_number
+        # System of record: menghapus invoice meng-cascade Reservations →
+        # Charges (ledger). Dokumen yang sudah tercatat di ledger tidak boleh
+        # hilang diam-diam dari riwayat keuangan.
+        from ..models import Charge, Allocation, CashMovement
+        has_ledger = (
+            Charge.objects.filter(invoice=invoice).exists()
+            or Allocation.objects.filter(invoice=invoice).exists()
+            or CashMovement.objects.filter(invoice=invoice).exists()
+        )
+        if has_ledger:
+            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+            return redirect('invoice_detail', pk=pk)
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
         messages.success(request, f"Invoice {num} deleted successfully.")
@@ -342,6 +368,7 @@ def invoice_list_pdf(request):
     active_company = get_active_company(request)
     qs = Invoice.objects.filter(invoice_type="hotel", company=active_company).prefetch_related('reservations')
     q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
     date_to = request.GET.get('date_to', '').strip()
     if q:
@@ -350,6 +377,7 @@ def invoice_list_pdf(request):
         qs = qs.filter(due_date__gte=date_from)
     if date_to:
         qs = qs.filter(due_date__lte=date_to)
+    qs = _filter_by_status(qs, status)
     qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
@@ -373,8 +401,16 @@ def invoice_list_pdf(request):
 def invoice_export_csv(request):
     qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
     q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
+    qs = _filter_by_status(qs, status)
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="invoices_hotel.csv"'
     response.write('﻿')
@@ -417,19 +453,41 @@ def invoice_duplicate(request, pk):
 
 
 def _save_reservations(invoice, request):
+    """Dual-write (remittance ledger redesign, Fase 4): the reservations array
+    has no row identity either, so like _save_payments this is a full
+    delete-then-recreate. Deleting the old Reservation rows already cascades
+    to their Charge rows (see hw/models/ledger.py), so we only need to create
+    a fresh `initial` Charge for each recreated reservation to keep
+    Sum(Charge) in sync with the new total_sar cache."""
+    from ..models import Charge, ChargeReason
+
     try:
         rows = json.loads(request.POST.get("reservations", "[]"))
     except (ValueError, TypeError):
         rows = []
-    for r in rows:
-        Reservation.objects.create(
-            invoice=invoice,
-            reservation_number=(r.get("reservation_number") or "-").strip() or "-",
-            hotel=(r.get("hotel") or "-").strip() or "-",
-            check_in=_parse_date(r.get("check_in")),
-            check_out=_parse_date(r.get("check_out")),
-            total_sar=int(round(_to_float(r.get("reservation_total")))),
-        )
+    client = _billing_client(invoice)
+    with transaction.atomic():
+        for r in rows:
+            total_sar = int(round(_to_float(r.get("reservation_total"))))
+            res = Reservation.objects.create(
+                invoice=invoice,
+                reservation_number=(r.get("reservation_number") or "-").strip() or "-",
+                hotel=(r.get("hotel") or "-").strip() or "-",
+                check_in=_parse_date(r.get("check_in")),
+                check_out=_parse_date(r.get("check_out")),
+                total_sar=total_sar,
+            )
+            if total_sar:
+                Charge.objects.create(
+                    company=invoice.company, client=client, invoice=invoice,
+                    date=invoice.issued_date or date.today(),
+                    amount_sar=total_sar, reservation=res, reason=ChargeReason.INITIAL,
+                    description=f'Sinkron dari reservasi {res.reservation_number}', created_by=request.user,
+                )
+    logger.info(
+        "ledger: %d reservation(s) synced for invoice %s",
+        len(rows), invoice.invoice_number,
+    )
 
 
 def _invoice_echo(request):

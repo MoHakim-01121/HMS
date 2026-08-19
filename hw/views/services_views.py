@@ -1,10 +1,12 @@
 ﻿import csv
 import json
+import logging
 from datetime import date, timedelta
 from django.utils import timezone
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -15,16 +17,17 @@ from ..models import ActivityLog, Invoice, ServiceItem, log_activity
 from ..permissions import require_perm
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
-    _billing_props,
     _is_mobile,
     _page_range_display,
     _parse_date,
     _render_list_pdf,
-    _save_service_payments,
     _to_float,
     get_active_company,
 )
+from .invoice_billing import _billing_client, _billing_props, _save_service_payments
 from .pdf import _render_services_pdf
+
+logger = logging.getLogger(__name__)
 
 
 def _get_service_invoice(request, pk):
@@ -86,22 +89,23 @@ def services_new(request):
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
-        invoice = Invoice.objects.create(
-            # The form no longer posts a company: it used to submit one of its
-            # own, unchecked against can_use_company, so a user restricted to
-            # one company could file a record under the other — and every
-            # list/detail/edit view here filters by the active company, meaning
-            # the row simply vanished from the list it was created from.
-            company=active_company,
-            invoice_type="visa",
-            invoice_number=invoice_number,
-            customer_name=request.POST.get("customer_name", ""),
-            issued_date=_parse_date(request.POST.get("issued_date")),
-            due_date=_parse_date(request.POST.get("due_date")),
-            currency=request.POST.get("invoice_currency", "USD"),
-        )
-        _save_service_items(invoice, request)
-        _save_service_payments(invoice, request)
+        with transaction.atomic():
+            invoice = Invoice.objects.create(
+                # The form no longer posts a company: it used to submit one of its
+                # own, unchecked against can_use_company, so a user restricted to
+                # one company could file a record under the other — and every
+                # list/detail/edit view here filters by the active company, meaning
+                # the row simply vanished from the list it was created from.
+                company=active_company,
+                invoice_type="visa",
+                invoice_number=invoice_number,
+                customer_name=request.POST.get("customer_name", ""),
+                issued_date=_parse_date(request.POST.get("issued_date")),
+                due_date=_parse_date(request.POST.get("due_date")),
+                currency=request.POST.get("invoice_currency", "USD"),
+            )
+            _save_service_items(invoice, request)
+            _save_service_payments(invoice, request)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
         messages.success(request, f"Services Invoice {invoice.invoice_number} created successfully.")
         return redirect("services_detail", pk=invoice.pk)
@@ -191,17 +195,18 @@ def services_edit(request, pk):
         # invoice.company is deliberately left alone: _get_service_invoice
         # already constrains it to the active company, so any value arriving in
         # the POST could only move the record out from under the user.
-        invoice.invoice_number = new_number
-        invoice.customer_name = request.POST.get("customer_name", "")
-        invoice.issued_date = _parse_date(request.POST.get("issued_date"))
-        invoice.due_date = _parse_date(request.POST.get("due_date"))
-        invoice.currency = request.POST.get("invoice_currency", "USD")
-        invoice.save()
+        with transaction.atomic():
+            invoice.invoice_number = new_number
+            invoice.customer_name = request.POST.get("customer_name", "")
+            invoice.issued_date = _parse_date(request.POST.get("issued_date"))
+            invoice.due_date = _parse_date(request.POST.get("due_date"))
+            invoice.currency = request.POST.get("invoice_currency", "USD")
+            invoice.save()
 
-        invoice.service_items.all().delete()
-        invoice.payments.all().delete()
-        _save_service_items(invoice, request)
-        _save_service_payments(invoice, request)
+            invoice.service_items.all().delete()
+            invoice.payments.all().delete()
+            _save_service_items(invoice, request)
+            _save_service_payments(invoice, request)
         _after = {
             'Customer Name': invoice.customer_name,
             'Invoice No.':   invoice.invoice_number,
@@ -226,6 +231,17 @@ def services_delete(request, pk):
     invoice = _get_service_invoice(request, pk)
     if request.method == "POST":
         num = invoice.invoice_number
+        # System of record: sama seperti invoice hotel -- menghapus invoice
+        # meng-cascade ServiceItems → Charges (ledger).
+        from ..models import Charge, Allocation, CashMovement
+        has_ledger = (
+            Charge.objects.filter(invoice=invoice).exists()
+            or Allocation.objects.filter(invoice=invoice).exists()
+            or CashMovement.objects.filter(invoice=invoice).exists()
+        )
+        if has_ledger:
+            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+            return redirect('services_detail', pk=pk)
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
         messages.success(request, f"Services Invoice {num} deleted successfully.")
@@ -300,23 +316,44 @@ def services_duplicate(request, pk):
 
 
 def _save_service_items(invoice, request):
+    """Dual-write (remittance ledger redesign, Fase 4) -- see _save_reservations
+    for why this is a full recreate rather than a diff, and why deleting the
+    old ServiceItem rows is enough to clean up their old Charge rows too."""
+    from ..models import Charge, ChargeReason
+
     try:
         rows = json.loads(request.POST.get("service_items", "[]"))
     except (ValueError, TypeError):
         rows = []
+    client = _billing_client(invoice)
     number = 0
-    for r in rows:
-        name = (r.get("name") or "").strip()
-        if not name:
-            continue
-        number += 1
-        ServiceItem.objects.create(
-            invoice=invoice,
-            service_number=number,
-            name=name,
-            qty=int(_to_float(r.get("qty"), 1)) or 1,
-            price=_to_float(r.get("price")),
-        )
+    with transaction.atomic():
+        for r in rows:
+            name = (r.get("name") or "").strip()
+            if not name:
+                continue
+            number += 1
+            qty = int(_to_float(r.get("qty"), 1)) or 1
+            price = _to_float(r.get("price"))
+            item = ServiceItem.objects.create(
+                invoice=invoice,
+                service_number=number,
+                name=name,
+                qty=qty,
+                price=price,
+            )
+            total = int(round(qty * price))
+            if total:
+                Charge.objects.create(
+                    company=invoice.company, client=client, invoice=invoice,
+                    date=invoice.issued_date or date.today(),
+                    amount_sar=total, service_item=item, reason=ChargeReason.INITIAL,
+                    description=f'Sinkron dari layanan {name}', created_by=request.user,
+                )
+    logger.info(
+        "ledger: %d service item(s) synced for invoice %s",
+        number, invoice.invoice_number,
+    )
 
 
 def _services_echo(request):

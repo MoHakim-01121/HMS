@@ -58,6 +58,14 @@ _MONTHS_ID = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
 
 _SIGNATURES = {'konoz': 'Konoz United Surabaya', 'ijabah': 'Ijabah'}
 
+_PAYMENT_INFO = {
+    'konoz': {
+        'bank': 'Mandiri',
+        'account': '1400550111117',
+        'holder': 'Konoz Almotaheda Indonesia',
+    },
+}
+
 
 def _fmt_date_id(d):
     return f"{d.day:02d} {_MONTHS_ID[d.month]} {d.year}"
@@ -68,7 +76,7 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     # Impor lokal: hw.views.__init__ mengimpor modul ini, impor top-level
     # ke hw.views.* akan membuat siklus.
     from .views.context import _build_visa_services_context
-    from .views.helpers import _billing_client
+    from .views.invoice_billing import _billing_client
 
     def _fmt(n):
         return f"{int(round(n)):,}".replace(",", ".")
@@ -124,6 +132,14 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
             )
         else:
             parts.append("Mohon lakukan pembayaran sebelum jatuh tempo.")
+
+    if not lunas:
+        bank = _PAYMENT_INFO.get(invoice.company)
+        if bank:
+            parts += ["", "Informasi Pembayaran:",
+                      f"Nama Bank : {bank['bank']}",
+                      f"No. Rekening : {bank['account']}",
+                      f"Atas Nama : {bank['holder']}"]
 
     parts += ["", "Terima kasih,", f"*{signature}*"]
     return "\n".join(parts)

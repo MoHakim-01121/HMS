@@ -1,9 +1,27 @@
 from datetime import datetime
-import json
+import magic
 
 from django.http import HttpResponse
 
-from ..models import ConfirmationLetter, Payment
+PROOF_MAX_SIZE = 10 * 1024 * 1024  # 10 MB, matches attachment_upload
+PROOF_ALLOWED_MIME = {
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf',
+}
+
+
+def validate_proof_file(f):
+    """Reject a payment/remittance/refund proof upload that's oversized or
+    isn't actually an image/PDF -- content is sniffed the same way
+    attachment_upload does it, rather than trusting the client-supplied
+    content-type. Returns an error message, or None if the file is fine."""
+    if f.size > PROOF_MAX_SIZE:
+        return "File too large (max 10 MB)."
+    header = f.read(2048)
+    f.seek(0)
+    if magic.from_buffer(header, mime=True) not in PROOF_ALLOWED_MIME:
+        return "File type not allowed. Use PDF or image (JPG/PNG/GIF/WEBP)."
+    return None
 
 
 def get_active_company(request):
@@ -81,91 +99,3 @@ def _to_float(val, default=0.0):
         return float(val) if val not in (None, '') else default
     except (ValueError, TypeError):
         return default
-
-
-def _save_payments(invoice, request, ref_field, default_currency):
-    """Create Payment objects from a JSON `payments` array (one object per row).
-
-    Each row: {ref, date, method, amount, currency, exchange, note, proof_keep}.
-    New proof uploads arrive as multipart files keyed `payment_proof_<index>`,
-    where <index> is the row's position in the array. Sets cl FK when ref
-    matches a CL number.
-    """
-    try:
-        rows = json.loads(request.POST.get('payments', '[]'))
-    except (ValueError, TypeError):
-        rows = []
-
-    # Pre-fetch CLs that match any of the ref numbers (one query instead of N)
-    ref_set = {(r.get('ref') or '').strip() for r in rows if (r.get('ref') or '').strip()}
-    cl_by_number = {
-        cl.confirmation_number: cl
-        for cl in ConfirmationLetter.objects.filter(confirmation_number__in=ref_set)
-    } if ref_set else {}
-
-    for i, r in enumerate(rows):
-        proof = request.FILES.get(f"payment_proof_{i}")
-        keep  = (r.get('proof_keep') or '').strip()
-        ref_clean = (r.get('ref') or '').strip()
-        currency = (r.get('currency') or default_currency)
-        p = Payment.objects.create(
-            invoice=invoice,
-            cl=cl_by_number.get(ref_clean),
-            linked_number=ref_clean,
-            payment_date=_parse_date(r.get('date')),
-            method=(r.get('method') or '').strip(),
-            amount=_to_float(r.get('amount')),
-            currency=currency.upper() if currency else default_currency,
-            exchange_rate=_to_float(r.get('exchange'), 1) or 1,
-            note=(r.get('note') or '').strip(),
-        )
-        if proof:
-            p.proof = proof
-            p.save()
-        elif keep:
-            p.proof = keep
-            p.save()
-
-
-def _save_hotel_payments(invoice, request):
-    _save_payments(invoice, request, 'payment_reservation_no', 'SAR')
-
-
-def _save_service_payments(invoice, request):
-    _save_payments(invoice, request, 'payment_service_no', invoice.currency)
-
-
-def _billing_client(invoice):
-    """Client efektif untuk kirim billing: FK langsung di invoice, atau —
-    karena form invoice tidak pernah mengisi FK itu — client tunggal dari
-    CL-CL yang terhubung ke invoice. Lebih dari satu client berbeda = ambigu,
-    kembalikan None (modal jatuh ke mode manual)."""
-    if invoice.client_id:
-        return invoice.client
-    clients = {
-        cl.client_id: cl.client
-        for cl in invoice.confirmation_letters.select_related('client')
-        if cl.client_id
-    }
-    if len(clients) == 1:
-        return next(iter(clients.values()))
-    return None
-
-
-def _billing_props(invoice):
-    """Shared Inertia props for the billing-message WA send feature."""
-    client = _billing_client(invoice)
-    last = invoice.billing_logs.order_by('-sent_at').first()
-    return {
-        'wa_send': {
-            'client_name': client.name if client else None,
-            'client_wa': client.wa if client else '',
-            'has_wa': bool(client and client.wa),
-            'has_group': bool(client and client.wa_group),
-        },
-        'last_billing': {
-            'sent_at': last.sent_at.strftime('%d %b %Y %H:%M'),
-            'target': last.target,
-            'status': last.status,
-        } if last else None,
-    }

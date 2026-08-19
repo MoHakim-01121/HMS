@@ -1,0 +1,159 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Visit Report — {{ visit.client.name }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 56px 64px 48px;
+      @bottom-left {
+        content: string(doc-date);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " / " counter(pages);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+    }
+    .doc-date-anchor { string-set: doc-date content(); display: none; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    /* Top: title left, logo right */
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+    .logo { max-height: 60px; width: auto; }
+
+    /* Meta */
+    .meta { margin-bottom: 28px; font-size: 12px; }
+    .meta-row { display: flex; gap: 8px; }
+    .meta-row .mk { font-weight: 700; color: #111; min-width: 150px; }
+    .meta-row .mv { color: #111; }
+
+    /* Two-column: from / client */
+    .two-col { display: flex; gap: 40px; margin-bottom: 32px; }
+    .two-col > div { flex: 1; }
+    .col-title { font-weight: 700; font-size: 12px; color: #111; margin-bottom: 4px; }
+    .col-body { font-size: 12px; color: #444; line-height: 1.7; }
+
+    /* Outcome headline */
+    .amount-headline {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 28px;
+    }
+    .amount-sub { font-size: 12px; color: #555; margin-bottom: 28px; }
+
+    /* Sections */
+    .section { margin-top: 28px; }
+    .section-title { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 8px; }
+    .section-body { font-size: 12px; color: #444; line-height: 1.7; white-space: pre-wrap; }
+
+    /* Photos */
+    .photos { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .photo { width: 150px; height: 150px; object-fit: cover; border: 1px solid #ddd; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+<span class="doc-date-anchor">{{ now|date:"d M Y" }}</span>
+
+  <div class="top">
+    <div class="doc-title">Laporan Hasil Kunjungan</div>
+    <img src="{{ logo_rel_path }}" class="logo">
+  </div>
+
+  <div class="meta">
+    <div class="meta-row"><span class="mk">Visit date</span><span class="mv">{{ visit.scheduled_date|date:"d M Y" }}{% if visit.start_time %} · {{ visit.start_time|time:"H:i" }}{% if visit.end_time %} – {{ visit.end_time|time:"H:i" }}{% endif %}{% endif %}</span></div>
+    <div class="meta-row"><span class="mk">Status</span><span class="mv">{{ visit.get_status_display }}</span></div>
+    <div class="meta-row"><span class="mk">Staff</span><span class="mv">{% if visit.staff %}{{ visit.staff.get_full_name|default:visit.staff.username }}{% else %}—{% endif %}</span></div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="col-title">
+        {% if visit.company == 'ijabah' %}Ijabah Travel{% else %}Konoz United{% endif %}
+      </div>
+      <div class="col-body">
+        Travel & Tourism<br>
+        {% if visit.company == 'ijabah' %}marifatech.com{% else %}konozunited.com{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="col-title">Client</div>
+      <div class="col-body">
+        {% if visit.client %}{{ visit.client.name }}{% else %}—{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="amount-headline">
+    {% if visit.outcome %}{{ visit.get_outcome_display }}{% else %}Planned{% endif %}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Purpose</div>
+    <div class="section-body">{{ visit.purpose }}</div>
+  </div>
+
+  {% if visit.status == 'COMPLETED' %}
+  <div class="section">
+    <div class="section-title">Result</div>
+    {% if visit.pic_name %}
+    <div class="meta" style="margin-top:16px;">
+      <div class="meta-row"><span class="mk">PIC met</span><span class="mv">{{ visit.pic_name }}{% if visit.pic_phone %} · {{ visit.pic_phone }}{% endif %}</span></div>
+    </div>
+    {% endif %}
+    <div class="section-body">{{ visit.result_notes }}</div>
+    {% if visit.estimated_value is not None %}
+    <div class="meta" style="margin-top:16px;">
+      <div class="meta-row"><span class="mk">Estimated value</span><span class="mv">{{ visit.estimated_value|floatformat:0|intcomma }} SAR</span></div>
+    </div>
+    {% endif %}
+    {% if visit.next_follow_up_date %}
+    <div class="meta" style="margin-top:8px;">
+      <div class="meta-row"><span class="mk">Next follow-up</span><span class="mv">{{ visit.next_follow_up_date|date:"d M Y" }}</span></div>
+    </div>
+    {% endif %}
+    {% if visit.visited_at %}
+    <div class="meta" style="margin-top:8px;">
+      <div class="meta-row"><span class="mk">Checked in</span><span class="mv">{{ visit.visited_at|date:"d M Y H:i" }}</span></div>
+    </div>
+    {% endif %}
+    {% if visit.distance_meters is not None %}
+    <div class="meta" style="margin-top:8px;">
+      <div class="meta-row"><span class="mk">Distance</span><span class="mv">{{ visit.distance_meters }} m</span></div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if photos %}
+  <div class="section">
+    <div class="section-title">Photos</div>
+    <div class="photos">
+      {% for photo in photos %}
+      <img class="photo" src="{{ photo.path }}">
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</body>
+</html>

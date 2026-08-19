@@ -46,12 +46,13 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   // an exact name match or picking from the list links the client_id.
   const clientList = clients || [];
   const onGuestText = (text) => {
-    const match = clientList.find((c) => c.name.toLowerCase() === text.trim().toLowerCase());
+    const t = text.trim().toLowerCase();
+    const match = clientList.find((c) => (c.brand || c.name).toLowerCase() === t || c.name.toLowerCase() === t);
     form.setData("guest_name", text);
     form.setData("client_id", match ? String(match.id) : "");
   };
   const onGuestSelect = (c) => {
-    form.setData("guest_name", c.name);
+    form.setData("guest_name", c.brand || c.name);
     form.setData("client_id", String(c.id));
   };
 
@@ -155,8 +156,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                   onTextChange={onGuestText}
                   onSelect={onGuestSelect}
                   options={clientList}
-                  getLabel={(o) => o.name}
-                  getSub={(o) => (o.company === "ijabah" ? "Ijabah" : "Konoz")}
+                  getLabel={(o) => o.brand || o.name}
                   placeholder={t("Search client or type guest name…")}
                   error={errors.guest_name}
                 />

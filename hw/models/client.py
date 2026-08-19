@@ -14,10 +14,12 @@ class Client(models.Model):
         ('BOTH', 'PIC & Group'),
     ]
 
-    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
+    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     name       = models.CharField(max_length=200)
+    brand      = models.CharField(max_length=200, blank=True)
     city       = models.CharField(max_length=100, blank=True)
     province   = models.CharField(max_length=100, blank=True)
+    address    = models.CharField(max_length=255, blank=True)
     lat        = models.FloatField(null=True, blank=True)
     lng        = models.FloatField(null=True, blank=True)
     pic        = models.CharField(max_length=200, blank=True, verbose_name='PIC')
@@ -42,25 +44,39 @@ class Client(models.Model):
         return reverse('client_detail', args=[self.pk])
 
     @property
+    def resolved_invoices(self):
+        """Invoices belonging to this client via Charge.client -- the only
+        link (Invoice has no client FK of its own, see hw/models/ledger.py::
+        Charge.client comment)."""
+        from .invoice import Invoice
+        return Invoice.objects.filter(charges__client=self).distinct()
+
+    @property
     def total_invoices(self):
-        return len(self.invoices.all()) + len(self.cls.all())
+        return len(self.resolved_invoices) + len(self.cls.all())
 
     @property
     def total_billed(self):
-        return sum(inv.total_sar for inv in self.invoices.all())
+        from .. import ledger
+        return ledger.total_charged_by_client(self)
 
     @property
     def total_paid(self):
-        return sum(inv.total_paid_sar for inv in self.invoices.all())
+        from .. import ledger
+        return ledger.total_paid_by_client(self)
 
     @property
     def outstanding(self):
-        return sum(inv.remaining_sar for inv in self.invoices.all() if inv.remaining_sar > 0)
+        # Satu kantong per klien (bukan dijumlah per-invoice) -- konsisten dengan
+        # desain ledger: piutang di satu reservasi bisa dilunasi lewat alokasi
+        # yang berasal dari kelebihan bayar di reservasi lain klien yang sama.
+        from .. import ledger
+        return max(0, ledger.piutang_klien(self))
 
     @property
     def avg_days_to_pay(self):
         days_list = []
-        for inv in self.invoices.all():
+        for inv in self.resolved_invoices:
             if inv.remaining_sar <= 0 and inv.issued_date:
                 payments = sorted(
                     inv.payments.all(),
@@ -73,7 +89,7 @@ class Client(models.Model):
 
     @property
     def last_transaction_date(self):
-        invs = list(self.invoices.all())
+        invs = list(self.resolved_invoices)
         if not invs:
             return None
         return max(inv.created_at for inv in invs)
@@ -113,7 +129,7 @@ class Client(models.Model):
     def risk_label(self):
         if self.outstanding > 0:
             due_invs = sorted(
-                [i for i in self.invoices.all() if i.due_date is not None],
+                [i for i in self.resolved_invoices if i.due_date is not None],
                 key=lambda i: i.due_date,
             )
             if due_invs:

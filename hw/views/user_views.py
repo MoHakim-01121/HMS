@@ -17,6 +17,7 @@ from django_ratelimit.decorators import ratelimit
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, RoleDefinition, UserProfile
+from ..models.choices import Company
 from ..models.user import CompanyAccess, Role
 from ..permissions import (
     can_use_company, default_company, get_role, is_valid_role, require_perm,
@@ -30,7 +31,7 @@ class CompanyLoginView(LoginView):
     def form_valid(self, form):
         response = super().form_valid(form)
         company = self.request.POST.get('company', 'konoz')
-        if company not in ('konoz', 'ijabah'):
+        if company not in Company.values:
             company = 'konoz'
         # A user restricted to one company must not land in the other one just
         # because the login form offered the choice.
@@ -41,7 +42,7 @@ class CompanyLoginView(LoginView):
         return response
 
     def get_success_url(self):
-        return '/?logged_in=1'
+        return '/dashboard/?logged_in=1'
 
 
 def axes_lockout(request, credentials, *args, **kwargs):
@@ -312,12 +313,12 @@ def user_credential_card(request, pk):
         return JsonResponse({"ok": False, "error": "Passwords do not match."}, status=400)
 
     company = request.session.get('active_company', 'konoz')
-    if company not in ('konoz', 'ijabah'):
+    if company not in Company.values:
         company = 'konoz'
     context = {
         "username": target.username,
         "password": password,
-        "company_name": "iJabah Group" if company == "ijabah" else "KONOZ UNITED",
+        "company_name": "KONOZ UNITED",
         "logo_rel_path": _logo_file_url(company),
     }
     html = render_to_string('hw/user/credential_card.html', context)

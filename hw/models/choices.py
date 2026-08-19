@@ -2,8 +2,7 @@ from django.db import models
 
 
 class Company(models.TextChoices):
-    KONOZ  = 'konoz',  'Konoz United'
-    IJABAH = 'ijabah', 'Ijabah'
+    KONOZ = 'konoz', 'Konoz United'
 
 
 class InvoiceType(models.TextChoices):
