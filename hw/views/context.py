@@ -73,6 +73,7 @@ def _build_visa_services_context(invoice):
             "qty": item.qty,
             "price": math.floor(float(item.price)),
             "total": total,
+            "paid_int": paid,
             "remaining": remaining,
             "remaining_class": cls,
         })
