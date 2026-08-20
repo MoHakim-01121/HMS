@@ -478,3 +478,70 @@ def kas_saldo(account, company=None):
         qs = qs.filter(journal_entry__company=company)
 
     return qs.aggregate(total=Sum('amount_sar'))['total'] or 0
+
+
+def client_statement(client, date_from=None, date_to=None):
+    """Generate a client statement from JournalLines.
+
+    Returns a list of transactions sorted by date with running balance.
+    Positive balance = client owes us (receivable).
+    Negative balance = we owe client (prepaid/credit).
+    """
+    lines = JournalLine.objects.filter(
+        client=client,
+    ).select_related('journal_entry').order_by('journal_entry__entry_date', 'journal_entry__created_at')
+
+    if date_from:
+        lines = lines.filter(journal_entry__entry_date__gte=date_from)
+    if date_to:
+        lines = lines.filter(journal_entry__entry_date__lte=date_to)
+
+    transactions = []
+    running_balance = 0
+
+    for line in lines:
+        entry = line.journal_entry
+        running_balance += line.amount_sar
+
+        transactions.append({
+            'date': entry.entry_date.isoformat(),
+            'entry_number': entry.entry_number,
+            'entry_type': entry.entry_type,
+            'entry_type_display': entry.get_entry_type_display(),
+            'description': entry.description,
+            'account': line.account,
+            'account_display': line.get_account_display(),
+            'amount_sar': line.amount_sar,
+            'balance': running_balance,
+            'reference_type': entry.reference_type,
+            'reference_id': entry.reference_id,
+        })
+
+    return {
+        'transactions': transactions,
+        'closing_balance': running_balance,
+        'total_debit': sum(t['amount_sar'] for t in transactions if t['amount_sar'] > 0),
+        'total_credit': abs(sum(t['amount_sar'] for t in transactions if t['amount_sar'] < 0)),
+    }
+
+
+def account_summary(company=None):
+    """Summary of all accounts from JournalLines."""
+    from django.db.models import Sum
+
+    qs = JournalLine.objects.all()
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+
+    summary = {}
+    for account_choice in Account.choices:
+        account_value = account_choice[0]
+        account_label = account_choice[1]
+        total = qs.filter(account=account_value).aggregate(total=Sum('amount_sar'))['total'] or 0
+        if total != 0:
+            summary[account_value] = {
+                'label': account_label,
+                'balance': total,
+            }
+
+    return summary
