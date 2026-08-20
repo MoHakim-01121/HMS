@@ -12,7 +12,8 @@ from ..models.invoice import Invoice
 from ..models.journal import JournalEntry
 from ..finance_helpers import (
     create_payment_record, confirm_payment, allocate_payment,
-    reverse_journal_entry, FinanceError,
+    reverse_journal_entry, client_statement, account_summary,
+    FinanceError,
 )
 from ..permissions import require_perm
 from .helpers import get_active_company, _parse_date, _to_float
@@ -327,3 +328,30 @@ def payment_reverse(request, pk):
             messages.error(request, str(e))
         return redirect('payment_detail', pk=pk)
     return redirect('payment_detail', pk=pk)
+
+
+@require_perm('clients', 'view')
+def client_finance_statement(request, pk):
+    """Client finance statement from JournalEntries."""
+    from ..models.client import Client
+    client = get_object_or_404(Client, pk=pk)
+
+    date_from = request.GET.get('from')
+    date_to = request.GET.get('to')
+
+    if date_from:
+        date_from = _parse_date(date_from)
+    if date_to:
+        date_to = _parse_date(date_to)
+
+    statement = client_statement(client, date_from=date_from, date_to=date_to)
+
+    return inertia_render(request, 'Payment/ClientStatement', props={
+        'client': {
+            'id': client.pk,
+            'name': client.name,
+        },
+        'statement': statement,
+        'date_from': date_from.isoformat() if date_from else None,
+        'date_to': date_to.isoformat() if date_to else None,
+    })
