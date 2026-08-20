@@ -7,6 +7,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
@@ -20,11 +21,23 @@ const STATUS_TONE = {
   reversed: "badge-gray",
 };
 
-export default function List({ payments = [], status_choices = [] }) {
+export default function List({ payments = [], status_choices = [], invoice_choices = [], stats = {} }) {
   const { t } = useI18n();
   const [statusFilter, setStatusFilter] = useState("all");
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [rejectDialog, setRejectDialog] = useState(null);
+  const [recordDialog, setRecordDialog] = useState(false);
+  const [recordForm, setRecordForm] = useState({
+    invoice_id: "",
+    payment_date: new Date().toISOString().split("T")[0],
+    amount: "",
+    currency: "SAR",
+    exchange_rate: "1",
+    method: "",
+    bank_name: "",
+    reference: "",
+    note: "",
+  });
 
   const filtered = statusFilter === "all"
     ? payments
@@ -38,6 +51,12 @@ export default function List({ payments = [], status_choices = [] }) {
   const rejectPayment = (payment) => {
     router.post(`/finance/payments/${payment.id}/reject/`, { reason: rejectDialog.reason });
     setRejectDialog(null);
+  };
+
+  const submitRecord = () => {
+    router.post("/finance/payments/record/", recordForm, {
+      onSuccess: () => setRecordDialog(false),
+    });
   };
 
   const columns = [
@@ -117,13 +136,136 @@ export default function List({ payments = [], status_choices = [] }) {
               ))}
             </SelectContent>
           </Select>
+          <Button size="sm" onClick={() => setRecordDialog(true)}>{t("Record Payment")}</Button>
           <a href="/finance/periods/">
             <Button variant="outline" size="sm">{t("Periods")}</Button>
           </a>
         </div>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <StatCard label={t("Total Payments")} value={stats.total || 0} />
+        <StatCard label={t("Pending")} value={stats.pending || 0} tone="yellow" />
+        <StatCard label={t("Confirmed")} value={stats.confirmed || 0} tone="blue" />
+        <StatCard label={t("Allocated")} value={stats.allocated || 0} tone="green" />
+      </div>
+
       <Table columns={columns} rows={filtered} rowKey="id" />
+
+      {/* Record Payment Dialog */}
+      {recordDialog && (
+        <Dialog open onOpenChange={(v) => { if (!v) setRecordDialog(false); }}>
+          <DialogContent className="hms-dialog max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t("Record Payment")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">{t("Invoice")} *</label>
+                <Select
+                  value={recordForm.invoice_id}
+                  onValueChange={(v) => setRecordForm({ ...recordForm, invoice_id: v })}
+                >
+                  <SelectTrigger className="w-full mt-1">
+                    <SelectValue placeholder={t("Select invoice...")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {invoice_choices.map((inv) => (
+                      <SelectItem key={inv.id} value={String(inv.id)}>
+                        {inv.label} ({inv.remaining?.toLocaleString()} SAR remaining)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">{t("Date")} *</label>
+                  <Input
+                    type="date"
+                    value={recordForm.payment_date}
+                    onChange={(e) => setRecordForm({ ...recordForm, payment_date: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">{t("Amount")} *</label>
+                  <Input
+                    type="number"
+                    value={recordForm.amount}
+                    onChange={(e) => setRecordForm({ ...recordForm, amount: e.target.value })}
+                    placeholder="0"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">{t("Currency")}</label>
+                  <Input
+                    value={recordForm.currency}
+                    onChange={(e) => setRecordForm({ ...recordForm, currency: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">{t("Exchange Rate")}</label>
+                  <Input
+                    type="number"
+                    step="0.0001"
+                    value={recordForm.exchange_rate}
+                    onChange={(e) => setRecordForm({ ...recordForm, exchange_rate: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">{t("Method")}</label>
+                  <Select
+                    value={recordForm.method}
+                    onValueChange={(v) => setRecordForm({ ...recordForm, method: v })}
+                  >
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue placeholder={t("Select...")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Transfer">Transfer</SelectItem>
+                      <SelectItem value="Direct">Direct</SelectItem>
+                      <SelectItem value="Card">Card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">{t("Reference")}</label>
+                  <Input
+                    value={recordForm.reference}
+                    onChange={(e) => setRecordForm({ ...recordForm, reference: e.target.value })}
+                    placeholder={t("TRX number, check #, etc.")}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t("Note")}</label>
+                <Input
+                  value={recordForm.note}
+                  onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRecordDialog(false)}>{t("Cancel")}</Button>
+              <Button onClick={submitRecord} disabled={!recordForm.invoice_id || !recordForm.amount}>
+                {t("Record Payment")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Confirm Dialog */}
       {confirmDialog && (
@@ -161,6 +303,15 @@ export default function List({ payments = [], status_choices = [] }) {
           </DialogContent>
         </Dialog>
       )}
+    </div>
+  );
+}
+
+function StatCard({ label, value, tone }) {
+  return (
+    <div className="card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-bold mt-1">{typeof value === "number" ? value.toLocaleString() : value}</p>
     </div>
   );
 }

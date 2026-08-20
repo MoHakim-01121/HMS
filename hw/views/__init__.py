@@ -60,7 +60,7 @@ from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
 )
 from .payment_views import (
-    payment_list, payment_detail, payment_record_new,
+    payment_list, payment_detail, payment_record_new, payment_record,
     payment_confirm, payment_reject, payment_reverse,
 )
 from .dev_views import style_guide
