@@ -44,6 +44,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
   const range = stayRange(reservations);
   const receivedTotal = payments.reduce((s, p) => s + (p.amount_sar_int || 0), 0);
   const reservationsTotal = reservations.reduce((s, r) => s + (r.total_int || 0), 0);
+  const paidTotal = reservations.reduce((s, r) => s + (r.paid_int || 0), 0);
   const remainingTotal = reservations.reduce((s, r) => s + Math.max(0, r.remaining_int || 0), 0);
 
   return (
@@ -133,6 +134,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
                   ),
               },
               { header: t("Total"), align: "right", strong: true, render: (res) => fmt(res.total_int) },
+              { header: t("Paid"), align: "right", render: (res) => <span style={{ color: res.paid_int > 0 ? "var(--green)" : undefined }}>{fmt(res.paid_int)}</span> },
               {
                 header: t("Remaining"),
                 align: "right",
@@ -145,8 +147,8 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
               reservations.length
                 ? [{
                     label: t("Total"),
-                    value: [`${fmt(reservationsTotal)} SAR`, `${fmt(remainingTotal)} SAR`],
-                    tone: [null, remainingTotal > 0 ? "red" : null],
+                    value: [`${fmt(reservationsTotal)} SAR`, `${fmt(paidTotal)} SAR`, `${fmt(remainingTotal)} SAR`],
+                    tone: [null, "green", remainingTotal > 0 ? "red" : null],
                     total: true,
                   }]
                 : null

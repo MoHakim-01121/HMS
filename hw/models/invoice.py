@@ -34,7 +34,6 @@ class Invoice(models.Model):
 
     # ── Status & amounts ──────────────────────────────────────
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    total_sar  = models.PositiveIntegerField(default=0)
     paid_sar   = models.PositiveIntegerField(default=0)
 
     # ── Audit ─────────────────────────────────────────────────
@@ -63,18 +62,28 @@ class Invoice(models.Model):
     def get_absolute_url(self):
         return reverse('invoice_detail', args=[self.pk])
 
+    def save(self, *args, **kwargs):
+        # Auto-sync customer_name from client — single source of truth
+        if self.client_id:
+            self.customer_name = self.client.name
+        super().save(*args, **kwargs)
+
+    @property
+    def total_sar(self):
+        return sum(r.total_sar for r in self.reservations.all()) + sum(s.total for s in self.service_items.all())
+
     @property
     def total_paid_sar(self):
-        """Backward-compat: maps to stored paid_sar field."""
-        return self.paid_sar
+        from .. import ledger
+        return ledger.invoice_paid_sar(self.id)
 
     @property
     def remaining_sar(self):
-        return self.total_sar - self.paid_sar
+        return self.total_sar - self.total_paid_sar
 
     @property
     def is_fully_paid(self):
-        return self.paid_sar >= self.total_sar and self.total_sar > 0
+        return self.total_paid_sar >= self.total_sar and self.total_sar > 0
 
     @classmethod
     def generate_number(cls, invoice_type):

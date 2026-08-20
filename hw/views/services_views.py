@@ -120,7 +120,6 @@ def services_new(request):
                 invoice_type="visa",
                 invoice_number=invoice_number,
                 client=client,
-                customer_name=client.name if client else request.POST.get("customer_name", ""),
                 issued_date=_parse_date(request.POST.get("issued_date")),
                 due_date=_parse_date(request.POST.get("due_date")),
                 currency=request.POST.get("invoice_currency", "USD"),
@@ -223,7 +222,6 @@ def services_edit(request, pk):
             client = _resolve_client_from_post(request, active_company)
             invoice.invoice_number = new_number
             invoice.client = client
-            invoice.customer_name = client.name if client else request.POST.get("customer_name", "")
             invoice.issued_date = _parse_date(request.POST.get("issued_date"))
             invoice.due_date = _parse_date(request.POST.get("due_date"))
             invoice.currency = request.POST.get("invoice_currency", "USD")

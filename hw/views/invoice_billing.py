@@ -5,11 +5,9 @@ from datetime import datetime
 from django.db import transaction
 
 from ..models import (
-    ConfirmationLetter, Payment, InvoiceType,
+    ConfirmationLetter, Payment, Invoice, InvoiceType,
     Account, AllocationReason, CashMovement, Allocation,
 )
-from ..models.payment import PaymentRecord, PaymentLog
-from ..finance_helpers import create_payment_record, confirm_payment, allocate_payment
 from .helpers import validate_proof_file, _parse_date, _to_float
 
 logger = logging.getLogger(__name__)
@@ -126,30 +124,26 @@ def _save_payments(invoice, request, ref_field, default_currency):
                     created_by=request.user,
                 )
 
-            # ── NEW: Create PaymentRecord + JournalEntry ──────────
-            try:
-                if client and invoice.client:
-                    pay_rec = create_payment_record(
-                        invoice=invoice,
-                        client=client,
-                        payment_date=payment_date or invoice.issued_date or datetime.now().date(),
-                        amount=amount,
-                        currency=currency,
-                        exchange_rate=exchange_rate,
-                        method=method,
-                        reference=ref_clean,
-                        note=(r.get('note') or '').strip(),
-                        proof=proof or keep if keep else None,
-                        created_by=request.user,
-                        reservation=reservation,
-                        service_item=service_item,
-                    )
-                    # Auto-confirm + allocate
-                    confirm_payment(pay_rec, confirmed_by=request.user, note='Auto-confirmed on creation')
-                    allocate_payment(pay_rec, allocation_date=pay_rec.payment_date, created_by=request.user)
-            except Exception as e:
-                # New system should not break existing flow
-                logger.warning("Finance redesign: failed to create PaymentRecord for %s: %s", invoice.invoice_number, e)
+    # ── Sync Invoice.paid_sar from old Payments ──────────────────
+    # Old Payment system is the source of truth for invoice payments.
+    # Compute paid_sar from Payment objects to keep in sync.
+    # Also include standalone PaymentRecords (from Finance page) that
+    # were allocated directly to this invoice.
+    from ..models.payment import PaymentRecord
+    total_paid = sum(p.amount_sar for p in invoice.payments.all())
+    # Add standalone allocated payments (not created by this invoice form)
+    standalone_paid = PaymentRecord.objects.filter(
+        invoice=invoice, status=PaymentRecord.STATUS_ALLOCATED,
+    ).aggregate(total=models.Sum('amount_sar'))['total'] or 0
+    invoice.paid_sar = total_paid + standalone_paid
+    if total_paid >= invoice.total_sar and invoice.total_sar > 0:
+        invoice.status = Invoice.STATUS_PAID
+    elif total_paid > 0:
+        invoice.status = Invoice.STATUS_PARTIAL
+    else:
+        invoice.status = Invoice.STATUS_DRAFT
+    invoice.save(update_fields=['paid_sar', 'status'])
+
     logger.info(
         "ledger: %d payment(s) synced for invoice %s",
         len(rows), invoice.invoice_number,
@@ -166,8 +160,8 @@ def _save_service_payments(invoice, request):
 
 def _billing_client(invoice):
     """Client efektif untuk kirim billing: client tunggal dari CL-CL yang
-    terhubung ke invoice (Invoice tidak punya FK client sendiri). Lebih dari
-    satu client berbeda = ambigu, kembalikan None (modal jatuh ke mode manual)."""
+    terhubung ke invoice. Lebih dari satu client berbeda = ambigu — fallback
+    ke invoice.client yang dipilih user di form."""
     clients = {
         cl.client_id: cl.client
         for cl in invoice.confirmation_letters.select_related('client')
@@ -175,7 +169,10 @@ def _billing_client(invoice):
     }
     if len(clients) == 1:
         return next(iter(clients.values()))
-    return None
+    if len(clients) > 1:
+        return None
+    # No CLs or CLs have no client — fall back to invoice.client
+    return invoice.client
 
 
 def _billing_props(invoice):
