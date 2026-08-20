@@ -308,7 +308,7 @@ function MapIndonesia({ regionData }) {
   );
 }
 
-function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
+function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHotels, topHotelsTotal, regionData, reservationFunnel, financeSummary }) {
   const { t } = useI18n();
   const [period, setPeriod] = useState("6M");
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -391,28 +391,28 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
               <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Surabaya")}</div>
                 <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(props.finance_summary?.kas_sby || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                  {fmtNum(financeSummary?.kas_sby || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
                 </div>
               </div>
               <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Pusat")}</div>
                 <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(props.finance_summary?.kas_pusat || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                  {fmtNum(financeSummary?.kas_pusat || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
                 </div>
               </div>
               <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Total Piutang")}</div>
                 <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(props.finance_summary?.total_piutang || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                  {fmtNum(financeSummary?.total_piutang || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
                 </div>
               </div>
               <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Payments This Month")}</div>
                 <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(props.finance_summary?.payments_this_month || 0)}
+                  {fmtNum(financeSummary?.payments_this_month || 0)}
                 </div>
-                <div style={{ fontSize: 11, color: props.finance_summary?.payments_pending > 0 ? '#eab308' : 'var(--muted-foreground)', marginTop: 2 }}>
-                  {props.finance_summary?.payments_pending || 0} {t("pending")}
+                <div style={{ fontSize: 11, color: financeSummary?.payments_pending > 0 ? '#eab308' : 'var(--muted-foreground)', marginTop: 2 }}>
+                  {financeSummary?.payments_pending || 0} {t("pending")}
                 </div>
               </div>
             </div>
@@ -656,7 +656,7 @@ export default function Home() {
     <div className="page shadcn-root hms-home">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
+      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} financeSummary={props.finance_summary || {}} />
 
       <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" aria-label="Ask AI" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>
