@@ -62,7 +62,7 @@ from .period_views import (
 from .payment_views import (
     payment_list, payment_detail, payment_record_new, payment_record,
     payment_confirm, payment_reject, payment_reverse,
-    client_finance_statement,
+    client_finance_statement, payment_export_csv,
 )
 from .dev_views import style_guide
 from .visit_views import (
