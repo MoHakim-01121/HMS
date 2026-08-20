@@ -31,6 +31,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
   const cur = invoice.currency;
   const paid = services_remaining <= 0;
   const servicesTotal = visa_services.reduce((s, v) => s + (v.total || 0), 0);
+  const paidTotal = visa_services.reduce((s, v) => s + (v.paid_int || 0), 0);
   const remainingTotal = visa_services.reduce((s, v) => s + Math.max(0, v.remaining || 0), 0);
   const receivedTotal = payments_history.reduce((s, p) => s + (p.payment_amount_main || 0), 0);
   const hero = heroPill(servicesTotal, services_remaining);
@@ -111,6 +112,7 @@ export default function Detail({ invoice, visa_services, payments_history, servi
                   ),
               },
               { header: t("Total"), align: "right", strong: true, render: (svc) => fmt(svc.total) },
+              { header: t("Paid"), align: "right", render: (svc) => <span style={{ color: svc.paid_int > 0 ? "var(--green)" : undefined }}>{fmt(svc.paid_int)}</span> },
               { header: t("Remaining"), align: "right", render: (svc) => fmt(Math.max(0, svc.remaining || 0)) },
             ]}
             rows={visa_services}
@@ -119,8 +121,8 @@ export default function Detail({ invoice, visa_services, payments_history, servi
               visa_services.length
                 ? [{
                     label: t("Total"),
-                    value: [`${fmt(servicesTotal)} ${cur}`, `${fmt(remainingTotal)} ${cur}`],
-                    tone: [null, remainingTotal > 0 ? "red" : null],
+                    value: [`${fmt(servicesTotal)} ${cur}`, `${fmt(paidTotal)} ${cur}`, `${fmt(remainingTotal)} ${cur}`],
+                    tone: [null, "green", remainingTotal > 0 ? "red" : null],
                     total: true,
                   }]
                 : null
