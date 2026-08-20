@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
@@ -11,24 +11,7 @@ import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-const DragIcon = () => (
-  <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" style={{ opacity: 0.45, display: "block" }}>
-    <circle cx="3" cy="3" r="1.5"/><circle cx="7" cy="3" r="1.5"/>
-    <circle cx="3" cy="8" r="1.5"/><circle cx="7" cy="8" r="1.5"/>
-    <circle cx="3" cy="13" r="1.5"/><circle cx="7" cy="13" r="1.5"/>
-  </svg>
-);
-
-/* A control inside a dynamic row card. FormField is what supplies the design
-   system here — the styling in tailwind.css keys off its data-slot, so every
-   control below gets the same 40px height, 2px stroke, --radius-control and
-   14px text as the Invoice Info fields at the top of the form.
-
-   The visible label is dropped and the field name moves into the placeholder
-   plus aria-label. These rows repeat, and stacking a label over every field
-   roughly doubles a card's height for names the placeholder already carries —
-   the same trade the desktop table makes when it labels a column once in its
-   header rather than once per cell. */
+/* A control inside a dynamic row card. */
 const CardField = ({ name, cell, children }) => (
   <FormField name={name} className={cell}>{children}</FormField>
 );
@@ -43,30 +26,13 @@ const CURRENCIES = ["SAR", "USD", "IDR"];
 const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 const blankService = () => ({ name: "", qty: 1, price: "" });
-let _paySeq = 0;
-const blankPayment = (cur) => ({
-  _key: ++_paySeq, ref: "", date: "", method: "", amount: "", currency: cur || "SAR",
-  exchange: 1, note: "", proof_keep: "", proof_url: null, file: null,
-});
 
-function seedFrom(src, fallbackCurrency) {
-  if (!src) {
-    return { items: [blankService()], payments: [blankPayment(fallbackCurrency)] };
-  }
+function seedFrom(src) {
+  if (!src) return { items: [blankService()] };
   const items = (src.service_items || []).map((it) => ({
     name: it.name || "", qty: it.qty ?? 1, price: it.price ?? "",
   }));
-  const payments = (src.payments || []).map((p) => ({
-    _key: ++_paySeq,
-    ref: String(p.ref ?? ""), date: p.date || "", method: p.method || "",
-    amount: p.amount ?? "", currency: p.currency || fallbackCurrency || "SAR",
-    exchange: p.exchange ?? 1, note: p.note || "",
-    proof_keep: p.proof_keep || "", proof_url: p.proof_url || null, file: null,
-  }));
-  return {
-    items: items.length ? items : [blankService()],
-    payments,
-  };
+  return { items: items.length ? items : [blankService()] };
 }
 
 export default function Form({ invoice, edit, suggested_number, clients = [], initial, errors = {} }) {
@@ -81,9 +47,8 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
   const [issuedDate, setIssuedDate] = useState(src?.issued_date || "");
   const [dueDate, setDueDate] = useState(src?.due_date || "");
 
-  const seeded = useMemo(() => seedFrom(src, src?.invoice_currency || "USD"), []);
+  const seeded = useMemo(() => seedFrom(src), []);
   const [items, setItems] = useState(seeded.items);
-  const [payments, setPayments] = useState(seeded.payments);
 
   const form = useForm({});
 
@@ -92,34 +57,6 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
   const addItem = () => setItems((rows) => [...rows, blankService()]);
   const removeItem = (i) => setItems((rows) => rows.filter((_, idx) => idx !== i));
   const lineTotal = (it) => (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0);
-
-  // ── Payments ──
-  const setPay = (i, patch) => setPayments((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const addPay = () => setPayments((rows) => [...rows, blankPayment(currency)]);
-  const removePay = (i) => setPayments((rows) => rows.filter((_, idx) => idx !== i));
-  const onCurrencyChange = (i, cur) => {
-    const patch = { currency: cur };
-    if (cur === currency) patch.exchange = 1;
-    else if (String(payments[i].exchange) === "1") patch.exchange = "";
-    setPay(i, patch);
-  };
-
-  // ── Payment drag-to-reorder ──
-  const dragIndex = useRef(null);
-  const onPayDragStart = (e, i) => { dragIndex.current = i; e.dataTransfer.effectAllowed = "move"; };
-  // Only intercept dragover/drop when a payment drag is actually in progress.
-  // Without this guard, dragging text between inputs or dropping files would
-  // also trigger these handlers and could cause unexpected reorders.
-  const onPayDragOver = (e) => { if (dragIndex.current === null) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
-  const onPayDrop = (e, i) => {
-    if (dragIndex.current === null) return;
-    e.preventDefault();
-    const from = dragIndex.current;
-    dragIndex.current = null;
-    if (from === i) return;
-    setPayments((rows) => { const next = [...rows]; next.splice(i, 0, next.splice(from, 1)[0]); return next; });
-  };
-  const onPayDragEnd = () => { dragIndex.current = null; };
 
   // ── Client selection ──
   const onClientText = (text) => {
@@ -139,55 +76,25 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
     setCustomerName(c.name);
   };
 
-  // ── Totals ──
-  const totals = useMemo(() => {
-    const totalServices = Math.floor(
-      items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0), 0)
-    );
-    let totalPayments = 0;
-    for (const p of payments) {
-      const amount = parseFloat(p.amount) || 0;
-      const rate = parseFloat(p.exchange) || 1;
-      let converted = amount;
-      if (p.currency !== currency) {
-        converted = p.currency === "IDR" ? (rate ? Math.floor(amount / rate) : 0) : amount / (rate || 1);
-      }
-      totalPayments += converted;
-    }
-    totalPayments = Math.floor(totalPayments);
-    return { totalServices, totalPayments, remaining: Math.floor(totalServices - totalPayments) };
-  }, [items, payments, currency]);
-
-  const remainingClass = totals.remaining <= 0 ? "green" : totals.remaining < totals.totalServices ? "yellow" : "red";
+  const totalServices = useMemo(
+    () => Math.floor(items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0) * (parseFloat(it.price) || 0), 0)),
+    [items]
+  );
 
   const submit = (e) => {
     e.preventDefault();
     const serviceItems = items
       .filter((it) => (it.name || "").trim())
       .map((it) => ({ name: it.name.trim(), qty: parseFloat(it.qty) || 1, price: parseFloat(it.price) || 0 }));
-    const payRows = payments.filter((p) => (parseFloat(p.amount) || 0) > 0);
 
-    form.transform(() => {
-      const data = {
-        client_id: clientId, customer_name: customerName, invoice_number: invoiceNumber,
-        invoice_currency: currency, issued_date: issuedDate, due_date: dueDate,
-        service_items: JSON.stringify(serviceItems),
-        payments: JSON.stringify(payRows.map((p) => ({
-          ref: p.ref, date: p.date, method: p.method, amount: parseFloat(p.amount) || 0,
-          currency: p.currency, exchange: parseFloat(p.exchange) || 1, note: p.note,
-          proof_keep: p.file ? "" : p.proof_keep,
-        }))),
-      };
-      payRows.forEach((p, i) => { if (p.file) data[`payment_proof_${i}`] = p.file; });
-      return data;
-    });
+    form.transform(() => ({
+      client_id: clientId, customer_name: customerName, invoice_number: invoiceNumber,
+      invoice_currency: currency, issued_date: issuedDate, due_date: dueDate,
+      service_items: JSON.stringify(serviceItems),
+    }));
     const url = edit ? `/services/${src.pk}/edit/` : "/services/new/";
-    form.post(url, { forceFormData: true });
+    form.post(url);
   };
-
-  // Service numbers follow the server's: only named rows are stored, numbered
-  // 1..n in order, so an unnamed row must not consume a number here either.
-  const svcOptions = items.filter((it) => (it.name || "").trim()).map((_, i) => i + 1);
 
   return (
     <div className="page svc-form shadcn-root">
@@ -298,172 +205,14 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
                 </div>
               ))}
               <button type="button" className="btn-add-row svc-add-mobile" onClick={addItem}>{t("+ Add service")}</button>
-              <div className="section-foot"><span className="lbl">{t("Total")}</span><span className="val">{fmt(totals.totalServices)} {currency}</span></div>
-            </div>
-          </FormSection>
-
-          {/* ── Payments ── */}
-          <FormSection label={t("Payments")}>
-            <div className="svc-pay-desktop">
-              <div className="svc-tbl-wrap">
-                <div className="svc-tbl-scroll">
-                  <table className="svc-tbl svc-tbl-pay" id="payments">
-                    <colgroup>
-                      <col style={{ width: 30 }} />
-                      <col style={{ width: 84 }} />
-                      <col style={{ width: 132 }} />
-                      <col style={{ width: 130 }} />
-                      <col style={{ width: 112 }} />
-                      <col style={{ width: 76 }} />
-                      <col style={{ width: 86 }} />
-                      <col />
-                      <col style={{ width: 84 }} />
-                      <col style={{ width: 44 }} />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th aria-label={t("Reorder")} />
-                        <th>Svc#</th>
-                        <th>{t("Date")}</th>
-                        <th>{t("Method")}</th>
-                        <th className="r">{t("Amount")}</th>
-                        <th>Cur</th>
-                        <th className="r">{t("Rate")}</th>
-                        <th>{t("Note")}</th>
-                        <th>{t("Proof")}</th>
-                        <th aria-label={t("Actions")} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payments.length === 0 ? (
-                        <tr className="svc-tbl-empty">
-                          <td colSpan={10}>{t("No payments recorded yet")}</td>
-                        </tr>
-                      ) : payments.map((p, i) => (
-                        <tr key={p._key} onDragOver={onPayDragOver} onDrop={(e) => onPayDrop(e, i)}>
-                          <td className="c-drag">
-                            <span className="svc-drag" draggable onDragStart={(e) => onPayDragStart(e, i)} onDragEnd={onPayDragEnd} aria-label={t("Drag to reorder")}><DragIcon /></span>
-                          </td>
-                          <td>
-                            <span className="c-sel">
-                              <select className="c-in" value={p.ref} required onChange={(e) => setPay(i, { ref: e.target.value })}>
-                                <option value="">—</option>
-                                {svcOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                              </select>
-                            </span>
-                          </td>
-                          <td><input className="c-in" type="date" required value={p.date} onChange={(e) => setPay(i, { date: e.target.value })} /></td>
-                          {/* Method is free text, not the Invoice form's fixed
-                              list: services payments already on file carry
-                              arbitrary methods, and a select would silently
-                              blank them on edit. */}
-                          <td><input className="c-in" type="text" placeholder={t("Method")} required value={p.method} onChange={(e) => setPay(i, { method: e.target.value })} /></td>
-                          <td><input className="c-in c-num c-strong" type="number" step="0.01" placeholder="0.00" required value={p.amount} onChange={(e) => setPay(i, { amount: e.target.value })} /></td>
-                          <td>
-                            <span className="c-sel">
-                              <select className="c-in" value={p.currency} onChange={(e) => onCurrencyChange(i, e.target.value)}>
-                                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                              </select>
-                            </span>
-                          </td>
-                          <td><input className="c-in c-num" type="number" step="0.0001" placeholder="1" value={p.exchange} readOnly={p.currency === currency} onChange={(e) => setPay(i, { exchange: e.target.value })} /></td>
-                          <td><input className="c-in" type="text" placeholder="—" value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} /></td>
-                          <td className="c-proof">
-                            <div className="svc-proof">
-                              {p.proof_url && !p.file && <a href={p.proof_url} target="_blank" rel="noreferrer" className="svc-proof-link" title={t("View proof")}><Icon name="proof" size={13} /></a>}
-                              <label className="svc-proof-btn" title={t("Upload proof")}>
-                                <Icon name="proof" size={13} />
-                                <input type="file" accept="image/*,.pdf" style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
-                              </label>
-                              {p.file && <span className="svc-proof-name" title={p.file.name}>{p.file.name}</span>}
-                            </div>
-                          </td>
-                          <td className="c-act">
-                            <button type="button" className="svc-row-del" onClick={() => removePay(i)} aria-label={t("Remove payment")}><Icon name="trash" size={13} /></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <button type="button" className="svc-tbl-add" onClick={addPay}>{t("+ Add payment")}</button>
-              </div>
-            </div>
-            <div className="svc-pay-cards">
-              <div className="tl-list">
-                {payments.map((p, i) => (
-                  <div className="tl-item" key={p._key}>
-                    <span className="tl-dot" />
-                    {/* The rate is only meaningful when the payment is in some
-                        other currency than the invoice — which is a runtime
-                        comparison, not a fixed value, so it is flagged here for
-                        the phone layout rather than matched on in CSS. */}
-                    <div className="svc-card" data-rate-locked={p.currency === currency ? "true" : undefined}>
-                      <CardField name={`pay-${i}-date`} cell="f-date">
-                        <input id={`pay-${i}-date`} type="date" aria-label={t("Payment date")}
-                          value={p.date} onChange={(e) => setPay(i, { date: e.target.value })} />
-                      </CardField>
-                      <CardField name={`pay-${i}-amount`} cell="f-pay-amount">
-                        <input id={`pay-${i}-amount`} type="number" step="0.01" className="svc-num" aria-label={t("Amount")}
-                          placeholder={t("Amount")} value={p.amount} onChange={(e) => setPay(i, { amount: e.target.value })} />
-                      </CardField>
-                      <CardField name={`pay-${i}-currency`} cell="f-cur">
-                        <select id={`pay-${i}-currency`} aria-label={t("Currency")}
-                          value={p.currency} onChange={(e) => onCurrencyChange(i, e.target.value)}>
-                          {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </CardField>
-                      <CardField name={`pay-${i}-method`} cell="f-method">
-                        <input id={`pay-${i}-method`} type="text" aria-label={t("Payment method")}
-                          placeholder={t("Method")} value={p.method} onChange={(e) => setPay(i, { method: e.target.value })} />
-                      </CardField>
-                      <CardField name={`pay-${i}-ref`} cell="f-ref">
-                        <select id={`pay-${i}-ref`} aria-label={t("Service number")}
-                          value={p.ref} onChange={(e) => setPay(i, { ref: e.target.value })}>
-                          <option value="">Svc#</option>
-                          {svcOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                      </CardField>
-                      {/* Rate keeps its slot at the invoice currency instead of
-                          being dropped — the desktop table does the same. A
-                          field that comes and goes reflows every cell after it,
-                          which is a worse trade than one dimmed 1.0000 that
-                          can't be typed in. */}
-                      <CardField name={`pay-${i}-rate`} cell="f-rate">
-                        <input id={`pay-${i}-rate`} type="number" step="0.0001" className="svc-num" aria-label={t("Exchange rate")}
-                          placeholder={t("Rate")} readOnly={p.currency === currency}
-                          value={p.exchange} onChange={(e) => setPay(i, { exchange: e.target.value })} />
-                      </CardField>
-                      <CardField name={`pay-${i}-note`} cell="f-note">
-                        <input id={`pay-${i}-note`} type="text" aria-label={t("Note")}
-                          placeholder={t("Note")} value={p.note} onChange={(e) => setPay(i, { note: e.target.value })} />
-                      </CardField>
-                      <RemoveButton label={t("Remove payment")} onClick={() => removePay(i)} />
-                      <label className="svc-proof-box f-proof" data-has-file={p.file ? "true" : undefined}
-                        title={p.file ? p.file.name : p.proof_url ? t("Replace proof") : t("Attach proof")}>
-                        <Icon name="proof" size={14} />
-                        <span className="sr-only">{p.file ? p.file.name : t("Attach proof")}</span>
-                        <input type="file" accept="image/*,.pdf" aria-label={t("Attach proof")} style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden" }} onChange={(e) => setPay(i, { file: e.target.files[0] || null })} />
-                      </label>
-                      {p.proof_url && !p.file && (
-                        <a href={p.proof_url} target="_blank" rel="noreferrer" className="svc-proof-box f-view" aria-label={t("View current proof")} title={t("View current proof")}>
-                          <Icon name="proof" size={14} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="btn-add-row svc-add-mobile" onClick={addPay}>{t("+ Add payment")}</button>
-              <div className="section-foot"><span className="lbl">{t("Remaining")}</span><span className={"val " + remainingClass}>{fmt(totals.remaining)} {currency}</span></div>
+              <div className="section-foot"><span className="lbl">{t("Total")}</span><span className="val">{fmt(totalServices)} {currency}</span></div>
             </div>
           </FormSection>
 
           {/* ── Summary ── */}
           <div className="svc-summary">
-            <div className="svc-summary-cell"><div className="lbl">{t("Total Services")}</div><div className="val">{fmt(totals.totalServices)} {currency}</div></div>
-            <div className="svc-summary-cell"><div className="lbl">{t("Total Payments")}</div><div className="val green">{fmt(totals.totalPayments)} {currency}</div></div>
-            <div className="svc-summary-cell"><div className="lbl">{t("Remaining")}</div><div className={"val " + remainingClass}>{fmt(totals.remaining)} {currency}</div></div>
+            <div className="svc-summary-cell"><div className="lbl">{t("Total Services")}</div><div className="val">{fmt(totalServices)} {currency}</div></div>
+            <div className="svc-summary-cell"><div className="lbl">{t("Payments")}</div><div className="val green">{t("Record via Finance")}</div></div>
           </div>
 
           <div className="svc-desktop-actions">

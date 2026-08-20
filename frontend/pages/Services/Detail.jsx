@@ -48,6 +48,9 @@ export default function Detail({ invoice, visa_services, payments_history, servi
         pill={{ ...hero, label: t(hero.label) }}
         actions={
           <>
+            <a className="hms-dv-act" href={`/finance/payments/?invoice=${invoice.pk}`} style={{ fontSize: 12 }}>
+              {t("Record Payment")}
+            </a>
             <a className="hms-dv-act" href={`/services/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
             {perms.can("services", "edit") && (
               <button type="button" className="hms-dv-act" onClick={() => openForm(`/services/${invoice.pk}/edit/`)}>{t("Edit")}</button>
