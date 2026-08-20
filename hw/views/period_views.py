@@ -49,6 +49,26 @@ def period_detail(request, pk):
     entries = period.journal_entries.select_related('created_by').order_by('-entry_date', '-created_at')[:50]
     payments = period.payments.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')[:50]
 
+    # Calculate account balances for this period
+    from django.db.models import Sum
+    from ..models.journal import JournalLine, Account
+    account_balances = []
+    for account_value, account_label in Account.choices:
+        total = JournalLine.objects.filter(
+            journal_entry__period=period,
+            account=account_value,
+        ).aggregate(total=Sum('amount_sar'))['total'] or 0
+        if total != 0:
+            account_balances.append({
+                'account': account_value,
+                'label': account_label,
+                'balance': total,
+            })
+
+    # Period totals
+    total_debit = sum(e.total_debit for e in entries)
+    total_credit = sum(e.total_credit for e in entries)
+
     return inertia_render(request, 'Period/Detail', props={
         'period': _period_props(period),
         'entries': [{
@@ -73,6 +93,9 @@ def period_detail(request, pk):
             'payment_date': p.payment_date.isoformat() if p.payment_date else None,
             'created_at': p.created_at.isoformat(),
         } for p in payments],
+        'account_balances': account_balances,
+        'total_debit': total_debit,
+        'total_credit': total_credit,
     })
 
 

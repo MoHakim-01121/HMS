@@ -21,7 +21,7 @@ const ENTRY_TYPE_TONE = {
   reversal: "badge-gray",
 };
 
-export default function Detail({ period = {}, entries = [], payments = [] }) {
+export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0 }) {
   const { t } = useI18n();
 
   const closePeriod = () => {
@@ -128,6 +128,27 @@ export default function Detail({ period = {}, entries = [], payments = [] }) {
           )}
         </div>
       </div>
+
+      {/* Account Balances */}
+      {account_balances.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-semibold mb-4">{t("Account Balances")}</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {account_balances.map((ab) => (
+              <div key={ab.account} className="text-center p-3 border rounded-lg">
+                <p className="text-xs text-muted-foreground">{ab.label}</p>
+                <p className={`text-lg font-bold font-mono ${ab.balance > 0 ? "text-green-600" : "text-red-600"}`}>
+                  {ab.balance?.toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between mt-4 pt-4 border-t text-sm">
+            <span className="text-muted-foreground">{t("Total Debit")}: {total_debit?.toLocaleString()} SAR</span>
+            <span className="text-muted-foreground">{t("Total Credit")}: {total_credit?.toLocaleString()} SAR</span>
+          </div>
+        </div>
+      )}
 
       {/* Journal Entries */}
       <div className="card p-6 mb-6">
