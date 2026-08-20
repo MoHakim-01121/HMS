@@ -247,7 +247,7 @@ def create_payment_record(
 
     Lifecycle: pending → confirmed (via confirm_payment)
     """
-    from ..utils import convert_to_sar
+    from .utils import convert_to_sar
 
     # Calculate SAR
     amount_sar = int(round(convert_to_sar(amount, currency, float(exchange_rate))))
