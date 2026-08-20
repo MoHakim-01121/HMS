@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Company, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..models import ActivityLog, Client, Company, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .context import _build_reservation_context
@@ -29,6 +29,36 @@ from .invoice_billing import _billing_client, _billing_props, _save_hotel_paymen
 from .pdf import _logo_file_url, _render_invoice_pdf
 
 logger = logging.getLogger(__name__)
+
+
+def _client_options(active_company):
+    return list(
+        Client.objects.filter(company=active_company, is_active=True)
+        .order_by('name').values('id', 'name')
+    )
+
+
+def _resolve_client_from_post(request, active_company):
+    """Resolve Client from the submitted client_id, or from linked CLs as fallback."""
+    client_id = request.POST.get("client_id")
+    if client_id:
+        try:
+            return Client.objects.get(pk=client_id, company=active_company, is_active=True)
+        except (Client.DoesNotExist, ValueError):
+            pass
+    # Fallback: resolve from linked CLs
+    cl_ids = _parse_cl_ids(request)
+    if cl_ids:
+        cl_clients = set(
+            ConfirmationLetter.objects.filter(pk__in=cl_ids)
+            .exclude(client__isnull=True).values_list('client_id', flat=True)
+        )
+        if len(cl_clients) == 1:
+            try:
+                return Client.objects.get(pk=next(iter(cl_clients)))
+            except Client.DoesNotExist:
+                pass
+    return None
 
 
 def _filter_by_status(qs, status):
@@ -158,11 +188,13 @@ def invoice_new(request):
                 "invoice": None,
                 "suggested_number": invoice_number,
                 "cl_data": _cl_data_for_form(active_company),
+                "clients": _client_options(active_company),
                 "initial": _invoice_echo(request),
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         with transaction.atomic():
+            client = _resolve_client_from_post(request, active_company)
             invoice = Invoice.objects.create(
                 # Server-assigned, never read from the POST body. The form used to
                 # submit a company of its own, unchecked against can_use_company —
@@ -173,7 +205,8 @@ def invoice_new(request):
                 company=active_company,
                 invoice_type="hotel",
                 invoice_number=invoice_number,
-                customer_name=request.POST.get("customer_name", ""),
+                client=client,
+                customer_name=client.name if client else request.POST.get("customer_name", ""),
                 issued_date=_parse_date(request.POST.get("issued_date")),
                 due_date=_parse_date(request.POST.get("due_date")),
                 currency="SAR",
@@ -198,6 +231,7 @@ def invoice_new(request):
         "invoice": None,
         "suggested_number": suggested_number,
         "cl_data": _cl_data_for_form(active_company),
+        "clients": _client_options(active_company),
     })
 
 
@@ -284,6 +318,7 @@ def invoice_edit(request, pk):
                 "edit": True,
                 "invoice": _serialize_hotel_invoice(invoice),
                 "cl_data": _cl_data_for_form(active_company),
+                "clients": _client_options(active_company),
                 "initial": _invoice_echo(request),
                 "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
@@ -292,8 +327,10 @@ def invoice_edit(request, pk):
         # constrains it to active_company, so any value arriving in the POST
         # body could only ever move the record OUT of the caller's own scope.
         with transaction.atomic():
+            client = _resolve_client_from_post(request, active_company)
             invoice.invoice_number = new_number
-            invoice.customer_name = request.POST.get("customer_name", "")
+            invoice.client = client
+            invoice.customer_name = client.name if client else request.POST.get("customer_name", "")
             invoice.issued_date = _parse_date(request.POST.get("issued_date"))
             invoice.due_date = _parse_date(request.POST.get("due_date"))
             invoice.save()
@@ -327,6 +364,7 @@ def invoice_edit(request, pk):
         "edit": True,
         "invoice": _serialize_hotel_invoice(invoice),
         "cl_data": _cl_data_for_form(active_company),
+        "clients": _client_options(active_company),
     })
 
 
@@ -500,6 +538,7 @@ def _invoice_echo(request):
     return {
         # No "company" key — the form no longer submits one and the server
         # assigns it from the session, so there is nothing to echo back.
+        "client_id": request.POST.get("client_id", ""),
         "customer_name": request.POST.get("customer_name", ""),
         "invoice_number": request.POST.get("invoice_number", ""),
         "issued_date": request.POST.get("issued_date", ""),
@@ -515,6 +554,7 @@ def _serialize_hotel_invoice(invoice):
     return {
         "pk": invoice.pk,
         "company": invoice.company,
+        "client_id": invoice.client_id or "",
         "customer_name": invoice.customer_name,
         "invoice_number": invoice.invoice_number,
         "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",

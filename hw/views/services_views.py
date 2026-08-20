@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Invoice, ServiceItem, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, ServiceItem, log_activity
 from ..permissions import require_perm
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
@@ -28,6 +28,24 @@ from .invoice_billing import _billing_client, _billing_props, _save_service_paym
 from .pdf import _render_services_pdf
 
 logger = logging.getLogger(__name__)
+
+
+def _client_options(active_company):
+    return list(
+        Client.objects.filter(company=active_company, is_active=True)
+        .order_by('name').values('id', 'name')
+    )
+
+
+def _resolve_client_from_post(request, active_company):
+    """Resolve Client from the submitted client_id."""
+    client_id = request.POST.get("client_id")
+    if client_id:
+        try:
+            return Client.objects.get(pk=client_id, company=active_company, is_active=True)
+        except (Client.DoesNotExist, ValueError):
+            pass
+    return None
 
 
 def _get_service_invoice(request, pk):
@@ -85,11 +103,13 @@ def services_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": suggested_number,
+                "clients": _client_options(active_company),
                 "initial": _services_echo(request),
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         with transaction.atomic():
+            client = _resolve_client_from_post(request, active_company)
             invoice = Invoice.objects.create(
                 # The form no longer posts a company: it used to submit one of its
                 # own, unchecked against can_use_company, so a user restricted to
@@ -99,7 +119,8 @@ def services_new(request):
                 company=active_company,
                 invoice_type="visa",
                 invoice_number=invoice_number,
-                customer_name=request.POST.get("customer_name", ""),
+                client=client,
+                customer_name=client.name if client else request.POST.get("customer_name", ""),
                 issued_date=_parse_date(request.POST.get("issued_date")),
                 due_date=_parse_date(request.POST.get("due_date")),
                 currency=request.POST.get("invoice_currency", "USD"),
@@ -114,6 +135,7 @@ def services_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
+        "clients": _client_options(active_company),
     })
 
 
@@ -170,6 +192,7 @@ def services_detail(request, pk):
 
 @require_perm('services', 'edit')
 def services_edit(request, pk):
+    active_company = get_active_company(request)
     invoice = _get_service_invoice(request, pk)
 
     if request.method == "POST":
@@ -188,6 +211,7 @@ def services_edit(request, pk):
             return inertia_render(request, "Services/Form", props={
                 "edit": True,
                 "invoice": _serialize_service_invoice(invoice),
+                "clients": _client_options(active_company),
                 "initial": echo,
                 "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
@@ -196,8 +220,10 @@ def services_edit(request, pk):
         # already constrains it to the active company, so any value arriving in
         # the POST could only move the record out from under the user.
         with transaction.atomic():
+            client = _resolve_client_from_post(request, active_company)
             invoice.invoice_number = new_number
-            invoice.customer_name = request.POST.get("customer_name", "")
+            invoice.client = client
+            invoice.customer_name = client.name if client else request.POST.get("customer_name", "")
             invoice.issued_date = _parse_date(request.POST.get("issued_date"))
             invoice.due_date = _parse_date(request.POST.get("due_date"))
             invoice.currency = request.POST.get("invoice_currency", "USD")
@@ -223,6 +249,7 @@ def services_edit(request, pk):
     return inertia_render(request, "Services/Form", props={
         "edit": True,
         "invoice": _serialize_service_invoice(invoice),
+        "clients": _client_options(active_company),
     })
 
 
@@ -367,6 +394,7 @@ def _services_echo(request):
     except (ValueError, TypeError):
         pays = []
     return {
+        "client_id": request.POST.get("client_id", ""),
         "customer_name": request.POST.get("customer_name", ""),
         "invoice_number": request.POST.get("invoice_number", ""),
         "invoice_currency": request.POST.get("invoice_currency", "USD"),
@@ -382,6 +410,7 @@ def _serialize_service_invoice(invoice):
     return {
         "pk": invoice.pk,
         "company": invoice.company,
+        "client_id": invoice.client_id or "",
         "customer_name": invoice.customer_name,
         "invoice_number": invoice.invoice_number,
         "invoice_currency": invoice.currency,

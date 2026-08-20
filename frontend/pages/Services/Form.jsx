@@ -7,6 +7,7 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -68,9 +69,12 @@ function seedFrom(src, fallbackCurrency) {
   };
 }
 
-export default function Form({ invoice, edit, suggested_number, initial, errors = {} }) {
+export default function Form({ invoice, edit, suggested_number, clients = [], initial, errors = {} }) {
   const src = initial || invoice;
   const { t } = useI18n();
+  const initialClient = clients.find((c) => String(c.id) === String(src?.client_id)) || null;
+  const [clientId, setClientId] = useState(src?.client_id || "");
+  const [clientQuery, setClientQuery] = useState(initialClient ? initialClient.name : "");
   const [customerName, setCustomerName] = useState(src?.customer_name || "");
   const [invoiceNumber, setInvoiceNumber] = useState(src?.invoice_number || (edit ? "" : suggested_number) || "");
   const [currency, setCurrency] = useState(src?.invoice_currency || "USD");
@@ -117,6 +121,24 @@ export default function Form({ invoice, edit, suggested_number, initial, errors 
   };
   const onPayDragEnd = () => { dragIndex.current = null; };
 
+  // ── Client selection ──
+  const onClientText = (text) => {
+    setClientQuery(text);
+    const match = clients.find((c) => c.name.toLowerCase() === text.trim().toLowerCase());
+    if (match) {
+      setClientId(String(match.id));
+      setCustomerName(match.name);
+    } else {
+      setClientId("");
+      setCustomerName(text);
+    }
+  };
+  const onClientSelect = (c) => {
+    setClientQuery(c.name);
+    setClientId(String(c.id));
+    setCustomerName(c.name);
+  };
+
   // ── Totals ──
   const totals = useMemo(() => {
     const totalServices = Math.floor(
@@ -147,7 +169,7 @@ export default function Form({ invoice, edit, suggested_number, initial, errors 
 
     form.transform(() => {
       const data = {
-        customer_name: customerName, invoice_number: invoiceNumber,
+        client_id: clientId, customer_name: customerName, invoice_number: invoiceNumber,
         invoice_currency: currency, issued_date: issuedDate, due_date: dueDate,
         service_items: JSON.stringify(serviceItems),
         payments: JSON.stringify(payRows.map((p) => ({
@@ -187,8 +209,17 @@ export default function Form({ invoice, edit, suggested_number, initial, errors 
                 record that vanished from the very list you created it from.
                 Switch companies with the topbar switcher instead. */}
             <div className="svc-info-row" style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 140px 140px", gap: 12 }}>
-              <FormField label={t("Customer")} name="customer_name" required
-                value={customerName} onChange={setCustomerName} placeholder={t("Customer name")} />
+              <FormField label={t("Customer")} name="client_id">
+                <Combobox
+                  name="client_id"
+                  value={clientQuery}
+                  onTextChange={onClientText}
+                  onSelect={onClientSelect}
+                  options={clients}
+                  getLabel={(o) => o.name}
+                  placeholder={t("Search client…")}
+                />
+              </FormField>
               <FormField label={t("Invoice Number")} name="invoice_number" required
                 value={invoiceNumber} onChange={setInvoiceNumber}
                 placeholder={suggested_number} error={errors.invoice_number} />
