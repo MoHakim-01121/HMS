@@ -57,7 +57,7 @@ from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
 )
 from .period_views import (
-    period_list, period_detail, period_close, period_lock,
+    period_list, period_detail, period_close, period_lock, period_create,
 )
 from .payment_views import (
     payment_list, payment_detail, payment_record_new,
