@@ -91,7 +91,7 @@ export default function List({ periods = [] }) {
 
       <div className="card">
         {periods.length > 0 ? (
-          <Table columns={columns} rows={periods} rowKey="id" />
+          <Table columns={columns} rows={periods} rowKey={(p) => p.id} />
         ) : (
           <div className="empty">
             <div className="empty-title">{t("No periods found")}</div>

@@ -135,11 +135,11 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
         </Section>
 
         <Section label={t("Journal Entries")} icon="invoice" count={entries.length}>
-          <DetailTable columns={entryColumns} rows={entries} rowKey="id" empty={t("No journal entries in this period.")} />
+          <DetailTable columns={entryColumns} rows={entries} rowKey={(e) => e.id} empty={t("No journal entries in this period.")} />
         </Section>
 
         <Section label={t("Payments")} icon="wallet" count={payments.length}>
-          <DetailTable columns={paymentColumns} rows={payments} rowKey="id" empty={t("No payments in this period.")} />
+          <DetailTable columns={paymentColumns} rows={payments} rowKey={(p) => p.id} empty={t("No payments in this period.")} />
         </Section>
       </DetailCard>
 
