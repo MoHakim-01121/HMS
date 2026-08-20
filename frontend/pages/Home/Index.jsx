@@ -382,6 +382,44 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
         />
       </div>
 
+      {/* Finance summary row */}
+      <div className="hms-home-grid" style={{ marginTop: 20 }}>
+        <div className="hms-dv-card">
+          <div className="hms-dv-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>{t("Finance Summary")}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Surabaya")}</div>
+                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                  {fmtNum(props.finance_summary?.kas_sby || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                </div>
+              </div>
+              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Pusat")}</div>
+                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                  {fmtNum(props.finance_summary?.kas_pusat || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                </div>
+              </div>
+              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Total Piutang")}</div>
+                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                  {fmtNum(props.finance_summary?.total_piutang || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                </div>
+              </div>
+              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Payments This Month")}</div>
+                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
+                  {fmtNum(props.finance_summary?.payments_this_month || 0)}
+                </div>
+                <div style={{ fontSize: 11, color: props.finance_summary?.payments_pending > 0 ? '#eab308' : 'var(--muted-foreground)', marginTop: 2 }}>
+                  {props.finance_summary?.payments_pending || 0} {t("pending")}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="hms-home-grid">
         <div className="hms-dv-card hms-home-chart">
           <div className="hms-dv-body">
