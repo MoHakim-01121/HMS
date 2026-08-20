@@ -83,6 +83,7 @@ export default function Detail({ client, invoices, cls, activity }) {
             {perms.can("clients", "edit") && (
               <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/edit/`)}>{t("Edit")}</button>
             )}
+            <a className="hms-dv-act" href={`/finance/clients/${c.pk}/statement/`}>{t("Finance Statement")}</a>
           </>
         }
         menuItems={[
