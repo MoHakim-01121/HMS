@@ -355,3 +355,49 @@ def client_finance_statement(request, pk):
         'date_from': date_from.isoformat() if date_from else None,
         'date_to': date_to.isoformat() if date_to else None,
     })
+
+
+@require_perm('invoice', 'view')
+def payment_export_csv(request):
+    """Export payments as CSV."""
+    import csv
+    from django.http import HttpResponse
+
+    company = get_active_company(request)
+    payments = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
+
+    # Apply filters
+    status = request.GET.get('status')
+    if status:
+        payments = payments.filter(status=status)
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="payments-{date.today().isoformat()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow([
+        'Payment #', 'Date', 'Client', 'Invoice', 'Amount', 'Currency',
+        'Rate', 'Amount SAR', 'Method', 'Status', 'Confirmed By',
+        'Confirmed At', 'Reference', 'Note', 'Created At',
+    ])
+
+    for p in payments:
+        writer.writerow([
+            p.payment_number,
+            p.payment_date,
+            p.client.name if p.client else '',
+            p.invoice.invoice_number if p.invoice else '',
+            p.amount,
+            p.currency,
+            p.exchange_rate,
+            p.amount_sar,
+            p.method,
+            p.status,
+            p.confirmed_by.username if p.confirmed_by else '',
+            p.confirmed_at,
+            p.reference,
+            p.note,
+            p.created_at,
+        ])
+
+    return response

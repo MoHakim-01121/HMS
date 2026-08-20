@@ -160,6 +160,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
 
     # ── Finance Redesign ──
     path('finance/payments/', views.payment_list, name='payment_list'),
+    path('finance/payments/export/csv/', views.payment_export_csv, name='payment_export_csv'),
     path('finance/payments/record/', views.payment_record, name='payment_record'),
     path('finance/payments/<int:pk>/', views.payment_detail, name='payment_detail'),
     path('finance/payments/<int:pk>/confirm/', views.payment_confirm, name='payment_confirm'),

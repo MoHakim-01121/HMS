@@ -136,6 +136,9 @@ export default function List({ payments = [], status_choices = [], invoice_choic
               ))}
             </SelectContent>
           </Select>
+          <a href="/finance/payments/export/csv/" target="_blank" rel="noreferrer">
+            <Button variant="outline" size="sm">{t("Export CSV")}</Button>
+          </a>
           <Button size="sm" onClick={() => setRecordDialog(true)}>{t("Record Payment")}</Button>
           <a href="/finance/periods/">
             <Button variant="outline" size="sm">{t("Periods")}</Button>
