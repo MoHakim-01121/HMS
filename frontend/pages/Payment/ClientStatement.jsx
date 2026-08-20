@@ -1,5 +1,8 @@
 import PageBack from "../../components/shadcn/page-back.jsx";
-import Table from "../../components/shadcn/table.jsx";
+import DetailCard from "../../components/shadcn/detail-card.jsx";
+import DetailTable from "../../components/shadcn/detail-table.jsx";
+import DetailAmount from "../../components/shadcn/detail-amount.jsx";
+import Section from "../../components/shadcn/section.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const TYPE_TONE = {
@@ -43,18 +46,19 @@ export default function ClientStatement({ client = {}, statement = {}, date_from
     },
     {
       header: t("Amount"),
-      className: "text-right font-mono",
+      align: "right",
       render: (row) => (
-        <span className={row.amount_sar > 0 ? "text-green-600" : "text-red-600"}>
+        <span className={row.amount_sar > 0 ? "text-green-600 font-mono" : "text-red-600 font-mono"}>
           {row.amount_sar > 0 ? "+" : ""}{row.amount_sar?.toLocaleString()}
         </span>
       ),
     },
     {
       header: t("Balance"),
-      className: "text-right font-mono font-medium",
+      align: "right",
+      strong: true,
       render: (row) => (
-        <span className={row.balance > 0 ? "text-red-600" : row.balance < 0 ? "text-green-600" : ""}>
+        <span className={`font-mono ${row.balance > 0 ? "text-red-600" : row.balance < 0 ? "text-green-600" : ""}`}>
           {row.balance?.toLocaleString()}
         </span>
       ),
@@ -62,27 +66,32 @@ export default function ClientStatement({ client = {}, statement = {}, date_from
   ];
 
   return (
-    <div className="page shadcn-root">
-      <PageBack href="/clients/" />
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{t("Finance Statement")}</h1>
-          <p className="text-muted-foreground text-sm">
-            {client.name} | {date_from || "Start"} — {date_to || "Now"}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted-foreground">{t("Closing Balance")}</p>
-          <p className={`text-xl font-bold ${closing_balance > 0 ? "text-red-600" : closing_balance < 0 ? "text-green-600" : ""}`}>
-            {closing_balance?.toLocaleString()} SAR
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("Debit")}: {total_debit?.toLocaleString()} | {t("Credit")}: {total_credit?.toLocaleString()}
-          </p>
-        </div>
-      </div>
+    <div className="page dv-page hms-dv-page shadcn-root">
+      <PageBack href="/clients/" label={t("Back")} />
 
-      <Table columns={columns} rows={transactions} rowKey="entry_number" />
+      <DetailCard
+        crumbs={[{ label: t("Clients"), href: "/clients/" }]}
+        kicker={client.name}
+        title={t("Finance Statement")}
+        sub={date_from || date_to
+          ? `${date_from || t("Start")} — ${date_to || t("Now")}`
+          : t("All time")
+        }
+        pill={{
+          label: closing_balance > 0 ? t("Client owes") : closing_balance < 0 ? t("Credit") : t("Settled"),
+          tone: closing_balance > 0 ? "red" : closing_balance < 0 ? "green" : "gray",
+        }}
+      >
+        <div style={{ display: "flex", gap: 12, padding: "16px 20px", flexWrap: "wrap" }}>
+          <DetailAmount label={t("Closing Balance")} value={closing_balance} currency="SAR" tone={closing_balance > 0 ? "red" : "green"} />
+          <DetailAmount label={t("Total Debit")} value={total_debit} currency="SAR" tone="green" />
+          <DetailAmount label={t("Total Credit")} value={total_credit} currency="SAR" tone="red" />
+        </div>
+
+        <Section label={t("Transactions")} count={transactions.length}>
+          <DetailTable columns={columns} rows={transactions} rowKey="entry_number" empty={t("No transactions found for this client.")} />
+        </Section>
+      </DetailCard>
     </div>
   );
 }

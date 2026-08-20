@@ -3,18 +3,19 @@ import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const STATUS_TONE = {
-  open: "badge-green",
-  soft_close: "badge-yellow",
-  closed: "badge-orange",
-  locked: "badge-gray",
+  open: "green",
+  soft_close: "yellow",
+  closed: "orange",
+  locked: "gray",
 };
 
 export default function List({ periods = [] }) {
@@ -42,21 +43,17 @@ export default function List({ periods = [] }) {
     },
     {
       header: t("Status"),
-      render: (p) => (
-        <span className={`badge ${STATUS_TONE[p.status] || "badge-gray"}`}>
-          {p.status_display}
-        </span>
-      ),
+      render: (p) => <StatusPill tone={STATUS_TONE[p.status] || "gray"} label={p.status_display} />,
     },
     {
       header: t("Journal Entries"),
-      className: "text-right",
-      render: (p) => p.journal_count,
+      align: "right",
+      render: (p) => <span className="font-mono">{p.journal_count}</span>,
     },
     {
       header: t("Payments"),
-      className: "text-right",
-      render: (p) => p.payment_count,
+      align: "right",
+      render: (p) => <span className="font-mono">{p.payment_count}</span>,
     },
     {
       header: "",
@@ -79,21 +76,29 @@ export default function List({ periods = [] }) {
 
   return (
     <div className="page shadcn-root">
-      <PageBack href="/" />
-      <div className="flex items-center justify-between mb-6">
+      <PageBack label={t("Back")} />
+
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold">{t("Financial Periods")}</h1>
-          <p className="text-muted-foreground text-sm">{t("Manage accounting periods and locking.")}</p>
+          <div className="page-title">{t("Financial Periods")}</div>
+          <div className="page-sub">{t("Manage accounting periods and locking.")}</div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => setCreateDialog(true)}>{t("Create Periods")}</Button>
-          <a href="/finance/payments/">
-            <Button variant="outline" size="sm">{t("Payments")}</Button>
-          </a>
+        <div className="page-actions">
+          <a href="/finance/payments/" className="btn btn-secondary btn-sm">{t("Payments")}</a>
+          <button className="btn btn-primary btn-sm" onClick={() => setCreateDialog(true)}>{t("Create Periods")}</button>
         </div>
       </div>
 
-      <Table columns={columns} rows={periods} rowKey="id" />
+      <div className="card">
+        {periods.length > 0 ? (
+          <Table columns={columns} rows={periods} rowKey="id" />
+        ) : (
+          <div className="empty">
+            <div className="empty-title">{t("No periods found")}</div>
+            <div className="empty-sub">{t("Click 'Create Periods' to generate monthly periods for a year.")}</div>
+          </div>
+        )}
+      </div>
 
       {/* Create Periods Dialog */}
       {createDialog && (
@@ -106,7 +111,7 @@ export default function List({ periods = [] }) {
               {t("Create 12 monthly periods for the selected year.")}
             </p>
             <div className="flex items-center gap-2">
-              <label className="text-sm">{t("Year")}:</label>
+              <label className="text-sm font-medium">{t("Year")}:</label>
               <Input
                 type="number"
                 value={year}
