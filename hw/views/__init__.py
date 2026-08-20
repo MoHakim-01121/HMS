@@ -414,15 +414,32 @@ def home(request):
 
     recent_cls = [
         {
-            "id": cl.id,
-            "confirmation_number": cl.confirmation_number,
+            "id": cl.pk,
             "guest_name": cl.guest_name,
+            "confirmation_number": cl.confirmation_number,
             "hotel_name": cl.hotel_name,
             "check_in": cl.check_in.isoformat() if cl.check_in else None,
             "reservation_status": cl.reservation_status,
         }
         for cl in ConfirmationLetter.objects.filter(company=company).order_by("-created_at")[:6]
     ]
+
+    # Finance summary for the dashboard
+    from ..models.payment import PaymentRecord
+    from ..models.journal import JournalLine, Account
+    from ..finance_helpers import kas_saldo
+
+    finance_summary = {
+        'kas_sby': kas_saldo(Account.CASH_SBY, company=company),
+        'kas_pusat': kas_saldo(Account.CASH_PUSAT, company=company),
+        'total_piutang': kas_saldo(Account.RECEIVABLE, company=company),
+        'payments_pending': PaymentRecord.objects.filter(company=company, status=PaymentRecord.STATUS_PENDING).count(),
+        'payments_this_month': PaymentRecord.objects.filter(
+            company=company,
+            created_at__year=today.year,
+            created_at__month=today.month,
+        ).count(),
+    }
 
     return inertia_render(request, "Home/Index", props={
         "kpis": {
@@ -441,6 +458,7 @@ def home(request):
         "top_hotels_total": top_hotels_total,
         "region_data": region_data,
         "reservation_funnel": reservation_funnel,
+        "finance_summary": finance_summary,
     })
 
 
