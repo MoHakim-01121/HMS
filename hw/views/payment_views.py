@@ -22,6 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 def _payment_props(p):
+    from django.conf import settings
+    proof_url = None
+    if p.proof:
+        proof_url = p.proof.url if p.proof else None
     return {
         'id': p.pk,
         'payment_number': p.payment_number,
@@ -41,6 +45,7 @@ def _payment_props(p):
         'account_number': p.account_number,
         'reference': p.reference,
         'note': p.note,
+        'proof_url': proof_url,
         'status': p.status,
         'status_display': p.get_status_display(),
         'confirmed_by': p.confirmed_by.username if p.confirmed_by else None,
@@ -191,10 +196,14 @@ def payment_record(request):
     if request.method != 'POST':
         return redirect('payment_list')
 
-    try:
-        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-    except (json.JSONDecodeError, ValueError):
+    # Handle both JSON and multipart form data (for file uploads)
+    if request.content_type and 'multipart/form-data' in request.content_type:
         data = request.POST
+    else:
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+        except (json.JSONDecodeError, ValueError):
+            data = request.POST
 
     invoice_id = data.get('invoice_id')
     if not invoice_id:
@@ -219,6 +228,9 @@ def payment_record(request):
         messages.error(request, 'Invoice tidak memiliki client yang valid.')
         return redirect('payment_list')
 
+    # Handle proof file upload
+    proof_file = request.FILES.get('proof')
+
     payment = create_payment_record(
         invoice=invoice,
         client=client,
@@ -233,6 +245,12 @@ def payment_record(request):
         note=data.get('note', ''),
         created_by=request.user,
     )
+
+    # Save proof file if uploaded
+    if proof_file:
+        payment.proof = proof_file
+        payment.save(update_fields=['proof'])
+
     messages.success(request, f'Payment {payment.payment_number} berhasil dibuat.')
     return redirect('payment_detail', pk=payment.pk)
 

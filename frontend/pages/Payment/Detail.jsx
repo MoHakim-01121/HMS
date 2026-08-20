@@ -145,6 +145,21 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
         </div>
       )}
 
+      {payment.proof_url && (
+        <div className="card p-6 mt-6">
+          <h2 className="font-semibold mb-2">{t("Payment Proof")}</h2>
+          {payment.proof_url?.endsWith('.pdf') ? (
+            <a href={payment.proof_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
+              {t("View PDF")}
+            </a>
+          ) : (
+            <a href={payment.proof_url} target="_blank" rel="noreferrer">
+              <img src={payment.proof_url} alt="Payment proof" className="max-h-64 rounded border" />
+            </a>
+          )}
+        </div>
+      )}
+
       {journal_entries.length > 0 && (
         <div className="card p-6 mt-6">
           <h2 className="font-semibold mb-4">{t("Journal Entries")}</h2>

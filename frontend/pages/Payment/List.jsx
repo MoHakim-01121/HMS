@@ -54,9 +54,20 @@ export default function List({ payments = [], status_choices = [], invoice_choic
   };
 
   const submitRecord = () => {
-    router.post("/finance/payments/record/", recordForm, {
-      onSuccess: () => setRecordDialog(false),
-    });
+    if (recordForm.proof) {
+      const fd = new FormData();
+      Object.entries(recordForm).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') fd.append(k, v);
+      });
+      router.post("/finance/payments/record/", fd, {
+        onSuccess: () => setRecordDialog(false),
+      });
+    } else {
+      const { proof, ...rest } = recordForm;
+      router.post("/finance/payments/record/", rest, {
+        onSuccess: () => setRecordDialog(false),
+      });
+    }
   };
 
   const columns = [
@@ -257,6 +268,15 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                   value={recordForm.note}
                   onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
                   className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t("Proof (optional)")}</label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(e) => setRecordForm({ ...recordForm, proof: e.target.files[0] })}
+                  className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                 />
               </div>
             </div>
