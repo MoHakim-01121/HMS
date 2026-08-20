@@ -79,15 +79,29 @@ def payment_list(request):
 
     payments = payments.order_by('-created_at')
 
-    # Invoice choices for the record dialog
+    # Invoice choices for the record dialog — include per-reservation breakdown
     invoices = Invoice.objects.filter(
         status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
     ).select_related('client').order_by('-created_at')[:50]
-    invoice_choices = [{
-        'id': inv.pk,
-        'label': f'{inv.invoice_number} - {inv.client.name if inv.client else inv.customer_name}',
-        'remaining': inv.remaining_sar,
-    } for inv in invoices]
+    invoice_choices = []
+    for inv in invoices:
+        # Fetch reservations via linked CLs
+        from .context import _build_reservation_context
+        res_ctx = _build_reservation_context(inv)
+        reservations = [{
+            'id': r.get('id'),
+            'number': r['number'],
+            'hotel': r['hotel'],
+            'total': r['total_int'],
+            'paid': r['paid_int'],
+            'remaining': r['remaining_int'],
+        } for r in res_ctx]
+        invoice_choices.append({
+            'id': inv.pk,
+            'label': f'{inv.invoice_number} - {inv.client.name if inv.client else inv.customer_name}',
+            'remaining': inv.remaining_sar,
+            'reservations': reservations,
+        })
 
     # Summary stats
     all_payments = PaymentRecord.objects.all()
@@ -192,7 +206,13 @@ def payment_record_new(request, invoice_pk):
 
 @require_perm('invoice', 'edit')
 def payment_record(request):
-    """Record a new payment from the Payment List page."""
+    """Record a new payment from the Payment List page.
+    
+    Supports per-reservation allocation via `allocations` JSON field:
+    [{"reservation_id": 1, "amount": 5000}, {"reservation_id": 2, "amount": 3000}]
+    
+    Each allocation creates a separate PaymentRecord, auto-confirmed and allocated.
+    """
     if request.method != 'POST':
         return redirect('payment_list')
 
@@ -231,28 +251,84 @@ def payment_record(request):
     # Handle proof file upload
     proof_file = request.FILES.get('proof')
 
-    payment = create_payment_record(
-        invoice=invoice,
-        client=client,
-        payment_date=payment_date or date.today(),
-        amount=amount,
-        currency=currency,
-        exchange_rate=exchange_rate,
-        method=data.get('method', ''),
-        bank_name=data.get('bank_name', ''),
-        account_number=data.get('account_number', ''),
-        reference=data.get('reference', ''),
-        note=data.get('note', ''),
-        created_by=request.user,
-    )
+    # Parse per-reservation allocations
+    allocations_raw = data.get('allocations', '')
+    allocations = []
+    if allocations_raw:
+        try:
+            allocations = json.loads(allocations_raw) if isinstance(allocations_raw, str) else allocations_raw
+        except (json.JSONDecodeError, ValueError):
+            allocations = []
 
-    # Save proof file if uploaded
-    if proof_file:
-        payment.proof = proof_file
-        payment.save(update_fields=['proof'])
+    from ..models.reservation import Reservation
+    from django.utils import timezone as tz
 
-    messages.success(request, f'Payment {payment.payment_number} berhasil dibuat.')
-    return redirect('payment_detail', pk=payment.pk)
+    if allocations:
+        # Per-reservation allocation: create one PaymentRecord per reservation
+        created_payments = []
+        for alloc in allocations:
+            res_id = alloc.get('reservation_id')
+            alloc_amount = _to_float(alloc.get('amount', 0))
+            if not alloc_amount or alloc_amount <= 0:
+                continue
+            reservation = Reservation.objects.filter(pk=res_id).first() if res_id else None
+
+            payment = create_payment_record(
+                invoice=invoice,
+                client=client,
+                payment_date=payment_date or tz.now().date(),
+                amount=alloc_amount,
+                currency=currency,
+                exchange_rate=exchange_rate,
+                method=data.get('method', ''),
+                bank_name=data.get('bank_name', ''),
+                account_number=data.get('account_number', ''),
+                reference=data.get('reference', ''),
+                note=data.get('note', '') or f'Allocation to {reservation.reservation_number if reservation else "invoice"}',
+                created_by=request.user,
+                reservation=reservation,
+            )
+            if proof_file:
+                payment.proof = proof_file
+                payment.save(update_fields=['proof'])
+
+            # Auto-confirm + allocate
+            confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
+            allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+            created_payments.append(payment)
+
+        if created_payments:
+            messages.success(request, f'{len(created_payments)} payment(s) berhasil dibuat dan dialokasikan.')
+            return redirect('payment_detail', pk=created_payments[0].pk)
+        else:
+            messages.error(request, 'Tidak ada alokasi yang valid.')
+            return redirect('payment_list')
+    else:
+        # No allocations — create single payment (legacy flow)
+        payment = create_payment_record(
+            invoice=invoice,
+            client=client,
+            payment_date=payment_date or tz.now().date(),
+            amount=amount,
+            currency=currency,
+            exchange_rate=exchange_rate,
+            method=data.get('method', ''),
+            bank_name=data.get('bank_name', ''),
+            account_number=data.get('account_number', ''),
+            reference=data.get('reference', ''),
+            note=data.get('note', ''),
+            created_by=request.user,
+        )
+        if proof_file:
+            payment.proof = proof_file
+            payment.save(update_fields=['proof'])
+
+        # Auto-confirm + allocate
+        confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
+        allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+
+        messages.success(request, f'Payment {payment.payment_number} berhasil dibuat.')
+        return redirect('payment_detail', pk=payment.pk)
 
 
 @require_perm('invoice', 'edit')

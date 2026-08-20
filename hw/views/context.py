@@ -26,6 +26,7 @@ def _build_reservation_context(invoice):
             cls = "remaining-partial"
         cl_pk = cl_by_number.get(res.reservation_number)
         result.append({
+            "id": res.pk,
             "number": res.reservation_number,
             "hotel": res.hotel,
             "check_in": res.check_in,

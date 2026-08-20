@@ -40,6 +40,33 @@ export default function List({ payments = [], status_choices = [], invoice_choic
     reference: "",
     note: "",
   });
+  const [allocations, setAllocations] = useState([]);
+
+  // When invoice changes, populate reservations
+  const selectedInvoice = invoice_choices.find((inv) => String(inv.id) === String(recordForm.invoice_id));
+  const reservations = selectedInvoice?.reservations || [];
+
+  const updateAllocation = (resId, value) => {
+    setAllocations((prev) => {
+      const num = parseFloat(value) || 0;
+      const existing = prev.find((a) => a.reservation_id === resId);
+      if (num <= 0) {
+        return prev.filter((a) => a.reservation_id !== resId);
+      }
+      if (existing) {
+        return prev.map((a) => a.reservation_id === resId ? { ...a, amount: num } : a);
+      }
+      return [...prev, { reservation_id: resId, amount: num }];
+    });
+  };
+
+  const allocationTotal = allocations.reduce((s, a) => s + (a.amount || 0), 0);
+
+  // Reset allocations when invoice changes
+  const onInvoiceChange = (v) => {
+    setRecordForm({ ...recordForm, invoice_id: v, amount: "" });
+    setAllocations([]);
+  };
 
   const filtered = statusFilter === "all"
     ? payments
@@ -56,18 +83,23 @@ export default function List({ payments = [], status_choices = [], invoice_choic
   };
 
   const submitRecord = () => {
+    const hasAllocations = allocations.length > 0;
+    const payload = {
+      ...recordForm,
+      ...(hasAllocations ? { allocations: JSON.stringify(allocations) } : {}),
+    };
     if (recordForm.proof) {
       const fd = new FormData();
-      Object.entries(recordForm).forEach(([k, v]) => {
+      Object.entries(payload).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== "") fd.append(k, v);
       });
       router.post("/finance/payments/record/", fd, {
-        onSuccess: () => setRecordDialog(false),
+        onSuccess: () => { setRecordDialog(false); setAllocations([]); },
       });
     } else {
-      const { proof, ...rest } = recordForm;
+      const { proof, ...rest } = payload;
       router.post("/finance/payments/record/", rest, {
-        onSuccess: () => setRecordDialog(false),
+        onSuccess: () => { setRecordDialog(false); setAllocations([]); },
       });
     }
   };
@@ -190,7 +222,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                 <label className="form-label">{t("Invoice")} *</label>
                 <Select
                   value={recordForm.invoice_id}
-                  onValueChange={(v) => setRecordForm({ ...recordForm, invoice_id: v })}
+                  onValueChange={onInvoiceChange}
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder={t("Select invoice...")} />
@@ -281,6 +313,65 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                   className="mt-1"
                 />
               </div>
+
+              {/* Per-reservation allocation */}
+              {reservations.length > 0 && (
+                <div>
+                  <label className="form-label">{t("Allocation per Reservation")}</label>
+                  <div className="mt-1 border rounded-lg overflow-hidden" style={{ fontSize: 13 }}>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-muted">
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">#RSV</th>
+                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("Hotel")}</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Remaining")}</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Amount")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reservations.map((res) => {
+                          const alloc = allocations.find((a) => a.reservation_id === res.id);
+                          const allocAmount = alloc?.amount || "";
+                          return (
+                            <tr key={res.id} className="border-t">
+                              <td className="px-3 py-2 font-medium">{res.number}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{res.hotel}</td>
+                              <td className="px-3 py-2 text-right font-mono">{res.remaining?.toLocaleString()}</td>
+                              <td className="px-3 py-2 text-right">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={res.remaining}
+                                  step="1"
+                                  value={allocAmount}
+                                  onChange={(e) => updateAllocation(res.id, e.target.value)}
+                                  placeholder="0"
+                                  className="w-28 text-right font-mono border rounded px-2 py-1"
+                                  style={{ background: "transparent" }}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t bg-muted font-medium">
+                          <td colSpan={3} className="px-3 py-2 text-right">{t("Total allocated")}</td>
+                          <td className="px-3 py-2 text-right font-mono">{allocationTotal.toLocaleString()}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  {allocations.length > 0 && allocationTotal !== parseFloat(recordForm.amount || 0) && (
+                    <p className="text-xs mt-1" style={{ color: "var(--yellow)" }}>
+                      {t("Warning: allocation total ({alloc}) does not match payment amount ({amt})", {
+                        alloc: allocationTotal.toLocaleString(),
+                        amt: (parseFloat(recordForm.amount) || 0).toLocaleString(),
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="form-label">{t("Proof (optional)")}</label>
                 <input
