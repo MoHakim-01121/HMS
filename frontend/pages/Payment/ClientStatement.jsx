@@ -19,43 +19,43 @@ export default function ClientStatement({ client = {}, statement = {}, date_from
   const columns = [
     {
       header: t("Date"),
-      render: (t) => t.date,
+      render: (row) => row.date,
     },
     {
       header: t("Entry #"),
-      render: (t) => <span className="font-mono text-xs">{t.entry_number}</span>,
+      render: (row) => <span className="font-mono text-xs">{row.entry_number}</span>,
     },
     {
       header: t("Type"),
-      render: (t) => (
-        <span className={`badge ${TYPE_TONE[t.entry_type] || "badge-gray"}`}>
-          {t.entry_type_display}
+      render: (row) => (
+        <span className={`badge ${TYPE_TONE[row.entry_type] || "badge-gray"}`}>
+          {row.entry_type_display}
         </span>
       ),
     },
     {
       header: t("Description"),
-      render: (t) => t.description,
+      render: (row) => row.description,
     },
     {
       header: t("Account"),
-      render: (t) => t.account_display,
+      render: (row) => row.account_display,
     },
     {
       header: t("Amount"),
       className: "text-right font-mono",
-      render: (t) => (
-        <span className={t.amount_sar > 0 ? "text-green-600" : "text-red-600"}>
-          {t.amount_sar > 0 ? "+" : ""}{t.amount_sar?.toLocaleString()}
+      render: (row) => (
+        <span className={row.amount_sar > 0 ? "text-green-600" : "text-red-600"}>
+          {row.amount_sar > 0 ? "+" : ""}{row.amount_sar?.toLocaleString()}
         </span>
       ),
     },
     {
       header: t("Balance"),
       className: "text-right font-mono font-medium",
-      render: (t) => (
-        <span className={t.balance > 0 ? "text-red-600" : t.balance < 0 ? "text-green-600" : ""}>
-          {t.balance?.toLocaleString()}
+      render: (row) => (
+        <span className={row.balance > 0 ? "text-red-600" : row.balance < 0 ? "text-green-600" : ""}>
+          {row.balance?.toLocaleString()}
         </span>
       ),
     },

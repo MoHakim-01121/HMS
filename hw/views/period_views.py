@@ -86,7 +86,7 @@ def period_detail(request, pk):
         'payments': [{
             'id': p.pk,
             'payment_number': p.payment_number,
-            'client': p.client.name if p.client else None,
+            'client_name': p.client.name if p.client else None,
             'amount_sar': p.amount_sar,
             'status': p.status,
             'status_display': p.get_status_display(),
