@@ -240,6 +240,7 @@ def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice, **filters)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
+        "id": r["id"],
         "number": r["number"],
         "hotel": r["hotel"],
         "check_in": r["check_in"].strftime("%d/%m/%Y") if r["check_in"] else None,
