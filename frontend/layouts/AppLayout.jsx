@@ -46,6 +46,13 @@ const NAV_GROUPS = [
     ],
   },
   {
+    heading: "Finance",
+    items: [
+      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "invoice" },
+      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "calendar", perm: "remittance" },
+    ],
+  },
+  {
     heading: "Schedule",
     items: [
       { key: "calendar", label: "Calendar", href: NAV.calendar, icon: "calendar", perm: "calendar" },
@@ -69,6 +76,8 @@ const PAGE_TITLES = {
   calendar: "Calendar",
   clients: "Clients",
   remittance: "Remittance",
+  payments: "Payments",
+  periods: "Periods",
   users: "Users",
   roles: "Role",
 };
@@ -91,6 +100,7 @@ function pageKeyFromUrl(url) {
     ["/hotels", "hotels"], ["/invoice", "invoice"], ["/services", "services"],
     ["/calendar", "calendar"], ["/clients", "clients"],     ["/remittance", "remittance"],
     ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
+    ["/finance/payments", "payments"], ["/finance/periods", "periods"],
   ];
   for (const [pre, key] of map) if (url.startsWith(pre)) return key;
   return "home";
