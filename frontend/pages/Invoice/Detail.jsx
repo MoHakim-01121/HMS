@@ -60,7 +60,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
         actions={
           <>
             <a className="hms-dv-act" href={`/finance/payments/?invoice=${invoice.pk}`} style={{ fontSize: 12 }}>
-              {t("View Payments")}
+              {t("Record Payment")}
             </a>
             <a className="hms-dv-act" href={`/invoice/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
             {perms.can("invoice", "edit") && (
