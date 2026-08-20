@@ -66,11 +66,38 @@ def payment_list(request):
     if client_id:
         payments = payments.filter(client_id=client_id)
 
+    # Filter by invoice
+    invoice_id = request.GET.get('invoice')
+    if invoice_id:
+        payments = payments.filter(invoice_id=invoice_id)
+
     payments = payments.order_by('-created_at')
+
+    # Invoice choices for the record dialog
+    invoices = Invoice.objects.filter(
+        status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
+    ).select_related('client').order_by('-created_at')[:50]
+    invoice_choices = [{
+        'id': inv.pk,
+        'label': f'{inv.invoice_number} - {inv.client.name if inv.client else inv.customer_name}',
+        'remaining': inv.remaining_sar,
+    } for inv in invoices]
+
+    # Summary stats
+    all_payments = PaymentRecord.objects.all()
+    stats = {
+        'total': all_payments.count(),
+        'pending': all_payments.filter(status=PaymentRecord.STATUS_PENDING).count(),
+        'confirmed': all_payments.filter(status=PaymentRecord.STATUS_CONFIRMED).count(),
+        'allocated': all_payments.filter(status=PaymentRecord.STATUS_ALLOCATED).count(),
+        'total_amount': sum(p.amount_sar for p in all_payments.filter(status=PaymentRecord.STATUS_ALLOCATED)),
+    }
 
     return inertia_render(request, 'Payment/List', props={
         'payments': [_payment_props(p) for p in payments[:100]],
         'status_choices': PaymentRecord.STATUS_CHOICES,
+        'invoice_choices': invoice_choices,
+        'stats': stats,
     })
 
 
@@ -155,6 +182,58 @@ def payment_record_new(request, invoice_pk):
         return redirect('payment_detail', pk=payment.pk)
 
     return redirect('invoice_detail', pk=invoice.pk)
+
+
+@require_perm('invoice', 'edit')
+def payment_record(request):
+    """Record a new payment from the Payment List page."""
+    if request.method != 'POST':
+        return redirect('payment_list')
+
+    try:
+        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+    except (json.JSONDecodeError, ValueError):
+        data = request.POST
+
+    invoice_id = data.get('invoice_id')
+    if not invoice_id:
+        messages.error(request, 'Invoice harus dipilih.')
+        return redirect('payment_list')
+
+    invoice = get_object_or_404(Invoice, pk=invoice_id)
+    payment_date = _parse_date(data.get('payment_date'))
+    amount = _to_float(data.get('amount'))
+    exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
+    currency = (data.get('currency') or 'SAR').upper()
+
+    if not amount:
+        messages.error(request, 'Jumlah pembayaran harus diisi.')
+        return redirect('payment_list')
+
+    client = invoice.client
+    if not client:
+        cl = invoice.confirmation_letters.first()
+        client = cl.client if cl and cl.client else None
+    if not client:
+        messages.error(request, 'Invoice tidak memiliki client yang valid.')
+        return redirect('payment_list')
+
+    payment = create_payment_record(
+        invoice=invoice,
+        client=client,
+        payment_date=payment_date or date.today(),
+        amount=amount,
+        currency=currency,
+        exchange_rate=exchange_rate,
+        method=data.get('method', ''),
+        bank_name=data.get('bank_name', ''),
+        account_number=data.get('account_number', ''),
+        reference=data.get('reference', ''),
+        note=data.get('note', ''),
+        created_by=request.user,
+    )
+    messages.success(request, f'Payment {payment.payment_number} berhasil dibuat.')
+    return redirect('payment_detail', pk=payment.pk)
 
 
 @require_perm('invoice', 'edit')
