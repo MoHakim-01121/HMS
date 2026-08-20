@@ -152,21 +152,21 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
               { label: t("Confirmed at"), value: payment.confirmed_at || "—" },
               { label: t("Period"), value: payment.period?.name || "—" },
             ]}
-            rowKey="label"
+            rowKey={(r) => r.label}
           />
         </Section>
 
         {/* Journal Entries */}
         {journal_entries.length > 0 && (
           <Section label={t("Journal Entries")} icon="invoice" count={journal_entries.length}>
-            <DetailTable columns={journalColumns} rows={journal_entries} rowKey="id" />
+            <DetailTable columns={journalColumns} rows={journal_entries} rowKey={(e) => e.id} />
           </Section>
         )}
 
         {/* Activity Log */}
         {logs.length > 0 && (
           <Section label={t("Activity Log")} icon="invoice" count={logs.length}>
-            <DetailTable columns={logColumns} rows={logs} rowKey="performed_at" />
+            <DetailTable columns={logColumns} rows={logs} rowKey={(l) => l.performed_at} />
           </Section>
         )}
       </DetailCard>

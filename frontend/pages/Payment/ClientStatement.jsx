@@ -89,7 +89,7 @@ export default function ClientStatement({ client = {}, statement = {}, date_from
         </div>
 
         <Section label={t("Transactions")} count={transactions.length}>
-          <DetailTable columns={columns} rows={transactions} rowKey="entry_number" empty={t("No transactions found for this client.")} />
+          <DetailTable columns={columns} rows={transactions} rowKey={(row) => row.entry_number} empty={t("No transactions found for this client.")} />
         </Section>
       </DetailCard>
     </div>

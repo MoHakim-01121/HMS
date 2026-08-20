@@ -169,7 +169,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       {/* Table */}
       <div className="card">
         {filtered.length > 0 ? (
-          <Table columns={columns} rows={filtered} rowKey="id" />
+          <Table columns={columns} rows={filtered} rowKey={(p) => p.id} />
         ) : (
           <div className="empty">
             <div className="empty-title">{t("No payments found")}</div>
