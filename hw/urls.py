@@ -157,4 +157,15 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
 
     # Health check
     path('health/', views.health_check, name='health_check'),
+
+    # ── Finance Redesign ──
+    path('finance/payments/', views.payment_list, name='payment_list'),
+    path('finance/payments/<int:pk>/', views.payment_detail, name='payment_detail'),
+    path('finance/payments/<int:pk>/confirm/', views.payment_confirm, name='payment_confirm'),
+    path('finance/payments/<int:pk>/reject/', views.payment_reject, name='payment_reject'),
+    path('finance/payments/<int:pk>/reverse/', views.payment_reverse, name='payment_reverse'),
+    path('finance/periods/', views.period_list, name='period_list'),
+    path('finance/periods/<int:pk>/', views.period_detail, name='period_detail'),
+    path('finance/periods/<int:pk>/close/', views.period_close, name='period_close'),
+    path('finance/periods/<int:pk>/lock/', views.period_lock, name='period_lock'),
 ]

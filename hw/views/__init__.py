@@ -56,6 +56,13 @@ from .remittance_views import (
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
 )
+from .period_views import (
+    period_list, period_detail, period_close, period_lock,
+)
+from .payment_views import (
+    payment_list, payment_detail, payment_record_new,
+    payment_confirm, payment_reject, payment_reverse,
+)
 from .dev_views import style_guide
 from .visit_views import (
     visit_cancel, visit_complete, visit_detail, visit_edit, visit_list,
