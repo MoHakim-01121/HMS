@@ -59,6 +59,16 @@ class FinancialPeriod(models.Model):
         """Tutup periode. Tidak bisa dibuka lagi."""
         if self.status not in (self.STATUS_OPEN, self.STATUS_SOFT_CLOSE):
             raise ValueError("Periode sudah ditutup/locked")
+        
+        # Validate all journal entries are balanced
+        from .journal import JournalEntry
+        unbalanced = JournalEntry.objects.filter(
+            period=self,
+            status=JournalEntry.STATUS_POSTED,
+        ).exclude(total_debit=models.F('total_credit'))
+        if unbalanced.exists():
+            raise ValueError(f"Ada {unbalanced.count()} journal entry yang tidak seimbang. Harus diselesaikan dulu.")
+        
         self.status = self.STATUS_CLOSED
         self.closed_by = user
         self.closed_at = timezone.now()
@@ -68,6 +78,16 @@ class FinancialPeriod(models.Model):
         """Lock periode. Irreversible."""
         if self.status != self.STATUS_CLOSED:
             raise ValueError("Periode harus closed dulu sebelum di-lock")
+        
+        # Validate no pending payments in this period
+        from .payment import PaymentRecord
+        pending = PaymentRecord.objects.filter(
+            period=self,
+            status=PaymentRecord.STATUS_PENDING,
+        )
+        if pending.exists():
+            raise ValueError(f"Ada {pending.count()} pembayaran pending. Harus di-confirm/reject dulu.")
+        
         self.status = self.STATUS_LOCKED
         self.locked_by = user
         self.locked_at = timezone.now()
