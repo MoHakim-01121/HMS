@@ -1,5 +1,8 @@
-"""Period management views — list, detail, close, lock."""
+"""Period management views -- list, detail, close, lock, create."""
 import logging
+from datetime import date
+
+from dateutil.relativedelta import relativedelta
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
@@ -97,3 +100,34 @@ def period_lock(request, pk):
             messages.error(request, str(e))
         return redirect('period_detail', pk=pk)
     return redirect('period_detail', pk=pk)
+
+
+@require_perm('remittance', 'edit')
+def period_create(request):
+    """Create 12 monthly periods for the given year."""
+    if request.method == 'POST':
+        import json
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+        except (json.JSONDecodeError, ValueError):
+            data = request.POST
+
+        year = int(data.get('year', date.today().year))
+        created = 0
+        for m in range(1, 13):
+            date_from = date(year, m, 1)
+            if m == 12:
+                date_to = date(year + 1, 1, 1) - relativedelta(days=1)
+            else:
+                date_to = date(year, m + 1, 1) - relativedelta(days=1)
+            name = f'{year}-{m:02d}'
+            _, was_created = FinancialPeriod.objects.get_or_create(
+                name=name, defaults={'date_from': date_from, 'date_to': date_to},
+            )
+            if was_created:
+                created += 1
+
+        messages.success(request, f'{created} periode untuk tahun {year} berhasil dibuat.')
+        return redirect('period_list')
+
+    return redirect('period_list')
