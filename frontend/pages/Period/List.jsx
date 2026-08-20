@@ -60,7 +60,7 @@ export default function List({ periods = [] }) {
       className: "w-10",
       render: (p) => (
         <RowActions
-          items={[
+          actions={[
             { label: t("Detail"), href: `/finance/periods/${p.id}/` },
             ...(p.is_postable ? [
               { label: t("Close"), onClick: () => { if (confirm(t("Close this period?"))) router.post(`/finance/periods/${p.id}/close/`); } },

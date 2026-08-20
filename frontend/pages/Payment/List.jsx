@@ -115,7 +115,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       className: "w-10",
       render: (p) => (
         <RowActions
-          items={[
+          actions={[
             { label: t("Detail"), href: `/finance/payments/${p.id}/` },
             ...(p.status === "pending" ? [
               { label: t("Confirm"), onClick: () => setConfirmDialog(p) },
