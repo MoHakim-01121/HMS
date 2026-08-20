@@ -64,6 +64,11 @@ class Invoice(models.Model):
         return reverse('invoice_detail', args=[self.pk])
 
     @property
+    def total_paid_sar(self):
+        """Backward-compat: maps to stored paid_sar field."""
+        return self.paid_sar
+
+    @property
     def remaining_sar(self):
         return self.total_sar - self.paid_sar
 
