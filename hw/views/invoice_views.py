@@ -598,7 +598,7 @@ def _cl_data_for_form(active_company):
     # room.cl for num_nights; a reverse-FK prefetch populates that back
     # reference, so it stays free.
     cl_qs = (ConfirmationLetter.objects
-             .select_related("invoice")
+             .select_related("invoice", "client")
              .prefetch_related("rooms")
              .filter(company=active_company))
     return [{
@@ -610,4 +610,6 @@ def _cl_data_for_form(active_company):
         "check_out": cl.check_out.isoformat() if cl.check_out else "",
         "total": int(round(cl.total_price)) if cl.total_price else 0,
         "inv": cl.invoice.invoice_number if cl.invoice_id else "",
+        "client_id": cl.client_id or "",
+        "client_name": cl.client.name if cl.client_id else "",
     } for cl in cl_qs.order_by("-created_at")[:100]]
