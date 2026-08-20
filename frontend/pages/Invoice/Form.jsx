@@ -186,11 +186,21 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
     const next = [...kept, ...added];
     setReservations(next.length ? next : [blankRes()]);
     setLinkedClIds(cls.map((cl) => cl.id));
-    // Auto-select client if all imported CLs share the same guest/client
+    // Auto-select client if all imported CLs share the same client
     if (!clientId) {
-      const guestNames = [...new Set(cls.map((cl) => cl.guest))];
-      if (guestNames.length === 1) {
-        setCustomerName(guestNames[0]);
+      const clientIds = [...new Set(cls.map((cl) => cl.client_id).filter(Boolean))];
+      if (clientIds.length === 1) {
+        const cid = clientIds[0];
+        const client = clients.find((c) => String(c.id) === String(cid));
+        if (client) {
+          setClientId(String(client.id));
+          setClientQuery(client.name);
+          setCustomerName(client.name);
+        }
+      } else if (clientIds.length === 0) {
+        // No client on CLs — fall back to guest name
+        const guestNames = [...new Set(cls.map((cl) => cl.guest))];
+        if (guestNames.length === 1) setCustomerName(guestNames[0]);
       }
     }
     setModalOpen(false);
