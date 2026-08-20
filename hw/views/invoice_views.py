@@ -206,7 +206,6 @@ def invoice_new(request):
                 invoice_type="hotel",
                 invoice_number=invoice_number,
                 client=client,
-                customer_name=client.name if client else request.POST.get("customer_name", ""),
                 issued_date=_parse_date(request.POST.get("issued_date")),
                 due_date=_parse_date(request.POST.get("due_date")),
                 currency="SAR",
@@ -246,6 +245,7 @@ def invoice_detail(request, pk):
         "check_in": r["check_in"].strftime("%d/%m/%Y") if r["check_in"] else None,
         "check_out": r["check_out"].strftime("%d/%m/%Y") if r["check_out"] else None,
         "total_int": r["total_int"],
+        "paid_int": r["paid_int"],
         "remaining_int": r["remaining_int"],
         "remaining_class": r["remaining_class"],
         "cl_pk": r["cl_pk"],
@@ -330,7 +330,6 @@ def invoice_edit(request, pk):
             client = _resolve_client_from_post(request, active_company)
             invoice.invoice_number = new_number
             invoice.client = client
-            invoice.customer_name = client.name if client else request.POST.get("customer_name", "")
             invoice.issued_date = _parse_date(request.POST.get("issued_date"))
             invoice.due_date = _parse_date(request.POST.get("due_date"))
             invoice.save()
@@ -404,7 +403,7 @@ def invoice_pdf(request, pk):
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
     active_company = get_active_company(request)
-    qs = Invoice.objects.filter(invoice_type="hotel", company=active_company).prefetch_related('reservations')
+    qs = Invoice.objects.filter(invoice_type="hotel", company=active_company).prefetch_related('reservations', 'service_items')
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
@@ -437,7 +436,7 @@ def invoice_list_pdf(request):
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request))
+    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request)).prefetch_related('reservations', 'service_items')
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
@@ -509,6 +508,7 @@ def _save_reservations(invoice, request):
             total_sar = int(round(_to_float(r.get("reservation_total"))))
             res = Reservation.objects.create(
                 invoice=invoice,
+                client=invoice.client,
                 reservation_number=(r.get("reservation_number") or "-").strip() or "-",
                 hotel=(r.get("hotel") or "-").strip() or "-",
                 check_in=_parse_date(r.get("check_in")),
