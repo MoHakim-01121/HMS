@@ -5,6 +5,8 @@ import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
+import FormSection from "../../components/shadcn/form-section.jsx";
+import FormField from "../../components/shadcn/form-field.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -213,120 +215,82 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       {/* Record Payment Dialog */}
       {recordDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setRecordDialog(false); }}>
-          <DialogContent className="hms-dialog max-w-xl">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
               <DialogTitle>{t("Record Payment")}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              {/* 1. Invoice */}
-              <div>
-                <label className="form-label">{t("Invoice")} *</label>
-                <Select
-                  value={recordForm.invoice_id}
-                  onValueChange={onInvoiceChange}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder={t("Select invoice...")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {invoice_choices.map((inv) => (
-                      <SelectItem key={inv.id} value={String(inv.id)}>
-                        {inv.label} ({inv.remaining?.toLocaleString()} SAR remaining)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 2. Date + Amount */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">{t("Date")} *</label>
-                  <Input
-                    type="date"
-                    value={recordForm.payment_date}
-                    onChange={(e) => setRecordForm({ ...recordForm, payment_date: e.target.value })}
-                    className="mt-1"
-                  />
+            <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+              <FormSection label={t("Payment Details")}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <FormField label={t("Invoice")} name="invoice_id" required span={2}>
+                    <Select value={recordForm.invoice_id} onValueChange={onInvoiceChange}>
+                      <SelectTrigger><SelectValue placeholder={t("Select invoice...")} /></SelectTrigger>
+                      <SelectContent>
+                        {invoice_choices.map((inv) => (
+                          <SelectItem key={inv.id} value={String(inv.id)}>
+                            {inv.label} ({inv.remaining?.toLocaleString()} SAR remaining)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                 </div>
-                <div>
-                  <label className="form-label">{t("Amount")} *</label>
-                  <Input
-                    type="number"
-                    value={recordForm.amount}
-                    onChange={(e) => setRecordForm({ ...recordForm, amount: e.target.value })}
-                    placeholder="0"
-                    className="mt-1 font-mono"
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                  <FormField label={t("Date")} name="payment_date" required>
+                    <Input type="date" value={recordForm.payment_date}
+                      onChange={(e) => setRecordForm({ ...recordForm, payment_date: e.target.value })} />
+                  </FormField>
+                  <FormField label={t("Amount")} name="amount" required>
+                    <Input type="number" value={recordForm.amount} placeholder="0"
+                      className="font-mono"
+                      onChange={(e) => setRecordForm({ ...recordForm, amount: e.target.value })} />
+                  </FormField>
+                  <FormField label={t("Method")} name="method">
+                    <Select value={recordForm.method} onValueChange={(v) => setRecordForm({ ...recordForm, method: v })}>
+                      <SelectTrigger><SelectValue placeholder={t("Select...")} /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                        <SelectItem value="Transfer">Transfer</SelectItem>
+                        <SelectItem value="Direct">Direct</SelectItem>
+                        <SelectItem value="Card">Card</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                 </div>
-              </div>
-
-              {/* 3. Method + Reference */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">{t("Method")}</label>
-                  <Select
-                    value={recordForm.method}
-                    onValueChange={(v) => setRecordForm({ ...recordForm, method: v })}
-                  >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder={t("Select...")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Cash">Cash</SelectItem>
-                      <SelectItem value="Transfer">Transfer</SelectItem>
-                      <SelectItem value="Direct">Direct</SelectItem>
-                      <SelectItem value="Card">Card</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <FormField label={t("Reference")} name="reference">
+                    <Input value={recordForm.reference} placeholder={t("TRX #, check #, etc.")}
+                      onChange={(e) => setRecordForm({ ...recordForm, reference: e.target.value })} />
+                  </FormField>
+                  <FormField label={t("Note")} name="note">
+                    <Input value={recordForm.note}
+                      onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })} />
+                  </FormField>
                 </div>
-                <div>
-                  <label className="form-label">{t("Reference")}</label>
-                  <Input
-                    value={recordForm.reference}
-                    onChange={(e) => setRecordForm({ ...recordForm, reference: e.target.value })}
-                    placeholder={t("TRX #, check #, etc.")}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              {/* 4. Currency + Rate (only when not SAR) */}
-              {recordForm.currency !== "SAR" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="form-label">{t("Currency")}</label>
-                    <Input
-                      value={recordForm.currency}
-                      onChange={(e) => setRecordForm({ ...recordForm, currency: e.target.value })}
-                      className="mt-1"
-                    />
+                {recordForm.currency !== "SAR" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <FormField label={t("Currency")} name="currency">
+                      <Input value={recordForm.currency}
+                        onChange={(e) => setRecordForm({ ...recordForm, currency: e.target.value })} />
+                    </FormField>
+                    <FormField label={t("Exchange Rate")} name="exchange_rate">
+                      <Input type="number" step="0.0001" value={recordForm.exchange_rate}
+                        onChange={(e) => setRecordForm({ ...recordForm, exchange_rate: e.target.value })} />
+                    </FormField>
                   </div>
-                  <div>
-                    <label className="form-label">{t("Exchange Rate")}</label>
-                    <Input
-                      type="number"
-                      step="0.0001"
-                      value={recordForm.exchange_rate}
-                      onChange={(e) => setRecordForm({ ...recordForm, exchange_rate: e.target.value })}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              )}
+                )}
+              </FormSection>
 
-              {/* 5. Per-reservation allocation */}
               {reservations.length > 0 && (
-                <div>
-                  <label className="form-label">{t("Allocate to Reservations")}</label>
-                  <div className="mt-1 border rounded-lg overflow-hidden" style={{ fontSize: 13 }}>
-                    <table className="w-full">
+                <FormSection label={t("Allocate to Reservations")}>
+                  <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-control, 8px)", overflow: "hidden", fontSize: 13 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
-                        <tr className="bg-muted">
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">#RSV</th>
-                          <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("Hotel")}</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Remaining")}</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Pay")}</th>
+                        <tr style={{ background: "var(--muted)" }}>
+                          <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 500, color: "var(--muted-foreground)" }}>#RSV</th>
+                          <th style={{ textAlign: "left", padding: "8px 12px", fontWeight: 500, color: "var(--muted-foreground)" }}>{t("Hotel")}</th>
+                          <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 500, color: "var(--muted-foreground)" }}>{t("Remaining")}</th>
+                          <th style={{ textAlign: "right", padding: "8px 12px", fontWeight: 500, color: "var(--muted-foreground)" }}>{t("Pay")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -334,22 +298,16 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                           const alloc = allocations.find((a) => a.reservation_id === res.id);
                           const allocAmount = alloc?.amount || "";
                           return (
-                            <tr key={res.id} className="border-t">
-                              <td className="px-3 py-2 font-medium">{res.number}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{res.hotel}</td>
-                              <td className="px-3 py-2 text-right font-mono">{res.remaining?.toLocaleString()}</td>
-                              <td className="px-3 py-2 text-right">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={res.remaining}
-                                  step="1"
+                            <tr key={res.id} style={{ borderTop: "1px solid var(--border)" }}>
+                              <td style={{ padding: "8px 12px", fontWeight: 500 }}>{res.number}</td>
+                              <td style={{ padding: "8px 12px", color: "var(--muted-foreground)" }}>{res.hotel}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{res.remaining?.toLocaleString()}</td>
+                              <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                                <input type="number" min="0" max={res.remaining} step="1"
                                   value={allocAmount}
                                   onChange={(e) => updateAllocation(res.id, e.target.value)}
                                   placeholder="0"
-                                  className="w-28 text-right font-mono border rounded px-2 py-1"
-                                  style={{ background: "transparent" }}
-                                />
+                                  style={{ width: 110, textAlign: "right", fontVariantNumeric: "tabular-nums", background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-control, 8px)", padding: "4px 8px", fontSize: 13 }} />
                               </td>
                             </tr>
                           );
@@ -358,36 +316,21 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                     </table>
                   </div>
                   {allocations.length > 0 && allocationTotal !== parseFloat(recordForm.amount || 0) && (
-                    <p className="text-xs mt-1.5" style={{ color: "var(--yellow)" }}>
+                    <div style={{ fontSize: 12, color: "var(--yellow)", marginTop: 4 }}>
                       {t("Allocation ({alloc}) != Amount ({amt})", {
                         alloc: allocationTotal.toLocaleString(),
                         amt: (parseFloat(recordForm.amount) || 0).toLocaleString(),
                       })}
-                    </p>
+                    </div>
                   )}
-                </div>
+                </FormSection>
               )}
 
-              {/* 6. Note */}
-              <div>
-                <label className="form-label">{t("Note")}</label>
-                <Input
-                  value={recordForm.note}
-                  onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
-
-              {/* 7. Proof */}
-              <div>
-                <label className="form-label">{t("Proof (optional)")}</label>
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
+              <FormSection label={t("Proof")}>
+                <input type="file" accept="image/*,.pdf"
                   onChange={(e) => setRecordForm({ ...recordForm, proof: e.target.files[0] })}
-                  className="mt-1 block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                />
-              </div>
+                  style={{ fontSize: 13, color: "var(--muted-foreground)" }} />
+              </FormSection>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setRecordDialog(false)}>{t("Cancel")}</Button>
