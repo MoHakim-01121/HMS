@@ -86,3 +86,23 @@ class Hotel(models.Model):
         if not self.avg_occupancy or self.avg_occupancy <= 0:
             return None
         return math.ceil(jamaah_count / float(self.avg_occupancy))
+
+
+class RoomType(models.Model):
+    hotel      = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='room_types')
+    name       = models.CharField(max_length=100)
+    capacity   = models.PositiveSmallIntegerField(default=2, help_text='Guests per room')
+    is_active  = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering            = ['name']
+        verbose_name        = 'Room Type'
+        verbose_name_plural = 'Room Types'
+        constraints = [
+            models.UniqueConstraint(fields=['hotel', 'name'], name='uniq_room_type_per_hotel'),
+        ]
+
+    def __str__(self):
+        return f'{self.name} ({self.hotel.name})'

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client
+from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client, Hotel, RoomType
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -22,6 +22,37 @@ class CLTotalPriceTest(TestCase):
         Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=500)
         Room.objects.create(cl=self.cl, room_type='Suite', quantity=1, price=1000)
         self.assertEqual(self.cl.total_price, 2 * (500 + 1000))
+
+
+class CLNumGuestsTest(TestCase):
+    def setUp(self):
+        self.hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
+        self.cl = ConfirmationLetter.objects.create(
+            company='konoz', confirmation_number='CL-GUESTS-001', guest_name='Ahmad',
+            hotel=self.hotel, check_in=date.today(), check_out=date.today() + timedelta(days=1),
+        )
+
+    def test_num_guests_uses_linked_room_type_capacity(self):
+        rt = RoomType.objects.create(hotel=self.hotel, name='Double View Kaaba', capacity=2)
+        Room.objects.create(cl=self.cl, room_type='Double View Kaaba', room_type_ref=rt, quantity=3, price=500)
+        self.assertEqual(self.cl.num_guests, 6)
+
+    def test_num_guests_falls_back_to_legacy_dict_when_unlinked(self):
+        Room.objects.create(cl=self.cl, room_type='Quad', quantity=2, price=500)
+        self.assertEqual(self.cl.num_guests, 8)
+
+    def test_num_guests_falls_back_to_one_for_unknown_unlinked_type(self):
+        Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=2, price=500)
+        self.assertEqual(self.cl.num_guests, 2)
+
+    def test_num_guests_still_uses_capacity_of_deactivated_room_type(self):
+        # A hotel admin retiring a room type (is_active=False) must not corrupt
+        # the guest count of bookings made while it was still active.
+        rt = RoomType.objects.create(hotel=self.hotel, name='Double View Kaaba', capacity=2)
+        Room.objects.create(cl=self.cl, room_type='Double View Kaaba', room_type_ref=rt, quantity=2, price=500)
+        rt.is_active = False
+        rt.save()
+        self.assertEqual(self.cl.num_guests, 4)
 
 
 class RoomTotalChangedSignalTest(TestCase):

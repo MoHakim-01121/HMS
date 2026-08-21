@@ -6,7 +6,7 @@ from .models import (
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
     HQObligation, Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceAllocation,
     RemittanceLine, RemittanceSettlement,
-    Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
+    Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
 )
 
 
@@ -49,6 +49,13 @@ class HotelAdmin(admin.ModelAdmin):
     list_display  = ('name', 'company', 'city', 'stars', 'area', 'is_active')
     list_filter   = ('company', 'city', 'stars', 'is_active')
     search_fields = ('name', 'area')
+
+
+@admin.register(RoomType)
+class RoomTypeAdmin(admin.ModelAdmin):
+    list_display  = ('name', 'hotel', 'capacity', 'is_active')
+    list_filter   = ('is_active', 'hotel__company')
+    search_fields = ('name', 'hotel__name')
 
 
 @admin.register(Payment)

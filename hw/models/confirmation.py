@@ -10,6 +10,7 @@ class ConfirmationLetter(models.Model):
     company             = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     client              = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cls')
     hotel_name          = models.CharField(max_length=200)
+    hotel               = models.ForeignKey('Hotel', null=True, blank=True, on_delete=models.SET_NULL, related_name='confirmation_letters')
     guest_name          = models.CharField(max_length=200)
     guest_phone         = models.CharField(max_length=50, blank=True)
     check_in            = models.DateField(null=True, blank=True, db_index=True)
@@ -64,8 +65,12 @@ class ConfirmationLetter(models.Model):
 
     @property
     def num_guests(self):
-        capacity = {'Double': 2, 'Triple': 3, 'Quad': 4, 'Quint': 5}
-        return sum(capacity.get(r.room_type, 1) * r.quantity for r in self.rooms.all())
+        legacy_capacity = {'Double': 2, 'Triple': 3, 'Quad': 4, 'Quint': 5}
+        total = 0
+        for r in self.rooms.all():
+            cap = r.room_type_ref.capacity if r.room_type_ref_id else legacy_capacity.get(r.room_type, 1)
+            total += cap * r.quantity
+        return total
 
     @property
     def paid_sar(self):
@@ -86,6 +91,7 @@ class ConfirmationLetter(models.Model):
 class Room(models.Model):
     cl        = models.ForeignKey(ConfirmationLetter, on_delete=models.CASCADE, related_name='rooms')
     room_type = models.CharField(max_length=50)
+    room_type_ref = models.ForeignKey('RoomType', null=True, blank=True, on_delete=models.SET_NULL, related_name='bookings')
     meals     = models.CharField(max_length=100, blank=True)
     quantity  = models.PositiveIntegerField(default=1)
     price     = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
