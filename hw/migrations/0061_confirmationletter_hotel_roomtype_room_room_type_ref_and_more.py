@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('hw', '0060_paymentrecord_received_in_jakarta'),
+        ('hw', '0057_alter_invoice_add_client_status_paid'),
     ]
 
     operations = [
