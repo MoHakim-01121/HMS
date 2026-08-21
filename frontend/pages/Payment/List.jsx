@@ -213,11 +213,12 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       {/* Record Payment Dialog */}
       {recordDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setRecordDialog(false); }}>
-          <DialogContent className="hms-dialog max-w-lg">
+          <DialogContent className="hms-dialog max-w-xl">
             <DialogHeader>
               <DialogTitle>{t("Record Payment")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {/* 1. Invoice */}
               <div>
                 <label className="form-label">{t("Invoice")} *</label>
                 <Select
@@ -236,6 +237,8 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* 2. Date + Amount */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">{t("Date")} *</label>
@@ -253,30 +256,12 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                     value={recordForm.amount}
                     onChange={(e) => setRecordForm({ ...recordForm, amount: e.target.value })}
                     placeholder="0"
-                    className="mt-1"
+                    className="mt-1 font-mono"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="form-label">{t("Currency")}</label>
-                  <Input
-                    value={recordForm.currency}
-                    onChange={(e) => setRecordForm({ ...recordForm, currency: e.target.value })}
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">{t("Exchange Rate")}</label>
-                  <Input
-                    type="number"
-                    step="0.0001"
-                    value={recordForm.exchange_rate}
-                    onChange={(e) => setRecordForm({ ...recordForm, exchange_rate: e.target.value })}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
+
+              {/* 3. Method + Reference */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="form-label">{t("Method")}</label>
@@ -300,24 +285,40 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                   <Input
                     value={recordForm.reference}
                     onChange={(e) => setRecordForm({ ...recordForm, reference: e.target.value })}
-                    placeholder={t("TRX number, check #, etc.")}
+                    placeholder={t("TRX #, check #, etc.")}
                     className="mt-1"
                   />
                 </div>
               </div>
-              <div>
-                <label className="form-label">{t("Note")}</label>
-                <Input
-                  value={recordForm.note}
-                  onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
-                  className="mt-1"
-                />
-              </div>
 
-              {/* Per-reservation allocation */}
+              {/* 4. Currency + Rate (only when not SAR) */}
+              {recordForm.currency !== "SAR" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="form-label">{t("Currency")}</label>
+                    <Input
+                      value={recordForm.currency}
+                      onChange={(e) => setRecordForm({ ...recordForm, currency: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{t("Exchange Rate")}</label>
+                    <Input
+                      type="number"
+                      step="0.0001"
+                      value={recordForm.exchange_rate}
+                      onChange={(e) => setRecordForm({ ...recordForm, exchange_rate: e.target.value })}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 5. Per-reservation allocation */}
               {reservations.length > 0 && (
                 <div>
-                  <label className="form-label">{t("Allocation per Reservation")}</label>
+                  <label className="form-label">{t("Allocate to Reservations")}</label>
                   <div className="mt-1 border rounded-lg overflow-hidden" style={{ fontSize: 13 }}>
                     <table className="w-full">
                       <thead>
@@ -325,7 +326,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                           <th className="text-left px-3 py-2 font-medium text-muted-foreground">#RSV</th>
                           <th className="text-left px-3 py-2 font-medium text-muted-foreground">{t("Hotel")}</th>
                           <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Remaining")}</th>
-                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Amount")}</th>
+                          <th className="text-right px-3 py-2 font-medium text-muted-foreground">{t("Pay")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -354,17 +355,11 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                           );
                         })}
                       </tbody>
-                      <tfoot>
-                        <tr className="border-t bg-muted font-medium">
-                          <td colSpan={3} className="px-3 py-2 text-right">{t("Total allocated")}</td>
-                          <td className="px-3 py-2 text-right font-mono">{allocationTotal.toLocaleString()}</td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
                   {allocations.length > 0 && allocationTotal !== parseFloat(recordForm.amount || 0) && (
-                    <p className="text-xs mt-1" style={{ color: "var(--yellow)" }}>
-                      {t("Warning: allocation total ({alloc}) does not match payment amount ({amt})", {
+                    <p className="text-xs mt-1.5" style={{ color: "var(--yellow)" }}>
+                      {t("Allocation ({alloc}) != Amount ({amt})", {
                         alloc: allocationTotal.toLocaleString(),
                         amt: (parseFloat(recordForm.amount) || 0).toLocaleString(),
                       })}
@@ -372,6 +367,18 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                   )}
                 </div>
               )}
+
+              {/* 6. Note */}
+              <div>
+                <label className="form-label">{t("Note")}</label>
+                <Input
+                  value={recordForm.note}
+                  onChange={(e) => setRecordForm({ ...recordForm, note: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+
+              {/* 7. Proof */}
               <div>
                 <label className="form-label">{t("Proof (optional)")}</label>
                 <input
