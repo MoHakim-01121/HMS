@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Hotel, log_activity
+from ..models import ActivityLog, Hotel, RoomType, log_activity
 from ..permissions import require_perm
 from .helpers import _is_mobile, get_active_company, pagination_props, snapshot_fields, track_changes
 
@@ -41,6 +41,32 @@ def _save_hotel(h, data):
     except (ValueError, TypeError):
         h.route = None
     h.save()
+
+
+def _save_hotel_room_types(h, data):
+    try:
+        room_types = _json.loads(data.get('room_types', '[]') or '[]')
+    except (ValueError, TypeError):
+        room_types = []
+
+    kept_ids = set()
+    for rt_data in room_types:
+        name = (rt_data.get('name') or '').strip()
+        if not name:
+            continue
+        try:
+            capacity = max(1, int(rt_data.get('capacity') or 1))
+        except (ValueError, TypeError):
+            capacity = 1
+        rt_id = rt_data.get('id')
+        if rt_id:
+            RoomType.objects.filter(pk=rt_id, hotel=h).update(name=name, capacity=capacity, is_active=True)
+            kept_ids.add(int(rt_id))
+        else:
+            rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity)
+            kept_ids.add(rt.pk)
+
+    h.room_types.exclude(pk__in=kept_ids).update(is_active=False)
 
 
 @require_perm('hotels', 'view')
@@ -91,6 +117,7 @@ def hotel_new(request):
     if request.method == 'POST':
         h = Hotel(company=company)
         _save_hotel(h, request.POST)
+        _save_hotel_room_types(h, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name, h.company)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})
@@ -102,6 +129,7 @@ def hotel_edit(request, pk):
     if request.method == 'POST':
         _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
+        _save_hotel_room_types(h, request.POST)
         _after = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         changes = track_changes(
             _before, _after,
@@ -116,6 +144,10 @@ def hotel_edit(request, pk):
             "area": h.area, "note": h.note, "is_active": h.is_active,
             "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
             "lat": h.lat, "lng": h.lng, "route": h.route,
+            "room_types": [
+                {"id": rt.id, "name": rt.name, "capacity": rt.capacity}
+                for rt in h.room_types.filter(is_active=True).order_by('name')
+            ],
         },
     })
 
