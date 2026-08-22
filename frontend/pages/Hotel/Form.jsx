@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import FormHeader from "../../components/shadcn/form-header.jsx";
@@ -10,6 +10,7 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import RoomTypeRows from "./RoomTypeRows.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
 
@@ -25,6 +26,7 @@ export default function HotelForm({ hotel, edit }) {
   const h = hotel || {};
   const formRef = useRef(null);
   const api = useRef({});
+  const [roomTypes, setRoomTypes] = useState(h.room_types || []);
   const form = useForm({});
 
   const submit = (e) => {
@@ -32,6 +34,7 @@ export default function HotelForm({ hotel, edit }) {
     const fd = new FormData(formRef.current);
     const data = {};
     fd.forEach((v, k) => { data[k] = v; });
+    data.room_types = JSON.stringify(roomTypes);
     form.transform(() => data);
     form.post(edit ? `/hotels/${h.id}/edit/` : "/hotels/new/", { forceFormData: true });
   };
@@ -271,7 +274,7 @@ export default function HotelForm({ hotel, edit }) {
           <FormPanel>
             <FormSection label={t("Hotel Details")}>
               <FormField label={t("Hotel Name")} name="name" required>
-                <Input id="name" name="name" type="text" defaultValue={h.name || ""} required placeholder={t("e.g. Hotel Sawaaed")} />
+                <Input id="name" name="name" type="text" defaultValue={h.name || new URLSearchParams(window.location.search).get("name") || ""} required placeholder={t("e.g. Hotel Sawaaed")} />
               </FormField>
               <div className="fg-3">
                 <FormField label={t("City")} name="city">
@@ -377,6 +380,17 @@ export default function HotelForm({ hotel, edit }) {
                 <Textarea id="note" name="note" rows={3} defaultValue={h.note || ""} placeholder={t("Additional info…")} />
               </FormField>
             </FormSection>
+          </FormPanel>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <FormPanel>
+            <div className="card">
+              <div className="card-header"><span className="card-title">Room Types</span></div>
+              <div className="card-body">
+                <RoomTypeRows roomTypes={roomTypes} onChange={setRoomTypes} />
+              </div>
+            </div>
           </FormPanel>
         </div>
 
