@@ -383,14 +383,12 @@ export default function HotelForm({ hotel, edit }) {
           </FormPanel>
         </div>
 
+        {/* ── Room Types ── */}
         <div style={{ marginBottom: 16 }}>
           <FormPanel>
-            <div className="card">
-              <div className="card-header"><span className="card-title">Room Types</span></div>
-              <div className="card-body">
-                <RoomTypeRows roomTypes={roomTypes} onChange={setRoomTypes} />
-              </div>
-            </div>
+            <FormSection label={t("Room Types")}>
+              <RoomTypeRows roomTypes={roomTypes} onChange={setRoomTypes} />
+            </FormSection>
           </FormPanel>
         </div>
 
