@@ -1,6 +1,7 @@
 ﻿import json as _json
 
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -44,29 +45,45 @@ def _save_hotel(h, data):
 
 
 def _save_hotel_room_types(h, data):
+    # Finding 1 fix: only reconcile if room_types key is actually present in POST data
+    if 'room_types' not in data:
+        return
+
     try:
         room_types = _json.loads(data.get('room_types', '[]') or '[]')
     except (ValueError, TypeError):
         room_types = []
 
-    kept_ids = set()
-    for rt_data in room_types:
-        name = (rt_data.get('name') or '').strip()
-        if not name:
-            continue
-        try:
-            capacity = max(1, int(rt_data.get('capacity') or 1))
-        except (ValueError, TypeError):
-            capacity = 1
-        rt_id = rt_data.get('id')
-        if rt_id:
-            RoomType.objects.filter(pk=rt_id, hotel=h).update(name=name, capacity=capacity, is_active=True)
-            kept_ids.add(int(rt_id))
-        else:
-            rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity)
-            kept_ids.add(rt.pk)
+    # Finding 2 fix: wrap in transaction.atomic() to prevent partial commits
+    with transaction.atomic():
+        kept_ids = set()
+        for rt_data in room_types:
+            name = (rt_data.get('name') or '').strip()
+            if not name:
+                continue
+            try:
+                capacity = max(1, int(rt_data.get('capacity') or 1))
+            except (ValueError, TypeError):
+                capacity = 1
+            rt_id = rt_data.get('id')
+            if rt_id:
+                RoomType.objects.filter(pk=rt_id, hotel=h).update(name=name, capacity=capacity, is_active=True)
+                kept_ids.add(int(rt_id))
+            else:
+                # Finding 2 fix: look up by name first (including soft-deleted) to avoid IntegrityError
+                try:
+                    rt = RoomType.objects.get(hotel=h, name=name)
+                    # Reactivate and update capacity
+                    rt.capacity = capacity
+                    rt.is_active = True
+                    rt.save()
+                    kept_ids.add(rt.pk)
+                except RoomType.DoesNotExist:
+                    # Create new if name doesn't exist
+                    rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity)
+                    kept_ids.add(rt.pk)
 
-    h.room_types.exclude(pk__in=kept_ids).update(is_active=False)
+        h.room_types.exclude(pk__in=kept_ids).update(is_active=False)
 
 
 @require_perm('hotels', 'view')

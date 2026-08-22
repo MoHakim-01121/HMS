@@ -52,6 +52,23 @@ class HotelRoomTypeSaveTest(TestCase):
 
     def test_hotel_edit_get_includes_room_types(self):
         hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
-        RoomType.objects.create(hotel=hotel, name='Suite', capacity=4)
-        resp = self.client.get(f'/hotels/{hotel.pk}/edit/')
+        rt = RoomType.objects.create(hotel=hotel, name='Suite', capacity=4)
+        resp = self.client.get(f'/hotels/{hotel.pk}/edit/', HTTP_X_INERTIA='true')
         self.assertEqual(resp.status_code, 200)
+        page = resp.json()
+        self.assertEqual(page['props']['hotel']['room_types'], [{'id': rt.id, 'name': 'Suite', 'capacity': 4}])
+
+    def test_edit_hotel_omits_room_types_key_leaves_types_untouched(self):
+        """Finding 1 fix: POST without room_types key should not touch existing room types."""
+        hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
+        rt = RoomType.objects.create(hotel=hotel, name='Suite', capacity=4)
+        # POST with all required fields but NO room_types key at all
+        data = {
+            'name': 'Hotel Sawaaed', 'city': 'makkah', 'stars': '4', 'area': '',
+            # Intentionally omit room_types key
+        }
+        self.client.post(f'/hotels/{hotel.pk}/edit/', data)
+        rt.refresh_from_db()
+        # Room type should remain unchanged
+        self.assertTrue(rt.is_active)
+        self.assertEqual(rt.capacity, 4)
