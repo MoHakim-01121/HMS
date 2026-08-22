@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, RoomType, log_activity
 from ..permissions import require_perm
 from ..i18n import tr
 from .helpers import _is_mobile, _parse_date, _render_list_pdf, csv_export_response, get_active_company, pagination_props, snapshot_fields, track_changes
@@ -152,10 +152,24 @@ def cl_list(request):
 
 
 def _form_context_data():
+    hotels = [{
+        "id": h.id, "name": h.name, "company": h.company, "city": h.city,
+        "room_types": [
+            {"id": rt.id, "name": rt.name, "capacity": rt.capacity}
+            for rt in h.room_types.filter(is_active=True)
+        ],
+    } for h in Hotel.objects.filter(is_active=True).prefetch_related('room_types').order_by('company', 'city', 'name')]
     return {
-        "hotels": list(Hotel.objects.filter(is_active=True).values("name", "company", "city").order_by("company", "city", "name")),
+        "hotels": hotels,
         "clients": list(Client.objects.filter(is_active=True).values("id", "name", "brand", "company").order_by("company", "name")),
     }
+
+
+def _resolve_hotel_id(request):
+    hotel_id = request.POST.get("hotel_id") or None
+    if hotel_id and not Hotel.objects.filter(pk=hotel_id).exists():
+        hotel_id = None
+    return hotel_id
 
 
 def _validate_cl(data, exclude_pk=None):
@@ -182,6 +196,7 @@ def _cl_echo(data):
         "company": data.get("company", "konoz"),
         "client_id": data.get("client_id", ""),
         "hotel_name": data.get("hotel_name", ""),
+        "hotel_id": data.get("hotel_id", ""),
         "guest_name": data.get("guest_name", ""),
         "guest_phone": data.get("guest_phone", ""),
         "check_in": data.get("check_in", ""),
@@ -216,6 +231,7 @@ def cl_new(request):
             # saved under a company the detail view then can't find -> 404.
             company=active_company,
             client_id=client_id,
+            hotel_id=_resolve_hotel_id(request),
             hotel_name=request.POST.get("hotel_name", ""),
             guest_name=guest_name,
             guest_phone=request.POST.get("guest_phone", ""),
@@ -330,6 +346,7 @@ def cl_edit(request, pk):
         # Company is locked to the CL's existing (active-company) scope; the form
         # no longer submits it, so we never reassign and risk a cross-company 404.
         cl.client_id = request.POST.get("client_id") or None
+        cl.hotel_id = _resolve_hotel_id(request)
         cl.hotel_name = request.POST.get("hotel_name", "")
         guest_name = request.POST.get("guest_name", "").strip()
         if not guest_name and cl.client_id:
@@ -369,6 +386,7 @@ def cl_edit(request, pk):
         "cl": {
             "id": cl.pk, "company": cl.company,
             "client_id": cl.client_id or "", "hotel_name": cl.hotel_name,
+            "hotel_id": cl.hotel_id or "",
             "guest_name": cl.guest_name, "guest_phone": cl.guest_phone,
             "check_in": cl.check_in.isoformat() if cl.check_in else "",
             "check_out": cl.check_out.isoformat() if cl.check_out else "",
@@ -577,7 +595,14 @@ def _save_cl_rooms(cl, request):
             price = max(0, float(r.get("price") or 0))
         except (ValueError, TypeError):
             price = 0
-        Room.objects.create(cl=cl, room_type=rt, meals=(r.get("meals") or ""), quantity=qty, price=price)
+        room_type_ref = None
+        room_type_id = r.get("room_type_id")
+        if room_type_id and cl.hotel_id:
+            room_type_ref = RoomType.objects.filter(pk=room_type_id, hotel_id=cl.hotel_id).first()
+        Room.objects.create(
+            cl=cl, room_type=rt, room_type_ref=room_type_ref,
+            meals=(r.get("meals") or ""), quantity=qty, price=price,
+        )
 
 
 def _sync_invoice_reservation_from_cl(cl, user=None):
