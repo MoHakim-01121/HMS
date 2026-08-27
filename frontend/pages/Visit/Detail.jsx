@@ -17,6 +17,8 @@ import { showToast } from "../../components/shadcn/toast.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 
 const OUTCOMES = [
   ["ORDER", "Order received"],
@@ -25,16 +27,16 @@ const OUTCOMES = [
   ["NOT_MET", "Client not met"],
 ];
 
-const OUTCOME_PILL = {
-  ORDER: ["badge badge-green", "Order received"],
-  PROSPECT: ["badge badge-blue", "Prospect / follow-up needed"],
-  NO_INTEREST: ["badge badge-yellow", "No interest"],
-  NOT_MET: ["badge badge-red", "Client not met"],
+const OUTCOME_TONE = {
+  ORDER: "green",
+  PROSPECT: "blue",
+  NO_INTEREST: "yellow",
+  NOT_MET: "red",
 };
 
 function outcomeBadge(s) {
-  const [c, l] = OUTCOME_PILL[s] || ["badge badge-yellow", s || ""];
-  return <span className={c}>{l}</span>;
+  const label = OUTCOMES.find(([k]) => k === s)?.[1] || s || "";
+  return <StatusPill tone={OUTCOME_TONE[s] || "yellow"} label={label} />;
 }
 
 function heroPill(s) {
@@ -50,6 +52,7 @@ const FLOW_STEPS = [
 ];
 
 function StatusStepper({ status }) {
+  const { t } = useI18n();
   let current;
   if (status === "COMPLETED") current = "done";
   else if (status === "CANCELLED") current = "cancelled";
@@ -71,7 +74,7 @@ function StatusStepper({ status }) {
                 color: done || reached ? "#fff" : "var(--muted-foreground)",
               }}>{done ? "✓" : i + 1}</span>
               <span style={{ fontSize: 12, fontWeight: reached ? 600 : 500, color: reached ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                {s.label}
+                {t(s.label)}
               </span>
             </div>
             {i < FLOW_STEPS.length - 1 && (
@@ -81,13 +84,11 @@ function StatusStepper({ status }) {
         );
       })}
       {current === "cancelled" && (
-        <span className="badge badge-red" style={{ flexShrink: 0 }}>Cancelled</span>
+        <span style={{ flexShrink: 0 }}><StatusPill tone="red" label={t("Cancelled")} /></span>
       )}
     </div>
   );
 }
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
 // Built on the same Dialog/DialogContent primitives as ui/dialog.jsx (Radix),
 // not a hand-rolled overlay — there is no ".modal"/".modal-overlay" styling

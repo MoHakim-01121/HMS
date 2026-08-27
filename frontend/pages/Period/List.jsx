@@ -4,6 +4,8 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -20,6 +22,7 @@ const STATUS_TONE = {
 
 export default function List({ periods = [] }) {
   const { t } = useI18n();
+  const [confirm, confirmDialog] = useConfirm();
   const [createDialog, setCreateDialog] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -31,6 +34,7 @@ export default function List({ periods = [] }) {
   const columns = [
     {
       header: t("Period"),
+      className: "col-m-primary",
       render: (p) => (
         <a href={`/finance/periods/${p.id}/`} className="text-blue-600 hover:underline font-medium">
           {p.name}
@@ -38,35 +42,37 @@ export default function List({ periods = [] }) {
       ),
     },
     {
-      header: t("Date Range"),
-      render: (p) => `${p.date_from} — ${p.date_to}`,
-    },
-    {
       header: t("Status"),
+      className: "col-m-badge",
       render: (p) => <StatusPill tone={STATUS_TONE[p.status] || "gray"} label={p.status_display} />,
     },
     {
+      header: t("Date Range"),
+      className: "col-m-secondary",
+      render: (p) => `${p.date_from} — ${p.date_to}`,
+    },
+    {
       header: t("Journal Entries"),
-      align: "right",
+      className: "col-m-hide",
       render: (p) => <span className="font-mono">{p.journal_count}</span>,
     },
     {
       header: t("Payments"),
-      align: "right",
+      className: "col-m-hide",
       render: (p) => <span className="font-mono">{p.payment_count}</span>,
     },
     {
       header: "",
-      className: "w-10",
+      className: "col-m-actions",
       render: (p) => (
         <RowActions
           actions={[
             { label: t("Detail"), href: `/finance/periods/${p.id}/` },
             ...(p.is_postable ? [
-              { label: t("Close"), onClick: () => { if (confirm(t("Close this period?"))) router.post(`/finance/periods/${p.id}/close/`); } },
+              { label: t("Close"), onClick: () => confirm({ title: t("Close Period"), message: t("Close this period?"), onConfirm: () => router.post(`/finance/periods/${p.id}/close/`) }) },
             ] : []),
             ...(p.status === "closed" ? [
-              { label: t("Lock"), onClick: () => { if (confirm(t("Lock this period? This is irreversible."))) router.post(`/finance/periods/${p.id}/lock/`); }, destructive: true },
+              { label: t("Lock"), destructive: true, onClick: () => confirm({ title: t("Lock Period"), message: t("Lock this period? This is irreversible."), onConfirm: () => router.post(`/finance/periods/${p.id}/lock/`) }) },
             ] : []),
           ]}
         />
@@ -84,8 +90,7 @@ export default function List({ periods = [] }) {
           <div className="page-sub">{t("Manage accounting periods and locking.")}</div>
         </div>
         <div className="page-actions">
-          <a href="/finance/payments/" className="btn btn-secondary btn-sm">{t("Payments")}</a>
-          <button className="btn btn-primary btn-sm" onClick={() => setCreateDialog(true)}>{t("Create Periods")}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setCreateDialog(true)}>+ {t("Create Periods")}</button>
         </div>
       </div>
 
@@ -93,10 +98,7 @@ export default function List({ periods = [] }) {
         {periods.length > 0 ? (
           <Table columns={columns} rows={periods} rowKey={(p) => p.id} />
         ) : (
-          <div className="empty">
-            <div className="empty-title">{t("No periods found")}</div>
-            <div className="empty-sub">{t("Click 'Create Periods' to generate monthly periods for a year.")}</div>
-          </div>
+          <EmptyState title="No periods found" sub="Click 'Create Periods' to generate monthly periods for a year." />
         )}
       </div>
 
@@ -126,6 +128,7 @@ export default function List({ periods = [] }) {
           </DialogContent>
         </Dialog>
       )}
+      {confirmDialog}
     </div>
   );
 }

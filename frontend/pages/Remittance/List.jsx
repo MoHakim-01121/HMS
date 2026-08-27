@@ -5,21 +5,21 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { listVisit } from "../../utils/listVisit.js";
+import { fmt } from "../../utils/format.js";
 
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const STATUS_OPTS = [
   { val: "", label: "All", cls: "c-all" },
   { val: "pending", label: "Pending", cls: "c-pen" },
   { val: "received", label: "Received", cls: "c-rec" },
 ];
 
-function visit(params) {
-  router.get("/remittance/", params, { preserveState: true, preserveScroll: true, replace: true });
-}
+const visit = (params) => listVisit("/remittance/", params);
 
 export default function List({ remittances, stats, status_filter, q, total_count }) {
   const { t } = useI18n();
@@ -53,6 +53,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
           <div className="page-sub">{t("{count} remittances saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
+          <a href="/remittance/tracking/" className="btn btn-secondary" style={{ height: 32, padding: "0 12px", fontSize: 13 }}>{t("Tracking")}</a>
           <a href="/remittance/recap/" className="btn btn-secondary" style={{ height: 32, padding: "0 12px", fontSize: 13 }}>{t("Recap")}</a>
           <a href="/remittance/export/ledger/" target="_blank" rel="noreferrer" className="btn btn-secondary">{t("Ledger PDF")}</a>
           <a href="/remittance/export/csv/" className="btn btn-secondary">{t("Export CSV")}</a>
@@ -157,8 +158,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
               { header: t("Date"), className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
               {
                 header: t("Proof"),
-                headerClassName: "col-m-hide",
-                className: "col-m-meta",
+                className: "col-m-hide",
                 render: (rem) => (
                   <>
                     <span className="m-hide">
@@ -200,14 +200,11 @@ export default function List({ remittances, stats, status_filter, q, total_count
             onRowClick={(rem) => router.visit(`/remittance/${rem.id}/`)}
           />
         ) : (
-          <div className="empty">
-            <Icon name="invoice" size={36} strokeWidth={1.5} />
-            {(q || status_filter) ? (
-              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
-            ) : (
-              <><div className="empty-title">{t("No remittances yet")}</div><div className="empty-sub">{t('Click "+ New Transfer" to record a transfer to HQ')}</div></>
-            )}
-          </div>
+          <EmptyState
+            iconName="invoice"
+            title={(q || status_filter) ? "No results" : "No remittances yet"}
+            sub={(q || status_filter) ? "Try adjusting your search filters" : 'Click "+ New Transfer" to record a transfer to HQ'}
+          />
         )}
       </div>
       {confirmDialog}

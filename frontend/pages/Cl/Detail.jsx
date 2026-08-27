@@ -9,9 +9,9 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt, fmtDec } from "../../utils/format.js";
 
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
-const fmtPrice = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const fmtPrice = (n) => fmtDec(n);
 
 function heroPill(s) {
   if (s === "DEFINITE") return { label: "Definite", tone: "green" };

@@ -302,14 +302,14 @@ export default function List({ users, role_choices = [], company_choices = [] })
             },
             {
               header: t("Role"),
-              className: "col-m-secondary",
+              className: "col-m-badge",
               render: (u) => (
                 <span className={"badge " + (ROLE_TONE[u.role] || "badge-gray")}>{u.role_label}</span>
               ),
             },
             {
               header: t("Company"),
-              className: "col-m-secondary",
+              className: "col-m-meta",
               render: (u) => (
                 <span className="col-dim">{u.company_access_label}</span>
               ),

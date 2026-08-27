@@ -11,8 +11,8 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 const dateInputStyle = {

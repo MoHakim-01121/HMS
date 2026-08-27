@@ -8,8 +8,7 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+import { fmt } from "../../utils/format.js";
 
 export default function Transfer({ client, reservations, initial, errors: serverErrors }) {
   const { t } = useI18n();

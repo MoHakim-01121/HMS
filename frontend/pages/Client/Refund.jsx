@@ -8,8 +8,8 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const ACCOUNTS = [
   { value: "sby", label: "Surabaya" },
   { value: "pusat", label: "Pusat / HQ" },

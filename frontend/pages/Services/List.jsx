@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
@@ -9,10 +10,9 @@ import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { listVisit } from "../../utils/listVisit.js";
 
-function visit(params) {
-  router.get("/services/", params, { preserveState: true, preserveScroll: true, replace: true });
-}
+const visit = (params) => listVisit("/services/", params);
 
 export default function List({ invoices, total_count, q, pagination }) {
   const [query, setQuery] = useState(q || "");
@@ -106,14 +106,7 @@ export default function List({ invoices, total_count, q, pagination }) {
             <Pagination pagination={pagination} unit={t("invoices")} onPage={(p) => visit({ q: query, page: p })} />
           </>
         ) : (
-          <div className="empty">
-            <Icon name="invoice" size={36} strokeWidth={1.5} />
-            {q ? (
-              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
-            ) : (
-              <><div className="empty-title">{t("No invoices yet")}</div><div className="empty-sub">{t("Use the Create New button in the top right")}</div></>
-            )}
-          </div>
+          q ? <EmptyState iconName="invoice" title="No results" sub="Try adjusting your search filters" /> : <EmptyState iconName="invoice" title="No invoices yet" sub="Use the Create New button in the top right" />
         )}
       </div>
       {confirmDialog}

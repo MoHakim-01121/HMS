@@ -1,6 +1,7 @@
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import Table from "../../components/shadcn/table.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
@@ -86,11 +87,7 @@ export default function Manage({ team_members, pricelist }) {
             rowKey={(v) => v.id}
           />
         ) : (
-          <div className="empty">
-            <Icon name="users" size={36} strokeWidth={1.5} />
-            <div className="empty-title">{t("Belum ada anggota tim")}</div>
-            <div className="empty-sub">{t("Gunakan + New Member di atas untuk menambahkan")}</div>
-          </div>
+          <EmptyState iconName="users" title="Belum ada anggota tim" sub="Gunakan + New Member di atas untuk menambahkan" />
         )}
       </div>
 
@@ -130,11 +127,7 @@ export default function Manage({ team_members, pricelist }) {
             rowKey={(v) => v.id}
           />
         ) : (
-          <div className="empty">
-            <Icon name="download" size={36} strokeWidth={1.5} />
-            <div className="empty-title">{t("Belum ada pricelist")}</div>
-            <div className="empty-sub">{t("Gunakan + Upload Pricelist di atas")}</div>
-          </div>
+          <EmptyState iconName="download" title="Belum ada pricelist" sub="Gunakan + Upload Pricelist di atas" />
         )}
       </div>
 

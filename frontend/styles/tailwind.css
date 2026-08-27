@@ -657,8 +657,8 @@
   }
 }
 @media (max-width: 600px) {
-  /* design.css's m-topbar offset */
-  body[data-scroll-locked] { padding-top: 48px !important; }
+  /* Mobile top bar offset — matches the 48px fixed strip */
+  body[data-scroll-locked] { padding-top: calc(48px + env(safe-area-inset-top)) !important; }
 }
 
 /* ── List data table — HeroUI v3 Table direction (21st.dev reference, chosen
@@ -807,11 +807,12 @@
     justify-content: center;
     background: transparent;
     padding: 4px 0 2px;
+    margin-top: 14px;
   }
-  .hms-pag-count { width: 100%; text-align: center; }
+  .hms-pag-count { display: none; }
   .hms-pag-nav { margin: 0 auto; gap: 8px; }
   /* Compact prev · current · next — a full pill run doesn't fit at 390px, and
-     the counter above already says where you are. Carried over from the old
+     the active pill already says where you are. Carried over from the old
      `.pagination` mobile rules design.css used to hold. */
   .hms-pag-num:not(.is-active),
   .hms-pag-gap { display: none; }
@@ -860,9 +861,9 @@
 
 /* ── Desktop sidebar shell (Homlu direction) ──────────────────────────
    Global chrome change (2026-07-24, restyled 2026-07-26): replaces the old fixed topbar with a
-   persistent left sidebar nav on desktop widths. Mobile (m-topbar +
-   bottom-nav, both in design.css) is untouched — same 600px boundary the
-   rest of the app already uses to separate desktop/mobile chrome, so this
+   persistent left sidebar nav on desktop widths. Mobile chrome
+   (.m-top-bar + .m-bottom-nav) lives in the MOBILE REDESIGN section
+   below — same 600px boundary the rest of the app already uses.
    introduces no new breakpoint. The old .topbar element is retired (hidden
    at all widths) rather than deleted from CSS, since design.css is a large
    shared stylesheet and other selectors may still reference .topbar-* class
@@ -870,6 +871,14 @@
 .topbar { display: none !important; }
 
 .hms-sidebar {
+  display: none;
+}
+
+/* Hidden by default (mobile uses .m-top-bar instead); shown at 601px+
+   inside the @media block below. Missing this base rule was letting the
+   desktop <header> fall back to its default block display on mobile,
+   rendering as a second navbar under .m-top-bar. */
+.hms-topbar {
   display: none;
 }
 
@@ -901,64 +910,6 @@
      square instead of a tall rounded rectangle. */
   body.sidebar-collapsed .hms-sidebar { width: var(--sidebar-w-collapsed); padding-left: 12px; padding-right: 12px; }
 
-  /* ── Workspace switcher (company: Konoz United / Ijabah) ── */
-  .hms-ws-switcher {
-    position: relative;
-    flex: none;
-    min-width: 0;
-  }
-  .hms-ws-trigger {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px;
-    border-radius: var(--radius);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    transition: background .12s;
-  }
-  .hms-ws-trigger:hover { background: var(--secondary); }
-  .hms-ws-mark {
-    width: 32px; height: 32px; flex-shrink: 0;
-    border-radius: 8px;
-    background: var(--primary);
-    color: var(--primary-foreground);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700;
-  }
-  .hms-ws-text { min-width: 0; flex: 1; overflow: hidden; }
-  .hms-ws-name { display: block; font-size: 14px; font-weight: 600; color: var(--foreground); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hms-ws-role { display: block; font-size: 12px; color: var(--muted-foreground); line-height: 1.2; }
-  .hms-ws-chevron { flex-shrink: 0; color: var(--muted-foreground); transition: transform .15s; }
-  .hms-ws-switcher.open .hms-ws-chevron { transform: rotate(180deg); }
-  .hms-ws-panel {
-    position: absolute;
-    top: calc(100% + 4px); left: 0; right: 0;
-    background: var(--popover);
-    border: 1px solid var(--border);
-    /* 8px + soft two-layer shadow measured off Homlu's live Radix
-       DropdownMenu popover (rounded-lg, shadow-md) — see
-       inspect-homlu-dropdowns2.js in this session's scratchpad. */
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
-    padding: 4px;
-    z-index: 10;
-  }
-  .hms-ws-panel-label {
-    padding: 6px 8px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted-foreground);
-  }
-  .hms-ws-panel .co-option,
-  .hms-topbar-dropdown .co-option {
-    padding: 8px;
-    border-radius: 6px;
-    font-size: 14px;
-  }
   .hms-collapse-btn {
     flex-shrink: 0;
     width: 28px; height: 28px;
@@ -1022,12 +973,9 @@
      regular weight, not bold — only the card + color change signal "active". */
   .hms-sidebar-link.active { color: var(--foreground); background: var(--card); border-color: var(--border); font-weight: 400; }
 
-  /* Collapsed state: icon-only rail — hide every text label, center icons,
-     collapse the workspace switcher down to just its mark. */
+  /* Collapsed state: icon-only rail — hide every text label, center icons. */
   body.sidebar-collapsed .hms-sidebar-heading,
-  body.sidebar-collapsed .hms-sidebar-link span,
-  body.sidebar-collapsed .hms-ws-text,
-  body.sidebar-collapsed .hms-ws-chevron {
+  body.sidebar-collapsed .hms-sidebar-link span {
     display: none;
   }
   /* Collapsed row is 48px wide (see .hms-sidebar's own collapsed padding
@@ -1037,7 +985,6 @@
      48x48 box reads as a rounded box; var(--radius) (12px) was tuned for
      the wider expanded row and looked stadium-like at this size. */
   body.sidebar-collapsed .hms-sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; border-radius: 10px; }
-  body.sidebar-collapsed .hms-ws-trigger { justify-content: center; }
 
   /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
      h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
@@ -1070,7 +1017,7 @@
   /* Icon buttons (bell/theme) restyled desktop-only to a 36px circular
      hit-target with a transparent idle state — .topbar-icon-btn's base rules
      live in design.css (shared with mobile chrome), so this only overrides
-     inside .hms-topbar, mobile's .m-top-btn is untouched. */
+     inside .hms-topbar. */
   .hms-topbar .topbar-icon-btn {
     width: 36px; height: 36px;
     border-radius: var(--radius-full, 9999px);
@@ -1244,11 +1191,11 @@
 .hms-kpi-trend.bad.down { color:var(--kpi-positive); }
 .hms-kpi-foot { position:relative; z-index:1; margin-top:auto; padding:12px 22px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted-foreground); }
 @media (max-width:600px) {
-  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); gap:10px; }
-  .hms-kpi { min-height:130px; }
-  .hms-kpi-body { padding:14px 14px 10px; }
+  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); gap:8px; }
+  .hms-kpi { min-height:120px; border-radius:14px; }
+  .hms-kpi-body { padding:12px 14px 10px; }
   .hms-kpi-foot { padding:8px 14px; }
-  .hms-kpi-val { font-size:26px; }
+  .hms-kpi-val { font-size:24px; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -1410,7 +1357,7 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-dv-att-add { display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 12px; border:1px dashed var(--border); border-radius:12px; color:var(--muted-foreground); font-size:12.5px; cursor:pointer; }
 .hms-dv-att-add:hover { background:var(--secondary); color:var(--foreground); }
 
-.hms-dv-foot { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-top:24px; padding-top:16px; border-top:1px solid var(--border); }
+.hms-dv-foot { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-top:20px; padding-top:14px; border-top:1px solid var(--border); }
 .hms-dv-foot-r { text-align:right; margin-left:auto; }
 .hms-dv-foot-l { font-size:12px; color:var(--muted-foreground); }
 .hms-dv-foot-total { font-size:26px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; margin-top:4px; line-height:1.1; }
@@ -1420,21 +1367,21 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-dv-foot-sub { font-size:12px; color:var(--muted-foreground); margin-top:3px; }
 
 @media (max-width:600px) {
-  .hms-dv-card { border-radius:16px; }
+  .hms-dv-card { border-radius:14px; box-shadow:none; }
   .hms-dv-strip { padding:8px 14px; }
-  .hms-dv-head { padding:18px 14px 0; flex-direction:column; align-items:flex-start; gap:10px; }
-  .hms-dv-title { font-size:22px; }
-  .hms-dv-body { padding:0 14px 16px; }
-  .hms-dv-meta { grid-template-columns:1fr; gap:14px; }
-  .hms-dv-sec { margin-top:18px; padding-top:16px; }
-  .hms-dv-amt { width:100%; }
+  .hms-dv-head { padding:16px 14px 0; flex-direction:column; align-items:flex-start; gap:8px; }
+  .hms-dv-title { font-size:20px; letter-spacing:-.01em; }
+  .hms-dv-body { padding:0 14px 14px; }
+  .hms-dv-meta { grid-template-columns:1fr; gap:12px; padding-top:36px; }
+  .hms-dv-sec { margin-top:16px; padding-top:14px; }
+  .hms-dv-amt { width:100%; border-radius:12px; }
   /* Line items stack into label/value pairs; the header row is redundant
      then, so each cell carries its own label via data-label. */
   .hms-dv-table thead { display:none; }
   .hms-dv-table, .hms-dv-table tbody, .hms-dv-table tfoot, .hms-dv-table tr, .hms-dv-table td { display:block; width:auto; }
   .hms-dv-table tbody tr { padding:10px 0; border-bottom:1px solid var(--border); }
   .hms-dv-table tbody tr:last-child { border-bottom:none; }
-  .hms-dv-table tbody td { border:none; padding:2px 0; display:flex; gap:14px; align-items:baseline; justify-content:space-between; text-align:right; }
+  .hms-dv-table tbody td { border:none; padding:3px 0; display:flex; gap:12px; align-items:baseline; justify-content:space-between; text-align:right; font-size:13px; }
   .hms-dv-table tbody td::before { content:attr(data-label); font-size:12px; color:var(--muted-foreground); text-align:left; flex-shrink:0; }
   .hms-dv-table tbody td[data-label=""]::before { display:none; }
   /* The mobile collapse turns cells into label/value flex rows; the empty
@@ -1455,7 +1402,7 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
   .hms-dv-table tfoot tr.multi .lbl { flex:1 0 100%; text-align:left; }
   .hms-dv-table tfoot tr.multi .val { display:flex; gap:8px; align-items:baseline; }
   .hms-dv-table tfoot tr.multi .val::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); }
-  .hms-dv-foot-total { font-size:22px; }
+  .hms-dv-foot-total { font-size:20px; }
 }
 
 /* ── Map mode ────────────────────────────────────────────────────────────
@@ -1468,7 +1415,7 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 body.map-mode { padding-left: 0 !important; padding-top: 0 !important; overflow: hidden; }
 body.map-mode .hms-sidebar { display: none !important; }
 body.map-mode .hms-topbar { display: none !important; }
-body.map-mode .m-topbar { display: none !important; }
+body.map-mode .m-top-bar { display: none !important; }
 body.map-mode #map-wrap { height: 100dvh !important; }
 body.map-mode .map-back-btn { display: flex !important; }
 
@@ -1532,29 +1479,34 @@ body.map-mode .map-back-btn { display: flex !important; }
   letter-spacing: 0.02em;
 }
 
-/* Mobile dropdown */
-.hms-lang-dropdown {
-  position: relative;
-  display: inline-flex;
-}
-
+/* Mobile: single-tap switch styled as a plain full-width row so it reads as
+   one more item in the account dropdown's option list (My Profile, Toggle
+   Theme, …) instead of a standalone bordered pill floating in the flow. */
 .hms-lang-trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  width: 100%;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: none;
+  border: none;
   border-radius: var(--radius);
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: background 0.12s ease;
+}
+
+.hms-lang-trigger-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .hms-lang-trigger:hover {
-  border-color: var(--ring);
+  background: var(--secondary);
 }
 
 .hms-lang-trigger:focus-visible {
@@ -1562,97 +1514,25 @@ body.map-mode .map-back-btn { display: flex !important; }
   box-shadow: 0 0 0 2px var(--ring);
 }
 
-.hms-lang-trigger[aria-expanded="true"] {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px var(--ring);
-}
-
-.hms-lang-chevron {
-  flex-shrink: 0;
-  color: var(--muted-foreground);
-  transition: transform 0.15s ease;
-}
-
-.hms-lang-trigger[aria-expanded="true"] .hms-lang-chevron {
-  transform: rotate(180deg);
-}
-
-.hms-lang-list {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-  background: var(--popover);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 10px 24px -6px rgba(0,0,0,.18), 0 4px 8px -4px rgba(0,0,0,.12);
-  z-index: 100;
-  animation: hms-lang-fade-in 0.12s ease-out;
-}
-
-@keyframes hms-lang-fade-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.hms-lang-option {
+/* Right-side badge: click the row to switch straight to the other language,
+   no dropdown/list involved — the badge just labels what the tap does. */
+.hms-lang-switch-badge {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--foreground);
-  background: transparent;
-  border: none;
-  border-radius: calc(var(--radius) - 2px);
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-
-.hms-lang-option:hover {
-  background: var(--surface-hover);
-}
-
-.hms-lang-option:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
-
-.hms-lang-option.active {
-  color: var(--primary);
-  background: var(--primary-muted, var(--surface-hover));
-}
-
-.hms-lang-option.active .hms-lang-check {
-  color: var(--primary);
-}
-
-.hms-lang-check {
+  gap: 5px;
   flex-shrink: 0;
-  color: transparent;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
-.hms-lang-option.active .hms-lang-check {
-  color: currentColor;
-}
-
-/* Ensure dropdown closes on outside click */
-.hms-lang-dropdown:focus-within .hms-lang-list {
-  display: block;
-}
-
-/* Narrow screens: dropdown takes full width near right edge */
-@media (max-width: 420px) {
-  .hms-lang-list {
-    right: -8px;
-    min-width: calc(100vw - 32px);
-  }
+.hms-lang-trigger:hover .hms-lang-switch-badge {
+  color: var(--foreground);
+  border-color: var(--ring);
 }
 
 /* ── Fullscreen map pages (Client/Hotel maps) ─────────────────────────────
@@ -1669,8 +1549,8 @@ body.map-fullscreen {
 }
 body.map-fullscreen .hms-sidebar,
 body.map-fullscreen .hms-topbar,
-body.map-fullscreen .m-topbar,
-body.map-fullscreen #bottom-nav,
+body.map-fullscreen .m-top-bar,
+body.map-fullscreen #m-bottom-nav,
 body.map-fullscreen .notif-dropdown,
 body.map-fullscreen .bnav-account-dd {
   display: none !important;
@@ -1684,4 +1564,443 @@ body.map-fullscreen #map-wrap {
 body.public-page {
   padding-left: 0 !important;
   padding-top: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE REDESIGN — Homlu direction (2026-08-25)
+   Total redesign: clean top bar + bottom nav with More page.
+   Monochrome, no glassmorphism, flat surfaces, 1px borders, Inter type,
+   44px touch targets throughout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Mobile top bar ────────────────────────────────────────────────────── */
+.m-top-bar { display: none; }
+
+@media (max-width: 600px) {
+  .m-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(48px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-inline: 16px;
+    background: var(--background);
+    border-bottom: 1px solid var(--border);
+    z-index: var(--z-sticky, 200);
+  }
+
+  .m-top-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .m-top-bar-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+  }
+
+  .m-top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .m-top-bar-btn {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    color: var(--foreground);
+    cursor: pointer;
+    position: relative;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: background 0.12s ease;
+  }
+
+  .m-top-bar-btn:active {
+    background: var(--secondary);
+  }
+
+  .m-top-bar-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    overflow: hidden;
+    flex-shrink: 0;
+    border: 1.5px solid var(--border);
+  }
+
+  .m-top-bar-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .m-top-bar-avatar-default {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--secondary);
+    color: var(--muted-foreground);
+  }
+
+  .m-top-bar-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    border: 1.5px solid var(--background);
+  }
+}
+
+/* ── Mobile bottom nav ─────────────────────────────────────────────────── */
+.m-bottom-nav { display: none; }
+
+@media (max-width: 600px) {
+  .m-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(56px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--background);
+    border-top: 1px solid var(--border);
+    z-index: var(--z-sticky, 200);
+  }
+
+  .m-bnav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    text-decoration: none;
+    color: var(--muted-foreground);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 6px 0 2px;
+    min-height: 44px;
+    transition: color 0.12s ease;
+  }
+
+  .m-bnav-tab:active {
+    opacity: 0.7;
+  }
+
+  .m-bnav-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    position: relative;
+  }
+
+  .m-bnav-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .m-bnav-label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+
+  .m-bnav-tab.active {
+    color: var(--foreground);
+  }
+
+  .m-bnav-tab.active .m-bnav-label {
+    font-weight: 600;
+  }
+
+  .m-bnav-badge {
+    position: absolute;
+    top: 4px;
+    right: 50%;
+    transform: translateX(calc(50% + 8px));
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    font-size: 9px;
+    font-weight: 600;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    border: 1.5px solid var(--background);
+  }
+}
+
+/* ── Mobile More page (full-screen module grid) ────────────────────────── */
+.m-more { display: none; }
+
+@media (max-width: 600px) {
+  .m-more {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: calc(48px + env(safe-area-inset-top));
+    left: 0;
+    right: 0;
+    bottom: calc(56px + env(safe-area-inset-bottom));
+    z-index: calc(var(--z-sticky, 200) + 1);
+    background: var(--background);
+    animation: mMoreIn 0.2s ease-out;
+  }
+
+  @keyframes mMoreIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .m-more-head {
+    flex-shrink: 0;
+    padding: 12px 16px 0;
+  }
+
+  .m-more-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 12px;
+    background: var(--secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--muted-foreground);
+  }
+
+  .m-more-search input:not([type="checkbox"]):not([type="radio"]) {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    outline: none;
+    font-family: inherit;
+    font-size: 15px;
+    color: var(--foreground);
+    box-shadow: none;
+    padding: 0;
+    width: auto;
+  }
+
+  .m-more-search input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .m-more-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: transparent;
+    border-radius: 9999px;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .m-more-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .m-more-group {
+    padding: 0 0 8px;
+  }
+
+  .m-more-heading {
+    padding: 16px 20px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .m-more-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: var(--foreground);
+    transition: background 0.12s ease;
+  }
+
+  .m-more-item:active {
+    background: var(--secondary);
+  }
+
+  .m-more-item.active {
+    background: var(--secondary);
+  }
+
+  .m-more-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--secondary);
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+
+  .m-more-item.active .m-more-icon {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  .m-more-label {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 500;
+  }
+}
+
+/* ── Mobile content padding ────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .page,
+  .page-sm {
+    padding-top: calc(48px + env(safe-area-inset-top));
+    padding-bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .page-title {
+    font-size: 16px;
+  }
+
+  .page-header > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* ── Mobile modal/drawer bottom-sheet ──────────────────────────────────── */
+@media (max-width: 600px) {
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-body {
+    padding: 5px 16px 14px;
+  }
+
+  #draft-modal > div {
+    margin: 12px;
+    width: calc(100% - 24px);
+    max-width: none;
+  }
+}
+
+/* ── Mobile notification dropdown ──────────────────────────────────────── */
+/* Anchored below the top bar, near the bell that opened it — not a bottom
+   sheet — so it appears where the tap happened instead of popping up on the
+   opposite edge of the screen. */
+@media (max-width: 600px) {
+  .notif-float {
+    top: calc(48px + env(safe-area-inset-top) + 8px);
+    bottom: auto;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 60dvh;
+    border-radius: 14px;
+  }
+
+  .notif-float .notif-body {
+    max-height: calc(60dvh - 40px);
+  }
+
+  .notif-float .notif-item {
+    padding: 12px 14px;
+  }
+}
+
+/* ── Mobile account dropdown ───────────────────────────────────────────── */
+/* Same top-anchored treatment as .notif-float, right below the avatar
+   button instead of floating up from the bottom nav. */
+@media (max-width: 600px) {
+  .bnav-account-dd {
+    top: calc(48px + env(safe-area-inset-top) + 8px) !important;
+    bottom: auto !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 60dvh !important;
+    overflow-y: auto !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* ── Mobile bulk-select bar ────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .hms-bulk-bar {
+    bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+  }
 }

@@ -1,15 +1,26 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+const OUTCOME_TONE = {
+  ORDER: "green",
+  PROSPECT: "blue",
+  NO_INTEREST: "yellow",
+  NOT_MET: "red",
+};
 
-function outcomeBadge(key) {
-  if (key === "ORDER") return ["badge badge-green", "Order received"];
-  if (key === "PROSPECT") return ["badge badge-blue", "Prospect / follow-up needed"];
-  if (key === "NO_INTEREST") return ["badge badge-yellow", "No interest"];
-  if (key === "NOT_MET") return ["badge badge-red", "Client not met"];
-  return ["badge", key || ""];
+const OUTCOME_LABEL = {
+  ORDER: "Order received",
+  PROSPECT: "Prospect / follow-up needed",
+  NO_INTEREST: "No interest",
+  NOT_MET: "Client not met",
+};
+
+function outcomeBadge(key, t) {
+  return <StatusPill tone={OUTCOME_TONE[key] || "gray"} label={t(OUTCOME_LABEL[key] || key || "")} />;
 }
 
 export default function Recap({ monthly }) {
@@ -44,10 +55,11 @@ export default function Recap({ monthly }) {
               <div className="month-foot-label" style={{ marginBottom: 6 }}>{t("Outcome")}</div>
               {m.outcomes.some((o) => o.count > 0) ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {m.outcomes.filter((o) => o.count > 0).map((o) => {
-                    const [c, l] = outcomeBadge(o.key);
-                    return <span key={o.key} className={c} style={{ alignSelf: "flex-start" }}>{t(l)} · {o.count}</span>;
-                  })}
+                  {m.outcomes.filter((o) => o.count > 0).map((o) => (
+                    <span key={o.key} style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      {outcomeBadge(o.key, t)} <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>· {o.count}</span>
+                    </span>
+                  ))}
                 </div>
               ) : (
                 <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("No completed visits")}</span>
@@ -93,7 +105,7 @@ export default function Recap({ monthly }) {
         </div>
       )) : (
         <div className="card">
-          <div className="empty"><div className="empty-title">{t("No visit data yet")}</div></div>
+          <EmptyState title="No visit data yet" />
         </div>
       )}
     </div>

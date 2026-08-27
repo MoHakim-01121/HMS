@@ -3,6 +3,7 @@ import { usePage } from "@inertiajs/react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt as fmtNum, fmtDate } from "../../utils/format.js";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { heatColor } from "../../components/mapColors.js";
@@ -223,9 +224,6 @@ function formatAI(text) {
 }
 
 const SPARK = <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />;
-
-const fmtNum = (n) => new Intl.NumberFormat("en-US").format(n || 0);
-const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short" }) : "—";
 
 function heroPill(s) {
   if (s === "DEFINITE") return { label: "Definite", tone: "green" };

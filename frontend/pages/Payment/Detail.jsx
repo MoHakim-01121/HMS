@@ -95,6 +95,7 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
             { label: t("Original"), icon: "wallet", value: `${payment.amount?.toLocaleString()} ${payment.currency}` },
             { label: t("Exchange Rate"), value: payment.exchange_rate },
             { label: t("Method"), icon: "invoice", value: payment.method || "—" },
+            { label: t("Received In"), icon: "wallet", value: payment.received_in_display || "—" },
             { label: t("Date"), value: payment.payment_date || "—" },
             { label: t("Reference"), value: payment.reference || "—" },
             payment.bank_name ? { label: t("Bank"), value: payment.bank_name } : null,

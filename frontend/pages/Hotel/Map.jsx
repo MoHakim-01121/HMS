@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import { fetchJson } from "../../utils/fetchJson.js";
 import { distColor } from "../../components/mapColors.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -286,8 +287,7 @@ export default function HotelMap() {
       expose("clearSearch", clearSearch);
       expose("applyFilters", applyFilters);
 
-      fetch("/hotels/map/data/")
-        .then((r) => r.json())
+      fetchJson("/hotels/map/data/")
         .then((data) => {
           if (disposed) return;
           allHotels = data.hotels;
@@ -352,7 +352,7 @@ export default function HotelMap() {
             <div className="fp-divider" style={{ margin: "6px 0" }} />
             <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">{t("Has Avg / Capacity")}</span><div id="sw-avg" className="fp-toggle-switch" /></div>
             <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">{t("Show Routes")}</span><div id="sw-route" className="fp-toggle-switch on" /></div>
-            <div className="fp-reset-wrap"><button className="fp-reset" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
+            <div className="fp-reset-wrap"><button type="button" className="fp-reset" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
           </div>
         </div>
       </div>
@@ -512,7 +512,7 @@ const CSS = `
   html, body { overflow: hidden; height: 100%; }
   #map-wrap { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: auto; }
   .leaflet-control-attribution { display: none !important; }
-  #bottom-nav { display: none !important; }
+  #m-bottom-nav { display: none !important; }
   .hotel-panel { display: none !important; }
   .hud-coords  { display: none; }
   .map-legend  { display: none; }

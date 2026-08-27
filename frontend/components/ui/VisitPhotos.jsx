@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { getCsrf } from "../../utils/csrf.js";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { showToast } from "../shadcn/toast.jsx";
 import Section from "../shadcn/section.jsx";
@@ -18,11 +17,10 @@ export default function VisitPhotos({ visitId, initial = [], canEdit }) {
       const fd = new FormData();
       fd.append("file", file);
       try {
-        const d = await fetch(`/visits/${visitId}/photos/upload/`, {
+        const d = await fetchJson(`/visits/${visitId}/photos/upload/`, {
           method: "POST",
-          headers: { "X-CSRFToken": getCsrf() },
           body: fd,
-        }).then((r) => r.json());
+        });
         if (d.error) { showToast(d.error, "error"); continue; }
         setItems((prev) => [...prev, { id: d.id, url: d.url }]);
       } catch {

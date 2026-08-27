@@ -11,6 +11,7 @@ import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Dialog, DialogContent } from "../../components/shadcn/ui/dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
 const CardField = ({ name, cell, children }) => (
   <FormField name={name} className={cell}>{children}</FormField>
@@ -21,8 +22,6 @@ const RemoveButton = ({ onClick, label }) => (
     <Icon name="trash" size={13} />
   </Button>
 );
-
-const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 const blankRes = () => ({ reservation_number: "", hotel: "", check_in: "", check_out: "", reservation_total: "" });
 

@@ -8,8 +8,7 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+import { fmt } from "../../utils/format.js";
 
 export default function Detail({ penalty: p }) {
   const { t } = useI18n();

@@ -17,13 +17,13 @@ const STATUS_TONE = {
 };
 
 const ENTRY_TYPE_TONE = {
-  charge: "badge-blue",
-  payment: "badge-green",
-  allocate: "badge-yellow",
-  transfer: "badge-purple",
-  refund: "badge-orange",
-  penalty: "badge-red",
-  reversal: "badge-gray",
+  charge: "blue",
+  payment: "green",
+  allocate: "yellow",
+  transfer: "purple",
+  refund: "orange",
+  penalty: "red",
+  reversal: "gray",
 };
 
 export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0 }) {
@@ -69,9 +69,7 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
   const entryColumns = [
     { header: t("Entry #"), render: (e) => <span className="font-mono text-xs">{e.entry_number}</span> },
     { header: t("Type"), render: (e) => (
-      <span className={`badge ${ENTRY_TYPE_TONE[e.entry_type] || "badge-gray"}`}>
-        {e.entry_type_display}
-      </span>
+      <StatusPill tone={ENTRY_TYPE_TONE[e.entry_type] || "gray"} label={e.entry_type_display} />
     )},
     { header: t("Description"), render: (e) => e.description },
     { header: t("Date"), render: (e) => e.entry_date },

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { loadLeaflet } from "../../utils/leaflet.js";
+import { fetchJson } from "../../utils/fetchJson.js";
 import { MAP, heatColor } from "../../components/mapColors.js";
 
 // Client map — imperative Leaflet app ported from the original client_map
@@ -119,8 +120,7 @@ export default function ClientMap() {
       expose("setFilter", setFilter);
       expose("closeSheet", closeSheet);
 
-      fetch("/clients/map/data/")
-        .then((r) => r.json())
+      fetchJson("/clients/map/data/")
         .then((data) => {
           if (disposed) return;
           allClients = data.clients;
@@ -223,7 +223,7 @@ const CSS = `
   html, body { overflow: hidden; height: 100%; }
   #map-wrap { position: fixed; inset: 0; height: auto; }
   .leaflet-control-attribution { display: none !important; }
-  #bottom-nav { display: none !important; }
+  #m-bottom-nav { display: none !important; }
   .map-filter { top: 0; left: 0; right: 0; max-width: none; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); gap: 6px; flex-wrap: nowrap; overflow-x: auto; background: color-mix(in srgb, var(--popover) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); -ms-overflow-style: none; scrollbar-width: none; }
   .map-filter::-webkit-scrollbar { display: none; }
   .map-legend { bottom: 16px; }

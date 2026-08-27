@@ -1,8 +1,8 @@
 import { Icon } from "../../components/icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
 const ROOM_TYPES = ["Double", "Triple", "Quad", "Quint"];
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 const EMPTY_ROOM = { room_type: "", meals: "", quantity: 1, price: "" };
 
 export default function RoomRows({ rooms, onChange, nights }) {
