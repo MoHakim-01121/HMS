@@ -105,7 +105,6 @@ def _validate_balance(lines):
         )
 
 
-@transaction.atomic
 def create_journal_entry(
     entry_type,
     description,
@@ -118,120 +117,35 @@ def create_journal_entry(
     is_reversal=False,
     reverses=None,
 ):
-    """Create a balanced, immutable journal entry.
+    """Adapter lama — delegasi ke hw.finance.posting.post_entry.
 
-    Args:
-        entry_type: JournalEntry TYPE_* constant
-        description: Human-readable description
-        entry_date: Date of the entry
-        lines: List of dicts with keys:
-            - account: Account.* constant
-            - amount_sar: int (positive=debit, negative=credit)
-            - Optional: client, invoice, reservation, service_item, penalty
-            - Optional: note
-        company: Company.* constant
-        reference_type: Source model name (e.g. 'PaymentRecord', 'Invoice')
-        reference_id: Source object PK
-        created_by: User instance
-        is_reversal: True if this is a reversal entry
-        reverses: JournalEntry this reverses
-
-    Returns:
-        JournalEntry instance (committed to DB)
+    `lines` = list {account: <kode v1/v2>, amount_sar: <signed>, dimensi...}.
+    Dipakai penalty_views & confirm_payment sampai dirombak ke posting
+    layer (Fase 5). Kode baru panggil post_entry() langsung.
     """
-    # Validate
-    _validate_balance(lines)
+    from .finance.posting import post_entry
 
-    # Get period
-    period = get_period_for_date(entry_date)
-    check_period_postable(period)
-
-    # Create entry
-    entry = JournalEntry.objects.create(
-        entry_number=JournalEntry.generate_number(),
+    return post_entry(
         entry_type=entry_type,
         description=description,
         entry_date=entry_date,
-        reference_type=reference_type,
-        reference_id=reference_id,
+        lines=lines,
+        company=company,
+        source_type=reference_type,
+        source_id=reference_id,
+        created_by=created_by,
         is_reversal=is_reversal,
         reverses=reverses,
-        period=period,
-        company=company,
-        created_by=created_by,
     )
 
-    # Create lines — spec v1 {account, amount_sar (signed)} → debit/credit v2
-    journal_lines = []
-    for i, line_data in enumerate(lines, start=1):
-        amt = line_data['amount_sar']
-        line = JournalLine(
-            journal_entry=entry,
-            line_no=i,
-            account=_account_obj(line_data['account']),
-            debit=amt if amt > 0 else 0,
-            credit=-amt if amt < 0 else 0,
-            note=line_data.get('note', ''),
-        )
-        for dim in ('client', 'invoice', 'reservation', 'service_item', 'penalty', 'remittance'):
-            if line_data.get(dim) is not None:
-                setattr(line, dim, line_data[dim])
-        journal_lines.append(line)
 
-    JournalLine.objects.bulk_create(journal_lines)
-
-    # Verify balance after save
-    agg = JournalLine.objects.filter(journal_entry=entry).aggregate(
-        d=models.Sum('debit'), c=models.Sum('credit'),
-    )
-    if (agg['d'] or 0) != (agg['c'] or 0):
-        raise JournalImbalanceError(
-            f"Journal entry balance check failed after save: "
-            f"debit {agg['d']:,} != credit {agg['c']:,}"
-        )
-
-    return entry
-
-
-@transaction.atomic
 def reverse_journal_entry(original_entry, reversal_date, created_by, note=''):
-    """Create a reversal entry for an existing journal entry.
+    """Adapter lama — delegasi ke hw.finance.posting.reverse_entry."""
+    from .finance.posting import reverse_entry
 
-    A reversal creates a new entry with opposite lines, effectively
-    zeroing out the original entry's impact.
-    """
-    if original_entry.is_reversal:
-        raise FinanceError("Tidak bisa me-reversal entry yang sudah reversal")
-
-    # Build reversal lines (flip sign)
-    reversal_lines = []
-    for line in original_entry.lines.all():
-        reversal_lines.append({
-            'account': line.account_id,
-            'amount_sar': -(line.debit - line.credit),  # Flip sign
-            'client': line.client,
-            'invoice': line.invoice,
-            'reservation': line.reservation,
-            'service_item': line.service_item,
-            'penalty': line.penalty,
-            'note': f'Reversal of {original_entry.entry_number}',
-        })
-
-    # Create reversal entry
-    reversal = create_journal_entry(
-        entry_type=JournalEntry.TYPE_REVERSAL,
-        description=f'Reversal: {original_entry.description}',
-        entry_date=reversal_date,
-        lines=reversal_lines,
-        company=original_entry.company,
-        reference_type='JournalEntry',
-        reference_id=original_entry.pk,
-        created_by=created_by,
-        is_reversal=True,
-        reverses=original_entry,
+    return reverse_entry(
+        original_entry, reversal_date=reversal_date, created_by=created_by, note=note,
     )
-
-    return reversal
 
 
 # ── Payment helpers ─────────────────────────────────────────────

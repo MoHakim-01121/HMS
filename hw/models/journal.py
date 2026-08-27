@@ -161,7 +161,10 @@ class JournalEntry(models.Model):
                 condition=models.Q(reference_type='') | models.Q(reference_id__isnull=False),
                 name='journal_entry_ref_requires_id',
             ),
-            # seq/source uniqueness ditambahkan di Task 2.2 bersama post_entry().
+            models.UniqueConstraint(
+                fields=['company', 'seq'], name='journal_entry_company_seq_uniq',
+                condition=models.Q(seq__isnull=False),
+            ),
         ]
         indexes = [
             models.Index(fields=['company', 'entry_type'], name='journal_company_type_idx'),
