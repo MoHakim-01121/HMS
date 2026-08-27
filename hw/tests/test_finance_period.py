@@ -97,7 +97,9 @@ class FinancialPeriodCloseLockTest(TestCase):
             description='unbalanced', entry_date=date(2099, 1, 15),
             period=self.period, created_by=self.user,
         )
-        JournalLine.objects.create(journal_entry=entry, account=Account.CASH_SBY, amount_sar=50)
+        JournalLine.objects.create(
+            journal_entry=entry, account_id='1000-KAS-SBY', debit=50, credit=0,
+        )
 
         with self.assertRaises(ValueError):
             self.period.close(self.user)

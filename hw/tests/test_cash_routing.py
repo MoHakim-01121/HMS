@@ -16,6 +16,7 @@ from hw.models import (
     CashAccount as WalletAccount,
 )
 from hw.models.journal import Account as JournalAccount
+from hw.finance import accounts as coa
 from hw.models.period import FinancialPeriod
 from hw import ledger
 from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
@@ -95,7 +96,7 @@ class PaymentRecordRoutingTest(TestCase):
 
         cash_lines = [l for l in journal.lines.all() if l.amount_sar > 0]
         self.assertEqual(len(cash_lines), 1)
-        self.assertEqual(cash_lines[0].account, JournalAccount.CASH_JKT)
+        self.assertEqual(cash_lines[0].account_id, coa.CASH_JKT)
 
         mov = CashMovement.objects.get(invoice=self.invoice)
         self.assertEqual(mov.to_account, WalletAccount.JKT)

@@ -127,14 +127,22 @@ class JournalEntry(models.Model):
     description    = models.CharField(max_length=255)
     entry_date     = models.DateField(db_index=True)
 
-    # Referensi ke sumber data (polymorphic)
-    reference_type = models.CharField(max_length=50, blank=True)
-    reference_id   = models.PositiveIntegerField(null=True, blank=True)
+    # Nomor urut monoton tanpa gap per company (diisi post_entry()).
+    seq            = models.BigIntegerField(null=True, blank=True, db_index=True)
+
+    # Referensi ke sumber data (polymorphic) + idempotency
+    reference_type  = models.CharField(max_length=50, blank=True)
+    reference_id    = models.PositiveIntegerField(null=True, blank=True)
+    idempotency_key = models.CharField(max_length=120, unique=True, null=True, blank=True)
 
     # Reversal tracking
     is_reversal    = models.BooleanField(default=False)
     reversed_by    = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='reversed_entries')
-    reverses       = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='reversals_of')
+    reverses       = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='reversals_of')
+
+    # Tamper-evidence: rantai hash antar entry (diisi post_entry()).
+    prev_hash      = models.CharField(max_length=64, blank=True)
+    entry_hash     = models.CharField(max_length=64, blank=True, db_index=True)
 
     # Scope
     period   = models.ForeignKey('FinancialPeriod', on_delete=models.PROTECT, related_name='journal_entries')
@@ -153,6 +161,7 @@ class JournalEntry(models.Model):
                 condition=models.Q(reference_type='') | models.Q(reference_id__isnull=False),
                 name='journal_entry_ref_requires_id',
             ),
+            # seq/source uniqueness ditambahkan di Task 2.2 bersama post_entry().
         ]
         indexes = [
             models.Index(fields=['company', 'entry_type'], name='journal_company_type_idx'),
@@ -164,15 +173,16 @@ class JournalEntry(models.Model):
 
     @property
     def total_debit(self):
-        return sum(l.amount_sar for l in self.lines.all() if l.amount_sar > 0)
+        return sum(l.debit for l in self.lines.all())
 
     @property
     def total_credit(self):
-        return abs(sum(l.amount_sar for l in self.lines.all() if l.amount_sar < 0))
+        return sum(l.credit for l in self.lines.all())
 
     @property
     def is_balanced(self):
-        return self.lines.aggregate(total=models.Sum('amount_sar'))['total'] == 0
+        agg = self.lines.aggregate(d=models.Sum('debit'), c=models.Sum('credit'))
+        return (agg['d'] or 0) == (agg['c'] or 0)
 
     @staticmethod
     def generate_number():
@@ -192,51 +202,72 @@ class JournalEntry(models.Model):
 
 
 class JournalLine(models.Model):
-    """Single leg of a journal entry.
+    """Satu kaki dari journal entry — debit XOR credit, non-negatif.
 
-    Positive amount = debit (money masuk / aset naik / pendapatan)
-    Negative amount = credit (money keluar / utang naik / beban naik)
-
-    Invariant: SUM(lines untuk satu journal_entry) = 0
+    Invariant per journal_entry per currency: SUM(debit) == SUM(credit).
+    `amount_sar` (signed) tersedia sebagai property untuk kode pembaca lama.
     """
 
-    journal_entry = models.ForeignKey(JournalEntry, on_delete=models.CASCADE, related_name='lines')
-    account       = models.CharField(max_length=50, choices=Account.choices)
+    journal_entry = models.ForeignKey(JournalEntry, on_delete=models.PROTECT, related_name='lines')
+    line_no       = models.PositiveSmallIntegerField(default=1)
+    account       = models.ForeignKey('LedgerAccount', on_delete=models.PROTECT, related_name='+')
 
-    # Dimensi — salah satu atau lebih bisa null
-    client        = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    invoice       = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    debit         = models.BigIntegerField(default=0)   # SAR minor units, >= 0
+    credit        = models.BigIntegerField(default=0)   # SAR minor units, >= 0
+    currency      = models.CharField(max_length=3, default='SAR')
+
+    # Jejak mata uang asal (opsional)
+    orig_amount   = models.BigIntegerField(null=True, blank=True)
+    orig_currency = models.CharField(max_length=3, blank=True)
+    fx_rate       = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
+
+    # Dimensi analitik — snapshot, salah satu atau lebih bisa null
+    client        = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    invoice       = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     reservation   = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     service_item  = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     penalty       = models.ForeignKey('CancellationPenalty', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    remittance    = models.ForeignKey('Remittance', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
 
-    amount_sar    = models.IntegerField()
-    note          = models.TextField(blank=True)
+    note          = models.CharField(max_length=255, blank=True)
 
     class Meta:
-        ordering            = ['id']
+        ordering            = ['journal_entry_id', 'line_no', 'id']
         verbose_name        = 'Journal Line'
         verbose_name_plural = 'Journal Lines'
         constraints = [
             models.CheckConstraint(
-                condition=~models.Q(amount_sar=0),
-                name='journal_line_amount_nonzero',
+                condition=models.Q(debit__gte=0) & models.Q(credit__gte=0),
+                name='journal_line_amounts_non_negative',
+            ),
+            models.CheckConstraint(
+                condition=(models.Q(debit__gt=0) & models.Q(credit=0))
+                          | (models.Q(debit=0) & models.Q(credit__gt=0)),
+                name='journal_line_exactly_one_side',
+            ),
+            models.UniqueConstraint(
+                fields=['journal_entry', 'line_no'], name='journal_line_no_uniq',
             ),
         ]
         indexes = [
             models.Index(fields=['account', 'client'], name='journal_acct_client_idx'),
             models.Index(fields=['account', 'invoice'], name='journal_acct_invoice_idx'),
             models.Index(fields=['client', 'account'], name='journal_client_acct_idx'),
+            models.Index(fields=['reservation', 'account'], name='journal_res_acct_idx'),
         ]
 
     def __str__(self):
-        sign = '+' if self.amount_sar > 0 else ''
-        return f"{self.get_account_display()}: {sign}{self.amount_sar:,}"
+        return f"{self.account_id}: {self.debit:,} / {self.credit:,}"
+
+    @property
+    def amount_sar(self):
+        """Signed: +debit / -credit. Kompat dengan pembaca lama."""
+        return self.debit - self.credit
 
     @property
     def is_debit(self):
-        return self.amount_sar > 0
+        return self.debit > 0
 
     @property
     def is_credit(self):
-        return self.amount_sar < 0
+        return self.credit > 0

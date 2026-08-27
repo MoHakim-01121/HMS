@@ -6,12 +6,7 @@ from inertia import render as inertia_render
 
 from .. import ledger
 from ..models import Client
-from ..models.journal import (
-    JournalEntry,
-    JournalLine,
-    Account as JournalAccount,
-    ACCOUNT_TYPE_MAP,
-)
+from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..permissions import require_perm
 from .helpers import get_active_company, _parse_date, serialize_journal_entry, journal_line_dimension
 
@@ -20,8 +15,8 @@ from .helpers import get_active_company, _parse_date, serialize_journal_entry, j
 def journal_list(request):
     company = get_active_company(request)
     qs = JournalEntry.objects.filter(company=company).annotate(
-        debit=Sum('lines__amount_sar', filter=Q(lines__amount_sar__gt=0)),
-        credit=Sum('lines__amount_sar', filter=Q(lines__amount_sar__lt=0)),
+        debit=Sum('lines__debit'),
+        credit=Sum('lines__credit'),
     )
 
     entry_type = request.GET.get('type', '')
@@ -56,26 +51,23 @@ def journal_detail(request, pk):
         JournalEntry.objects.select_related('period', 'created_by'), pk=pk,
     )
     lines = entry.lines.select_related(
-        'client', 'invoice', 'reservation', 'service_item', 'penalty',
+        'account', 'client', 'invoice', 'reservation', 'service_item', 'penalty',
     )
-    totals = entry.lines.aggregate(
-        debit=Sum('amount_sar', filter=Q(amount_sar__gt=0)),
-        credit=Sum('amount_sar', filter=Q(amount_sar__lt=0)),
-    )
+    totals = entry.lines.aggregate(debit=Sum('debit'), credit=Sum('credit'))
     return inertia_render(request, 'Finance/JournalDetail', props={
         'entry': serialize_journal_entry(
             entry,
             is_reversal=entry.is_reversal,
             reverses_id=entry.reverses_id,
             debit=totals['debit'] or 0,
-            credit=abs(totals['credit'] or 0),
+            credit=totals['credit'] or 0,
         ),
         'created_by': entry.created_by.get_username() if entry.created_by else '',
         'reverses_number': entry.reverses.entry_number if entry.reverses else None,
         'lines': [{
             'id': ln.id,
-            'account': ln.account,
-            'account_display': ln.get_account_display(),
+            'account': ln.account_id,
+            'account_display': ln.account.name,
             'amount_sar': ln.amount_sar,
             'note': ln.note,
             'dim': journal_line_dimension(ln),
@@ -95,28 +87,25 @@ def trial_balance(request):
     if date_to:
         qs = qs.filter(journal_entry__entry_date__lte=date_to)
 
-    raw = qs.values('account').annotate(
-        debit=Sum('amount_sar', filter=Q(amount_sar__gt=0)),
-        credit=Sum('amount_sar', filter=Q(amount_sar__lt=0)),
-    )
+    raw = qs.values('account').annotate(debit=Sum('debit'), credit=Sum('credit'))
     by_account = {r['account']: r for r in raw}
 
     groups = []
     total_debit = total_credit = 0
-    for acc in JournalAccount:
-        row = by_account.get(acc.value)
+    for acc in LedgerAccount.objects.all():
+        row = by_account.get(acc.code)
         if not row:
             continue
         debit = row['debit'] or 0
-        credit = abs(row['credit'] or 0)
+        credit = row['credit'] or 0
         net = debit - credit
         total_debit += debit
         total_credit += credit
         groups.append({
-            'account': acc.value,
-            'account_display': acc.label,
-            'type': ACCOUNT_TYPE_MAP[acc].value,
-            'type_display': ACCOUNT_TYPE_MAP[acc].label,
+            'account': acc.code,
+            'account_display': acc.name,
+            'type': acc.type,
+            'type_display': acc.get_type_display(),
             'debit': debit,
             'credit': credit,
             'net': net,

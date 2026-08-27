@@ -13,6 +13,7 @@ from hw.models import (
     Reservation,
 )
 from hw.models.journal import JournalEntry, JournalLine
+from hw.finance import accounts as coa
 
 
 def _props(response):
@@ -51,8 +52,13 @@ class FinanceViewsTest(TestCase):
             company=company,
             created_by=self.user,
         )
-        for account, amount in legs:
-            JournalLine.objects.create(journal_entry=je, account=account, amount_sar=amount)
+        for i, (account, amount) in enumerate(legs, start=1):
+            JournalLine.objects.create(
+                journal_entry=je, line_no=i,
+                account_id=coa.resolve_account_code(account),
+                debit=amount if amount > 0 else 0,
+                credit=-amount if amount < 0 else 0,
+            )
         return je
 
     # â”€â”€ Journal â”€â”€
@@ -82,11 +88,11 @@ class FinanceViewsTest(TestCase):
             created_by=self.user,
         )
         JournalLine.objects.create(
-            journal_entry=je, account='receivable', amount_sar=7000,
+            journal_entry=je, line_no=1, account_id=coa.AR, debit=7000, credit=0,
             client=self.konoz_client, invoice=self.invoice,
         )
         JournalLine.objects.create(
-            journal_entry=je, account='income_hotel', amount_sar=-7000,
+            journal_entry=je, line_no=2, account_id=coa.INC_HOTEL, debit=0, credit=7000,
             invoice=self.invoice,
         )
         r = self.client.get(reverse('journal_detail', args=[je.pk]))
@@ -106,8 +112,8 @@ class FinanceViewsTest(TestCase):
         self.assertEqual(props['total_debit'], 8000)
         self.assertEqual(props['total_credit'], 8000)
         accounts = {g['account']: g for g in props['groups']}
-        self.assertEqual(accounts['cash_sby']['debit'], 5000)
-        self.assertEqual(accounts['income_hotel']['credit'], 3000)
+        self.assertEqual(accounts[coa.CASH_SBY]['debit'], 5000)
+        self.assertEqual(accounts[coa.INC_HOTEL]['credit'], 3000)
 
     def test_trial_balance_excludes_other_company(self):
         self._je(7, company='ijabah', legs=(('cash_sby', 99000), ('receivable', -99000)))
@@ -122,7 +128,7 @@ class FinanceViewsTest(TestCase):
             'date_from': '2026-04-01', 'date_to': '2026-12-31',
         })
         accounts = {g['account'] for g in _props(r)['groups']}
-        self.assertNotIn('cash_sby', accounts)
+        self.assertNotIn(coa.CASH_SBY, accounts)
 
     # â”€â”€ Client Ledger (statements) â”€â”€
 
