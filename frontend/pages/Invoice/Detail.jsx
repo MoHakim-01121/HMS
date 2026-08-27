@@ -11,8 +11,7 @@ import LastBilling from "../../components/ui/LastBilling.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+import { fmt } from "../../utils/format.js";
 
 function heroPill(total, remaining) {
   if (remaining === 0) return { label: "Paid", tone: "green" };

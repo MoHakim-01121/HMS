@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent } from "./ui/dialog.jsx";
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "./ui/command.jsx";
+import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const TYPE_LABEL = { CL: "Conf. Letter", INV: "Invoice Hotel", SVC: "Invoice Services" };
@@ -34,8 +35,7 @@ export default function SearchOverlay({ open, onClose }) {
     setState({ kind: "loading" });
     timer.current = setTimeout(async () => {
       try {
-        const res = await fetch("/search/?q=" + encodeURIComponent(query));
-        const data = await res.json();
+        const data = await fetchJson("/search/?q=" + encodeURIComponent(query));
         setState({ kind: "results", data });
       } catch {
         setState({ kind: "error" });
@@ -62,9 +62,8 @@ export default function SearchOverlay({ open, onClose }) {
           blur is no longer set here — DialogOverlay carries it for every
           overlay in the app now (see dialog.jsx). */}
       <DialogContent
-        className="overflow-hidden p-0 rounded-[24px] border-2 border-border shadow-2xl bg-card"
+        className="overflow-hidden p-0 rounded-[20px] border border-border shadow-2xl bg-card max-w-[min(576px,calc(100%-2rem))] max-[600px]:top-[30%] max-[600px]:translate-y-[-50%]"
         showCloseButton={false}
-        style={{ maxWidth: 576 }}
       >
         <Command shouldFilter={false}>
           <CommandInput

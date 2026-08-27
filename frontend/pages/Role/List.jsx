@@ -118,7 +118,7 @@ export default function List({ roles = [], modules = [], current_role }) {
             },
             {
               header: t("Permissions"),
-              className: "col-m-secondary",
+              className: "col-m-meta",
               render: (r) => {
                 const { modules: m, grants } = summarise(r.permissions);
                 return <span className="col-dim">{t("{m} modules · {grants} permissions", { m, grants })}</span>;

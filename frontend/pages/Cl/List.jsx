@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
@@ -20,6 +21,14 @@ function statusBadge(s) {
   if (s === "DEFINITE") return ["badge badge-green", "Definite"];
   if (s === "CANCELLED") return ["badge badge-red", "Cancelled"];
   return ["badge badge-yellow", "Tentative"];
+}
+
+// Mobile card only: "12/08/2026" -> "12 Aug" so the stay line stays short
+// enough to leave room for the hotel name above it.
+function shortDate(dmy) {
+  const [d, m, y] = (dmy || "").split("/");
+  if (!d || !m || !y) return dmy || "?";
+  return new Date(+y, +m - 1, +d).toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
 // Django reads ?status=a&status=b (repeated), so build the query string by hand.
@@ -163,6 +172,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         {letters.length ? (
           <>
             <Table
+              mobileStub
               columns={[
                 {
                   header: t("No CL"),
@@ -189,10 +199,20 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   className: "col-ellipsis-sm col-muted col-m-meta",
                   render: (cl) => (
                     <>
-                      <span>{cl.hotel_name}</span>
-                      {(cl.check_in || cl.check_out) && (
-                        <span className="m-only" style={{ fontVariantNumeric: "tabular-nums" }}>{cl.check_in || "?"} - {cl.check_out || "?"}</span>
-                      )}
+                      <span className="m-hide">{cl.hotel_name}</span>
+                      <span className="m-only m-card-hotelstay">
+                        <span className="m-card-hotel-row">
+                          <Icon name="hotels" size={11} />
+                          <span className="m-card-hotel-name">{cl.hotel_name}</span>
+                        </span>
+                        {(cl.check_in || cl.check_out) && (
+                          <span className="m-card-stay-row">
+                            <Icon name="calendar" size={11} />
+                            <span className="m-card-stay-dates">{shortDate(cl.check_in)} – {shortDate(cl.check_out)}</span>
+                            {!!cl.num_nights && <span className="m-card-nights">{t("{n} nights", { n: cl.num_nights })}</span>}
+                          </span>
+                        )}
+                      </span>
                     </>
                   ),
                 },
@@ -204,8 +224,11 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   render: (cl) => (
                     <>
                       <span className="m-hide">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : <span className="col-dim">—</span>}</span>
-                      <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
-                      <span className="m-only">{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>
+                      {!!cl.total_rooms && <span className="m-only m-card-rooms">{cl.total_rooms} {t("rooms")}</span>}
+                      <span className="m-only m-card-total-group">
+                        <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
+                        <span>{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>
+                      </span>
                     </>
                   ),
                 },
@@ -229,14 +252,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
             <Pagination pagination={pagination} unit={t("documents")} onPage={(p) => go({ page: p })} />
           </>
         ) : (
-          <div className="empty">
-            <Icon name="cl" size={36} strokeWidth={1.5} />
-            {q ? (
-              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
-            ) : (
-              <><div className="empty-title">{t("No documents yet")}</div><div className="empty-sub">{t("Use the Create New button in the top right")}</div></>
-            )}
-          </div>
+          q ? <EmptyState iconName="cl" title="No results" sub="Try adjusting your search filters" /> : <EmptyState iconName="cl" title="No documents yet" sub="Use the Create New button in the top right" />
         )}
       </div>
       {confirmDialog}

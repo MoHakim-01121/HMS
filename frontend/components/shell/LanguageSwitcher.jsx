@@ -49,47 +49,28 @@ export default function LanguageSwitcher({ compact = false }) {
     );
   }
 
-  // Mobile/compact: dropdown matching app's co-option pattern
+  // Mobile/compact: one row, matching app's co-option pattern. No dropdown —
+  // tapping it switches straight to the other language; the badge on the
+  // right just labels what the tap does.
+  const other = LANGUAGES.find((l) => l.code !== locale) || LANGUAGES[1];
   return (
-    <div className="hms-lang-dropdown">
-      <button
-        type="button"
-        className="hms-lang-trigger co-option"
-        aria-haspopup="listbox"
-        aria-expanded={false}
-        aria-label={t("Language")}
-        onClick={(e) => {
-          e.stopPropagation();
-          e.currentTarget.setAttribute("aria-expanded", "true");
-        }}
-      >
+    <button
+      type="button"
+      className="hms-lang-trigger co-option"
+      aria-label={t("Switch language to {lang}", { lang: other.label })}
+      onClick={(e) => {
+        e.stopPropagation();
+        change(other.code);
+      }}
+    >
+      <span className="hms-lang-trigger-label">
+        <Icon name="globe" size={13} />
         <span className="hms-lang-name">{current.label}</span>
-        <Icon name="chevron" size={12} strokeWidth={2.5} className="hms-lang-chevron" />
-      </button>
-      <ul
-        className="hms-lang-list co-option-list"
-        role="listbox"
-        aria-label={t("Language")}
-      >
-        {LANGUAGES.map((lang) => (
-          <li key={lang.code} role="option" aria-selected={locale === lang.code}>
-            <button
-              type="button"
-              className={`hms-lang-option ${locale === lang.code ? "active" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                change(lang.code);
-                document.querySelector(".hms-lang-trigger")?.setAttribute("aria-expanded", "false");
-              }}
-            >
-              <span className="hms-lang-name">{lang.label}</span>
-              {locale === lang.code && (
-                <Icon name="check" size={12} strokeWidth={2.5} className="hms-lang-check" />
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+      </span>
+      <span className="hms-lang-switch-badge">
+        {t("Switch")}
+        <Icon name="swap" size={11} strokeWidth={2.2} />
+      </span>
+    </button>
   );
 }

@@ -10,8 +10,9 @@ import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { REM_TABLE_CSS, REM_FORM_CSS } from "./remittanceStyles.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDec } from "../../utils/format.js";
 
-const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmt = (n) => fmtDec(n, 0);
 
 export default function Edit({ rem, lines = [], reservasi = [] }) {
   const { t } = useI18n();

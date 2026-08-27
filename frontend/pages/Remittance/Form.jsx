@@ -11,8 +11,9 @@ import { Input } from "../../components/shadcn/ui/input.jsx";
 import { FormModalContext } from "../../components/shadcn/form-modal.jsx";
 import { REM_TABLE_CSS, REM_FORM_CSS } from "./remittanceStyles.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDec } from "../../utils/format.js";
 
-const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const fmt = (n) => fmtDec(n, 0);
 
 export default function Form({ reservasi = [], today, error }) {
   const { t } = useI18n();
@@ -24,6 +25,9 @@ export default function Form({ reservasi = [], today, error }) {
     note: "",
     proof: null,
     lines: "[]",
+    amount_idr: "",
+    exchange_rate: "",
+    received_amount_sar: "",
   });
 
   const hasRows = reservasi.length > 0;
@@ -31,6 +35,8 @@ export default function Form({ reservasi = [], today, error }) {
     () => Object.values(amounts).reduce((sum, v) => sum + (parseFloat(v) || 0), 0),
     [amounts]
   );
+  const transferAmount = parseFloat(form.data.received_amount_sar) || parseFloat(form.data.amount_idr) > 0;
+  const canSave = total > 0 || transferAmount;
 
   const setAmount = (ln, v) => setAmounts((prev) => ({ ...prev, [ln]: v }));
 
@@ -72,6 +78,21 @@ export default function Form({ reservasi = [], today, error }) {
                 value={form.data.date} onChange={(v) => form.setData("date", v)}
               />
               <FormField
+                label={t("Amount IDR")} name="amount_idr" type="number" min="0"
+                value={form.data.amount_idr} onChange={(v) => form.setData("amount_idr", v)}
+                placeholder="480000000"
+              />
+              <FormField
+                label={t("Exchange Rate (IDR/SAR)")} name="exchange_rate" type="number" step="0.01" min="0"
+                value={form.data.exchange_rate} onChange={(v) => form.setData("exchange_rate", v)}
+                placeholder="4800"
+              />
+              <FormField
+                label={t("Received at HQ (SAR)")} name="received_amount_sar" type="number" min="0"
+                value={form.data.received_amount_sar} onChange={(v) => form.setData("received_amount_sar", v)}
+                placeholder="100000"
+              />
+              <FormField
                 label={t("Receipt Reference")} name="receipt_reference"
                 value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
                 placeholder={t("Receipt code from HQ")}
@@ -95,7 +116,16 @@ export default function Form({ reservasi = [], today, error }) {
 
           <FormSection
             label={t("Reservations")}
-            action={hasRows && <Button type="button" variant="ghost" size="sm" onClick={isiSemua}>{t("Fill All")}</Button>}
+            action={
+              <>
+                {hasRows && transferAmount && total > 0 && total !== (parseFloat(form.data.received_amount_sar) || 0) && (
+                  <span style={{ fontSize: 12, color: "var(--muted-foreground)", alignSelf: "center", marginRight: 8 }}>
+                    {t("Allocated {total} of {received} SAR", { total: fmt(total), received: fmt(parseFloat(form.data.received_amount_sar) || 0) })}
+                  </span>
+                )}
+                {hasRows && <Button type="button" variant="ghost" size="sm" onClick={isiSemua}>{t("Fill All")}</Button>}
+              </>
+            }
           >
             {hasRows ? (
               <>
@@ -163,7 +193,7 @@ export default function Form({ reservasi = [], today, error }) {
 
           <FormActions
             cancelHref="/remittance/"
-            submitLabel={hasRows ? (form.processing ? t("Saving…") : t("Save Remittance")) : undefined}
+            submitLabel={canSave ? (form.processing ? t("Saving…") : t("Save Remittance")) : undefined}
             processing={form.processing}
           />
         </FormPanel>

@@ -13,9 +13,9 @@ import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { postForm } from "../../utils/inertiaForm.js";
 import RoomRows from "./RoomRows.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 
 const STATUS = [["DEFINITE", "Definite"], ["TENTATIVE", "Tentative"], ["CANCELLED", "Cancelled"]];
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
 
 function nightsBetween(ci, co) {
   if (!ci || !co) return 1;
@@ -188,10 +188,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
             </FormField>
           </FormSection>
 
-          <FormActions
-            cancelHref={closeHref}
-            submitLabel={edit ? t("Save Changes") : t("Create CL")}
-            processing={form.processing} />
+          <div className="cl-desktop-actions">
+            <FormActions
+              cancelHref={closeHref}
+              submitLabel={edit ? t("Save Changes") : t("Create CL")}
+              processing={form.processing} />
+          </div>
 
           <div className="cl-mobile-save-wrap">
             <button type="submit" className="dv-cta" disabled={form.processing}>
@@ -320,5 +322,10 @@ const CSS = `
 
 /* Phones keep the card list forms.css already draws (.cl-rooms-cards). */
 .cl-form .cl-rooms-desktop { display: block; }
-@media (max-width: 600px) { .cl-form .cl-rooms-desktop { display: none; } }
+.cl-form .cl-mobile-save-wrap { display: none; }
+@media (max-width: 600px) {
+  .cl-form .cl-rooms-desktop { display: none; }
+  .cl-form .cl-desktop-actions { display: none; }
+  .cl-form .cl-mobile-save-wrap { display: block; margin-top: 20px; }
+}
 `;

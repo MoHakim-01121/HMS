@@ -3,6 +3,7 @@ import { router } from "@inertiajs/react";
 import StatusBadge from "../../components/ui/StatusBadge.jsx";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
@@ -11,8 +12,8 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+import { listVisit } from "../../utils/listVisit.js";
+import { fmt } from "../../utils/format.js";
 
 const STATUS_OPTS = [
   { val: "", label: "All", cls: "c-all" },
@@ -21,18 +22,16 @@ const STATUS_OPTS = [
   { val: "belum", label: "Unpaid", cls: "c-bel" },
 ];
 
-function buildQuery({ q, status, date_from, date_to, page }) {
-  const p = new URLSearchParams();
-  if (q) p.append("q", q);
-  if (status) p.append("status", status);
-  if (date_from) p.append("date_from", date_from);
-  if (date_to) p.append("date_to", date_to);
-  if (page) p.append("page", page);
-  return "/invoice/?" + p.toString();
-}
+const visit = (params) => listVisit("/invoice/", params);
 
-function visit(params) {
-  router.get(buildQuery(params), {}, { preserveState: true, preserveScroll: true, replace: true });
+function buildQuery({ q, status, date_from, date_to } = {}) {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  if (status) p.set("status", status);
+  if (date_from) p.set("date_from", date_from);
+  if (date_to) p.set("date_to", date_to);
+  const s = p.toString();
+  return s ? `/invoice/?${s}` : "/invoice/";
 }
 
 export default function List({ invoices, total_count, q, status_filter, date_from, date_to, remit_stats, pagination }) {
@@ -227,14 +226,7 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
             />
           </>
         ) : (
-          <div className="empty">
-            <Icon name="invoice" size={36} strokeWidth={1.5} />
-            {q ? (
-              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
-            ) : (
-              <><div className="empty-title">{t("No invoices yet")}</div><div className="empty-sub">{t("Use the Create New button in the top right")}</div></>
-            )}
-          </div>
+          q ? <EmptyState iconName="invoice" title="No results" sub="Try adjusting your search filters" /> : <EmptyState iconName="invoice" title="No invoices yet" sub="Use the Create New button in the top right" />
         )}
       </div>
       {confirmDialog}

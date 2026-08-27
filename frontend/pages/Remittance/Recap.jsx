@@ -1,8 +1,8 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-
-const fmt = (n) => Math.round(n || 0).toLocaleString("en-US");
+import { fmt } from "../../utils/format.js";
 
 export default function Recap({ monthly }) {
   const { t } = useI18n();
@@ -55,7 +55,7 @@ export default function Recap({ monthly }) {
         </div>
       )) : (
         <div className="card">
-          <div className="empty"><div className="empty-title">{t("No remittance data yet")}</div></div>
+          <EmptyState title="No remittance data yet" />
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
@@ -208,14 +209,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
             <Pagination pagination={pagination} unit={t("hotels")} onPage={(p) => go({ page: p })} />
           </>
         ) : (
-          <div className="empty">
-            <Icon name="hotels" size={36} strokeWidth={1.5} />
-            {(q || city_filter || area_filter || stars_filter) ? (
-              <><div className="empty-title">{t("No matching hotels")}</div><div className="empty-sub"><a href="/hotels/" style={{ color: "var(--accent-2)" }}>{t("Reset filter")}</a></div></>
-            ) : (
-              <><div className="empty-title">{t("No hotels yet")}</div><div className="empty-sub">{t("Add your first Makkah hotel")}</div></>
-            )}
-          </div>
+          (q || city_filter || area_filter || stars_filter) ? <EmptyState iconName="hotels" title="No matching hotels" sub="Reset filter" /> : <EmptyState iconName="hotels" title="No hotels yet" sub="Add your first Makkah hotel" />
         )}
       </div>
       {confirmDialog}

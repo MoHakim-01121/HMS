@@ -324,6 +324,12 @@ const PATHS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 3a15.3 15.3 0 014 9 15.3 15.3 0 01-4 9 15.3 15.3 0 01-4-9 15.3 15.3 0 014-9z" />
     </>
   ),
+  swap: (
+    <>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h13m0 0l-4-4m4 4l-4 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 16H7m0 0l4-4m-4 4l4 4" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 15, strokeWidth = 2, ...rest }) {

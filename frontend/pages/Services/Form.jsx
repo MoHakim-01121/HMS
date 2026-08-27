@@ -10,6 +10,9 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDec } from "../../utils/format.js";
+
+const fmt = (n) => fmtDec(n, 0);
 
 /* A control inside a dynamic row card. */
 const CardField = ({ name, cell, children }) => (
@@ -23,7 +26,6 @@ const RemoveButton = ({ onClick, label }) => (
 );
 
 const CURRENCIES = ["SAR", "USD", "IDR"];
-const fmt = (n) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 0 });
 
 const blankService = () => ({ name: "", qty: 1, price: "" });
 

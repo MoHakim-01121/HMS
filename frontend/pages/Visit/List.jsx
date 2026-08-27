@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { router } from "@inertiajs/react";
-import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -19,10 +20,21 @@ const HOUR_END = 18;
 const RANGE_MIN = HOUR_START * 60;
 const RANGE_MAX = HOUR_END * 60;
 
-function statusBadge(s) {
-  if (s === "COMPLETED") return ["badge badge-green", "Completed"];
-  if (s === "CANCELLED") return ["badge badge-red", "Cancelled"];
-  return ["badge badge-yellow", "Planned"];
+const STATUS_TONE = {
+  COMPLETED: "green",
+  CANCELLED: "red",
+};
+
+function statusBadge(s, t) {
+  const tone = STATUS_TONE[s] || "yellow";
+  const label = s === "COMPLETED" ? t("Completed") : s === "CANCELLED" ? t("Cancelled") : t("Planned");
+  return <StatusPill tone={tone} label={label} />;
+}
+
+function statusClass(s) {
+  const tone = STATUS_TONE[s] || "yellow";
+  const map = { green: "badge-green", red: "badge-red", yellow: "badge-yellow" };
+  return `badge ${map[tone] || "badge-gray"}`;
 }
 
 function toMin(s) {
@@ -165,9 +177,9 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
                   { header: t("Client"), className: "col-m-primary", render: (v) => v.client_name || "—" },
                   {
                     header: t("Status"), className: "col-m-badge",
-                    render: (v) => { const [c, l] = statusBadge(v.status); return <span className={c}>{t(l)}</span>; },
+                    render: (v) => statusBadge(v.status, t),
                   },
-                  { header: t("Date"), className: "col-muted col-nowrap", render: (v) => v.scheduled_date + (v.time ? ` · ${v.time}` : "") },
+                  { header: t("Date"), className: "col-muted col-nowrap col-m-hide", render: (v) => v.scheduled_date + (v.time ? ` · ${v.time}` : "") },
                   { header: t("Purpose"), className: "col-ellipsis col-m-secondary", render: (v) => v.purpose },
                   { header: t("Staff"), className: "col-muted col-m-meta", render: (v) => v.staff_name || "—" },
                   {
@@ -187,11 +199,7 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
               <Pagination pagination={pagination} unit={t("visits")} onPage={(p) => go({ page: p })} />
             </>
           ) : (
-            <div className="empty">
-              <Icon name="visits" size={36} strokeWidth={1.5} />
-              <div className="empty-title">{t("No visits yet")}</div>
-              <div className="empty-sub">{t("Use the Create New button in the top right")}</div>
-            </div>
+            <EmptyState iconName="visits" title="No visits yet" sub="Use the Create New button in the top right" />
           )}
         </div>
       ) : (
@@ -227,7 +235,7 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
                     <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 500, color: isToday ? "var(--primary)" : "inherit", marginBottom: 4 }}>{d}</div>
                     {list.slice(0, 2).map((v) => (
                       <div key={v.id} title={`${v.client_name} · ${timeLabel(v)}`} style={{ marginBottom: 2 }}>
-                        <span className={statusBadge(v.status)[0]} style={{ padding: "0 6px", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%", display: "block" }}>
+                        <span className={statusClass(v.status)} style={{ padding: "0 6px", fontSize: 10, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%", display: "block" }}>
                           {timeLabel(v)} {v.client_name}
                         </span>
                       </div>
@@ -252,11 +260,7 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
             </div>
 
             {dayVisits.length === 0 && (
-              <div className="empty">
-                <Icon name="visits" size={36} strokeWidth={1.5} />
-                <div className="empty-title">{t("No visits on this day")}</div>
-                <div className="empty-sub">{t("Click + Add on this day to schedule one")}</div>
-              </div>
+              <EmptyState iconName="visits" title="No visits on this day" sub="Click + Add on this day to schedule one" />
             )}
 
             {timed.length > 0 && (
@@ -289,7 +293,7 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
                   const c = blockColor(v.status);
                   return (
                     <div key={v.id} onClick={() => router.visit(`/visits/${v.id}/`)} style={{ display: "flex", gap: 8, alignItems: "center", borderRadius: 6, padding: "4px 8px", marginBottom: 4, cursor: "pointer", fontSize: 12, background: c.bg, color: c.fg, border: c.border }}>
-                      <span className={statusBadge(v.status)[0]}>{v.status === "COMPLETED" ? t("Completed") : v.status === "CANCELLED" ? t("Cancelled") : t("Planned")}</span>
+                      <span className={statusClass(v.status)}>{v.status === "COMPLETED" ? t("Completed") : v.status === "CANCELLED" ? t("Cancelled") : t("Planned")}</span>
                       <span style={{ fontWeight: 600 }}>{v.client_name}</span>
                       {!is_staff && <span style={{ color: "var(--muted-foreground)" }}>{v.staff_name}</span>}
                     </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
@@ -9,6 +10,7 @@ import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { listVisit } from "../../utils/listVisit.js";
 
 const STATUS_OPTS = [
   { val: "", label: "All", cls: "c-all" },
@@ -24,9 +26,7 @@ function riskBadge(risk) {
 }
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
-function visit(params) {
-  router.get("/clients/", params, { preserveState: true, preserveScroll: true, replace: true });
-}
+const visit = (params) => listVisit("/clients/", params);
 
 export default function List({ clients, total_count, q, status, pagination }) {
   const { t } = useI18n();
@@ -171,7 +171,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
                 className: "col-m-hide col-num",
                 render: (c) => c.avg_days_to_pay != null ? <span className="mono">{c.avg_days_to_pay}d</span> : <span className="col-dim">—</span>,
               },
-              { header: t("Status"), className: "col-m-hide", render: (c) => c.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span> },
+              { header: t("Status"), className: "col-m-badge", render: (c) => c.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span> },
               {
                 header: "",
                 className: "col-m-actions",
@@ -188,14 +188,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
           <Pagination pagination={pagination} unit={t("clients")} onPage={(p) => visit({ q: query, status: status || "", page: p })} />
           </>
         ) : (
-          <div className="empty">
-            <Icon name="user" size={36} strokeWidth={1.5} />
-            {(q || status) ? (
-              <><div className="empty-title">{t("No results")}</div><div className="empty-sub">{t("Try adjusting your search filters")}</div></>
-            ) : (
-              <><div className="empty-title">{t("No clients yet")}</div><div className="empty-sub">{t("Add your first Umrah travel agent")}</div></>
-            )}
-          </div>
+          (q || status) ? <EmptyState iconName="user" title="No results" sub="Try adjusting your search filters" /> : <EmptyState iconName="user" title="No clients yet" sub="Add your first Umrah travel agent" />
         )}
       </div>
       {confirmDialog}
