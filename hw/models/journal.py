@@ -3,6 +3,36 @@ from django.db import models
 from .choices import Company
 
 
+class ImmutableLedgerError(Exception):
+    """Percobaan UPDATE/DELETE pada baris ledger append-only."""
+
+
+class AppendOnlyModel(models.Model):
+    """Baris hanya boleh di-INSERT. Koreksi lewat reversal entry.
+
+    Ditegakkan di app layer di sini + trigger Postgres (migrasi). Queryset
+    .delete()/.update() massal tetap bisa lolos di app layer — trigger PG
+    yang menutupnya di produksi; migrasi data pakai historical model tanpa
+    override ini (mis. purge di 0067)."""
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise ImmutableLedgerError(
+                f"{type(self).__name__} bersifat append-only — tidak bisa di-UPDATE "
+                f"(pk={self.pk}). Buat reversal entry untuk koreksi."
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ImmutableLedgerError(
+            f"{type(self).__name__} bersifat append-only — tidak bisa di-DELETE "
+            f"(pk={self.pk}). Buat reversal entry untuk koreksi."
+        )
+
+
 class AccountType(models.TextChoices):
     """Tipe akun untuk Chart of Accounts."""
     ASSET     = 'asset',     'Asset'
@@ -97,7 +127,7 @@ class LedgerAccount(models.Model):
         return f"{self.code} | {self.name}"
 
 
-class JournalEntry(models.Model):
+class JournalEntry(AppendOnlyModel):
     """Immutable journal entry. Setiap entry harus balance: SUM(lines) = 0.
 
     Tidak ada UPDATE atau DELETE. Koreksi dilakukan via reversal entry.
@@ -204,7 +234,7 @@ class JournalEntry(models.Model):
             return f"JE-{(max(nums) + 1 if nums else 1):06d}"
 
 
-class JournalLine(models.Model):
+class JournalLine(AppendOnlyModel):
     """Satu kaki dari journal entry — debit XOR credit, non-negatif.
 
     Invariant per journal_entry per currency: SUM(debit) == SUM(credit).
