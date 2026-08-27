@@ -20,6 +20,7 @@ class Account(models.TextChoices):
     """
     # Kas / Asset
     CASH_SBY   = 'cash_sby',   'Kas Surabaya'
+    CASH_JKT   = 'cash_jkt',   'Kas Jakarta'
     CASH_PUSAT = 'cash_pusat', 'Kas Pusat (HQ)'
     FX         = 'fx',         'Selisih Kurs'
 
@@ -40,6 +41,7 @@ class Account(models.TextChoices):
 
 ACCOUNT_TYPE_MAP = {
     Account.CASH_SBY:     AccountType.ASSET,
+    Account.CASH_JKT:     AccountType.ASSET,
     Account.CASH_PUSAT:   AccountType.ASSET,
     Account.FX:           AccountType.ASSET,
     Account.RECEIVABLE:   AccountType.ASSET,

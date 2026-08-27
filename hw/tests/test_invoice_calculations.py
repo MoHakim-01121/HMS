@@ -1,9 +1,12 @@
 import csv
 import io
+from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import Invoice, Reservation, CashMovement, ConfirmationLetter, CancellationPenalty
+from hw.models import Invoice, Reservation, CashMovement, ConfirmationLetter, CancellationPenalty, Client
+from hw.models.period import FinancialPeriod
+from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
 
 
 class InvoiceTotalsTest(TestCase):
@@ -75,8 +78,33 @@ class InvoiceTotalsTest(TestCase):
             from_account='client', to_account='sby', amount=250, currency='SAR', exchange_rate=1,
         )
 
+    def test_total_paid_sar_sees_payment_allocated_via_finance_page(self):
+        """Regression for the gap formerly documented here as "KNOWN GAP":
+        allocate_payment() now mirrors its PaymentRecord into the legacy
+        CashMovement/Allocation ledger (same dual-write bridge
+        invoice_billing.py/penalty_views.py already use), so a payment made
+        through the Finance page's "Record Payment" dialog is visible to
+        total_paid_sar/remaining_sar/is_fully_paid exactly like one entered
+        on the invoice's own payment list."""
+        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        client = Client.objects.create(company='konoz', name='Test Client')
+        user = User.objects.create_user('gap_check', password='pw12345')
+        FinancialPeriod.objects.create(
+            name='2026-01', date_from=date(2026, 1, 1), date_to=date(2026, 1, 31),
+        )
+        payment = create_payment_record(
+            invoice=self.invoice, client=client, payment_date=date(2026, 1, 1),
+            amount=400, method='transfer', created_by=user,
+        )
+        confirm_payment(payment, confirmed_by=user)
+        allocate_payment(payment, allocation_date=payment.payment_date, created_by=user)
+
         self.assertEqual(self.invoice.total_paid_sar, 400)
         self.assertEqual(self.invoice.remaining_sar, 600)
+        movement = CashMovement.objects.get(invoice=self.invoice)
+        self.assertEqual(movement.to_account, 'sby')
+        self.invoice.refresh_from_db()
+        self.assertEqual(self.invoice.status, Invoice.STATUS_PARTIAL)
 
 
 class InvoiceExportStatusFilterTest(TestCase):

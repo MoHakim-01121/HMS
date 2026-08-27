@@ -16,11 +16,19 @@ from inertia import render as inertia_render
 
 from ..models import (
     ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity,
-    Account, AllocationReason, Allocation, CashMovement, Charge,
+    CashAccount, AllocationReason, Allocation, CashMovement, Charge,
 )
 from ..permissions import require_perm
 from .. import ledger
-from .helpers import _is_mobile, _page_range_display, get_active_company, _to_float, _parse_date, validate_proof_file
+from .helpers import (
+    _is_mobile,
+    _parse_date,
+    _to_float,
+    get_active_company,
+    pagination_props,
+    period_label as _period_label,
+    validate_proof_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,19 +74,7 @@ def client_list(request):
     return inertia_render(request, "Client/List", props={
         "clients": data, "q": q, "status": status,
         "total_count": paginator.count,
-        "pagination": {
-            "number": page_obj.number,
-            "num_pages": paginator.num_pages,
-            "has_previous": page_obj.has_previous(),
-            "has_next": page_obj.has_next(),
-            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
-            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
-            "has_other_pages": page_obj.has_other_pages(),
-            "range": _page_range_display(page_obj),
-            "start_index": page_obj.start_index(),
-            "end_index": page_obj.end_index(),
-            "count": paginator.count,
-        },
+        "pagination": pagination_props(page_obj),
     })
 
 
@@ -384,13 +380,13 @@ def client_refund(request, pk):
     client_obj = get_object_or_404(Client, pk=pk, company=company)
 
     if request.method == 'POST':
-        from_account = request.POST.get('from_account') or Account.SBY
+        from_account = request.POST.get('from_account') or CashAccount.SBY
         amount = int(round(_to_float(request.POST.get('amount_sar'))))
         note = (request.POST.get('note') or '').strip()
         proof = request.FILES.get('proof')
 
         errors = {}
-        if from_account not in (Account.SBY, Account.PUSAT):
+        if from_account not in (CashAccount.SBY, CashAccount.PUSAT):
             errors['from_account'] = 'Choose where the refund is paid from.'
         if amount <= 0:
             errors['amount_sar'] = 'Enter an amount greater than zero.'
@@ -402,7 +398,7 @@ def client_refund(request, pk):
         if not errors:
             mov = CashMovement.objects.create(
                 company=company, client=client_obj, date=date.today(),
-                from_account=from_account, to_account=Account.CLIENT,
+                from_account=from_account, to_account=CashAccount.CLIENT,
                 amount=amount, currency='SAR', exchange_rate=1,
                 note=note or f'Refund to {client_obj.name}', created_by=request.user,
             )
@@ -466,14 +462,7 @@ def client_statement_pdf(request, pk):
         'balance': r['balance'],
     } for r in statement['rows']]
 
-    if date_from and date_to:
-        period_label = f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}"
-    elif date_from:
-        period_label = f"Sejak {date_from.strftime('%d %b %Y')}"
-    elif date_to:
-        period_label = f"Sampai {date_to.strftime('%d %b %Y')}"
-    else:
-        period_label = 'Semua transaksi'
+    period_label = _period_label(date_from, date_to)
 
     return _render_list_pdf(
         request, Client.objects.none(),

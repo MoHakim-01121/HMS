@@ -51,10 +51,14 @@ from .remittance_views import (
     remittance_list, remittance_new, remittance_detail, remittance_edit,
     remittance_pdf, remittance_delete, remittance_upload_proof, remittance_export_csv,
     remittance_mark_received, remittance_recap, remittance_period_pdf,
-    remittance_ledger_pdf,
+    remittance_ledger_pdf, remittance_tracking,
 )
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
+    penalty_list,
+)
+from .finance_views import (
+    journal_list, journal_detail, trial_balance, statements_list,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
@@ -75,8 +79,9 @@ from .landing_views import (
 )
 
 from ..ai import generate_draft_message, get_chat_reply
+from .. import ledger
 from ..models import ActivityLog, ConfirmationLetter, Hotel, Invoice, Pricelist, Remittance, TeamMember, log_activity
-from ..models.choices import Company
+from ..models.choices import Company, InvoiceType
 from ..permissions import can, can_use_company, default_company, hide_unless
 from .helpers import get_active_company
 
@@ -251,45 +256,37 @@ def public_hotels(request):
     })
 
 
-@login_required
-def home(request):
-    company = get_active_company(request)
-    if request.session.get("active_company") != company:
-        # Either unset, or pointing at a company this user may no longer use.
-        request.session["active_company"] = company
-        request.session.modified = True
+def _pct(cur, prev):
+    if not prev:
+        return None
+    pct = round(((cur - prev) / prev) * 100)
+    return {"dir": "flat" if pct == 0 else ("up" if pct > 0 else "down"),
+            "pct": abs(pct), "cur": cur, "prev": prev}
 
-    today = date.today()
-    week_ahead = today + timedelta(days=7)
-    month_start = today.replace(day=1)
-    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
-    next_month_start = (month_start + timedelta(days=31)).replace(day=1)
 
-    cl_month_count = ConfirmationLetter.objects.filter(
-        company=company, created_at__year=today.year, created_at__month=today.month,
-    ).count()
+def _home_invoice_totals(company, month_start):
+    """Billed/paid/unpaid snapshot over the company's hotel invoices.
 
-    upcoming_checkins = ConfirmationLetter.objects.filter(
-        company=company, check_in__gte=today, check_in__lte=week_ahead,
-    ).count()
+    Paid amounts come from one bulk ledger query (invoice_paid_sar_map) --
+    reading Invoice.total_paid_sar per row used to cost one query each.
+    """
+    hotel_invoices = list(
+        Invoice.objects.filter(
+            invoice_type=InvoiceType.HOTEL, company=company,
+        ).prefetch_related('reservations', 'service_items', 'payments')
+    )
+    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in hotel_invoices])
 
-    # Prior 7-day window (actual check-ins) — the reference for the
-    # "Check-ins Next 7 Days" MoM-style delta.
-    prev_checkins = ConfirmationLetter.objects.filter(
-        company=company, check_in__gte=today - timedelta(days=7), check_in__lt=today,
-    ).count()
-
-    unpaid_count = 0
-    unpaid_total = 0
     total_billed = 0
     total_paid = 0
-    hotel_invoices = Invoice.objects.filter(
-        invoice_type="hotel", company=company,
-    ).prefetch_related('reservations', 'payments')
+    unpaid_count = 0
+    unpaid_total = 0
     for inv in hotel_invoices:
-        total_billed += inv.total_sar
-        total_paid += inv.total_paid_sar
-        remaining = inv.remaining_sar
+        paid = paid_map.get(inv.pk, 0)
+        billed = inv.total_sar
+        total_billed += billed
+        total_paid += paid
+        remaining = billed - paid
         if remaining > 0:
             unpaid_count += 1
             unpaid_total += remaining
@@ -297,7 +294,11 @@ def home(request):
     # Outstanding SAR as of the end of last month — bills issued before this
     # month minus payments dated before this month. Powers the unpaid delta.
     prev_unpaid_total = 0
-    for inv in hotel_invoices.filter(created_at__date__lt=month_start):
+    prev_invoices = Invoice.objects.filter(
+        invoice_type=InvoiceType.HOTEL, company=company,
+        created_at__date__lt=month_start,
+    ).prefetch_related('reservations', 'service_items', 'payments')
+    for inv in prev_invoices:
         paid_before = sum(
             p.amount_sar for p in inv.payments.all()
             if p.payment_date and p.payment_date < month_start
@@ -306,27 +307,20 @@ def home(request):
         if remaining > 0:
             prev_unpaid_total += remaining
 
-    remittance_pending = (
-        Remittance.objects.filter(company=Company.KONOZ, status=Remittance.STATUS_PENDING).count()
-        if company == Company.KONOZ and can(request.user, 'remittance', 'view') else None
-    )
+    return {
+        "billed": total_billed,
+        "paid": total_paid,
+        "unpaid_count": unpaid_count,
+        "unpaid_total": unpaid_total,
+        "prev_unpaid_total": prev_unpaid_total,
+    }
 
-    # Remittance MoM: pending remittances dated this month vs last month.
-    rem_pending_this = Remittance.objects.filter(
-        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
-        date__gte=month_start, date__lt=next_month_start,
-    ).count()
-    rem_pending_prev = Remittance.objects.filter(
-        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
-        date__gte=prev_month_start, date__lt=month_start,
-    ).count()
 
-    # Dashboard trend chart (Homlu-style Dashboard & Analytics section): CL
-    # volume for the trailing 6 months, oldest first, zero-filled so months
-    # with no CLs still show a labeled bar instead of a gap.
-    # CL trend series for the chart period toggle: monthly for 6M/12M, daily
-    # for 7D/30D. Both are zero-filled so quiet spans still show a labeled
-    # baseline instead of a gap.
+def _home_cl_trends(company, today):
+    """CL volume series for the dashboard chart: monthly for 12 months and
+    daily for 30 days, both zero-filled so quiet spans still show a labeled
+    baseline instead of a gap. Also returns counts_by_month so the deltas can
+    reuse it without a second aggregate."""
     twelve_months_start = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
     for _ in range(11):
         twelve_months_start = (twelve_months_start - timedelta(days=1)).replace(day=1)
@@ -356,30 +350,12 @@ def home(request):
         d = thirty_days_start + timedelta(days=i)
         cl_daily.append({"label": d.strftime("%b %d"), "count": counts_by_day.get(d, 0)})
 
-    def _pct(cur, prev):
-        if not prev:
-            return None
-        pct = round(((cur - prev) / prev) * 100)
-        return {"dir": "flat" if pct == 0 else ("up" if pct > 0 else "down"),
-                "pct": abs(pct), "cur": cur, "prev": prev}
+    return counts_by_month, cl_trend, cl_daily
 
-    deltas = {
-        "cl_month": _pct(cl_month_count, counts_by_month.get(prev_month_start.strftime("%Y-%m"), 0)),
-        "checkins": _pct(upcoming_checkins, prev_checkins),
-        "unpaid": _pct(unpaid_total, prev_unpaid_total),
-        "remittance": _pct(rem_pending_this, rem_pending_prev) if remittance_pending is not None else None,
-    }
 
-    # Third-row widgets — Homlu "Top countries" becomes top hotels by total CL
-    # volume (all-time), "World map" becomes an Indonesia client-region heat
-    # map, and "Conversion funnel" becomes the reservation lifecycle. All are
-    # honest to current data: quiet panels simply show their empty state and
-    # light up as hotels/provinces/statuses get recorded.
-    payment_snapshot = {
-        "billed": total_billed,
-        "collected": total_paid,
-        "outstanding": max(total_billed - total_paid, 0),
-    }
+def _home_widgets(company, today):
+    """Third-row dashboard widgets: top hotels by CL volume, client-region
+    heat map, reservation lifecycle funnel, and the six most recent CLs."""
     top_hotels = [
         {"hotel": row["hotel_name"], "count": row["n"]}
         for row in (
@@ -424,12 +400,15 @@ def home(request):
         for cl in ConfirmationLetter.objects.filter(company=company).order_by("-created_at")[:6]
     ]
 
-    # Finance summary for the dashboard
+    return top_hotels, top_hotels_total, region_data, reservation_funnel, recent_cls
+
+
+def _home_finance_summary(company, today):
     from ..models.payment import PaymentRecord
-    from ..models.journal import JournalLine, Account
+    from ..models.journal import Account
     from ..finance_helpers import kas_saldo
 
-    finance_summary = {
+    return {
         'kas_sby': kas_saldo(Account.CASH_SBY, company=company),
         'kas_pusat': kas_saldo(Account.CASH_PUSAT, company=company),
         'total_piutang': kas_saldo(Account.RECEIVABLE, company=company),
@@ -441,12 +420,82 @@ def home(request):
         ).count(),
     }
 
+
+@login_required
+def home(request):
+    company = get_active_company(request)
+    if request.session.get("active_company") != company:
+        # Either unset, or pointing at a company this user may no longer use.
+        request.session["active_company"] = company
+        request.session.modified = True
+
+    today = date.today()
+    week_ahead = today + timedelta(days=7)
+    month_start = today.replace(day=1)
+    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    next_month_start = (month_start + timedelta(days=31)).replace(day=1)
+
+    cl_month_count = ConfirmationLetter.objects.filter(
+        company=company, created_at__year=today.year, created_at__month=today.month,
+    ).count()
+
+    upcoming_checkins = ConfirmationLetter.objects.filter(
+        company=company, check_in__gte=today, check_in__lte=week_ahead,
+    ).count()
+
+    # Prior 7-day window (actual check-ins) — the reference for the
+    # "Check-ins Next 7 Days" MoM-style delta.
+    prev_checkins = ConfirmationLetter.objects.filter(
+        company=company, check_in__gte=today - timedelta(days=7), check_in__lt=today,
+    ).count()
+
+    invoice_totals = _home_invoice_totals(company, month_start)
+
+    remittance_pending = (
+        Remittance.objects.filter(company=Company.KONOZ, status=Remittance.STATUS_PENDING).count()
+        if company == Company.KONOZ and can(request.user, 'remittance', 'view') else None
+    )
+
+    # Remittance MoM: pending remittances dated this month vs last month.
+    rem_pending_this = Remittance.objects.filter(
+        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
+        date__gte=month_start, date__lt=next_month_start,
+    ).count()
+    rem_pending_prev = Remittance.objects.filter(
+        company=Company.KONOZ, status=Remittance.STATUS_PENDING,
+        date__gte=prev_month_start, date__lt=month_start,
+    ).count()
+
+    counts_by_month, cl_trend, cl_daily = _home_cl_trends(company, today)
+
+    deltas = {
+        "cl_month": _pct(cl_month_count, counts_by_month.get(prev_month_start.strftime("%Y-%m"), 0)),
+        "checkins": _pct(upcoming_checkins, prev_checkins),
+        "unpaid": _pct(invoice_totals["unpaid_total"], invoice_totals["prev_unpaid_total"]),
+        "remittance": _pct(rem_pending_this, rem_pending_prev) if remittance_pending is not None else None,
+    }
+
+    # Third-row widgets — Homlu "Top countries" becomes top hotels by total CL
+    # volume (all-time), "World map" becomes an Indonesia client-region heat
+    # map, and "Conversion funnel" becomes the reservation lifecycle. All are
+    # honest to current data: quiet panels simply show their empty state and
+    # light up as hotels/provinces/statuses get recorded.
+    top_hotels, top_hotels_total, region_data, reservation_funnel, recent_cls = _home_widgets(company, today)
+
+    payment_snapshot = {
+        "billed": invoice_totals["billed"],
+        "collected": invoice_totals["paid"],
+        "outstanding": max(invoice_totals["billed"] - invoice_totals["paid"], 0),
+    }
+
+    finance_summary = _home_finance_summary(company, today)
+
     return inertia_render(request, "Home/Index", props={
         "kpis": {
             "cl_month": cl_month_count,
             "upcoming_checkins": upcoming_checkins,
-            "unpaid_invoices": unpaid_count,
-            "unpaid_total": unpaid_total,
+            "unpaid_invoices": invoice_totals["unpaid_count"],
+            "unpaid_total": invoice_totals["unpaid_total"],
             "remittance_pending": remittance_pending,
             "deltas": deltas,
         },

@@ -1,11 +1,17 @@
+"""Ledger models: Charge, Allocation, CashMovement.
+
+Convention: all amount_sar fields are IntegerField (minor units, e.g. fils).
+"""
 from django.db import models
 
 from .choices import Company
 
 
-class Account(models.TextChoices):
+class CashAccount(models.TextChoices):
+    """Cash-routing destinations (legacy). See journal.py:Account for Chart of Accounts."""
     CLIENT = 'client', 'Client'
     SBY    = 'sby',    'Surabaya'
+    JKT    = 'jkt',    'Jakarta'
     PUSAT  = 'pusat',  'Pusat'
     FX     = 'fx',     'FX'
 
@@ -118,8 +124,8 @@ class CashMovement(models.Model):
     company           = models.CharField(max_length=20, choices=Company.choices, db_index=True)
     client            = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cash_movements')
     date              = models.DateField(db_index=True)
-    from_account      = models.CharField(max_length=20, choices=Account.choices)
-    to_account        = models.CharField(max_length=20, choices=Account.choices)
+    from_account      = models.CharField(max_length=20, choices=CashAccount.choices)
+    to_account        = models.CharField(max_length=20, choices=CashAccount.choices)
     amount            = models.PositiveIntegerField()
     currency          = models.CharField(max_length=10, default='SAR')
     exchange_rate     = models.DecimalField(max_digits=14, decimal_places=4, default=1)

@@ -2,6 +2,8 @@
 import json
 import logging
 
+from datetime import date
+
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 
@@ -16,6 +18,7 @@ from ..finance_helpers import (
     FinanceError,
 )
 from ..permissions import require_perm
+from .helpers import get_active_company, serialize_journal_entry
 from .helpers import get_active_company, _parse_date, _to_float
 
 logger = logging.getLogger(__name__)
@@ -23,9 +26,7 @@ logger = logging.getLogger(__name__)
 
 def _payment_props(p):
     from django.conf import settings
-    proof_url = None
-    if p.proof:
-        proof_url = p.proof.url if p.proof else None
+    proof_url = p.proof.url if p.proof else None
     return {
         'id': p.pk,
         'payment_number': p.payment_number,
@@ -41,6 +42,8 @@ def _payment_props(p):
         'exchange_rate': float(p.exchange_rate),
         'amount_sar': p.amount_sar,
         'method': p.method,
+        'received_in': p.received_in,
+        'received_in_display': p.get_received_in_display(),
         'bank_name': p.bank_name,
         'account_number': p.account_number,
         'reference': p.reference,
@@ -60,7 +63,7 @@ def _payment_props(p):
 @require_perm('invoice', 'view')
 def payment_list(request):
     company = get_active_company(request)
-    payments = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by')
+    payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by')
 
     # Filter by status
     status = request.GET.get('status')
@@ -104,7 +107,7 @@ def payment_list(request):
         })
 
     # Summary stats
-    all_payments = PaymentRecord.objects.all()
+    all_payments = PaymentRecord.objects.filter(company=company)
     stats = {
         'total': all_payments.count(),
         'pending': all_payments.filter(status=PaymentRecord.STATUS_PENDING).count(),
@@ -146,22 +149,13 @@ def payment_detail(request, pk):
             'performed_at': l.performed_at.isoformat(),
             'note': l.note,
         } for l in logs],
-        'journal_entries': [{
-            'id': e.pk,
-            'entry_number': e.entry_number,
-            'entry_type': e.entry_type,
-            'entry_type_display': e.get_entry_type_display(),
-            'description': e.description,
-            'entry_date': e.entry_date.isoformat(),
-            'total_debit': e.total_debit,
-            'total_credit': e.total_credit,
-        } for e in journal_entries],
+        'journal_entries': [serialize_journal_entry(e, total_debit=e.total_debit, total_credit=e.total_credit) for e in journal_entries],
     })
 
 
 @require_perm('invoice', 'edit')
 def payment_record_new(request, invoice_pk):
-    invoice = get_object_or_404(Invoice, pk=invoice_pk)
+    invoice = get_object_or_404(Invoice, pk=invoice_pk, company=get_active_company(request))
 
     if request.method == 'POST':
         try:
@@ -230,11 +224,14 @@ def payment_record(request):
         messages.error(request, 'Invoice harus dipilih.')
         return redirect('payment_list')
 
-    invoice = get_object_or_404(Invoice, pk=invoice_id)
+    invoice = get_object_or_404(Invoice, pk=invoice_id, company=get_active_company(request))
     payment_date = _parse_date(data.get('payment_date'))
     amount = _to_float(data.get('amount'))
     exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
     currency = (data.get('currency') or 'SAR').upper()
+    received_in = data.get('received_in', 'sby')
+    if received_in not in ('sby', 'jkt', 'pusat'):
+        received_in = 'sby'
 
     if not amount:
         messages.error(request, 'Jumlah pembayaran harus diisi.')
@@ -268,7 +265,7 @@ def payment_record(request):
         except (json.JSONDecodeError, ValueError):
             allocations = []
 
-    from ..models.reservation import Reservation
+    from ..models import Reservation
     from django.utils import timezone as tz
 
     if allocations:
@@ -295,6 +292,7 @@ def payment_record(request):
                 note=data.get('note', '') or f'Allocation to {reservation.reservation_number if reservation else "invoice"}',
                 created_by=request.user,
                 reservation=reservation,
+                received_in=received_in,
             )
             if proof_file:
                 payment.proof = proof_file
@@ -306,8 +304,15 @@ def payment_record(request):
             created_payments.append(payment)
 
         if created_payments:
-            messages.success(request, f'{len(created_payments)} payment(s) berhasil dibuat dan dialokasikan.')
-            return redirect('payment_detail', pk=created_payments[0].pk)
+            messages.success(
+                request,
+                f'{len(created_payments)} payment(s) berhasil dibuat dan dialokasikan.',
+            )
+            # Land on the invoice-filtered list, not the first payment's
+            # detail -- redirecting to created_payments[0] reads as "only
+            # the first row was saved" when a multi-row allocation saved
+            # every row.
+            return redirect(f'/finance/payments/?invoice={invoice.pk}')
         else:
             messages.error(request, 'Tidak ada alokasi yang valid.')
             return redirect('payment_list')
@@ -326,6 +331,7 @@ def payment_record(request):
             reference=data.get('reference', ''),
             note=data.get('note', ''),
             created_by=request.user,
+            received_in=received_in,
         )
         if proof_file:
             payment.proof = proof_file
@@ -400,6 +406,7 @@ def payment_reverse(request, pk):
     if request.method == 'POST':
         try:
             from django.utils import timezone
+            from ..models.ledger import CashMovement, Allocation
             # Find related journal entry
             journal = JournalEntry.objects.filter(
                 reference_type='PaymentRecord',
@@ -411,10 +418,18 @@ def payment_reverse(request, pk):
                     journal, timezone.now().date(), request.user,
                     note=f'Reversal for {payment.payment_number}',
                 )
-                # Reverse allocation
-                if payment.invoice and payment.amount_sar:
-                    payment.invoice.paid_sar = max(0, payment.invoice.paid_sar - payment.amount_sar)
-                    payment.invoice.save(update_fields=['paid_sar'])
+                # Undo the CashMovement/Allocation mirror allocate_payment()
+                # created -- same delete-then-resync convention
+                # invoice_billing.py uses, scoped to this payment via its
+                # (unique) payment_number embedded in the note.
+                if payment.invoice_id:
+                    CashMovement.objects.filter(
+                        invoice=payment.invoice, note__contains=payment.payment_number,
+                    ).delete()
+                    Allocation.objects.filter(
+                        invoice=payment.invoice, note__contains=payment.payment_number,
+                    ).delete()
+                    payment.invoice.sync_status()
 
             payment.status = PaymentRecord.STATUS_REVERSED
             payment.save(update_fields=['status'])
@@ -466,7 +481,7 @@ def payment_export_csv(request):
     from django.http import HttpResponse
 
     company = get_active_company(request)
-    payments = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
+    payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
 
     # Apply filters
     status = request.GET.get('status')

@@ -5,30 +5,24 @@
 .page, .page-sm, .center-wrap, .card { position: relative; z-index: 1; }
 
 /* ── Mobile account dropdown (bnav-account-dd) ──
-   Re-added after the 2026-08-10 bottom-nav redesign removed it: the React
-   shell still renders it (AppLayout.jsx .bnav-account-dd), so without these
-   rules the panel dropped its positioning/backdrop and rendered as an
-   unstyled block in the page flow. */
+   Clean Homlu surface: solid background, 1px border, no glassmorphism.
+   Positioned above bottom nav via tailwind.css override. */
 .bnav-account-dd {
   position: fixed;
   right: 12px;
   left: auto;
   width: 220px;
   max-width: calc(100vw - 24px);
-  background:
-    linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,0) 45%),
-    rgba(20,20,23,.7);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.14);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
   z-index: var(--z-overlay);
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-8px) scale(.97);
-  transition: opacity .18s, transform .18s cubic-bezier(.34,1.56,.64,1);
+  transition: opacity .18s, transform .18s cubic-bezier(.2,0,0,1);
   display: block;
 }
 .bnav-account-dd.open {
@@ -37,10 +31,7 @@
   transform: translateY(0) scale(1);
 }
 [data-theme="light"] .bnav-account-dd {
-  background:
-    linear-gradient(160deg, rgba(255,255,255,.55), rgba(255,255,255,0) 45%),
-    rgba(253,252,250,.7);
-  box-shadow: var(--shadow-xl), inset 0 1px 0 rgba(255,255,255,.5);
+  box-shadow: 0 8px 24px rgba(0,0,0,.08);
 }
 .bnav-account-head {
   display: flex;
@@ -152,8 +143,8 @@
 .route-dist-tip::before { display:none !important; }
 
 /* ── Remittance recap (ported from remittance_recap.html inline style) ── */
-.month-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); margin-bottom:16px; overflow:hidden; }
-.month-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--surface-2); border-bottom:1px solid var(--border); }
+.month-card { background:var(--card); border:1px solid var(--border); border-radius:10px; margin-bottom:16px; overflow:hidden; }
+.month-header { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--card); border-bottom:1px solid var(--border); }
 .month-label { font-size:14px; font-weight:700; color:var(--text); }
 .month-meta { display:flex; gap:12px; align-items:center; }
 .month-total { font-family:monospace; font-size:15px; font-weight:700; color:var(--accent-2); }

@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
@@ -17,7 +17,8 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity, Charge, ChargeReason
 from ..permissions import require_perm
 from ..i18n import tr
-from .helpers import _is_mobile, _page_range_display, _parse_date, _render_list_pdf, get_active_company
+from .. import ledger
+from .helpers import _is_mobile, _parse_date, _render_list_pdf, get_active_company, pagination_props
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
 
@@ -39,34 +40,25 @@ def _parse_search_tokens(q):
     return [t.strip()[:100] for t in q.split(',') if t.strip()]
 
 
-@require_perm('cl', 'view')
-def cl_list(request):
-    active_company = get_active_company(request)
-    base_qs = (
-        ConfirmationLetter.objects.filter(company=active_company)
-        .defer('note').select_related('invoice').prefetch_related('rooms')
+_SORT_MAP = {
+    '-check_in':   '-check_in',
+    'check_in':    'check_in',
+    'guest_name':  'guest_name',
+    '-created_at': '-created_at',
+}
+
+
+def _cl_filter_params(request):
+    """Read the standard CL list filters (q/status/date range) off the querystring."""
+    return (
+        request.GET.get('q', '').strip(),
+        [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')],
+        _parse_date(request.GET.get('date_from', '').strip()),
+        _parse_date(request.GET.get('date_to', '').strip()),
     )
 
-    q           = request.GET.get('q', '').strip()
-    status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
-    date_from   = _parse_date(request.GET.get('date_from', '').strip())
-    date_to     = _parse_date(request.GET.get('date_to', '').strip())
-    sort        = request.GET.get('sort', 'check_in')
 
-    _sort_map = {
-        'check_in':    'check_in',
-        '-check_in':   '-check_in',
-        'guest_name':  'guest_name',
-        '-created_at': '-created_at',
-    }
-    _sort_labels = {
-        'check_in':    tr(request, 'Check-in (oldest)', 'Check-in (terlama)'),
-        '-check_in':   tr(request, 'Check-in (newest)', 'Check-in (terbaru)'),
-        'guest_name':  tr(request, 'Guest name (A–Z)', 'Nama tamu (A–Z)'),
-        '-created_at': tr(request, 'Created (newest)', 'Dibuat (terbaru)'),
-    }
-
-    qs = base_qs
+def _apply_cl_filters(qs, q, status_list, date_from, date_to):
     if q:
         tokens = _parse_search_tokens(q)
         if tokens:
@@ -84,8 +76,36 @@ def cl_list(request):
         qs = qs.filter(check_in__gte=date_from)
     if date_to:
         qs = qs.filter(check_in__lte=date_to)
+    return qs
 
-    qs = qs.order_by(_sort_map.get(sort, '-check_in'))
+
+def _filter_cl_qs(qs, request):
+    q, status_list, date_from, date_to = _cl_filter_params(request)
+    sort = request.GET.get('sort', '-check_in')
+    qs = _apply_cl_filters(qs, q, status_list, date_from, date_to)
+    return qs.order_by(_SORT_MAP.get(sort, '-check_in'))
+
+
+@require_perm('cl', 'view')
+def cl_list(request):
+    active_company = get_active_company(request)
+    base_qs = (
+        ConfirmationLetter.objects.filter(company=active_company)
+        .defer('note').select_related('invoice').prefetch_related('rooms')
+    )
+
+    q, status_list, date_from, date_to = _cl_filter_params(request)
+    sort = request.GET.get('sort', 'check_in')
+
+    _sort_labels = {
+        'check_in':    tr(request, 'Check-in (oldest)', 'Check-in (terlama)'),
+        '-check_in':   tr(request, 'Check-in (newest)', 'Check-in (terbaru)'),
+        'guest_name':  tr(request, 'Guest name (A–Z)', 'Nama tamu (A–Z)'),
+        '-created_at': tr(request, 'Created (newest)', 'Dibuat (terbaru)'),
+    }
+
+    qs = _apply_cl_filters(base_qs, q, status_list, date_from, date_to)
+    qs = qs.order_by(_SORT_MAP.get(sort, '-check_in'))
 
     active_filters = len(status_list) + bool(date_from) + bool(date_to)
     _status_counts = {
@@ -108,6 +128,8 @@ def cl_list(request):
         "hotel_name": cl.hotel_name,
         "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
         "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
+        "num_nights": cl.num_nights,
+        "total_rooms": cl.total_rooms,
         "total_price": round_half_up(cl.total_price) if cl.total_price else None,
         "has_invoice": bool(cl.invoice_id),
         "invoice_number": cl.invoice.invoice_number if cl.invoice_id else "",
@@ -125,19 +147,7 @@ def cl_list(request):
         "sort_labels": _sort_labels,
         "active_filters": active_filters,
         "counts": counts,
-        "pagination": {
-            "number": page_obj.number,
-            "num_pages": paginator.num_pages,
-            "has_previous": page_obj.has_previous(),
-            "has_next": page_obj.has_next(),
-            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
-            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
-            "has_other_pages": page_obj.has_other_pages(),
-            "range": _page_range_display(page_obj),
-            "start_index": page_obj.start_index(),
-            "end_index": page_obj.end_index(),
-            "count": paginator.count,
-        },
+        "pagination": pagination_props(page_obj),
     })
 
 
@@ -186,14 +196,14 @@ def _cl_echo(data):
 @require_perm('cl', 'create')
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
-    default_company = request.session.get("active_company", "konoz")
+    active_company = get_active_company(request)
     if request.method == "POST":
         errors = _validate_cl(request.POST)
         if errors:
             return inertia_render(request, "Cl/Form", props={
                 "cl": _cl_echo(request.POST), "edit": False, "errors": errors,
                 "suggested_number": request.POST.get("confirmation_number", suggested_number),
-                "default_company": default_company, **_form_context_data(),
+                "default_company": active_company, **_form_context_data(),
             })
         client_id = request.POST.get("client_id") or None
         guest_name = request.POST.get("guest_name", "").strip()
@@ -204,7 +214,7 @@ def cl_new(request):
             # Scope the CL to the active company (same as the detail/list views
             # filter by). Trusting the form's company field would let a CL be
             # saved under a company the detail view then can't find -> 404.
-            company=request.session.get("active_company") or "konoz",
+            company=active_company,
             client_id=client_id,
             hotel_name=request.POST.get("hotel_name", ""),
             guest_name=guest_name,
@@ -222,7 +232,7 @@ def cl_new(request):
 
     return inertia_render(request, "Cl/Form", props={
         "cl": None, "edit": False,
-        "suggested_number": suggested_number, "default_company": default_company,
+        "suggested_number": suggested_number, "default_company": active_company,
         **_form_context_data(),
     })
 
@@ -390,50 +400,23 @@ def cl_pdf(request, pk):
     return _render_cl_pdf(cl)
 
 
-_SORT_MAP = {
-    '-check_in':   '-check_in',
-    'check_in':    'check_in',
-    'guest_name':  'guest_name',
-    '-created_at': '-created_at',
-}
-
-def _filter_cl_qs(qs, request):
-    q           = request.GET.get('q', '').strip()
-    status_list = [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')]
-    date_from   = _parse_date(request.GET.get('date_from', '').strip())
-    date_to     = _parse_date(request.GET.get('date_to', '').strip())
-    sort        = request.GET.get('sort', '-check_in')
-    if q:
-        tokens = _parse_search_tokens(q)
-        if tokens:
-            combined = Q()
-            for token in tokens:
-                combined |= (
-                    Q(guest_name__icontains=token) |
-                    Q(hotel_name__icontains=token) |
-                    Q(confirmation_number__icontains=token)
-                )
-            qs = qs.filter(combined)
-    if status_list:
-        qs = qs.filter(reservation_status__in=status_list)
-    if date_from:
-        qs = qs.filter(check_in__gte=date_from)
-    if date_to:
-        qs = qs.filter(check_in__lte=date_to)
-    return qs.order_by(_SORT_MAP.get(sort, '-check_in'))
-
-
 @require_perm('cl', 'export')
 def cl_list_pdf(request):
     active_company = get_active_company(request)
     qs = ConfirmationLetter.objects.filter(company=active_company)
-    qs = _filter_cl_qs(qs, request)
+    qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
     letters = list(qs)
+    # One bulk Payment query for all paid totals -- summing cl.paid_sar here
+    # used to cost two queries per CL (N+1).
+    paid_map = ledger.cl_paid_sar_map(letters)
     total_rooms  = sum(cl.total_rooms for cl in letters)
     total_nights = sum(cl.num_nights for cl in letters)
     total_sar    = sum(cl.total_price or 0 for cl in letters)
-    total_paid   = sum(cl.paid_sar for cl in letters)
-    total_remain = sum(cl.remaining_sar for cl in letters)
+    total_paid   = sum(paid_map.values())
+    total_remain = sum(
+        (round_half_up(cl.total_price) if cl.total_price else 0) - paid_map.get(cl.pk, 0)
+        for cl in letters
+    )
     return _render_list_pdf(
         request, qs,
         template="hw/cl/cl_list_pdf.html",

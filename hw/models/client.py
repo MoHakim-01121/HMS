@@ -15,7 +15,7 @@ class Client(models.Model):
     ]
 
     company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
-    name       = models.CharField(max_length=200)
+    name       = models.CharField(max_length=200, db_index=True)
     brand      = models.CharField(max_length=200, blank=True)
     city       = models.CharField(max_length=100, blank=True)
     province   = models.CharField(max_length=100, blank=True)
@@ -28,7 +28,7 @@ class Client(models.Model):
     reminder_target = models.CharField(max_length=10, choices=REMINDER_TARGET_CHOICES, default='GROUP')
     email      = models.EmailField(blank=True)
     note       = models.TextField(blank=True)
-    is_active  = models.BooleanField(default=True)
+    is_active  = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -45,11 +45,15 @@ class Client(models.Model):
 
     @property
     def resolved_invoices(self):
-        """Invoices belonging to this client via Charge.client -- the only
-        link (Invoice has no client FK of its own, see hw/models/ledger.py::
-        Charge.client comment)."""
+        """Invoices belonging to this client via either signal: the direct
+        Invoice.client FK (populated by invoice_views.py/services_views.py
+        forms) OR Charge.client (populated once the ledger has an entry).
+        Unioned rather than picking one -- an invoice can have the FK set
+        before any Charge exists (or vice versa), and either signal alone
+        would silently drop it from this client's totals/statement."""
+        from django.db.models import Q
         from .invoice import Invoice
-        return Invoice.objects.filter(charges__client=self).distinct()
+        return Invoice.objects.filter(Q(client=self) | Q(charges__client=self)).distinct()
 
     @property
     def total_invoices(self):

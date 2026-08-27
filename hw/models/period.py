@@ -59,16 +59,22 @@ class FinancialPeriod(models.Model):
         """Tutup periode. Tidak bisa dibuka lagi."""
         if self.status not in (self.STATUS_OPEN, self.STATUS_SOFT_CLOSE):
             raise ValueError("Periode sudah ditutup/locked")
-        
-        # Validate all journal entries are balanced
+
+        # Validate all journal entries in this period are balanced.
+        # JournalEntry has no stored status/total fields — every entry is
+        # posted at creation (create_journal_entry() enforces balance
+        # before and after save), so re-check via the line aggregate here.
         from .journal import JournalEntry
-        unbalanced = JournalEntry.objects.filter(
-            period=self,
-            status=JournalEntry.STATUS_POSTED,
-        ).exclude(total_debit=models.F('total_credit'))
-        if unbalanced.exists():
-            raise ValueError(f"Ada {unbalanced.count()} journal entry yang tidak seimbang. Harus diselesaikan dulu.")
-        
+        unbalanced_ids = []
+        for entry in JournalEntry.objects.filter(period=self).prefetch_related('lines'):
+            if not entry.is_balanced:
+                unbalanced_ids.append(entry.entry_number)
+        if unbalanced_ids:
+            raise ValueError(
+                f"Ada {len(unbalanced_ids)} journal entry yang tidak seimbang: "
+                f"{', '.join(unbalanced_ids)}. Harus diselesaikan dulu."
+            )
+
         self.status = self.STATUS_CLOSED
         self.closed_by = user
         self.closed_at = timezone.now()

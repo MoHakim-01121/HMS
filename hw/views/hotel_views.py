@@ -11,7 +11,7 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, log_activity
 from ..permissions import require_perm
-from .helpers import _is_mobile, _page_range_display, get_active_company
+from .helpers import _is_mobile, get_active_company, pagination_props
 
 
 def _save_hotel(h, data):
@@ -81,19 +81,7 @@ def hotel_list(request):
         "city_filter": city_filter,
         "stars_filter": stars_filter,
         "area_filter": area_filter,
-        "pagination": {
-            "number": page_obj.number,
-            "num_pages": paginator.num_pages,
-            "has_previous": page_obj.has_previous(),
-            "has_next": page_obj.has_next(),
-            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
-            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
-            "has_other_pages": page_obj.has_other_pages(),
-            "range": _page_range_display(page_obj),
-            "start_index": page_obj.start_index(),
-            "end_index": page_obj.end_index(),
-            "count": paginator.count,
-        },
+        "pagination": pagination_props(page_obj),
     })
 
 

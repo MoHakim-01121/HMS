@@ -18,7 +18,7 @@ from django.db import transaction
 from hw.models import (
     Invoice, InvoiceType, Reservation, ServiceItem, Payment, CancellationPenalty,
     RemittanceLine, Charge, Allocation, CashMovement,
-    ChargeReason, AllocationReason, Account,
+    ChargeReason, AllocationReason, CashAccount,
 )
 from hw.views.invoice_billing import _billing_client
 from hw import ledger
@@ -157,10 +157,10 @@ class Command(BaseCommand):
                 date = p.payment_date or base_date
                 res, svc = _resolve_payment_target(p, reservations_by_number, service_items_by_number)
                 is_direct = (p.method or '').strip().lower() == 'direct'
-                to_account = Account.PUSAT if is_direct else Account.SBY
+                to_account = CashAccount.PUSAT if is_direct else CashAccount.SBY
                 mov = CashMovement.objects.create(
                     company=inv.company, client=client, date=date, invoice=inv,
-                    from_account=Account.CLIENT, to_account=to_account,
+                    from_account=CashAccount.CLIENT, to_account=to_account,
                     # int(round(...)) not int(p.amount): a handful of legacy Payment
                     # rows hold fractional amounts despite PositiveIntegerField
                     # (SQLite never enforced the column type) -- round explicitly
@@ -194,10 +194,10 @@ class Command(BaseCommand):
                 if cl.is_paid:
                     pay_date = cl.payment_date or cl.cancellation_date
                     is_direct = (cl.payment_method or '').strip().lower() == 'direct'
-                    to_account = Account.PUSAT if is_direct else Account.SBY
+                    to_account = CashAccount.PUSAT if is_direct else CashAccount.SBY
                     mov = CashMovement.objects.create(
                         company=company, client=client, date=pay_date, invoice=invoice,
-                        from_account=Account.CLIENT, to_account=to_account,
+                        from_account=CashAccount.CLIENT, to_account=to_account,
                         amount=cl.penalty_amount, currency=cl.penalty_currency, exchange_rate=cl.exchange_rate,
                         method=cl.payment_method, penalty_label=cl,
                         note=f'Migrasi: {cl.penalty_number} (lunas)',
@@ -220,7 +220,7 @@ class Command(BaseCommand):
             client = client_by_invoice.get(line.invoice_id) if line.invoice_id else None
             CashMovement.objects.create(
                 company=rem.company, client=client, date=rem.date, invoice_id=line.invoice_id,
-                from_account=Account.SBY, to_account=Account.PUSAT,
+                from_account=CashAccount.SBY, to_account=CashAccount.PUSAT,
                 amount=line.amount_sar, currency='SAR', exchange_rate=1,
                 remittance=rem, reservation_label=res, service_item_label=svc,
                 note=f'Migrasi dari RemittanceLine #{line.id} ({rem.remittance_number})',
@@ -266,7 +266,7 @@ class Command(BaseCommand):
                     f"Charge client={client}: lama={old_charge_by_client[client]} baru={new_charge}"
                 )
             new_cash_in = sum(
-                m.amount_sar for m in CashMovement.objects.filter(client=client, from_account=Account.CLIENT)
+                m.amount_sar for m in CashMovement.objects.filter(client=client, from_account=CashAccount.CLIENT)
             )
             if new_cash_in != old_cash_in_by_client[client]:
                 mismatches.append(
