@@ -15,7 +15,12 @@ import {
 } from "../../components/shadcn/ui/select.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+
+// Keep in sync with nginx `client_max_body_size` on the VPS. A larger file is
+// rejected upstream with a 413 before it ever reaches Django, so catch it here.
+const MAX_PROOF_BYTES = 3 * 1024 * 1024;
 
 const STATUS_TONE = {
   pending: "yellow",
@@ -85,6 +90,10 @@ export default function List({ payments = [], status_choices = [], invoice_choic
   };
 
   const submitRecord = () => {
+    if (recordForm.proof && recordForm.proof.size > MAX_PROOF_BYTES) {
+      showToast(t("File too large. Maximum upload size is 3 MB."), "error");
+      return;
+    }
     const hasAllocations = allocations.length > 0;
     const payload = {
       ...recordForm,
@@ -328,7 +337,16 @@ export default function List({ payments = [], status_choices = [], invoice_choic
 
               <FormSection label={t("Proof")}>
                 <input type="file" accept="image/*,.pdf"
-                  onChange={(e) => setRecordForm({ ...recordForm, proof: e.target.files[0] })}
+                  onChange={(e) => {
+                    const f = e.target.files[0];
+                    if (f && f.size > MAX_PROOF_BYTES) {
+                      showToast(t("File too large. Maximum upload size is 3 MB."), "error");
+                      e.target.value = "";
+                      setRecordForm({ ...recordForm, proof: undefined });
+                      return;
+                    }
+                    setRecordForm({ ...recordForm, proof: f });
+                  }}
                   style={{ fontSize: 13, color: "var(--muted-foreground)" }} />
               </FormSection>
             </div>
