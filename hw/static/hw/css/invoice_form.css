@@ -24,10 +24,10 @@
   gap: 10px;
   align-items: center;
   padding: 9px 12px;
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   border: 1px solid var(--border);
   border-left: 2px solid transparent;
-  background: var(--bg-2);
+  background: var(--card);
   margin-bottom: 6px;
   transition: border-color .12s, border-left-color .15s, background .12s;
 }
@@ -46,10 +46,10 @@
   gap: 10px;
   align-items: center;
   padding: 9px 12px;
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   border: 1px solid var(--border);
   border-left: 2px solid transparent;
-  background: var(--bg-2);
+  background: var(--card);
   margin-bottom: 6px;
   transition: border-color .12s, border-left-color .15s, background .12s, opacity .12s;
 }
@@ -101,10 +101,10 @@
   display: grid;
   gap: 10px; align-items: center;
   padding: 9px 12px;
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   border: 1px solid var(--border);
   border-left: 2px solid transparent;
-  background: var(--bg-2);
+  background: var(--card);
   margin-bottom: 6px;
   transition: border-color .12s, border-left-color .15s, background .12s;
 }
@@ -124,7 +124,7 @@
 /* ── Draft banner (legacy, kept for compat) ── */
 
 /* ── Summary bar (legacy, kept for compat) ── */
-.summary-cell { flex: 1; padding: 14px 18px; border-right: 1px solid var(--border); background: var(--surface); }
+.summary-cell { flex: 1; padding: 14px 18px; border-right: 1px solid var(--border); background: var(--card); }
 .summary-cell:last-child { border-right: none; }
 .summary-cell .lbl { font-size: 9.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
 .summary-cell .val { font-size: 17px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }

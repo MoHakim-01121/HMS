@@ -99,3 +99,79 @@ def _to_float(val, default=0.0):
         return float(val) if val not in (None, '') else default
     except (ValueError, TypeError):
         return default
+
+
+def pagination_props(page_obj):
+    """Standard Inertia props describing a Paginator page."""
+    return {
+        "number": page_obj.number,
+        "num_pages": page_obj.paginator.num_pages,
+        "has_previous": page_obj.has_previous(),
+        "has_next": page_obj.has_next(),
+        "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+        "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+        "has_other_pages": page_obj.has_other_pages(),
+        "range": _page_range_display(page_obj),
+        "start_index": page_obj.start_index(),
+        "end_index": page_obj.end_index(),
+        "count": page_obj.paginator.count,
+    }
+
+
+def period_label(date_from=None, date_to=None):
+    """Human-readable label for an optional from/to date range."""
+    if date_from and date_to:
+        return f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}"
+    if date_from:
+        return f"Sejak {date_from.strftime('%d %b %Y')}"
+    if date_to:
+        return f"Sampai {date_to.strftime('%d %b %Y')}"
+    return 'Semua transaksi'
+
+
+def _client_options(active_company):
+    """Active clients of a company as [{id, name}] options for form dropdowns."""
+    from ..models import Client
+    return list(
+        Client.objects.filter(company=active_company, is_active=True)
+        .order_by('name').values('id', 'name')
+    )
+
+
+def serialize_journal_entry(entry, **extra):
+    """Base dict for a JournalEntry used across finance/payment/period views.
+
+    Always includes the common 6 fields; callers pass optional extras
+    (total_debit, total_credit, is_balanced, etc.) via keyword arguments.
+    """
+    base = {
+        'id': entry.pk,
+        'entry_number': entry.entry_number,
+        'entry_type': entry.entry_type,
+        'entry_type_display': entry.get_entry_type_display(),
+        'description': entry.description,
+        'entry_date': entry.entry_date.isoformat(),
+    }
+    if extra:
+        base.update(extra)
+    return base
+
+
+def journal_line_dimension(line):
+    """Resolve a JournalLine's FK references into a human-readable label.
+
+    Returns the first matching dimension (client, invoice, reservation,
+    service, or penalty) rather than concatenating all, matching the
+    original per-line display convention.
+    """
+    if getattr(line, 'client_id', None):
+        return line.client.name
+    if getattr(line, 'invoice_id', None):
+        return line.invoice.invoice_number
+    if getattr(line, 'reservation_id', None):
+        return line.reservation.reservation_number
+    if getattr(line, 'service_item_id', None):
+        return f"Service #{line.service_item_id}"
+    if getattr(line, 'penalty_id', None):
+        return line.penalty.penalty_number
+    return ''

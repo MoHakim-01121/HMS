@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
@@ -11,9 +12,10 @@ from inertia import render as inertia_render
 
 from ..models import (
     CancellationPenalty, ConfirmationLetter,
-    Charge, Allocation, CashMovement, ChargeReason, AllocationReason, Account,
+    Charge, Allocation, CashMovement, ChargeReason, AllocationReason, CashAccount,
 )
 from ..models.journal import JournalEntry, JournalLine, Account as LedgerAccount
+from .. import ledger
 from ..finance_helpers import create_journal_entry, FinanceError
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float, get_active_company
@@ -77,10 +79,10 @@ def _sync_penalty_ledger(penalty):
 
         if penalty.is_paid:
             pay_date = penalty.payment_date or penalty.cancellation_date or date.today()
-            to_account = Account.PUSAT if (penalty.payment_method or '').strip().lower() == 'direct' else Account.SBY
+            to_account = ledger.cash_destination(method=penalty.payment_method)
             mov = CashMovement.objects.create(
                 company=cl.company, client=cl.client, invoice=cl.invoice, date=pay_date,
-                from_account=Account.CLIENT, to_account=to_account,
+                from_account=CashAccount.CLIENT, to_account=to_account,
                 amount=penalty.penalty_amount, currency=penalty.penalty_currency, exchange_rate=penalty.exchange_rate,
                 method=penalty.payment_method, penalty_label=penalty,
                 note=f'Pembayaran penalty {penalty.penalty_number}',
@@ -93,7 +95,7 @@ def _sync_penalty_ledger(penalty):
 
             # ── NEW: Create JournalEntry for penalty payment ──────
             try:
-                cash_account = LedgerAccount.CASH_PUSAT if to_account == Account.PUSAT else LedgerAccount.CASH_SBY
+                cash_account = ledger.cash_journal_account(to_account)
                 payment_lines = [
                     {
                         'account': cash_account,
@@ -287,3 +289,39 @@ def penalty_pdf(request, pk):
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'inline; filename="penalty-{penalty.penalty_number}.pdf"'
     return response
+
+
+@require_perm('penalty', 'view')
+def penalty_list(request):
+    qs = CancellationPenalty.objects.select_related('cl', 'client', 'invoice')
+
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(
+            Q(penalty_number__icontains=q)
+            | Q(cl__confirmation_number__icontains=q)
+            | Q(client__name__icontains=q),
+        )
+    status = request.GET.get('status', '')
+    if status == 'paid':
+        qs = qs.filter(is_paid=True)
+    elif status == 'unpaid':
+        qs = qs.filter(is_paid=False)
+
+    penalties = qs[:100]
+    return inertia_render(request, 'Penalty/List', props={
+        'penalties': [{
+            'id': p.id,
+            'penalty_number': p.penalty_number,
+            'cl_id': p.cl_id,
+            'confirmation_number': p.cl.confirmation_number if p.cl else '',
+            'client_id': p.client_id,
+            'client_name': p.client.name if p.client else '',
+            'cancellation_date': p.cancellation_date.isoformat(),
+            'amount_sar': p.amount_sar,
+            'is_paid': p.is_paid,
+            'payment_date': p.payment_date.isoformat() if p.payment_date else None,
+        } for p in penalties],
+        'total': qs.count(),
+        'filters': {'q': q, 'status': status},
+    })

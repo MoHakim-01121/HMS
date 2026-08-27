@@ -3,7 +3,7 @@ from django.db import models
 
 class CancellationPenalty(models.Model):
     cl              = models.OneToOneField('ConfirmationLetter', on_delete=models.CASCADE, related_name='penalty')
-    client          = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='penalties')
+    client          = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='penalties')
     invoice         = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.SET_NULL, related_name='penalties')
     penalty_number  = models.CharField(max_length=50, unique=True)
     cancellation_date = models.DateField()

@@ -21,7 +21,7 @@ from django.test import TestCase
 from hw.models import (
     Client, Invoice, Reservation, ConfirmationLetter, Room,
     CancellationPenalty, Charge, ChargeReason, Allocation, AllocationReason,
-    CashMovement, Account, Remittance, RemittanceLine, ServiceItem,
+    CashMovement, CashAccount, Remittance, RemittanceLine, ServiceItem,
 )
 from hw.views.invoice_billing import _save_payments
 
@@ -92,7 +92,7 @@ class PenaltyLedgerSyncTest(TestCase):
         charge = Charge.objects.get(penalty=penalty)
         self.assertEqual(charge.amount_sar, 700)
         mov = CashMovement.objects.get(penalty_label=penalty)
-        self.assertEqual(mov.to_account, Account.PUSAT)
+        self.assertEqual(mov.to_account, CashAccount.PUSAT)
 
 
 class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
@@ -129,7 +129,7 @@ class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
             'payments': '[{"ref":"R1","date":"2026-08-02","method":"transfer",'
                         '"amount":"500","currency":"SAR","exchange":"1","note":"","proof_keep":""}]',
         }
-        _save_payments(self.inv, req, 'payment_reservation_no', 'SAR')
+        _save_payments(self.inv, req, 'SAR')
         self.assertEqual(
             CashMovement.objects.filter(penalty_label=self.penalty).count(), 1,
             'edit daftar payment menghapus CashMovement penalty',
@@ -246,7 +246,7 @@ class ServiceInvoiceTotalTest(TestCase):
         self.assertEqual(inv.remaining_sar, 400)
         CashMovement.objects.create(
             company='konoz', invoice=inv, date=date(2026, 8, 2),
-            from_account=Account.CLIENT, to_account=Account.SBY,
+            from_account=CashAccount.CLIENT, to_account=CashAccount.SBY,
             amount=300, currency='SAR', exchange_rate=1,
         )
         self.assertEqual(inv.total_paid_sar, 300)
@@ -279,7 +279,7 @@ class CashMovementLabelConstraintTest(TestCase):
         with self.assertRaises(IntegrityError):
             CashMovement.objects.create(
                 company='konoz', invoice=inv, date=date(2026, 8, 1),
-                from_account=Account.CLIENT, to_account=Account.SBY,
+                from_account=CashAccount.CLIENT, to_account=CashAccount.SBY,
                 amount=100, currency='SAR', exchange_rate=1,
                 reservation_label=res, penalty_label=penalty,
             )

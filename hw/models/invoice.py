@@ -1,3 +1,8 @@
+"""Invoice & Reservation models.
+
+Convention: all monetary amounts (SAR, IDR) stored as IntegerField representing
+minor units (fils for SAR, sen for IDR). Conversion via hw.utils.convert_to_sar().
+"""
 from django.db import models
 from django.urls import reverse
 
@@ -32,9 +37,8 @@ class Invoice(models.Model):
     due_date       = models.DateField(null=True, blank=True, db_index=True)
     currency       = models.CharField(max_length=10, default='SAR')
 
-    # ── Status & amounts ──────────────────────────────────────
+    # ── Status ─────────────────────────────────────────────────
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    paid_sar   = models.PositiveIntegerField(default=0)
 
     # ── Audit ─────────────────────────────────────────────────
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -84,6 +88,20 @@ class Invoice(models.Model):
     @property
     def is_fully_paid(self):
         return self.total_paid_sar >= self.total_sar and self.total_sar > 0
+
+    def sync_status(self):
+        """Recompute & persist `status` from total_paid_sar/total_sar --
+        the same ledger reads remaining_sar/is_fully_paid use. Call after
+        any write to the CashMovement/Allocation ledger for this invoice so
+        status never diverges from what those properties report."""
+        paid = self.total_paid_sar
+        if paid >= self.total_sar and self.total_sar > 0:
+            self.status = self.STATUS_PAID
+        elif paid > 0:
+            self.status = self.STATUS_PARTIAL
+        else:
+            self.status = self.STATUS_DRAFT
+        self.save(update_fields=['status'])
 
     @classmethod
     def generate_number(cls, invoice_type):
@@ -179,6 +197,14 @@ class Remittance(models.Model):
     date              = models.DateField()
     status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     receipt_reference = models.CharField(max_length=100, blank=True)
+
+    # Transfer bank fisik: uang IDR keluar dari Surabaya, kurs yang dipakai,
+    # dan nominal SAR yang benar-benar diterima pusat (bisa beda karena biaya
+    # transfer/pembulatan). Semuanya opsional -- RMT lama hanya punya baris.
+    amount_idr         = models.BigIntegerField(null=True, blank=True)
+    exchange_rate      = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    received_amount_sar = models.IntegerField(null=True, blank=True)
+
     note              = models.TextField(blank=True)
     proof             = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
     created_at        = models.DateTimeField(auto_now_add=True)
@@ -207,6 +233,26 @@ class Remittance(models.Model):
     def total_sar(self):
         from .. import ledger
         return int(ledger.remittance_total_sar(self.id))
+
+    @property
+    def expected_sar(self):
+        """SAR teoretis dari amount_idr / kurs (sebelum biaya transfer)."""
+        if self.amount_idr is None or not self.exchange_rate:
+            return None
+        from decimal import Decimal, ROUND_HALF_UP
+        return int((Decimal(self.amount_idr) / self.exchange_rate).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
+
+    @property
+    def allocated_sar(self):
+        """Total SAR yang sudah dibagikan ke reservasi (Σ baris)."""
+        return sum(int(l.amount_sar or 0) for l in self.lines.all())
+
+    @property
+    def unallocated_sar(self):
+        """Sisa transfer yang belum dialokasikan ke reservasi mana pun."""
+        if self.received_amount_sar is None:
+            return 0
+        return int(self.received_amount_sar) - self.allocated_sar
 
 
 class RemittanceLine(models.Model):

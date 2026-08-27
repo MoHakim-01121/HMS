@@ -6,7 +6,7 @@ from django.test import TestCase
 from hw.models import (
     Client, Invoice, Reservation, ServiceItem, ConfirmationLetter, CancellationPenalty,
     Charge, Allocation, CashMovement,
-    Account, ChargeReason, AllocationReason,
+    CashAccount, ChargeReason, AllocationReason,
 )
 from hw import ledger
 
@@ -126,10 +126,12 @@ class WalletTest(LedgerTestBase):
         data = ledger.reservation_cash_breakdown('konoz')
 
         self.assertEqual(data[self.r1.id], {
-            'terbayar_sby': 6000, 'terbayar_direct': 0, 'sudah_dikirim': 2000, 'mengendap': 4000,
+            'terbayar_sby': 6000, 'terbayar_jkt': 0, 'terbayar_direct': 0,
+            'sudah_dikirim': 2000, 'mengendap': 4000, 'mengendap_jkt': 0,
         })
         self.assertEqual(data[r2.id], {
-            'terbayar_sby': 0, 'terbayar_direct': 1000, 'sudah_dikirim': 1000, 'mengendap': 0,
+            'terbayar_sby': 0, 'terbayar_jkt': 0, 'terbayar_direct': 1000,
+            'sudah_dikirim': 1000, 'mengendap': 0, 'mengendap_jkt': 0,
         })
 
     def test_reservation_cash_breakdown_mengendap_can_go_negative(self):
@@ -165,7 +167,7 @@ class InvoiceScopedTest(LedgerTestBase):
     def test_client_paid_to_sums_only_client_originated_cash(self):
         self.mov('client', 'sby', 6000)
         self.mov('sby', 'pusat', 4000)  # not client-originated, must be excluded
-        self.assertEqual(ledger.client_paid_to(Account.SBY, invoice_ids=[self.invoice.id]), 6000)
+        self.assertEqual(ledger.client_paid_to(CashAccount.SBY, invoice_ids=[self.invoice.id]), 6000)
 
     def test_kas_surabaya_scoped_to_invoice_excludes_other_invoice_movements(self):
         self.mov('client', 'sby', 6000, invoice=self.invoice)
@@ -261,10 +263,10 @@ class LampiranABase(TestCase):
         kas_pusat = ledger.kas_pusat(company)
         fx = ledger.selisih_kurs(company)
         client_in = sum(
-            m.amount_sar for m in CashMovement.objects.filter(company=company, from_account=Account.CLIENT)
+            m.amount_sar for m in CashMovement.objects.filter(company=company, from_account=CashAccount.CLIENT)
         )
         client_out = sum(
-            m.amount_sar for m in CashMovement.objects.filter(company=company, to_account=Account.CLIENT)
+            m.amount_sar for m in CashMovement.objects.filter(company=company, to_account=CashAccount.CLIENT)
         )
         self.assertEqual(kas_sby + kas_pusat + fx, client_in - client_out)
 

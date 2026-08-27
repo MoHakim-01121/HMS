@@ -1,3 +1,7 @@
+"""PaymentRecord — finance-redesign payment model.
+
+Convention: amount/amount_sar are IntegerField (minor units). See invoice.py docstring.
+"""
 from django.db import models
 from django.urls import reverse
 
@@ -40,6 +44,15 @@ class PaymentRecord(models.Model):
     currency       = models.CharField(max_length=10, default='SAR')
     exchange_rate  = models.DecimalField(max_digits=14, decimal_places=4, default=1)
     amount_sar     = models.PositiveIntegerField()
+
+    # Di kas mana uangnya diterima — menentukan wallet ledger & akun jurnal.
+    # 'pusat' = client bayar langsung ke rekening pusat (tidak mengendap).
+    RECEIVED_IN_CHOICES = [
+        ('sby',   'Surabaya'),
+        ('jkt',   'Jakarta'),
+        ('pusat', 'Pusat (Direct)'),
+    ]
+    received_in    = models.CharField(max_length=10, choices=RECEIVED_IN_CHOICES, default='sby')
 
     # Metadata
     method         = models.CharField(max_length=50)

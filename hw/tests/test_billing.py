@@ -352,9 +352,11 @@ class BillingMessageTemplateTest(TestCase):
         self.assertIn('Terima kasih,\n*Konoz United Surabaya*', msg)
 
     def test_hotel_due_date_bold_and_indonesian_month(self):
-        inv = self._hotel_invoice(invoice_number='INV-TM-002', due_date=date(2026, 8, 15))
+        # Far-future date: a hardcoded near date rots once the real clock
+        # passes it and the message flips to the "lewat jatuh tempo" branch.
+        inv = self._hotel_invoice(invoice_number='INV-TM-002', due_date=date(2099, 8, 15))
         msg = generate_draft_message('invoice', inv)
-        self.assertIn('*Jatuh Tempo: 15 Agu 2026*\nMohon lakukan pembayaran', msg)
+        self.assertIn('*Jatuh Tempo: 15 Agu 2099*\nMohon lakukan pembayaran', msg)
 
     def test_hotel_overdue(self):
         inv = self._hotel_invoice(

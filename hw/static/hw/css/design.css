@@ -193,9 +193,9 @@ body::before {
   top: calc(100% + 8px);
   right: 0;
   min-width: 176px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   z-index: var(--z-overlay);
   overflow: hidden;
@@ -258,9 +258,9 @@ body::before {
   top: calc(100% + 8px);
   right: 0;
   min-width: 188px;
-  background: var(--surface-2);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r-lg);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   box-shadow: var(--shadow-lg);
   z-index: var(--z-overlay);
   overflow: hidden;
@@ -321,6 +321,14 @@ body::before {
 }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+/* Mobile touch target: 32px base height is a mouse-era size — bump primary/
+   secondary/ghost pill buttons to the 44pt iOS/48dp Android minimum on small
+   screens. .btn-icon (compact row-action icons in dense tables/pagination)
+   is deliberately excluded — it lives inside already-tight layouts and
+   sizing it up needs its own pass. */
+@media (max-width: 600px) {
+  .btn:not(.btn-icon) { min-height: 44px; }
+}
 
 .btn-primary {
   background: var(--accent);
@@ -353,9 +361,9 @@ body::before {
   to   { opacity: 1; transform: translateY(0); }
 }
 .card {
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 10px; /* Homlu's measured table-card radius */
+  border-radius: 14px;
   margin-bottom: 12px;
   overflow: hidden;
   animation: cardIn .28s ease both;
@@ -367,7 +375,7 @@ body::before {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: var(--bg-2);
+  background: var(--card);
 }
 .card-title {
   font-size: 10px; font-weight: 600; color: var(--text);
@@ -495,7 +503,7 @@ tbody td {
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover td { background: var(--surface-2); }
 /* table footer summary (totals, aligned to columns) */
-tfoot td { padding: 11px 14px; border-top: 1px solid var(--border); background: var(--bg-2); font-size: 14px; }
+tfoot td { padding: 11px 14px; border-top: 1px solid var(--border); background: var(--card); font-size: 14px; }
 /* numeric column alignment + de-emphasized id column */
 th.col-num, td.col-num { text-align: right; font-variant-numeric: tabular-nums; }
 tbody tr:hover td:first-child {
@@ -542,9 +550,9 @@ tbody tr:hover td:last-child {
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
 @media(max-width:600px) { .stats { grid-template-columns: 1fr; } }
 .stat {
-  background: linear-gradient(180deg, var(--surface) 0%, var(--bg-2) 100%);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
+  border-radius: 14px;
   padding: 14px 16px;
   position: relative;
   overflow: hidden;
@@ -645,7 +653,7 @@ tbody tr:hover td:last-child {
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-3);
-  background: var(--bg-2);
+  background: var(--card);
 }
 .s-section-count { font-weight: 400; opacity: .5; letter-spacing: 0; }
 
@@ -696,7 +704,7 @@ input[type="password"]::-ms-clear { filter: invert(100%); }
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 100px var(--bg-2) inset !important;
+  -webkit-box-shadow: 0 0 0 100px var(--card) inset !important;
   -webkit-text-fill-color: var(--text) !important;
   caret-color: var(--text);
 }
@@ -713,9 +721,9 @@ input:-webkit-autofill:focus {
   z-index: var(--z-top); display: flex; flex-direction: column; gap: 6px; pointer-events: none;
 }
 .toast {
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px; font-weight: 500;
   color: var(--text);
@@ -739,7 +747,7 @@ input:-webkit-autofill:focus {
    tall — measured off the live Orders/Customers "Search orders…" input) */
 .search-wrap {
   display: flex; align-items: center; gap: 8px;
-  background: var(--surface);
+  background: var(--card);
   border: 2px solid var(--border);
   border-radius: 16px;
   padding: 0 12px;
@@ -806,9 +814,9 @@ input:-webkit-autofill:focus {
 .sort-menu, .filter-panel {
   position: absolute;
   top: calc(100% + 8px); right: 0;
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px; /* same popover radius/shadow recipe as the topbar dropdowns, measured off Homlu's Radix DropdownMenu */
+  border-radius: 10px;
   box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
   z-index: var(--z-dropdown);
   display: none; overflow: hidden;
@@ -821,7 +829,7 @@ input:-webkit-autofill:focus {
 .sort-opt {
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 11px;
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   font-size: 12.5px; font-weight: 500; color: var(--text-2);
   cursor: pointer; text-decoration: none;
   transition: background .1s, color .1s;
@@ -862,9 +870,9 @@ input:-webkit-autofill:focus {
 .fp-date-field label { font-size: 10px; color: var(--text-3); font-weight: 500; }
 .fp-date-field input[type="date"] {
   width: 100%;
-  background: var(--surface-2);
+  background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   color: var(--text);
   font-size: 12px;
   padding: 7px 10px;
@@ -878,7 +886,7 @@ input:-webkit-autofill:focus {
 .fp-status-opt {
   display: flex; align-items: center; gap: 9px;
   padding: 7px 10px;
-  border-radius: var(--r-lg);
+  border-radius: 10px;
   cursor: pointer;
   transition: background .1s;
 }
@@ -907,7 +915,7 @@ input:-webkit-autofill:focus {
 .fp-footer {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px;
-  background: var(--bg-2);
+  background: var(--card);
 }
 .fp-apply {
   background: var(--accent); color: var(--bg);
@@ -935,27 +943,25 @@ input:-webkit-autofill:focus {
     position: fixed;
     left: 0; right: 0; bottom: 0; top: auto;
     width: 100%;
-    border-radius: 20px 20px 0 0;
+    border-radius: 14px 14px 0 0;
     max-height: 85vh;
     overflow-y: auto;
     z-index: var(--z-top);
-    background: var(--surface);
+    background: var(--card);
   }
   .filter-panel { padding-bottom: 0; }
   .filter-panel .fp-footer {
     position: sticky;
     bottom: 0;
-    background: var(--bg-2);
+    background: var(--card);
     border-top: 1px solid var(--border);
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
   .sort-menu { padding: 8px 8px calc(14px + env(safe-area-inset-bottom)); }
   .sort-menu.open, .filter-panel.open { animation: sheetIn .2s ease; }
-  /* Sheet filter/sort terkunci di stacking context .page (z-index:1, shell.css)
-     sehingga selalu kalah dari bottom-nav (z 200) — sembunyikan nav selama
-     sheet terbuka agar footer Apply/opsi bawah tidak tertutup. */
-  body:has(.filter-panel.open) .bottom-nav,
-  body:has(.sort-menu.open) .bottom-nav {
+  /* Hide bottom nav when filter/sort sheets are open so the footer isn't covered */
+  body:has(.filter-panel.open) .m-bottom-nav,
+  body:has(.sort-menu.open) .m-bottom-nav {
     opacity: 0;
     pointer-events: none;
   }
@@ -1011,9 +1017,9 @@ input:-webkit-autofill:focus {
 }
 .notif-dropdown {
   position: fixed; width: 294px;
-  background: var(--surface);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r-xl);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
   box-shadow: var(--shadow-xl);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1060,8 +1066,8 @@ input:-webkit-autofill:focus {
 .export-dropdown { position: relative; }
 .export-menu {
   position: absolute; right: 0; top: calc(100% + 4px);
-  background: var(--surface-2); border: 1px solid var(--border-2);
-  border-radius: var(--r-lg); padding: 4px; width: 100%;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 4px; width: 100%;
   display: none; z-index: var(--z-dropdown); box-shadow: var(--shadow-md);
 }
 .export-dropdown.open .export-menu { display: block; }
@@ -1080,7 +1086,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 
 /* ── Due date alert ── */
 .alert {
-  padding: 9px 14px; border-radius: var(--r-lg);
+  padding: 9px 14px; border-radius: 10px;
   font-size: 13px; font-weight: 500; line-height: 1.5;
 }
 
@@ -1091,134 +1097,10 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 
 /* ── Detail action bar ── */
 
-/* ── Mobile bottom nav (redesign 2026-08-10) ──────────────────────────────
-   Replaces the old 5-of-11-modules tab bar + separate top-right floating
-   icon cluster with ONE consolidated bottom bar: Home (real link) plus
-   Search/Menu/Alerts/Account (sheet triggers). Every module now lives behind
-   the Menu tab's drawer (NAV_GROUPS, shared with desktop — see AppLayout.jsx)
-   instead of being hardcoded 5-of-11 into this bar, and there's no more
-   top+bottom split chrome to orient between.
-   Also drops the old docked-notch/disc mask animation for a standard
-   always-visible icon+label tab (Material/iOS default) — simpler to
-   maintain and never leaves the bar in an unlabeled "flat" state, which is
-   what the old per-page active-tab matching did on every page outside its
-   5 fixed slots. */
-.bottom-nav { display: none; }
-.m-topbar { display: none; }
-@media (max-width: 600px) {
-  .bottom-nav {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: calc(64px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    border: none;
-    border-top: 1px solid rgba(255,255,255,.08);
-    border-radius: 16px 16px 0 0;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 38%),
-      rgba(20,20,23,.82);
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
-    box-shadow: 0 -8px 24px rgba(0,0,0,.3);
-    z-index: var(--z-sticky);
-  }
-  [data-theme="light"] .bottom-nav {
-    border-top-color: rgba(31,26,20,.08);
-    background:
-      linear-gradient(180deg, rgba(255,255,255,.6) 0%, rgba(255,255,255,0) 38%),
-      rgba(253,252,250,.85);
-    box-shadow: 0 -8px 24px rgba(28,25,23,.1);
-  }
-
-  .bnav-tab {
-    position: relative;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px;
-    min-width: 0;
-    color: var(--text-3); text-decoration: none;
-    background: none; border: none; cursor: pointer;
-    font-family: inherit; -webkit-appearance: none; appearance: none;
-    transition: color .15s, transform .12s cubic-bezier(.34,1.56,.64,1);
-  }
-  .bnav-tab:active { transform: scale(.92); }
-  .bnav-ico { display: flex; }
-  .bnav-ico svg { width: 21px; height: 21px; flex-shrink: 0; }
-  .bnav-ico-avatar {
-    width: 21px; height: 21px; border-radius: 50%; overflow: hidden;
-    align-items: center; justify-content: center;
-  }
-  .bnav-ico-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .bnav-label { font-size: 10px; font-weight: 600; line-height: 1; letter-spacing: .01em; }
-  .bnav-active { color: var(--accent); }
-  .bnav-active .bnav-label { font-weight: 700; }
-
-  .bnav-badge {
-    position: absolute; top: -3px; right: -6px;
-    min-width: 14px; height: 14px; padding: 0 3px;
-    background: var(--red); color: #fff;
-    font-size: 8px; font-weight: 700; line-height: 14px;
-    border-radius: var(--r-full); text-align: center;
-    pointer-events: none;
-    border: 1.5px solid rgba(20,20,23,.9);
-  }
-  [data-theme="light"] .bnav-badge { border-color: rgba(253,252,250,.9); }
-
-  @media (prefers-reduced-motion: reduce) {
-    .bnav-tab { transition: none; }
-  }
-
-  /* Top-right utility cluster (search / notifications / account avatar).
-     Previously dropped during the 2026-08-10 bottom-nav redesign — the
-     React shell still renders it (AppLayout.jsx #m-topbar), so without
-     these rules the unstyled buttons leaked into the page flow and the
-     avatar <img> rendered at its natural (huge) size above the content. */
-  .m-topbar {
-    display: flex; align-items: center; gap: 6px;
-    position: fixed; top: calc(10px + env(safe-area-inset-top)); right: 12px;
-    z-index: var(--z-sticky);
-  }
-  .m-top-btn, .m-top-avatar {
-    width: 42px; height: 42px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    background:
-      linear-gradient(155deg, rgba(255,255,255,.18), rgba(255,255,255,0) 55%),
-      rgba(14,14,17,.45);
-    backdrop-filter: blur(28px) saturate(170%);
-    -webkit-backdrop-filter: blur(28px) saturate(170%);
-    border: 1px solid rgba(255,255,255,.12);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
-    color: var(--text-2); cursor: pointer;
-    font-family: inherit; -webkit-appearance: none; appearance: none;
-    position: relative; flex-shrink: 0;
-    transition: transform .12s cubic-bezier(.34,1.56,.64,1);
-  }
-  [data-theme="light"] .m-top-btn,
-  [data-theme="light"] .m-top-avatar {
-    background:
-      linear-gradient(155deg, rgba(255,255,255,.6), rgba(255,255,255,0) 55%),
-      rgba(253,252,250,.5);
-    border-color: rgba(31,26,20,.12);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
-  }
-  .m-top-btn:active, .m-top-avatar:active { transform: scale(.9); }
-  .m-top-avatar { padding: 0; overflow: hidden; color: var(--text-2); }
-  .m-top-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .m-top-badge {
-    position: absolute; top: 3px; right: 3px;
-    min-width: 14px; height: 14px;
-    background: var(--red); color: #fff;
-    font-size: 8px; font-weight: 700;
-    border-radius: var(--r-full);
-    display: flex; align-items: center; justify-content: center;
-    padding: 0 3px; pointer-events: none;
-    border: 1.5px solid rgba(14,14,17,.95);
-  }
-  [data-theme="light"] .m-top-badge { border-color: rgba(253,252,250,.95); }
-}
+/* ── Legacy mobile nav classes removed (2026-08-25) ──
+   Old .bottom-nav / .m-topbar / .m-top-btn / .m-top-avatar / .m-top-badge
+   / .bnav-tab / .bnav-ico / .bnav-label / .bnav-active / .bnav-disc
+   replaced by .m-top-bar + .m-bottom-nav in tailwind.css. */
 
 /* ── Mobile ── */
 .m-sub { display: none; }
@@ -1227,7 +1109,10 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 @media (max-width: 600px) {
   .topbar { display: none !important; }
 
-  .page, .page-sm { padding: 56px 12px 88px; }
+  /* Page padding: 48px top (new m-top-bar) + safe-area, 56px bottom (new m-bottom-nav) + safe-area */
+  .page, .page-sm {
+    padding: calc(48px + env(safe-area-inset-top)) 12px calc(56px + env(safe-area-inset-bottom) + 16px);
+  }
 
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 14px; }
   .page-title { font-size: 16px; }
@@ -1242,23 +1127,22 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .filter-bar { flex-direction: column; gap: 8px; align-items: stretch; }
   .filter-bar .search-wrap {
     width: 100%; min-width: 0; height: 42px; flex: none; box-sizing: border-box;
-    border-radius: var(--r-xl); background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; background: var(--card); border: 1px solid var(--border);
   }
   .filter-bar .fbar-actions { width: 100%; box-sizing: border-box; gap: 8px; }
-  /* 16px input prevents iOS auto-zoom on focus */
   .search-wrap input:not([type="checkbox"]):not([type="radio"]) { font-size: 16px; }
   .filter-bar .fbar-btn {
-    height: 42px; font-size: 13px; border-radius: var(--r-full);
-    background: var(--surface); border: 1px solid var(--border);
+    height: 42px; font-size: 13px; border-radius: 10px;
+    background: var(--card); border: 1px solid var(--border);
   }
   .filter-bar select,
   .filter-bar button[type="submit"] { display: none !important; }
 
-  .card-header { flex-wrap: wrap; gap: 7px; padding: 10px 14px 9px; }
-  .card-body { padding: 12px 14px; }
+  .card-header { flex-wrap: wrap; gap: 7px; padding: 10px 14px 8px; }
+  .card-body { padding: 10px 14px; }
   .field { gap: 2px; }
 
-  .form-section { padding: 14px; }
+  .form-section { padding: 12px; }
   .room-row {
     grid-template-columns: 1fr 1fr !important; gap: 7px;
   }
@@ -1276,90 +1160,174 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   #draft-modal > div { margin: 12px; width: calc(100% - 24px); max-width: none; }
 
   .panel { max-width: 100%; }
-  .doc-grid { grid-template-columns: repeat(3, 1fr); }
-  .doc-tile { padding: 18px 8px; gap: 7px; }
-  .tile-icon { width: 32px; height: 32px; border-radius: var(--r-lg); }
-  .tile-icon svg { width: 15px; height: 15px; }
+  .doc-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .doc-tile { padding: 14px 8px; gap: 6px; }
+  .tile-icon { width: 30px; height: 30px; border-radius: 10px; }
+  .tile-icon svg { width: 14px; height: 14px; }
   .tile-name { font-size: 10px; }
 
   .table-wrap { overflow-x: unset; }
   .table-wrap table { display: block; }
   .table-wrap table thead { display: none; }
-  /* Container transparan: tiap baris jadi kartu bertoken dv- sendiri
-     (kecuali tabel dense .rem-table yang tetap tabel scrollable) */
-  .card:has(> .table-wrap):not(:has(.rem-table)) {
+  .card:has(> .table-wrap):not(:has(.rem-table)),
+  .card:has(> .m-card-list) {
     background: transparent; border: none; box-shadow: none;
     overflow: visible; animation: none;
   }
-  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header {
+  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header,
+  .card:has(> .m-card-list) > .card-header {
     background: none; border: none; border-radius: 0;
-    margin-bottom: 8px; padding: 4px 2px;
+    margin-bottom: 6px; padding: 4px 2px;
   }
-  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header .card-title {
+  .card:has(> .table-wrap):not(:has(.rem-table)) > .card-header .card-title,
+  .card:has(> .m-card-list) > .card-header .card-title {
     font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
     color: var(--text-3); font-weight: 700;
   }
-  .table-wrap table tbody { display: flex; flex-direction: column; gap: 10px; }
-  .table-wrap table tbody tr {
-    display: flex; flex-wrap: wrap; align-items: baseline;
-    gap: 2px 8px;
-    padding: 13px 40px 13px 14px;
-    position: relative;
-    background: var(--surface);
+  /* ── Mobile card list ─────────────────────────────────────────────────
+     Table component renders <div class="m-card"> on mobile instead of
+     <table> rows. Plain rounded card by default; passing `mobileStub` to
+     <Table> (CL only) swaps in a "ticket stub" — a colored strip carrying
+     the row's status, read off the badge column (extractStub() in
+     table.jsx) — so status never has to fight the action icons for the
+     same top-right corner, which was the original mess. */
+  .m-card-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .m-card {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    background: var(--card);
     border: 1px solid var(--border);
-    border-radius: var(--r-xl);
+    border-radius: 12px;
+    overflow: hidden;
     cursor: pointer;
   }
-  .table-wrap table tbody td {
-    display: inline-flex; align-items: center;
-    padding: 0; border: none; font-size: 12px; line-height: 1.4;
+  .m-card.m-card--no-stub { grid-template-columns: 1fr; }
+  .m-card:hover .m-card-main { background: color-mix(in oklch, var(--card) 92%, var(--muted)); }
+  .m-card-stub {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface-3);
+    border-right: 1.5px dashed var(--border-2);
   }
-  .col-m-hide { display: none !important; }
-  .m-hide { display: none !important; }
-  .m-sub { display: block; width: 100%; color: var(--text-2); font-size: 12px; font-weight: 400; margin-top: 3px; }
-  .m-only { display: inline-flex; }
-  /* Row 1: identifier bold (order 0) + pill didorong ke ujung kanan (order 1) */
-  .col-m-primary { order: 0; font-size: 13.5px !important; font-weight: 700; }
-  .col-m-badge { order: 1; margin-left: auto; position: static; }
-  /* Sub 1: identitas, baris penuh sendiri. max-width:none membatalkan
-     .col-ellipsis/.col-ellipsis-sm (utilitas desktop, tidak berbatas media
-     query) yang kalau tidak dibatalkan akan menahan lebar kolom ini kecil
-     dan membuatnya numpuk di baris 1 alih-alih pindah baris sendiri. */
-  .col-m-secondary {
-    order: 2; width: 100%; flex-basis: 100%; max-width: none;
-    color: var(--text-2); font-size: 12.5px; margin-top: 4px;
+  .m-card-stub::before, .m-card-stub::after {
+    content: ""; position: absolute; left: 50%; transform: translateX(-50%);
+    width: 12px; height: 12px; border-radius: 50%; background: var(--bg-2);
+  }
+  .m-card-stub::before { top: -6px; }
+  .m-card-stub::after  { bottom: -6px; }
+  .m-card-stub-label {
+    writing-mode: vertical-rl; transform: rotate(180deg);
+    font-family: var(--font-mono);
+    font-size: 10px; font-weight: 700; letter-spacing: .08em;
+    padding: 10px 0; white-space: nowrap;
+    color: var(--text-3);
+  }
+  .m-card-stub.st-green  { background: var(--green); }
+  .m-card-stub.st-green  .m-card-stub-label { color: var(--bg); }
+  .m-card-stub.st-red    { background: var(--red); }
+  .m-card-stub.st-red    .m-card-stub-label { color: var(--bg); }
+  .m-card-stub.st-yellow { background: var(--yellow); }
+  .m-card-stub.st-yellow .m-card-stub-label { color: var(--bg); }
+  .m-card-stub.st-blue   { background: var(--accent); }
+  .m-card-stub.st-blue   .m-card-stub-label { color: var(--bg); }
+  .m-card-main { padding: 14px 14px 12px; min-width: 0; transition: background .15s ease; }
+  .m-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    min-height: 22px;
+  }
+  .m-card-primary {
+    flex: 1 1 0%; min-width: 0;
+    font-size: 15px; font-weight: 600; color: var(--foreground);
+    letter-spacing: -0.01em; line-height: 1.3;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  /* Sub 2: dua kolom (kiri polos, kanan redup+kecil) dalam satu td, TANPA garis */
-  .col-m-meta {
-    order: 3; width: 100%; flex-basis: 100%;
-    display: flex !important; align-items: baseline; justify-content: space-between; gap: 8px;
-    overflow: visible; white-space: normal; max-width: none;
-    font-size: 11px !important; color: var(--text-3) !important;
-    margin-top: 5px;
+  .m-card-badge { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
+  .m-card-actions {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 2px;
+    margin: -4px -6px -4px 0;
   }
-  /* Footer: label kiri + nilai kanan, DI BAWAH garis pemisah */
-  .col-m-amount {
-    order: 4; width: 100%; flex-basis: 100%;
-    display: flex !important; align-items: baseline; justify-content: space-between;
-    margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--border);
-    font-family: inherit; font-size: 12.5px !important; font-weight: 700;
+  /* Bare flex helper for the per-column inner span on "meta"/"amount" roles
+     (label+value inside one column, e.g. hotel+dates or Total+SAR) — no
+     border/margin/padding here, those live only on the outer row below, or
+     a single-column fragment ends up with its divider drawn twice.
+     flex:1 makes it fill the outer row's full width — without it, a lone
+     flex item shrinks to its content size and space-between has no room
+     to actually spread its own children apart. */
+  .m-card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 1 auto; min-width: 0; }
+  .m-card-rooms { font-size: 12px; font-weight: 400; color: var(--text-3); white-space: nowrap; }
+  .m-card-total-group { display: flex; align-items: baseline; gap: 5px; margin-left: auto; }
+  .m-card-secondary {
+    margin-top: 3px;
+    font-size: 13px; color: var(--text-2); line-height: 1.4;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .m-card-meta {
+    margin-top: 6px;
+    font-size: 12px; color: var(--text-3); line-height: 1.4;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  /* CL card only: hotel name gets its own truncating line (via col-m-meta's
+     Hotel column), stay dates + nights sit on a second line below it so
+     neither has to fight the other for space on narrow screens. */
+  .m-card-hotelstay {
+    display: flex; flex-direction: column; gap: 3px;
+    flex: 1 1 auto; min-width: 0; width: 100%;
+  }
+  .m-card-hotel-row {
+    display: flex; align-items: center; gap: 5px; min-width: 0;
+    color: var(--text-2);
+  }
+  .m-card-hotel-row svg { flex: 0 0 auto; color: var(--text-3); }
+  .m-card-hotel-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12.5px; font-weight: 500;
+  }
+  .m-card-stay-row {
+    display: flex; align-items: center; gap: 5px;
     font-variant-numeric: tabular-nums;
   }
-  .col-m-actions { position: absolute; top: 12px; right: 12px; padding-top: 0; gap: 5px; }
-  .col-m-actions [data-slot="button"] {
-    width: 30px !important; height: 30px !important;
-    position: relative;
+  .m-card-stay-row svg { flex: 0 0 auto; }
+  .m-card-stay-dates { white-space: nowrap; }
+  .m-card-nights {
+    margin-left: auto; flex: 0 0 auto;
+    font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    color: var(--text-2); background: var(--surface-3);
+    border-radius: 999px; padding: 1px 7px;
   }
-  /* hit area 44x44 (touch minimum) tanpa membesarkan tombol visual;
-     aman karena hanya satu tombol (kebab) yang tampil per baris di mobile */
-  .col-m-actions [data-slot="button"]::after { content: ""; position: absolute; inset: -7px; }
+  .m-card-amount {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border-2);
+    font-size: 15px; font-weight: 600; color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+  }
+  .m-card-actions [data-slot="button"] {
+    position: relative;
+    width: 28px !important; height: 28px !important;
+    border-radius: 8px !important;
+  }
+  .m-card-actions [data-slot="button"]::after { content: ""; position: absolute; inset: -8px; }
+  .m-card-empty {
+    text-align: center; padding: 32px 16px;
+    font-size: 13px; color: var(--muted-foreground);
+  }
+
+  /* Legacy col-m-* classes still needed for inline styles in render()
+     functions (e.g. badge rendering). Keep them but they no longer drive
+     the card layout — the classify() function in table.jsx handles that. */
+  .col-m-hide { display: none !important; }
+  .m-hide { display: none !important; }
+  .m-sub { display: block; width: 100%; color: var(--text-2); font-size: 12px; font-weight: 400; margin-top: 2px; }
+  .m-only { display: inline-flex; }
+
   .table-wrap table tfoot {
     display: block; margin-top: 8px;
-    background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-xl);
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
   }
   .table-wrap table tfoot tr { display: block; padding: 8px 14px; }
-  /* total rata kanan, label kiri (label mengambang, nilai mengikuti text-align) */
   .table-wrap table tfoot td { display: block; width: 100%; padding: 2px 0; border: none; background: transparent; font-size: 13px; text-align: right; }
 
   /* dense entry tables (remittance form/edit): keep as scrollable table, don't collapse */
@@ -1371,7 +1339,7 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap table.rem-table th,
   .table-wrap table.rem-table td { display: table-cell; white-space: nowrap; }
 
-  .export-menu { border-radius: var(--r-xl); }
+  .export-menu { border-radius: 12px; }
 }
 
 /* ── Action sheet (mobile row actions) ── */
@@ -1385,9 +1353,9 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 }
 .asheet {
   width: 100%;
-  background: var(--surface);
+  background: var(--card);
   border: 1px solid var(--border); border-bottom: none;
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  border-radius: 14px 14px 0 0;
   padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
   animation: _asheet-up .26s cubic-bezier(.32,1,.4,1) both;
 }
@@ -1398,23 +1366,22 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
 .asheet-cancel {
   display: flex; align-items: center; justify-content: center;
   width: 100%; min-height: 46px; margin-top: 6px;
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: var(--r-lg); cursor: pointer;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; cursor: pointer;
   font-family: inherit; font-size: 14px; font-weight: 500; color: var(--text-2);
   -webkit-appearance: none; appearance: none;
 }
 
-/* Notif dropdown yang dipakai AppLayout: posisi desktop = seperti inline style lama */
+/* Notif dropdown — desktop position */
 .notif-float { position: fixed; top: 54px; right: 14px; width: 300px; z-index: var(--z-overlay); }
 @media (max-width: 600px) {
-  /* Trigger pindah ke tab "Alerts" di bottom nav (redesign 2026-08-10, dulu
-     di m-topbar kanan-atas), jadi panel dibuka dari bawah juga — anchornya
-     mengambang tepat di atas bottom-nav, bukan lagi di bawah topbar. */
+  /* Anchored above the new m-bottom-nav (56px + safe-area) */
   .notif-float {
     top: auto;
-    bottom: calc(72px + env(safe-area-inset-bottom));
+    bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
     left: 12px; right: 12px; width: auto;
     max-height: 55dvh;
+    border-radius: 14px;
   }
   .notif-float .notif-body { max-height: calc(55dvh - 40px); }
   .notif-float .notif-item { padding: 12px 14px; }

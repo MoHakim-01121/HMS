@@ -9,7 +9,7 @@ from .invoice import (
     Attachment, _attachment_path,
     Remittance, RemittanceLine,
 )
-from .ledger import Account, ChargeReason, AllocationReason, Charge, Allocation, CashMovement
+from .ledger import CashAccount, ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
 from .reminder import ReminderLog, RecapLog, WATarget, MessageTemplate
@@ -36,7 +36,7 @@ __all__ = [
     'Invoice', 'Reservation', 'ServiceItem', 'Payment', 'Attachment', '_attachment_path',
     'Remittance', 'RemittanceLine',
     # Ledger (legacy — kept for backward compat during migration)
-    'Account', 'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
+    'CashAccount', 'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
     # Hotel
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     # Penalty

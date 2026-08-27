@@ -5,13 +5,14 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 
 from django.contrib import messages
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
 from ..models.period import FinancialPeriod
 from ..permissions import require_perm
-from .helpers import get_active_company
+from .helpers import get_active_company, serialize_journal_entry
 
 logger = logging.getLogger(__name__)
 
@@ -50,20 +51,17 @@ def period_detail(request, pk):
     payments = period.payments.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')[:50]
 
     # Calculate account balances for this period
-    from django.db.models import Sum
     from ..models.journal import JournalLine, Account
-    account_balances = []
-    for account_value, account_label in Account.choices:
-        total = JournalLine.objects.filter(
-            journal_entry__period=period,
-            account=account_value,
-        ).aggregate(total=Sum('amount_sar'))['total'] or 0
-        if total != 0:
-            account_balances.append({
-                'account': account_value,
-                'label': account_label,
-                'balance': total,
-            })
+    totals = {
+        row['account']: row['total']
+        for row in JournalLine.objects.filter(journal_entry__period=period)
+        .values('account').annotate(total=Sum('amount_sar'))
+    }
+    account_balances = [
+        {'account': value, 'label': label, 'balance': total}
+        for value, label in Account.choices
+        if (total := totals.get(value))
+    ]
 
     # Period totals
     total_debit = sum(e.total_debit for e in entries)
@@ -71,18 +69,7 @@ def period_detail(request, pk):
 
     return inertia_render(request, 'Period/Detail', props={
         'period': _period_props(period),
-        'entries': [{
-            'id': e.pk,
-            'entry_number': e.entry_number,
-            'entry_type': e.entry_type,
-            'entry_type_display': e.get_entry_type_display(),
-            'description': e.description,
-            'entry_date': e.entry_date.isoformat(),
-            'total_debit': e.total_debit,
-            'total_credit': e.total_credit,
-            'is_balanced': e.is_balanced,
-            'created_by': e.created_by.username if e.created_by else None,
-        } for e in entries],
+        'entries': [serialize_journal_entry(e, total_debit=e.total_debit, total_credit=e.total_credit, is_balanced=e.is_balanced, created_by=e.created_by.username if e.created_by else None) for e in entries],
         'payments': [{
             'id': p.pk,
             'payment_number': p.payment_number,

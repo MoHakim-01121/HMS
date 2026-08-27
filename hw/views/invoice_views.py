@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import ExpressionWrapper, F, FloatField, Q
+from django.db.models import F, Q
 from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -14,28 +14,23 @@ from django.shortcuts import get_object_or_404, redirect
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, Company, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..models.choices import InvoiceType
 from ..permissions import require_perm
-from ..utils import convert_to_sar
+from .. import ledger
 from .context import _build_reservation_context
 from .helpers import (
+    _client_options,
     _is_mobile,
-    _page_range_display,
     _parse_date,
     _render_list_pdf,
     _to_float,
     get_active_company,
+    pagination_props,
 )
 from .invoice_billing import _billing_client, _billing_props, _save_hotel_payments
 from .pdf import _logo_file_url, _render_invoice_pdf
 
 logger = logging.getLogger(__name__)
-
-
-def _client_options(active_company):
-    return list(
-        Client.objects.filter(company=active_company, is_active=True)
-        .order_by('name').values('id', 'name')
-    )
 
 
 def _resolve_client_from_post(request, active_company):
@@ -65,13 +60,17 @@ def _filter_by_status(qs, status):
     """Filter a hotel Invoice queryset by payment status (lunas/belum/partial).
 
     Done in Python, not SQL: total_paid_sar needs per-payment currency
-    conversion, which isn't expressible as a queryset filter.
+    conversion, which isn't expressible as a queryset filter. Paid amounts
+    come from one bulk ledger query -- reading the total_paid_sar property
+    here used to cost one ledger query per invoice.
     """
     if status not in ('lunas', 'belum', 'partial'):
         return qs
+    invoices = list(qs)
+    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in invoices])
     filtered_ids = []
-    for inv in qs:
-        paid = inv.total_paid_sar
+    for inv in invoices:
+        paid = paid_map.get(inv.pk, 0)
         if status == 'lunas' and paid >= inv.total_sar:
             filtered_ids.append(inv.pk)
         elif status == 'belum' and paid < 1:
@@ -85,8 +84,8 @@ def _filter_by_status(qs, status):
 def invoice_list(request):
     active_company = get_active_company(request)
     base_qs = Invoice.objects.filter(
-        invoice_type="hotel", company=active_company
-    ).prefetch_related('reservations', 'payments')
+        invoice_type=InvoiceType.HOTEL, company=active_company
+    ).prefetch_related('reservations', 'service_items', 'payments')
 
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
@@ -110,23 +109,28 @@ def invoice_list(request):
 
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
+    page_invoices = list(page_obj)
+    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in page_invoices])
 
-    invoices = [{
-        "id": inv.id,
-        "invoice_number": inv.invoice_number,
-        "customer_name": inv.customer_name,
-        "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
-        "due_date": inv.due_date.strftime("%d/%m/%Y") if inv.due_date else None,
-        "created_at": inv.created_at.strftime("%d/%m/%Y"),
-        "total_sar": inv.total_sar,
-        "remaining_sar": inv.remaining_sar,
-        "status": (
-            "overpaid" if inv.remaining_sar < 0
-            else "paid" if inv.remaining_sar == 0
-            else "partial" if inv.remaining_sar < inv.total_sar
-            else "unpaid"
-        ),
-    } for inv in page_obj]
+    invoices = []
+    for inv in page_invoices:
+        remaining = inv.total_sar - paid_map.get(inv.pk, 0)
+        invoices.append({
+            "id": inv.id,
+            "invoice_number": inv.invoice_number,
+            "customer_name": inv.customer_name,
+            "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
+            "due_date": inv.due_date.strftime("%d/%m/%Y") if inv.due_date else None,
+            "created_at": inv.created_at.strftime("%d/%m/%Y"),
+            "total_sar": inv.total_sar,
+            "remaining_sar": remaining,
+            "status": (
+                "overpaid" if remaining < 0
+                else "paid" if remaining == 0
+                else "partial" if remaining < inv.total_sar
+                else "unpaid"
+            ),
+        })
 
     props = {
         "invoices": invoices,
@@ -135,21 +139,9 @@ def invoice_list(request):
         "status_filter": status,
         "date_from": date_from,
         "date_to": date_to,
-        "pagination": {
-            "number": page_obj.number,
-            "num_pages": paginator.num_pages,
-            "has_previous": page_obj.has_previous(),
-            "has_next": page_obj.has_next(),
-            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
-            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
-            "has_other_pages": page_obj.has_other_pages(),
-            "range": _page_range_display(page_obj),
-            "start_index": page_obj.start_index(),
-            "end_index": page_obj.end_index(),
-            "count": paginator.count,
-        },
+        "pagination": pagination_props(page_obj),
     }
-    if active_company == 'konoz':
+    if active_company == Company.KONOZ:
         props["remit_stats"] = _invoice_stats(base_qs, active_company)
 
     return inertia_render(request, "Invoice/List", props=props)
@@ -157,12 +149,12 @@ def invoice_list(request):
 
 def _invoice_stats(invoice_qs, company):
     from .. import ledger
-    from ..models import Account
+    from ..models import CashAccount
 
     invoice_ids = list(invoice_qs.values_list('id', flat=True))
     total_tagihan = ledger.total_charge(company, invoice_ids)
-    terbayar_surabaya = ledger.client_paid_to(Account.SBY, company, invoice_ids)
-    terbayar_pusat = ledger.client_paid_to(Account.PUSAT, company, invoice_ids)
+    terbayar_surabaya = ledger.client_paid_to(CashAccount.SBY, company, invoice_ids)
+    terbayar_pusat = ledger.client_paid_to(CashAccount.PUSAT, company, invoice_ids)
 
     return {
         'total_tagihan': total_tagihan,
@@ -177,7 +169,7 @@ def _invoice_stats(invoice_qs, company):
 
 @require_perm('invoice', 'create')
 def invoice_new(request):
-    suggested_number = Invoice.generate_number("hotel")
+    suggested_number = Invoice.generate_number(InvoiceType.HOTEL)
     active_company = get_active_company(request)
 
     if request.method == "POST":
@@ -203,7 +195,7 @@ def invoice_new(request):
                 # filters by the active company, meaning the row simply vanished
                 # from the list it was created in.
                 company=active_company,
-                invoice_type="hotel",
+                invoice_type=InvoiceType.HOTEL,
                 invoice_number=invoice_number,
                 client=client,
                 issued_date=_parse_date(request.POST.get("issued_date")),
@@ -236,7 +228,7 @@ def invoice_new(request):
 
 @require_perm('invoice', 'view')
 def invoice_detail(request, pk):
-    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
+    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
@@ -295,7 +287,7 @@ def invoice_detail(request, pk):
 @require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
     active_company = get_active_company(request)
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=active_company)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL, company=active_company)
 
     if request.method == "POST":
         def _res_snapshot(inv):
@@ -370,7 +362,7 @@ def invoice_edit(request, pk):
 
 @require_perm('invoice', 'delete')
 def invoice_delete(request, pk):
-    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
+    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     if request.method == "POST":
         num = invoice.invoice_number
@@ -396,7 +388,7 @@ def invoice_delete(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
-    filters = {'pk': pk, 'invoice_type': 'hotel', 'company': get_active_company(request)}
+    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
     invoice = get_object_or_404(Invoice, **filters)
     return _render_invoice_pdf(invoice)
 
@@ -404,7 +396,7 @@ def invoice_pdf(request, pk):
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
     active_company = get_active_company(request)
-    qs = Invoice.objects.filter(invoice_type="hotel", company=active_company).prefetch_related('reservations', 'service_items')
+    qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=active_company).prefetch_related('reservations', 'service_items')
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
@@ -437,7 +429,7 @@ def invoice_list_pdf(request):
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    qs = Invoice.objects.filter(invoice_type="hotel", company=get_active_company(request)).prefetch_related('reservations', 'service_items')
+    qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=get_active_company(request)).prefetch_related('reservations', 'service_items')
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
@@ -465,12 +457,12 @@ def invoice_export_csv(request):
 
 @require_perm('invoice', 'create')
 def invoice_duplicate(request, pk):
-    original = get_object_or_404(Invoice, pk=pk, invoice_type='hotel', company=get_active_company(request))
-    new_num = Invoice.generate_number("hotel")
+    original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL, company=get_active_company(request))
+    new_num = Invoice.generate_number(InvoiceType.HOTEL)
     today = date.today()
     new_inv = Invoice.objects.create(
         company=original.company,
-        invoice_type="hotel",
+        invoice_type=InvoiceType.HOTEL,
         invoice_number=new_num,
         customer_name=original.customer_name,
         issued_date=today,

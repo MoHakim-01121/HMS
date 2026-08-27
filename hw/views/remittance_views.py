@@ -4,6 +4,7 @@ import logging
 
 from collections import defaultdict
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db import transaction
@@ -14,17 +15,62 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import Invoice, Payment, Remittance, RemittanceLine, Client, Account, CashMovement
+from ..models import Payment, Remittance, RemittanceLine, Client, CashAccount, CashMovement
+from ..models.choices import Company
 from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .. import ledger
-from .helpers import validate_proof_file
+from .helpers import validate_proof_file, period_label as _period_label
 from .invoice_billing import _billing_client
 
 logger = logging.getLogger(__name__)
 
 SURABAYA_METHODS = {'cash', 'bank transfer', 'deposit'}
-KONOZ = 'konoz'
+KONOZ = Company.KONOZ
+
+
+def _parse_transfer_fields(request):
+    """Field transfer bank fisik dari form -- semuanya opsional.
+
+    amount_idr          : uang IDR yang keluar dari bank Surabaya
+    exchange_rate       : kurs IDR/SAR saat transfer
+    received_amount_sar : nominal SAR yang benar-benar diterima pusat
+                          (boleh beda dari idr/kurs karena biaya transfer)
+    """
+    def _num(key):
+        raw = (request.POST.get(key) or '').strip().replace(',', '')
+        if not raw:
+            return None
+        try:
+            return Decimal(raw)
+        except InvalidOperation:
+            return None
+
+    amount_idr = _num('amount_idr')
+    exchange_rate = _num('exchange_rate')
+    received = _num('received_amount_sar')
+    return (
+        int(amount_idr) if amount_idr else None,
+        exchange_rate if exchange_rate else None,
+        int(received) if received else None,
+    )
+
+
+def _record_unallocated_movement(rem, user=None):
+    """Movement tunggal SBY->PUSAT tanpa label reservasi untuk RMT lump-sum.
+
+    Uangnya sudah fisik keluar dari Surabaya (kas_surabaya harus turun)
+    walau belum jelas menutup reservasi mana. Begitu baris dialokasikan lewat
+    _sync_remittance_lines, movement ini tergantik baris-per-baris.
+    """
+    CashMovement.objects.create(
+        company=rem.company, date=rem.date,
+        from_account=CashAccount.SBY, to_account=CashAccount.PUSAT,
+        amount=rem.received_amount_sar, currency='SAR', exchange_rate=1,
+        remittance=rem,
+        note=f'Transfer {rem.remittance_number} menunggu alokasi reservasi',
+        created_by=user,
+    )
 
 
 def _prev_sent_map(rem, linked_numbers):
@@ -135,6 +181,7 @@ def _build_reservasi_mengendap():
             'invoice_id': r.invoice_id,
             'invoice_number': r.invoice.invoice_number,
             'customer_name': r.invoice.customer_name,
+            'hotel': r.hotel,
             'check_in': r.check_in,
             'check_out': r.check_out,
             'total_sar': r.total_sar,
@@ -226,25 +273,41 @@ def remittance_new(request):
                     'invoice_id': ld.get('invoice_id') or None,
                 })
 
-        if not lines_data:
+        amount_idr, exchange_rate, received_sar = _parse_transfer_fields(request)
+
+        # Lump-sum boleh tanpa baris: yang penting nominal transfernya ada.
+        if not lines_data and not (received_sar or amount_idr):
             return inertia_render(request, "Remittance/Form", props={
                 'reservasi': _serialize_reservasi(),
                 'error': 'Enter at least one amount to send.',
                 'today': str(date.today()),
             })
 
+        if not lines_data and received_sar is None and amount_idr and exchange_rate:
+            # Kurs diketahui tapi penerimaan pusat belum dikonfirmasi --
+            # pakai nilai teoretis idr/kurs dulu.
+            received_sar = int(round(amount_idr / exchange_rate))
+
         rem = Remittance.objects.create(
             remittance_number=Remittance.generate_number(),
             company=KONOZ,
             date=remittance_date,
             receipt_reference=receipt_reference,
+            amount_idr=amount_idr,
+            exchange_rate=exchange_rate,
+            received_amount_sar=received_sar,
             note=note,
         )
         if proof:
             rem.proof = proof
             rem.save()
 
-        _sync_remittance_lines(rem, lines_data, request.user)
+        if lines_data:
+            _sync_remittance_lines(rem, lines_data, request.user)
+        elif received_sar or amount_idr:
+            # Lump-sum: uang sudah keluar bank tapi belum dibagikan ke
+            # reservasi. Catat perpindahan kasnya dulu tanpa label.
+            _record_unallocated_movement(rem, request.user)
 
         return redirect('remittance_detail', pk=rem.pk)
 
@@ -298,6 +361,13 @@ def remittance_detail(request, pk):
             "receipt_reference": rem.receipt_reference,
             "note": rem.note,
             "total_sar": rem.total_sar,
+            # Transfer bank fisik + progres alokasi ke reservasi
+            "amount_idr": rem.amount_idr,
+            "exchange_rate": float(rem.exchange_rate) if rem.exchange_rate else None,
+            "expected_sar": rem.expected_sar,
+            "received_amount_sar": rem.received_amount_sar,
+            "allocated_sar": rem.allocated_sar,
+            "unallocated_sar": rem.unallocated_sar,
         },
         "lines": enriched,
     })
@@ -399,11 +469,16 @@ def _sync_remittance_lines(rem, raw_lines, user=None):
             client = _billing_client(line.invoice) if line.invoice_id else None
             CashMovement.objects.create(
                 company=rem.company, client=client, invoice_id=line.invoice_id,
-                date=rem.date, from_account=Account.SBY, to_account=Account.PUSAT,
+                date=rem.date, from_account=CashAccount.SBY, to_account=CashAccount.PUSAT,
                 amount=line.amount_sar, currency='SAR', exchange_rate=1,
                 remittance=rem, reservation_label=reservation,
                 note=f'Sinkron dari remittance {rem.remittance_number}', created_by=user,
             )
+
+        # RMT lump-sum yang barisnya dikosongkan lagi: uangnya tetap sudah
+        # keluar dari Surabaya, jadi movement tunggal tanpa label dibuat ulang.
+        if not keep_ids and rem.received_amount_sar:
+            _record_unallocated_movement(rem, user)
     logger.info(
         "ledger: remittance %s synced, %d line(s)",
         rem.remittance_number, len(keep_ids),
@@ -420,7 +495,14 @@ def remittance_edit(request, pk):
         rem.status = request.POST.get('status', rem.status)
         rem.receipt_reference = request.POST.get('receipt_reference', '').strip()
         rem.note = request.POST.get('note', '').strip()
+        amount_idr, exchange_rate, received_sar = _parse_transfer_fields(request)
+        if amount_idr or received_sar:
+            rem.amount_idr = amount_idr
+            rem.exchange_rate = exchange_rate
+            rem.received_amount_sar = received_sar
         update_fields = ['date', 'status', 'receipt_reference', 'note']
+        if amount_idr or received_sar:
+            update_fields += ['amount_idr', 'exchange_rate', 'received_amount_sar']
         if request.POST.get('remove_proof'):
             rem.proof = None
             update_fields.append('proof')
@@ -560,6 +642,75 @@ def remittance_recap(request):
     })
 
 
+@require_perm('remittance', 'view')
+def remittance_tracking(request):
+    """Pelacakan remittance per client -> reservasi.
+
+    Untuk tiap reservasi: berapa sudah sampai pusat (ikut RMT apa saja,
+    kapan, nominalnya), dan sisa mengendap di Surabaya yang masih harus
+    dikirim. Dikelompokkan per client supaya siap dipakai saat menentukan
+    "10 reservasi terdekat" untuk transfer berikutnya.
+    """
+    from ..models import Invoice
+
+    rows = _build_reservasi_mengendap()
+    rmt_map = ledger.reservation_remittance_map(
+        KONOZ, [r['linked_number'] for r in rows],
+    )
+
+    inv_ids = {r['invoice_id'] for r in rows if r['invoice_id']}
+    client_names = dict(
+        Invoice.objects.filter(pk__in=inv_ids)
+        .select_related('client')
+        .values_list('pk', 'client__name')
+    )
+
+    for r in rows:
+        r['rmts'] = [{
+            'id': h['rmt_id'],
+            'number': h['rmt_number'],
+            'date': h['date'].strftime('%d/%m/%Y') if h['date'] else None,
+            'status': h['status'],
+            'amount_sar': h['amount_sar'],
+        } for h in rmt_map.get(r['linked_number'], [])]
+        # Sisa yang masih mengendap = belum masuk RMT mana pun
+        r['sisa_kirim'] = max(r['mengendap'], 0)
+        client_name = client_names.get(r['invoice_id']) or r['customer_name']
+        r['client_name'] = client_name or '—'
+
+    # Kelompokkan per client, urut nama; reservasi dalam client urut check-in
+    groups = defaultdict(list)
+    for r in rows:
+        groups[r['client_name']].append(r)
+
+    clients = []
+    for name in sorted(groups):
+        ress = sorted(groups[name], key=lambda x: x['check_in'] or date.max)
+        clients.append({
+            'client_name': name,
+            'total_mengendap': sum(max(x['mengendap'], 0) for x in ress),
+            'total_dikirim': sum(x['sudah_dikirim'] for x in ress),
+            'reservations': [{
+                'linked_number': x['linked_number'],
+                'invoice_number': x['invoice_number'],
+                'hotel': x['hotel'] or '—',
+                'check_in': x['check_in'].strftime('%d/%m/%Y') if x['check_in'] else None,
+                'total_sar': x['total_sar'],
+                'terbayar_sby': x['terbayar_sby'],
+                'terbayar_direct': x['terbayar_direct'],
+                'sudah_dikirim': x['sudah_dikirim'],
+                'mengendap': x['mengendap'],
+                'sisa_kirim': x['sisa_kirim'],
+                'rmts': x['rmts'],
+            } for x in ress],
+        })
+
+    return inertia_render(request, "Remittance/Tracking", props={
+        'clients': clients,
+        'total_sisa_kirim': sum(c['total_mengendap'] for c in clients),
+    })
+
+
 def _build_ledger_rows(date_from=None, date_to=None):
     """Buku besar Surabaya <-> Pusat, satu baris per reservasi.
 
@@ -669,25 +820,17 @@ def remittance_ledger_pdf(request):
 
     date_from = _parse_date(request.GET.get('from', ''))
     date_to = _parse_date(request.GET.get('to', ''))
-    ledger = _build_ledger_rows(date_from, date_to)
-
-    if date_from and date_to:
-        period_label = f"{date_from.strftime('%d %b %Y')} — {date_to.strftime('%d %b %Y')}"
-    elif date_from:
-        period_label = f"Sejak {date_from.strftime('%d %b %Y')}"
-    elif date_to:
-        period_label = f"Sampai {date_to.strftime('%d %b %Y')}"
-    else:
-        period_label = 'Semua transaksi'
+    ledger_rows = _build_ledger_rows(date_from, date_to)
+    period = _period_label(date_from, date_to)
 
     return _render_list_pdf(
         request, Remittance.objects.none(),
         template='hw/remittance/remittance_ledger_pdf.html',
         filename='remittance_ledger_surabaya_pusat.pdf',
         extra_ctx={
-            'period_label': period_label,
+            'period_label': period,
             'logo_url': _logo_file_url('konoz'),
-            **ledger,
+            **ledger_rows,
         },
     )
 

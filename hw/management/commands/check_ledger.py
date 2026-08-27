@@ -10,7 +10,7 @@ Checks:
 """
 from django.core.management.base import BaseCommand
 
-from hw.models import Reservation, ServiceItem, CancellationPenalty, Client, Charge, Allocation, CashMovement, Account
+from hw.models import Reservation, ServiceItem, CancellationPenalty, Client, Charge, Allocation, CashMovement, CashAccount
 from hw import ledger
 
 
@@ -51,10 +51,10 @@ class Command(BaseCommand):
             kas_pusat = ledger.kas_pusat(company)
             fx = ledger.selisih_kurs(company)
             client_in = sum(
-                m.amount_sar for m in CashMovement.objects.filter(company=company, from_account=Account.CLIENT)
+                m.amount_sar for m in CashMovement.objects.filter(company=company, from_account=CashAccount.CLIENT)
             )
             client_out = sum(
-                m.amount_sar for m in CashMovement.objects.filter(company=company, to_account=Account.CLIENT)
+                m.amount_sar for m in CashMovement.objects.filter(company=company, to_account=CashAccount.CLIENT)
             )
             if kas_sby + kas_pusat + fx != client_in - client_out:
                 problems.append(

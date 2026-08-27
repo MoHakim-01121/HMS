@@ -19,6 +19,7 @@ from .models.journal import (
 )
 from .models.invoice import Invoice
 from .models.choices import Company
+from .ledger import cash_destination, cash_journal_account
 
 
 class FinanceError(Exception):
@@ -242,10 +243,14 @@ def create_payment_record(
     created_by=None,
     reservation=None,
     service_item=None,
+    received_in='sby',
 ):
     """Create a PaymentRecord + JournalEntry atomically.
 
     Lifecycle: pending → confirmed (via confirm_payment)
+
+    `received_in`: kas mana uangnya diterima ('sby'/'jkt'/'pusat') —
+    menentukan wallet mengendap dan akun kas di jurnal.
     """
     from .utils import convert_to_sar
 
@@ -267,6 +272,7 @@ def create_payment_record(
         currency=currency,
         exchange_rate=exchange_rate,
         amount_sar=amount_sar,
+        received_in=received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby',
         method=method,
         bank_name=bank_name,
         account_number=account_number,
@@ -296,7 +302,7 @@ def confirm_payment(payment, confirmed_by, note=''):
     """Confirm a pending payment → creates JournalEntry.
 
     Journal entry:
-    + Cash_SBY or Cash_Pusat (money masuk)
+    + Cash_SBY / Cash_JKT / Cash_Pusat (money masuk — sesuai received_in)
     - Receivable (piutang client berkurang)
     """
     if payment.status != PaymentRecord.STATUS_PENDING:
@@ -304,9 +310,12 @@ def confirm_payment(payment, confirmed_by, note=''):
             f"Payment {payment.payment_number} sudah {payment.get_status_display()}"
         )
 
-    # Determine cash account based on method
-    # TODO: auto-detect from method/bank
-    cash_account = Account.CASH_SBY
+    # Kas mana yang menerima uangnya — dari received_in, dengan fallback
+    # ke method == 'direct' untuk baris lama sebelum field ini ada.
+    destination = cash_destination(
+        method=payment.method, received_in=payment.received_in,
+    )
+    cash_account = cash_journal_account(destination)
 
     # Determine which dimensions to tag
     dims = {}
@@ -366,47 +375,45 @@ def confirm_payment(payment, confirmed_by, note=''):
 
 @transaction.atomic
 def allocate_payment(payment, allocation_date, created_by, note=''):
-    """Allocate confirmed payment to invoice → creates JournalEntry.
+    """Allocate a confirmed payment to its invoice.
 
-    Journal entry:
-    + Receivable (piutang client naik — wait, no)
-    Actually: we're allocating the payment to the invoice, so:
-    - Cash (money keluar dari kas) — NO, money stays in kas
-    + Receivable (we mark the receivable as allocated)
-
-    Actually, allocation means: we assign the payment to specific invoices.
-    The journal entry is:
-    + Invoice.paid_sar += payment.amount_sar
-    - (no journal entry needed — the allocation is tracked in PaymentRecord)
-
-    Wait, let me rethink. In double-entry:
-    - When payment is confirmed: DR Cash, CR Receivable
-    - When payment is allocated: DR Receivable, CR Income (or similar)
-
-    Actually, the simpler approach:
-    - Payment confirmation = Cash in, Receivable down
-    - Allocation = we just mark the payment as allocated (update Invoice.paid_sar)
-
-    Let me simplify: allocation is just a status change, not a journal entry.
-    The journal entry already happened at confirmation.
+    The journal entry (Cash/Receivable) already happened at confirmation --
+    allocation itself is a status change, plus mirroring the payment into
+    the legacy CashMovement/Allocation ledger. That mirror is the same
+    dual-write bridge invoice_billing.py/penalty_views.py already use for
+    their own payments, and it's what makes Invoice.total_paid_sar/
+    remaining_sar/is_fully_paid (which read only that ledger) see payments
+    recorded through the Finance page too.
     """
+    from .models.ledger import CashAccount as WalletAccount, AllocationReason, CashMovement, Allocation
+
     if payment.status != PaymentRecord.STATUS_CONFIRMED:
         raise PaymentAlreadyProcessedError(
             f"Payment {payment.payment_number} harus confirmed dulu"
         )
 
-    # Update invoice paid_sar
-    old_state = _payment_snapshot(payment)
     invoice = payment.invoice
-    invoice.paid_sar += payment.amount_sar
-    invoice.save(update_fields=['paid_sar'])
+    to_account = cash_destination(method=payment.method, received_in=payment.received_in)
+    mov = CashMovement.objects.create(
+        company=payment.company, client=payment.client, invoice=invoice,
+        date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
+        amount=payment.amount, currency=payment.currency, exchange_rate=payment.exchange_rate,
+        method=payment.method, reservation_label=payment.reservation, service_item_label=payment.service_item,
+        note=f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)',
+        created_by=created_by,
+    )
+    if payment.reservation_id or payment.service_item_id:
+        Allocation.objects.create(
+            company=payment.company, client=payment.client, invoice=invoice,
+            date=allocation_date, amount_sar=mov.amount_sar,
+            reservation=payment.reservation, service_item=payment.service_item,
+            reason=AllocationReason.INITIAL,
+            note=f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)',
+            created_by=created_by,
+        )
 
-    # Update invoice status
-    if invoice.paid_sar >= invoice.total_sar:
-        invoice.status = Invoice.STATUS_PAID
-    elif invoice.paid_sar > 0:
-        invoice.status = Invoice.STATUS_PARTIAL
-    invoice.save(update_fields=['status'])
+    old_state = _payment_snapshot(payment)
+    invoice.sync_status()
 
     # Update payment status
     payment.status = PaymentRecord.STATUS_ALLOCATED
@@ -445,8 +452,6 @@ def client_balance(client):
     Positive = client owes us (receivable)
     Negative = we owe client (prepaid/credit)
     """
-    from django.db.models import Sum
-
     # Get all journal lines for this client
     lines = JournalLine.objects.filter(client=client)
 
@@ -460,8 +465,6 @@ def client_balance(client):
 
 def invoice_paid_sar_jl(invoice_id):
     """Calculate how much has been paid toward an invoice (from journal lines)."""
-    from django.db.models import Sum
-
     return JournalLine.objects.filter(
         invoice_id=invoice_id,
         account=Account.RECEIVABLE,
@@ -471,8 +474,6 @@ def invoice_paid_sar_jl(invoice_id):
 
 def kas_saldo(account, company=None):
     """Calculate cash balance for an account from journal lines."""
-    from django.db.models import Sum
-
     qs = JournalLine.objects.filter(account=account)
     if company:
         qs = qs.filter(journal_entry__company=company)
@@ -527,20 +528,20 @@ def client_statement(client, date_from=None, date_to=None):
 
 def account_summary(company=None):
     """Summary of all accounts from JournalLines."""
-    from django.db.models import Sum
-
     qs = JournalLine.objects.all()
     if company:
         qs = qs.filter(journal_entry__company=company)
 
+    totals = {
+        row['account']: row['total']
+        for row in qs.values('account').annotate(total=models.Sum('amount_sar'))
+    }
     summary = {}
-    for account_choice in Account.choices:
-        account_value = account_choice[0]
-        account_label = account_choice[1]
-        total = qs.filter(account=account_value).aggregate(total=Sum('amount_sar'))['total'] or 0
-        if total != 0:
-            summary[account_value] = {
-                'label': account_label,
+    for value, label in Account.choices:
+        total = totals.get(value)
+        if total:
+            summary[value] = {
+                'label': label,
                 'balance': total,
             }
 

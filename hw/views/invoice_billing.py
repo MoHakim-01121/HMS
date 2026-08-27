@@ -6,14 +6,15 @@ from django.db import transaction
 
 from ..models import (
     ConfirmationLetter, Payment, Invoice, InvoiceType,
-    Account, AllocationReason, CashMovement, Allocation,
+    CashAccount, AllocationReason, CashMovement, Allocation,
 )
+from .. import ledger
 from .helpers import validate_proof_file, _parse_date, _to_float
 
 logger = logging.getLogger(__name__)
 
 
-def _save_payments(invoice, request, ref_field, default_currency):
+def _save_payments(invoice, request, default_currency):
     """Create Payment objects from a JSON `payments` array (one object per row),
     and in parallel build the matching ledger rows (CashMovement + Allocation).
 
@@ -50,7 +51,7 @@ def _save_payments(invoice, request, ref_field, default_currency):
         # (_sync_penalty_ledger), not to this payment list -- deleting it here
         # would silently erase the penalty's cash movement.
         CashMovement.objects.filter(
-            invoice=invoice, from_account=Account.CLIENT, penalty_label__isnull=True,
+            invoice=invoice, from_account=CashAccount.CLIENT, penalty_label__isnull=True,
         ).delete()
         Allocation.objects.filter(invoice=invoice, reason=AllocationReason.INITIAL).delete()
 
@@ -85,13 +86,8 @@ def _save_payments(invoice, request, ref_field, default_currency):
                 currency=currency,
                 exchange_rate=exchange_rate,
                 note=(r.get('note') or '').strip(),
+                proof=proof or keep or None,
             )
-            if proof:
-                p.proof = proof
-                p.save()
-            elif keep:
-                p.proof = keep
-                p.save()
 
             if not amount:
                 continue
@@ -104,11 +100,11 @@ def _save_payments(invoice, request, ref_field, default_currency):
                 except (ValueError, TypeError):
                     service_item = None
 
-            to_account = Account.PUSAT if method.lower() == 'direct' else Account.SBY
+            to_account = ledger.cash_destination(method=method)
             mov = CashMovement.objects.create(
                 company=invoice.company, client=client, invoice=invoice,
                 date=payment_date or invoice.issued_date or datetime.now().date(),
-                from_account=Account.CLIENT, to_account=to_account,
+                from_account=CashAccount.CLIENT, to_account=to_account,
                 amount=int(round(amount)), currency=currency, exchange_rate=exchange_rate,
                 method=method, reservation_label=reservation, service_item_label=service_item,
                 note=f'Sinkron dari pembayaran invoice {invoice.invoice_number}',
@@ -124,25 +120,11 @@ def _save_payments(invoice, request, ref_field, default_currency):
                     created_by=request.user,
                 )
 
-    # ── Sync Invoice.paid_sar from old Payments ──────────────────
-    # Old Payment system is the source of truth for invoice payments.
-    # Compute paid_sar from Payment objects to keep in sync.
-    # Also include standalone PaymentRecords (from Finance page) that
-    # were allocated directly to this invoice.
-    from ..models.payment import PaymentRecord
-    total_paid = sum(p.amount_sar for p in invoice.payments.all())
-    # Add standalone allocated payments (not created by this invoice form)
-    standalone_paid = PaymentRecord.objects.filter(
-        invoice=invoice, status=PaymentRecord.STATUS_ALLOCATED,
-    ).aggregate(total=models.Sum('amount_sar'))['total'] or 0
-    invoice.paid_sar = total_paid + standalone_paid
-    if total_paid >= invoice.total_sar and invoice.total_sar > 0:
-        invoice.status = Invoice.STATUS_PAID
-    elif total_paid > 0:
-        invoice.status = Invoice.STATUS_PARTIAL
-    else:
-        invoice.status = Invoice.STATUS_DRAFT
-    invoice.save(update_fields=['paid_sar', 'status'])
+    # total_paid_sar reads the CashMovement ledger (both the rows just
+    # written above and any allocated standalone PaymentRecord from the
+    # Finance page mirror into it too), so this is the single recompute
+    # for status -- no separate Payment-vs-PaymentRecord summing needed.
+    invoice.sync_status()
 
     logger.info(
         "ledger: %d payment(s) synced for invoice %s",
@@ -151,11 +133,11 @@ def _save_payments(invoice, request, ref_field, default_currency):
 
 
 def _save_hotel_payments(invoice, request):
-    _save_payments(invoice, request, 'payment_reservation_no', 'SAR')
+    _save_payments(invoice, request, 'SAR')
 
 
 def _save_service_payments(invoice, request):
-    _save_payments(invoice, request, 'payment_service_no', invoice.currency)
+    _save_payments(invoice, request, invoice.currency)
 
 
 def _billing_client(invoice):

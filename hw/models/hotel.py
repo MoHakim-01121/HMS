@@ -12,7 +12,7 @@ NABAWI_LAT = 24.4672;   NABAWI_LNG = 39.6112
 
 class Hotel(models.Model):
     company       = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
-    name          = models.CharField(max_length=200)
+    name          = models.CharField(max_length=200, db_index=True)
     city          = models.CharField(max_length=20, choices=HotelCity.choices, default=HotelCity.MAKKAH)
     stars         = models.PositiveSmallIntegerField(default=3)
     area          = models.CharField(max_length=100, blank=True)
@@ -25,7 +25,7 @@ class Hotel(models.Model):
     note          = models.TextField(blank=True)
     route         = models.JSONField(null=True, blank=True,
                                      help_text='Intermediate waypoints [[lat,lng],...] between mosque and hotel')
-    is_active     = models.BooleanField(default=True)
+    is_active     = models.BooleanField(default=True, db_index=True)
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
 

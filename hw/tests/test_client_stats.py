@@ -3,10 +3,10 @@ from hw.models import Client, Invoice, Reservation, Charge, Allocation, CashMove
 
 
 class ClientStatsTest(TestCase):
-    """Client.total_billed/total_paid/outstanding used to read Invoice.client,
-    a FK the app never actually populates (see hw/views/helpers.py
-    _billing_client) -- so these were silently always zero in production.
-    They now read the ledger, where client resolution is done properly."""
+    """Client.total_billed/total_paid/outstanding read the ledger (Charge/
+    Allocation/CashMovement), where client resolution is done properly --
+    not Invoice.client directly, since an invoice can have that FK set
+    before any Charge/CashMovement exists for it yet."""
 
     def setUp(self):
         self.client_obj = Client.objects.create(company='konoz', name='PT Client Stats')

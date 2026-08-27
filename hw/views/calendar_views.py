@@ -11,6 +11,7 @@ from django_q.tasks import async_task
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice, RecapLog, WATarget, MessageTemplate
+from .. import ledger
 from ..permissions import require_perm
 from ..i18n import tr, user_language
 from .helpers import get_active_company
@@ -157,11 +158,16 @@ def calendar_view(request):
         .filter(check_in__lte=month_end, check_out__gt=month_start)
         .exclude(check_in=None).exclude(check_out=None)
         .select_related('invoice')
-        .prefetch_related('invoice__payments', 'invoice__reservations')
+        .prefetch_related('invoice__reservations', 'invoice__service_items')
         .filter(company=active_company)
     )
+    cls_list = list(cl_qs)
 
-    for cl in cl_qs:
+    paid_by_invoice = ledger.invoice_paid_sar_map(
+        {cl.invoice_id for cl in cls_list if cl.invoice_id}
+    )
+
+    for cl in cls_list:
         start = _clip_day(cl.check_in, month, year, days_in_month, is_start=True)
         end = _clip_day(cl.check_out, month, year, days_in_month, is_start=False)
         if end <= start:
@@ -170,7 +176,9 @@ def calendar_view(request):
 
         inv = cl.invoice
         inv_number = inv.invoice_number if inv else ''
-        inv_remaining = f"{inv.remaining_sar:,.0f} SAR" if inv else ''
+        inv_remaining = (
+            f"{inv.total_sar - paid_by_invoice.get(inv.pk, 0):,.0f} SAR" if inv else ''
+        )
         inv_url = reverse('invoice_detail', args=[inv.pk]) if inv else ''
 
         hotel_map.setdefault(hotel, []).append({
@@ -231,7 +239,7 @@ def calendar_view(request):
 def cl_estimasi_save(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = get_object_or_404(ConfirmationLetter, pk=pk, company=get_active_company(request))
     estimasi_str = request.POST.get('estimasi_tiba', '').strip()
     cl.pic_name  = request.POST.get('pic_name', '').strip()
     cl.pic_phone = request.POST.get('pic_phone', '').strip()

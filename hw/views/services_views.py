@@ -17,24 +17,18 @@ from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, ServiceIt
 from ..permissions import require_perm
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
+    _client_options,
     _is_mobile,
-    _page_range_display,
     _parse_date,
     _render_list_pdf,
     _to_float,
     get_active_company,
+    pagination_props,
 )
 from .invoice_billing import _billing_client, _billing_props, _save_service_payments
 from .pdf import _render_services_pdf
 
 logger = logging.getLogger(__name__)
-
-
-def _client_options(active_company):
-    return list(
-        Client.objects.filter(company=active_company, is_active=True)
-        .order_by('name').values('id', 'name')
-    )
 
 
 def _resolve_client_from_post(request, active_company):
@@ -76,19 +70,7 @@ def services_list(request):
         "invoices": invoices,
         "total_count": paginator.count,
         "q": q,
-        "pagination": {
-            "number": page_obj.number,
-            "num_pages": paginator.num_pages,
-            "has_previous": page_obj.has_previous(),
-            "has_next": page_obj.has_next(),
-            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
-            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
-            "has_other_pages": page_obj.has_other_pages(),
-            "range": _page_range_display(page_obj),
-            "start_index": page_obj.start_index(),
-            "end_index": page_obj.end_index(),
-            "count": paginator.count,
-        },
+        "pagination": pagination_props(page_obj),
     })
 
 
