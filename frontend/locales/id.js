@@ -597,4 +597,5 @@ export const id = {
   "Workspace": "Ruang Kerja",
   "Write your message template here…": "Tulis template pesan Anda di sini…",
   "Yes": "Ya",
+  "File too large. Maximum upload size is 3 MB.": "File terlalu besar. Ukuran maksimal 3 MB.",
 };

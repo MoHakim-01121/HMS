@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, usePage } from "@inertiajs/react";
+import { Link, router, usePage } from "@inertiajs/react";
 import { useTheme } from "./useTheme.js";
 import { Icon } from "../components/icons.jsx";
 import { getCsrf } from "../utils/csrf.js";
 import { useI18n } from "../utils/i18n.jsx";
 import SearchOverlay from "../components/shadcn/search-overlay.jsx";
 import DraftModal from "../components/shell/DraftModal.jsx";
-import Toast from "../components/shell/Toast.jsx";
+import Toast, { showToast } from "../components/shell/Toast.jsx";
 import LanguageSwitcher from "../components/shell/LanguageSwitcher.jsx";
 import { FormModalProvider } from "../components/shadcn/form-modal.jsx";
 
@@ -143,6 +143,18 @@ export default function AppLayout({ children }) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  // An upload larger than nginx's client_max_body_size (3 MB) is rejected
+  // upstream with a plain 413 HTML page — a non-Inertia response. Without this,
+  // Inertia surfaces its raw error-modal. Convert that one case into a toast.
+  useEffect(() => {
+    return router.on("invalid", (event) => {
+      if (event.detail.response?.status === 413) {
+        event.preventDefault();
+        showToast(t("File too large. Maximum upload size is 3 MB."), "error");
+      }
+    });
+  }, [t]);
 
   // Close dropdowns on outside click.
   useEffect(() => {

@@ -248,8 +248,16 @@ def payment_record(request):
         messages.error(request, 'Invoice tidak memiliki client yang valid.')
         return redirect('payment_list')
 
-    # Handle proof file upload
+    # Handle proof file upload — same size/type guard as every other proof
+    # path (remittance, invoice billing, client refund). nginx caps the body
+    # at 3 MB upstream; this is the backstop plus the image/PDF type check.
     proof_file = request.FILES.get('proof')
+    if proof_file:
+        from .helpers import validate_proof_file
+        proof_error = validate_proof_file(proof_file)
+        if proof_error:
+            messages.error(request, proof_error)
+            return redirect('payment_list')
 
     # Parse per-reservation allocations
     allocations_raw = data.get('allocations', '')
