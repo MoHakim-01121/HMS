@@ -11,11 +11,58 @@ record) completely non-functional, with no test coverage.
 from datetime import date
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from hw.finance_helpers import create_journal_entry
+from hw.models.choices import Company
 from hw.models.journal import Account, JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
+
+
+class FinancialPeriodOverlapTest(TestCase):
+    """Fase 1 · Task 1.2 — periode tidak boleh tumpang tindih per company."""
+
+    def test_overlapping_periods_same_company_rejected(self):
+        FinancialPeriod.objects.create(
+            name="2030-01", company=Company.KONOZ,
+            date_from=date(2030, 1, 1), date_to=date(2030, 1, 31),
+        )
+        with self.assertRaises(ValidationError):
+            FinancialPeriod.objects.create(
+                name="2030-01b", company=Company.KONOZ,
+                date_from=date(2030, 1, 15), date_to=date(2030, 2, 15),
+            )
+
+    def test_adjacent_periods_allowed(self):
+        FinancialPeriod.objects.create(
+            name="2031-01", company=Company.KONOZ,
+            date_from=date(2031, 1, 1), date_to=date(2031, 1, 31),
+        )
+        FinancialPeriod.objects.create(
+            name="2031-02", company=Company.KONOZ,
+            date_from=date(2031, 2, 1), date_to=date(2031, 2, 28),
+        )
+        self.assertEqual(FinancialPeriod.objects.filter(name__startswith="2031").count(), 2)
+
+    def test_overlap_across_companies_allowed(self):
+        FinancialPeriod.objects.create(
+            name="2032-01-konoz", company=Company.KONOZ,
+            date_from=date(2032, 1, 1), date_to=date(2032, 1, 31),
+        )
+        FinancialPeriod.objects.create(
+            name="2032-01-other", company="future_co",
+            date_from=date(2032, 1, 1), date_to=date(2032, 1, 31),
+        )
+        self.assertEqual(FinancialPeriod.objects.filter(name__startswith="2032").count(), 2)
+
+    def test_saving_same_period_again_does_not_self_conflict(self):
+        p = FinancialPeriod.objects.create(
+            name="2033-01", company=Company.KONOZ,
+            date_from=date(2033, 1, 1), date_to=date(2033, 1, 31),
+        )
+        p.status = FinancialPeriod.STATUS_SOFT_CLOSE
+        p.save()  # must not raise on its own row
 
 
 class FinancialPeriodCloseLockTest(TestCase):
