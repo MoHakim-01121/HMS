@@ -53,6 +53,50 @@ ACCOUNT_TYPE_MAP = {
 }
 
 
+class LedgerAccount(models.Model):
+    """Chart of Accounts sebagai tabel — sumber daftar akun untuk jurnal.
+
+    Di-seed lewat `hw.finance.accounts.seed_chart_of_accounts()`. Akun baru
+    (mis. kas per-bank) bisa ditambah tanpa migrasi skema.
+    """
+
+    NORMAL_DEBIT = "debit"
+    NORMAL_CREDIT = "credit"
+    NORMAL_CHOICES = [(NORMAL_DEBIT, "Debit"), (NORMAL_CREDIT, "Credit")]
+
+    code = models.CharField(max_length=20, primary_key=True)
+    name = models.CharField(max_length=100)
+    type = models.CharField(max_length=12, choices=AccountType.choices)
+    normal_balance = models.CharField(max_length=6, choices=NORMAL_CHOICES)
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="children",
+    )
+    is_postable = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    company = models.CharField(
+        max_length=20, choices=Company.choices, null=True, blank=True,
+        help_text="Kosong = berlaku untuk semua company",
+    )
+
+    class Meta:
+        ordering = ["code"]
+        verbose_name = "Ledger Account"
+        verbose_name_plural = "Chart of Accounts"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(type__in=[c[0] for c in AccountType.choices]),
+                name="ledgeraccount_type_valid",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(normal_balance__in=["debit", "credit"]),
+                name="ledgeraccount_normal_balance_valid",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.code} | {self.name}"
+
+
 class JournalEntry(models.Model):
     """Immutable journal entry. Setiap entry harus balance: SUM(lines) = 0.
 
