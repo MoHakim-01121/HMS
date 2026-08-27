@@ -50,17 +50,17 @@ def period_detail(request, pk):
     entries = period.journal_entries.select_related('created_by').order_by('-entry_date', '-created_at')[:50]
     payments = period.payments.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')[:50]
 
-    # Calculate account balances for this period
-    from ..models.journal import JournalLine, Account
+    # Calculate account balances for this period (debit - credit)
+    from ..models.journal import JournalLine, LedgerAccount
     totals = {
-        row['account']: row['total']
+        row['account']: (row['d'] or 0) - (row['c'] or 0)
         for row in JournalLine.objects.filter(journal_entry__period=period)
-        .values('account').annotate(total=Sum('amount_sar'))
+        .values('account').annotate(d=Sum('debit'), c=Sum('credit'))
     }
     account_balances = [
-        {'account': value, 'label': label, 'balance': total}
-        for value, label in Account.choices
-        if (total := totals.get(value))
+        {'account': acc.code, 'label': acc.name, 'balance': total}
+        for acc in LedgerAccount.objects.all()
+        if (total := totals.get(acc.code))
     ]
 
     # Period totals

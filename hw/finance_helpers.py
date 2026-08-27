@@ -15,11 +15,19 @@ from django.utils import timezone
 from .models.period import FinancialPeriod
 from .models.payment import PaymentRecord, PaymentLog
 from .models.journal import (
-    JournalEntry, JournalLine, Account, AccountType, ACCOUNT_TYPE_MAP,
+    JournalEntry, JournalLine, LedgerAccount, Account, AccountType, ACCOUNT_TYPE_MAP,
 )
 from .models.invoice import Invoice
 from .models.choices import Company
+from .finance.accounts import resolve_account_code, AR
 from .ledger import cash_destination, cash_journal_account
+
+
+def _account_obj(ref):
+    """Terima kode v2, kode enum v1, atau instance LedgerAccount → LedgerAccount."""
+    if isinstance(ref, LedgerAccount):
+        return ref
+    return LedgerAccount.objects.get(pk=resolve_account_code(str(ref)))
 
 
 class FinanceError(Exception):
@@ -153,30 +161,33 @@ def create_journal_entry(
         created_by=created_by,
     )
 
-    # Create lines
+    # Create lines — spec v1 {account, amount_sar (signed)} → debit/credit v2
     journal_lines = []
-    for line_data in lines:
+    for i, line_data in enumerate(lines, start=1):
+        amt = line_data['amount_sar']
         line = JournalLine(
             journal_entry=entry,
-            account=line_data['account'],
-            amount_sar=line_data['amount_sar'],
+            line_no=i,
+            account=_account_obj(line_data['account']),
+            debit=amt if amt > 0 else 0,
+            credit=-amt if amt < 0 else 0,
             note=line_data.get('note', ''),
         )
-        # Set dimension FKs if provided
-        for dim in ('client', 'invoice', 'reservation', 'service_item', 'penalty'):
-            if dim in line_data and line_data[dim] is not None:
+        for dim in ('client', 'invoice', 'reservation', 'service_item', 'penalty', 'remittance'):
+            if line_data.get(dim) is not None:
                 setattr(line, dim, line_data[dim])
         journal_lines.append(line)
 
     JournalLine.objects.bulk_create(journal_lines)
 
     # Verify balance after save
-    saved_total = JournalLine.objects.filter(journal_entry=entry).aggregate(
-        total=models.Sum('amount_sar')
-    )['total']
-    if saved_total != 0:
+    agg = JournalLine.objects.filter(journal_entry=entry).aggregate(
+        d=models.Sum('debit'), c=models.Sum('credit'),
+    )
+    if (agg['d'] or 0) != (agg['c'] or 0):
         raise JournalImbalanceError(
-            f"Journal entry balance check failed after save: {saved_total:+,}"
+            f"Journal entry balance check failed after save: "
+            f"debit {agg['d']:,} != credit {agg['c']:,}"
         )
 
     return entry
@@ -196,8 +207,8 @@ def reverse_journal_entry(original_entry, reversal_date, created_by, note=''):
     reversal_lines = []
     for line in original_entry.lines.all():
         reversal_lines.append({
-            'account': line.account,
-            'amount_sar': -line.amount_sar,  # Flip sign
+            'account': line.account_id,
+            'amount_sar': -(line.debit - line.credit),  # Flip sign
             'client': line.client,
             'invoice': line.invoice,
             'reservation': line.reservation,
@@ -446,39 +457,37 @@ def _payment_snapshot(payment):
 # ── Query helpers (to replace ledger.py functions) ──────────────
 
 
+def _net(qs):
+    agg = qs.aggregate(d=Sum('debit'), c=Sum('credit'))
+    return (agg['d'] or 0) - (agg['c'] or 0)
+
+
 def client_balance(client):
-    """Calculate client's current balance from journal entries.
+    """Client's receivable balance from journal lines.
 
-    Positive = client owes us (receivable)
-    Negative = we owe client (prepaid/credit)
+    Positive = client owes us (receivable).
     """
-    # Get all journal lines for this client
-    lines = JournalLine.objects.filter(client=client)
-
-    # Sum by account type
-    receivable = lines.filter(
-        account=Account.RECEIVABLE
-    ).aggregate(total=Sum('amount_sar'))['total'] or 0
-
-    return receivable
+    return _net(JournalLine.objects.filter(client=client, account_id=AR))
 
 
 def invoice_paid_sar_jl(invoice_id):
-    """Calculate how much has been paid toward an invoice (from journal lines)."""
-    return JournalLine.objects.filter(
-        invoice_id=invoice_id,
-        account=Account.RECEIVABLE,
-        amount_sar__lt=0,  # Credit = payment received
-    ).aggregate(total=Sum('amount_sar'))['total'] or 0
+    """How much has been credited to AR for an invoice (from journal lines).
+
+    Returns a NEGATIVE number (credits), matching the legacy convention:
+    callers negate it to get a positive "paid" amount.
+    """
+    agg = JournalLine.objects.filter(
+        invoice_id=invoice_id, account_id=AR, credit__gt=0,
+    ).aggregate(c=Sum('credit'))
+    return -(agg['c'] or 0)
 
 
 def kas_saldo(account, company=None):
-    """Calculate cash balance for an account from journal lines."""
-    qs = JournalLine.objects.filter(account=account)
+    """Cash/account balance (debit - credit) from journal lines."""
+    qs = JournalLine.objects.filter(account_id=resolve_account_code(str(account)))
     if company:
         qs = qs.filter(journal_entry__company=company)
-
-    return qs.aggregate(total=Sum('amount_sar'))['total'] or 0
+    return _net(qs)
 
 
 def client_statement(client, date_from=None, date_to=None):
@@ -490,7 +499,7 @@ def client_statement(client, date_from=None, date_to=None):
     """
     lines = JournalLine.objects.filter(
         client=client,
-    ).select_related('journal_entry').order_by('journal_entry__entry_date', 'journal_entry__created_at')
+    ).select_related('journal_entry', 'account').order_by('journal_entry__entry_date', 'journal_entry__created_at')
 
     if date_from:
         lines = lines.filter(journal_entry__entry_date__gte=date_from)
@@ -510,8 +519,8 @@ def client_statement(client, date_from=None, date_to=None):
             'entry_type': entry.entry_type,
             'entry_type_display': entry.get_entry_type_display(),
             'description': entry.description,
-            'account': line.account,
-            'account_display': line.get_account_display(),
+            'account': line.account_id,
+            'account_display': line.account.name,
             'amount_sar': line.amount_sar,
             'balance': running_balance,
             'reference_type': entry.reference_type,
@@ -527,22 +536,18 @@ def client_statement(client, date_from=None, date_to=None):
 
 
 def account_summary(company=None):
-    """Summary of all accounts from JournalLines."""
+    """Summary of all accounts from JournalLines (balance = debit - credit)."""
     qs = JournalLine.objects.all()
     if company:
         qs = qs.filter(journal_entry__company=company)
 
     totals = {
-        row['account']: row['total']
-        for row in qs.values('account').annotate(total=models.Sum('amount_sar'))
+        row['account']: (row['d'] or 0) - (row['c'] or 0)
+        for row in qs.values('account').annotate(d=Sum('debit'), c=Sum('credit'))
     }
     summary = {}
-    for value, label in Account.choices:
-        total = totals.get(value)
+    for acc in LedgerAccount.objects.all():
+        total = totals.get(acc.code)
         if total:
-            summary[value] = {
-                'label': label,
-                'balance': total,
-            }
-
+            summary[acc.code] = {'label': acc.name, 'balance': total}
     return summary

@@ -26,6 +26,7 @@ INC_FX_GAIN = "4900-INC-FXGAIN"
 
 EXP_BANKFEE = "5100-EXP-BANKFEE"
 EXP_FX_LOSS = "5200-EXP-FXLOSS"
+EXP_PENALTY = "5300-EXP-PENALTY"
 
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
@@ -45,20 +46,41 @@ ACCOUNTS = [
     {"code": INC_FX_GAIN, "name": "Laba Selisih Kurs", "type": AccountType.INCOME},
     {"code": EXP_BANKFEE, "name": "Beban Biaya Transfer/Bank", "type": AccountType.EXPENSE},
     {"code": EXP_FX_LOSS, "name": "Rugi Selisih Kurs", "type": AccountType.EXPENSE},
+    {"code": EXP_PENALTY, "name": "Beban Penalty", "type": AccountType.EXPENSE},
 ]
 
+# Peta kode akun v1 (enum Account lama) → kode v2. Dipakai adapter
+# create_journal_entry() selama posting v1 (penalty_views, confirm_payment)
+# belum dirombak ke posting layer baru (Fase 5).
+V1_ACCOUNT_MAP = {
+    "cash_sby": CASH_SBY,
+    "cash_jkt": CASH_JKT,
+    "cash_pusat": CASH_PUSAT,
+    "fx": FX_CLEARING,
+    "receivable": AR,
+    "income_hotel": INC_HOTEL,
+    "income_service": INC_SERVICE,
+    "income_penalty": INC_PENALTY,
+    "expense_penalty": EXP_PENALTY,
+    "equity": OPENING_EQUITY,
+}
+
+
+def resolve_account_code(code):
+    """Terima kode v2 apa adanya, atau terjemahkan kode enum v1."""
+    if code in V1_ACCOUNT_MAP:
+        return V1_ACCOUNT_MAP[code]
+    return code
+
 _DEBIT_NORMAL_TYPES = {AccountType.ASSET, AccountType.EXPENSE}
+
+NORMAL_DEBIT = "debit"
+NORMAL_CREDIT = "credit"
 
 
 def normal_balance_for(account_type):
     """asset/expense → 'debit'; liability/income/equity → 'credit'."""
-    from hw.models.journal import LedgerAccount
-
-    return (
-        LedgerAccount.NORMAL_DEBIT
-        if account_type in _DEBIT_NORMAL_TYPES
-        else LedgerAccount.NORMAL_CREDIT
-    )
+    return NORMAL_DEBIT if account_type in _DEBIT_NORMAL_TYPES else NORMAL_CREDIT
 
 
 def seed_chart_of_accounts():
