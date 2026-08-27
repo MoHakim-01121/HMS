@@ -1,5 +1,8 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+
+from .choices import Company
 
 
 class FinancialPeriod(models.Model):
@@ -24,8 +27,12 @@ class FinancialPeriod(models.Model):
     ]
 
     name       = models.CharField(max_length=50, unique=True)
-    date_from  = models.DateField(unique=True)
-    date_to    = models.DateField(unique=True)
+    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
+    # date_from/date_to: rentang inklusif [date_from, date_to]. Tidak boleh
+    # tumpang tindih dengan periode lain milik company yang sama — ditegakkan
+    # di save() (semua backend) + ExclusionConstraint (Postgres, migrasi).
+    date_from  = models.DateField()
+    date_to    = models.DateField()
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
     closed_by  = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     closed_at  = models.DateTimeField(null=True, blank=True)
@@ -46,6 +53,25 @@ class FinancialPeriod(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.get_status_display()})"
+
+    def _assert_no_overlap(self):
+        if self.date_from is None or self.date_to is None:
+            return
+        clash = FinancialPeriod.objects.filter(
+            company=self.company,
+            date_from__lte=self.date_to,
+            date_to__gte=self.date_from,
+        ).exclude(pk=self.pk)
+        if clash.exists():
+            other = clash.first()
+            raise ValidationError(
+                f"Periode {self.date_from}–{self.date_to} tumpang tindih dengan "
+                f"{other.name} ({other.date_from}–{other.date_to}) untuk {self.company}."
+            )
+
+    def save(self, *args, **kwargs):
+        self._assert_no_overlap()
+        super().save(*args, **kwargs)
 
     @property
     def is_editable(self):
