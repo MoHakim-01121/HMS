@@ -40,7 +40,7 @@ export default function Transfer({ client, reservations, initial, errors: server
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label={t("Move Money")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <div className="fg-2">
               <FormField label={t("From reservation")} name="from_reservation" error={errors.from_reservation}>
                 <Select name="from_reservation" value={String(form.data.from_reservation || "")} onValueChange={(v) => form.setData("from_reservation", v)}>
                   <SelectTrigger id="from_reservation" className="w-full">
@@ -48,7 +48,7 @@ export default function Transfer({ client, reservations, initial, errors: server
                   </SelectTrigger>
                   <SelectContent>
                     {reservations.map((r) => (
-                      <SelectItem key={r.id} value={String(r.id)}>{r.label} ({fmt(r.piutang)} SAR owed)</SelectItem>
+                      <SelectItem key={r.id} value={String(r.id)} disabled={String(r.id) === String(form.data.to_reservation)}>{r.label} ({fmt(r.piutang)} SAR owed)</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -60,7 +60,7 @@ export default function Transfer({ client, reservations, initial, errors: server
                   </SelectTrigger>
                   <SelectContent>
                     {reservations.map((r) => (
-                      <SelectItem key={r.id} value={String(r.id)}>{r.label} ({fmt(r.piutang)} SAR owed)</SelectItem>
+                      <SelectItem key={r.id} value={String(r.id)} disabled={String(r.id) === String(form.data.from_reservation)}>{r.label} ({fmt(r.piutang)} SAR owed)</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

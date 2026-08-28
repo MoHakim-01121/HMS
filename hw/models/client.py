@@ -57,7 +57,7 @@ class Client(models.Model):
         from .invoice import Invoice
         from .journal import JournalLine
         journal_invoice_ids = JournalLine.objects.filter(
-            client=self,
+            client=self, invoice__isnull=False,
         ).values_list('invoice_id', flat=True).distinct()
         return Invoice.objects.filter(
             Q(client=self) | Q(pk__in=journal_invoice_ids)

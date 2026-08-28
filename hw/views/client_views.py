@@ -1,11 +1,9 @@
 ﻿import json
 import logging
-import uuid
 from datetime import date, datetime, time as dt_time
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -21,6 +19,7 @@ from ..models import (
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
 from ..finance import posting
+from ..finance_helpers import FinanceError
 from .helpers import (
     _is_mobile,
     _parse_date,
@@ -334,23 +333,26 @@ def client_transfer(request, pk):
             errors['to_reservation'] = 'Reservation not found.'
 
         if not errors:
-            group = uuid.uuid4()
-            today = date.today()
-            with transaction.atomic():
-                # Journal (Fase 5+): piutang di-re-tag antar reservasi.
-                # Shadow Allocation tidak lagi ditulis (Fase 7).
+            # Journal (Fase 5+): piutang di-re-tag antar reservasi. Shadow
+            # Allocation tidak lagi ditulis (Fase 7). Transfer berulang bisa
+            # sah, jadi tidak ada idempotency_key; POST-redirect-GET + tombol
+            # yang men-disable diri melindungi dari double-submit.
+            try:
                 posting.post_fund_transfer(
                     client_obj, from_reservation=from_res, to_reservation=to_res,
-                    amount_sar=amount, created_by=request.user, entry_date=today,
-                    company=company, idempotency_key=f"transfer:{group}",
+                    amount_sar=amount, created_by=request.user, entry_date=date.today(),
+                    company=company,
                 )
-            logger.info(
-                "ledger: transfer %s SAR from reservation %s to %s (client %s)",
-                amount, from_res.reservation_number, to_res.reservation_number, client_obj.pk,
-            )
-            log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name, company)
-            messages.success(request, f'Moved {amount} SAR from {from_res.reservation_number} to {to_res.reservation_number}.')
-            return redirect('client_detail', pk=pk)
+            except FinanceError as e:
+                errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
+            else:
+                logger.info(
+                    "ledger: transfer %s SAR from reservation %s to %s (client %s)",
+                    amount, from_res.reservation_number, to_res.reservation_number, client_obj.pk,
+                )
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name, company)
+                messages.success(request, f'Moved {amount} SAR from {from_res.reservation_number} to {to_res.reservation_number}.')
+                return redirect('client_detail', pk=pk)
 
         return inertia_render(request, 'Client/Transfer', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
@@ -363,6 +365,15 @@ def client_transfer(request, pk):
         'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
         'reservations': _client_reservation_options(client_obj),
     })
+
+
+# Where a refund can be paid from. Source of truth is CashAccount; the view
+# hands the frontend the {value, label} pairs so the picker never drifts from
+# the choices the POST handler actually validates against.
+REFUND_ACCOUNTS = [
+    {'value': CashAccount.SBY, 'label': str(CashAccount.SBY.label)},
+    {'value': CashAccount.PUSAT, 'label': str(CashAccount.PUSAT.label)},
+]
 
 
 @require_perm('clients', 'edit')
@@ -387,30 +398,37 @@ def client_refund(request, pk):
                 errors['proof'] = proof_error
 
         if not errors:
-            group = uuid.uuid4()
             # Journal (Fase 5+): DR Titipan / CR Kas. Bukti transfer dibawa
             # entry refund (bukan shadow CashMovement yang pensiun Fase 7).
-            posting.post_refund(
-                client_obj, from_location=from_account.lower(), amount_sar=amount,
-                created_by=request.user, entry_date=date.today(),
-                company=company, idempotency_key=f"refund:{group}", proof=proof,
-            )
-            logger.info(
-                "ledger: refund %s SAR to client %s from %s",
-                amount, client_obj.pk, from_account,
-            )
-            log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name, company)
-            messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
-            return redirect('client_detail', pk=pk)
+            # Refund berulang bisa sah → tanpa idempotency_key; PRG + tombol
+            # disable melindungi dari double-submit.
+            try:
+                posting.post_refund(
+                    client_obj, from_location=from_account.lower(), amount_sar=amount,
+                    created_by=request.user, entry_date=date.today(),
+                    company=company, proof=proof,
+                )
+            except FinanceError as e:
+                errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
+            else:
+                logger.info(
+                    "ledger: refund %s SAR to client %s from %s",
+                    amount, client_obj.pk, from_account,
+                )
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name, company)
+                messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
+                return redirect('client_detail', pk=pk)
 
         return inertia_render(request, 'Client/Refund', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
+            'accounts': REFUND_ACCOUNTS,
             'errors': errors,
             'initial': {'from_account': from_account, 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
         })
 
     return inertia_render(request, 'Client/Refund', props={
         'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
+        'accounts': REFUND_ACCOUNTS,
     })
 
 

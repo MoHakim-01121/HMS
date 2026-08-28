@@ -138,11 +138,16 @@ class LumpSumRemittanceTest(TestCase):
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 0)
         # entry hidup utk rmt ini: 2 kirim (per baris) + 1 terima
         self.assertEqual(_live_remittance_entries(rem).count(), 3)
-        # resync ulang idempotent-by-content: tidak dobel-posting
+        # resync ulang idempotent-by-content: tidak dobel-posting, tidak
+        # menambah entry apa pun
+        before = _live_remittance_entries(rem).count()
+        total_entries_before = JournalEntry.objects.count()
         posting.resync_remittance(
             rem, created_by=self.user,
-            send_segments=_remittance_send_segments(rem), received_sar=100000,
+            send_segments=_remittance_send_segments(rem),
+            received_sar=100000, touch_receive=True,
         )
-        self.assertEqual(_live_remittance_entries(rem).count(), 3)
+        self.assertEqual(_live_remittance_entries(rem).count(), before)
+        self.assertEqual(JournalEntry.objects.count(), total_entries_before)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 100000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)

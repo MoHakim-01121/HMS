@@ -82,11 +82,12 @@ class Command(BaseCommand):
         ))
 
         self.user = None
-        self.resolve = self._resolve_invoice_clients()
-
-        if self.commit:
-            seed_chart_of_accounts()
-            self.user = self._ensure_system_user()
+        self.stats = {"invoice": 0, "payment": 0, "remittance": 0, "penalty": 0}
+        self.totals = {"invoice": 0, "payment": 0, "remittance": 0, "penalty": 0}
+        self.existing = []
+        self.skip_unresolved = []
+        self.skip_noamount = []
+        self.created_periods = []
 
         invoices = list(
             Invoice.objects.prefetch_related("reservations", "service_items")
@@ -110,29 +111,30 @@ class Command(BaseCommand):
             *(r.date for r in remittances if r.date),
             *(p.cancellation_date for p in penalties if p.cancellation_date),
         ]
-        if all_dates:
-            self._ensure_periods(min(all_dates), max(all_dates))
+        span = (min(all_dates), max(all_dates)) if all_dates else None
 
-        self.stats = {"invoice": 0, "payment": 0, "remittance": 0, "penalty": 0}
-        self.totals = {"invoice": 0, "payment": 0, "remittance": 0, "penalty": 0}
-        self.existing = []
-        self.skip_unresolved = []
-        self.skip_noamount = []
-
-        if self.commit:
-            with transaction.atomic():
-                self._run_invoices(invoices)
-                self._run_payments(payments)
-                self._run_remittances(remittances)
-                self._run_penalties(penalties)
-                for inv in invoices:
-                    if _live_entries("Invoice", inv.pk, JournalEntry.TYPE_CHARGE).exists():
-                        inv.sync_status()
-        else:
+        def _run_all():
+            self.resolve = self._resolve_invoice_clients()
+            if span:
+                self._ensure_periods(*span)
             self._run_invoices(invoices)
             self._run_payments(payments)
             self._run_remittances(remittances)
             self._run_penalties(penalties)
+
+        if self.commit:
+            # Semua efek tulis (chart of accounts, system user, resolusi
+            # Invoice.client, periode, jurnal) dalam satu transaksi -- kalau
+            # ada yang gagal, tidak ada sisa parsial.
+            with transaction.atomic():
+                seed_chart_of_accounts()
+                self.user = self._ensure_system_user()
+                _run_all()
+                for inv in invoices:
+                    if _live_entries("Invoice", inv.pk, JournalEntry.TYPE_CHARGE).exists():
+                        inv.sync_status()
+        else:
+            _run_all()
 
         self._report()
 
@@ -199,6 +201,7 @@ class Command(BaseCommand):
             else:
                 m += 1
 
+        self.created_periods = [p["name"] for p in needed]
         if not needed:
             self.stdout.write("  Periode: semua sudah ada")
             return
@@ -266,6 +269,13 @@ class Command(BaseCommand):
                 )
                 continue
 
+            # Validasi yang menentukan skip harus jalan di dry-run juga supaya
+            # laporan preview cocok dengan apa yang commit sebenarnya lakukan.
+            payment_date = pay.payment_date or (pay.invoice.issued_date if pay.invoice else None)
+            if payment_date is None:
+                self.skip_unresolved.append(f"payment #{pay.pk} tanpa tanggal")
+                continue
+
             received_in = (
                 "pusat" if (pay.method or "").strip().lower() == "direct" else "sby"
             )
@@ -287,14 +297,6 @@ class Command(BaseCommand):
                             )
                         except (TypeError, ValueError):
                             service_item = None
-
-                payment_date = pay.payment_date or pay.invoice.issued_date
-                if payment_date is None:
-                    self.skip_unresolved.append(
-                        f"payment #{pay.pk} tanpa tanggal"
-                    )
-                    self.totals["payment"] -= amount_sar
-                    continue
 
                 pr = create_payment_record(
                     invoice=pay.invoice,
@@ -327,6 +329,9 @@ class Command(BaseCommand):
             if total <= 0:
                 self.skip_noamount.append(f"remittance {rmt.remittance_number}")
                 continue
+            if rmt.date is None:
+                self.skip_unresolved.append(f"remittance {rmt.remittance_number} tanpa tanggal")
+                continue
 
             if _live_entries("Remittance", rmt.pk, JournalEntry.TYPE_REMITTANCE).exists():
                 self.existing.append(f"remittance {rmt.remittance_number}")
@@ -336,6 +341,10 @@ class Command(BaseCommand):
             if self.commit:
                 for l in lines:
                     res = res_by_number.get(l.linked_number)
+                    # client sisi-kirim: pakai resolusi _billing_client yang sama
+                    # dengan sisi pembayaran, bukan Invoice.client mentah yang
+                    # sering NULL di data lama.
+                    client = self.resolve.get(res.invoice_id) if res else None
                     post_remittance_send(
                         rmt,
                         from_location="sby",
@@ -344,7 +353,7 @@ class Command(BaseCommand):
                         entry_date=rmt.date,
                         reservation=res,
                         invoice=res.invoice if res else None,
-                        client=res.invoice.client if res else None,
+                        client=client,
                     )
                 if rmt.status == Remittance.STATUS_RECEIVED:
                     post_remittance_receive(
@@ -421,6 +430,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(
                 f"  Sudah ada (idempoten, {len(self.existing)}): "
                 + "; ".join(self.existing[:12])
+            ))
+        if self.created_periods:
+            self.stdout.write("")
+            self.stdout.write(self.style.WARNING(
+                f"  Periode historis dibuat ({len(self.created_periods)}) dengan status OPEN: "
+                + ", ".join(self.created_periods)
+                + ". Tinjau & tutup lewat menu Periode setelah rekonsiliasi."
             ))
 
         if not self.commit:

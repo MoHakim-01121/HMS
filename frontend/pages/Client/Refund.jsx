@@ -6,20 +6,17 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-const ACCOUNTS = [
-  { value: "sby", label: "Surabaya" },
-  { value: "pusat", label: "Pusat / HQ" },
-];
-
-export default function Refund({ client, initial, errors: serverErrors }) {
+export default function Refund({ client, accounts, initial, errors: serverErrors }) {
   const { t } = useI18n();
   const i = initial || {};
+  const accountOptions = accounts || [];
   const form = useForm({
-    from_account: i.from_account || "sby",
+    from_account: i.from_account || accountOptions[0]?.value || "sby",
     amount_sar: i.amount_sar || "",
     note: i.note || "",
     proof: null,
@@ -43,14 +40,14 @@ export default function Refund({ client, initial, errors: serverErrors }) {
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label={t("Refund Details")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <div className="fg-2">
               <FormField label={t("Paid from")} name="from_account" error={errors.from_account}>
                 <Select name="from_account" value={form.data.from_account} onValueChange={(v) => form.setData("from_account", v)}>
                   <SelectTrigger id="from_account" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ACCOUNTS.map((a) => <SelectItem key={a.value} value={a.value}>{t(a.label)}</SelectItem>)}
+                    {accountOptions.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </FormField>
@@ -67,8 +64,11 @@ export default function Refund({ client, initial, errors: serverErrors }) {
             <FormField label={t("Note")} name="note" span={2}>
               <Textarea name="note" rows={2} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Reason for refund…")} />
             </FormField>
-            <FormField label={t("Proof")} name="proof" span={2}>
-              <input type="file" accept="image/*,.pdf" onChange={(e) => form.setData("proof", e.target.files[0] || null)} />
+            <FormField label={t("Proof")} name="proof" span={2} hint={t("Optional — image or PDF")} error={errors.proof}>
+              <Input
+                id="proof" name="proof" type="file" accept="image/*,.pdf"
+                onChange={(e) => form.setData("proof", e.target.files[0] || null)}
+              />
             </FormField>
           </FormSection>
 

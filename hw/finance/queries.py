@@ -320,6 +320,18 @@ def remittance_sent_sar(remittance_id):
     )
 
 
+def remittance_has_live_entries(remittance_id):
+    """True kalau remittance ini punya baris jurnal REMITTANCE yang belum
+    di-reverse — dipakai guard hapus (dokumen keuangan tak boleh hilang)."""
+    return (
+        JournalLine.objects.filter(
+            remittance_id=remittance_id,
+            journal_entry__entry_type=JournalEntry.TYPE_REMITTANCE,
+            journal_entry__is_reversal=False,
+        ).exclude(journal_entry_id__in=_reversed_entry_ids()).exists()
+    )
+
+
 def selisih_kurs(company=None):
     """Saldo kliring selisih kurs (FX_CLEARING) untuk company."""
     return _net(_scoped(

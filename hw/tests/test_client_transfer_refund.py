@@ -66,10 +66,9 @@ class RefundTransferViewTest(TestCase):
         )
         self.assertEqual(resp.status_code, 302)
 
-        # Journal refund: DR Titipan / CR Kas Pusat, idempotency per-event.
+        # Journal refund: DR Titipan / CR Kas Pusat.
         entry = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).first()
         self.assertIsNotNone(entry)
-        self.assertTrue(entry.idempotency_key.startswith("refund:"))
         self.assertEqual(_net(account_id=coa.CUST_CREDIT, client=self.client_obj.pk), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 0)
@@ -112,6 +111,20 @@ class RefundTransferViewTest(TestCase):
         self.assertEqual(_net(account_id=coa.AR, reservation=self.res_b), 70000)
         # Total piutang client tidak berubah (tetap 140000 dari charge 100000+40000).
         self.assertEqual(_net(account_id=coa.AR, client=self.client_obj.pk), 140000)
+
+    def test_transfer_without_open_period_degrades_gracefully(self):
+        # I2: jurnal gagal (tak ada periode utk tanggal hari ini) tidak boleh
+        # 500 — view menampilkan eror form, bukan crash.
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        # Persempit periode agar tanggal hari ini tak tercakup (charge Jan tetap ok).
+        FinancialPeriod.objects.update(date_to=date(2026, 1, 31))
+        resp = self.client.post(
+            reverse("client_transfer", args=[self.client_obj.pk]),
+            {"from_reservation": str(self.res_a.pk), "to_reservation": str(self.res_b.pk),
+             "amount_sar": "30000", "note": ""},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_TRANSFER).count(), 0)
 
     def test_transfer_blocks_different_client_reservation(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)

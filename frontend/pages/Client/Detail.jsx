@@ -15,12 +15,6 @@ import { fmt } from "../../utils/format.js";
 
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
-const dateInputStyle = {
-  fontSize: 12.5, fontFamily: "inherit", color: "var(--foreground)",
-  background: "transparent", border: "1px solid var(--border)", borderRadius: 8,
-  padding: "3px 8px", colorScheme: "light dark",
-};
-
 function StatementExport({ pk, t }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -30,9 +24,9 @@ function StatementExport({ pk, t }) {
   const qs = params.toString();
   return (
     <>
-      <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} style={dateInputStyle} />
+      <input type="date" className="hms-dv-date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} />
       <span style={{ color: "var(--muted-foreground)" }}>–</span>
-      <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} style={dateInputStyle} />
+      <input type="date" className="hms-dv-date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} />
       <a className="hms-dv-act" href={`/clients/${pk}/statement/pdf/${qs ? `?${qs}` : ""}`} target="_blank" rel="noreferrer">
         {t("Export Statement")}
       </a>

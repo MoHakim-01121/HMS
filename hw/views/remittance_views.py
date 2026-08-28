@@ -15,9 +15,10 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import Payment, Remittance, RemittanceLine, Client, JournalEntry
+from ..models import Payment, Remittance, RemittanceLine, Client
 from ..models.choices import Company
 from ..finance import posting
+from ..finance_helpers import FinanceError
 from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .helpers import validate_proof_file, period_label as _period_label
@@ -294,7 +295,11 @@ def remittance_new(request):
             # Lump-sum: uang sudah keluar bank tapi belum dibagikan ke
             # reservasi. Posting aggregate SBY->PUSAT via jurnal (Fase 7:
             # tanpa shadow CashMovement).
-            posting.resync_remittance(rem, created_by=request.user, send_segments=[])
+            try:
+                posting.resync_remittance(rem, created_by=request.user, send_segments=[])
+            except FinanceError as e:
+                logger.warning("remittance %s: journal send resync gagal: %s", rem.remittance_number, e)
+                messages.warning(request, f'Remittance dibuat, tapi jurnal belum tercatat: {e}')
 
         return redirect('remittance_detail', pk=rem.pk)
 
@@ -391,18 +396,20 @@ def remittance_mark_received(request, pk):
     if rem.status != Remittance.STATUS_RECEIVED:
         rem.status = Remittance.STATUS_RECEIVED
         rem.save(update_fields=['status'])
-        # Journal (Fase 5, dual-write): post kaki terima -- Kas Pusat masuk,
-        # Transit bersih, selisih vs expected → beban bank / gain kurs. Sisi
-        # kirim sudah terposting sejak pembuatan; resync penuh dengan
-        # `received_sar` biar idempotent-by-content. Kalau nominal penerimaan
-        # belum diisi (RMT lama tanpa field transfer), sisi terima tak ada
-        # yang bisa diposting -- status received saja.
+        # Journal: post kaki terima -- Kas Pusat masuk, Transit bersih, selisih
+        # vs expected → beban bank / gain kurs. Sisi kirim sudah terposting sejak
+        # pembuatan; resync idempotent-by-content. Kalau nominal penerimaan belum
+        # diisi (RMT lama), sisi terima tak ada yang bisa diposting -- status saja.
         if rem.received_amount_sar is not None:
-            posting.resync_remittance(
-                rem, created_by=request.user,
-                send_segments=_remittance_send_segments(rem),
-                received_sar=rem.received_amount_sar,
-            )
+            try:
+                posting.resync_remittance(
+                    rem, created_by=request.user,
+                    send_segments=_remittance_send_segments(rem),
+                    received_sar=rem.received_amount_sar, touch_receive=True,
+                )
+            except FinanceError as e:
+                logger.warning("remittance %s: journal receive resync gagal: %s", rem.remittance_number, e)
+                messages.warning(request, f'Status diperbarui, tapi jurnal penerimaan gagal dicatat: {e}')
     return redirect('remittance_list')
 
 
@@ -488,9 +495,14 @@ def _sync_remittance_lines(rem, raw_lines, user=None):
         # dari baris sekarang -- idempotent-by-content lewat resync_remittance.
         # Segmen kosong → lump-sum aggregate (RMT yang barisnya dikosongkan
         # tetap tercatat mengalir dari Surabaya kalau uangnya keluar).
-        posting.resync_remittance(
-            rem, created_by=user, send_segments=_remittance_send_segments(rem),
-        )
+        # Kegagalan jurnal (mis. periode belum dibuka) tidak boleh membatalkan
+        # edit baris -- savepoint resync sudah rollback, baris tetap tersimpan.
+        try:
+            posting.resync_remittance(
+                rem, created_by=user, send_segments=_remittance_send_segments(rem),
+            )
+        except FinanceError as e:
+            logger.warning("remittance %s: journal line resync gagal: %s", rem.remittance_number, e)
     logger.info(
         "ledger: remittance %s synced, %d line(s)",
         rem.remittance_number, len(keep_ids),
@@ -609,8 +621,8 @@ def remittance_delete(request, pk):
     # System of record (Fase 7): jurnal REMITTANCE hidup merepresentasikan
     # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
     # langsung atau lewat baris -- tidak boleh hilang diam-diam.
-    posted = bool(posting._live_entries("Remittance", rem.pk, JournalEntry.TYPE_REMITTANCE))
-    if rem.lines.exists() or posted:
+    from ..finance import queries as finance_queries
+    if rem.lines.exists() or finance_queries.remittance_has_live_entries(rem.pk):
         messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
         return redirect('remittance_detail', pk=pk)
     rem.delete()

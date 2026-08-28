@@ -211,7 +211,8 @@ class RemittanceResyncTests(PostingTestBase):
 
         # mark_received: resync ulang dengan segmen kirim yg sama + sisi terima
         posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=segments, received_sar=49000,
+            rmt, created_by=self.user, send_segments=segments,
+            received_sar=49000, touch_receive=True,
         )
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
@@ -222,6 +223,7 @@ class RemittanceResyncTests(PostingTestBase):
         rmt = self._remittance()
         segments = [{"amount_sar": 30000}]
         posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
+        total_after_first = JournalEntry.objects.filter(reference_id=rmt.pk).count()
         posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
         # hanya 1 entry kirim "hidup" (belum di-reverse) tersisa
         reversed_ids = JournalEntry.objects.filter(
@@ -233,19 +235,27 @@ class RemittanceResyncTests(PostingTestBase):
                 entry_type=JournalEntry.TYPE_REMITTANCE, is_reversal=False,
             ).exclude(pk__in=reversed_ids).count(), 1
         )
+        # idempotent-by-content sesungguhnya: resync kedua tidak menambah
+        # entry apa pun (tidak ada reversal+repost churn)
+        self.assertEqual(
+            JournalEntry.objects.filter(reference_id=rmt.pk).count(),
+            total_after_first,
+        )
 
     def test_edit_resync_keeps_send_and_receive_consistent(self):
         rmt = self._remittance()
         posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
         posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=38000,
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
+            received_sar=38000, touch_receive=True,
         )
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
 
         # edit: nominal kirim berubah, terima tetap; resync dengan kedua sisi
         posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 45000}], received_sar=38000,
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 45000}],
+            received_sar=38000, touch_receive=True,
         )
         self.assertEqual(_net(account_id=coa.CASH_SBY), -45000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
@@ -257,13 +267,15 @@ class RemittanceResyncTests(PostingTestBase):
         rmt = self._remittance()
         posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
         posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=39000,
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
+            received_sar=39000, touch_receive=True,
         )
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 39000)
 
         # boleh dibuka/diedit lagi; sisi terima dibalik tanpa re-post
         posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=None,
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
+            received_sar=None, touch_receive=True,
         )
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
         self.assertEqual(_net(account_id=coa.TRANSIT), 40000)

@@ -947,7 +947,12 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    /* The nav is the scrolling element in practice (flex:1) — hide its
+       scrollbar on top of the aside's so no scrollbar shows at all. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
+  .hms-sidebar-nav::-webkit-scrollbar { display: none; }
 
   .hms-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
 
@@ -1312,6 +1317,13 @@
   padding:4px 10px; cursor:pointer; text-decoration:none; white-space:nowrap;
 }
 .hms-dv-act:hover { background:var(--secondary); }
+/* Compact date inputs sitting in a section's action row, sized to line up
+   with the .hms-dv-act links beside them. */
+.hms-dv-date {
+  font-size:12.5px; font-family:inherit; color:var(--foreground);
+  background:transparent; border:1px solid var(--border); border-radius:8px;
+  padding:3px 8px; color-scheme:light dark;
+}
 
 .hms-dv-empty { font-size:13px; color:var(--muted-foreground); padding:12px 0; }
 
