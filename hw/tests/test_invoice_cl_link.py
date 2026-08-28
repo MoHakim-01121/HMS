@@ -1,9 +1,12 @@
 import json
+from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Charge, Client, ConfirmationLetter, Invoice
+from hw.models import Client, ConfirmationLetter, Invoice
+from hw.models.period import FinancialPeriod
+from hw.finance import queries as fq
 
 
 class InvoiceEditClLinkTests(TestCase):
@@ -64,6 +67,10 @@ class InvoiceChargeClientResolutionTests(TestCase):
         s = self.client.session
         s["active_company"] = "konoz"
         s.save()
+        FinancialPeriod.objects.create(
+            name="2020-2030", company="konoz",
+            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+        )
         self.customer = Client.objects.create(company="konoz", name="PT Regression Client")
         self.cl = ConfirmationLetter.objects.create(
             company="konoz", hotel_name="Hotel Regress", guest_name="Guest Regress",
@@ -88,9 +95,10 @@ class InvoiceChargeClientResolutionTests(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number="INV-REGRESS-001")
-        charge = Charge.objects.get(invoice=invoice)
-        self.assertEqual(charge.client_id, self.customer.pk)
-        self.assertIn(invoice, self.customer.resolved_invoices)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.client_id, self.customer.pk)
+        self.assertEqual(fq.invoice_charged_sar(invoice.id), 1000)
+        self.assertEqual(fq.client_receivable(self.customer.id), 1000)
 
     def test_invoice_edit_relinking_cl_resolves_charge_client(self):
         invoice = Invoice.objects.create(
@@ -114,5 +122,6 @@ class InvoiceChargeClientResolutionTests(TestCase):
             "payments": "[]",
         })
         self.assertEqual(resp.status_code, 302)
-        charge = Charge.objects.get(invoice=invoice)
-        self.assertEqual(charge.client_id, self.customer.pk)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.client_id, self.customer.pk)
+        self.assertEqual(fq.invoice_charged_sar(invoice.id), 500)

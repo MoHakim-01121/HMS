@@ -238,16 +238,11 @@ def services_delete(request, pk):
     invoice = _get_service_invoice(request, pk)
     if request.method == "POST":
         num = invoice.invoice_number
-        # System of record: sama seperti invoice hotel -- menghapus invoice
-        # meng-cascade ServiceItems → Charges (ledger).
-        from ..models import Charge, Allocation, CashMovement
-        has_ledger = (
-            Charge.objects.filter(invoice=invoice).exists()
-            or Allocation.objects.filter(invoice=invoice).exists()
-            or CashMovement.objects.filter(invoice=invoice).exists()
-        )
-        if has_ledger:
-            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+        # System of record: invoice yang sudah menyentuh general ledger
+        # tidak boleh hilang dari riwayat keuangan.
+        from ..models.journal import JournalLine
+        if JournalLine.objects.filter(invoice=invoice).exists():
+            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('services_detail', pk=pk)
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
@@ -323,16 +318,14 @@ def services_duplicate(request, pk):
 
 
 def _save_service_items(invoice, request):
-    """Dual-write (remittance ledger redesign, Fase 4) -- see _save_reservations
-    for why this is a full recreate rather than a diff, and why deleting the
-    old ServiceItem rows is enough to clean up their old Charge rows too."""
-    from ..models import Charge, ChargeReason
+    """Full recreate service items, lalu posting.post_invoice_charge
+    (DR Piutang / CR Pendapatan Services, idempotent-by-content)."""
+    from ..finance.posting import post_invoice_charge
 
     try:
         rows = json.loads(request.POST.get("service_items", "[]"))
     except (ValueError, TypeError):
         rows = []
-    client = _billing_client(invoice)
     number = 0
     with transaction.atomic():
         for r in rows:
@@ -342,21 +335,19 @@ def _save_service_items(invoice, request):
             number += 1
             qty = int(_to_float(r.get("qty"), 1)) or 1
             price = _to_float(r.get("price"))
-            item = ServiceItem.objects.create(
+            ServiceItem.objects.create(
                 invoice=invoice,
                 service_number=number,
                 name=name,
                 qty=qty,
                 price=price,
             )
-            total = int(round(qty * price))
-            if total:
-                Charge.objects.create(
-                    company=invoice.company, client=client, invoice=invoice,
-                    date=invoice.issued_date or date.today(),
-                    amount_sar=total, service_item=item, reason=ChargeReason.INITIAL,
-                    description=f'Sinkron dari layanan {name}', created_by=request.user,
-                )
+        from .invoice_billing import _billing_client
+        if not invoice.client_id and _billing_client(invoice):
+            invoice.client = _billing_client(invoice)
+            invoice.save(update_fields=['client', 'customer_name'])
+        if invoice.client_id:
+            post_invoice_charge(invoice, created_by=request.user)
     logger.info(
         "ledger: %d service item(s) synced for invoice %s",
         number, invoice.invoice_number,

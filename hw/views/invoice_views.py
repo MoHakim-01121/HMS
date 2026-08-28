@@ -16,7 +16,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, Company, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..models.choices import InvoiceType
 from ..permissions import require_perm
-from .. import ledger
+from ..finance import queries as fq
 from .context import _build_reservation_context
 from .helpers import (
     _client_options,
@@ -67,7 +67,7 @@ def _filter_by_status(qs, status):
     if status not in ('lunas', 'belum', 'partial'):
         return qs
     invoices = list(qs)
-    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in invoices])
+    paid_map = fq.invoice_paid_map([inv.pk for inv in invoices])
     filtered_ids = []
     for inv in invoices:
         paid = paid_map.get(inv.pk, 0)
@@ -110,7 +110,7 @@ def invoice_list(request):
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
     page_invoices = list(page_obj)
-    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in page_invoices])
+    paid_map = fq.invoice_paid_map([inv.pk for inv in page_invoices])
 
     invoices = []
     for inv in page_invoices:
@@ -148,20 +148,19 @@ def invoice_list(request):
 
 
 def _invoice_stats(invoice_qs, company):
-    from .. import ledger
-    from ..models import CashAccount
+    from ..finance import accounts as coa
 
     invoice_ids = list(invoice_qs.values_list('id', flat=True))
-    total_tagihan = ledger.total_charge(company, invoice_ids)
-    terbayar_surabaya = ledger.client_paid_to(CashAccount.SBY, company, invoice_ids)
-    terbayar_pusat = ledger.client_paid_to(CashAccount.PUSAT, company, invoice_ids)
+    total_tagihan = fq.total_charged(company, invoice_ids)
+    terbayar_surabaya = fq.paid_into(coa.CASH_SBY, company, invoice_ids)
+    terbayar_pusat = fq.paid_into(coa.CASH_PUSAT, company, invoice_ids)
 
     return {
         'total_tagihan': total_tagihan,
         'belum_terbayar': max(0, total_tagihan - terbayar_surabaya - terbayar_pusat),
         # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang pernah
         # diterima untuk invoice-invoice ini (kredit di pusat), lihat hw/ledger.py.
-        'mengendap': ledger.kas_surabaya(company, invoice_ids),
+        'mengendap': fq.mengendap(company, invoice_ids),
         'terbayar_surabaya': terbayar_surabaya,
         'terbayar_pusat': terbayar_pusat,
     }
@@ -366,17 +365,11 @@ def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, **filters)
     if request.method == "POST":
         num = invoice.invoice_number
-        # System of record: menghapus invoice meng-cascade Reservations →
-        # Charges (ledger). Dokumen yang sudah tercatat di ledger tidak boleh
-        # hilang diam-diam dari riwayat keuangan.
-        from ..models import Charge, Allocation, CashMovement
-        has_ledger = (
-            Charge.objects.filter(invoice=invoice).exists()
-            or Allocation.objects.filter(invoice=invoice).exists()
-            or CashMovement.objects.filter(invoice=invoice).exists()
-        )
-        if has_ledger:
-            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+        # System of record: invoice yang sudah menyentuh general ledger
+        # (charge/payment) tidak boleh hilang dari riwayat keuangan.
+        from ..models.journal import JournalLine
+        if JournalLine.objects.filter(invoice=invoice).exists():
+            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('invoice_detail', pk=pk)
         invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
@@ -483,23 +476,19 @@ def invoice_duplicate(request, pk):
 
 
 def _save_reservations(invoice, request):
-    """Dual-write (remittance ledger redesign, Fase 4): the reservations array
-    has no row identity either, so like _save_payments this is a full
-    delete-then-recreate. Deleting the old Reservation rows already cascades
-    to their Charge rows (see hw/models/ledger.py), so we only need to create
-    a fresh `initial` Charge for each recreated reservation to keep
-    Sum(Charge) in sync with the new total_sar cache."""
-    from ..models import Charge, ChargeReason
+    """Full delete-then-recreate reservations, lalu posting.post_invoice_charge
+    (idempotent-by-content: reverse charge lama + repost) supaya jurnal
+    (DR Piutang / CR Pendapatan) selalu cocok dengan total reservasi."""
+    from ..finance.posting import post_invoice_charge
 
     try:
         rows = json.loads(request.POST.get("reservations", "[]"))
     except (ValueError, TypeError):
         rows = []
-    client = _billing_client(invoice)
     with transaction.atomic():
         for r in rows:
             total_sar = int(round(_to_float(r.get("reservation_total"))))
-            res = Reservation.objects.create(
+            Reservation.objects.create(
                 invoice=invoice,
                 client=invoice.client,
                 reservation_number=(r.get("reservation_number") or "-").strip() or "-",
@@ -508,13 +497,11 @@ def _save_reservations(invoice, request):
                 check_out=_parse_date(r.get("check_out")),
                 total_sar=total_sar,
             )
-            if total_sar:
-                Charge.objects.create(
-                    company=invoice.company, client=client, invoice=invoice,
-                    date=invoice.issued_date or date.today(),
-                    amount_sar=total_sar, reservation=res, reason=ChargeReason.INITIAL,
-                    description=f'Sinkron dari reservasi {res.reservation_number}', created_by=request.user,
-                )
+        if not invoice.client_id and _billing_client(invoice):
+            invoice.client = _billing_client(invoice)
+            invoice.save(update_fields=['client', 'customer_name'])
+        if invoice.client_id:
+            post_invoice_charge(invoice, created_by=request.user)
     logger.info(
         "ledger: %d reservation(s) synced for invoice %s",
         len(rows), invoice.invoice_number,

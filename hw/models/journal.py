@@ -181,7 +181,7 @@ class JournalEntry(AppendOnlyModel):
     company  = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
 
     # Audit
-    created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

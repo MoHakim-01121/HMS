@@ -431,29 +431,20 @@ def payment_reverse(request, pk):
     if request.method == 'POST':
         try:
             from django.utils import timezone
-            from ..models.ledger import CashMovement, Allocation
-            # Find related journal entry
+            reversed_ids = JournalEntry.objects.filter(
+                reverses__isnull=False,
+            ).values_list('reverses_id', flat=True)
             journal = JournalEntry.objects.filter(
-                reference_type='PaymentRecord',
-                reference_id=payment.pk,
-            ).first()
+                reference_type='PaymentRecord', reference_id=payment.pk,
+                entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
+            ).exclude(pk__in=reversed_ids).first()
 
             if journal:
-                reversal = reverse_journal_entry(
+                reverse_journal_entry(
                     journal, timezone.now().date(), request.user,
                     note=f'Reversal for {payment.payment_number}',
                 )
-                # Undo the CashMovement/Allocation mirror allocate_payment()
-                # created -- same delete-then-resync convention
-                # invoice_billing.py uses, scoped to this payment via its
-                # (unique) payment_number embedded in the note.
                 if payment.invoice_id:
-                    CashMovement.objects.filter(
-                        invoice=payment.invoice, note__contains=payment.payment_number,
-                    ).delete()
-                    Allocation.objects.filter(
-                        invoice=payment.invoice, note__contains=payment.payment_number,
-                    ).delete()
                     payment.invoice.sync_status()
 
             payment.status = PaymentRecord.STATUS_REVERSED

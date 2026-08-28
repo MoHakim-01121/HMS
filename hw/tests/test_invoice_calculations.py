@@ -4,25 +4,37 @@ from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import Invoice, Reservation, CashMovement, ConfirmationLetter, CancellationPenalty, Client
+from hw.models import Invoice, Reservation, ConfirmationLetter, CancellationPenalty, Client
 from hw.models.period import FinancialPeriod
 from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
+from hw.finance import posting
 
 
 class InvoiceTotalsTest(TestCase):
     def setUp(self):
+        self.user = User.objects.create_user('calc', password='pw12345')
+        FinancialPeriod.objects.create(
+            name='2026-01', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
+        self.client_obj = Client.objects.create(company='konoz', name='Test Customer')
         self.invoice = Invoice.objects.create(
             company='konoz', invoice_type='hotel',
             invoice_number='INV-CALC-001', customer_name='Test Customer',
-            currency='SAR',
+            client=self.client_obj, currency='SAR', issued_date=date(2026, 1, 1),
         )
 
-    def _pay(self, amount, currency='SAR', exchange_rate=1, to_account='sby'):
-        CashMovement.objects.create(
-            company='konoz', invoice=self.invoice, date='2026-01-01',
-            from_account='client', to_account=to_account,
+    def _charge(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+
+    def _pay(self, amount, currency='SAR', exchange_rate=1, received_in='sby'):
+        p = create_payment_record(
+            invoice=self.invoice, client=self.client_obj, payment_date=date(2026, 1, 1),
             amount=amount, currency=currency, exchange_rate=exchange_rate,
+            method='transfer', created_by=self.user, received_in=received_in,
         )
+        confirm_payment(p, confirmed_by=self.user)
+        return p
 
     def test_total_sar_sums_reservations(self):
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
@@ -43,66 +55,55 @@ class InvoiceTotalsTest(TestCase):
         self.assertEqual(self.invoice.total_paid_sar, 300)
 
     def test_total_paid_sar_counts_direct_and_surabaya_payments(self):
-        self._pay(200, to_account='sby')
-        self._pay(100, to_account='pusat')
+        self._pay(200, received_in='sby')
+        self._pay(100, received_in='pusat')
         self.assertEqual(self.invoice.total_paid_sar, 300)
 
     def test_remaining_sar_is_total_minus_paid(self):
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        self._charge()
         self._pay(400)
         self.assertEqual(self.invoice.remaining_sar, 600)
 
     def test_remaining_sar_negative_when_overpaid(self):
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=500)
+        self._charge()
         self._pay(700)
         self.assertEqual(self.invoice.remaining_sar, -200)
 
-    def test_total_paid_sar_excludes_penalty_payment_linked_to_same_invoice(self):
-        # A CancellationPenalty's CL can happen to share this invoice (for
-        # traceability) without its cancelled booking being one of this
-        # invoice's current reservations. total_sar only ever sums
-        # reservations, so total_paid_sar must stay symmetric with that, or
-        # remaining_sar looks more "paid off" than total_sar can explain.
+    def test_total_paid_sar_excludes_penalty_payment(self):
+        """Pembayaran penalty tidak mengkredit Piutang invoice (baris jurnal
+        penalty tidak ber-dimensi invoice), jadi total_paid_sar tetap simetris
+        dengan total_sar yang hanya menjumlah reservasi."""
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
-        self._pay(400)  # real payment toward R1
+        self._charge()
+        self._pay(400)
 
         cl = ConfirmationLetter.objects.create(
-            company='konoz', hotel_name='Hotel', guest_name='Guest',
+            company='konoz', client=self.client_obj, hotel_name='Hotel', guest_name='Guest',
             confirmation_number='CL-PEN-001', invoice=self.invoice,
         )
         penalty = CancellationPenalty.objects.create(
-            cl=cl, penalty_number='PNL-TEST', cancellation_date='2026-01-02',
+            cl=cl, client=self.client_obj, penalty_number='PNL-TEST',
+            cancellation_date=date(2026, 1, 2), penalty_amount=250, amount_sar=250,
         )
-        CashMovement.objects.create(
-            company='konoz', invoice=self.invoice, penalty_label=penalty, date='2026-01-02',
-            from_account='client', to_account='sby', amount=250, currency='SAR', exchange_rate=1,
-        )
+        posting.post_penalty_charge(penalty, created_by=self.user)
+        posting.post_penalty_payment(penalty, created_by=self.user, entry_date=date(2026, 1, 2))
 
-    def test_total_paid_sar_sees_payment_allocated_via_finance_page(self):
-        """Regression for the gap formerly documented here as "KNOWN GAP":
-        allocate_payment() now mirrors its PaymentRecord into the legacy
-        CashMovement/Allocation ledger (same dual-write bridge
-        invoice_billing.py/penalty_views.py already use), so a payment made
-        through the Finance page's "Record Payment" dialog is visible to
-        total_paid_sar/remaining_sar/is_fully_paid exactly like one entered
-        on the invoice's own payment list."""
+        self.assertEqual(self.invoice.total_paid_sar, 400)
+
+    def test_total_paid_sar_sees_finance_page_payment(self):
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
-        client = Client.objects.create(company='konoz', name='Test Client')
-        user = User.objects.create_user('gap_check', password='pw12345')
-        FinancialPeriod.objects.create(
-            name='2026-01', date_from=date(2026, 1, 1), date_to=date(2026, 1, 31),
-        )
+        self._charge()
         payment = create_payment_record(
-            invoice=self.invoice, client=client, payment_date=date(2026, 1, 1),
-            amount=400, method='transfer', created_by=user,
+            invoice=self.invoice, client=self.client_obj, payment_date=date(2026, 1, 1),
+            amount=400, method='transfer', created_by=self.user,
         )
-        confirm_payment(payment, confirmed_by=user)
-        allocate_payment(payment, allocation_date=payment.payment_date, created_by=user)
+        confirm_payment(payment, confirmed_by=self.user)
+        allocate_payment(payment, allocation_date=payment.payment_date, created_by=self.user)
 
         self.assertEqual(self.invoice.total_paid_sar, 400)
         self.assertEqual(self.invoice.remaining_sar, 600)
-        movement = CashMovement.objects.get(invoice=self.invoice)
-        self.assertEqual(movement.to_account, 'sby')
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.status, Invoice.STATUS_PARTIAL)
 
@@ -117,16 +118,24 @@ class InvoiceExportStatusFilterTest(TestCase):
         s = self.client.session
         s["active_company"] = "konoz"
         s.save()
+        FinancialPeriod.objects.create(
+            name="2026", company="konoz",
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
+        client_obj = Client.objects.create(company="konoz", name="Paid Co")
 
         self.paid = Invoice.objects.create(
             company="konoz", invoice_type="hotel",
-            invoice_number="INV-EXP-PAID", customer_name="Paid Co", currency="SAR",
+            invoice_number="INV-EXP-PAID", customer_name="Paid Co",
+            client=client_obj, currency="SAR", issued_date=date(2026, 1, 1),
         )
         Reservation.objects.create(invoice=self.paid, reservation_number="R1", total_sar=1000)
-        CashMovement.objects.create(
-            company="konoz", invoice=self.paid, date="2026-01-01",
-            from_account="client", to_account="sby", amount=1000, currency="SAR", exchange_rate=1,
+        posting.post_invoice_charge(self.paid, created_by=self.user)
+        p = create_payment_record(
+            invoice=self.paid, client=client_obj, payment_date=date(2026, 1, 1),
+            amount=1000, method="transfer", created_by=self.user,
         )
+        confirm_payment(p, confirmed_by=self.user)
 
         self.unpaid = Invoice.objects.create(
             company="konoz", invoice_type="hotel",

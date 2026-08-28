@@ -1,64 +1,64 @@
+from datetime import date
+
+from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import Invoice, Reservation, CashMovement
+
+from hw.models import Client, Invoice, Reservation
+from hw.models.period import FinancialPeriod
+from hw.finance import posting
+from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.views.invoice_views import _invoice_stats
 
 
 class InvoiceStatsTest(TestCase):
     def setUp(self):
+        self.user = User.objects.create_user('stats', password='x')
+        FinancialPeriod.objects.create(
+            name='2020-2030', company='konoz',
+            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+        )
+        self.client_obj = Client.objects.create(company='konoz', name='Test Customer')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
-            invoice_number='INV-STAT-001', customer_name='Test Customer',
+            company='konoz', invoice_type='hotel', invoice_number='INV-STAT-001',
+            customer_name='Test Customer', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        self.res = Reservation.objects.create(
+            invoice=self.invoice, reservation_number='R1', total_sar=1000,
+        )
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
 
-    def _mov(self, from_account, to_account, amount):
-        return CashMovement.objects.create(
-            company='konoz', invoice=self.invoice, date='2026-01-01',
-            from_account=from_account, to_account=to_account, amount=amount,
+    def _pay(self, amount, received_in='sby'):
+        p = create_payment_record(
+            invoice=self.invoice, client=self.client_obj, payment_date=date(2026, 1, 1),
+            amount=amount, method='transfer', created_by=self.user, received_in=received_in,
+            reservation=self.res,
         )
+        confirm_payment(p, confirmed_by=self.user)
 
     def _stats(self):
-        qs = Invoice.objects.filter(pk=self.invoice.pk)
-        return _invoice_stats(qs, 'konoz')
+        return _invoice_stats(Invoice.objects.filter(pk=self.invoice.pk), 'konoz')
 
-    def test_total_tagihan_sums_reservation_totals(self):
-        from hw.models import Charge
-        Charge.objects.create(
-            company='konoz', client=None, invoice=self.invoice, date='2026-01-01',
-            amount_sar=1000, reservation=Reservation.objects.get(invoice=self.invoice), reason='initial',
-        )
+    def test_total_tagihan_from_journal_charge(self):
         self.assertEqual(self._stats()['total_tagihan'], 1000)
 
-    def test_cash_payment_counts_as_terbayar_surabaya(self):
-        self._mov('client', 'sby', 400)
+    def test_surabaya_payment_counts_as_terbayar_surabaya(self):
+        self._pay(400, received_in='sby')
         stats = self._stats()
         self.assertEqual(stats['terbayar_surabaya'], 400)
         self.assertEqual(stats['terbayar_pusat'], 0)
 
     def test_direct_payment_counts_as_terbayar_pusat(self):
-        self._mov('client', 'pusat', 400)
+        self._pay(400, received_in='pusat')
         stats = self._stats()
         self.assertEqual(stats['terbayar_pusat'], 400)
         self.assertEqual(stats['terbayar_surabaya'], 0)
 
     def test_belum_terbayar_is_total_minus_all_payments(self):
-        from hw.models import Charge
-        Charge.objects.create(
-            company='konoz', client=None, invoice=self.invoice, date='2026-01-01',
-            amount_sar=1000, reservation=Reservation.objects.get(invoice=self.invoice), reason='initial',
-        )
-        self._mov('client', 'sby', 300)
-        self._mov('client', 'pusat', 200)
-        self.assertEqual(self._stats()['belum_terbayar'], 500)  # 1000 - 300 - 200
+        self._pay(300, received_in='sby')
+        self._pay(200, received_in='pusat')
+        self.assertEqual(self._stats()['belum_terbayar'], 500)
 
-    def test_mengendap_excludes_amount_already_remitted(self):
-        self._mov('client', 'sby', 600)
-        self._mov('sby', 'pusat', 200)
-        # 600 collected in Surabaya, 200 already sent up -> 400 still held
-        self.assertEqual(self._stats()['mengendap'], 400)
-
-    def test_mengendap_can_go_negative_when_more_sent_than_received(self):
-        self._mov('client', 'sby', 200)
-        self._mov('sby', 'pusat', 600)
-        # Surabaya kirim lebih dari yang diterima -- kredit di pusat, bukan 0
-        self.assertEqual(self._stats()['mengendap'], -400)
+    def test_mengendap_is_surabaya_cash_for_these_invoices(self):
+        self._pay(600, received_in='sby')
+        self._pay(100, received_in='pusat')
+        self.assertEqual(self._stats()['mengendap'], 600)

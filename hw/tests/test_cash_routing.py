@@ -17,6 +17,7 @@ from hw.models import (
 )
 from hw.models.journal import Account as JournalAccount
 from hw.finance import accounts as coa
+from hw.finance import queries as fq
 from hw.models.period import FinancialPeriod
 from hw import ledger
 from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
@@ -64,8 +65,7 @@ class JournalCashAccountTest(TestCase):
 
 
 class PaymentRecordRoutingTest(TestCase):
-    """confirm_payment/allocate_payment must honor received_in -- both in
-    the journal's cash account and in the mirrored CashMovement."""
+    """confirm_payment harus menghormati received_in di akun kas jurnal."""
 
     def setUp(self):
         self.user = User.objects.create_user('router', password='pw12345')
@@ -73,12 +73,14 @@ class PaymentRecordRoutingTest(TestCase):
         self.invoice = Invoice.objects.create(
             company='konoz', invoice_type='hotel',
             invoice_number='INV-ROUTE-001', customer_name='PT Route',
+            client=self.client_obj, issued_date=date(2026, 1, 1),
         )
         self.res = Reservation.objects.create(
             invoice=self.invoice, reservation_number='R1', total_sar=1000,
         )
         FinancialPeriod.objects.create(
-            name='2026-01', date_from=date(2026, 1, 1), date_to=date(2026, 1, 31),
+            name='2026-01', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 1, 31),
         )
 
     def _pay(self, received_in):
@@ -91,41 +93,23 @@ class PaymentRecordRoutingTest(TestCase):
         allocate_payment(payment, allocation_date=payment.payment_date, created_by=self.user)
         return journal
 
-    def test_jakarta_payment_hits_kas_jakarta_and_not_sby_idle(self):
+    def test_jakarta_payment_hits_kas_jakarta(self):
         journal = self._pay('jkt')
-
-        cash_lines = [l for l in journal.lines.all() if l.amount_sar > 0]
-        self.assertEqual(len(cash_lines), 1)
-        self.assertEqual(cash_lines[0].account_id, coa.CASH_JKT)
-
-        mov = CashMovement.objects.get(invoice=self.invoice)
-        self.assertEqual(mov.to_account, WalletAccount.JKT)
-
-        breakdown = ledger.reservation_cash_breakdown()
-        row = breakdown[self.res.pk]
-        self.assertEqual(row['terbayar_jkt'], 300)
-        self.assertEqual(row['mengendap'], 0)          # bukan uang Surabaya
-        self.assertEqual(row['mengendap_jkt'], 300)    # mengendap di Jakarta
+        cash_lines = [l for l in journal.lines.all() if l.is_debit]
+        self.assertEqual([l.account_id for l in cash_lines], [coa.CASH_JKT])
+        self.assertEqual(fq.kas_jakarta('konoz'), 300)
+        self.assertEqual(fq.kas_surabaya('konoz'), 0)
+        self.assertEqual(fq.mengendap_per_reservation(self.res.pk), 0)
 
     def test_pusat_payment_counts_as_already_sent(self):
         self._pay('pusat')
-
-        mov = CashMovement.objects.get(invoice=self.invoice)
-        self.assertEqual(mov.to_account, WalletAccount.PUSAT)
-
-        row = ledger.reservation_cash_breakdown()[self.res.pk]
-        self.assertEqual(row['terbayar_direct'], 300)
-        self.assertEqual(row['sudah_dikirim'], 300)
-        self.assertEqual(row['mengendap'], 0)
-        self.assertEqual(row['mengendap_jkt'], 0)
+        self.assertEqual(fq.kas_pusat('konoz'), 300)
+        self.assertEqual(fq.mengendap_per_reservation(self.res.pk), 0)
 
     def test_surabaya_payment_still_idles_in_surabaya(self):
         self._pay('sby')
-
-        row = ledger.reservation_cash_breakdown()[self.res.pk]
-        self.assertEqual(row['terbayar_sby'], 300)
-        self.assertEqual(row['mengendap'], 300)
-        self.assertEqual(row['mengendap_jkt'], 0)
+        self.assertEqual(fq.kas_surabaya('konoz'), 300)
+        self.assertEqual(fq.mengendap_per_reservation(self.res.pk), 300)
 
 
 class KasJakartaWalletTest(TestCase):

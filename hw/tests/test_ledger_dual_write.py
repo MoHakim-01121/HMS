@@ -1,12 +1,12 @@
 import json
+from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import (
-    Invoice, Reservation, ServiceItem, Payment,
-    Charge, Allocation, CashMovement, Remittance,
-)
+from hw.models import Invoice, Reservation, ServiceItem, Payment, Client, Remittance, CashMovement
+from hw.models.period import FinancialPeriod
+from hw.finance import queries as fq
 from hw import ledger
 
 
@@ -19,13 +19,19 @@ class DualWriteTestBase(TestCase):
         s = self.client.session
         s["active_company"] = "konoz"
         s.save()
+        FinancialPeriod.objects.create(
+            name="2020-2030", company="konoz",
+            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+        )
+        self.client_obj = Client.objects.create(company="konoz", name="PT Dual Write")
 
 
 class InvoiceNewDualWriteTest(DualWriteTestBase):
-    def test_creating_invoice_writes_both_payment_and_ledger(self):
+    def test_creating_invoice_posts_charge_and_payment_to_journal(self):
         resp = self.client.post("/invoice/new/", {
             "invoice_number": "INV-DW-001",
             "customer_name": "PT Dual Write",
+            "client_id": str(self.client_obj.pk),
             "issued_date": "2026-01-01",
             "due_date": "",
             "reservations": json.dumps([
@@ -36,25 +42,16 @@ class InvoiceNewDualWriteTest(DualWriteTestBase):
             ]),
         })
         self.assertEqual(resp.status_code, 302)
-
         invoice = Invoice.objects.get(invoice_number="INV-DW-001")
-        res = Reservation.objects.get(invoice=invoice, reservation_number="R1")
+        self.assertEqual(Payment.objects.filter(invoice=invoice).count(), 1)  # legacy list masih ditulis
+        self.assertEqual(fq.invoice_charged_sar(invoice.id), 5000)
+        self.assertEqual(fq.invoice_paid_sar(invoice.id), 3000)
 
-        # Payment (old) still written -- Invoice Detail's payment list depends on it
-        self.assertEqual(Payment.objects.filter(invoice=invoice).count(), 1)
-
-        # Ledger (new) also written
-        self.assertEqual(ledger.tagihan(res), 5000)
-        self.assertEqual(ledger.terbayar(res), 3000)
-        movement = CashMovement.objects.get(invoice=invoice)
-        self.assertEqual(movement.from_account, 'client')
-        self.assertEqual(movement.to_account, 'sby')
-        self.assertEqual(movement.reservation_label, res)
-
-    def test_direct_payment_routes_to_pusat_in_ledger_too(self):
+    def test_direct_payment_routes_to_kas_pusat(self):
         resp = self.client.post("/invoice/new/", {
             "invoice_number": "INV-DW-002",
-            "customer_name": "PT Direct",
+            "customer_name": "PT Dual Write",
+            "client_id": str(self.client_obj.pk),
             "issued_date": "2026-01-01",
             "due_date": "",
             "reservations": json.dumps([
@@ -65,28 +62,26 @@ class InvoiceNewDualWriteTest(DualWriteTestBase):
             ]),
         })
         self.assertEqual(resp.status_code, 302)
-        invoice = Invoice.objects.get(invoice_number="INV-DW-002")
-        movement = CashMovement.objects.get(invoice=invoice)
-        self.assertEqual(movement.to_account, 'pusat')
+        self.assertEqual(fq.kas_pusat("konoz"), 5000)
 
 
 class InvoiceEditDualWriteTest(DualWriteTestBase):
     def setUp(self):
         super().setUp()
+        from hw.finance import posting
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
-            invoice_number="INV-DW-EDIT", customer_name="PT Edit", currency="SAR",
+            company="konoz", invoice_type="hotel", invoice_number="INV-DW-EDIT",
+            customer_name="PT Dual Write", client=self.client_obj, currency="SAR",
+            issued_date=date(2026, 1, 1),
         )
         self.res = Reservation.objects.create(invoice=self.invoice, reservation_number="R1", total_sar=5000)
-        Charge.objects.create(
-            company="konoz", client=None, invoice=self.invoice, date="2026-01-01",
-            amount_sar=5000, reservation=self.res, reason="initial",
-        )
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
 
     def _edit(self, reservations, payments):
         return self.client.post(f"/invoice/{self.invoice.pk}/edit/", {
             "invoice_number": "INV-DW-EDIT",
-            "customer_name": "PT Edit",
+            "customer_name": "PT Dual Write",
+            "client_id": str(self.client_obj.pk),
             "issued_date": "2026-01-01",
             "due_date": "",
             "reservations": json.dumps(reservations),
@@ -99,42 +94,16 @@ class InvoiceEditDualWriteTest(DualWriteTestBase):
             [],
         )
         self.assertEqual(resp.status_code, 302)
-        new_res = Reservation.objects.get(invoice=self.invoice, reservation_number="R1")
-        # Old Reservation row (and its Charge, via cascade) is gone; exactly
-        # one fresh Charge for the new total -- not both old and new summed.
-        self.assertEqual(ledger.tagihan(new_res), 8000)
-        self.assertEqual(Charge.objects.filter(invoice=self.invoice).count(), 1)
-
-    def test_edit_does_not_touch_remittance_movements(self):
-        # Simulate money already collected and sent to HQ before this edit.
-        CashMovement.objects.create(
-            company="konoz", invoice=self.invoice, reservation_label=self.res,
-            from_account="client", to_account="sby",
-            amount=5000, currency="SAR", exchange_rate=1, date="2026-01-02",
-            note="pre-existing payment sync",
-        )
-        rem = Remittance.objects.create(company="konoz", date="2026-01-03", remittance_number="RMT-DW-01")
-        sent = CashMovement.objects.create(
-            company="konoz", invoice=self.invoice, reservation_label=self.res, remittance=rem,
-            from_account="sby", to_account="pusat",
-            amount=5000, currency="SAR", exchange_rate=1, date="2026-01-03",
-        )
-
-        self._edit(
-            [{"reservation_number": "R1", "hotel": "Hotel A", "check_in": "", "check_out": "", "reservation_total": "5000"}],
-            [{"ref": "R1", "date": "2026-01-05", "method": "Cash", "amount": "0"}],
-        )
-
-        sent.refresh_from_db()  # must not have been deleted or altered
-        self.assertEqual(sent.amount, 5000)
-        self.assertEqual(CashMovement.objects.filter(from_account='sby', to_account='pusat').count(), 1)
+        # Charge lama di-reverse, charge baru diposting — net Piutang = 8000.
+        self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 8000)
 
 
 class ServicesDualWriteTest(DualWriteTestBase):
-    def test_creating_services_invoice_writes_charge_for_service_item(self):
+    def test_creating_services_invoice_posts_service_income(self):
         resp = self.client.post("/services/new/", {
             "invoice_number": "SVC-DW-001",
-            "customer_name": "PT Visa",
+            "customer_name": "PT Dual Write",
+            "client_id": str(self.client_obj.pk),
             "issued_date": "2026-01-01",
             "due_date": "",
             "currency": "SAR",
@@ -147,11 +116,8 @@ class ServicesDualWriteTest(DualWriteTestBase):
         })
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number="SVC-DW-001")
-        item = ServiceItem.objects.get(invoice=invoice)
-        self.assertEqual(sum(c.amount_sar for c in Charge.objects.filter(service_item=item)), 1000)
-        movement = CashMovement.objects.get(invoice=invoice)
-        self.assertEqual(movement.service_item_label, item)
-        self.assertEqual(Allocation.objects.filter(service_item=item).count(), 1)
+        self.assertEqual(fq.invoice_charged_sar(invoice.id), 1000)
+        self.assertEqual(fq.invoice_paid_sar(invoice.id), 600)
 
 
 class RemittanceDualWriteTest(DualWriteTestBase):

@@ -1,7 +1,9 @@
 from datetime import date, timedelta
+from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client, Charge
-from hw import ledger
+from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client
+from hw.models.period import FinancialPeriod
+from hw.finance import queries as fq
 
 
 class CLTotalPriceTest(TestCase):
@@ -59,28 +61,35 @@ class RoomTotalChangedSignalTest(TestCase):
         # Should not raise even though there's no invoice/reservation to sync
         Room.objects.create(cl=cl_no_invoice, room_type='Deluxe', quantity=1, price=500)
 
-    def test_creating_a_room_writes_a_revision_charge_keeping_ledger_in_sync(self):
-        # Regression: this signal used to bypass the ledger entirely (a raw
-        # .update()), so Sum(Charge) silently drifted from total_sar's cache
-        # every time a CL's rooms changed -- exactly what check_ledger exists
-        # to catch.
+    def _wire_client_and_period(self):
+        User.objects.create_user('sync', password='x')
+        FinancialPeriod.objects.get_or_create(
+            name='2020-2030', company='konoz',
+            defaults=dict(date_from=date(2020, 1, 1), date_to=date(2030, 12, 31)),
+        )
+        c = Client.objects.create(company='konoz', name='PT Sync Client')
+        self.cl.client = c
+        self.cl.save(update_fields=['client'])
+        self.invoice.client = c
+        self.invoice.save(update_fields=['client'])
+        return c
+
+    def test_room_change_reposts_invoice_charge_in_journal(self):
+        self._wire_client_and_period()
         Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
         self.reservation.refresh_from_db()
-        self.assertEqual(ledger.tagihan(self.reservation), self.reservation.total_sar)
+        self.assertEqual(fq.invoice_charged_sar(self.invoice.id), self.reservation.total_sar)
 
-    def test_price_change_writes_delta_not_a_duplicate_full_amount(self):
+    def test_price_change_reposts_to_new_total_not_sum(self):
+        self._wire_client_and_period()
         room = Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
         room.price = 1000
         room.save()
         self.reservation.refresh_from_db()
         self.assertEqual(self.reservation.total_sar, 1000)
-        self.assertEqual(ledger.tagihan(self.reservation), 1000)
-        self.assertEqual(Charge.objects.filter(reservation=self.reservation).count(), 2)  # +750, then +250
+        self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 1000)
 
-    def test_charge_client_matches_cl_client(self):
-        client_obj = Client.objects.create(company='konoz', name='PT Sync Client')
-        self.cl.client = client_obj
-        self.cl.save(update_fields=['client'])
+    def test_charge_client_matches_invoice_client(self):
+        c = self._wire_client_and_period()
         Room.objects.create(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
-        charge = Charge.objects.get(reservation=self.reservation)
-        self.assertEqual(charge.client, client_obj)
+        self.assertEqual(fq.client_receivable(c.id), 750)
