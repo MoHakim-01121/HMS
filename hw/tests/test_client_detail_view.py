@@ -1,7 +1,13 @@
+from datetime import date
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, Charge, Allocation, CashMovement
+from hw.finance import posting
+from hw.finance_helpers import create_payment_record
+from hw.models import Client, Invoice, Reservation
+from hw.models.choices import Company
+from hw.models.period import FinancialPeriod
 
 
 class ClientDetailViewTest(TestCase):
@@ -12,44 +18,45 @@ class ClientDetailViewTest(TestCase):
         s["active_company"] = "konoz"
         s.save()
 
+        FinancialPeriod.objects.create(
+            name="2026", company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.client_obj = Client.objects.create(company="konoz", name="PT Detail View")
-        # invoice.client is deliberately left unset -- the only reliable link is
-        # via Charge.client below, matching how invoices are linked in practice.
+        # invoice.client dipasang supaya charge (yang di-posting ke jurnal)
+        # ter-atribusi ke client -- jurnal membaca client dari dimensi baris.
         invoice = Invoice.objects.create(
             company="konoz", invoice_type="hotel",
             invoice_number="INV-CDV-001", customer_name="PT Detail View",
+            client=self.client_obj, issued_date=date(2026, 1, 2),
         )
         self.invoice = invoice
-        res = Reservation.objects.create(invoice=invoice, reservation_number="R1", total_sar=5000)
-        Charge.objects.create(
-            company="konoz", client=self.client_obj, invoice=invoice, date="2026-01-01",
-            amount_sar=5000, reservation=res, reason="initial",
+        self.res = Reservation.objects.create(
+            invoice=invoice, reservation_number="R1", total_sar=5000,
         )
-        CashMovement.objects.create(
-            company="konoz", client=self.client_obj, invoice=invoice, date="2026-01-05",
-            from_account="client", to_account="sby", amount=6000, currency="SAR", exchange_rate=1,
-            reservation_label=res,
+        posting.post_invoice_charge(invoice, created_by=self.user)
+        p = create_payment_record(
+            invoice=invoice, client=self.client_obj,
+            payment_date=date(2026, 1, 5), amount=6000, method="transfer",
+            created_by=self.user, received_in="sby", reservation=self.res,
         )
-        Allocation.objects.create(
-            company="konoz", client=self.client_obj, invoice=invoice, date="2026-01-05",
-            amount_sar=5000, reservation=res, reason="initial",
-        )
+        posting.post_payment(p, created_by=self.user)
 
-    def test_detail_page_reports_fund_balance_and_activity(self):
+    def test_detail_page_reports_balance_and_activity(self):
+        # Bayar 6000 utk tagihan 5000 → piutang client negatif (lebihan
+        # dana), aktivitas 2 baris (charge debit + payment credit).
         resp = self.client.get(f"/clients/{self.client_obj.pk}/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 200)
         props = resp.json()["props"]
 
-        self.assertEqual(props["client"]["saldo_dana"], 1000)  # paid 6000, only 5000 allocated
+        self.assertEqual(props["client"]["saldo_dana"], 0)  # tidak ada titipan CUST_CREDIT
+        self.assertEqual(props["client"]["outstanding"], 0)  # lebihan bayar → piutang ≠ positif
         self.assertEqual(len(props["activity"]), 2)
         self.assertEqual(props["activity"][0]["type"], "debit")
         self.assertEqual(props["activity"][1]["type"], "credit")
-        self.assertEqual(props["activity"][-1]["balance"], -1000)  # client has 1000 unused credit
+        self.assertEqual(props["activity"][-1]["balance"], -1000)  # client punya kelebihan 1000
 
     def test_detail_page_lists_invoices_linked_only_via_charge(self):
-        # Regression: client_detail used to read c.invoices (Invoice.client
-        # FK) instead of c.resolved_invoices, so this list was always empty
-        # even when Charge.client correctly linked the invoice to the client.
         resp = self.client.get(f"/clients/{self.client_obj.pk}/", HTTP_X_INERTIA="true")
         props = resp.json()["props"]
         invoice_numbers = [inv["invoice_number"] for inv in props["invoices"]]

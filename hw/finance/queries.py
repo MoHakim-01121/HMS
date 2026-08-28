@@ -5,6 +5,8 @@ Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
 """
 from django.db.models import Sum
 
+from ..models.client import Client
+from ..models.choices import Company
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from . import accounts as coa
 
@@ -115,9 +117,57 @@ def reservation_paid_map(invoice_id):
     return {r["reservation_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
 
 
+def cl_paid_sar_map(letters):
+    """Bulk ConfirmationLetter.paid_sar(): {cl_pk: paid_sar} in one query.
+
+    Attribution rule sama dgn properti per-CL: Payment milik `cl` bila di-set,
+    kalau tidak ia di-link lewat confirmation_number."""
+    if not letters:
+        return {}
+    from django.db.models import Q
+    from ..models.invoice import Payment
+    from ..utils import convert_to_sar
+
+    pk_by_number = {cl.confirmation_number: cl.pk for cl in letters}
+    paid = {cl.pk: 0 for cl in letters}
+    rows = Payment.objects.filter(
+        Q(cl_id__in=paid) |
+        Q(linked_number__in=pk_by_number, cl__isnull=True),
+    ).values_list("cl_id", "linked_number", "amount", "currency", "exchange_rate")
+    for cl_id, linked_number, amount, currency, rate in rows:
+        target = cl_id or pk_by_number.get(linked_number)
+        if target in paid:
+            paid[target] += int(round(convert_to_sar(amount, currency, float(rate))))
+    return paid
+
+
 def client_receivable(client_id):
     """Piutang client (positif = client berutang ke kita)."""
     return _net(JournalLine.objects.filter(client_id=client_id, account_id=coa.AR))
+
+
+def client_billed_sar(client_id):
+    """Total ditagih ke client = debit Piutang dari charge yang masih hidup."""
+    return (
+        _ar_qs(client_id=client_id)
+        .filter(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        .exclude(journal_entry_id__in=_reversed_entry_ids())
+        .aggregate(d=Sum("debit"))["d"] or 0
+    )
+
+
+def client_paid_sar(client_id):
+    """Total kas yang masuk dari client = debit kas dari entry payment yang
+    masih hidup (from-credit payment tidak menyentuh kas, jadi tidak
+    dobel-hitung)."""
+    return _net(
+        JournalLine.objects.filter(
+            client_id=client_id,
+            account_id__in=[coa.CASH_SBY, coa.CASH_JKT, coa.CASH_PUSAT],
+            debit__gt=0,
+            journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
+        ).exclude(journal_entry_id__in=_reversed_entry_ids())
+    )
 
 
 def client_credit_balance(client_id):
@@ -147,9 +197,10 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
         e = ln.journal_entry
         balance += ln.debit - ln.credit
         rows.append({
-            "date": e.entry_date.isoformat(),
+            "date": e.entry_date,
             "entry_number": e.entry_number,
             "entry_type": e.entry_type,
+            "type": "debit" if ln.debit else "credit",
             "description": e.description,
             "account": ln.account_id,
             "account_name": ln.account.name,
@@ -162,6 +213,32 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
         "closing_balance": balance,
         "total_debit": sum(r["debit"] for r in rows),
         "total_credit": sum(r["credit"] for r in rows),
+    }
+
+
+def client_statement_with_opening(client_id, *, company=None, date_from=None, date_to=None, as_of=None):
+    """client_statement() + saldo awal yang benar untuk periode yang mulai di
+    tengah riwayat (bukan reset ke nol). Konsisten dengan versi legacy."""
+    from datetime import timedelta
+    opening_balance = 0
+    if date_from:
+        prior = client_statement(
+            client_id, company=company, date_to=date_from - timedelta(days=1), as_of=as_of,
+        )
+        opening_balance = prior["closing_balance"]
+
+    st = client_statement(
+        client_id, company=company, date_from=date_from, date_to=date_to, as_of=as_of,
+    )
+    for r in st["rows"]:
+        r["balance"] += opening_balance
+    closing_balance = st["rows"][-1]["balance"] if st["rows"] else opening_balance
+    return {
+        "rows": st["rows"],
+        "opening_balance": opening_balance,
+        "closing_balance": closing_balance,
+        "total_debit": st["total_debit"],
+        "total_credit": st["total_credit"],
     }
 
 
@@ -197,9 +274,174 @@ def mengendap_per_reservation(reservation_id, company=None):
     ))
 
 
+def total_allocated(company=None):
+    """Total kas yang sudah 'dipakai' mengurangi piutang (credit bersih Piutang,
+    selain charge) — analog total Allocation legacy. = ditagih - sisa AR net."""
+    return total_charged(company, ) - _net(_scoped(_ar_qs(), company=company))
+
+
+def surplus_pusat(company=None):
+    return kas_pusat(company) + selisih_kurs(company) - total_allocated(company)
+
+
 def kewajiban_kirim_sby(company=None):
-    """Semua kas Surabaya idle wajib diremit ke pusat."""
-    return kas_surabaya(company)
+    """Semua kas Surabaya idle wajib diremit ke pusat. Pertahankan makna
+    legacy: -surplus_pusat (bukan sekadar kas_surabaya), supaya dashboard
+    remittance tidak kehilangan pasangan KPI kewajiban_kirim + saldo_dana."""
+    return -surplus_pusat(company)
+
+
+# ── Remittance ─────────────────────────────────────────────────
+
+def remittance_sent_sar(remittance_id):
+    """Total SAR yang dikirim utk remittance ini = debit TRANSIT dari entry
+    send yang masih hidup. Entry receive meng-credit TRANSIT (bukan debit),
+    jadi Sum(debit) hanya mengunci sisi kirim."""
+    return (
+        JournalLine.objects.filter(
+            remittance_id=remittance_id, account_id=coa.TRANSIT,
+        ).exclude(journal_entry_id__in=_reversed_entry_ids())
+        .aggregate(d=Sum("debit"))["d"] or 0
+    )
+
+
+def selisih_kurs(company=None):
+    """Saldo kliring selisih kurs (FX_CLEARING) untuk company."""
+    return _net(_scoped(
+        JournalLine.objects.filter(account_id=coa.FX_CLEARING), company=company,
+    ))
+
+
+def piutang(reservation_id):
+    """Sisa piutang satu reservasi = net baris Piutang ber-dimensi reservasi
+    (charge debit - payment credit) yang masih hidup."""
+    return _net(_ar_qs(reservation_id=reservation_id).exclude(
+        journal_entry_id__in=_reversed_entry_ids(),
+    ))
+
+
+def reservation_cash_breakdown(company=None):
+    """Bulk per-reservation cash breakdown untuk dashboard remittance:
+    {reservation_id: {terbayar_sby, terbayar_jkt, terbayar_direct,
+    sudah_dikirim, mengendap, mengendap_jkt}} — derivasi dari JournalLine
+    (payment legs ke kas + remittance send credit kas cabang per reservasi)."""
+    from collections import defaultdict
+    qs = JournalLine.objects.exclude(reservation_id=None).exclude(
+        journal_entry_id__in=_reversed_entry_ids(),
+    )
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+
+    pay = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_PAYMENT, debit__gt=0)
+           .values("reservation_id", "account_id").annotate(d=Sum("debit")))
+    send = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_REMITTANCE)
+            .values("reservation_id", "account_id").annotate(c=Sum("credit")))
+
+    out = defaultdict(lambda: {
+        "terbayar_sby": 0, "terbayar_jkt": 0, "terbayar_direct": 0,
+        "sent_from_sby": 0, "sent_from_jkt": 0,
+    })
+    for r in pay:
+        rid = r["reservation_id"]
+        if r["account_id"] == coa.CASH_SBY:
+            out[rid]["terbayar_sby"] += r["d"]
+        elif r["account_id"] == coa.CASH_JKT:
+            out[rid]["terbayar_jkt"] += r["d"]
+        elif r["account_id"] == coa.CASH_PUSAT:
+            out[rid]["terbayar_direct"] += r["d"]
+    for r in send:
+        rid = r["reservation_id"]
+        if r["account_id"] == coa.CASH_SBY:
+            out[rid]["sent_from_sby"] += r["c"]
+        elif r["account_id"] == coa.CASH_JKT:
+            out[rid]["sent_from_jkt"] += r["c"]
+
+    return {
+        rid: {
+            "terbayar_sby": d["terbayar_sby"],
+            "terbayar_jkt": d["terbayar_jkt"],
+            "terbayar_direct": d["terbayar_direct"],
+            "sudah_dikirim": d["sent_from_sby"] + d["terbayar_direct"],
+            "mengendap": d["terbayar_sby"] - d["sent_from_sby"],
+            "mengendap_jkt": d["terbayar_jkt"] - d["sent_from_jkt"],
+        }
+        for rid, d in out.items()
+    }
+
+
+def reservation_remittance_map(company=None, linked_numbers=None):
+    """Riwayat remittance per reservasi (baca RemittanceLine, bukan jurnal):
+    {reservation_number: [{rmt_id, rmt_number, date, status, amount_sar}]}."""
+    from collections import defaultdict
+    from ..models.invoice import RemittanceLine
+    qs = RemittanceLine.objects.select_related("remittance").order_by(
+        "remittance__date", "remittance__created_at",
+    )
+    if company:
+        qs = qs.filter(remittance__company=company)
+    if linked_numbers is not None:
+        qs = qs.filter(linked_number__in=linked_numbers)
+    result = defaultdict(list)
+    for l in qs:
+        result[l.linked_number].append({
+            "rmt_id": l.remittance_id, "rmt_number": l.remittance.remittance_number,
+            "date": l.remittance.date, "status": l.remittance.status,
+            "amount_sar": int(l.amount_sar or 0),
+        })
+    return result
+
+
+def client_paid_map(client_ids):
+    """{client_id: gross cash masuk dari client} — satu query agregat."""
+    rows = (
+        JournalLine.objects.filter(
+            client_id__in=client_ids,
+            account_id__in=[coa.CASH_SBY, coa.CASH_JKT, coa.CASH_PUSAT],
+            debit__gt=0, journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
+        ).exclude(journal_entry_id__in=_reversed_entry_ids())
+        .values("client_id").annotate(d=Sum("debit"))
+    )
+    return {r["client_id"]: r["d"] or 0 for r in rows}
+
+
+def clients_overview(company=Company.KONOZ):
+    """Agregat bulk per-client untuk halaman daftar statement. Derivasinya
+    konsisten dengan properti Client (billed/payable/credit) dari jurnal."""
+    from collections import defaultdict
+    clients = {}
+    for c in Client.objects.filter(company=company):
+        clients[c.id] = c
+    cids = list(clients)
+
+    billed = {
+        r["client_id"]: r["d"] or 0
+        for r in _ar_qs(client_id__in=cids)
+        .filter(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        .exclude(journal_entry_id__in=_reversed_entry_ids())
+        .values("client_id").annotate(d=Sum("debit"))
+    }
+    paid = client_paid_map(cids)
+    receivable = {
+        r["client_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in _ar_qs(client_id__in=cids)
+        .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    }
+    credit = {
+        r["client_id"]: (r["c"] or 0) - (r["d"] or 0)
+        for r in JournalLine.objects.filter(client_id__in=cids, account_id=coa.CUST_CREDIT)
+        .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    }
+
+    overview = [{
+        "client_id": cid,
+        "tagihan": billed.get(cid, 0),
+        "terbayar": paid.get(cid, 0),
+        "allocated": billed.get(cid, 0) - receivable.get(cid, 0),
+        "piutang": receivable.get(cid, 0),
+        "saldo_dana": credit.get(cid, 0),
+    } for cid in cids]
+    overview.sort(key=lambda r: (-r["piutang"], r["client_id"]))
+    return overview
 
 
 # ── Trial balance ──────────────────────────────────────────────

@@ -7,6 +7,10 @@ from django.test import TestCase
 from django.urls import reverse
 
 from hw import ledger
+from hw.finance import posting
+from hw.finance import queries as q
+from hw.finance_helpers import create_payment_record
+from hw.models.choices import Company
 from hw.models import (
     CashAccount, Allocation, AllocationReason, CashMovement, Charge, ChargeReason,
     CancellationPenalty, Client, ConfirmationLetter, FinancialPeriod, Invoice,
@@ -30,7 +34,8 @@ class FinanceViewsTest(TestCase):
         self.client.force_login(self.user)
 
         self.period = FinancialPeriod.objects.create(
-            name='2026-TEST', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026-TEST', company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.konoz_client = Client.objects.create(name='PT Uji', company='konoz')
         self.invoice = Invoice.objects.create(
@@ -133,29 +138,23 @@ class FinanceViewsTest(TestCase):
     # â”€â”€ Client Ledger (statements) â”€â”€
 
     def test_statements_match_per_client_helpers(self):
-        Charge.objects.create(
-            company='konoz', client=self.konoz_client, date=date(2026, 3, 1),
-            amount_sar=100000, reason=ChargeReason.choices[0][0],
-            reservation=self.res,
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        p = create_payment_record(
+            invoice=self.invoice, client=self.konoz_client,
+            payment_date=date(2026, 3, 2), amount=60000, method='transfer',
+            created_by=self.user, received_in='sby', reservation=self.res,
         )
-        CashMovement.objects.create(
-            company='konoz', client=self.konoz_client, date=date(2026, 3, 2),
-            from_account=CashAccount.CLIENT, to_account=CashAccount.SBY,
-            amount=60000,
-        )
-        Allocation.objects.create(
-            company='konoz', client=self.konoz_client, date=date(2026, 3, 3),
-            amount_sar=40000, reason=AllocationReason.choices[0][0],
-            reservation=self.res,
-        )
+        posting.post_payment(p, created_by=self.user)
+
         r = self.client.get(reverse('statements_list'))
         rows = _props(r)['clients']
         row = next(x for x in rows if x['client_id'] == self.konoz_client.id)
-        self.assertEqual(row['tagihan'], ledger.total_charged_by_client(self.konoz_client))
-        self.assertEqual(row['piutang'], ledger.piutang_klien(self.konoz_client))
-        self.assertEqual(row['saldo_dana'], ledger.saldo_dana(self.konoz_client))
-        self.assertEqual(row['piutang'], 60000)
-        self.assertEqual(row['saldo_dana'], 20000)
+        self.assertEqual(row['tagihan'], q.client_billed_sar(self.konoz_client.id))
+        self.assertEqual(row['piutang'], q.client_receivable(self.konoz_client.id))
+        self.assertEqual(row['saldo_dana'], q.client_credit_balance(self.konoz_client.id))
+        self.assertEqual(row['tagihan'], 100000)
+        self.assertEqual(row['piutang'], 40000)
+        self.assertEqual(row['saldo_dana'], 0)
 
     # â”€â”€ Penalty list â”€â”€
 

@@ -187,3 +187,84 @@ class PenaltyChargeTests(PostingTestBase):
         posting.post_penalty_charge(pen, created_by=self.user)
         self.assertEqual(_net(account_id=coa.AR, penalty=pen), 5000)
         self.assertEqual(_net(account_id=coa.INC_PENALTY, penalty=pen), -5000)
+
+
+class RemittanceResyncTests(PostingTestBase):
+    def _remittance(self):
+        from hw.models import Remittance
+        return Remittance.objects.create(
+            company="konoz", date=date(2045, 5, 1), remittance_number="RMT-R",
+        )
+
+    def test_send_per_reservation_then_receive(self):
+        rmt = self._remittance()
+        segments = [
+            {"reservation": self.res, "invoice": self.invoice.pk,
+             "client": self.client_obj.pk, "amount_sar": 30000},
+            {"reservation": None, "invoice": None, "client": None, "amount_sar": 20000},
+        ]
+        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
+        self.assertEqual(_net(account_id=coa.CASH_SBY), -50000)
+        self.assertEqual(_net(account_id=coa.TRANSIT), 50000)
+        # dimensi reservasi tercatat supaya mengendap_per_reservation turun
+        self.assertEqual(_net(account_id=coa.CASH_SBY, reservation=self.res), -30000)
+
+        # mark_received: resync ulang dengan segmen kirim yg sama + sisi terima
+        posting.resync_remittance(
+            rmt, created_by=self.user, send_segments=segments, received_sar=49000,
+        )
+        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
+        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
+        self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 1000)
+        self.assertEqual(verify_chain(Company.KONOZ), [])
+
+    def test_resync_is_idempotent_by_content(self):
+        rmt = self._remittance()
+        segments = [{"amount_sar": 30000}]
+        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
+        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
+        # hanya 1 entry kirim "hidup" (belum di-reverse) tersisa
+        reversed_ids = JournalEntry.objects.filter(
+            reverses__isnull=False,
+        ).values_list("reverses_id", flat=True)
+        self.assertEqual(
+            JournalEntry.objects.filter(
+                reference_type="Remittance", reference_id=rmt.pk,
+                entry_type=JournalEntry.TYPE_REMITTANCE, is_reversal=False,
+            ).exclude(pk__in=reversed_ids).count(), 1
+        )
+
+    def test_edit_resync_keeps_send_and_receive_consistent(self):
+        rmt = self._remittance()
+        posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
+        posting.resync_remittance(
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=38000,
+        )
+        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
+        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
+
+        # edit: nominal kirim berubah, terima tetap; resync dengan kedua sisi
+        posting.resync_remittance(
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 45000}], received_sar=38000,
+        )
+        self.assertEqual(_net(account_id=coa.CASH_SBY), -45000)
+        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
+        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
+        self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 7000)
+        self.assertEqual(verify_chain(Company.KONOZ), [])
+
+    def test_unreceived_revert_reverses_receive_without_repost(self):
+        rmt = self._remittance()
+        posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
+        posting.resync_remittance(
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=39000,
+        )
+        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 39000)
+
+        # boleh dibuka/diedit lagi; sisi terima dibalik tanpa re-post
+        posting.resync_remittance(
+            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}], received_sar=None,
+        )
+        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
+        self.assertEqual(_net(account_id=coa.TRANSIT), 40000)
+        self.assertEqual(verify_chain(Company.KONOZ), [])

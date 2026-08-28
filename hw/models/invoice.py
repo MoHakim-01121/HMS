@@ -230,8 +230,8 @@ class Remittance(models.Model):
 
     @property
     def total_sar(self):
-        from .. import ledger
-        return int(ledger.remittance_total_sar(self.id))
+        from ..finance import queries
+        return int(queries.remittance_sent_sar(self.id))
 
     @property
     def expected_sar(self):

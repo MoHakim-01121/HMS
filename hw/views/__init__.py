@@ -79,7 +79,7 @@ from .landing_views import (
 )
 
 from ..ai import generate_draft_message, get_chat_reply
-from .. import ledger
+from ..finance import queries as finance_queries
 from ..models import ActivityLog, ConfirmationLetter, Hotel, Invoice, Pricelist, Remittance, TeamMember, log_activity
 from ..models.choices import Company, InvoiceType
 from ..permissions import can, can_use_company, default_company, hide_unless
@@ -275,7 +275,7 @@ def _home_invoice_totals(company, month_start):
             invoice_type=InvoiceType.HOTEL, company=company,
         ).prefetch_related('reservations', 'service_items', 'payments')
     )
-    paid_map = ledger.invoice_paid_sar_map([inv.pk for inv in hotel_invoices])
+    paid_map = finance_queries.invoice_paid_map([inv.pk for inv in hotel_invoices])
 
     total_billed = 0
     total_paid = 0

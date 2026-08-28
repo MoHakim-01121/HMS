@@ -17,7 +17,6 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity, Charge, ChargeReason
 from ..permissions import require_perm
 from ..i18n import tr
-from .. import ledger
 from .helpers import _is_mobile, _parse_date, _render_list_pdf, get_active_company, pagination_props
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
@@ -408,7 +407,8 @@ def cl_list_pdf(request):
     letters = list(qs)
     # One bulk Payment query for all paid totals -- summing cl.paid_sar here
     # used to cost two queries per CL (N+1).
-    paid_map = ledger.cl_paid_sar_map(letters)
+    from ..finance import queries as finance_queries
+    paid_map = finance_queries.cl_paid_sar_map(letters)
     total_rooms  = sum(cl.total_rooms for cl in letters)
     total_nights = sum(cl.num_nights for cl in letters)
     total_sar    = sum(cl.total_price or 0 for cl in letters)

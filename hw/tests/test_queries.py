@@ -72,3 +72,26 @@ class QueriesTests(TestCase):
         tb = q.trial_balance(company=Company.KONOZ)
         self.assertTrue(tb["balanced"])
         self.assertEqual(tb["total_debit"], tb["total_credit"])
+
+    def test_client_billed_and_paid_reflects_journal(self):
+        self.assertEqual(q.client_billed_sar(self.client_obj.id), 100000)
+        self.assertEqual(q.client_paid_sar(self.client_obj.id), 0)
+        self._pay(60000)
+        self.assertEqual(q.client_paid_sar(self.client_obj.id), 60000)
+        # properti model ter-flip ikut queries
+        self.assertEqual(self.client_obj.total_billed, 100000)
+        self.assertEqual(self.client_obj.total_paid, 60000)
+        self.assertEqual(self.client_obj.outstanding, 40000)
+
+    def test_remittance_sent_sar(self):
+        from hw.models import Remittance
+        rmt = Remittance.objects.create(
+            company="konoz", date=date(2046, 3, 1), remittance_number="RMT-Q1",
+            received_amount_sar=50000,
+        )
+        self.assertEqual(q.remittance_sent_sar(rmt.id), 0)
+        posting.post_remittance_send(
+            rmt, from_location="sby", amount_sar=50000, created_by=self.user,
+        )
+        self.assertEqual(q.remittance_sent_sar(rmt.id), 50000)
+        self.assertEqual(rmt.total_sar, 50000)

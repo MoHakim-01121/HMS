@@ -19,7 +19,7 @@ from ..models import (
     CashAccount, AllocationReason, Allocation, CashMovement, Charge,
 )
 from ..permissions import require_perm
-from .. import ledger
+from ..finance import queries as finance_queries
 from .helpers import (
     _is_mobile,
     _parse_date,
@@ -183,7 +183,7 @@ def client_detail(request, pk):
         "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
     } for cl in cls]
 
-    statement_rows = ledger.client_statement(c)
+    statement_rows = finance_queries.client_statement(c.id)["rows"]
     activity = [{
         "date": r["date"].strftime("%d/%m/%Y") if r["date"] else None,
         "type": r["type"],
@@ -210,7 +210,7 @@ def client_detail(request, pk):
             "is_active": c.is_active,
             "total_billed": c.total_billed,
             "outstanding": c.outstanding,
-            "saldo_dana": ledger.saldo_dana(c),
+            "saldo_dana": finance_queries.client_credit_balance(c.id),
             "avg_days_to_pay": c.avg_days_to_pay,
             "score": c.score,
             "risk_label": c.risk_label,
@@ -296,7 +296,7 @@ def _client_reservation_options(client_obj):
     return [{
         'id': r.id,
         'label': f'{r.reservation_number} — {r.invoice.invoice_number}',
-        'piutang': ledger.piutang(r),
+        'piutang': finance_queries.piutang(r.id),
     } for r in reservations]
 
 
@@ -362,14 +362,14 @@ def client_transfer(request, pk):
             return redirect('client_detail', pk=pk)
 
         return inertia_render(request, 'Client/Transfer', props={
-            'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': ledger.saldo_dana(client_obj)},
+            'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
             'reservations': _client_reservation_options(client_obj),
             'errors': errors,
             'initial': {'from_reservation': from_id or '', 'to_reservation': to_id or '', 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
         })
 
     return inertia_render(request, 'Client/Transfer', props={
-        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': ledger.saldo_dana(client_obj)},
+        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
         'reservations': _client_reservation_options(client_obj),
     })
 
@@ -414,13 +414,13 @@ def client_refund(request, pk):
             return redirect('client_detail', pk=pk)
 
         return inertia_render(request, 'Client/Refund', props={
-            'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': ledger.saldo_dana(client_obj)},
+            'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
             'errors': errors,
             'initial': {'from_account': from_account, 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
         })
 
     return inertia_render(request, 'Client/Refund', props={
-        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': ledger.saldo_dana(client_obj)},
+        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
     })
 
 
@@ -448,7 +448,7 @@ def client_statement_pdf(request, pk):
     as_of_date = _parse_date(request.GET.get('as_of', ''))
     as_of = dj_timezone.make_aware(datetime.combine(as_of_date, dt_time.max)) if as_of_date else None
 
-    statement = ledger.client_statement_with_opening(c, date_from=date_from, date_to=date_to, as_of=as_of)
+    statement = finance_queries.client_statement_with_opening(c.id, date_from=date_from, date_to=date_to, as_of=as_of)
     opening_balance = statement['opening_balance']
     closing_balance = statement['closing_balance']
     total_debit = statement['total_debit']

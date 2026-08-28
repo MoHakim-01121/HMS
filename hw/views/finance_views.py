@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404
 
 from inertia import render as inertia_render
 
-from .. import ledger
+from ..finance import queries as finance_queries
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..permissions import require_perm
@@ -126,7 +126,7 @@ def trial_balance(request):
 
 @require_perm('clients', 'view')
 def statements_list(request):
-    overview = ledger.clients_overview()
+    overview = finance_queries.clients_overview()
     clients = Client.objects.in_bulk([r['client_id'] for r in overview])
     rows = []
     for r in overview:

@@ -19,7 +19,6 @@ from ..models import Payment, Remittance, RemittanceLine, Client, CashAccount, C
 from ..models.choices import Company
 from ..permissions import require_perm
 from ..utils import convert_to_sar
-from .. import ledger
 from .helpers import validate_proof_file, period_label as _period_label
 from .invoice_billing import _billing_client
 
@@ -117,21 +116,23 @@ def _sort_lines_by_payment_date(lines):
 
 
 def _compute_stats():
-    """Hitung stats remittance untuk company Konoz, lewat hw/ledger.py."""
-    total_tagihan = ledger.total_charge(KONOZ)
-    terkirim_ke_pusat = ledger.kas_pusat(KONOZ)
+    """Hitung stats remittance untuk company Konoz, lewat hw/finance/queries.py."""
+    from ..finance import queries as finance_queries
+    total_tagihan = finance_queries.total_charged(KONOZ)
+    terkirim_ke_pusat = finance_queries.kas_pusat(KONOZ)
     # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang pernah
-    # diterima (kredit di pusat) -- lihat hw/ledger.py::kas_surabaya.
-    mengendap = ledger.kas_surabaya(KONOZ)
+    # diterima (kredit di pusat) -- lihat queries.kas_surabaya.
+    mengendap = finance_queries.kas_surabaya(KONOZ)
 
     # Sepasang KPI wajib berdampingan (lihat plan): kewajiban_kirim sendirian
     # bisa salah dibaca sebagai kredit Surabaya padahal bisa jadi surplus itu
     # milik klien (kelebihan bayar langsung ke pusat), bukan milik Surabaya.
     saldo_dana_klien = sum(
-        ledger.saldo_dana(c) for c in Client.objects.filter(company=KONOZ)
+        finance_queries.client_credit_balance(c.id)
+        for c in Client.objects.filter(company=KONOZ)
     )
-    kewajiban_kirim = ledger.kewajiban_kirim_sby(KONOZ)
-    selisih_kurs = ledger.selisih_kurs(KONOZ)
+    kewajiban_kirim = finance_queries.kewajiban_kirim_sby(KONOZ)
+    selisih_kurs = finance_queries.selisih_kurs(KONOZ)
 
     return {
         'total_tagihan': total_tagihan,
@@ -153,7 +154,8 @@ def _build_reservasi_mengendap():
     from ..models import ConfirmationLetter, Reservation
 
     reservations = Reservation.objects.filter(invoice__company=KONOZ).select_related('invoice')
-    breakdown = ledger.reservation_cash_breakdown(KONOZ)
+    from ..finance import queries as finance_queries
+    breakdown = finance_queries.reservation_cash_breakdown(KONOZ)
 
     cancelled_numbers = set(
         ConfirmationLetter.objects.filter(
@@ -654,7 +656,8 @@ def remittance_tracking(request):
     from ..models import Invoice
 
     rows = _build_reservasi_mengendap()
-    rmt_map = ledger.reservation_remittance_map(
+    from ..finance import queries as finance_queries
+    rmt_map = finance_queries.reservation_remittance_map(
         KONOZ, [r['linked_number'] for r in rows],
     )
 

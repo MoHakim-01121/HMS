@@ -11,7 +11,6 @@ from django_q.tasks import async_task
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice, RecapLog, WATarget, MessageTemplate
-from .. import ledger
 from ..permissions import require_perm
 from ..i18n import tr, user_language
 from .helpers import get_active_company
@@ -163,7 +162,8 @@ def calendar_view(request):
     )
     cls_list = list(cl_qs)
 
-    paid_by_invoice = ledger.invoice_paid_sar_map(
+    from ..finance import queries as finance_queries
+    paid_by_invoice = finance_queries.invoice_paid_map(
         {cl.invoice_id for cl in cls_list if cl.invoice_id}
     )
 

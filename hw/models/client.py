@@ -61,21 +61,21 @@ class Client(models.Model):
 
     @property
     def total_billed(self):
-        from .. import ledger
-        return ledger.total_charged_by_client(self)
+        from ..finance import queries
+        return queries.client_billed_sar(self.id)
 
     @property
     def total_paid(self):
-        from .. import ledger
-        return ledger.total_paid_by_client(self)
+        from ..finance import queries
+        return queries.client_paid_sar(self.id)
 
     @property
     def outstanding(self):
         # Satu kantong per klien (bukan dijumlah per-invoice) -- konsisten dengan
         # desain ledger: piutang di satu reservasi bisa dilunasi lewat alokasi
         # yang berasal dari kelebihan bayar di reservasi lain klien yang sama.
-        from .. import ledger
-        return max(0, ledger.piutang_klien(self))
+        from ..finance import queries
+        return max(0, queries.client_receivable(self.id))
 
     @property
     def avg_days_to_pay(self):

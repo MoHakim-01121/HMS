@@ -1,9 +1,14 @@
 import json
 from datetime import date
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Payment, CashMovement, Remittance, RemittanceLine, Reservation
+from hw.finance import posting
+from hw.finance_helpers import create_payment_record
+from hw.models import Client, Invoice, Payment, CashMovement, Remittance, RemittanceLine, Reservation
+from hw.models.choices import Company
+from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
 
 
@@ -70,23 +75,49 @@ class AddableReservasiTest(TestCase):
     """Daftar reservasi yang bisa ditambahkan ke sebuah remittance."""
 
     def setUp(self):
+        self.user = User.objects.create_user("adder", password="pw12345")
+        FinancialPeriod.objects.create(
+            name="2026", company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.invoice = Invoice.objects.create(
             company='konoz', invoice_type='hotel',
             invoice_number='INV-EDIT-002', customer_name='Budi',
         )
+        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
         self.r1 = Reservation.objects.create(
             invoice=self.invoice, reservation_number='R1', total_sar=10000,
             check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
         )
         self.r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E10')
+        self.rem_counter = 0
 
-    def _pay(self, res, amount, to_account='sby'):
-        CashMovement.objects.create(
-            company='konoz', invoice=self.invoice, reservation_label=res,
-            from_account='client', to_account=to_account,
-            amount=amount, currency='SAR', exchange_rate=1, date=date(2026, 1, 5),
+    def _pay(self, res, amount, received_in='sby'):
+        p = create_payment_record(
+            invoice=self.invoice, client=self.client_obj,
+            payment_date=date(2026, 1, 5), amount=amount, method='transfer',
+            created_by=self.user, received_in=received_in, reservation=res,
         )
+        posting.post_payment(p, created_by=self.user)
+
+    def _send(self, res, amount):
+        """Pembayaran res + kirim penuh via remittance lain."""
+        self._pay(res, amount)
+        self.rem_counter += 1
+        other = Remittance.objects.create(
+            company='konoz', date=date(2026, 1, 9),
+            remittance_number=f'RMT-E{self.rem_counter:02d}-S',
+        )
+        RemittanceLine.objects.create(
+            remittance=other, invoice=self.invoice,
+            linked_number=res.reservation_number, amount_sar=amount,
+        )
+        posting.post_remittance_send(
+            other, from_location="sby", amount_sar=amount,
+            created_by=self.user, reservation=res,
+        )
+        return other
 
     def test_lists_reservation_with_idle_money(self):
         self._pay(self.r1, 5000)
@@ -103,18 +134,11 @@ class AddableReservasiTest(TestCase):
         self.assertEqual([r['linked_number'] for r in _addable_reservasi(self.rem)], ['R2'])
 
     def test_excludes_reservation_already_fully_sent(self):
-        self._pay(self.r1, 5000)
-        other = Remittance.objects.create(company='konoz', date=date(2026, 1, 9), remittance_number='RMT-E11')
-        RemittanceLine.objects.create(remittance=other, invoice=self.invoice, linked_number='R1', amount_sar=5000)
-        CashMovement.objects.create(
-            company='konoz', invoice=self.invoice, reservation_label=self.r1, remittance=other,
-            from_account='sby', to_account='pusat',
-            amount=5000, currency='SAR', exchange_rate=1, date=date(2026, 1, 9),
-        )
+        self._send(self.r1, 5000)
         self.assertEqual(_addable_reservasi(self.rem), [])
 
     def test_direct_payment_is_not_addable(self):
-        self._pay(self.r1, 5000, to_account='pusat')
+        self._pay(self.r1, 5000, received_in='pusat')
         self.assertEqual(_addable_reservasi(self.rem), [])
 
 
@@ -131,10 +155,15 @@ class RemittanceEditViewTest(TestCase):
         session['active_company'] = 'konoz'
         session.save()
 
+        FinancialPeriod.objects.create(
+            name="2026", company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.invoice = Invoice.objects.create(
             company='konoz', invoice_type='hotel',
             invoice_number='INV-EDIT-003', customer_name='Budi',
         )
+        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
         r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         for res, amount in ((r1, 5000), (r2, 3000)):
@@ -146,11 +175,14 @@ class RemittanceEditViewTest(TestCase):
                 invoice=self.invoice, linked_number=res.reservation_number, amount=amount,
                 currency='SAR', exchange_rate=1, method='cash', payment_date=date(2026, 1, 5),
             )
-            CashMovement.objects.create(
-                company='konoz', invoice=self.invoice, reservation_label=res,
-                from_account='client', to_account='sby',
-                amount=amount, currency='SAR', exchange_rate=1, date=date(2026, 1, 5),
+            # `reservasi` (kandidat ditambahkan) membaca jurnal, jadi pembayaran
+            # juga diposting ke general ledger.
+            rec = create_payment_record(
+                invoice=self.invoice, client=self.client_obj,
+                payment_date=date(2026, 1, 5), amount=amount, method='cash',
+                created_by=self.user, received_in='sby', reservation=res,
             )
+            posting.post_payment(rec, created_by=self.user)
         self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E20')
         self.line = RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,

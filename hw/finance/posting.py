@@ -318,7 +318,6 @@ def post_penalty_charge(penalty, *, created_by, entry_date=None):
     if not amt:
         return None
     entry_date = entry_date or penalty.cancellation_date or timezone.now().date()
-    key = f"penalty:{penalty.penalty_number}:charge"
     return post_entry(
         entry_type=JournalEntry.TYPE_PENALTY,
         description=f"Penalty {penalty.penalty_number}",
@@ -331,9 +330,28 @@ def post_penalty_charge(penalty, *, created_by, entry_date=None):
         company=penalty.cl.company if penalty.cl_id else Company.KONOZ,
         source_type="CancellationPenalty",
         source_id=penalty.pk,
-        idempotency_key=key,
         created_by=created_by,
     )
+
+
+@transaction.atomic
+def resync_penalty(penalty, *, created_by):
+    """Full resync jurnal penalty: reverse semua entry penalty yang hidup,
+    lalu repost charge (+ payment kalau is_paid). Idempotent-by-content."""
+    entry_date = penalty.cancellation_date or timezone.now().date()
+    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
+    for e in JournalEntry.objects.filter(
+        reference_type="CancellationPenalty", reference_id=penalty.pk,
+        entry_type=JournalEntry.TYPE_PENALTY, is_reversal=False,
+    ).exclude(pk__in=reversed_ids):
+        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+
+    if not _penalty_amount(penalty) or not _penalty_client_id(penalty):
+        return
+    post_penalty_charge(penalty, created_by=created_by)
+    if penalty.is_paid:
+        received_in = "pusat" if (penalty.payment_method or "").lower() == "direct" else "sby"
+        post_penalty_payment(penalty, created_by=created_by, received_in=received_in)
 
 
 # ── Payment-side (Fase 3 Group B) ──────────────────────────────
@@ -457,7 +475,6 @@ def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=N
         company=penalty.cl.company if penalty.cl_id else Company.KONOZ,
         source_type="CancellationPenalty",
         source_id=penalty.pk,
-        idempotency_key=f"penalty:{penalty.penalty_number}:pay",
         created_by=created_by,
     )
 
@@ -465,22 +482,34 @@ def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=N
 # ── Kas movement (Fase 3 Group C) ──────────────────────────────
 
 @transaction.atomic
-def post_remittance_send(remittance, *, from_location, amount_sar, created_by, entry_date=None):
-    """Uang keluar dari kas cabang → Kas Dalam Perjalanan."""
+def post_remittance_send(remittance, *, from_location, amount_sar, created_by, entry_date=None,
+                         reservation=None, invoice=None, client=None):
+    """Uang keluar dari kas cabang → Kas Dalam Perjalanan.
+
+    Opsional dimensi `reservation`/`client` supaya `mengendap_per_reservation`
+    bisa turun setelah diremit (kas SBY di-credit per reservasi, bukan hanya
+    aggregate remittance).
+    """
     src = _CASH_BY_LOCATION.get(from_location, coa.CASH_SBY)
     entry_date = entry_date or remittance.date or timezone.now().date()
+    dims = {"remittance": remittance.pk}
+    if reservation is not None:
+        dims["reservation"] = getattr(reservation, "pk", reservation)
+    if invoice is not None:
+        dims["invoice"] = getattr(invoice, "pk", invoice)
+    if client is not None:
+        dims["client"] = getattr(client, "pk", client)
     return post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
         description=f"Remittance {remittance.remittance_number} kirim",
         entry_date=entry_date,
         lines=[
-            {"account": coa.TRANSIT, "debit": amount_sar, "remittance": remittance.pk},
-            {"account": src, "credit": amount_sar, "remittance": remittance.pk},
+            {"account": coa.TRANSIT, "debit": amount_sar, **dims},
+            {"account": src, "credit": amount_sar, **dims},
         ],
         company=remittance.company,
         source_type="Remittance",
         source_id=remittance.pk,
-        idempotency_key=f"rmt:{remittance.remittance_number}:send",
         created_by=created_by,
     )
 
@@ -506,9 +535,62 @@ def post_remittance_receive(remittance, *, expected_sar, received_sar, created_b
         company=remittance.company,
         source_type="Remittance",
         source_id=remittance.pk,
-        idempotency_key=f"rmt:{remittance.remittance_number}:receive",
         created_by=created_by,
     )
+
+
+@transaction.atomic
+def resync_remittance(remittance, *, created_by, send_segments=None, received_sar="__skip__"):
+    """Resync penuh jurnal remittance: reverse semua entry REMITTANCE hidup utk
+    rmt ini, lalu re-post kirim (+ terima kalau `received_sar` diberikan) dari
+    keadaan sekarang. Idempotent-by-content.
+
+    send_segments: iterable dict {reservation, invoice, client, amount_sar} —
+        di-post per reservasi supaya mengendap_per_reservation benar. Kalau
+        kosong → lump-sum (dimensi remittance saja).
+
+    received_sar: "__skip__" = jangan sentuh sisi terima; None = reverse sisi
+        terima (kalau ada) tanpa re-post (RMT belum diterima); int = re-post
+        terima dgn nominal tsb.
+    """
+    entry_date = remittance.date or timezone.now().date()
+    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
+    for e in JournalEntry.objects.filter(
+        reference_type="Remittance", reference_id=remittance.pk,
+        entry_type=JournalEntry.TYPE_REMITTANCE, is_reversal=False,
+    ).exclude(pk__in=reversed_ids):
+        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+
+    sent_total = 0
+    if send_segments:
+        for seg in send_segments:
+            amt = int(seg.get("amount_sar") or 0)
+            if not amt:
+                continue
+            sent_total += amt
+            post_remittance_send(
+                remittance, from_location=seg.get("from_location", "sby"), amount_sar=amt,
+                created_by=created_by, entry_date=entry_date,
+                reservation=seg.get("reservation"), invoice=seg.get("invoice"),
+                client=seg.get("client"),
+            )
+    else:
+        total = (remittance.received_amount_sar or 0) or remittance.total_sar or 0
+        sent_total = total
+        if total:
+            post_remittance_send(
+                remittance, from_location="sby", amount_sar=total,
+                created_by=created_by, entry_date=entry_date,
+            )
+
+    if received_sar != "__skip__":
+        if received_sar is not None:
+            expected = (remittance.expected_sar if remittance.expected_sar is not None
+                        else sent_total)
+            post_remittance_receive(
+                remittance, expected_sar=expected, received_sar=received_sar,
+                created_by=created_by, entry_date=entry_date,
+            )
 
 
 @transaction.atomic

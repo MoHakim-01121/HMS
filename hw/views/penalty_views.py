@@ -10,13 +10,9 @@ from django.template.loader import render_to_string
 
 from inertia import render as inertia_render
 
-from ..models import (
-    CancellationPenalty, ConfirmationLetter,
-    Charge, Allocation, CashMovement, ChargeReason, AllocationReason, CashAccount,
-)
-from ..models.journal import JournalEntry, JournalLine, Account as LedgerAccount
-from .. import ledger
-from ..finance_helpers import create_journal_entry, FinanceError
+from ..models import CancellationPenalty, ConfirmationLetter
+from ..finance.posting import resync_penalty
+from ..finance_helpers import FinanceError
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float, get_active_company
 from .pdf import _logo_file_url
@@ -24,106 +20,13 @@ from .pdf import _logo_file_url
 logger = logging.getLogger(__name__)
 
 
-def _sync_penalty_ledger(penalty):
-    """Dual-write (remittance ledger redesign, Fase 5): a penalty always
-    represents a charge, and -- once marked paid -- a real cash movement.
-    Full resync scoped to `penalty=penalty`, which only this function ever
-    sets, so it's safe to call on every create/edit."""
-    cl = penalty.cl
-    with transaction.atomic():
-        Charge.objects.filter(penalty=penalty).delete()
-        Allocation.objects.filter(penalty=penalty).delete()
-        CashMovement.objects.filter(penalty_label=penalty).delete()
-
-        if not penalty.penalty_amount_sar:
-            return
-
-        Charge.objects.create(
-            company=cl.company, client=cl.client, invoice=cl.invoice, date=penalty.cancellation_date or date.today(),
-            amount_sar=penalty.penalty_amount_sar, penalty=penalty, reason=ChargeReason.CANCELLATION,
-            description=f'Penalty {penalty.penalty_number}',
-        )
-
-        # ── NEW: Create JournalEntry for penalty charge ──────────
-        try:
-            journal_lines = [
-                {
-                    'account': LedgerAccount.EXPENSE_PENALTY,
-                    'amount_sar': penalty.penalty_amount_sar,  # Debit: beban penalty
-                    'client': cl.client,
-                    'invoice': cl.invoice,
-                    'penalty': penalty,
-                    'note': f'Penalty {penalty.penalty_number}',
-                },
-                {
-                    'account': LedgerAccount.RECEIVABLE,
-                    'amount_sar': -penalty.penalty_amount_sar,  # Credit: piutang client
-                    'client': cl.client,
-                    'invoice': cl.invoice,
-                    'penalty': penalty,
-                    'note': f'Penalty {penalty.penalty_number}',
-                },
-            ]
-            create_journal_entry(
-                entry_type=JournalEntry.TYPE_PENALTY,
-                description=f'Penalty {penalty.penalty_number}',
-                entry_date=penalty.cancellation_date or date.today(),
-                lines=journal_lines,
-                company=cl.company,
-                reference_type='CancellationPenalty',
-                reference_id=penalty.pk,
-                created_by=None,  # TODO: pass user from view
-            )
-        except FinanceError as e:
-            logger.warning("Finance redesign: failed to create penalty journal: %s", e)
-
-        if penalty.is_paid:
-            pay_date = penalty.payment_date or penalty.cancellation_date or date.today()
-            to_account = ledger.cash_destination(method=penalty.payment_method)
-            mov = CashMovement.objects.create(
-                company=cl.company, client=cl.client, invoice=cl.invoice, date=pay_date,
-                from_account=CashAccount.CLIENT, to_account=to_account,
-                amount=penalty.penalty_amount, currency=penalty.penalty_currency, exchange_rate=penalty.exchange_rate,
-                method=penalty.payment_method, penalty_label=penalty,
-                note=f'Pembayaran penalty {penalty.penalty_number}',
-            )
-            Allocation.objects.create(
-                company=cl.company, client=cl.client, invoice=cl.invoice, date=pay_date,
-                amount_sar=mov.amount_sar, penalty=penalty, reason=AllocationReason.CANCELLATION,
-                note=f'Pembayaran penalty {penalty.penalty_number}',
-            )
-
-            # ── NEW: Create JournalEntry for penalty payment ──────
-            try:
-                cash_account = ledger.cash_journal_account(to_account)
-                payment_lines = [
-                    {
-                        'account': cash_account,
-                        'amount_sar': penalty.penalty_amount_sar,  # Debit: money masuk
-                        'client': cl.client,
-                        'invoice': cl.invoice,
-                        'penalty': penalty,
-                    },
-                    {
-                        'account': LedgerAccount.RECEIVABLE,
-                        'amount_sar': -penalty.penalty_amount_sar,  # Credit: piutang berkurang
-                        'client': cl.client,
-                        'invoice': cl.invoice,
-                        'penalty': penalty,
-                    },
-                ]
-                create_journal_entry(
-                    entry_type=JournalEntry.TYPE_PENALTY,
-                    description=f'Pembayaran penalty {penalty.penalty_number}',
-                    entry_date=pay_date,
-                    lines=payment_lines,
-                    company=cl.company,
-                    reference_type='CancellationPenalty',
-                    reference_id=penalty.pk,
-                    created_by=None,
-                )
-            except FinanceError as e:
-                logger.warning("Finance redesign: failed to create penalty payment journal: %s", e)
+def _sync_penalty_ledger(penalty, user=None):
+    """Resync jurnal penalty (charge + payment kalau is_paid) — reverse entry
+    lama, repost dari data penalty sekarang. Aman dipanggil tiap create/edit."""
+    try:
+        resync_penalty(penalty, created_by=user)
+    except FinanceError as e:
+        logger.warning("penalty journal resync gagal: %s", e)
     logger.info(
         "ledger: penalty %s synced (%s SAR, paid=%s)",
         penalty.penalty_number, penalty.penalty_amount_sar, penalty.is_paid,
@@ -184,7 +87,7 @@ def penalty_new(request, cl_pk):
             payment_note=request.POST.get('payment_note', ''),
             note=request.POST.get('note', ''),
         )
-        _sync_penalty_ledger(penalty)
+        _sync_penalty_ledger(penalty, request.user)
         messages.success(request, f"Penalty document {penalty.penalty_number} created successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
@@ -221,7 +124,7 @@ def penalty_edit(request, pk):
         penalty.payment_note    = request.POST.get('payment_note', '')
         penalty.note            = request.POST.get('note', '')
         penalty.save()
-        _sync_penalty_ledger(penalty)
+        _sync_penalty_ledger(penalty, request.user)
         messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
@@ -240,16 +143,11 @@ def penalty_delete(request, pk):
     cl_pk = penalty.cl_id
     if request.method == 'POST':
         num = penalty.penalty_number
-        # System of record: dokumen yang sudah masuk ledger tidak bisa
-        # dihapus -- Charge/Allocation mereferensikan penalty via CASCADE,
-        # jadi hapus = menghilangkan jejak tagihan. Nolkan nominalnya untuk
-        # membatalkan dampak ledger (lihat _sync_penalty_ledger).
-        has_ledger = (
-            Charge.objects.filter(penalty=penalty).exists()
-            or Allocation.objects.filter(penalty=penalty).exists()
-        )
-        if has_ledger:
-            messages.error(request, f'Penalty {num} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+        # System of record: penalty yang sudah menyentuh jurnal tidak bisa
+        # dihapus dari riwayat keuangan.
+        from ..models.journal import JournalLine
+        if JournalLine.objects.filter(penalty=penalty).exists():
+            messages.error(request, f'Penalty {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('penalty_detail', pk=penalty.pk)
         penalty.delete()
         messages.success(request, f"Penalty document {num} deleted successfully.")

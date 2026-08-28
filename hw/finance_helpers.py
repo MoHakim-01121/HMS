@@ -20,7 +20,6 @@ from .models.journal import (
 from .models.invoice import Invoice
 from .models.choices import Company
 from .finance.accounts import resolve_account_code, AR
-from .ledger import cash_destination, cash_journal_account
 
 
 def _account_obj(ref):

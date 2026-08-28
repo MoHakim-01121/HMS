@@ -20,9 +20,10 @@ from django.test import TestCase
 
 from hw.models import (
     Client, Invoice, Reservation, ConfirmationLetter, Room,
-    CancellationPenalty, Charge, ChargeReason, Allocation, AllocationReason,
-    CashMovement, CashAccount, Remittance, RemittanceLine, ServiceItem,
+    CancellationPenalty, CashMovement, CashAccount, Remittance,
+    RemittanceLine, ServiceItem,
 )
+from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance import queries as fq
@@ -45,11 +46,14 @@ class PenaltyLedgerSyncTest(TestCase):
         s = self.client.session
         s['active_company'] = 'konoz'
         s.save()
-
+        FinancialPeriod.objects.create(
+            name='2026', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.cl_obj = Client.objects.create(company='konoz', name='Amanah')
         self.inv = Invoice.objects.create(
             company='konoz', invoice_type='hotel', invoice_number='INV-PEN-1',
-            customer_name='Amanah', issued_date=date(2026, 8, 1),
+            customer_name='Amanah', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         self.cl = ConfirmationLetter.objects.create(
             company='konoz', client=self.cl_obj, hotel_name='Hotel A',
@@ -58,7 +62,7 @@ class PenaltyLedgerSyncTest(TestCase):
             invoice=self.inv,
         )
 
-    def test_penalty_create_writes_charge_and_paid_movement(self):
+    def test_penalty_create_posts_charge_and_payment_to_journal(self):
         resp = self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
             'penalty_number': 'PNL-001', 'cancellation_date': '2026-08-05',
             'reason': 'batal', 'penalty_amount': '1000', 'penalty_currency': 'SAR',
@@ -66,48 +70,49 @@ class PenaltyLedgerSyncTest(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         penalty = CancellationPenalty.objects.get(penalty_number='PNL-001')
-        self.assertEqual(Charge.objects.filter(penalty=penalty).count(), 1)
-        self.assertEqual(Charge.objects.get(penalty=penalty).amount_sar, 1000)
-        self.assertEqual(CashMovement.objects.filter(penalty_label=penalty).count(), 1)
-        self.assertEqual(Allocation.objects.filter(penalty=penalty).count(), 1)
+        self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -1000)
+        self.assertEqual(fq.kas_surabaya('konoz'), 1000)
+        self.assertEqual(fq.client_receivable(self.cl_obj.id), 0)  # ditagih lalu dibayar
 
-    def test_penalty_create_unpaid_writes_charge_without_movement(self):
+    def test_penalty_create_unpaid_posts_charge_only(self):
         resp = self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
             'penalty_number': 'PNL-002', 'cancellation_date': '2026-08-05',
             'penalty_amount': '500', 'penalty_currency': 'SAR', 'exchange_rate': '1',
         })
         self.assertEqual(resp.status_code, 302)
-        penalty = CancellationPenalty.objects.get(penalty_number='PNL-002')
-        self.assertEqual(Charge.objects.filter(penalty=penalty).count(), 1)
-        self.assertEqual(CashMovement.objects.filter(penalty_label=penalty).count(), 0)
+        self.assertEqual(fq.client_receivable(self.cl_obj.id), 500)
+        self.assertEqual(fq.kas_surabaya('konoz'), 0)
 
-    def test_penalty_edit_resyncs_ledger(self):
+    def test_penalty_edit_resyncs_journal_to_new_amount(self):
         penalty = CancellationPenalty.objects.create(
             cl=self.cl, penalty_number='PNL-003', cancellation_date=date(2026, 8, 5),
             penalty_amount=1000, is_paid=True, payment_method='transfer',
         )
+        from hw.finance import posting
+        posting.resync_penalty(penalty, created_by=self.user)
         resp = self.client.post(f'/penalty/{penalty.pk}/edit/', {
             'penalty_number': 'PNL-003', 'cancellation_date': '2026-08-05',
             'penalty_amount': '700', 'penalty_currency': 'SAR', 'exchange_rate': '1',
             'is_paid': 'on', 'payment_method': 'direct',
         })
         self.assertEqual(resp.status_code, 302)
-        penalty.refresh_from_db()
-        charge = Charge.objects.get(penalty=penalty)
-        self.assertEqual(charge.amount_sar, 700)
-        mov = CashMovement.objects.get(penalty_label=penalty)
-        self.assertEqual(mov.to_account, CashAccount.PUSAT)
+        self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -700)
+        self.assertEqual(fq.kas_pusat('konoz'), 700)  # method 'direct'
 
 
-class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
-    """C2 — _save_payments must not delete penalty movements."""
+class PenaltyIndependentFromInvoicePaymentTest(TestCase):
+    """Edit daftar payment invoice tidak menyentuh jurnal penalty."""
 
     def setUp(self):
         self.user = User.objects.create_user('pay_ops', password='pw12345')
+        FinancialPeriod.objects.create(
+            name='2026', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.cl_obj = Client.objects.create(company='konoz', name='Bina')
         self.inv = Invoice.objects.create(
             company='konoz', invoice_type='hotel', invoice_number='INV-PAY-1',
-            customer_name='Bina', issued_date=date(2026, 8, 1),
+            customer_name='Bina', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         self.res = Reservation.objects.create(
             invoice=self.inv, reservation_number='R1', hotel='H', total_sar=5000,
@@ -122,18 +127,11 @@ class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
             cl=self.cl, penalty_number='PNL-PAY', cancellation_date=date(2026, 8, 5),
             penalty_amount=1000, is_paid=True, payment_method='transfer',
         )
-        from hw.views.penalty_views import _sync_penalty_ledger
-        _sync_penalty_ledger(self.penalty)
-
-    def test_payment_save_keeps_penalty_movement(self):
-        self.assertEqual(CashMovement.objects.filter(penalty_label=self.penalty).count(), 1)
-        FinancialPeriod.objects.create(
-            name='2026-08', company='konoz',
-            date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
-        )
-        self.inv.client = self.cl_obj
-        self.inv.save(update_fields=['client'])
         posting.post_invoice_charge(self.inv, created_by=self.user)
+        posting.resync_penalty(self.penalty, created_by=self.user)
+
+    def test_payment_save_keeps_penalty_income(self):
+        before = fq.account_balance(fq.coa.INC_PENALTY)
         req = _Request()
         req.user = self.user
         req.POST = {
@@ -141,10 +139,8 @@ class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
                         '"amount":"500","currency":"SAR","exchange":"1","note":"","proof_keep":""}]',
         }
         _save_payments(self.inv, req, 'SAR')
-        # Payment invoice terposting ke jurnal; CashMovement penalty (legacy,
-        # Unit B) tidak tersentuh oleh edit daftar payment.
         self.assertEqual(fq.invoice_paid_sar(self.inv.id), 500)
-        self.assertEqual(CashMovement.objects.filter(penalty_label=self.penalty).count(), 1)
+        self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), before)  # -1000
 
 
 class DeleteGuardTest(TestCase):
@@ -221,7 +217,7 @@ class DeleteGuardTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(Remittance.objects.filter(pk=rem.pk).exists())
 
-    def test_penalty_delete_blocked_when_charges_exist(self):
+    def test_penalty_delete_blocked_when_journaled(self):
         cl = ConfirmationLetter.objects.create(
             company='konoz', client=self.cl_obj, hotel_name='H', guest_name='G',
             confirmation_number='CL-DEL-1',
@@ -230,10 +226,8 @@ class DeleteGuardTest(TestCase):
             cl=cl, penalty_number='PNL-DEL', cancellation_date=date(2026, 8, 5),
             penalty_amount=500,
         )
-        Charge.objects.create(
-            company='konoz', client=self.cl_obj, date=date(2026, 8, 5),
-            amount_sar=500, penalty=penalty, reason=ChargeReason.CANCELLATION,
-        )
+        posting.resync_penalty(penalty, created_by=self.user)
+        self.assertTrue(JournalLine.objects.filter(penalty=penalty).exists())
         resp = self.client.post(f'/penalty/{penalty.pk}/delete/')
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(CancellationPenalty.objects.filter(pk=penalty.pk).exists())
