@@ -19,7 +19,7 @@ from .landing import Pricelist, TeamMember
 
 # ── Finance Redesign (new models) ──────────────────────────────
 from .period import FinancialPeriod
-from .payment import PaymentRecord, PaymentLog
+from .payment import PaymentRecord, PaymentLog, PaymentAllocation
 from .journal import AccountType, Account, LedgerAccount, JournalEntry, JournalLine
 
 __all__ = [
@@ -51,6 +51,6 @@ __all__ = [
     'Pricelist', 'TeamMember',
     # ── Finance Redesign ──
     'FinancialPeriod',
-    'PaymentRecord', 'PaymentLog',
+    'PaymentRecord', 'PaymentLog', 'PaymentAllocation',
     'AccountType', 'Account', 'LedgerAccount', 'JournalEntry', 'JournalLine',
 ]

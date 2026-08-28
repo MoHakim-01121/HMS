@@ -115,6 +115,43 @@ class PaymentRecord(models.Model):
             return f"PAY-{(max(nums) + 1 if nums else 1):04d}"
 
 
+class PaymentAllocation(models.Model):
+    """Alokasi analitik satu PaymentRecord ke reservation/service/penalty.
+
+    BUKAN mekanisme akuntansi (jurnal payment sudah menempelkan dimensi
+    reservation di baris CR Piutang) — ini rincian "pembayaran ini untuk
+    apa saja" saat satu transfer menutup beberapa item.
+    """
+
+    payment      = models.ForeignKey(PaymentRecord, on_delete=models.PROTECT, related_name='allocations')
+    reservation  = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    service_item = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    penalty      = models.ForeignKey('CancellationPenalty', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    amount_sar   = models.BigIntegerField()
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Payment Allocation'
+        verbose_name_plural = 'Payment Allocations'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount_sar__gt=0),
+                name='paymentallocation_amount_positive',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(reservation__isnull=False, service_item__isnull=True, penalty__isnull=True)
+                    | models.Q(reservation__isnull=True, service_item__isnull=False, penalty__isnull=True)
+                    | models.Q(reservation__isnull=True, service_item__isnull=True, penalty__isnull=False)
+                ),
+                name='paymentallocation_exactly_one_target',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.payment.payment_number} → {self.amount_sar:,}"
+
+
 class PaymentLog(models.Model):
     """Immutable audit log untuk setiap perubahan status PaymentRecord.
 
