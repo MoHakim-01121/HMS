@@ -181,7 +181,7 @@ class PenaltyChargeTests(PostingTestBase):
             confirmation_number="CL-P1",
         )
         pen = CancellationPenalty.objects.create(
-            cl=cl, client=self.client_obj, penalty_number="PNL-P1",
+            cl=cl, penalty_number="PNL-P1",
             cancellation_date=date(2045, 3, 1), penalty_amount=5000, amount_sar=5000,
         )
         posting.post_penalty_charge(pen, created_by=self.user)

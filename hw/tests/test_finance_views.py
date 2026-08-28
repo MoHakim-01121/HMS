@@ -6,7 +6,6 @@ from datetime import date
 from django.test import TestCase
 from django.urls import reverse
 
-from hw import ledger
 from hw.finance import posting
 from hw.finance import queries as q
 from hw.finance_helpers import create_payment_record
@@ -168,12 +167,12 @@ class FinanceViewsTest(TestCase):
             confirmation_number='CL-FV-002',
         )
         pen_paid = CancellationPenalty.objects.create(
-            cl=cl_paid, client=self.konoz_client, penalty_number='PNL-901',
+            cl=cl_paid, penalty_number='PNL-901',
             cancellation_date=date(2026, 3, 1), penalty_amount=1000,
             amount_sar=1000, is_paid=True,
         )
         CancellationPenalty.objects.create(
-            cl=cl_open, client=self.konoz_client, penalty_number='PNL-902',
+            cl=cl_open, penalty_number='PNL-902',
             cancellation_date=date(2026, 3, 2), penalty_amount=2000,
             amount_sar=2000, is_paid=False,
         )

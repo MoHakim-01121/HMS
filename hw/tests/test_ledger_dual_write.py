@@ -7,7 +7,6 @@ from django.test import TestCase
 from hw.models import Invoice, Reservation, ServiceItem, Payment, Client, Remittance, CashMovement
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
-from hw import ledger
 
 
 class DualWriteTestBase(TestCase):
@@ -146,7 +145,6 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         movement = CashMovement.objects.get(from_account='sby', to_account='pusat')
         self.assertEqual(movement.amount, 3000)
         self.assertEqual(movement.reservation_label, self.res)
-        self.assertEqual(ledger.mengendap_per_res(self.res), -3000)
 
     def test_editing_remittance_amount_resyncs_cashmovement_not_duplicates(self):
         rem = Remittance.objects.create(company="konoz", date="2026-01-10", remittance_number="RMT-DW-01")

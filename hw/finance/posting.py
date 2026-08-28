@@ -304,7 +304,7 @@ def void_invoice_charge(invoice, *, created_by, entry_date=None):
 
 
 def _penalty_client_id(penalty):
-    return penalty.client_id or (penalty.cl.client_id if penalty.cl_id else None)
+    return penalty.cl.client_id if penalty.cl_id else None
 
 
 def _penalty_amount(penalty):

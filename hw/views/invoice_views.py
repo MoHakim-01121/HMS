@@ -490,7 +490,6 @@ def _save_reservations(invoice, request):
             total_sar = int(round(_to_float(r.get("reservation_total"))))
             Reservation.objects.create(
                 invoice=invoice,
-                client=invoice.client,
                 reservation_number=(r.get("reservation_number") or "-").strip() or "-",
                 hotel=(r.get("hotel") or "-").strip() or "-",
                 check_in=_parse_date(r.get("check_in")),

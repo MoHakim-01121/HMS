@@ -123,7 +123,6 @@ class Invoice(models.Model):
 
 class Reservation(models.Model):
     invoice            = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='reservations')
-    client             = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='reservations')
     reservation_number = models.CharField(max_length=100)
     hotel              = models.CharField(max_length=200, blank=True)
     check_in           = models.DateField(null=True, blank=True)

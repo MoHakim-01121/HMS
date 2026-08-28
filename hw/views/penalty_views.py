@@ -191,14 +191,14 @@ def penalty_pdf(request, pk):
 
 @require_perm('penalty', 'view')
 def penalty_list(request):
-    qs = CancellationPenalty.objects.select_related('cl', 'client', 'invoice')
+    qs = CancellationPenalty.objects.select_related('cl', 'cl__client', 'invoice')
 
     q = (request.GET.get('q') or '').strip()
     if q:
         qs = qs.filter(
             Q(penalty_number__icontains=q)
             | Q(cl__confirmation_number__icontains=q)
-            | Q(client__name__icontains=q),
+            | Q(cl__client__name__icontains=q),
         )
     status = request.GET.get('status', '')
     if status == 'paid':
@@ -213,8 +213,8 @@ def penalty_list(request):
             'penalty_number': p.penalty_number,
             'cl_id': p.cl_id,
             'confirmation_number': p.cl.confirmation_number if p.cl else '',
-            'client_id': p.client_id,
-            'client_name': p.client.name if p.client else '',
+            'client_id': p.cl.client_id if p.cl_id else None,
+            'client_name': p.cl.client.name if (p.cl_id and p.cl.client_id) else '',
             'cancellation_date': p.cancellation_date.isoformat(),
             'amount_sar': p.amount_sar,
             'is_paid': p.is_paid,

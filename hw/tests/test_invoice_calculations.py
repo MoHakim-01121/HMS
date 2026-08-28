@@ -84,7 +84,7 @@ class InvoiceTotalsTest(TestCase):
             confirmation_number='CL-PEN-001', invoice=self.invoice,
         )
         penalty = CancellationPenalty.objects.create(
-            cl=cl, client=self.client_obj, penalty_number='PNL-TEST',
+            cl=cl, penalty_number='PNL-TEST',
             cancellation_date=date(2026, 1, 2), penalty_amount=250, amount_sar=250,
         )
         posting.post_penalty_charge(penalty, created_by=self.user)
