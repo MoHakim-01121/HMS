@@ -1,10 +1,11 @@
 """Multi-row allocation save from the Finance "Record Payment" dialog.
 
-An invoice with several reservations gets one PaymentRecord per filled
-allocation row. Regression guard for two ways this read as "only the
-first row saved": a bad import crashed the whole POST (nothing saved),
-and the success redirect landed on created_payments[0]'s detail page
-(every row saved, but only row one was visible).
+A single transfer covering several reservations is recorded as ONE
+PaymentRecord (carrying the original amount + exchange rate for analysis)
+plus one analytic PaymentAllocation per reservation, expressed in SAR.
+This guards the regression where each filled allocation row became its own
+PaymentRecord whose SAR amount was re-divided by the (non-SAR) exchange
+rate — producing "Allocation (10.000) != Amount (48.000.000)".
 """
 import json
 from datetime import date
@@ -13,7 +14,7 @@ from django.contrib.auth.models import User
 from django.contrib.messages import get_messages
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, PaymentRecord
+from hw.models import Client, Invoice, Reservation, PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
 
 
@@ -38,54 +39,98 @@ class MultiAllocationSaveTest(TestCase):
             name='2026-08', date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
         )
 
-    def _post(self, allocations):
+    def _post(self, amount, allocations, currency='SAR', exchange_rate='1'):
         return self.client.post('/finance/payments/record/', {
             'invoice_id': self.invoice.pk,
             'payment_date': '2026-08-21',
-            'amount': str(sum(a['amount'] for a in allocations)),
-            'currency': 'SAR',
-            'exchange_rate': '1',
+            'amount': str(amount),
+            'currency': currency,
+            'exchange_rate': exchange_rate,
             'received_in': 'sby',
             'method': 'Transfer',
             'allocations': json.dumps(allocations),
         }, follow=True)
 
-    def test_both_rows_create_one_payment_each(self):
-        resp = self._post([
+    def test_all_rows_become_one_record_plus_allocations(self):
+        resp = self._post(1500, [
             {'reservation_id': self.r1.pk, 'amount': 500},
             {'reservation_id': self.r2.pk, 'amount': 1000},
         ])
 
-        payments = list(PaymentRecord.objects.filter(invoice=self.invoice).order_by('pk'))
-        self.assertEqual(len(payments), 2)
+        payments = list(PaymentRecord.objects.filter(invoice=self.invoice))
+        self.assertEqual(len(payments), 1)
+        p = payments[0]
+        self.assertEqual(p.amount, 1500)
+        self.assertEqual(p.amount_sar, 1500)
+        self.assertEqual(p.status, PaymentRecord.STATUS_ALLOCATED)
+
+        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
         self.assertEqual(
-            [(p.reservation_id, p.amount) for p in payments],
-            [(self.r1.pk, 500.0), (self.r2.pk, 1000.0)],
+            [(a.reservation_id, a.amount_sar) for a in allocs],
+            [(self.r1.pk, 500), (self.r2.pk, 1000)],
         )
-        self.assertTrue(all(p.status == PaymentRecord.STATUS_ALLOCATED for p in payments))
 
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
-        self.assertTrue(any('2 payment(s)' in m for m in msgs))
+        self.assertTrue(any('Payment berhasil' in m for m in msgs))
 
-    def test_success_redirects_to_invoice_filtered_list_not_first_detail(self):
-        resp = self._post([
+    def test_non_sar_amount_keeps_original_currency_and_rate_for_analysis(self):
+        # 48,000,000 IDR @ 4800 == 10,000 SAR (riyal patokan), split in SAR.
+        # This is the regression case: allocation is in SAR (patokan riyal),
+        # while the payment record keeps the IDR amount + rate for analysis.
+        resp = self._post(48_000_000, [
+            {'reservation_id': self.r1.pk, 'amount': 6000},
+            {'reservation_id': self.r2.pk, 'amount': 4000},
+        ], currency='IDR', exchange_rate='4800')
+
+        payments = list(PaymentRecord.objects.filter(invoice=self.invoice))
+        self.assertEqual(len(payments), 1)
+        p = payments[0]
+        # Kurs & nominal asli dipertahankan untuk analisis...
+        self.assertEqual(p.amount, 48_000_000)
+        self.assertEqual(p.currency, 'IDR')
+        self.assertEqual(float(p.exchange_rate), 4800.0)
+        # ...sementara nilai SAR (riyal patokan) dihitung via convert_to_sar.
+        self.assertEqual(p.amount_sar, 10000)
+
+        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
+        self.assertEqual(
+            [(a.reservation_id, a.amount_sar) for a in allocs],
+            [(self.r1.pk, 6000), (self.r2.pk, 4000)],
+        )
+        self.assertTrue(all(a.amount_sar <= p.amount_sar for a in allocs))
+        self.assertEqual(sum(a.amount_sar for a in allocs), p.amount_sar)
+
+        msgs = [str(m) for m in get_messages(resp.wsgi_request)]
+        self.assertTrue(any('Payment berhasil' in m for m in msgs))
+
+    def test_allocation_over_payment_amount_is_rejected(self):
+        resp = self._post(5000, [
+            {'reservation_id': self.r1.pk, 'amount': 6000},
+            {'reservation_id': self.r2.pk, 'amount': 4000},
+        ])
+        msgs = [str(m) for m in get_messages(resp.wsgi_request)]
+        self.assertFalse(PaymentRecord.objects.filter(invoice=self.invoice).exists())
+        self.assertTrue(any('melebihi nilai SAR pembayaran' in m for m in msgs))
+
+    def test_success_redirects_to_invoice_filtered_list(self):
+        resp = self._post(1500, [
             {'reservation_id': self.r1.pk, 'amount': 500},
             {'reservation_id': self.r2.pk, 'amount': 1000},
         ])
-        # The redirect must show EVERY created payment (invoice-filtered
-        # list), not just the first row's detail page.
         self.assertRedirects(
             resp, f'/finance/payments/?invoice={self.invoice.pk}',
             fetch_redirect_response=False,
         )
 
     def test_rows_without_amount_are_skipped(self):
-        resp = self._post([
+        resp = self._post(700, [
             {'reservation_id': self.r1.pk, 'amount': 700},
             {'reservation_id': self.r2.pk, 'amount': 0},
         ])
         payments = list(PaymentRecord.objects.filter(invoice=self.invoice))
         self.assertEqual(len(payments), 1)
-        self.assertEqual(payments[0].reservation_id, self.r1.pk)
+        allocs = list(PaymentAllocation.objects.filter(payment=payments[0]))
+        self.assertEqual(len(allocs), 1)
+        self.assertEqual(allocs[0].reservation_id, self.r1.pk)
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
-        self.assertTrue(any('1 payment(s)' in m for m in msgs))
+        self.assertTrue(any('Payment berhasil' in m for m in msgs))

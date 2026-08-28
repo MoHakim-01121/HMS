@@ -36,6 +36,13 @@ def _payment_props(p):
         'client_name': p.client.name if p.client else None,
         'reservation_id': p.reservation_id,
         'service_item_id': p.service_item_id,
+        'allocations': [{
+            'id': a.pk,
+            'reservation_id': a.reservation_id,
+            'reservation_number': a.reservation.reservation_number if a.reservation else None,
+            'service_item_id': a.service_item_id,
+            'amount_sar': a.amount_sar,
+        } for a in p.allocations.select_related('reservation', 'service_item')],
         'payment_date': p.payment_date.isoformat() if p.payment_date else None,
         'amount': p.amount,
         'currency': p.currency,
@@ -267,55 +274,73 @@ def payment_record(request):
 
     from ..models import Reservation
     from django.utils import timezone as tz
+    from ..finance import posting
 
     if allocations:
-        # Per-reservation allocation: create one PaymentRecord per reservation
-        created_payments = []
-        for alloc in allocations:
-            res_id = alloc.get('reservation_id')
-            alloc_amount = _to_float(alloc.get('amount', 0))
-            if not alloc_amount or alloc_amount <= 0:
-                continue
-            reservation = Reservation.objects.filter(pk=res_id).first() if res_id else None
-
-            payment = create_payment_record(
-                invoice=invoice,
-                client=client,
-                payment_date=payment_date or tz.now().date(),
-                amount=alloc_amount,
-                currency=currency,
-                exchange_rate=exchange_rate,
-                method=data.get('method', ''),
-                bank_name=data.get('bank_name', ''),
-                account_number=data.get('account_number', ''),
-                reference=data.get('reference', ''),
-                note=data.get('note', '') or f'Allocation to {reservation.reservation_number if reservation else "invoice"}',
-                created_by=request.user,
-                reservation=reservation,
-                received_in=received_in,
-            )
-            if proof_file:
-                payment.proof = proof_file
-                payment.save(update_fields=['proof'])
-
-            # Auto-confirm + allocate
-            confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
-            allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
-            created_payments.append(payment)
-
-        if created_payments:
-            messages.success(
-                request,
-                f'{len(created_payments)} payment(s) berhasil dibuat dan dialokasikan.',
-            )
-            # Land on the invoice-filtered list, not the first payment's
-            # detail -- redirecting to created_payments[0] reads as "only
-            # the first row was saved" when a multi-row allocation saved
-            # every row.
-            return redirect(f'/finance/payments/?invoice={invoice.pk}')
-        else:
+        # Satu transfer dgn beberapa reservasi = SATU PaymentRecord
+        # (menyimpan amount asli + kurs utk analisis), lalu PaymentAllocation
+        # analitik per reservasi dalam SAR (riyal patokan). Ini menggantikan
+        # perilaku lama yg membuat satu PaymentRecord per baris -- yang
+        # memperlakukan alokasi SAR sebagai currency asli, membuat
+        # amount_sar double-convert dan warning "Allocation != Amount"
+        # membandingkan SAR vs currency asli.
+        valid_alloc = [
+            a for a in allocations
+            if _to_float(a.get('amount', 0)) and _to_float(a.get('amount', 0)) > 0
+        ]
+        if not valid_alloc:
             messages.error(request, 'Tidak ada alokasi yang valid.')
             return redirect('payment_list')
+
+        # PaymentAllocation per reservasi — nominal dalam SAR (riyal patokan).
+        targets = []
+        for alloc in valid_alloc:
+            reservation = Reservation.objects.filter(pk=alloc.get('reservation_id')).first()
+            if reservation is None:
+                continue
+            targets.append((reservation, int(_to_float(alloc.get('amount', 0)))))
+        if not targets:
+            messages.error(request, 'Tidak ada alokasi yang valid.')
+            return redirect('payment_list')
+
+        # Nilai SAR pembayaran (riyal patokan), untuk memvalidasi total alokasi
+        # SEBELUM record dibuat -- jangan sisakan PaymentRecord yatim bila over.
+        from ..utils import convert_to_sar
+        sar_amount = int(round(convert_to_sar(amount, currency, exchange_rate)))
+        if sum(a for _, a in targets) > sar_amount:
+            messages.error(
+                request,
+                f'Total alokasi melebihi nilai SAR pembayaran ({sar_amount:,}).',
+            )
+            return redirect('payment_list')
+
+        payment = create_payment_record(
+            invoice=invoice,
+            client=client,
+            payment_date=payment_date or tz.now().date(),
+            amount=amount,                 # currency asli (mis. IDR) — utk analisis
+            currency=currency,
+            exchange_rate=exchange_rate,   # kurs asli — utk analisis
+            method=data.get('method', ''),
+            bank_name=data.get('bank_name', ''),
+            account_number=data.get('account_number', ''),
+            reference=data.get('reference', ''),
+            note=data.get('note', '') or f'Allocated to {len(valid_alloc)} reservation(s)',
+            created_by=request.user,
+            received_in=received_in,
+        )
+        if proof_file:
+            payment.proof = proof_file
+            payment.save(update_fields=['proof'])
+
+        posting.allocate_payment(payment, targets, created_by=request.user)
+
+        # Auto-confirm + allocate (mirror ke ledger legacy per reservasi)
+        confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
+        allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+
+        messages.success(request, 'Payment berhasil dibuat dan dialokasikan.')
+        return redirect(f'/finance/payments/?invoice={invoice.pk}')
     else:
         # No allocations — create single payment (legacy flow)
         payment = create_payment_record(

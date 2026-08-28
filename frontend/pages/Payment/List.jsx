@@ -137,9 +137,20 @@ export default function List({ payments = [], status_choices = [], invoice_choic
   const selectedInvoice = invoice_choices.find((inv) => String(inv.id) === String(recordForm.invoice_id));
   const reservations = selectedInvoice?.reservations || [];
 
+  // Parse a numeric input that may carry thousands separators -- either
+  // "48,000,000" (en-US) or "48.000.000" (id-ID). Amounts, rates and
+  // allocations here are practical integers, so both separators are
+  // stripped before parsing (a lone "." stays a float for sub-1 rates).
+  const parseNum = (v) => {
+    if (v == null || v === "") return 0;
+    const cleaned = String(v).replace(/[^\d.,-]/g, "");
+    const n = parseFloat(cleaned.replace(/,/g, "").replace(/\.(?=\d{3}\b)/g, ""));
+    return isNaN(n) ? 0 : n;
+  };
+
   const updateAllocation = (resId, value) => {
     setAllocations((prev) => {
-      const num = parseFloat(value) || 0;
+      const num = parseNum(value);
       const existing = prev.find((a) => a.reservation_id === resId);
       if (num <= 0) {
         return prev.filter((a) => a.reservation_id !== resId);
@@ -169,12 +180,30 @@ export default function List({ payments = [], status_choices = [], invoice_choic
     ? payments
     : payments.filter((p) => p.status === statusFilter);
 
-  // Live SAR equivalent, mirroring the backend's convert_to_sar rounding.
-  const payAmount = parseFloat(recordForm.amount) || 0;
-  const payRate = parseFloat(recordForm.exchange_rate) || 0;
-  const sarEquiv = recordForm.currency !== "SAR" && payAmount > 0 && payRate > 0
-    ? Math.round(payAmount * payRate).toLocaleString()
-    : null;
+  // Live SAR equivalent, mirroring the backend's convert_to_sar
+  // (hw/utils.py): IDR divides by the rate, every other non-SAR currency
+  // multiplies. Keeping this in lockstep with the backend is what prevents
+  // the preview from disagreeing with the stored amount_sar.
+  const payAmount = parseNum(recordForm.amount);
+  const payRate = parseNum(recordForm.exchange_rate);
+  let sarEquiv = null;
+  if (recordForm.currency !== "SAR" && payAmount > 0 && payRate > 0) {
+    const sar =
+      recordForm.currency === "IDR"
+        ? payAmount / payRate
+        : payAmount * payRate;
+    sarEquiv = Math.round(sar).toLocaleString();
+  }
+
+  // Payment-equivalent in SAR, for comparing against allocation total.
+  // For a SAR payment this is just the amount; for non-SAR it mirrors the
+  // backend's convert_to_sar above (IDR divides, others multiply).
+  const paySarEquivalent =
+    recordForm.currency === "SAR"
+      ? parseNum(recordForm.amount)
+      : sarEquiv
+        ? parseInt(sarEquiv.replace(/,/g, ""), 10)
+        : 0;
 
   const confirmPayment = (payment) => {
     router.post(`/finance/payments/${payment.id}/confirm/`);
@@ -192,9 +221,16 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       return;
     }
     const hasAllocations = allocations.length > 0;
+    // Strip thousands separators so the backend's _to_float (which removes
+    // ",") receives a clean integer and never mis-reads "4,800" as "4.8".
+    const cleanNum = (v) => (v == null || v === "" ? v : String(v).replace(/,/g, ""));
     const payload = {
       ...recordForm,
-      ...(hasAllocations ? { allocations: JSON.stringify(allocations) } : {}),
+      amount: cleanNum(recordForm.amount),
+      exchange_rate: cleanNum(recordForm.exchange_rate),
+      ...(hasAllocations
+        ? { allocations: JSON.stringify(allocations.map((a) => ({ ...a, amount: cleanNum(String(a.amount)) }))) }
+        : {}),
     };
     if (recordForm.proof) {
       const fd = new FormData();
@@ -435,26 +471,27 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                                 <td><span className="c-in c-muted">{res.hotel}</span></td>
                                 <td><span className="c-in c-num">{res.remaining?.toLocaleString()}</span></td>
                                 <td>
-                                  <input type="number" min="0" max={res.remaining} step="1"
-                                    value={allocAmount}
-                                    onChange={(e) => updateAllocation(res.id, e.target.value)}
-                                    placeholder="0"
-                                    className="c-in c-num" />
+                    <input type="number" min="0" max={res.remaining} step="1"
+                      value={allocAmount}
+                      onChange={(e) => updateAllocation(res.id, e.target.value)}
+                      placeholder="0"
+                      className="c-in c-num" />
+                    {allocAmount ? <span className="c-in c-strong" style={{ fontSize: 10 }}>SAR</span> : null}
                                 </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                    {allocations.length > 0 && allocationTotal !== parseFloat(recordForm.amount || 0) && (
-                      <div className="pay-warn">
-                        {t("Allocation ({alloc}) != Amount ({amt})", {
-                          alloc: allocationTotal.toLocaleString(),
-                          amt: (parseFloat(recordForm.amount) || 0).toLocaleString(),
+                            </tr>
+                          );
                         })}
-                      </div>
-                    )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {allocations.length > 0 && allocationTotal !== paySarEquivalent && (
+                    <div className="pay-warn">
+                      {t("Allocation ({alloc} SAR) != Payment ({amt} SAR)", {
+                        alloc: allocationTotal.toLocaleString(),
+                        amt: paySarEquivalent.toLocaleString(),
+                      })}
+                    </div>
+                  )}
                   </FormSection>
                 )}
 
