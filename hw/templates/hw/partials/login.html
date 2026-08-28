@@ -1,204 +1,202 @@
- {% load static %}
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="id" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Login — Hakim Workspace</title>
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Homlu design system — neutral monochrome tokens (chroma 0, matched to
+       frontend/styles/tailwind.css). Color reserved for status only; brand
+       CTA inverts between light/dark. Flat surfaces, no texture. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-    :root {
-      --bg:        #08080A;
-      --surface:   #111113;
-      --field:     rgba(255,255,255,.03);
-      --field-h:   rgba(255,255,255,.05);
-      --border:    rgba(255,255,255,.08);
-      --border-2:  rgba(255,255,255,.16);
-      --text:      #F2F2F2;
-      --text-2:    #9E9EA6;
-      --text-3:    #5A5A65;
-      --accent:    #FFFFFF;
-      --accent-m:  rgba(255,255,255,.10);
-      --grid-line: rgba(255,255,255,.055);
-      --grid-dot:  rgba(255,255,255,.14);
-      --red:       #EF4444;
-      --r:         14px;
-      --r-lg:      20px;
-      --r-xl:      28px;
-    }
+    :root,
     [data-theme="light"] {
-      --bg:        #F3F1EC;
-      --surface:   #FDFCFA;
-      --field:     rgba(0,0,0,.025);
-      --field-h:   rgba(0,0,0,.04);
-      --border:    rgba(31,26,20,.10);
-      --border-2:  rgba(31,26,20,.18);
-      --text:      #1C1917;
-      --text-2:    #5C574F;
-      --text-3:    #8A857D;
-      --accent:    #171717;
-      --accent-m:  rgba(0,0,0,.06);
-      --grid-line: rgba(31,26,20,.07);
-      --grid-dot:  rgba(31,26,20,.16);
+      --background: oklch(0.905 0 0);        /* darker canvas to lift the card */
+      --foreground: oklch(0.145 0 0);
+      --card:       oklch(0.995 0 0);
+      --primary:    oklch(0.145 0 0);
+      --primary-foreground: oklch(0.985 0 0);
+      --secondary:  oklch(0.94 0 0);
+      --muted:      oklch(0.94 0 0);
+      --muted-foreground: oklch(0.55 0 0);
+      --input:      oklch(0.922 0 0);
+      --border:     oklch(0.922 0 0);
+      --ring:       oklch(0.145 0 0);
+      --destructive: oklch(0.52 0.22 25);
+      --destructive-foreground: oklch(0.98 0.01 25);
+      --accent-m:   rgba(0,0,0,.08);
+      --shadow-card: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px -4px rgba(0,0,0,.08), 0 26px 60px -30px rgba(0,0,0,.22);
+      --grid-line:       color-mix(in oklab, var(--foreground) 4%, transparent);
+      --grid-line-major: color-mix(in oklab, var(--foreground) 8%, transparent);
+    }
+    [data-theme="dark"] {
+      --background: oklch(0.125 0 0);        /* darker canvas to lift the card */
+      --foreground: oklch(1 0 0);
+      --card:       oklch(0.2 0 0);
+      --primary:    oklch(0.985 0 0);
+      --primary-foreground: oklch(0.17 0 0);
+      --secondary:  oklch(0.24 0 0);
+      --muted:      oklch(0.24 0 0);
+      --muted-foreground: oklch(0.58 0 0);
+      --input:      oklch(1 0 0 / 0.08);
+      --border:     oklch(1 0 0 / 0.08);
+      --ring:       oklch(0.985 0 0);
+      --destructive: oklch(0.58 0.22 25);
+      --destructive-foreground: oklch(0.98 0.01 25);
+      --accent-m:   rgba(255,255,255,.1);
+      --shadow-card: 0 1px 0 rgba(255,255,255,.05) inset, 0 6px 16px -6px rgba(0,0,0,.5), 0 34px 70px -36px rgba(0,0,0,.85);
+      --grid-line:       color-mix(in oklab, var(--foreground) 4%, transparent);
+      --grid-line-major: color-mix(in oklab, var(--foreground) 8%, transparent);
     }
 
     html, body {
       height: 100%;
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      overflow: hidden;
+      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--background);
+      color: var(--foreground);
+      overflow-x: hidden;
+      overscroll-behavior: none;
+    }
+    body { min-height: 100vh; min-height: 100dvh; }
+
+    input, button { font-family: inherit; touch-action: manipulation; }
+
+    /* ── Spotlight behind the card ─────────────────────────────────────
+       A single focused light lifts the card off the (darker) canvas.
+       No texture, no color — pure monochrome elevation per Homlu. */
+    .bg-glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background: radial-gradient(46% 56% at 50% 46%, var(--grid-line-major), transparent 78%);
     }
 
-    /* Blueprint grid backdrop */
-    .bg-grid {
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image:
-        linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-        linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-      background-size: 132px 132px;
-    }
-    .bg-dots {
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-      background-size: 44px 44px;
-      background-position: 66px 66px;
-      opacity: .55;
-    }
-    .bg-vignette {
-      position: fixed; inset: 0; z-index: 1; pointer-events: none;
-      background: radial-gradient(ellipse 70% 55% at 50% 38%, transparent 0%, var(--bg) 100%);
-      opacity: .55;
-    }
-    /* Layout */
+    /* ── Layout ──────────────────────────────────────────────────────── */
     .login-wrap {
       position: relative; z-index: 2;
-      min-height: 100vh;
+      min-height: 100vh; min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px 16px 80px;
+      gap: 20px;
+      padding:
+        calc(env(safe-area-inset-top, 0px) + 24px) 20px
+        calc(env(safe-area-inset-bottom, 0px) + 26px);
     }
+
+    .login-brand {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 64px);
+      left: 0; right: 0;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1;
+    }
+    .login-logo { display: flex; }
+    .login-logo img {
+      height: 124px; width: auto; display: block;
+      filter: drop-shadow(0 6px 26px var(--accent-m));
+    }
+    .login-logo .logo-light { display: none; }
+    [data-theme="light"] .login-logo .logo-light { display: block; }
+    [data-theme="light"] .login-logo .logo-dark { display: none; }
+    @media (min-width: 520px) { .login-logo img { height: 164px; } }
 
     .login-card {
       width: 100%;
       max-width: 400px;
-      background: var(--surface);
+      background: var(--card);
       border: 1px solid var(--border);
-      border-radius: var(--r-xl);
-      padding: 36px 32px 30px;
-      box-shadow: 0 24px 60px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04) inset;
+      border-radius: 24px;
+      padding: 24px 20px 20px;
+      box-shadow: var(--shadow-card);
     }
-    [data-theme="light"] .login-card {
-      box-shadow: 0 16px 40px rgba(0,0,0,.10), 0 1px 0 rgba(255,255,255,.8) inset;
+    @media (min-width: 520px) {
+      .login-card { padding: 30px 28px 26px; }
     }
 
-    /* Staggered entrance */
+    /* ── Staggered entrance ──────────────────────────────────────────── */
     @keyframes reveal {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(12px); }
       to   { opacity: 1; transform: translateY(0); }
     }
-    .reveal { animation: reveal .5s cubic-bezier(.16,1,.3,1) both; }
+    .reveal { animation: reveal .45s cubic-bezier(.16,1,.3,1) both; }
 
-    /* Brand mark */
-    .login-brand {
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      margin-bottom: 28px;
+    /* ── Header ──────────────────────────────────────────────────────── */
+    .login-heading {
+      font-size: 22px; font-weight: 700;
+      letter-spacing: -.4px;
+      line-height: 1.2;
+      margin-bottom: 4px;
+      text-wrap: balance;
     }
-    .login-logo { display: flex; color: var(--accent); flex-shrink: 0; }
-    .login-logo svg { display: block; }
-    .login-appname {
-      font-size: 14px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 2.2px;
-      color: var(--text-3);
+    .login-sub {
+      font-size: 13px; line-height: 1.5;
+      color: var(--muted-foreground); margin-bottom: 18px;
+      text-wrap: balance;
     }
 
-    /* Header */
-    .login-heading { font-size: 22px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 5px; }
-    .login-sub { font-size: 12px; color: var(--text-2); margin-bottom: 24px; line-height: 1.5; }
-
-    /* Error banner */
+    /* ── Error banner ────────────────────────────────────────────────── */
     .login-error {
-      display: flex; align-items: center; gap: 8px;
-      padding: 11px 14px;
-      background: rgba(239,68,68,.08);
-      border: 1px solid rgba(239,68,68,.22);
-      border-radius: var(--r);
-      font-size: 12.5px; color: var(--red); font-weight: 500;
-      margin-bottom: 20px;
+      display: flex; align-items: flex-start; gap: 9px;
+      padding: 12px 14px;
+      background: color-mix(in oklab, var(--destructive) 9%, transparent);
+      border: 1px solid color-mix(in oklab, var(--destructive) 28%, transparent);
+      border-radius: 12px;
+      font-size: 13px; color: var(--destructive); font-weight: 500;
+      line-height: 1.45;
+      margin-bottom: 16px;
       animation: reveal .4s cubic-bezier(.16,1,.3,1) both;
     }
-    .login-error svg { flex-shrink: 0; }
+    .login-error svg { flex-shrink: 0; margin-top: 1px; }
 
-    /* Company segmented tabs */
-    .co-label {
-      font-size: 12.5px; font-weight: 600; color: var(--text-2);
-      margin-bottom: 8px;
-    }
-    .co-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
-    .co-btn {
-      flex: 1; height: 46px;
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: var(--r);
-      color: var(--text-3); font-size: 13px; font-weight: 600;
-      font-family: 'Inter', sans-serif;
-      cursor: pointer;
-      transition: background .15s, color .15s, border-color .15s, transform .1s;
-    }
-    .co-btn.active {
-      background: var(--field-h);
-      border-color: var(--border-2);
-      color: var(--text);
-    }
-    .co-btn:active { transform: scale(.96); }
-
-    /* Fields */
-    .login-fields { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
+    /* ── Fields ──────────────────────────────────────────────────────── */
+    .login-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
     .lf label {
       display: block;
       font-size: 13px; font-weight: 600;
-      color: var(--text); margin-bottom: 7px;
+      color: var(--foreground); margin-bottom: 6px;
     }
     .lf-input { position: relative; }
     .lf-input svg.lf-icon {
-      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-      color: var(--text-3); pointer-events: none;
+      position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+      color: var(--muted-foreground); pointer-events: none;
     }
+    /* Homlu control: 48px tall, 16px radius, 2px stroke. Focus = stroke
+       to full-contrast ink, no glow. */
     .lf-input input {
       height: 48px; width: 100%;
-      background: var(--field);
-      border: 1px solid var(--border);
-      border-radius: var(--r);
-      color: var(--text);
-      font-size: 14px; font-family: 'Inter', sans-serif;
-      padding: 0 14px 0 40px;
+      background: var(--muted);
+      border: 2px solid var(--input);
+      border-radius: 16px;
+      color: var(--foreground);
+      font-size: 16px;         /* ≥16px: mencegah auto-zoom iOS */
+      font-weight: 500;
+      padding: 0 46px 0 44px;
       outline: none;
-      transition: border-color .12s, background .12s, box-shadow .12s;
+      transition: border-color .15s, background .15s;
     }
-    .lf-input input.has-toggle { padding-right: 42px; }
+    .lf-input input::placeholder { color: var(--muted-foreground); font-weight: 400; }
     .lf-input input:focus {
-      border-color: var(--border-2);
-      background: var(--field-h);
-      box-shadow: 0 0 0 3px var(--accent-m);
+      border-color: var(--ring);
+      background: var(--muted);
     }
-    .lf-input input::placeholder { color: var(--text-3); }
     .lf-toggle {
-      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-      width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-      background: none; border: none; color: var(--text-3); cursor: pointer; border-radius: 8px;
-      transition: color .12s, transform .1s;
+      position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: none;
+      color: var(--muted-foreground); cursor: pointer;
+      border-radius: 12px;
+      transition: color .15s, transform .1s;
     }
-    .lf-toggle:hover { color: var(--text-2); }
     .lf-toggle:active { transform: translateY(-50%) scale(.9); }
 
-    /* Cross-fade icon swap (theme + password visibility) */
+    /* Cross-fade icon swap */
     .icon-swap { position: relative; display: inline-block; }
     .icon-swap svg {
       transition: opacity .2s cubic-bezier(.2,0,0,1), transform .2s cubic-bezier(.2,0,0,1), filter .2s cubic-bezier(.2,0,0,1);
@@ -208,95 +206,101 @@
     .icon-swap svg:last-child { position: absolute; inset: 0; }
     .icon-swap svg.active { opacity: 1; transform: scale(1); filter: blur(0); }
 
-    /* Submit button */
+    /* ── Submit — full-pill primary CTA ──────────────────────────────── */
     .login-btn {
-      width: 100%; height: 50px;
-      background: var(--accent);
-      color: var(--bg); border: none; border-radius: var(--r);
-      font-size: 14px; font-weight: 700;
-      font-family: 'Inter', sans-serif;
-      cursor: pointer; letter-spacing: .2px;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      transition: opacity .15s, box-shadow .15s, transform .1s;
-      box-shadow: 0 4px 18px color-mix(in oklch, var(--accent) 25%, transparent);
+      width: 100%; height: 52px;
+      background: var(--primary);
+      color: var(--primary-foreground);
+      border: none; border-radius: 999px;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer; letter-spacing: .1px;
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      transition: opacity .15s, transform .1s;
     }
-    [data-theme="light"] .login-btn { box-shadow: 0 4px 18px rgba(0,0,0,.15); }
     .login-btn:hover { opacity: .9; }
-    .login-btn:active { opacity: .8; transform: scale(.96); }
+    .login-btn:active { opacity: .85; transform: scale(.97); }
     .login-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 
     .login-spinner {
-      display: none; width: 14px; height: 14px;
-      border: 2px solid color-mix(in oklch, var(--bg) 40%, transparent);
-      border-top-color: var(--bg); border-radius: 50%;
+      display: none; width: 15px; height: 15px;
+      border: 2px solid color-mix(in oklab, var(--primary-foreground) 40%, transparent);
+      border-top-color: var(--primary-foreground); border-radius: 50%;
       animation: spin .65s linear infinite; flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .login-btn.loading .login-spinner { display: block; }
 
-    /* Footer */
+    /* ── Footer ──────────────────────────────────────────────────────── */
     .login-footer {
-      margin-top: 22px; text-align: center;
-      font-size: 12.5px; color: var(--text-3);
+      margin-top: 16px; text-align: center;
+      font-size: 12.5px; line-height: 1.5; color: var(--muted-foreground);
     }
-    .login-footer b { color: var(--text-2); font-weight: 600; }
+    .login-footer b { color: var(--foreground); font-weight: 600; }
 
-    /* Theme toggle */
+    /* ── Theme toggle ────────────────────────────────────────────────── */
     .theme-btn {
-      position: fixed; top: 20px; right: 20px; z-index: 10;
-      width: 36px; height: 36px; border-radius: 50%;
-      background: var(--surface); border: 1px solid var(--border);
-      color: var(--text-2); cursor: pointer;
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 14px; z-index: 10;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted-foreground); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, border-color .15s, transform .1s;
+      transition: background .15s, border-color .15s, color .15s, transform .1s;
     }
     .theme-btn::before { content: ''; position: absolute; inset: -2px; }
-    .theme-btn:hover { background: var(--field-h); border-color: var(--border-2); }
+    .theme-btn:hover { background: var(--secondary); color: var(--foreground); }
     .theme-btn:active { transform: scale(.9); }
 
-    /* Autofill fix */
+    /* ── Autofill fix ────────────────────────────────────────────────── */
     input:-webkit-autofill,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
-      -webkit-box-shadow: 0 0 0 100px transparent inset !important;
-      -webkit-text-fill-color: var(--text) !important;
-      caret-color: var(--text);
+      -webkit-box-shadow: 0 0 0 100px var(--muted) inset !important;
+      -webkit-text-fill-color: var(--foreground) !important;
+      caret-color: var(--foreground);
       transition: background-color 5000s ease-in-out 0s;
     }
 
-    /* Toast */
-    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; }
+    /* ── Toast ───────────────────────────────────────────────────────── */
+    .toast-container { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%; transform: translateX(-50%); z-index: 999; width: max-content; max-width: calc(100vw - 32px); }
     @keyframes toast-in {
-      from { opacity: 0; transform: translateY(-8px); }
-      to   { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translate(-50%, -10px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
     }
     .toast-success {
-      display: flex; align-items: center;
-      background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      background: var(--card);
       border: 1px solid var(--border);
-      padding: 10px 14px; border-radius: var(--r);
-      font-size: 13px; font-weight: 500; color: var(--text);
-      box-shadow: 0 4px 24px rgba(0,0,0,.22);
-      backdrop-filter: blur(16px);
+      padding: 11px 18px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; color: var(--foreground);
+      box-shadow: 0 8px 30px -12px rgba(0,0,0,.35);
       white-space: nowrap;
-      animation: toast-in .2s cubic-bezier(.16,1,.3,1) both;
+      animation: toast-in .25s cubic-bezier(.16,1,.3,1) both;
+    }
+
+    /* ── Landscape / short screens ───────────────────────────────────── */
+    @media (max-height: 640px) {
+      .login-wrap { gap: 14px; justify-content: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
+      .login-brand { position: static; margin-bottom: 6px; }
+      .login-logo img { height: 56px; }
+      .login-card { padding: 20px 16px; }
+      .login-sub { margin-bottom: 14px; }
+      .login-fields { gap: 10px; margin-bottom: 14px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .reveal, .login-error { animation: none !important; opacity: 1 !important; transform: none !important; }
+      .reveal, .login-error, .toast-success { animation: none !important; opacity: 1 !important; transform: none !important; }
       .icon-swap svg { transition: none !important; }
-      .co-btn, .login-btn, .lf-toggle, .theme-btn { transition-duration: 0s !important; }
+      .lf-toggle, .login-btn, .theme-btn { transition-duration: 0s !important; }
     }
   </style>
 </head>
 <body>
 
-  <div class="bg-grid"></div>
-  <div class="bg-dots"></div>
-  <div class="bg-vignette"></div>
+  <div class="bg-glow"></div>
 
   <!-- Theme toggle -->
-  <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema">
+  <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema" aria-label="Ganti tema">
     <span class="icon-swap">
       <svg id="icon-moon" class="active" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
       <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -308,7 +312,8 @@
     <!-- Brand -->
     <div class="login-brand reveal">
       <div class="login-logo">
-        <img src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United" style="height:140px;width:auto;display:block;">
+        <img class="logo-dark" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
+        <img class="logo-light" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
       </div>
     </div>
 
@@ -321,13 +326,13 @@
 
       {% if request.GET.locked %}
       <div class="login-error">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        Account locked. Too many failed attempts.
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <span>Account locked. Too many failed attempts.</span>
       </div>
       {% elif form.errors %}
       <div class="login-error">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        Invalid username or password
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <span>Invalid username or password</span>
       </div>
       {% endif %}
 
@@ -335,17 +340,8 @@
         {% csrf_token %}
         <input type="hidden" name="company" id="company-val" value="konoz">
 
-        <!-- Company -->
-        <div class="reveal" style="animation-delay:140ms">
-          <div class="co-label">Company</div>
-          <div class="co-toggle">
-            <button type="button" class="co-btn active" id="btn-konoz" onclick="setCompany('konoz')">Konoz United</button>
-            <button type="button" class="co-btn" id="btn-ijabah" onclick="setCompany('ijabah')">Ijabah</button>
-          </div>
-        </div>
-
         <!-- Fields -->
-        <div class="login-fields reveal" style="animation-delay:180ms">
+        <div class="login-fields reveal" style="animation-delay:140ms">
           <div class="lf">
             <label for="id_username">Username</label>
             <div class="lf-input">
@@ -358,9 +354,9 @@
             <label for="id_password">Password</label>
             <div class="lf-input">
               <svg class="lf-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 10V7a5 5 0 0110 0v3"/></svg>
-              <input type="password" id="id_password" name="password" class="has-toggle"
+              <input type="password" id="id_password" name="password"
                 autocomplete="current-password" placeholder="Enter password">
-              <button type="button" class="lf-toggle" onclick="togglePassword()" title="Show/hide password">
+              <button type="button" class="lf-toggle" onclick="togglePassword()" title="Show/hide password" aria-label="Show/hide password">
                 <span class="icon-swap">
                   <svg id="icon-eye-open" class="active" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
                   <svg id="icon-eye-closed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
@@ -371,7 +367,7 @@
         </div>
 
         <!-- Submit -->
-        <div class="reveal" style="animation-delay:220ms">
+        <div class="reveal" style="animation-delay:200ms">
           <button type="submit" class="login-btn" id="login-btn">
             <div class="login-spinner"></div>
             <span class="login-btn-text">Sign in</span>
@@ -379,19 +375,12 @@
         </div>
       </form>
 
-      <div class="login-footer reveal" style="animation-delay:260ms">Ada kendala saat masuk? <b>Hubungi admin</b></div>
+      <div class="login-footer reveal" style="animation-delay:240ms">Ada kendala saat masuk? <b>Hubungi admin</b></div>
 
     </div><!-- /.login-card -->
   </div>
 
   <script>
-    /* Company toggle */
-    function setCompany(val) {
-      document.getElementById('company-val').value = val;
-      document.getElementById('btn-konoz').className  = 'co-btn' + (val==='konoz'  ? ' active' : '');
-      document.getElementById('btn-ijabah').className = 'co-btn' + (val==='ijabah' ? ' active' : '');
-    }
-
     /* Password visibility */
     function togglePassword() {
       var input = document.getElementById('id_password');
@@ -425,7 +414,6 @@
       document.getElementById('icon-moon').classList.toggle('active', t === 'dark');
       document.getElementById('icon-sun').classList.toggle('active', t === 'light');
     })();
-
   </script>
 
   {% if request.GET.logged_out %}

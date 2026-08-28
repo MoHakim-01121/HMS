@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, router } from "@inertiajs/react";
+import axios from "axios";
 import UpcomingCheckins from "./UpcomingCheckins.jsx";
-import { SwipeBookingCard } from "./UpcomingCheckins.jsx";
+import { ClientBlock, groupByClient } from "./UpcomingCheckins.jsx";
 import ReservationSheet from "./ReservationSheet.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { showToast } from "../../components/shadcn/toast.jsx";
 
 // Same 600px check as components/shadcn/table.jsx's card-list switch — the
 // occupancy grid is a Gantt chart and doesn't fit a phone screen at any
@@ -164,6 +166,7 @@ function gridCss(days) {
 /* Agenda header — full selected-date + quick "Today" jump */
 .cal-agenda-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:14px 14px 4px; border-top:1px solid var(--border); }
 .cal-agenda-head-date { font-size:15px; font-weight:700; color:var(--foreground); letter-spacing:-.01em; text-transform:capitalize; }
+.cal-agenda-head-actions { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .cal-agenda-today { flex-shrink:0; padding:7px 14px; border-radius:9999px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:12px; font-weight:600; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:background .12s,border-color .12s,transform .1s; font-family:inherit; }
 .cal-agenda-today:active { transform:scale(.96); background:var(--secondary); }
 /* Agenda list */
@@ -175,18 +178,55 @@ function gridCss(days) {
 .cal-agenda-section-title { font-size:13px; font-weight:700; color:var(--foreground); letter-spacing:-.01em; }
 .cal-agenda-section-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:9999px; background:var(--secondary); color:var(--muted-foreground); font-size:11px; font-weight:600; font-variant-numeric:tabular-nums; }
 .cal-agenda-section:first-child .cal-agenda-section-head { margin-top:4px; }
-.cal-agenda-section .uc-swipe-wrap { box-shadow:0 1px 2px rgba(0,0,0,.05); }
 
-/* ── Swipeable check-in card (shared with UpcomingCheckins) ────────────
-   Injected here too so SWIPeBookingCard works when rendered directly in
+/* ── Check-in card (shared with UpcomingCheckins) ──────────────────────────
+   Injected here too so BookingCard works when rendered directly in
    the unified agenda, not only inside the UpcomingCheckins DOM tree. */
-.uc-swipe-wrap { position:relative; margin-top:8px; border-radius:20px; overflow:hidden; }
-.uc-swipe-actions { position:absolute; inset:0; display:flex; }
-.uc-swipe-left { flex:1; display:flex; align-items:center; justify-content:flex-end; padding-right:16px; gap:6px; background:var(--green); color:#fff; font-size:12px; font-weight:600; }
-.uc-swipe-right { flex:1; display:flex; align-items:center; justify-content:flex-start; padding-left:16px; gap:6px; background:var(--muted-foreground); color:var(--card); font-size:12px; font-weight:600; }
-.uc-booking { position:relative; z-index:1; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:16px; touch-action:pan-y; transition:transform .2s cubic-bezier(.4,0,.2,1); }
-.uc-booking.swiping { transition:none; }
-.uc-booking-left { display:flex; align-items:center; gap:6px; }
+.uc-booking { display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:13px 14px; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .1s, border-color .12s; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.uc-booking:active { transform:scale(.99); border-color:var(--ring); }
+.uc-booking + .uc-booking { margin-top:10px; }
+
+/* "Readiness" card — three checks (ETA / PIC / Reminder), green when done,
+   red when outstanding. Tapping a row jumps to fixing it; tapping the card
+   opens the detail sheet. */
+.uc-bk-top { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.uc-bk-hotel { font-size:14px; font-weight:600; color:var(--foreground); line-height:1.25; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-bk-ref { flex-shrink:0; font-size:11px; font-weight:600; color:var(--muted-foreground); letter-spacing:.02em; font-variant-numeric:tabular-nums; }
+.uc-bk-rooms { margin-top:2px; font-size:11.5px; color:var(--muted-foreground); }
+
+.uc-bk-checks { margin-top:11px; display:flex; flex-direction:column; gap:5px; }
+.uc-chk { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; padding:2px 0; border:none; background:none; font-family:inherit; font-size:12px; text-align:left; color:var(--foreground); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.uc-chk:disabled { cursor:default; }
+.uc-chk-ico { flex-shrink:0; width:17px; height:17px; border-radius:9999px; display:flex; align-items:center; justify-content:center; }
+.uc-chk.done .uc-chk-ico { background:color-mix(in oklch, var(--green) 16%, transparent); color:var(--green); }
+.uc-chk.todo .uc-chk-ico { background:color-mix(in oklch, var(--red) 14%, transparent); color:var(--red); }
+.uc-chk-k { color:var(--muted-foreground); }
+.uc-chk-v { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-chk.todo .uc-chk-v { color:var(--red); font-weight:700; }
+.uc-chk:not(:disabled):active .uc-chk-v { opacity:.55; }
+
+/* Booking detail bottom sheet (rendered by imported BookingCard) */
+.bs-head { padding:4px 4px 14px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.bs-guest { font-size:17px; font-weight:700; color:var(--foreground); line-height:1.3; letter-spacing:-.02em; }
+.bs-rsv { flex-shrink:0; font-size:12px; font-weight:600; color:var(--muted-foreground); padding:4px 10px; border-radius:9999px; background:var(--secondary); margin-top:2px; font-variant-numeric:tabular-nums; }
+.bs-grid { padding:0 4px 14px; display:grid; grid-template-columns:84px 1fr; gap:10px 12px; align-items:baseline; }
+.bs-label { font-size:12px; color:var(--muted-foreground); }
+.bs-val { font-size:14px; color:var(--foreground); font-weight:500; font-variant-numeric:tabular-nums; }
+.bs-val.is-empty { color:var(--muted-foreground); }
+.bs-actions { display:flex; gap:8px; flex-wrap:wrap; padding:2px 4px 14px; }
+.bs-act { flex:1; min-height:44px; }
+.bs-editbar { display:flex; gap:10px; justify-content:flex-end; margin-top:4px; padding:12px 4px calc(4px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); }
+.bs-editbar > button { min-height:44px; padding-left:18px; padding-right:18px; }
+.bs-form { display:flex; flex-direction:column; gap:12px; padding:0 4px 14px; }
+.bs-form .uc-bb-field input { width:100%; height:40px; padding:0 10px; border:1px solid var(--border); border-radius:10px; background:var(--background); }
+.bs-form .uc-bb-field input:focus { outline:none; border-color:var(--ring); }
+
+/* Per-client group header (ClientBlock) */
+.uc-tl-client { margin-top:8px; }
+.uc-tl-client + .uc-tl-client { margin-top:16px; }
+.uc-tl-client-head { display:flex; align-items:center; gap:8px; padding:0 2px 8px; }
+.uc-tl-client-name { font-size:13.5px; font-weight:700; color:var(--foreground); letter-spacing:-.01em; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-tl-client-count { font-size:11px; color:var(--muted-foreground); flex-shrink:0; }
 
 /* 2-zone arrival card: reservation number (primary) + guest + form fields */
 .uc-bb-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
@@ -194,22 +234,16 @@ function gridCss(days) {
 .uc-bb-conf { display:block; font-size:18px; font-weight:800; letter-spacing:-.01em; color:var(--foreground); line-height:1.2; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .uc-bb-guest { display:block; font-size:13.5px; font-weight:600; color:var(--foreground); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
 .uc-bb-guest:active { opacity:.7; }
-.uc-bb-meta { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px 18px; margin-top:10px; }
-.uc-bb-meta-item { display:flex; flex-direction:column; gap:1px; min-width:0; }
-.uc-bb-meta-k { font-size:11px; font-weight:500; color:var(--muted-foreground); text-transform:uppercase; letter-spacing:.04em; }
-.uc-bb-meta-v { font-size:13px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.uc-bb-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
-.uc-bb-field:nth-child(1) { grid-column:1; grid-row:1; }
-.uc-bb-field:nth-child(3) { grid-column:2; grid-row:1; }
-.uc-bb-field:nth-child(2) { grid-column:1 / -1; grid-row:2; }
-.uc-bb-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
-.uc-bb-label { font-size:12px; font-weight:500; color:var(--muted-foreground); }
-.uc-bb-field--view { gap:1px; }
-.uc-bb-viewval { font-size:14px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-bb-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:14px; row-gap:8px; margin-top:12px; align-items:start; }
+.uc-bb-field--full { grid-column:1 / -1; }
+.uc-bb-field { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.uc-bb-label { font-size:11.5px; font-weight:500; color:var(--muted-foreground); }
+.uc-bb-viewval { font-size:13.5px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .uc-bb-viewval.is-empty { color:var(--muted-foreground); font-weight:500; }
-.uc-bb-edit { flex-shrink:0; margin-top:2px; }
-.uc-bb-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:14px; }
-.uc-bb-right { display:flex; align-items:center; gap:8px; min-width:0; }
+.uc-bb-edit { flex-shrink:0; margin-top:2px; min-height:44px; padding:0 14px; }
+.uc-booking-left .uc-bb-action, .uc-tl-client-head .uc-bb-action { min-height:44px; padding:0 14px; }
+.uc-bb-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+.uc-bb-right { display:flex; align-items:center; gap:8px; min-width:0; margin-left:auto; }
 .uc-rem { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:600; padding:3px 8px 3px 7px; border-radius:9999px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; min-height:26px; }
 .uc-rem svg { flex-shrink:0; }
 .uc-rem.sent { background:color-mix(in oklch, var(--green) 16%, transparent); color:var(--green); }
@@ -286,6 +320,7 @@ export default function Calendar(props) {
   const daystripRef = useRef(null);
   const touchStartY = useRef(0);
   const touchStartX = useRef(0);
+  const [sendingRecap, setSendingRecap] = useState(false);
 
   // Unified day-centric mobile view: the calendar month + upcoming check-ins
   // share one screen. Selecting a day reveals both who is STAYING that day
@@ -383,7 +418,7 @@ export default function Calendar(props) {
   const handleTouchEnd = useCallback((e) => {
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
-    const onSwipeCard = e.target.closest(".uc-swipe-wrap") || e.target.closest(".cal-agenda-card");
+    const onSwipeCard = e.target.closest(".uc-booking") || e.target.closest(".cal-agenda-card");
     // Arrival cards and agenda cards own their horizontal gesture; only the
     // header / day strip should drive month navigation.
     if (onSwipeCard) return;
@@ -403,6 +438,20 @@ export default function Calendar(props) {
       router.reload({ onFinish: () => setPtrActive(false) });
     }
   }, [next_year, next_month, prev_year, prev_month]);
+
+  const handleSendRecap = async () => {
+    if (sendingRecap) return;
+    setSendingRecap(true);
+    try {
+      const r = await axios.post(
+        '/calendar/send-recap/',
+        new URLSearchParams({ date: dayYMD(selectedDay) }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+      showToast(r.data.ok ? t('Recap queued.') : (r.data.message || t('Failed to send recap')), r.data.ok ? 'success' : 'error');
+    } catch { showToast(t('Failed to send recap'), 'error'); }
+    setSendingRecap(false);
+  };
 
   // Bottom sheet countdown
   const sheetCd = sheetRes?.check_in ? countdown(sheetRes.check_in) : null;
@@ -502,26 +551,31 @@ export default function Calendar(props) {
               In-house — the same three buckets a PMS must show the operator. */}
           <div className="cal-agenda-head">
             <span className="cal-agenda-head-date">{selectedDateLabel}</span>
-            {!isTodaySelected && today_day && (
-              <button type="button" className="cal-agenda-today" onClick={() => setSelectedDay(today_day)}>
-                {t("Today")}
-              </button>
-            )}
+            <div className="cal-agenda-head-actions">
+              <Button variant="outline" size="sm" onClick={handleSendRecap} disabled={sendingRecap}>
+                {sendingRecap ? '…' : <><Icon name="message" className="size-3.5" /> {t("Send Recap")}</>}
+              </Button>
+              {!isTodaySelected && today_day && (
+                <button type="button" className="cal-agenda-today" onClick={() => setSelectedDay(today_day)}>
+                  {t("Today")}
+                </button>
+              )}
+            </div>
           </div>
           <div className="cal-agenda">
             {(arrivalsThisDay.length || arrivalsFallback.length || departuresThisDay.length || inHouseThisDay.length) ? (
               <>
-                {arrivalsThisDay.length > 0 && (
-                  <div className="cal-agenda-section">
-                    <div className="cal-agenda-section-head">
-                      <span className="cal-agenda-section-title">{t("Arrivals")}</span>
-                      <span className="cal-agenda-section-count">{arrivalsThisDay.length}</span>
-                    </div>
-                    {arrivalsThisDay.map((cl) => (
-                      <SwipeBookingCard key={cl.pk} cl={cl} />
-                    ))}
-                  </div>
-                )}
+                    {arrivalsThisDay.length > 0 && (
+                      <div className="cal-agenda-section">
+                        <div className="cal-agenda-section-head">
+                          <span className="cal-agenda-section-title">{t("Arrivals")}</span>
+                          <span className="cal-agenda-section-count">{arrivalsThisDay.length}</span>
+                        </div>
+                        {Object.entries(groupByClient(arrivalsThisDay)).map(([key, group]) => (
+                          <ClientBlock key={key} clientName={group.name} cls={group.items} isMobile />
+                        ))}
+                      </div>
+                    )}
                 {arrivalsThisDay.length === 0 && arrivalsFallback.length > 0 && (
                   <div className="cal-agenda-section">
                     <div className="cal-agenda-section-head">
