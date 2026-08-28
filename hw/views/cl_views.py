@@ -533,9 +533,14 @@ def invoice_from_cls(request):
             currency="SAR",
         )
 
+        clients = {cl.client_id for cl in cls if cl.client_id}
+        if len(clients) == 1:
+            invoice.client_id = next(iter(clients))
+            invoice.save(update_fields=["client", "customer_name"])
+
         for cl in cls:
             total_sar = round_half_up(cl.total_price) if cl.total_price else 0
-            reservation = Reservation.objects.create(
+            Reservation.objects.create(
                 invoice=invoice,
                 reservation_number=cl.confirmation_number,
                 hotel=cl.hotel_name or "-",
@@ -543,14 +548,12 @@ def invoice_from_cls(request):
                 check_out=cl.check_out,
                 total_sar=total_sar,
             )
-            if total_sar:
-                Charge.objects.create(
-                    company=invoice.company, client=cl.client, invoice=invoice, date=date.today(),
-                    amount_sar=total_sar, reservation=reservation, reason=ChargeReason.INITIAL,
-                    description=f'Sinkron dari CL {cl.confirmation_number}', created_by=request.user,
-                )
             cl.invoice = invoice
             cl.save(update_fields=["invoice"])
+
+        if invoice.client_id:
+            from ..finance.posting import post_invoice_charge
+            post_invoice_charge(invoice, created_by=request.user)
 
     logger.info(
         "ledger: invoice %s created from %d CL(s), company %s",
@@ -581,14 +584,13 @@ def _save_cl_rooms(cl, request):
 
 
 def _sync_invoice_reservation_from_cl(cl, user=None):
-    """Update the Invoice's Reservation to match the CL's current data."""
-    from datetime import date as _date
-    from ..models import Reservation, Charge, ChargeReason
+    """Update the Invoice's Reservation to match the CL's current data, lalu
+    re-post charge jurnal invoice (idempotent-by-content)."""
+    from ..models import Reservation
     try:
         reservation = cl.invoice.reservations.get(reservation_number=cl.confirmation_number)
     except Reservation.DoesNotExist:
         return
-    old_total = reservation.total_sar
     with transaction.atomic():
         reservation.check_in = cl.check_in
         reservation.check_out = cl.check_out
@@ -596,14 +598,10 @@ def _sync_invoice_reservation_from_cl(cl, user=None):
         reservation.hotel = cl.hotel_name or "-"
         reservation.save()
 
-        delta = reservation.total_sar - old_total
-        if delta:
-            Charge.objects.create(
-                company=cl.company, client=cl.client, invoice=cl.invoice, date=_date.today(),
-                amount_sar=delta, reservation=reservation, reason=ChargeReason.REVISION,
-                description=f'Sinkron dari CL {cl.confirmation_number} (perubahan kamar)', created_by=user,
-            )
-            logger.info(
-                "ledger: revision charge %s SAR for reservation %s (CL %s edit)",
-                delta, reservation.pk, cl.confirmation_number,
-            )
+        invoice = cl.invoice
+        if not invoice.client_id and cl.client_id:
+            invoice.client_id = cl.client_id
+            invoice.save(update_fields=["client", "customer_name"])
+        if invoice.client_id:
+            from ..finance.posting import post_invoice_charge
+            post_invoice_charge(invoice, created_by=user)

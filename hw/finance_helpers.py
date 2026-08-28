@@ -224,59 +224,19 @@ def create_payment_record(
 
 @transaction.atomic
 def confirm_payment(payment, confirmed_by, note=''):
-    """Confirm a pending payment → creates JournalEntry.
+    """Confirm a pending payment → post JournalEntry lewat posting layer.
 
-    Journal entry:
-    + Cash_SBY / Cash_JKT / Cash_Pusat (money masuk — sesuai received_in)
-    - Receivable (piutang client berkurang)
+    DR Kas (sesuai received_in) / CR Piutang (dipecah per PaymentAllocation
+    kalau ada). Idempotent per payment.
     """
+    from .finance.posting import post_payment
+
     if payment.status != PaymentRecord.STATUS_PENDING:
         raise PaymentAlreadyProcessedError(
             f"Payment {payment.payment_number} sudah {payment.get_status_display()}"
         )
 
-    # Kas mana yang menerima uangnya — dari received_in, dengan fallback
-    # ke method == 'direct' untuk baris lama sebelum field ini ada.
-    destination = cash_destination(
-        method=payment.method, received_in=payment.received_in,
-    )
-    cash_account = cash_journal_account(destination)
-
-    # Determine which dimensions to tag
-    dims = {}
-    if payment.client:
-        dims['client'] = payment.client
-    if payment.invoice:
-        dims['invoice'] = payment.invoice
-    if payment.reservation:
-        dims['reservation'] = payment.reservation
-    if payment.service_item:
-        dims['service_item'] = payment.service_item
-
-    # Create journal entry: Cash (debit) + Receivable (credit)
-    journal_lines = [
-        {
-            'account': cash_account,
-            'amount_sar': payment.amount_sar,  # Debit: money masuk
-            **dims,
-        },
-        {
-            'account': Account.RECEIVABLE,
-            'amount_sar': -payment.amount_sar,  # Credit: piutang berkurang
-            **dims,
-        },
-    ]
-
-    journal = create_journal_entry(
-        entry_type=JournalEntry.TYPE_PAYMENT,
-        description=f'Payment {payment.payment_number} dari {payment.client}',
-        entry_date=payment.payment_date,
-        lines=journal_lines,
-        company=payment.company,
-        reference_type='PaymentRecord',
-        reference_id=payment.pk,
-        created_by=confirmed_by,
-    )
+    journal = post_payment(payment, created_by=confirmed_by)
 
     # Update payment status
     old_state = _payment_snapshot(payment)
@@ -300,74 +260,22 @@ def confirm_payment(payment, confirmed_by, note=''):
 
 @transaction.atomic
 def allocate_payment(payment, allocation_date, created_by, note=''):
-    """Allocate a confirmed payment to its invoice.
+    """Tandai payment ALLOCATED + sinkron status invoice.
 
-    The journal entry (Cash/Receivable) already happened at confirmation --
-    allocation itself is a status change, plus mirroring the payment into
-    the legacy CashMovement/Allocation ledger. That mirror is the same
-    dual-write bridge invoice_billing.py/penalty_views.py already use for
-    their own payments, and it's what makes Invoice.total_paid_sar/
-    remaining_sar/is_fully_paid (which read only that ledger) see payments
-    recorded through the Finance page too.
+    Jurnal (DR Kas / CR Piutang, dipecah per PaymentAllocation) sudah
+    diposting di confirm_payment. PaymentAllocation rows sendiri dibuat
+    pemanggil (posting.allocate_payment) sebelum confirm. Fungsi ini
+    tinggal transisi status + Invoice.sync_status().
     """
-    from .models.ledger import CashAccount as WalletAccount, AllocationReason, CashMovement, Allocation
-
     if payment.status != PaymentRecord.STATUS_CONFIRMED:
         raise PaymentAlreadyProcessedError(
             f"Payment {payment.payment_number} harus confirmed dulu"
         )
 
-    invoice = payment.invoice
-    to_account = cash_destination(method=payment.method, received_in=payment.received_in)
-    base_note = f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)'
-
-    # Satu payment menutup beberapa reservasi → mirror CashMovement per
-    # PaymentAllocation, tiap baris dalam SAR (riyal patokan). Ini yang bikin
-    # reservation_cash_breakdown / _build_reservation_context tetap akurat
-    # ketika satu transfer dialokasikan ke banyak reservasi.
-    pa_allocs = payment.allocations.all()
-    if pa_allocs.exists():
-        for pa in pa_allocs:
-            mov = CashMovement.objects.create(
-                company=payment.company, client=payment.client, invoice=invoice,
-                date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
-                amount=pa.amount_sar, currency='SAR', exchange_rate=1,
-                method=payment.method, reservation_label=pa.reservation, service_item_label=pa.service_item,
-                note=base_note,
-                created_by=created_by,
-            )
-            if pa.reservation_id or pa.service_item_id:
-                Allocation.objects.create(
-                    company=payment.company, client=payment.client, invoice=invoice,
-                    date=allocation_date, amount_sar=mov.amount_sar,
-                    reservation=pa.reservation, service_item=pa.service_item,
-                    reason=AllocationReason.INITIAL,
-                    note=base_note,
-                    created_by=created_by,
-                )
-    else:
-        mov = CashMovement.objects.create(
-            company=payment.company, client=payment.client, invoice=invoice,
-            date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
-            amount=payment.amount, currency=payment.currency, exchange_rate=payment.exchange_rate,
-            method=payment.method, reservation_label=payment.reservation, service_item_label=payment.service_item,
-            note=base_note,
-            created_by=created_by,
-        )
-        if payment.reservation_id or payment.service_item_id:
-            Allocation.objects.create(
-                company=payment.company, client=payment.client, invoice=invoice,
-                date=allocation_date, amount_sar=mov.amount_sar,
-                reservation=payment.reservation, service_item=payment.service_item,
-                reason=AllocationReason.INITIAL,
-                note=base_note,
-                created_by=created_by,
-            )
-
     old_state = _payment_snapshot(payment)
-    invoice.sync_status()
+    if payment.invoice_id:
+        payment.invoice.sync_status()
 
-    # Update payment status
     payment.status = PaymentRecord.STATUS_ALLOCATED
     payment.save(update_fields=['status'])
 
@@ -378,7 +286,7 @@ def allocate_payment(payment, allocation_date, created_by, note=''):
         before_state=old_state,
         after_state=_payment_snapshot(payment),
         performed_by=created_by,
-        note=note or f'Allocated to invoice {invoice.invoice_number}',
+        note=note or f'Allocated to invoice {payment.invoice.invoice_number}',
     )
 
     return payment

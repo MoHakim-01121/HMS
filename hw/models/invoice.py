@@ -78,8 +78,8 @@ class Invoice(models.Model):
 
     @property
     def total_paid_sar(self):
-        from .. import ledger
-        return ledger.invoice_paid_sar(self.id)
+        from ..finance import queries
+        return queries.invoice_paid_sar(self.id)
 
     @property
     def remaining_sar(self):
@@ -90,10 +90,9 @@ class Invoice(models.Model):
         return self.total_paid_sar >= self.total_sar and self.total_sar > 0
 
     def sync_status(self):
-        """Recompute & persist `status` from total_paid_sar/total_sar --
-        the same ledger reads remaining_sar/is_fully_paid use. Call after
-        any write to the CashMovement/Allocation ledger for this invoice so
-        status never diverges from what those properties report."""
+        """Recompute & persist `status` from total_paid_sar/total_sar,
+        keduanya diturunkan dari JournalLine (hw.finance.queries). Panggil
+        setelah setiap posting payment/charge untuk invoice ini."""
         paid = self.total_paid_sar
         if paid >= self.total_sar and self.total_sar > 0:
             self.status = self.STATUS_PAID

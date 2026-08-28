@@ -23,11 +23,10 @@ def _record_login(sender, request, user, **kwargs):
 
 
 def _sync_reservation_total(cl):
-    """Sync Reservation.total_sar with the current CL total_price, and record
-    the delta as a revision Charge so the ledger doesn't drift out of sync
-    with the cache every time a room's price/quantity changes."""
-    from datetime import date
-    from .models import Reservation, Charge, ChargeReason
+    """Sync Reservation.total_sar dengan CL.total_price, lalu re-post charge
+    jurnal invoice (posting.post_invoice_charge idempotent-by-content:
+    reverse charge lama + repost dengan total baru)."""
+    from .models import Reservation
     if not cl.invoice_id:
         return
     reservation = Reservation.objects.filter(
@@ -43,14 +42,13 @@ def _sync_reservation_total(cl):
     with transaction.atomic():
         reservation.total_sar = new_total
         reservation.save(update_fields=['total_sar'])
-        Charge.objects.create(
-            company=cl.company, client=cl.client, invoice_id=cl.invoice_id, date=date.today(),
-            amount_sar=new_total - old_total, reservation=reservation, reason=ChargeReason.REVISION,
-            description=f'Sinkron dari CL {cl.confirmation_number} (perubahan kamar)',
-        )
+        invoice = reservation.invoice
+        if invoice.client_id:
+            from .finance.posting import post_invoice_charge
+            post_invoice_charge(invoice, created_by=None)
     logger.info(
-        "ledger: revision charge %s SAR for reservation %s (CL %s, invoice %s)",
-        new_total - old_total, reservation.pk, cl.confirmation_number, cl.invoice_id,
+        "ledger: reposted invoice %s charge after reservation %s changed to %s SAR",
+        cl.invoice_id, reservation.pk, new_total,
     )
 
 

@@ -279,6 +279,23 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None):
 
 
 @transaction.atomic
+def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
+    """Reverse semua journal entry payment yang bersumber PaymentRecord milik
+    invoice ini yang belum di-reverse. Dipakai form invoice yang full delete-
+    recreate daftar pembayaran."""
+    entry_date = entry_date or timezone.now().date()
+    pr_ids = list(
+        invoice.payment_records.filter(reference="invoice-form").values_list("pk", flat=True)
+    )
+    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
+    for e in JournalEntry.objects.filter(
+        reference_type="PaymentRecord", reference_id__in=pr_ids,
+        entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
+    ).exclude(pk__in=reversed_ids):
+        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+
+
+@transaction.atomic
 def void_invoice_charge(invoice, *, created_by, entry_date=None):
     """Reverse semua charge entry invoice yang masih hidup (invoice void)."""
     entry_date = entry_date or timezone.now().date()
@@ -308,9 +325,8 @@ def post_penalty_charge(penalty, *, created_by, entry_date=None):
         entry_date=entry_date,
         lines=[
             {"account": coa.AR, "debit": amt, "client": _penalty_client_id(penalty),
-             "penalty": penalty.pk, "invoice": penalty.invoice_id},
-            {"account": coa.INC_PENALTY, "credit": amt,
-             "penalty": penalty.pk, "invoice": penalty.invoice_id},
+             "penalty": penalty.pk},
+            {"account": coa.INC_PENALTY, "credit": amt, "penalty": penalty.pk},
         ],
         company=penalty.cl.company if penalty.cl_id else Company.KONOZ,
         source_type="CancellationPenalty",
@@ -336,18 +352,47 @@ def _payment_dims(payment):
 
 @transaction.atomic
 def post_payment(payment, *, created_by):
-    """DR Kas (sesuai received_in) / CR Piutang. Idempotent per payment."""
+    """DR Kas (sesuai received_in) / CR Piutang. Idempotent per payment.
+
+    Kalau payment punya PaymentAllocation → CR Piutang dipecah per alokasi
+    (dimensi reservation/service_item) supaya piutang & mengendap per-
+    reservasi akurat; sisa yang belum dialokasikan jadi satu baris CR
+    Piutang bertingkat client/invoice saja.
+    """
     cash_acc = _CASH_BY_LOCATION.get(payment.received_in, coa.CASH_SBY)
     amt = int(payment.amount_sar)
-    dims = _payment_dims(payment)
+    base = {"client": payment.client_id, "invoice": payment.invoice_id}
+
+    # Segmen (nominal, dimensi target) — dari PaymentAllocation kalau ada,
+    # kalau tidak dari payment.reservation/service_item, kalau tidak satu
+    # segmen polos. Tiap segmen = DR Kas + CR Piutang berpasangan.
+    segments = []
+    allocs = list(payment.allocations.all()) if payment.pk else []
+    if allocs:
+        used = 0
+        for pa in allocs:
+            dim = ({"reservation": pa.reservation_id} if pa.reservation_id
+                   else {"service_item": pa.service_item_id} if pa.service_item_id
+                   else {"penalty": pa.penalty_id} if pa.penalty_id else {})
+            segments.append((int(pa.amount_sar), dim))
+            used += int(pa.amount_sar)
+        if used < amt:
+            segments.append((amt - used, {}))
+    else:
+        dim = ({"reservation": payment.reservation_id} if payment.reservation_id
+               else {"service_item": payment.service_item_id} if payment.service_item_id else {})
+        segments.append((amt, dim))
+
+    lines = []
+    for seg_amt, dim in segments:
+        lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim})
+        lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})
+
     return post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
         description=f"Payment {payment.payment_number} — {payment.client}",
         entry_date=payment.payment_date,
-        lines=[
-            {"account": cash_acc, "debit": amt, **dims},
-            {"account": coa.AR, "credit": amt, **dims},
-        ],
+        lines=lines,
         company=payment.company,
         source_type="PaymentRecord",
         source_id=payment.pk,
@@ -400,8 +445,7 @@ def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=N
         return None
     cash_acc = _CASH_BY_LOCATION.get(received_in, coa.CASH_SBY)
     entry_date = entry_date or getattr(penalty, "payment_date", None) or timezone.now().date()
-    dims = {"client": _penalty_client_id(penalty), "penalty": penalty.pk,
-            "invoice": penalty.invoice_id}
+    dims = {"client": _penalty_client_id(penalty), "penalty": penalty.pk}
     return post_entry(
         entry_type=JournalEntry.TYPE_PENALTY,
         description=f"Pembayaran penalty {penalty.penalty_number}",

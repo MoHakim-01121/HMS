@@ -24,37 +24,96 @@ def _scoped(qs, company=None, as_of=None):
 
 # ── Invoice ────────────────────────────────────────────────────
 
+def _ar_qs(**f):
+    return JournalLine.objects.filter(account_id=coa.AR, **f)
+
+
+def _reversed_entry_ids():
+    return JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
+
+
+def _live_charges(**f):
+    """Baris DR Piutang dari charge entry yang BELUM di-reverse."""
+    return _ar_qs(
+        journal_entry__entry_type=JournalEntry.TYPE_CHARGE, **f,
+    ).exclude(journal_entry_id__in=_reversed_entry_ids())
+
+
 def invoice_charged_sar(invoice_id):
-    """Total ditagih (debit Piutang) untuk invoice."""
-    return (
-        JournalLine.objects.filter(invoice_id=invoice_id, account_id=coa.AR)
-        .aggregate(d=Sum("debit"))["d"] or 0
-    )
-
-
-def invoice_paid_sar(invoice_id):
-    """Total dibayar terhadap invoice (kredit ke Piutang)."""
-    return (
-        JournalLine.objects.filter(invoice_id=invoice_id, account_id=coa.AR)
-        .aggregate(c=Sum("credit"))["c"] or 0
-    )
+    """Total ditagih: charge entry hidup (bukan yang sudah di-reverse)."""
+    return _live_charges(invoice_id=invoice_id).aggregate(d=Sum("debit"))["d"] or 0
 
 
 def invoice_outstanding_sar(invoice_id):
-    """Sisa piutang invoice (debit - credit pada akun Piutang)."""
-    return _net(JournalLine.objects.filter(invoice_id=invoice_id, account_id=coa.AR))
+    """Sisa piutang invoice = net semua baris Piutang (charge - payment +
+    reversal). Positif = masih berutang."""
+    return _net(_ar_qs(invoice_id=invoice_id))
+
+
+def invoice_paid_sar(invoice_id):
+    """Dibayar = ditagih - sisa. Kebal terhadap reversal (net-based)."""
+    return invoice_charged_sar(invoice_id) - invoice_outstanding_sar(invoice_id)
 
 
 def invoice_paid_map(invoice_ids):
-    """{invoice_id: paid_sar} dalam satu query."""
-    rows = (
-        JournalLine.objects.filter(invoice_id__in=invoice_ids, account_id=coa.AR)
-        .values("invoice_id").annotate(c=Sum("credit"))
-    )
-    return {r["invoice_id"]: r["c"] or 0 for r in rows}
+    """{invoice_id: paid_sar} — charged - outstanding, dua query."""
+    charged = {
+        r["invoice_id"]: r["d"] or 0
+        for r in _live_charges(invoice_id__in=invoice_ids)
+        .values("invoice_id").annotate(d=Sum("debit"))
+    }
+    net = {
+        r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in _ar_qs(invoice_id__in=invoice_ids)
+        .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    }
+    return {
+        i: charged.get(i, 0) - net.get(i, 0)
+        for i in set(charged) | set(net)
+    }
+
+
+def _invoice_scoped(company, invoice_ids):
+    qs = JournalLine.objects.all()
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+    if invoice_ids is not None:
+        qs = qs.filter(invoice_id__in=invoice_ids)
+    return qs
+
+
+def total_charged(company=None, invoice_ids=None):
+    """Total ditagih (debit Piutang) untuk sekumpulan invoice."""
+    return _invoice_scoped(company, invoice_ids).filter(
+        account_id=coa.AR,
+    ).aggregate(d=Sum("debit"))["d"] or 0
+
+
+def paid_into(account_code, company=None, invoice_ids=None):
+    """Total kas yang masuk ke akun ini dari pembayaran invoice-invoice ini."""
+    return _invoice_scoped(company, invoice_ids).filter(
+        account_id=account_code, debit__gt=0,
+        journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
+    ).aggregate(d=Sum("debit"))["d"] or 0
+
+
+def mengendap(company=None, invoice_ids=None):
+    """Kas Surabaya bersih untuk invoice-invoice ini (bisa negatif)."""
+    return _net(_invoice_scoped(company, invoice_ids).filter(account_id=coa.CASH_SBY))
 
 
 # ── Client ─────────────────────────────────────────────────────
+
+def reservation_paid_map(invoice_id):
+    """{reservation_id: paid_sar} — kredit bersih Piutang per reservasi
+    (payment credit - reversal debit) utk invoice."""
+    rows = (
+        _ar_qs(invoice_id=invoice_id, reservation_id__isnull=False)
+        .exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        .values("reservation_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+    return {r["reservation_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
+
 
 def client_receivable(client_id):
     """Piutang client (positif = client berutang ke kita)."""

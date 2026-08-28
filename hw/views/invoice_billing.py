@@ -4,11 +4,9 @@ from datetime import datetime
 
 from django.db import transaction
 
-from ..models import (
-    ConfirmationLetter, Payment, Invoice, InvoiceType,
-    CashAccount, AllocationReason, CashMovement, Allocation,
-)
-from .. import ledger
+from ..models import ConfirmationLetter, Payment, Invoice, InvoiceType
+from ..finance.posting import reverse_invoice_payments, post_payment
+from ..finance_helpers import create_payment_record
 from .helpers import validate_proof_file, _parse_date, _to_float
 
 logger = logging.getLogger(__name__)
@@ -45,15 +43,9 @@ def _save_payments(invoice, request, default_currency):
     } if ref_set else {}
 
     with transaction.atomic():
-        # Scoped to CLIENT-origin *payment* movements only: a penalty payment
-        # shares this invoice FK (for traceability) and from_account=CLIENT,
-        # but it belongs to the penalty's own ledger lifecycle
-        # (_sync_penalty_ledger), not to this payment list -- deleting it here
-        # would silently erase the penalty's cash movement.
-        CashMovement.objects.filter(
-            invoice=invoice, from_account=CashAccount.CLIENT, penalty_label__isnull=True,
-        ).delete()
-        Allocation.objects.filter(invoice=invoice, reason=AllocationReason.INITIAL).delete()
+        # Full delete-recreate daftar pembayaran: reverse dulu semua journal
+        # payment untuk invoice ini, lalu re-post dari baris baru.
+        reverse_invoice_payments(invoice, created_by=request.user)
 
         client = _billing_client(invoice)
         is_hotel = invoice.invoice_type == InvoiceType.HOTEL
@@ -100,30 +92,23 @@ def _save_payments(invoice, request, default_currency):
                 except (ValueError, TypeError):
                     service_item = None
 
-            to_account = ledger.cash_destination(method=method)
-            mov = CashMovement.objects.create(
-                company=invoice.company, client=client, invoice=invoice,
-                date=payment_date or invoice.issued_date or datetime.now().date(),
-                from_account=CashAccount.CLIENT, to_account=to_account,
+            if client is None:
+                continue  # tak bisa posting jurnal tanpa client — Payment legacy tetap tercatat
+            method_l = (method or '').lower()
+            received_in = 'pusat' if method_l == 'direct' else 'sby'
+            pr = create_payment_record(
+                invoice=invoice, client=client,
+                payment_date=payment_date or invoice.issued_date or datetime.now().date(),
                 amount=int(round(amount)), currency=currency, exchange_rate=exchange_rate,
-                method=method, reservation_label=reservation, service_item_label=service_item,
+                method=method, reference='invoice-form',
                 note=f'Sinkron dari pembayaran invoice {invoice.invoice_number}',
-                created_by=request.user,
+                created_by=request.user, reservation=reservation, service_item=service_item,
+                received_in=received_in,
             )
-            if reservation is not None or service_item is not None:
-                Allocation.objects.create(
-                    company=invoice.company, client=client, invoice=invoice,
-                    date=payment_date or invoice.issued_date or datetime.now().date(),
-                    amount_sar=mov.amount_sar, reservation=reservation, service_item=service_item,
-                    reason=AllocationReason.INITIAL,
-                    note=f'Sinkron dari pembayaran invoice {invoice.invoice_number}',
-                    created_by=request.user,
-                )
+            post_payment(pr, created_by=request.user)
+            pr.status = pr.STATUS_ALLOCATED
+            pr.save(update_fields=['status'])
 
-    # total_paid_sar reads the CashMovement ledger (both the rows just
-    # written above and any allocated standalone PaymentRecord from the
-    # Finance page mirror into it too), so this is the single recompute
-    # for status -- no separate Payment-vs-PaymentRecord summing needed.
     invoice.sync_status()
 
     logger.info(

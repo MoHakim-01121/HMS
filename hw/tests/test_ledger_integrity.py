@@ -23,6 +23,10 @@ from hw.models import (
     CancellationPenalty, Charge, ChargeReason, Allocation, AllocationReason,
     CashMovement, CashAccount, Remittance, RemittanceLine, ServiceItem,
 )
+from hw.models.period import FinancialPeriod
+from hw.finance import posting
+from hw.finance import queries as fq
+from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.views.invoice_billing import _save_payments
 
 
@@ -123,6 +127,13 @@ class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
 
     def test_payment_save_keeps_penalty_movement(self):
         self.assertEqual(CashMovement.objects.filter(penalty_label=self.penalty).count(), 1)
+        FinancialPeriod.objects.create(
+            name='2026-08', company='konoz',
+            date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
+        )
+        self.inv.client = self.cl_obj
+        self.inv.save(update_fields=['client'])
+        posting.post_invoice_charge(self.inv, created_by=self.user)
         req = _Request()
         req.user = self.user
         req.POST = {
@@ -130,11 +141,10 @@ class PenaltyMovementProtectedFromPaymentResyncTest(TestCase):
                         '"amount":"500","currency":"SAR","exchange":"1","note":"","proof_keep":""}]',
         }
         _save_payments(self.inv, req, 'SAR')
-        self.assertEqual(
-            CashMovement.objects.filter(penalty_label=self.penalty).count(), 1,
-            'edit daftar payment menghapus CashMovement penalty',
-        )
-        self.assertEqual(CashMovement.objects.filter(reservation_label=self.res).count(), 1)
+        # Payment invoice terposting ke jurnal; CashMovement penalty (legacy,
+        # Unit B) tidak tersentuh oleh edit daftar payment.
+        self.assertEqual(fq.invoice_paid_sar(self.inv.id), 500)
+        self.assertEqual(CashMovement.objects.filter(penalty_label=self.penalty).count(), 1)
 
 
 class DeleteGuardTest(TestCase):
@@ -150,19 +160,20 @@ class DeleteGuardTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
         self.cl_obj = Client.objects.create(company='konoz', name='Sinar')
+        FinancialPeriod.objects.create(
+            name='2026', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
 
     def _hotel_invoice_with_charge(self):
         inv = Invoice.objects.create(
             company='konoz', invoice_type='hotel', invoice_number='INV-DEL-1',
-            customer_name='Sinar', issued_date=date(2026, 8, 1),
+            customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        res = Reservation.objects.create(
+        Reservation.objects.create(
             invoice=inv, reservation_number='R1', hotel='H', total_sar=1000,
         )
-        Charge.objects.create(
-            company='konoz', client=self.cl_obj, invoice=inv, date=date(2026, 8, 1),
-            amount_sar=1000, reservation=res, reason=ChargeReason.INITIAL,
-        )
+        posting.post_invoice_charge(inv, created_by=self.user)
         return inv
 
     def test_invoice_delete_blocked_when_charges_exist(self):
@@ -171,7 +182,6 @@ class DeleteGuardTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn(f'/invoice/{inv.pk}/', resp['Location'])
         self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
-        self.assertEqual(Charge.objects.filter(invoice=inv).count(), 1)
 
     def test_invoice_delete_allowed_when_no_ledger(self):
         inv = Invoice.objects.create(
@@ -185,13 +195,10 @@ class DeleteGuardTest(TestCase):
     def test_services_delete_blocked_when_charges_exist(self):
         inv = Invoice.objects.create(
             company='konoz', invoice_type='visa', invoice_number='SVC-DEL-1',
-            customer_name='Sinar', issued_date=date(2026, 8, 1),
+            customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        item = ServiceItem.objects.create(invoice=inv, name='Visa', qty=1, price=300)
-        Charge.objects.create(
-            company='konoz', client=self.cl_obj, invoice=inv, date=date(2026, 8, 1),
-            amount_sar=300, service_item=item, reason=ChargeReason.INITIAL,
-        )
+        ServiceItem.objects.create(invoice=inv, name='Visa', qty=1, price=300)
+        posting.post_invoice_charge(inv, created_by=self.user)
         resp = self.client.post(f'/services/{inv.pk}/delete/')
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
@@ -236,19 +243,27 @@ class ServiceInvoiceTotalTest(TestCase):
     """M3 — visa invoices compute total/remaining correctly."""
 
     def test_visa_invoice_total_sar_includes_service_items(self):
+        FinancialPeriod.objects.create(
+            name='2026', company='konoz',
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
+        cl = Client.objects.create(company='konoz', name='Sinar')
+        user = User.objects.create_user('svc_tot', password='x')
         inv = Invoice.objects.create(
             company='konoz', invoice_type='visa', invoice_number='SVC-TOT-1',
-            customer_name='Sinar', issued_date=date(2026, 8, 1),
+            customer_name='Sinar', client=cl, issued_date=date(2026, 8, 1),
         )
         ServiceItem.objects.create(invoice=inv, name='Visa', qty=2, price=150)
         ServiceItem.objects.create(invoice=inv, name='Insurance', qty=1, price=100)
         self.assertEqual(inv.total_sar, 400)
         self.assertEqual(inv.remaining_sar, 400)
-        CashMovement.objects.create(
-            company='konoz', invoice=inv, date=date(2026, 8, 2),
-            from_account=CashAccount.CLIENT, to_account=CashAccount.SBY,
-            amount=300, currency='SAR', exchange_rate=1,
+
+        posting.post_invoice_charge(inv, created_by=user)
+        p = create_payment_record(
+            invoice=inv, client=cl, payment_date=date(2026, 8, 2),
+            amount=300, method='transfer', created_by=user,
         )
+        confirm_payment(p, confirmed_by=user)
         self.assertEqual(inv.total_paid_sar, 300)
         self.assertEqual(inv.remaining_sar, 100)
 

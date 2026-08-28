@@ -4,19 +4,12 @@ from ..utils import format_currency
 
 
 def _build_reservation_context(invoice):
-    from ..models import CashAccount
+    from ..finance import queries as fq
 
-    # CashMovement (not the legacy Payment list) so a payment allocated via
-    # the Finance page's PaymentRecord flow -- which mirrors into
-    # CashMovement but never creates a Payment row -- shows up here too,
-    # same as it does in Invoice.total_paid_sar.
-    paid_by_reservation_id = {}
-    for m in invoice.cash_movements.filter(
-        from_account=CashAccount.CLIENT, penalty_label__isnull=True, reservation_label__isnull=False,
-    ):
-        paid_by_reservation_id[m.reservation_label_id] = (
-            paid_by_reservation_id.get(m.reservation_label_id, 0) + m.amount_sar
-        )
+    # Kredit Piutang per reservasi dari general ledger — payment lewat jalur
+    # mana pun (Finance page / form invoice) menempel dimensi reservation di
+    # baris CR Piutang-nya.
+    paid_by_reservation_id = fq.reservation_paid_map(invoice.id)
 
     cl_by_number = {
         cl.confirmation_number: cl.pk
