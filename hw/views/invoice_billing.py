@@ -14,21 +14,20 @@ logger = logging.getLogger(__name__)
 
 def _save_payments(invoice, request, default_currency):
     """Create Payment objects from a JSON `payments` array (one object per row),
-    and in parallel build the matching ledger rows (CashMovement + Allocation).
+    and re-post the journal payment legs from those rows.
 
     Each row: {ref, date, method, amount, currency, exchange, note, proof_keep}.
     New proof uploads arrive as multipart files keyed `payment_proof_<index>`,
     where <index> is the row's position in the array. Sets cl FK when ref
     matches a CL number.
 
-    Dual-write (remittance ledger redesign, Fase 4): callers do a full
-    delete-then-recreate of `invoice.payments` on every edit (the payments
-    array has no row identity to diff against), so we mirror the same
-    full-resync for the ledger side. The deletes below are scoped to exactly
-    what this function itself ever creates -- CLIENT-origin movements for
-    this invoice, and their `initial` allocations -- so remittance transfers
-    (SBY->PUSAT), refunds, transfers, and corrections from later phases are
-    never touched by a payment-list save.
+    Full-resync (Fase 4+): the payments array has no row identity to diff
+    against, so each save reverses this invoice's live payment entries and
+    re-posts from the new rows. The reversal+delete is scoped to exactly what
+    this function itself ever creates -- payment entries for this invoice (and
+    the legacy `Payment` rows kept for the invoice UI) -- so remittance sends,
+    refunds, transfers, and penalty entries are never touched by a
+    payment-list save.
     """
     try:
         rows = json.loads(request.POST.get('payments', '[]'))

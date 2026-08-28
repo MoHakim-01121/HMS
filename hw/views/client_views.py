@@ -16,10 +16,11 @@ from inertia import render as inertia_render
 
 from ..models import (
     ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity,
-    CashAccount, AllocationReason, Allocation, CashMovement, Charge,
+    CashAccount,
 )
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
+from ..finance import posting
 from .helpers import (
     _is_mobile,
     _parse_date,
@@ -161,9 +162,9 @@ def client_detail(request, pk):
     company = _company(request)
     qs = Client.objects.filter(company=company).prefetch_related('cls__rooms')
     c = get_object_or_404(qs, pk=pk)
-    # Invoice.client is essentially dead (never populated by any form) -- the
-    # real link is resolved_invoices, via Charge.client. Using c.invoices here
-    # used to render every client's invoice history as empty.
+    # Invoice.client sendirian tidak cukup -- invoice lama sering kosong.
+    # resolved_invoices (Fase 7) = union Invoice.client + invoice yang punya
+    # baris jurnal berdimensi client (pengganti Charge.client yang pensiun).
     invoices = c.resolved_invoices.prefetch_related('reservations', 'payments')
     cls = c.cls.order_by('-created_at')
     inv_data = [{
@@ -284,14 +285,12 @@ def _save_client(c, data):
 def _client_reservation_options(client_obj):
     """Reservations for this client's from/to transfer pickers.
 
-    Sourced from Charge.client rather than Invoice.client/CL.client: those
-    two are frequently unpopulated for older records (see the migration's
-    client-resolution audit), while Charge.client is always the resolved
-    value written by _billing_client() at dual-write/migration time.
+    Sourced from the journal's client+reservation dimensions via
+    finance_queries.client_reservation_ids rather than Invoice.client/CL.client
+    (frequently unpopulated) or the legacy Charge table (no longer written by
+    the billing flow since the journal became the system of record).
     """
-    reservation_ids = Charge.objects.filter(
-        client=client_obj, reservation__isnull=False,
-    ).values_list('reservation_id', flat=True).distinct()
+    reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
     reservations = Reservation.objects.filter(pk__in=reservation_ids).select_related('invoice').order_by('-check_in')
     return [{
         'id': r.id,
@@ -322,14 +321,11 @@ def client_transfer(request, pk):
         if amount <= 0:
             errors['amount_sar'] = 'Enter an amount greater than zero.'
 
-        # Scoped to this client's own reservations (same Charge.client lookup as
-        # _client_reservation_options), not just the active company -- otherwise a
-        # tampered reservation id from another client in the same company would
-        # get its Allocation mislabelled with client_obj below.
-        client_reservation_ids = set(
-            Charge.objects.filter(client=client_obj, reservation__isnull=False)
-            .values_list('reservation_id', flat=True)
-        )
+        # Scoped to this client's own reservations (sumber sama dengan
+        # _client_reservation_options: dimensi jurnal client+reservation),
+        # bukan cuma active company -- supaya id reservasi tamper-an milik
+        # client lain di company yang sama tidak namanya di-tag ke client ini.
+        client_reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
         from_res = Reservation.objects.filter(pk=from_id).first() if from_id in client_reservation_ids else None
         to_res = Reservation.objects.filter(pk=to_id).first() if to_id in client_reservation_ids else None
         if from_id and not from_res:
@@ -341,17 +337,12 @@ def client_transfer(request, pk):
             group = uuid.uuid4()
             today = date.today()
             with transaction.atomic():
-                Allocation.objects.create(
-                    company=company, client=client_obj, date=today, amount_sar=-amount,
-                    invoice=from_res.invoice, reservation=from_res,
-                    reason=AllocationReason.TRANSFER, transfer_group=group, note=note,
-                    created_by=request.user,
-                )
-                Allocation.objects.create(
-                    company=company, client=client_obj, date=today, amount_sar=amount,
-                    invoice=to_res.invoice, reservation=to_res,
-                    reason=AllocationReason.TRANSFER, transfer_group=group, note=note,
-                    created_by=request.user,
+                # Journal (Fase 5+): piutang di-re-tag antar reservasi.
+                # Shadow Allocation tidak lagi ditulis (Fase 7).
+                posting.post_fund_transfer(
+                    client_obj, from_reservation=from_res, to_reservation=to_res,
+                    amount_sar=amount, created_by=request.user, entry_date=today,
+                    company=company, idempotency_key=f"transfer:{group}",
                 )
             logger.info(
                 "ledger: transfer %s SAR from reservation %s to %s (client %s)",
@@ -396,15 +387,14 @@ def client_refund(request, pk):
                 errors['proof'] = proof_error
 
         if not errors:
-            mov = CashMovement.objects.create(
-                company=company, client=client_obj, date=date.today(),
-                from_account=from_account, to_account=CashAccount.CLIENT,
-                amount=amount, currency='SAR', exchange_rate=1,
-                note=note or f'Refund to {client_obj.name}', created_by=request.user,
+            group = uuid.uuid4()
+            # Journal (Fase 5+): DR Titipan / CR Kas. Bukti transfer dibawa
+            # entry refund (bukan shadow CashMovement yang pensiun Fase 7).
+            posting.post_refund(
+                client_obj, from_location=from_account.lower(), amount_sar=amount,
+                created_by=request.user, entry_date=date.today(),
+                company=company, idempotency_key=f"refund:{group}", proof=proof,
             )
-            if proof:
-                mov.proof = proof
-                mov.save(update_fields=['proof'])
             logger.info(
                 "ledger: refund %s SAR to client %s from %s",
                 amount, client_obj.pk, from_account,

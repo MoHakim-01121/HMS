@@ -3,25 +3,21 @@
 Covers the review findings that were actually implemented:
 * C1: penalty dual-write (_sync_penalty_ledger) is wired into penalty_new/edit
       (it was dead code before).
-* C2: editing an invoice's payment list must not delete the penalty's own
-      CashMovement.
+* C2: editing an invoice's payment list must not touch the penalty's own
+      journal income.
 * H2/C3/H4(delete): posted financial documents (invoice, services invoice,
       remittance, penalty) cannot be silently deleted once they touch the
       ledger.
 * M3: visa/service invoices compute total_sar and remaining_sar correctly.
-* H4(schema): a CashMovement may label at most one of reservation /
-      service_item / penalty.
 """
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.db import IntegrityError
 from django.test import TestCase
 
 from hw.models import (
     Client, Invoice, Reservation, ConfirmationLetter, Room,
-    CancellationPenalty, CashMovement, CashAccount, Remittance,
-    RemittanceLine, ServiceItem,
+    CancellationPenalty, Remittance, RemittanceLine, ServiceItem,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
@@ -268,27 +264,3 @@ class ServiceInvoiceTotalTest(TestCase):
         )
         Reservation.objects.create(invoice=inv, reservation_number='R1', total_sar=1000)
         self.assertEqual(inv.total_sar, 1000)
-
-
-class CashMovementLabelConstraintTest(TestCase):
-    """H4(schema) — at most one target label per movement."""
-
-    def test_two_labels_are_rejected(self):
-        inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-CON-1',
-            customer_name='X', issued_date=date(2026, 8, 1),
-        )
-        res = Reservation.objects.create(invoice=inv, reservation_number='R1', total_sar=1)
-        cl = ConfirmationLetter.objects.create(
-            company='konoz', hotel_name='H', guest_name='G', confirmation_number='CL-CON-1',
-        )
-        penalty = CancellationPenalty.objects.create(
-            cl=cl, penalty_number='PNL-CON', cancellation_date=date(2026, 8, 5),
-        )
-        with self.assertRaises(IntegrityError):
-            CashMovement.objects.create(
-                company='konoz', invoice=inv, date=date(2026, 8, 1),
-                from_account=CashAccount.CLIENT, to_account=CashAccount.SBY,
-                amount=100, currency='SAR', exchange_rate=1,
-                reservation_label=res, penalty_label=penalty,
-            )

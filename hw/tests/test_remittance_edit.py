@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Payment, CashMovement, Remittance, RemittanceLine, Reservation
+from hw.models import Client, Invoice, Payment, Remittance, RemittanceLine, Reservation
 from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
@@ -16,6 +16,10 @@ class SyncRemittanceLinesTest(TestCase):
     """Edit remittance: ubah nominal, tambah reservasi, hapus baris."""
 
     def setUp(self):
+        FinancialPeriod.objects.create(
+            name="2026", company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
         self.invoice = Invoice.objects.create(
             company='konoz', invoice_type='hotel',
             invoice_number='INV-EDIT-001', customer_name='Budi',
@@ -167,10 +171,9 @@ class RemittanceEditViewTest(TestCase):
         r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         for res, amount in ((r1, 5000), (r2, 3000)):
-            # Post-migrasi, Payment lama dan CashMovement baru hidup berdampingan
-            # (migrate_to_ledger tidak menghapus Payment) -- _sort_lines_by_payment_date
-            # belum dialihkan di Fase 3 ini (baru ikut pindah waktu RemittanceLine
-            # digantikan CashMovement di Fase 4), jadi tetap butuh Payment di sini.
+            # Post-migrasi, Payment lama tetap ada (migrate_to_ledger tidak
+            # menghapus Payment) -- _sort_lines_by_payment_date membacanya,
+            # jadi masih butuh Payment di sini.
             Payment.objects.create(
                 invoice=self.invoice, linked_number=res.reservation_number, amount=amount,
                 currency='SAR', exchange_rate=1, method='cash', payment_date=date(2026, 1, 5),

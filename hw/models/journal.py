@@ -184,6 +184,10 @@ class JournalEntry(AppendOnlyModel):
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    # Lampiran dokumen sumber (mis. bukti transfer refund). Metadata saja --
+    # tidak ikut entry_hash, jadi append-only tetap berlaku.
+    proof = models.FileField(upload_to='ledger/proof/', null=True, blank=True)
+
     class Meta:
         ordering            = ['entry_date', 'created_at']
         verbose_name        = 'Journal Entry'

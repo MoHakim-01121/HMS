@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Reservation, ServiceItem, Payment, Client, Remittance, CashMovement
+from hw.models import Invoice, Reservation, ServiceItem, Payment, Client, Remittance
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -128,7 +128,7 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         )
         self.res = Reservation.objects.create(invoice=self.invoice, reservation_number="R1", total_sar=5000)
 
-    def test_new_remittance_writes_both_remittanceline_and_cashmovement(self):
+    def test_new_remittance_writes_line_and_journal_send_leg(self):
         resp = self.client.post("/remittance/new/", {
             "date": "2026-01-10",
             "receipt_reference": "REF-1",
@@ -141,19 +141,15 @@ class RemittanceDualWriteTest(DualWriteTestBase):
 
         from hw.models import RemittanceLine
         self.assertEqual(RemittanceLine.objects.filter(linked_number="R1").count(), 1)
+        # Journal: kirim 3000 dari Kas Surabaya ke Transit (per reservasi);
+        # tidak ada lagi shadow CashMovement (Fase 7).
+        self.assertEqual(fq.transit("konoz"), 3000)
+        self.assertEqual(fq.kas_surabaya("konoz"), -3000)
 
-        movement = CashMovement.objects.get(from_account='sby', to_account='pusat')
-        self.assertEqual(movement.amount, 3000)
-        self.assertEqual(movement.reservation_label, self.res)
-
-    def test_editing_remittance_amount_resyncs_cashmovement_not_duplicates(self):
+    def test_editing_remittance_amount_resyncs_journal_not_duplicates(self):
         rem = Remittance.objects.create(company="konoz", date="2026-01-10", remittance_number="RMT-DW-01")
         from hw.models import RemittanceLine
         line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
-        CashMovement.objects.create(
-            company="konoz", invoice=self.invoice, remittance=rem, reservation_label=self.res,
-            from_account="sby", to_account="pusat", amount=3000, currency="SAR", exchange_rate=1, date="2026-01-10",
-        )
 
         resp = self.client.post(f"/remittance/{rem.pk}/edit/", {
             "date": "2026-01-10", "status": "pending", "receipt_reference": "", "note": "",
@@ -161,22 +157,19 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         })
         self.assertEqual(resp.status_code, 302)
 
-        movements = CashMovement.objects.filter(remittance=rem)
-        self.assertEqual(movements.count(), 1)  # resynced, not duplicated
-        self.assertEqual(movements.get().amount, 4500)
+        # Idempotent-by-content: jumlah di-resync, tidak ditumpuk.
+        self.assertEqual(fq.transit("konoz"), 4500)
+        self.assertEqual(fq.kas_surabaya("konoz"), -4500)
 
-    def test_deleting_remittance_line_removes_its_cashmovement(self):
+    def test_deleting_remittance_line_reverses_its_journal_leg(self):
         rem = Remittance.objects.create(company="konoz", date="2026-01-10", remittance_number="RMT-DW-02")
         from hw.models import RemittanceLine
         line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
-        CashMovement.objects.create(
-            company="konoz", invoice=self.invoice, remittance=rem, reservation_label=self.res,
-            from_account="sby", to_account="pusat", amount=3000, currency="SAR", exchange_rate=1, date="2026-01-10",
-        )
 
         resp = self.client.post(f"/remittance/{rem.pk}/edit/", {
             "date": "2026-01-10", "status": "pending", "receipt_reference": "", "note": "",
             "lines": json.dumps([]),
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(CashMovement.objects.filter(remittance=rem).count(), 0)
+        self.assertEqual(RemittanceLine.objects.filter(remittance=rem).count(), 0)
+        self.assertEqual(fq.transit("konoz"), 0)

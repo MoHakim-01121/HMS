@@ -178,6 +178,21 @@ def client_credit_balance(client_id):
     return (a["c"] or 0) - (a["d"] or 0)
 
 
+def client_reservation_ids(client_id):
+    """Set reservasi milik client dari dimensi baris jurnal yang masih hidup.
+
+    Pengganti pembacaan Charge (tabel legacy, tidak lagi ditulis oleh alur
+    billing sejak jurnal jadi system of record): reservasi seorang client
+    adalah yang pernah muncul ber-dimensi `reservation` pada baris jurnal
+    ber-dimensi `client` yang bersangkutan."""
+    return set(
+        JournalLine.objects.exclude(reservation_id=None)
+        .filter(client_id=client_id)
+        .exclude(journal_entry_id__in=_reversed_entry_ids())
+        .values_list("reservation_id", flat=True)
+    )
+
+
 def client_statement(client_id, *, company=None, date_from=None, date_to=None, as_of=None):
     """Baris jurnal ber-dimensi client, urut kronologis, dengan running
     balance (debit - credit; positif = client berutang)."""

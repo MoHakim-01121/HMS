@@ -15,8 +15,9 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import Payment, Remittance, RemittanceLine, Client, CashAccount, CashMovement
+from ..models import Payment, Remittance, RemittanceLine, Client, JournalEntry
 from ..models.choices import Company
+from ..finance import posting
 from ..permissions import require_perm
 from ..utils import convert_to_sar
 from .helpers import validate_proof_file, period_label as _period_label
@@ -52,23 +53,6 @@ def _parse_transfer_fields(request):
         int(amount_idr) if amount_idr else None,
         exchange_rate if exchange_rate else None,
         int(received) if received else None,
-    )
-
-
-def _record_unallocated_movement(rem, user=None):
-    """Movement tunggal SBY->PUSAT tanpa label reservasi untuk RMT lump-sum.
-
-    Uangnya sudah fisik keluar dari Surabaya (kas_surabaya harus turun)
-    walau belum jelas menutup reservasi mana. Begitu baris dialokasikan lewat
-    _sync_remittance_lines, movement ini tergantik baris-per-baris.
-    """
-    CashMovement.objects.create(
-        company=rem.company, date=rem.date,
-        from_account=CashAccount.SBY, to_account=CashAccount.PUSAT,
-        amount=rem.received_amount_sar, currency='SAR', exchange_rate=1,
-        remittance=rem,
-        note=f'Transfer {rem.remittance_number} menunggu alokasi reservasi',
-        created_by=user,
     )
 
 
@@ -308,8 +292,9 @@ def remittance_new(request):
             _sync_remittance_lines(rem, lines_data, request.user)
         elif received_sar or amount_idr:
             # Lump-sum: uang sudah keluar bank tapi belum dibagikan ke
-            # reservasi. Catat perpindahan kasnya dulu tanpa label.
-            _record_unallocated_movement(rem, request.user)
+            # reservasi. Posting aggregate SBY->PUSAT via jurnal (Fase 7:
+            # tanpa shadow CashMovement).
+            posting.resync_remittance(rem, created_by=request.user, send_segments=[])
 
         return redirect('remittance_detail', pk=rem.pk)
 
@@ -406,6 +391,18 @@ def remittance_mark_received(request, pk):
     if rem.status != Remittance.STATUS_RECEIVED:
         rem.status = Remittance.STATUS_RECEIVED
         rem.save(update_fields=['status'])
+        # Journal (Fase 5, dual-write): post kaki terima -- Kas Pusat masuk,
+        # Transit bersih, selisih vs expected → beban bank / gain kurs. Sisi
+        # kirim sudah terposting sejak pembuatan; resync penuh dengan
+        # `received_sar` biar idempotent-by-content. Kalau nominal penerimaan
+        # belum diisi (RMT lama tanpa field transfer), sisi terima tak ada
+        # yang bisa diposting -- status received saja.
+        if rem.received_amount_sar is not None:
+            posting.resync_remittance(
+                rem, created_by=request.user,
+                send_segments=_remittance_send_segments(rem),
+                received_sar=rem.received_amount_sar,
+            )
     return redirect('remittance_list')
 
 
@@ -429,19 +426,43 @@ def _addable_reservasi(rem):
     return rows
 
 
+def _remittance_send_segments(rem):
+    """Segmen kirim jurnal per baris remittance (Fase 5 dual-write).
+
+    Satu {reservation, invoice, client, amount_sar} per baris ber-nominal,
+    supaya `mengendap_per_reservation` turun per reservasi. Dipakai oleh
+    `_sync_remittance_lines` dan `remittance_mark_received`.
+    """
+    from ..models import Reservation
+
+    segments = []
+    for line in rem.lines.select_related('invoice'):
+        if not line.amount_sar:
+            continue
+        reservation = client = None
+        if line.invoice_id:
+            reservation = Reservation.objects.filter(
+                invoice_id=line.invoice_id, reservation_number=line.linked_number,
+            ).first()
+            client = _billing_client(line.invoice)
+        segments.append({
+            'reservation': reservation, 'invoice': line.invoice,
+            'client': client, 'amount_sar': line.amount_sar,
+        })
+    return segments
+
+
 def _sync_remittance_lines(rem, raw_lines, user=None):
     """Samakan baris remittance dengan payload dari form.
 
     Baris dengan line_id diperbarui, baris baru dibuat, dan baris yang tidak
     ada di payload atau nominalnya nol akan dihapus.
 
-    Dual-write (remittance ledger redesign, Fase 4): also resyncs this
-    remittance's CashMovement(SBY->PUSAT) rows to match. Scoped to
-    `remittance=rem`, which only this function ever sets -- never touches
-    CLIENT-origin payment movements or any other remittance.
+    Journal (sejak Fase 5, shadow CashMovement sudah dipensiunkan Fase 7):
+    reverse entry REMITTANCE hidup utk rmt ini lalu re-post per baris --
+    idempotent-by-content lewat `posting.resync_remittance`. Segmen kosong →
+    lump-sum aggregate.
     """
-    from ..models import Reservation
-
     with transaction.atomic():
         keep_ids = set()
         for ld in raw_lines:
@@ -463,24 +484,13 @@ def _sync_remittance_lines(rem, raw_lines, user=None):
                 keep_ids.add(line.pk)
         rem.lines.exclude(pk__in=keep_ids).delete()
 
-        CashMovement.objects.filter(remittance=rem).delete()
-        for line in rem.lines.select_related('invoice'):
-            reservation = Reservation.objects.filter(
-                invoice_id=line.invoice_id, reservation_number=line.linked_number,
-            ).first() if line.invoice_id else None
-            client = _billing_client(line.invoice) if line.invoice_id else None
-            CashMovement.objects.create(
-                company=rem.company, client=client, invoice_id=line.invoice_id,
-                date=rem.date, from_account=CashAccount.SBY, to_account=CashAccount.PUSAT,
-                amount=line.amount_sar, currency='SAR', exchange_rate=1,
-                remittance=rem, reservation_label=reservation,
-                note=f'Sinkron dari remittance {rem.remittance_number}', created_by=user,
-            )
-
-        # RMT lump-sum yang barisnya dikosongkan lagi: uangnya tetap sudah
-        # keluar dari Surabaya, jadi movement tunggal tanpa label dibuat ulang.
-        if not keep_ids and rem.received_amount_sar:
-            _record_unallocated_movement(rem, user)
+        # Journal: reverse entry REMITTANCE hidup utk rmt ini lalu re-post
+        # dari baris sekarang -- idempotent-by-content lewat resync_remittance.
+        # Segmen kosong → lump-sum aggregate (RMT yang barisnya dikosongkan
+        # tetap tercatat mengalir dari Surabaya kalau uangnya keluar).
+        posting.resync_remittance(
+            rem, created_by=user, send_segments=_remittance_send_segments(rem),
+        )
     logger.info(
         "ledger: remittance %s synced, %d line(s)",
         rem.remittance_number, len(keep_ids),
@@ -596,10 +606,11 @@ def remittance_upload_proof(request, pk):
 @require_POST
 def remittance_delete(request, pk):
     rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
-    # System of record: CashMovement mereferensikan remittance via CASCADE,
-    # jadi hapus remittance = menghapus perpindahan kas SBY->PUSAT yang sudah
-    # tercatat. Remittance dengan baris tidak boleh hilang diam-diam.
-    if rem.lines.exists() or rem.movements.exists():
+    # System of record (Fase 7): jurnal REMITTANCE hidup merepresentasikan
+    # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
+    # langsung atau lewat baris -- tidak boleh hilang diam-diam.
+    posted = bool(posting._live_entries("Remittance", rem.pk, JournalEntry.TYPE_REMITTANCE))
+    if rem.lines.exists() or posted:
         messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
         return redirect('remittance_detail', pk=pk)
     rem.delete()

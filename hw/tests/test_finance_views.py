@@ -11,7 +11,6 @@ from hw.finance import queries as q
 from hw.finance_helpers import create_payment_record
 from hw.models.choices import Company
 from hw.models import (
-    CashAccount, Allocation, AllocationReason, CashMovement, Charge, ChargeReason,
     CancellationPenalty, Client, ConfirmationLetter, FinancialPeriod, Invoice,
     Reservation,
 )

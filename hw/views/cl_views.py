@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity, Charge, ChargeReason
+from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
 from ..permissions import require_perm
 from ..i18n import tr
 from .helpers import _is_mobile, _parse_date, _render_list_pdf, get_active_company, pagination_props

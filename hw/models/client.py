@@ -47,13 +47,21 @@ class Client(models.Model):
     def resolved_invoices(self):
         """Invoices belonging to this client via either signal: the direct
         Invoice.client FK (populated by invoice_views.py/services_views.py
-        forms) OR Charge.client (populated once the ledger has an entry).
-        Unioned rather than picking one -- an invoice can have the FK set
-        before any Charge exists (or vice versa), and either signal alone
-        would silently drop it from this client's totals/statement."""
+        forms) OR a journal line carrying this client's dimension (Fase 7 --
+        pengganti Charge.client yang pensiun; charge income lines sudah
+        membawa dimensi client). Unioned rather than picking one -- an invoice
+        can have the FK set before any journal entry exists (or vice versa),
+        and either signal alone would silently drop it from this client's
+        totals/statement."""
         from django.db.models import Q
         from .invoice import Invoice
-        return Invoice.objects.filter(Q(client=self) | Q(charges__client=self)).distinct()
+        from .journal import JournalLine
+        journal_invoice_ids = JournalLine.objects.filter(
+            client=self,
+        ).values_list('invoice_id', flat=True).distinct()
+        return Invoice.objects.filter(
+            Q(client=self) | Q(pk__in=journal_invoice_ids)
+        ).distinct()
 
     @property
     def total_invoices(self):

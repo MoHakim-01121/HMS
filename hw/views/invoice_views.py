@@ -203,8 +203,8 @@ def invoice_new(request):
             )
             # CL must be linked before _save_reservations/_save_hotel_payments run --
             # both call _billing_client(invoice), which resolves the client from
-            # invoice.confirmation_letters. Linking after would leave every Charge
-            # created here with client=None even when a CL was selected.
+            # invoice.confirmation_letters. Linking after would leave the journal
+            # charge lines client=None even when a CL was selected.
             cl_ids = _parse_cl_ids(request)
             if cl_ids:
                 ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)

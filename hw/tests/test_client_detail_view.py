@@ -56,18 +56,19 @@ class ClientDetailViewTest(TestCase):
         self.assertEqual(props["activity"][1]["type"], "credit")
         self.assertEqual(props["activity"][-1]["balance"], -1000)  # client punya kelebihan 1000
 
-    def test_detail_page_lists_invoices_linked_only_via_charge(self):
+    def test_detail_page_lists_invoice_linked_via_journal(self):
         resp = self.client.get(f"/clients/{self.client_obj.pk}/", HTTP_X_INERTIA="true")
         props = resp.json()["props"]
         invoice_numbers = [inv["invoice_number"] for inv in props["invoices"]]
         self.assertIn("INV-CDV-001", invoice_numbers)
 
-    def test_resolved_invoices_includes_invoice_with_client_fk_but_no_charge_yet(self):
+    def test_resolved_invoices_includes_invoice_with_client_fk_but_no_journal_yet(self):
         # Invoice.client (populated by the invoice/services forms) can be
-        # set before any Charge exists for it -- e.g. a brand-new invoice
-        # with no reservations/payments saved yet. resolved_invoices must
-        # not depend on Charge alone, or this invoice silently vanishes
-        # from the client's totals/statement until its first Charge lands.
+        # set before any journal entry exists for it -- e.g. a brand-new
+        # invoice with no reservations/payments saved yet. resolved_invoices
+        # must not depend on journal lines alone, or this invoice silently
+        # vanishes from the client's totals/statement until its first entry
+        # (charge/payment) lands.
         fk_only_invoice = Invoice.objects.create(
             company="konoz", invoice_type="hotel",
             invoice_number="INV-CDV-002", customer_name="PT Detail View",
