@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import axios from "axios";
 import { router } from "@inertiajs/react";
 import { showToast } from "../../components/shadcn/toast.jsx";
@@ -20,6 +21,9 @@ const fmtDate = (ymd) => {
   if (Number.isNaN(d.getTime())) return ymd;
   return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).replace('.', '');
 };
+
+// Normalise a time value (may arrive as "14:00", "14:00:00", or blank) to HH:MM.
+const fmtTime = (s) => (s && s.length >= 5 ? s.slice(0, 5) : (s || ''));
 
 // Mobile-first redesign 2026-08-26 v2: vertical timeline with swipeable
 // booking cards, tappable field pills, and summary-first card hierarchy.
@@ -66,24 +70,56 @@ const CSS = `
 .uc-tl-body.collapsed { max-height:0; opacity:0; pointer-events:none; }
 
 /* ── Client group inside timeline ─────────────────────────── */
-.uc-tl-client { margin-top:10px; }
-.uc-tl-client + .uc-tl-client { margin-top:14px; }
-.uc-tl-client-head { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:10px; background:var(--secondary); }
-.uc-tl-client-name { font-size:13px; font-weight:600; color:var(--foreground); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.uc-tl-client-count { font-size:11px; color:var(--muted-foreground); flex-shrink:0; }
+  .uc-tl-client { margin-top:8px; }
+  .uc-tl-client + .uc-tl-client { margin-top:12px; }
+  .uc-tl-client-head { display:flex; align-items:center; gap:8px; padding:2px 4px; }
+  .uc-tl-client-name { font-size:13px; font-weight:700; color:var(--foreground); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .uc-tl-client-count { font-size:11px; color:var(--muted-foreground); flex-shrink:0; }
 
-/* ── Swipeable booking card ────────────────────────────────── */
-/* Each card sits in a overflow:hidden wrapper. The action panels (WA / PDF)
-   are revealed by swipe. touch-action: pan-y so vertical scroll still works. */
-.uc-swipe-wrap { position:relative; margin-top:8px; border-radius:20px; overflow:hidden; }
-.uc-swipe-actions { position:absolute; inset:0; display:flex; }
-.uc-swipe-left { flex:1; display:flex; align-items:center; justify-content:flex-end; padding-right:16px; gap:6px; background:var(--green); color:#fff; font-size:12px; font-weight:600; }
-.uc-swipe-right { flex:1; display:flex; align-items:center; justify-content:flex-start; padding-left:16px; gap:6px; background:var(--muted-foreground); color:var(--card); font-size:12px; font-weight:600; }
+/* ── Booking card (mobile) — "Readiness" ───────────────────────────────
+   The card answers one question: is this arrival ready to receive?
+   Hotel + #reservation up top, then three checks — ETA, PIC, Reminder —
+   each green when done, red when still outstanding. The front desk works
+   the red rows; tapping a row jumps straight to fixing it.
+   NOT on the card: client/guest name (the group header right above states
+   it — see the CL-guest rule) and the arrival date (the day header does). */
+.uc-booking { display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:13px 14px; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .1s, border-color .12s; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.uc-booking:active { transform:scale(.99); border-color:var(--ring); }
+.uc-booking + .uc-booking { margin-top:10px; }
 
-.uc-booking { position:relative; z-index:1; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:16px; touch-action:pan-y; transition:transform .2s cubic-bezier(.4,0,.2,1); }
-.uc-booking.swiping { transition:none; }
+.uc-bk-top { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.uc-bk-hotel { font-size:14px; font-weight:600; color:var(--foreground); line-height:1.25; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-bk-ref { flex-shrink:0; font-size:11px; font-weight:600; color:var(--muted-foreground); letter-spacing:.02em; font-variant-numeric:tabular-nums; }
+.uc-bk-rooms { margin-top:2px; font-size:11.5px; color:var(--muted-foreground); }
 
-.uc-booking-left { display:flex; align-items:center; gap:6px; }
+.uc-bk-checks { margin-top:11px; display:flex; flex-direction:column; gap:5px; }
+.uc-chk { display:flex; align-items:center; gap:8px; width:100%; min-height:34px; padding:2px 0; border:none; background:none; font-family:inherit; font-size:12px; text-align:left; color:var(--foreground); cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.uc-chk:disabled { cursor:default; }
+.uc-chk-ico { flex-shrink:0; width:17px; height:17px; border-radius:9999px; display:flex; align-items:center; justify-content:center; }
+.uc-chk.done .uc-chk-ico { background:color-mix(in oklch, var(--green) 16%, transparent); color:var(--green); }
+.uc-chk.todo .uc-chk-ico { background:color-mix(in oklch, var(--red) 14%, transparent); color:var(--red); }
+.uc-chk-k { color:var(--muted-foreground); }
+.uc-chk-v { margin-left:auto; font-weight:600; font-variant-numeric:tabular-nums; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-chk.todo .uc-chk-v { color:var(--red); font-weight:700; }
+.uc-chk:not(:disabled):active .uc-chk-v { opacity:.55; }
+
+/* Booking detail bottom sheet (asheet pattern from design.css) */
+.bs-head { padding:4px 4px 14px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.bs-guest { font-size:17px; font-weight:700; color:var(--foreground); line-height:1.3; letter-spacing:-.02em; }
+.bs-rsv { flex-shrink:0; font-size:12px; font-weight:600; color:var(--muted-foreground); padding:4px 10px; border-radius:9999px; background:var(--secondary); margin-top:2px; font-variant-numeric:tabular-nums; }
+.bs-grid { padding:0 4px 14px; display:grid; grid-template-columns:84px 1fr; gap:10px 12px; align-items:baseline; }
+.bs-label { font-size:12px; color:var(--muted-foreground); }
+.bs-val { font-size:14px; color:var(--foreground); font-weight:500; font-variant-numeric:tabular-nums; }
+.bs-val.is-empty { color:var(--muted-foreground); }
+.bs-actions { display:flex; gap:8px; flex-wrap:wrap; padding:2px 4px 14px; }
+.bs-act { flex:1; min-height:44px; }
+/* Edit-mode action bar — buttons bottom-right (Cancel then Save), the
+   standard dialog action alignment. Kept on one row with 44px+ targets. */
+.bs-editbar { display:flex; gap:10px; justify-content:flex-end; margin-top:4px; padding:12px 4px calc(4px + env(safe-area-inset-bottom)); border-top:1px solid var(--border); }
+.bs-editbar > button { min-height:44px; padding-left:18px; padding-right:18px; }
+.bs-form { display:flex; flex-direction:column; gap:12px; padding:0 4px 14px; }
+.bs-form .uc-bb-field input { width:100%; height:40px; padding:0 10px; border:1px solid var(--border); border-radius:10px; background:var(--background); }
+.bs-form .uc-bb-field input:focus { outline:none; border-color:var(--ring); }
 
 /* Reminder chips */
 .uc-rem { display:inline-flex; align-items:center; gap:3px; font-size:10px; font-weight:600; padding:3px 8px 3px 7px; border-radius:9999px; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; min-height:26px; }
@@ -149,8 +185,13 @@ const CSS = `
   .uc-card { padding:16px 14px 6px; border-radius:16px; }
   .uc-head { padding-bottom:12px; }
 
-  /* Mobile only: soft depth over the hard border.
-     2-zone arrival card — identity+ETA hero, then compact status row. */
+  /* Mobile: give each client group clear air so it reads as the level above
+     the cards (day header → client → cards). */
+  .uc-tl-client + .uc-tl-client { margin-top:16px; }
+  .uc-tl-client-head { padding:0 2px 8px; }
+  .uc-tl-client-name { font-size:13.5px; letter-spacing:-.01em; }
+
+  /* Mobile only: soft depth over the hard border. */
   .uc-booking {
     border-color: color-mix(in oklch, var(--border) 70%, transparent);
     box-shadow: 0 2px 10px rgba(0,0,0,.04);
@@ -162,26 +203,20 @@ const CSS = `
   .uc-bb-conf { display:block; font-size:18px; font-weight:800; letter-spacing:-.01em; color:var(--foreground); line-height:1.2; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uc-bb-guest { display:block; font-size:13.5px; font-weight:600; color:var(--foreground); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
   .uc-bb-guest:active { opacity:.7; }
-  .uc-bb-meta { display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px 18px; margin-top:10px; }
-  .uc-bb-meta-item { display:flex; flex-direction:column; gap:1px; min-width:0; }
-  .uc-bb-meta-k { font-size:11px; font-weight:500; color:var(--muted-foreground); text-transform:uppercase; letter-spacing:.04em; }
-  .uc-bb-meta-v { font-size:13px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-  /* Zone 2 — form fields, matched to the app's form inputs */
-  .uc-bb-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
-  .uc-bb-field:nth-child(1) { grid-column:1; grid-row:1; }
-  .uc-bb-field:nth-child(3) { grid-column:2; grid-row:1; }
-  .uc-bb-field:nth-child(2) { grid-column:1 / -1; grid-row:2; }
-  .uc-bb-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
-  .uc-bb-label { font-size:12px; font-weight:500; color:var(--muted-foreground); }
-  .uc-bb-field--view { gap:1px; }
-  .uc-bb-viewval { font-size:14px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* Zone 2 — info grid (label + value), 2 columns, compact */
+  .uc-bb-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:14px; row-gap:8px; margin-top:12px; align-items:start; }
+  .uc-bb-field--full { grid-column:1 / -1; }
+  .uc-bb-field { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .uc-bb-label { font-size:11.5px; font-weight:500; color:var(--muted-foreground); }
+  .uc-bb-viewval { font-size:13.5px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .uc-bb-viewval.is-empty { color:var(--muted-foreground); font-weight:500; }
-  .uc-bb-edit { flex-shrink:0; margin-top:2px; }
+  .uc-bb-edit { flex-shrink:0; margin-top:2px; min-height:44px; padding:0 14px; }
+  .uc-booking-left .uc-bb-action, .uc-tl-client-head .uc-bb-action { min-height:44px; padding:0 14px; }
 
   /* Footer — reminders + save */
-  .uc-bb-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:14px; }
-  .uc-bb-right { display:flex; align-items:center; gap:8px; min-width:0; }
+  .uc-bb-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+  .uc-bb-right { display:flex; align-items:center; gap:8px; margin-left:auto; }
 
   /* Summary strip — glanceable arrival counts */
   .uc-sum { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding:2px 0 8px; }
@@ -234,6 +269,16 @@ const ChevronDown = ({ size = 14 }) => (
   </svg>
 );
 
+const CheckMark = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+);
+
+const AlertMark = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"
+    strokeLinecap="round" aria-hidden="true"><path d="M12 8v5M12 16h.01" /></svg>
+);
+
 function ReminderChip({ sent, failed, label }) {
   const { t } = useI18n();
   if (!sent && !failed) return null;
@@ -248,17 +293,12 @@ function ReminderChip({ sent, failed, label }) {
   );
 }
 
-// ── Swipeable booking card ──────────────────────────────────
-// Tracks touch delta horizontally while allowing vertical scroll. When
-// swiped >60px left the WA action is triggered; >60px right opens PDF.
-export function SwipeBookingCard({ cl }) {
+// ── Booking card ─────────────────────────────────────────────
+// Compact arrival card: reservation number (primary) + guest, a 2-column
+// info grid (Hotel / Check-in / Rooms / ETA / Phone / PIC), and explicit
+// action buttons (WA, PDF, Edit) instead of swipe gestures.
+export function BookingCard({ cl, clientGroup }) {
   const { t } = useI18n();
-  const wrapRef = useRef(null);
-  const [offset, setOffset] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-  const startX = useRef(0);
-  const startY = useRef(0);
-  const locked = useRef(false);
 
   const [saved, setSaved] = useState({
     estimasi: cl.estimasi_tiba || '', picName: cl.pic_name || '', picPhone: cl.pic_phone || '',
@@ -266,6 +306,11 @@ export function SwipeBookingCard({ cl }) {
   const [draft, setDraft] = useState(saved);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false); // true = edit mode (inputs shown)
+  const [sendingWA, setSendingWA] = useState(false);
+  const [open, setOpen] = useState(false); // true = detail bottom sheet shown
+
+  const group = clientGroup && clientGroup.length ? clientGroup : [cl];
+  const singleWA = group.length <= 1;
 
   const dirty = draft.estimasi !== saved.estimasi
     || draft.picName !== saved.picName
@@ -291,156 +336,187 @@ export function SwipeBookingCard({ cl }) {
     }
   };
 
-  const handleTouchStart = (e) => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-    locked.current = false;
-  };
-
-  const handleTouchMove = (e) => {
-    if (locked.current) return;
-    const dx = e.touches[0].clientX - startX.current;
-    const dy = e.touches[0].clientY - startY.current;
-    // Lock after a clear horizontal move; otherwise let vertical scroll pass
-    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      locked.current = true;
-      setSwiping(true);
-    } else if (Math.abs(dy) > 8) {
-      locked.current = true; // decided it's a scroll, stop tracking
-    }
-    if (locked.current && swiping) {
-      e.preventDefault();
-      setOffset(dx);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (offset < -60) {
-      // Swipe left → WA send
-      handleSendWA();
-    } else if (offset > 60) {
-      // Swipe right → open PDF
-      window.open(`/calendar/checkin-pdf/?date=${cl.check_in}`, '_blank');
-    }
-    setOffset(0);
-    setSwiping(false);
-  };
-
   const handleSendWA = async () => {
+    if (sendingWA) return;
+    setSendingWA(true);
     try {
+      const group = clientGroup && clientGroup.length ? clientGroup : [cl];
       const body = new URLSearchParams();
-      body.append('cl_ids', cl.pk);
+      group.forEach(g => body.append('cl_ids', g.pk));
       const r = await axios.post('/calendar/send-reminder-group/', body, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
-      showToast(r.data.ok ? t("WA sent") : (r.data.message || t('Failed')), r.data.ok ? 'success' : 'error');
+      showToast(r.data.ok ? (group.length > 1 ? t("Message sent for {count} bookings", { count: group.length }) : t("WA sent")) : (r.data.message || t('Failed')), r.data.ok ? 'success' : 'error');
     } catch { showToast(t('Failed to send'), 'error'); }
+    setSendingWA(false);
   };
 
   const beginEdit = () => { setDraft(saved); setEditing(true); };
   const cancelEdit = () => { setDraft(saved); setEditing(false); };
 
-  const labelFor = (k) => (k === 'eta' ? t("ETA") : k === 'phone' ? t("Phone") : t("PIC name"));
-  const valueFor = (k) => (k === 'eta' ? draft.estimasi : k === 'phone' ? draft.picPhone : draft.picName);
-  const emptyFor = (k) => (k === 'eta' ? t("No ETA set") : t("Not set"));
+  const labelFor = (k) => ({
+    eta: t("ETA"), phone: t("Phone"), pic: t("PIC name"),
+    checkin: t("Check-in"), checkout: t("Check-out"), hotel: t("Hotel"), rooms: t("Rooms"),
+  }[k]);
 
   const field = (k) => {
+    const editable = k === 'eta' || k === 'phone' || k === 'pic';
+    const full = '';
+    const label = <span className="uc-bb-label">{labelFor(k)}</span>;
+
+    if (!editable) {
+      const v = k === 'checkin' ? fmtDate(cl.check_in)
+        : k === 'checkout' ? fmtDate(cl.check_out)
+        : k === 'hotel' ? cl.hotel_name
+        : cl.rooms;
+      if (!v) return null;
+      return (
+        <div className="uc-bb-field uc-bb-field--view">
+          {label}
+          <span className="uc-bb-viewval">{v}</span>
+        </div>
+      );
+    }
+
     const cfg = k === 'eta' ? { type: 'time', aria: t("Estimated arrival time") }
       : k === 'phone' ? { type: 'tel', placeholder: t("Phone") }
       : { type: 'text', placeholder: t("PIC name") };
+    const value = k === 'eta' ? draft.estimasi : k === 'phone' ? draft.picPhone : draft.picName;
+    const empty = k === 'eta' ? t("No ETA set") : t("Not set");
     if (!editing) {
-      const v = valueFor(k);
       return (
-        <div className="uc-bb-field uc-bb-field--view">
-          <span className="uc-bb-label">{labelFor(k)}</span>
-          <span className={v ? "uc-bb-viewval" : "uc-bb-viewval is-empty"}>{v || emptyFor(k)}</span>
+        <div className={"uc-bb-field uc-bb-field--view" + full}>
+          {label}
+          <span className={value ? 'uc-bb-viewval' : 'uc-bb-viewval is-empty'}>{value || empty}</span>
         </div>
       );
     }
     return (
-      <div className="uc-bb-field">
-        <span className="uc-bb-label">{labelFor(k)}</span>
+      <div className={"uc-bb-field" + full}>
+        {label}
         <Input
           autoFocus={k === 'eta'}
           type={cfg.type}
           {...(cfg.aria ? { 'aria-label': cfg.aria } : { placeholder: cfg.placeholder })}
-          value={valueFor(k)}
+          value={value}
           onChange={set(k === 'eta' ? 'estimasi' : k === 'phone' ? 'picPhone' : 'picName')}
         />
       </div>
     );
   };
 
+  const etaText = fmtTime(saved.estimasi);
+  const openDetail = () => setOpen(true);
+  const openEdit = (e) => { e.stopPropagation(); setDraft(saved); setEditing(true); setOpen(true); };
+  const picText = saved.picName
+    ? saved.picName + (saved.picPhone ? ' · ' + saved.picPhone : '')
+    : '';
+
+  // Reminder readiness — "done" once a pre-arrival message has gone out.
+  const remSent   = cl.h1_sent || cl.h0_sent;
+  const remFailed = (cl.h1_failed || cl.h0_failed) && !remSent;
+  const remText   = cl.h1_sent && cl.h0_sent ? t("Sent")
+    : cl.h1_sent ? t("H-1 sent")
+    : cl.h0_sent ? t("H-0 sent")
+    : remFailed  ? t("Send failed")
+    : t("Not sent");
+  const sendRem = (e) => { e.stopPropagation(); if (!sendingWA) handleSendWA(); };
+
+  const bsField = (label, val) => (
+    val
+      ? <><span className="bs-label">{label}</span><span className="bs-val">{val}</span></>
+      : <><span className="bs-label">{label}</span><span className="bs-val is-empty">—</span></>
+  );
+
   return (
-    <div className="uc-swipe-wrap" ref={wrapRef}>
-      {/* Reveal panels behind the card */}
-      <div className="uc-swipe-actions">
-        <div className="uc-swipe-left">
-          <WAIcon size={16} /> WA
+    <>
+      <div className="uc-booking" role="button" tabIndex={0}
+        onClick={openDetail}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); } }}>
+        <div className="uc-bk-top">
+          <span className="uc-bk-hotel">{cl.hotel_name || t("Reservation")}</span>
+          <span className="uc-bk-ref">#{cl.confirmation_number}</span>
         </div>
-        <div className="uc-swipe-right">
-          <PrinterIcon size={14} /> PDF
+        {cl.rooms && <div className="uc-bk-rooms">{t("{n} rooms", { n: cl.rooms })}</div>}
+
+        <div className="uc-bk-checks">
+          <button type="button" className={"uc-chk " + (etaText ? "done" : "todo")} onClick={openEdit}
+            aria-label={etaText ? t("Edit ETA") : t("Set ETA")}>
+            <span className="uc-chk-ico">{etaText ? <CheckMark /> : <AlertMark />}</span>
+            <span className="uc-chk-k">{t("ETA")}</span>
+            <span className="uc-chk-v">{etaText || t("Not set")}</span>
+          </button>
+
+          <button type="button" className={"uc-chk " + (saved.picName ? "done" : "todo")} onClick={openEdit}
+            aria-label={saved.picName ? t("Edit PIC") : t("Add PIC")}>
+            <span className="uc-chk-ico">{saved.picName ? <CheckMark /> : <AlertMark />}</span>
+            <span className="uc-chk-k">{t("PIC")}</span>
+            <span className="uc-chk-v">{picText || t("Missing")}</span>
+          </button>
+
+          <button type="button" className={"uc-chk " + (remSent ? "done" : "todo")}
+            onClick={remSent ? (e) => e.stopPropagation() : sendRem}
+            disabled={remSent || sendingWA}
+            aria-label={remSent ? t("Reminder status") : t("Send reminder")}>
+            <span className="uc-chk-ico">{remSent ? <CheckMark /> : <AlertMark />}</span>
+            <span className="uc-chk-k">{t("Reminder")}</span>
+            <span className="uc-chk-v">{sendingWA ? '…' : remText}</span>
+          </button>
         </div>
       </div>
-      {/* Card */}
-      <div className={"uc-booking" + (swiping ? " swiping" : "")}
-        style={{ transform: `translateX(${offset}px)` }}
-        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
-        {/* Zone 1 — reservation number (primary) + guest */}
-        <div className="uc-bb-head">
-          <div className="uc-bb-id">
-            <span className="uc-bb-conf">{cl.confirmation_number}</span>
-            <a className="uc-bb-guest" href={cl.url}>{cl.guest_name || t("Guest")}</a>
-            <span className="uc-bb-meta">
-              {cl.check_in ? (
-                <span className="uc-bb-meta-item">
-                  <span className="uc-bb-meta-k">{t("Stay")}</span>
-                  <span className="uc-bb-meta-v">{fmtDate(cl.check_in)} – {fmtDate(cl.check_out)}</span>
-                </span>
-              ) : null}
-              {cl.hotel_name ? (
-                <span className="uc-bb-meta-item">
-                  <span className="uc-bb-meta-k">{t("Hotel")}</span>
-                  <span className="uc-bb-meta-v">{cl.hotel_name}</span>
-                </span>
-              ) : null}
-              {cl.rooms ? (
-                <span className="uc-bb-meta-item">
-                  <span className="uc-bb-meta-k">{t("Rooms")}</span>
-                  <span className="uc-bb-meta-v">{cl.rooms}</span>
-                </span>
-              ) : null}
-            </span>
-          </div>
-          {!editing && (
-            <Button variant="outline" size="sm" className="uc-bb-edit" onClick={beginEdit}>
-              <PencilIcon size={13} /> {t("Edit")}
-            </Button>
-          )}
-        </div>
-        {/* Zone 2 — arrival details: display vs edit */}
-        <div className="uc-bb-form">
-          {field('eta')}
-          {field('pic')}
-          {field('phone')}
-        </div>
-        {/* Footer: reminders + edit/save */}
-        <div className="uc-bb-foot">
-          <div className="uc-bb-right">
-            <div className="uc-booking-left">
-              <ReminderChip sent={cl.h1_sent} failed={cl.h1_failed} label="H-1" />
-              <ReminderChip sent={cl.h0_sent} failed={cl.h0_failed} label="H-0" />
+
+      {open && createPortal(
+        <div className="asheet-overlay" onClick={() => { setOpen(false); setEditing(false); }}>
+          <div className="asheet" onClick={(e) => e.stopPropagation()}>
+            <div className="asheet-grab" aria-hidden="true"></div>
+            <div className="bs-head">
+              <div className="bs-guest">{cl.guest_name || t("Guest")}</div>
+              <span className="bs-rsv">#{cl.confirmation_number}</span>
             </div>
-            {editing && (
+            {!editing ? (
               <>
-                <Button variant="ghost" size="xs" onClick={cancelEdit} disabled={saving}>{t("Cancel")}</Button>
-                <Button size="sm" onClick={handleSave} disabled={saving || !dirty}>{saving ? '…' : t("Save")}</Button>
+                <div className="bs-grid">
+                  {bsField(t("Hotel"), cl.hotel_name)}
+                  {bsField(t("Check-in"), fmtDate(cl.check_in))}
+                  {bsField(t("Rooms"), cl.rooms)}
+                  {bsField(t("ETA"), fmtTime(saved.estimasi))}
+                  {bsField(t("PIC"), saved.picName)}
+                  {bsField(t("Phone"), saved.picPhone)}
+                </div>
+                <div className="bs-actions">
+                  {singleWA && (
+                    <Button variant="outline" size="default" className="bs-act" onClick={handleSendWA} disabled={sendingWA}>
+                      <WAIcon size={15} /> {sendingWA ? '…' : t("Send WA")}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="default" className="bs-act" asChild title={t("Download PDF")}>
+                    <a href={`/calendar/checkin-pdf/?date=${cl.check_in}`} target="_blank" rel="noreferrer">
+                      <PrinterIcon size={15} /> PDF
+                    </a>
+                  </Button>
+                  <Button variant="outline" size="default" className="bs-act" onClick={beginEdit}>
+                    <PencilIcon size={15} /> {t("Edit")}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bs-form">
+                  {field('eta')}
+                  {field('phone')}
+                  {field('pic')}
+                </div>
+                <div className="bs-editbar">
+                  <Button variant="outline" size="lg" onClick={cancelEdit} disabled={saving}>{t("Cancel")}</Button>
+                  <Button size="lg" onClick={handleSave} disabled={saving || !dirty}>{saving ? '…' : t("Save")}</Button>
+                </div>
               </>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -513,7 +589,7 @@ function DesktopBookingRow({ cl }) {
 }
 
 // ── ClientBlock ────────────────────────────────────────────
-function ClientBlock({ clientName, cls, isMobile }) {
+export function ClientBlock({ clientName, cls, isMobile }) {
   const { t } = useI18n();
   const [sending, setSending] = useState(false);
 
@@ -535,19 +611,21 @@ function ClientBlock({ clientName, cls, isMobile }) {
       <div className="uc-tl-client-head">
         <span className="uc-tl-client-name">{clientName}</span>
         {cls.length > 1 && <span className="uc-tl-client-count">{t("{count} bookings", { count: cls.length })}</span>}
-        <Button variant="outline" size="xs" style={{ marginLeft: 'auto' }} onClick={handleSend} disabled={sending}>
-          {sending ? '…' : <><WAIcon size={11} /> WA</>}
-        </Button>
+        {cls.length > 1 && (
+          <Button variant="outline" size="default" className="uc-bb-action" style={{ marginLeft: 'auto' }} onClick={handleSend} disabled={sending}>
+            {sending ? '…' : <><WAIcon size={14} /> WA</>}
+          </Button>
+        )}
       </div>
       {cls.map(cl => isMobile
-        ? <SwipeBookingCard key={cl.pk} cl={cl} />
+        ? <BookingCard key={cl.pk} cl={cl} clientGroup={cls} />
         : <DesktopBookingRow key={cl.pk} cl={cl} />
       )}
     </div>
   );
 }
 
-function groupByClient(cls) {
+export function groupByClient(cls) {
   const nameKey = (cl) => (cl.guest_name || '').trim().toLowerCase();
   const phonesByName = {};
   cls.forEach(cl => {

@@ -63,7 +63,6 @@ export default function ReservationSheet({ res, cd, onClose }) {
           </>)}
         </div>
         <a className="rs-cta" href={res.url}>{t("Open CL")}</a>
-        <button type="button" className="asheet-cancel" onClick={onClose}>{t("Close")}</button>
       </div>
     </div>,
     document.body

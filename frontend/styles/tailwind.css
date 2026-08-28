@@ -902,8 +902,13 @@
     background: var(--background);
     z-index: var(--z-sticky, 200);
     overflow-y: auto;
+    /* Keep scrolling but hide the scrollbar — sidebar reads cleaner and the
+       nav rows already communicate scrollability visually. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     transition: width .18s ease;
   }
+  .hms-sidebar::-webkit-scrollbar { display: none; }
   /* Horizontal padding is trimmed 20px→12px here so the usable row width
      (72 - 24 = 48px) matches .hms-sidebar-link's own 48px min-height —
      equal width/height is what makes the active/hover highlight read as a
