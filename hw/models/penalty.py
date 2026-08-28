@@ -34,7 +34,11 @@ class CancellationPenalty(models.Model):
 
     @property
     def penalty_amount_sar(self):
-        return int(round(self.penalty_amount * float(self.exchange_rate)))
+        # Konsisten dengan convert_to_sar (hw/utils.py): IDR dibagi rate,
+        # currency lain (USD, dst) dikali rate. Jangan kali-keras semua --
+        # itu akan salah untuk penalty berdenominasi IDR.
+        from ..utils import convert_to_sar
+        return int(round(convert_to_sar(self.penalty_amount, self.penalty_currency, float(self.exchange_rate))))
 
     @classmethod
     def generate_number(cls):

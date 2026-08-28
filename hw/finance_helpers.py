@@ -319,23 +319,50 @@ def allocate_payment(payment, allocation_date, created_by, note=''):
 
     invoice = payment.invoice
     to_account = cash_destination(method=payment.method, received_in=payment.received_in)
-    mov = CashMovement.objects.create(
-        company=payment.company, client=payment.client, invoice=invoice,
-        date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
-        amount=payment.amount, currency=payment.currency, exchange_rate=payment.exchange_rate,
-        method=payment.method, reservation_label=payment.reservation, service_item_label=payment.service_item,
-        note=f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)',
-        created_by=created_by,
-    )
-    if payment.reservation_id or payment.service_item_id:
-        Allocation.objects.create(
+    base_note = f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)'
+
+    # Satu payment menutup beberapa reservasi → mirror CashMovement per
+    # PaymentAllocation, tiap baris dalam SAR (riyal patokan). Ini yang bikin
+    # reservation_cash_breakdown / _build_reservation_context tetap akurat
+    # ketika satu transfer dialokasikan ke banyak reservasi.
+    pa_allocs = payment.allocations.all()
+    if pa_allocs.exists():
+        for pa in pa_allocs:
+            mov = CashMovement.objects.create(
+                company=payment.company, client=payment.client, invoice=invoice,
+                date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
+                amount=pa.amount_sar, currency='SAR', exchange_rate=1,
+                method=payment.method, reservation_label=pa.reservation, service_item_label=pa.service_item,
+                note=base_note,
+                created_by=created_by,
+            )
+            if pa.reservation_id or pa.service_item_id:
+                Allocation.objects.create(
+                    company=payment.company, client=payment.client, invoice=invoice,
+                    date=allocation_date, amount_sar=mov.amount_sar,
+                    reservation=pa.reservation, service_item=pa.service_item,
+                    reason=AllocationReason.INITIAL,
+                    note=base_note,
+                    created_by=created_by,
+                )
+    else:
+        mov = CashMovement.objects.create(
             company=payment.company, client=payment.client, invoice=invoice,
-            date=allocation_date, amount_sar=mov.amount_sar,
-            reservation=payment.reservation, service_item=payment.service_item,
-            reason=AllocationReason.INITIAL,
-            note=f'Sinkron dari PaymentRecord {payment.payment_number} (Finance page)',
+            date=allocation_date, from_account=WalletAccount.CLIENT, to_account=to_account,
+            amount=payment.amount, currency=payment.currency, exchange_rate=payment.exchange_rate,
+            method=payment.method, reservation_label=payment.reservation, service_item_label=payment.service_item,
+            note=base_note,
             created_by=created_by,
         )
+        if payment.reservation_id or payment.service_item_id:
+            Allocation.objects.create(
+                company=payment.company, client=payment.client, invoice=invoice,
+                date=allocation_date, amount_sar=mov.amount_sar,
+                reservation=payment.reservation, service_item=payment.service_item,
+                reason=AllocationReason.INITIAL,
+                note=base_note,
+                created_by=created_by,
+            )
 
     old_state = _payment_snapshot(payment)
     invoice.sync_status()

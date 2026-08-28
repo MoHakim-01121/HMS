@@ -117,6 +117,19 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
           </Section>
         )}
 
+        {payment.allocations?.length > 0 && (
+          <Section label={t("Allocation Details")} icon="invoice">
+            <DetailTable
+              columns={[
+                { header: t("Reservation"), render: (a) => a.reservation_number || a.reservation_id || "—" },
+                { header: t("Amount (SAR)"), align: "right", render: (a) => a.amount_sar?.toLocaleString() },
+              ]}
+              rows={payment.allocations}
+              rowKey={(a) => a.id}
+            />
+          </Section>
+        )}
+
         {payment.proof_url && (
           <Section label={t("Payment Proof")} icon="invoice">
             <div style={{ padding: "0 20px 16px" }}>
