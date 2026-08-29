@@ -26,6 +26,6 @@ class LandingViewTest(TestCase):
     def test_preview_flag_alone_does_not_bypass_without_permission(self):
         user = User.objects.create_user('staff_nogrant', password='pw12345')
         self.client.force_login(user)
-        with patch('hw.views.can', return_value=False):
+        with patch('hw.views.landing_views.can', return_value=False):
             resp = self.client.get('/?preview=1')
         self.assertRedirects(resp, '/dashboard/')
