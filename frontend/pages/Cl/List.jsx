@@ -7,6 +7,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -47,7 +48,6 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   const [query, setQuery] = useState(q || "");
   const [panelOpen, setPanelOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [sel, setSel] = useState(status_list || []);
   const [from, setFrom] = useState(date_from || "");
   const [to, setTo] = useState(date_to || "");
@@ -81,20 +81,17 @@ export default function List({ letters, total_count, q, status_list, date_from, 
       <PageBack />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Confirmation Letter")}</div>
+          <h1 className="page-title">{t("Confirmation Letter")}</h1>
           <div className="page-sub">{t("{count} documents saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
-          <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>{t("Export")} ▾</button>
-            {exportOpen && (
-              <div className="export-menu" style={{ display: "block" }}>
-                <a href={`/cl/export/csv/${exportQs}`}><Icon name="invoice" size={13} /> CSV</a>
-                <a href={`/cl/export/pdf/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
-                <a href={`/cl/export/pdf-v2/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF v2</a>
-              </div>
-            )}
-          </div>
+          <ExportMenu
+            items={[
+              { href: `/cl/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
+              { href: `/cl/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
+              { href: `/cl/export/pdf-v2/${exportQs}`, label: "PDF v2", icon: "cl", external: true },
+            ]}
+          />
           {perms.can("cl", "create") && (
             <button type="button" onClick={() => openForm("/cl/new/")} onPointerEnter={() => openForm.prefetch("/cl/new/")} onFocus={() => openForm.prefetch("/cl/new/")} className="btn btn-primary">{t("+ Create New")}</button>
           )}

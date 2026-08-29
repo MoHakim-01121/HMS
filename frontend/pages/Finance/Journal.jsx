@@ -1,7 +1,9 @@
+import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
+import ListPager from "../../components/shadcn/list-pager.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -23,11 +25,8 @@ export default function Journal({
   const columns = [
     {
       header: t("Entry #"),
-      render: (e) => (
-        <a href={`/finance/journal/${e.id}/`} className="text-blue-600 hover:underline font-medium">
-          {e.entry_number}
-        </a>
-      ),
+      className: "col-m-primary",
+      render: (e) => <span className="col-bold col-nowrap">{e.entry_number}</span>,
     },
     {
       header: t("Type"),
@@ -58,7 +57,7 @@ export default function Journal({
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Journal Entries")}</div>
+          <h1 className="page-title">{t("Journal Entries")}</h1>
           <div className="page-sub">{t("Immutable double-entry ledger. Corrections are made via reversal entries.")}</div>
         </div>
       </div>
@@ -98,20 +97,16 @@ export default function Journal({
       <div className="card">
         {entries.length > 0 ? (
           <>
-            <Table columns={columns} rows={entries} rowKey={(e) => e.id} />
-            <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-sm text-muted-foreground">
-              <span>{total.toLocaleString()} {t("entries")}</span>
-              {num_pages > 1 && (
-                <span className="flex items-center gap-2">
-                  <button className="btn btn-secondary btn-sm" disabled={page_num <= 1} onClick={() => gotoPage(page_num - 1)}>‹</button>
-                  <span>{page_num} / {num_pages}</span>
-                  <button className="btn btn-secondary btn-sm" disabled={page_num >= num_pages} onClick={() => gotoPage(page_num + 1)}>›</button>
-                </span>
-              )}
-            </div>
+            <Table
+              columns={columns}
+              rows={entries}
+              rowKey={(e) => e.id}
+              onRowClick={(e) => router.visit(`/finance/journal/${e.id}/`)}
+            />
+            <ListPager page={page_num} numPages={num_pages} total={total} unit="entries" onPage={gotoPage} />
           </>
         ) : (
-          <EmptyState title="No journal entries found" sub="No entries match your filters." />
+          <EmptyState iconName="invoice" title="No journal entries found" sub="No entries match your filters." />
         )}
       </div>
     </div>

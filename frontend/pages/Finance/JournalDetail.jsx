@@ -16,10 +16,10 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
 
       <div className="page-header">
         <div>
-          <div className="page-title">
+          <h1 className="page-title">
             {entry.entry_number}
             {entry.is_reversal && <span style={{ marginLeft: 10 }}><StatusPill tone="red" label={t("Reversal")} /></span>}
-          </div>
+          </h1>
           <div className="page-sub">{entry.description}</div>
         </div>
       </div>
@@ -33,7 +33,7 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
           <div className="text-xs text-muted-foreground">{t("Reverses")}</div>
           <div className="font-medium mt-1">
             {reverses_number
-              ? <a href={`/finance/journal/?q=${reverses_number}`} className="text-blue-600 hover:underline">{reverses_number}</a>
+              ? <a href={`/finance/journal/?q=${reverses_number}`} className="hms-dv-link">{reverses_number}</a>
               : "—"}
           </div>
         </div>

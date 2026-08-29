@@ -122,7 +122,7 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
       <PageBack />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Visits")}</div>
+          <h1 className="page-title">{t("Visits")}</h1>
           <div className="page-sub">{t("{count} visits", { count: total_count })}</div>
         </div>
         <div className="page-actions">

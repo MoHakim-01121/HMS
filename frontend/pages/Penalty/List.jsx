@@ -1,7 +1,9 @@
+import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
+import ListPager from "../../components/shadcn/list-pager.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -16,11 +18,7 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
     {
       header: t("Penalty #"),
       className: "col-m-primary",
-      render: (p) => (
-        <a href={`/penalty/${p.id}/`} className="text-blue-600 hover:underline font-medium">
-          {p.penalty_number}
-        </a>
-      ),
+      render: (p) => <span className="col-bold col-nowrap">{p.penalty_number}</span>,
     },
     {
       header: t("Status"),
@@ -38,7 +36,7 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
       header: t("Conf Letter"),
       className: "col-m-hide",
       render: (p) => p.cl_id
-        ? <a href={`/cl/${p.cl_id}/`} className="text-blue-600 hover:underline">{p.confirmation_number}</a>
+        ? <a href={`/cl/${p.cl_id}/`} className="hms-dv-link" onClick={(e) => e.stopPropagation()}>{p.confirmation_number}</a>
         : "—",
     },
     {
@@ -65,7 +63,7 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Penalties")}</div>
+          <h1 className="page-title">{t("Penalties")}</h1>
           <div className="page-sub">{t("All cancellation penalties across confirmation letters.")}</div>
         </div>
       </div>
@@ -92,13 +90,16 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
       <div className="card">
         {penalties.length > 0 ? (
           <>
-            <Table columns={columns} rows={penalties} rowKey={(p) => p.id} />
-            <div className="px-4 py-3 border-t border-[var(--border)] text-sm text-muted-foreground">
-              {total.toLocaleString()} {t("penalties")}
-            </div>
+            <Table
+              columns={columns}
+              rows={penalties}
+              rowKey={(p) => p.id}
+              onRowClick={(p) => router.visit(`/penalty/${p.id}/`)}
+            />
+            <ListPager total={total} unit="penalties" />
           </>
         ) : (
-          <EmptyState title="No penalties found" sub="No penalties match your filters." />
+          <EmptyState iconName="invoice" title="No penalties found" sub="No penalties match your filters." />
         )}
       </div>
     </div>

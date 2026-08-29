@@ -37,7 +37,7 @@ export default function Manage({ team_members, pricelist }) {
     <div className="page shadcn-root">
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Manage Landing")}</div>
+          <h1 className="page-title">{t("Manage Landing")}</h1>
           <div className="page-sub">{t("Tim anggota dan pricelist yang tampil di halaman publik")}</div>
         </div>
         <a href="/?preview=1" target="_blank" rel="noreferrer" className="btn btn-secondary">

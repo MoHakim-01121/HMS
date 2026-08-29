@@ -33,7 +33,7 @@ export default function TrialBalance({
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Trial Balance")}</div>
+          <h1 className="page-title">{t("Trial Balance")}</h1>
           <div className="page-sub">{t("Debit and credit totals per account, based on the journal ledger.")}</div>
         </div>
         <div className="page-actions">

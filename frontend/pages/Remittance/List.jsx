@@ -6,6 +6,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
+import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -49,7 +50,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
       <PageBack />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Remittance")}</div>
+          <h1 className="page-title">{t("Remittance")}</h1>
           <div className="page-sub">{t("{count} remittances saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
@@ -124,16 +125,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
                 <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">{t("Status")}</span><button type="button" className="fp-reset" onClick={() => setSel("")}>{t("Reset")}</button></div>
-                  <div className="fp-status-group" role="radiogroup" aria-label={t("Status")}>
-                    {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
-                        role="radio" aria-checked={sel === o.val} tabIndex={0}
-                        onClick={() => setSel(o.val)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
-                        <span className="fp-status-dot"></span><span className="fp-status-opt-label">{t(o.label)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
                 </div>
                 <div className="fp-footer">
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>

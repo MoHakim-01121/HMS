@@ -268,7 +268,7 @@ export default function List({ users, role_choices = [], company_choices = [] })
     <div className="page shadcn-root">
       <PageBack />
       <div className="page-header">
-        <div><div className="page-title">{t("Users")}</div><div className="page-sub">{t("{count} accounts registered", { count: users.length })}</div></div>
+        <div><h1 className="page-title">{t("Users")}</h1><div className="page-sub">{t("{count} accounts registered", { count: users.length })}</div></div>
         <div className="page-actions">
           <button type="button" onClick={() => openForm("/users/new/")} onPointerEnter={() => openForm.prefetch("/users/new/")} onFocus={() => openForm.prefetch("/users/new/")} className="btn btn-primary">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>

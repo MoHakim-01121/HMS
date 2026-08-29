@@ -1,3 +1,4 @@
+import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
@@ -9,11 +10,8 @@ export default function Statements({ clients = [] }) {
   const columns = [
     {
       header: t("Client"),
-      render: (c) => (
-        <a href={`/finance/clients/${c.client_id}/statement/`} className="text-blue-600 hover:underline font-medium">
-          {c.name}
-        </a>
-      ),
+      className: "col-m-primary",
+      render: (c) => <span className="col-bold col-nowrap">{c.name}</span>,
     },
     {
       header: t("Billed"),
@@ -54,16 +52,21 @@ export default function Statements({ clients = [] }) {
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Client Ledger")}</div>
+          <h1 className="page-title">{t("Client Ledger")}</h1>
           <div className="page-sub">{t("Balances per client based on the operational ledger. Open a client for the full statement.")}</div>
         </div>
       </div>
 
       <div className="card">
         {clients.length > 0 ? (
-          <Table columns={columns} rows={clients} rowKey={(c) => c.client_id} />
+          <Table
+            columns={columns}
+            rows={clients}
+            rowKey={(c) => c.client_id}
+            onRowClick={(c) => router.visit(`/finance/clients/${c.client_id}/statement/`)}
+          />
         ) : (
-          <EmptyState title="No ledger activity" sub="No clients with charges, payments or allocations yet." />
+          <EmptyState iconName="wallet" title="No ledger activity" sub="No clients with charges, payments or allocations yet." />
         )}
       </div>
     </div>

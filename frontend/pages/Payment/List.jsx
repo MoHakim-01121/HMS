@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
@@ -9,7 +10,7 @@ import EmptyState from "../../components/shadcn/empty-state.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
-  Dialog, DialogCloseButton, DialogContent, DialogFooter, DialogTitle,
+  Dialog, DialogCloseButton, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -252,11 +253,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
     {
       header: t("Payment #"),
       className: "col-m-primary",
-      render: (p) => (
-        <a href={`/finance/payments/${p.id}/`} className="text-blue-600 hover:underline font-medium">
-          {p.payment_number}
-        </a>
-      ),
+      render: (p) => <span className="col-bold col-nowrap">{p.payment_number}</span>,
     },
     {
       header: t("Status"),
@@ -300,10 +297,9 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       render: (p) => (
         <RowActions
           actions={[
-            { label: t("Detail"), href: `/finance/payments/${p.id}/` },
             ...(p.status === "pending" ? [
-              { label: t("Confirm"), onClick: () => setConfirmDialog(p) },
-              { label: t("Reject"), onClick: () => setRejectDialog({ ...p, reason: "" }), destructive: true },
+              { icon: "check", label: t("Confirm"), variant: "green", onClick: () => setConfirmDialog(p) },
+              { icon: "close", label: t("Reject"), variant: "red", onClick: () => setRejectDialog({ ...p, reason: "" }) },
             ] : []),
           ]}
         />
@@ -317,7 +313,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Payments")}</div>
+          <h1 className="page-title">{t("Payments")}</h1>
           <div className="page-sub">{t("Track all payment records and their status.")}</div>
         </div>
         <div className="page-actions">
@@ -352,9 +348,14 @@ export default function List({ payments = [], status_choices = [], invoice_choic
       {/* Table */}
       <div className="card">
         {filtered.length > 0 ? (
-          <Table columns={columns} rows={filtered} rowKey={(p) => p.id} />
+          <Table
+            columns={columns}
+            rows={filtered}
+            rowKey={(p) => p.id}
+            onRowClick={(p) => router.visit(`/finance/payments/${p.id}/`)}
+          />
         ) : (
-          <EmptyState title="No payments found" sub="No payment records match your filters." />
+          <EmptyState iconName="wallet" title="No payments found" sub="No payment records match your filters." />
         )}
       </div>
 

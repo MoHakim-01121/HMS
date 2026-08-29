@@ -14,7 +14,7 @@ export default function Tracking({ clients, total_sisa_kirim }) {
       <PageBack href="/remittance/" />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Remittance Tracking")}</div>
+          <h1 className="page-title">{t("Remittance Tracking")}</h1>
           <div className="page-sub">{t("Per client and reservation: sent to HQ, remaining idle funds, and which RMT covered them")}</div>
         </div>
         <div className="page-actions">

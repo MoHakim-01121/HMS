@@ -625,7 +625,7 @@ export default function Calendar(props) {
         <>
           <div className="page-header">
             <div>
-              <div className="page-title">{t("Calendar")}</div>
+              <h1 className="page-title">{t("Calendar")}</h1>
               <div className="page-sub">{t("{count} reservations · {hotels} hotels", { count: total_reservations, hotels: hotels.length })}</div>
             </div>
             <div className="page-actions">

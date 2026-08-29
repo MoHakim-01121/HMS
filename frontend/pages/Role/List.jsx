@@ -74,7 +74,7 @@ export default function List({ roles = [], modules = [], current_role }) {
       <PageBack href="/users/" />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Roles")}</div>
+          <h1 className="page-title">{t("Roles")}</h1>
           <div className="page-sub">
             {t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}
           </div>

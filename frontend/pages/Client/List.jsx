@@ -7,6 +7,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -55,18 +56,17 @@ export default function List({ clients, total_count, q, status, pagination }) {
       <PageBack label={t("Back")} />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Clients")}</div>
+          <h1 className="page-title">{t("Clients")}</h1>
           <div className="page-sub">{t("{count} travel agents registered", { count: total_count })}</div>
         </div>
         <div className="page-actions">
           <a href="/clients/map/" className="btn btn-secondary">
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+            <Icon name="map-pin" size={14} />
             {t("Map")}
           </a>
           {perms.can("clients", "create") && (
             <button type="button" onClick={() => openForm("/clients/new/")} onPointerEnter={() => openForm.prefetch("/clients/new/")} onFocus={() => openForm.prefetch("/clients/new/")} className="btn btn-primary">
-              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              {t("New client")}
+              + {t("New client")}
             </button>
           )}
         </div>
@@ -89,16 +89,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
                 <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
                 <div className="fp-section">
                   <div className="fp-section-head"><span className="fp-section-label">{t("Status")}</span><button type="button" className="fp-reset" onClick={() => setSel("")}>{t("Reset")}</button></div>
-                  <div className="fp-status-group" role="radiogroup" aria-label={t("Status")}>
-                    {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
-                        role="radio" aria-checked={sel === o.val} tabIndex={0}
-                        onClick={() => setSel(o.val)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
-                        <span className="fp-status-dot"></span><span className="fp-status-opt-label">{t(o.label)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
                 </div>
                 <div className="fp-footer">
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>

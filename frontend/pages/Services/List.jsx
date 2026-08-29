@@ -7,6 +7,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -16,7 +17,6 @@ const visit = (params) => listVisit("/services/", params);
 
 export default function List({ invoices, total_count, q, pagination }) {
   const [query, setQuery] = useState(q || "");
-  const [exportOpen, setExportOpen] = useState(false);
   const debounce = useRef(null);
   const first = useRef(true);
 
@@ -39,19 +39,16 @@ export default function List({ invoices, total_count, q, pagination }) {
       <PageBack />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Invoice Services")}</div>
+          <h1 className="page-title">{t("Invoice Services")}</h1>
           <div className="page-sub">{t("{count} invoices saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
-          <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>{t("Export")} ▾</button>
-            {exportOpen && (
-              <div className="export-menu" style={{ display: "block" }}>
-                <a href={`/services/export/csv/${qs}`}><Icon name="invoice" size={13} /> CSV</a>
-                <a href={`/services/export/pdf/${qs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
-              </div>
-            )}
-          </div>
+          <ExportMenu
+            items={[
+              { href: `/services/export/csv/${qs}`, label: "CSV", icon: "invoice" },
+              { href: `/services/export/pdf/${qs}`, label: "PDF", icon: "cl", external: true },
+            ]}
+          />
           {perms.can("services", "create") && (
             <button type="button" onClick={() => openForm("/services/new/")} onPointerEnter={() => openForm.prefetch("/services/new/")} onFocus={() => openForm.prefetch("/services/new/")} className="btn btn-primary">{t("+ Create New")}</button>
           )}

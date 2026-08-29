@@ -35,11 +35,7 @@ export default function List({ periods = [] }) {
     {
       header: t("Period"),
       className: "col-m-primary",
-      render: (p) => (
-        <a href={`/finance/periods/${p.id}/`} className="text-blue-600 hover:underline font-medium">
-          {p.name}
-        </a>
-      ),
+      render: (p) => <span className="col-bold col-nowrap">{p.name}</span>,
     },
     {
       header: t("Status"),
@@ -67,7 +63,6 @@ export default function List({ periods = [] }) {
       render: (p) => (
         <RowActions
           actions={[
-            { label: t("Detail"), href: `/finance/periods/${p.id}/` },
             ...(p.is_postable ? [
               { label: t("Close"), onClick: () => confirm({ title: t("Close Period"), message: t("Close this period?"), onConfirm: () => router.post(`/finance/periods/${p.id}/close/`) }) },
             ] : []),
@@ -86,7 +81,7 @@ export default function List({ periods = [] }) {
 
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Financial Periods")}</div>
+          <h1 className="page-title">{t("Financial Periods")}</h1>
           <div className="page-sub">{t("Manage accounting periods and locking.")}</div>
         </div>
         <div className="page-actions">
@@ -96,9 +91,14 @@ export default function List({ periods = [] }) {
 
       <div className="card">
         {periods.length > 0 ? (
-          <Table columns={columns} rows={periods} rowKey={(p) => p.id} />
+          <Table
+            columns={columns}
+            rows={periods}
+            rowKey={(p) => p.id}
+            onRowClick={(p) => router.visit(`/finance/periods/${p.id}/`)}
+          />
         ) : (
-          <EmptyState title="No periods found" sub="Click 'Create Periods' to generate monthly periods for a year." />
+          <EmptyState iconName="wallet" title="No periods found" sub="Click 'Create Periods' to generate monthly periods for a year." />
         )}
       </div>
 

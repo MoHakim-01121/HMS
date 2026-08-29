@@ -8,6 +8,8 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -38,7 +40,6 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
   const { t } = useI18n();
   const [query, setQuery] = useState(q || "");
   const [panelOpen, setPanelOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
   const [sel, setSel] = useState(status_filter || "");
   const [from, setFrom] = useState(date_from || "");
   const [to, setTo] = useState(date_to || "");
@@ -71,19 +72,16 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
       <PageBack label={t("Back")} />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Invoice Hotel")}</div>
+          <h1 className="page-title">{t("Invoice Hotel")}</h1>
           <div className="page-sub">{t("{count} invoices saved", { count: total_count })}</div>
         </div>
         <div className="page-actions">
-          <div className="export-dropdown" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="btn btn-secondary export-btn" onClick={() => setExportOpen((v) => !v)}>{t("Export")} ▾</button>
-            {exportOpen && (
-              <div className="export-menu" style={{ display: "block" }}>
-                <a href={`/invoice/export/csv/${exportQs}`}><Icon name="invoice" size={13} /> CSV</a>
-                <a href={`/invoice/export/pdf/${exportQs}`} target="_blank" rel="noreferrer"><Icon name="cl" size={13} /> PDF</a>
-              </div>
-            )}
-          </div>
+          <ExportMenu
+            items={[
+              { href: `/invoice/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
+              { href: `/invoice/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
+            ]}
+          />
           {perms.can("invoice", "create") && (
             <button type="button" onClick={() => openForm("/invoice/new/")} onPointerEnter={() => openForm.prefetch("/invoice/new/")} onFocus={() => openForm.prefetch("/invoice/new/")} className="btn btn-primary">+ {t("Create New")}</button>
           )}
@@ -148,17 +146,7 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
                     <span className="fp-section-label">{t("Status")}</span>
                     <button type="button" className="fp-reset" onClick={() => setSel("")}>{t("Reset")}</button>
                   </div>
-                  <div className="fp-status-group" role="radiogroup" aria-label={t("Status")}>
-                    {STATUS_OPTS.map((o) => (
-                      <div key={o.val} className={`fp-status-opt ${o.cls}${sel === o.val ? " selected" : ""}`}
-                        role="radio" aria-checked={sel === o.val} tabIndex={0}
-                        onClick={() => setSel(o.val)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSel(o.val); } }}>
-                        <span className="fp-status-dot"></span>
-                        <span className="fp-status-opt-label">{t(o.label)}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
                 </div>
                 <div className="fp-footer">
                   <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>

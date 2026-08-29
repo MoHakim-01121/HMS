@@ -423,7 +423,7 @@ export default function RecapSettings({
 
       <div className="rs-head">
         <PageBack href="/calendar/" label={t("Back to Calendar")} />
-        <div className="page-title">{t("WA Recap Settings")}</div>
+        <h1 className="page-title">{t("WA Recap Settings")}</h1>
         <div className="page-sub">{t("Manage message templates and recipients for daily check-in recaps.")}</div>
       </div>
 

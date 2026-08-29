@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import DetailCard from "../../components/shadcn/detail-card.jsx";
@@ -6,11 +7,18 @@ import DetailAmount from "../../components/shadcn/detail-amount.jsx";
 import DetailTable from "../../components/shadcn/detail-table.jsx";
 import Section from "../../components/shadcn/section.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "../../components/shadcn/ui/dialog.jsx";
+import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 export default function Detail({ payment = {}, logs = [], journal_entries = [] }) {
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   const handleConfirm = () => {
     confirm({
@@ -33,11 +41,9 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
     });
   };
 
-  const handleReject = () => {
-    const reason = window.prompt(t("Reason for rejection:"));
-    if (reason !== null) {
-      router.post(`/finance/payments/${payment.id}/reject/`, { reason });
-    }
+  const submitReject = () => {
+    router.post(`/finance/payments/${payment.id}/reject/`, { reason: rejectReason });
+    setRejectOpen(false);
   };
 
   const pill = {
@@ -52,7 +58,7 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
   if (payment.status === "pending") {
     metaActions.push(
       <button key="confirm" className="hms-dv-act" onClick={handleConfirm}>{t("Confirm")}</button>,
-      <button key="reject" className="hms-dv-act" onClick={handleReject} style={{ color: "var(--red)" }}>{t("Reject")}</button>,
+      <button key="reject" className="hms-dv-act" onClick={() => { setRejectReason(""); setRejectOpen(true); }} style={{ color: "var(--red)" }}>{t("Reject")}</button>,
     );
   }
   if (payment.status === "confirmed" || payment.status === "allocated") {
@@ -134,7 +140,7 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
           <Section label={t("Payment Proof")} icon="invoice">
             <div style={{ padding: "0 20px 16px" }}>
               {payment.proof_url?.endsWith(".pdf") ? (
-                <a href={payment.proof_url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
+                <a href={payment.proof_url} target="_blank" rel="noreferrer" className="hms-dv-link text-sm">
                   {t("View PDF")}
                 </a>
               ) : (
@@ -186,6 +192,26 @@ export default function Detail({ payment = {}, logs = [], journal_entries = [] }
       </DetailCard>
 
       {confirmDialog}
+
+      {rejectOpen && (
+        <Dialog open onOpenChange={(v) => { if (!v) setRejectOpen(false); }}>
+          <DialogContent className="hms-dialog">
+            <DialogHeader>
+              <DialogTitle>{t("Reject Payment")}</DialogTitle>
+            </DialogHeader>
+            <Textarea
+              rows={3}
+              placeholder={t("Reason for rejection...")}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRejectOpen(false)}>{t("Cancel")}</Button>
+              <Button variant="destructive" onClick={submitReject}>{t("Reject")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

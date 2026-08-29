@@ -11,7 +11,7 @@ export default function Recap({ monthly }) {
       <PageBack href="/remittance/" />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Monthly Recap")}</div>
+          <h1 className="page-title">{t("Monthly Recap")}</h1>
           <div className="page-sub">{t("Remittance summary per month")}</div>
         </div>
       </div>

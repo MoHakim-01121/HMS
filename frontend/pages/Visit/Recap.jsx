@@ -30,7 +30,7 @@ export default function Recap({ monthly }) {
       <PageBack href="/visits/" />
       <div className="page-header">
         <div>
-          <div className="page-title">{t("Visits Recap")}</div>
+          <h1 className="page-title">{t("Visits Recap")}</h1>
           <div className="page-sub">{t("Visit results summary per month")}</div>
         </div>
       </div>

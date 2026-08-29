@@ -327,7 +327,7 @@ export default function Profile({ profile, account, activities, errors: serverEr
 
         <div className="page-header">
           <div>
-            <div className="page-title">{t("Account Settings")}</div>
+            <h1 className="page-title">{t("Account Settings")}</h1>
             <div className="page-sub">{t("Manage your account and personal information.")}</div>
           </div>
         </div>

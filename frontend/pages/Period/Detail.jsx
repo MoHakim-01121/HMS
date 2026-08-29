@@ -4,6 +4,7 @@ import DetailCard from "../../components/shadcn/detail-card.jsx";
 import DetailGrid from "../../components/shadcn/detail-grid.jsx";
 import DetailTable from "../../components/shadcn/detail-table.jsx";
 import Section from "../../components/shadcn/section.jsx";
+import { DvLink } from "../../components/shadcn/item-row.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -80,7 +81,7 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
 
   const paymentColumns = [
     { header: t("Payment #"), render: (p) => (
-      <a href={`/finance/payments/${p.id}/`} className="text-blue-600 hover:underline">{p.payment_number}</a>
+      <DvLink href={`/finance/payments/${p.id}/`}>{p.payment_number}</DvLink>
     )},
     { header: t("Client"), render: (p) => p.client_name || "—" },
     { header: t("Amount"), align: "right", render: (p) => <span className="font-mono">{p.amount_sar?.toLocaleString()} SAR</span> },
