@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import DetailCard from "../../components/shadcn/detail-card.jsx";
@@ -14,25 +13,6 @@ import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
-
-function StatementExport({ pk, t }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
-  const qs = params.toString();
-  return (
-    <>
-      <input type="date" className="hms-dv-date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} />
-      <span style={{ color: "var(--muted-foreground)" }}>–</span>
-      <input type="date" className="hms-dv-date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} />
-      <a className="hms-dv-act" href={`/clients/${pk}/statement/pdf/${qs ? `?${qs}` : ""}`} target="_blank" rel="noreferrer">
-        {t("Export Statement")}
-      </a>
-    </>
-  );
-}
 
 function riskPill(risk) {
   if (risk === "high") return { label: "High Risk", tone: "red" };
@@ -77,12 +57,9 @@ export default function Detail({ client, invoices, cls, activity }) {
             {perms.can("clients", "edit") && (
               <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/edit/`)}>{t("Edit")}</button>
             )}
-            <a className="hms-dv-act" href={`/finance/clients/${c.pk}/statement/`}>{t("Finance Statement")}</a>
           </>
         }
         menuItems={[
-          perms.can("clients", "edit") && { label: t("Move Funds"), onClick: () => openForm(`/clients/${c.pk}/transfer/`) },
-          perms.can("clients", "edit") && { label: t("Refund"), onClick: () => openForm(`/clients/${c.pk}/refund/`) },
           perms.can("clients", "delete") && { label: t("Delete"), onClick: del, danger: true },
         ]}
       >
@@ -187,7 +164,17 @@ export default function Detail({ client, invoices, cls, activity }) {
           label={t("Fund Activity")}
           icon="wallet"
           count={activity.length || null}
-          action={perms.can("clients", "export") ? <StatementExport pk={c.pk} t={t} /> : null}
+          action={
+            <>
+              {perms.can("clients", "edit") && (
+                <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/transfer/`)}>{t("Move Funds")}</button>
+              )}
+              {perms.can("clients", "edit") && (
+                <button type="button" className="hms-dv-act" onClick={() => openForm(`/clients/${c.pk}/refund/`)}>{t("Refund")}</button>
+              )}
+              <a className="hms-dv-act" href={`/finance/clients/${c.pk}/statement/`}>{t("View statement")}</a>
+            </>
+          }
         >
           <DetailTable
             columns={[

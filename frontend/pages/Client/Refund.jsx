@@ -8,6 +8,7 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -15,6 +16,7 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
   const { t } = useI18n();
   const i = initial || {};
   const accountOptions = accounts || [];
+  const [confirm, confirmDialog] = useConfirm();
   const form = useForm({
     from_account: i.from_account || accountOptions[0]?.value || "sby",
     amount_sar: i.amount_sar || "",
@@ -23,9 +25,21 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
   });
   const errors = { ...serverErrors, ...form.errors };
 
+  const accountLabel = accountOptions.find((a) => a.value === form.data.from_account)?.label || form.data.from_account;
+
   const submit = (e) => {
     e.preventDefault();
-    form.post(`/clients/${client.pk}/refund/`, { forceFormData: true });
+    const amount = Number(form.data.amount_sar) || 0;
+    confirm({
+      title: t("Send this refund?"),
+      message: t("{amount} SAR will be paid out to {name} from {account}. This posts a journal entry.", {
+        amount: fmt(amount), name: client.name, account: accountLabel,
+      }),
+      confirmLabel: t("Send Refund"),
+      danger: true,
+      icon: "wallet",
+      onConfirm: () => form.post(`/clients/${client.pk}/refund/`, { forceFormData: true }),
+    });
   };
 
   return (
@@ -79,6 +93,7 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
           />
         </FormPanel>
       </form>
+      {confirmDialog}
     </div>
   );
 }
