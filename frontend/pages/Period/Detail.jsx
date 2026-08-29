@@ -109,7 +109,7 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
               {account_balances.map((ab) => (
                 <div key={ab.account} className="card" style={{ padding: "12px 20px", flex: "1 1 180px", minWidth: 180 }}>
                   <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{ab.label}</div>
-                  <div className={`font-mono font-bold ${ab.balance > 0 ? "text-green-600" : "text-red-600"}`} style={{ fontSize: 20, marginTop: 4 }}>
+                  <div className="font-mono font-bold" style={{ fontSize: 20, marginTop: 4, color: ab.balance > 0 ? "var(--green)" : "var(--red)" }}>
                     {ab.balance?.toLocaleString()} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
                   </div>
                 </div>

@@ -32,7 +32,7 @@ export default function Statements({ clients = [] }) {
       header: t("Receivable"),
       className: "text-right",
       render: (c) => (
-        <span className={`font-mono tabular-nums font-medium ${c.piutang > 0 ? "text-red-600" : ""}`}>
+        <span className="font-mono tabular-nums font-medium" style={c.piutang > 0 ? { color: "var(--red)" } : undefined}>
           {c.piutang.toLocaleString()}
         </span>
       ),

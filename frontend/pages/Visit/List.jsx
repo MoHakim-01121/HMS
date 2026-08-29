@@ -274,7 +274,10 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
                   const s = blockStyle(v);
                   const c = blockColor(v.status);
                   return (
-                    <div key={v.id} onClick={() => router.visit(`/visits/${v.id}/`)} title={`${v.client_name} · ${timeLabel(v)} · ${v.status}`}
+                    <div key={v.id} role="button" tabIndex={0}
+                      onClick={() => router.visit(`/visits/${v.id}/`)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.visit(`/visits/${v.id}/`); } }}
+                      title={`${v.client_name} · ${timeLabel(v)} · ${v.status}`}
                       style={{ ...s, position: "absolute", left: 56, right: 8, borderRadius: 6, padding: "2px 8px", cursor: "pointer", fontSize: 12, overflow: "hidden", background: c.bg, color: c.fg, border: c.border, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                       <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.client_name}</div>
                       {s && s.height && parseFloat(s.height) > 6 && (
@@ -292,7 +295,10 @@ export default function List({ tab, selected_date, year, month, staff_filter, is
                 {untimed.map((v) => {
                   const c = blockColor(v.status);
                   return (
-                    <div key={v.id} onClick={() => router.visit(`/visits/${v.id}/`)} style={{ display: "flex", gap: 8, alignItems: "center", borderRadius: 6, padding: "4px 8px", marginBottom: 4, cursor: "pointer", fontSize: 12, background: c.bg, color: c.fg, border: c.border }}>
+                    <div key={v.id} role="button" tabIndex={0}
+                      onClick={() => router.visit(`/visits/${v.id}/`)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); router.visit(`/visits/${v.id}/`); } }}
+                      style={{ display: "flex", gap: 8, alignItems: "center", borderRadius: 6, padding: "4px 8px", marginBottom: 4, cursor: "pointer", fontSize: 12, background: c.bg, color: c.fg, border: c.border }}>
                       <span className={statusClass(v.status)}>{v.status === "COMPLETED" ? t("Completed") : v.status === "CANCELLED" ? t("Cancelled") : t("Planned")}</span>
                       <span style={{ fontWeight: 600 }}>{v.client_name}</span>
                       {!is_staff && <span style={{ color: "var(--muted-foreground)" }}>{v.staff_name}</span>}

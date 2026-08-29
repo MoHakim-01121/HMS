@@ -105,7 +105,7 @@ export default function Recap({ monthly }) {
         </div>
       )) : (
         <div className="card">
-          <EmptyState title="No visit data yet" />
+          <EmptyState iconName="visits" title="No visit data yet" />
         </div>
       )}
     </div>

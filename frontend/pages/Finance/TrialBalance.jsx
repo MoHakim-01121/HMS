@@ -79,7 +79,7 @@ export default function TrialBalance({
                     <TableCell className="font-medium whitespace-nowrap">{s.account_display}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums">{s.debit.toLocaleString()}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums">{s.credit.toLocaleString()}</TableCell>
-                    <TableCell className={`text-right font-mono tabular-nums font-medium ${s.net < 0 ? "text-red-600" : ""}`}>
+                    <TableCell className="text-right font-mono tabular-nums font-medium" style={s.net < 0 ? { color: "var(--red)" } : undefined}>
                       {s.net.toLocaleString()}
                     </TableCell>
                   </TableRow>
@@ -96,7 +96,7 @@ export default function TrialBalance({
             </div>
           </div>
         ) : (
-          <EmptyState title="No journal data" sub="No entries match your filters." />
+          <EmptyState iconName="invoice" title="No journal data" sub="No entries match your filters." />
         )}
       </div>
     </div>

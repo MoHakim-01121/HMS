@@ -55,7 +55,7 @@ export default function Recap({ monthly }) {
         </div>
       )) : (
         <div className="card">
-          <EmptyState title="No remittance data yet" />
+          <EmptyState iconName="remittance" title="No remittance data yet" />
         </div>
       )}
     </div>

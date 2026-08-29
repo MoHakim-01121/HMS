@@ -81,8 +81,7 @@ export default function List({ roles = [], modules = [], current_role }) {
         </div>
         <div className="page-actions">
           <Link href="/roles/new/" className="btn btn-primary">
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-            {t("New role")}
+            + {t("New role")}
           </Link>
         </div>
       </div>
