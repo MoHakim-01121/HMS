@@ -15,6 +15,7 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, ServiceItem, log_activity
 from ..permissions import require_perm
+from ..finance import queries as fq
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .helpers import (
     _client_options,
@@ -210,7 +211,6 @@ def services_edit(request, pk):
             invoice.save()
 
             invoice.service_items.all().delete()
-            invoice.payments.all().delete()
             _save_service_items(invoice, request)
             _save_service_payments(invoice, request)
         _after = {
@@ -394,14 +394,14 @@ def _serialize_service_invoice(invoice):
             "price": float(it.price),
         } for it in invoice.service_items.all()],
         "payments": [{
-            "ref": p.linked_number,
-            "date": p.payment_date.strftime("%Y-%m-%d") if p.payment_date else "",
-            "method": p.method,
-            "amount": float(p.amount),
-            "currency": p.currency,
-            "exchange": float(p.exchange_rate),
-            "note": p.note,
-            "proof_keep": p.proof.name if p.proof else "",
-            "proof_url": p.proof.url if p.proof else None,
-        } for p in invoice.payments.all()],
+            "ref": p["ref"],
+            "date": p["payment_date"].strftime("%Y-%m-%d") if p["payment_date"] else "",
+            "method": p["method"],
+            "amount": float(p["amount"]),
+            "currency": p["currency"],
+            "exchange": p["exchange_rate"],
+            "note": p["note"],
+            "proof_keep": p["proof"].name if p["proof"] else "",
+            "proof_url": p["proof"].url if p["proof"] else None,
+        } for p in fq.payment_history_rows(invoice)],
     }

@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Payment, Remittance, RemittanceLine, Reservation
+from hw.models import Client, Invoice, Remittance, RemittanceLine, Reservation
 from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
@@ -170,19 +170,12 @@ class RemittanceEditViewTest(TestCase):
         self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
         r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        for res, amount in ((r1, 5000), (r2, 3000)):
-            # Post-migrasi, Payment lama tetap ada (migrate_to_ledger tidak
-            # menghapus Payment) -- _sort_lines_by_payment_date membacanya,
-            # jadi masih butuh Payment di sini.
-            Payment.objects.create(
-                invoice=self.invoice, linked_number=res.reservation_number, amount=amount,
-                currency='SAR', exchange_rate=1, method='cash', payment_date=date(2026, 1, 5),
-            )
-            # `reservasi` (kandidat ditambahkan) membaca jurnal, jadi pembayaran
-            # juga diposting ke general ledger.
+        # R2 dibayar lebih dulu (2 Jan) daripada R1 (5 Jan) — urutan jurnal ini
+        # yang dipakai _sort_lines_by_payment_date. Nomor sengaja terbalik.
+        for res, amount, pay_date in ((r1, 5000, date(2026, 1, 5)), (r2, 3000, date(2026, 1, 2))):
             rec = create_payment_record(
                 invoice=self.invoice, client=self.client_obj,
-                payment_date=date(2026, 1, 5), amount=amount, method='cash',
+                payment_date=pay_date, amount=amount, method='cash',
                 created_by=self.user, received_in='sby', reservation=res,
             )
             posting.post_payment(rec, created_by=self.user)
@@ -200,8 +193,7 @@ class RemittanceEditViewTest(TestCase):
         self.assertEqual(props['reservasi'][0]['mengendap'], 3000)
 
     def test_lines_are_ordered_by_payment_date(self):
-        # R2 bayar lebih dulu daripada R1, tapi disimpan dengan nomor terbalik.
-        Payment.objects.filter(linked_number='R2').update(payment_date=date(2026, 1, 2))
+        # R2 bayar lebih dulu (2 Jan, lihat setUp) daripada R1 (5 Jan).
         RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R2', amount_sar=1200,
         )
@@ -213,9 +205,13 @@ class RemittanceEditViewTest(TestCase):
         self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R2', 'R1'])
 
     def test_lines_without_payment_date_go_last(self):
-        Payment.objects.filter(linked_number='R1').update(payment_date=None)
+        # R3 punya baris remittance tapi belum ada pembayaran -> ditaruh terakhir.
+        Reservation.objects.create(invoice=self.invoice, reservation_number='R3', total_sar=1000)
+        RemittanceLine.objects.create(
+            remittance=self.rem, invoice=self.invoice, linked_number='R3', amount_sar=100,
+        )
         resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
-        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R1'])
+        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R1', 'R3'])
 
     def test_post_adds_removes_and_updates_in_one_save(self):
         payload = [

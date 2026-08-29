@@ -1,10 +1,15 @@
 from datetime import date
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance import posting
+from hw.finance_helpers import create_payment_record
 from hw.models import (
-    ConfirmationLetter, Invoice, Payment, Remittance, RemittanceLine, Reservation,
+    Client, ConfirmationLetter, Invoice, Remittance, RemittanceLine, Reservation,
 )
+from hw.models.choices import Company
+from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_ledger_rows, _prev_sent_map
 
 
@@ -82,18 +87,27 @@ class LedgerTest(TestCase):
     """Buku besar Surabaya <-> Pusat: satu baris per reservasi."""
 
     def setUp(self):
+        self.user = User.objects.create_user("led", password="pw12345")
+        FinancialPeriod.objects.create(
+            name="2026", company=Company.KONOZ,
+            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+        )
+        self.client_obj = Client.objects.create(company="konoz", name="Budi")
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+            company='konoz', invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-LED-001', customer_name='Budi',
         )
-        Reservation.objects.create(
-            invoice=self.invoice, reservation_number='R1', total_sar=10000,
-            hotel='Hilton Makkah', check_in=date(2026, 3, 10), check_out=date(2026, 3, 14),
-        )
-        Reservation.objects.create(
-            invoice=self.invoice, reservation_number='R2', total_sar=5000,
-            hotel='Anwar Al Madinah', check_in=date(2026, 2, 5), check_out=date(2026, 2, 8),
-        )
+        self.res = {
+            'R1': Reservation.objects.create(
+                invoice=self.invoice, reservation_number='R1', total_sar=10000,
+                hotel='Hilton Makkah', check_in=date(2026, 3, 10), check_out=date(2026, 3, 14),
+            ),
+            'R2': Reservation.objects.create(
+                invoice=self.invoice, reservation_number='R2', total_sar=5000,
+                hotel='Anwar Al Madinah', check_in=date(2026, 2, 5), check_out=date(2026, 2, 8),
+            ),
+        }
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
 
     def _cl(self, number, status, **kw):
         return ConfirmationLetter.objects.create(
@@ -102,10 +116,16 @@ class LedgerTest(TestCase):
         )
 
     def _pay(self, res, amount, method):
-        return Payment.objects.create(
-            invoice=self.invoice, linked_number=res, amount=amount, currency='SAR',
-            exchange_rate=1, method=method, payment_date=date(2026, 1, 5),
+        # method lama: 'cash'/'bank transfer' -> kas Surabaya, 'direct' -> kas Pusat.
+        received_in = 'pusat' if (method or '').lower() == 'direct' else 'sby'
+        rec = create_payment_record(
+            invoice=self.invoice, client=self.client_obj,
+            payment_date=date(2026, 1, 5), amount=amount, method=method,
+            created_by=self.user, received_in=received_in,
+            reservation=self.res.get(res),
         )
+        posting.post_payment(rec, created_by=self.user)
+        return rec
 
     def _remit(self, res, amount, day, number):
         rem = Remittance.objects.create(company='konoz', date=date(2026, 1, day), remittance_number=number)

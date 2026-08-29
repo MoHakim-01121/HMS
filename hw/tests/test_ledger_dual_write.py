@@ -4,7 +4,8 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Reservation, ServiceItem, Payment, Client, Remittance
+from hw.models import Invoice, Reservation, ServiceItem, Client, Remittance
+from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -42,7 +43,7 @@ class InvoiceNewDualWriteTest(DualWriteTestBase):
         })
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number="INV-DW-001")
-        self.assertEqual(Payment.objects.filter(invoice=invoice).count(), 1)  # legacy list masih ditulis
+        self.assertEqual(PaymentRecord.objects.filter(invoice=invoice).count(), 1)
         self.assertEqual(fq.invoice_charged_sar(invoice.id), 5000)
         self.assertEqual(fq.invoice_paid_sar(invoice.id), 3000)
 

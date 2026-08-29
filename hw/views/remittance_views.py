@@ -8,25 +8,23 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Min, Q, Sum
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import Payment, Remittance, RemittanceLine, Client
+from ..models import Remittance, RemittanceLine, Client
 from ..models.choices import Company
 from ..finance import posting
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
-from ..utils import convert_to_sar
 from .helpers import validate_proof_file, period_label as _period_label
 from .invoice_billing import _billing_client
 
 logger = logging.getLogger(__name__)
 
-SURABAYA_METHODS = {'cash', 'bank transfer', 'deposit'}
 KONOZ = Company.KONOZ
 
 
@@ -85,11 +83,11 @@ def _sort_lines_by_payment_date(lines):
     Baris tanpa tanggal pembayaran ditaruh paling bawah. Urutan antar render
     tetap stabil (tidak berubah-ubah) lewat fallback linked_number.
     """
+    from ..finance import queries as finance_queries
     linked_numbers = [l.linked_number for l in lines]
-    first_payment = dict(Payment.objects.filter(
-        linked_number__in=linked_numbers,
-        payment_date__isnull=False,
-    ).values('linked_number').annotate(first=Min('payment_date')).values_list('linked_number', 'first'))
+    first_payment = finance_queries.reservation_first_payment_date_map(
+        linked_numbers, company=KONOZ,
+    )
     return sorted(
         lines,
         key=lambda l: (
@@ -756,36 +754,36 @@ def _build_ledger_rows(date_from=None, date_to=None):
     Cancelled hanya muncul kalau uangnya terlanjur bergerak.
     """
     from ..models import ConfirmationLetter, Reservation
+    from ..finance import queries as finance_queries
 
     pool = defaultdict(lambda: {'debit': 0, 'credit': 0})
     direct_total = 0
 
-    for p in Payment.objects.filter(invoice__company=KONOZ).values(
-        'linked_number', 'method', 'amount', 'currency', 'exchange_rate',
-    ):
-        method = (p['method'] or '').lower()
-        sar = int(round(convert_to_sar(float(p['amount']), p['currency'], float(p['exchange_rate']))))
-        if method == 'direct':
-            # client bayar langsung ke Pusat: uangnya masuk sekaligus dianggap sudah terkirim
-            direct_total += sar
-            pool[p['linked_number']]['debit'] += sar
-            pool[p['linked_number']]['credit'] += sar
-        elif method in SURABAYA_METHODS:
-            pool[p['linked_number']]['debit'] += sar
+    # semua reservasi Konoz ikut dilacak, bukan hanya yang sudah ada uangnya
+    res_rows = list(Reservation.objects.filter(invoice__company=KONOZ).values(
+        'id', 'reservation_number', 'hotel', 'check_in', 'check_out', 'total_sar',
+        'invoice__customer_name',
+    ))
+    res_map = {r['reservation_number']: r for r in res_rows}
+
+    # Debit = seluruh uang client yang sudah dibayar untuk reservasi (kas sby +
+    # jkt + direct). Pembayaran 'direct' juga menambah kredit karena uangnya
+    # langsung dianggap sampai di Pusat. Derivasi dari JournalLine.
+    breakdown = finance_queries.reservation_cash_breakdown(KONOZ)
+    for r in res_rows:
+        bd = breakdown.get(r['id'])
+        if not bd:
+            continue
+        num = r['reservation_number']
+        paid = bd['terbayar_sby'] + bd['terbayar_jkt'] + bd['terbayar_direct']
+        pool[num]['debit'] += paid
+        pool[num]['credit'] += bd['terbayar_direct']
+        direct_total += bd['terbayar_direct']
 
     for l in RemittanceLine.objects.filter(remittance__company=KONOZ).values(
         'linked_number',
     ).annotate(total=Sum('amount_sar')):
         pool[l['linked_number']]['credit'] += int(l['total'] or 0)
-
-    # semua reservasi Konoz ikut dilacak, bukan hanya yang sudah ada uangnya
-    res_map = {
-        r['reservation_number']: r
-        for r in Reservation.objects.filter(invoice__company=KONOZ).values(
-            'reservation_number', 'hotel', 'check_in', 'check_out', 'total_sar',
-            'invoice__customer_name',
-        )
-    }
     # CL ikut jadi basis baris supaya reservasi yang belum punya invoice tetap terlacak
     cl_map = {
         c.confirmation_number: c

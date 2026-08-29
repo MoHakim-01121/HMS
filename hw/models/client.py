@@ -87,16 +87,18 @@ class Client(models.Model):
 
     @property
     def avg_days_to_pay(self):
+        from ..models.payment import PaymentRecord
         days_list = []
         for inv in self.resolved_invoices:
             if inv.remaining_sar <= 0 and inv.issued_date:
-                payments = sorted(
-                    inv.payments.all(),
-                    key=lambda p: p.payment_date or date.min,
-                    reverse=True,
+                last = (
+                    inv.payment_records
+                    .filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
+                    .order_by('-payment_date', '-pk')
+                    .first()
                 )
-                if payments and payments[0].payment_date:
-                    days_list.append((payments[0].payment_date - inv.issued_date).days)
+                if last and last.payment_date:
+                    days_list.append((last.payment_date - inv.issued_date).days)
         return round(sum(days_list) / len(days_list)) if days_list else None
 
     @property

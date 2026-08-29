@@ -27,13 +27,13 @@ def global_search(request):
     inv_qs = _co(
         Invoice.objects.filter(invoice_type="hotel")
         .filter(Q(invoice_number__icontains=q) | Q(customer_name__icontains=q))
-        .prefetch_related('reservations', 'payments')
+        .prefetch_related('reservations')
     )[:8]
 
     svc_qs = _co(
         Invoice.objects.filter(invoice_type="visa")
         .filter(Q(invoice_number__icontains=q) | Q(customer_name__icontains=q))
-        .prefetch_related('service_items', 'payments')
+        .prefetch_related('service_items')
     )[:8]
 
     results = []

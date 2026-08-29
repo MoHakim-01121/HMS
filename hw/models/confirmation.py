@@ -1,10 +1,9 @@
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import Q
 from django.urls import reverse
 
 from .choices import Company
-from ..utils import convert_to_sar, round_half_up
+from ..utils import round_half_up
 
 
 class ConfirmationLetter(models.Model):
@@ -70,14 +69,9 @@ class ConfirmationLetter(models.Model):
 
     @property
     def paid_sar(self):
-        from .invoice import Payment
-        payments = Payment.objects.filter(
-            Q(cl=self) | Q(linked_number=self.confirmation_number, cl__isnull=True)
-        )
-        return sum(
-            int(round(convert_to_sar(p.amount, p.currency, float(p.exchange_rate))))
-            for p in payments
-        )
+        # Derivasi dari jurnal (system of record). Bulk-nya: queries.cl_paid_sar_map.
+        from ..finance import queries as fq
+        return fq.cl_paid_sar_map([self]).get(self.pk, 0)
 
     @property
     def remaining_sar(self):

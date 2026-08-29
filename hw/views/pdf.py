@@ -86,21 +86,22 @@ def _render_invoice_pdf(invoice):
         return response
 
     reservations = _build_reservation_context(invoice)
-    payments = invoice.payments.all()
+    from ..finance import queries as fq
+    payments = fq.payment_history_rows(invoice)
 
     payments_ctx = []
     for p in payments:
-        amt = float(p.amount)
-        ex = float(p.exchange_rate)
+        amt = float(p["amount"])
+        ex = p["exchange_rate"]
         payments_ctx.append({
-            "reservation_no": p.linked_number,
-            "date": p.payment_date,
-            "method": p.method,
+            "reservation_no": p["ref"],
+            "date": p["payment_date"],
+            "method": p["method"],
             "amount": format_currency(int(round(amt))),
-            "currency": p.currency,
-            "exchange": f"{ex:,.2f}" if p.currency != "SAR" else "-",
-            "amount_sar": format_currency(p.amount_sar),
-            "note": p.note or "-",
+            "currency": p["currency"],
+            "exchange": f"{ex:,.2f}" if p["currency"] != "SAR" else "-",
+            "amount_sar": format_currency(p["amount_sar"]),
+            "note": p["note"] or "-",
         })
 
     total_sar = invoice.total_sar

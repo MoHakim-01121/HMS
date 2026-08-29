@@ -85,7 +85,7 @@ def invoice_list(request):
     active_company = get_active_company(request)
     base_qs = Invoice.objects.filter(
         invoice_type=InvoiceType.HOTEL, company=active_company
-    ).prefetch_related('reservations', 'service_items', 'payments')
+    ).prefetch_related('reservations', 'service_items')
 
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
@@ -244,17 +244,17 @@ def invoice_detail(request, pk):
     } for r in res_ctx]
 
     payments = [{
-        "linked_number": p.linked_number,
-        "payment_date": p.payment_date.strftime("%d/%m/%Y") if p.payment_date else None,
-        "method": p.method,
-        "amount_int": int(round(float(p.amount))),
-        "currency": p.currency,
-        "exchange_rate": float(p.exchange_rate),
-        "exchange_rate_fmt": f"{float(p.exchange_rate):.2f}",
-        "amount_sar_int": p.amount_sar,
-        "proof_url": p.proof.url if p.proof else None,
-        "note": p.note,
-    } for p in invoice.payments.all()]
+        "linked_number": p["ref"],
+        "payment_date": p["payment_date"].strftime("%d/%m/%Y") if p["payment_date"] else None,
+        "method": p["method"],
+        "amount_int": int(round(p["amount"])),
+        "currency": p["currency"],
+        "exchange_rate": p["exchange_rate"],
+        "exchange_rate_fmt": f"{p['exchange_rate']:.2f}",
+        "amount_sar_int": p["amount_sar"],
+        "proof_url": p["proof"].url if p["proof"] else None,
+        "note": p["note"],
+    } for p in fq.payment_history_rows(invoice)]
 
     due_alert = None
     if invoice.due_date and invoice.remaining_sar > 0:
@@ -327,7 +327,6 @@ def invoice_edit(request, pk):
             invoice.save()
 
             invoice.reservations.all().delete()
-            invoice.payments.all().delete()
 
             # Relink CL selection before recreating reservations/payments -- see
             # the matching comment in invoice_new for why the order matters.
@@ -546,16 +545,16 @@ def _serialize_hotel_invoice(invoice):
             "reservation_total": int(r.total_sar or 0),
         } for r in invoice.reservations.all()],
         "payments": [{
-            "ref": p.linked_number,
-            "date": p.payment_date.strftime("%Y-%m-%d") if p.payment_date else "",
-            "method": p.method or "Cash",
-            "amount": float(p.amount),
-            "currency": p.currency,
-            "exchange": float(p.exchange_rate),
-            "note": p.note,
-            "proof_keep": p.proof.name if p.proof else "",
-            "proof_url": p.proof.url if p.proof else None,
-        } for p in invoice.payments.all()],
+            "ref": p["ref"],
+            "date": p["payment_date"].strftime("%Y-%m-%d") if p["payment_date"] else "",
+            "method": p["method"] or "Cash",
+            "amount": float(p["amount"]),
+            "currency": p["currency"],
+            "exchange": p["exchange_rate"],
+            "note": p["note"],
+            "proof_keep": p["proof"].name if p["proof"] else "",
+            "proof_url": p["proof"].url if p["proof"] else None,
+        } for p in fq.payment_history_rows(invoice)],
         "linked_cl_ids": list(invoice.confirmation_letters.values_list("pk", flat=True)),
     }
 

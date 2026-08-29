@@ -29,6 +29,11 @@ class PaymentRecord(models.Model):
         (STATUS_REVERSED,  'Reversed'),
     ]
 
+    # Status yang punya efek jurnal (uang benar-benar masuk). Semua derivasi
+    # angka pembayaran — footer invoice, riwayat, avg-days-to-pay — menyaring
+    # ke daftar ini. Satu definisi, dipakai queries + model property.
+    EFFECTIVE_STATUSES = (STATUS_CONFIRMED, STATUS_ALLOCATED)
+
     # Identitas
     payment_number = models.CharField(max_length=50, unique=True, db_index=True)
     invoice        = models.ForeignKey('Invoice', on_delete=models.PROTECT, related_name='payment_records')
@@ -92,7 +97,7 @@ class PaymentRecord(models.Model):
 
     @property
     def is_confirmed(self):
-        return self.status in (self.STATUS_CONFIRMED, self.STATUS_ALLOCATED)
+        return self.status in self.EFFECTIVE_STATUSES
 
     @property
     def is_editable(self):

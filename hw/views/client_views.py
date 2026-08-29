@@ -164,7 +164,7 @@ def client_detail(request, pk):
     # Invoice.client sendirian tidak cukup -- invoice lama sering kosong.
     # resolved_invoices (Fase 7) = union Invoice.client + invoice yang punya
     # baris jurnal berdimensi client (pengganti Charge.client yang pensiun).
-    invoices = c.resolved_invoices.prefetch_related('reservations', 'payments')
+    invoices = c.resolved_invoices.prefetch_related('reservations')
     cls = c.cls.order_by('-created_at')
     inv_data = [{
         "pk": inv.pk,

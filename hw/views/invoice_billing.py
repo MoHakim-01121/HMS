@@ -4,7 +4,7 @@ from datetime import datetime
 
 from django.db import transaction
 
-from ..models import ConfirmationLetter, Payment, Invoice, InvoiceType
+from ..models import InvoiceType
 from ..finance.posting import reverse_invoice_payments, post_payment
 from ..finance_helpers import create_payment_record
 from .helpers import validate_proof_file, _parse_date, _to_float
@@ -13,33 +13,24 @@ logger = logging.getLogger(__name__)
 
 
 def _save_payments(invoice, request, default_currency):
-    """Create Payment objects from a JSON `payments` array (one object per row),
-    and re-post the journal payment legs from those rows.
+    """Re-post the journal payment legs from a JSON `payments` array (one object
+    per row) — PaymentRecord + journal are the only stores written.
 
     Each row: {ref, date, method, amount, currency, exchange, note, proof_keep}.
     New proof uploads arrive as multipart files keyed `payment_proof_<index>`,
-    where <index> is the row's position in the array. Sets cl FK when ref
-    matches a CL number.
+    where <index> is the row's position in the array.
 
     Full-resync (Fase 4+): the payments array has no row identity to diff
     against, so each save reverses this invoice's live payment entries and
-    re-posts from the new rows. The reversal+delete is scoped to exactly what
-    this function itself ever creates -- payment entries for this invoice (and
-    the legacy `Payment` rows kept for the invoice UI) -- so remittance sends,
-    refunds, transfers, and penalty entries are never touched by a
-    payment-list save.
+    re-posts from the new rows. The reversal is scoped to exactly what this
+    function itself ever creates -- payment entries for this invoice -- so
+    remittance sends, refunds, transfers, and penalty entries are never touched
+    by a payment-list save.
     """
     try:
         rows = json.loads(request.POST.get('payments', '[]'))
     except (ValueError, TypeError):
         rows = []
-
-    # Pre-fetch CLs that match any of the ref numbers (one query instead of N)
-    ref_set = {(r.get('ref') or '').strip() for r in rows if (r.get('ref') or '').strip()}
-    cl_by_number = {
-        cl.confirmation_number: cl
-        for cl in ConfirmationLetter.objects.filter(confirmation_number__in=ref_set)
-    } if ref_set else {}
 
     with transaction.atomic():
         # Full delete-recreate daftar pembayaran: reverse dulu semua journal
@@ -66,20 +57,6 @@ def _save_payments(invoice, request, default_currency):
             method = (r.get('method') or '').strip()
             payment_date = _parse_date(r.get('date'))
 
-            # ── Legacy: keep old Payment for backward compat ──────
-            p = Payment.objects.create(
-                invoice=invoice,
-                cl=cl_by_number.get(ref_clean),
-                linked_number=ref_clean,
-                payment_date=payment_date,
-                method=method,
-                amount=amount,
-                currency=currency,
-                exchange_rate=exchange_rate,
-                note=(r.get('note') or '').strip(),
-                proof=proof or keep or None,
-            )
-
             if not amount:
                 continue
 
@@ -92,7 +69,13 @@ def _save_payments(invoice, request, default_currency):
                     service_item = None
 
             if client is None:
-                continue  # tak bisa posting jurnal tanpa client — Payment legacy tetap tercatat
+                # Jurnal double-entry butuh dimensi client. `_billing_client`
+                # hanya None kalau CL-CL invoice menunjuk ke client berbeda —
+                # user harus benahi tautan CL dulu.
+                raise ValueError(
+                    "Tidak bisa mencatat pembayaran: client invoice ambigu "
+                    "(CL terhubung ke lebih dari satu client). Perbaiki tautan CL dulu."
+                )
             method_l = (method or '').lower()
             received_in = 'pusat' if method_l == 'direct' else 'sby'
             pr = create_payment_record(
@@ -102,7 +85,7 @@ def _save_payments(invoice, request, default_currency):
                 method=method, reference='invoice-form',
                 note=f'Sinkron dari pembayaran invoice {invoice.invoice_number}',
                 created_by=request.user, reservation=reservation, service_item=service_item,
-                received_in=received_in,
+                received_in=received_in, proof=proof or keep or None,
             )
             post_payment(pr, created_by=request.user)
             pr.status = pr.STATUS_ALLOCATED

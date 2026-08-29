@@ -3,7 +3,7 @@
 Pengganti hw/ledger.py. Views memanggil fungsi di sini, tidak pernah
 Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
 """
-from django.db.models import Sum
+from django.db.models import Min, Sum
 
 from ..models.client import Client
 from ..models.choices import Company
@@ -75,6 +75,79 @@ def invoice_paid_map(invoice_ids):
     }
 
 
+def invoice_paid_map_before(invoice_ids, before_date):
+    """{invoice_id: paid_sar} dihitung hanya dari baris jurnal dengan
+    `entry_date < before_date` — untuk "outstanding per akhir bulan" pada
+    dashboard (pengganti sum legacy `Payment.amount_sar`)."""
+    charged = {
+        r["invoice_id"]: r["d"] or 0
+        for r in _live_charges(invoice_id__in=invoice_ids)
+        .filter(journal_entry__entry_date__lt=before_date)
+        .values("invoice_id").annotate(d=Sum("debit"))
+    }
+    net = {
+        r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in _ar_qs(invoice_id__in=invoice_ids)
+        .filter(journal_entry__entry_date__lt=before_date)
+        .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    }
+    return {
+        i: charged.get(i, 0) - net.get(i, 0)
+        for i in set(charged) | set(net)
+    }
+
+
+def payment_history_rows(invoice):
+    """Riwayat pembayaran satu invoice untuk display — dari PaymentRecord,
+    satu-satunya sumber truth pembayaran (finance page, form invoice, backfill
+    semuanya menulis PaymentRecord; legacy `Payment` tidak lagi dibaca).
+
+    Hanya status ber-efek-jurnal (PaymentRecord.EFFECTIVE_STATUSES) yang
+    dikembalikan; reversal/rejected/pending disembunyikan. Semua konsumen
+    (invoice detail, form edit, PDF, konteks visa) memakai fungsi ini supaya
+    satu invoice tak pernah menampilkan angka dari dua sumber berbeda.
+    """
+    from ..models.payment import PaymentRecord
+
+    prs = list(
+        PaymentRecord.objects
+        .filter(invoice=invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
+        .select_related('reservation', 'service_item')
+        .prefetch_related('allocations', 'allocations__reservation', 'allocations__service_item')
+        .order_by('payment_date', 'pk')
+    )
+
+    rows = []
+    for pr in prs:
+        refs = []
+        svc_nos = []
+        if pr.reservation_id and pr.reservation:
+            refs.append(pr.reservation.reservation_number)
+            if str(pr.reservation.reservation_number).isdigit():
+                svc_nos.append(int(pr.reservation.reservation_number))
+        if pr.service_item_id and pr.service_item:
+            svc_nos.append(pr.service_item.service_number)
+        for a in pr.allocations.all():
+            if a.reservation_id and a.reservation and a.reservation.reservation_number not in refs:
+                refs.append(a.reservation.reservation_number)
+            if a.service_item_id and a.service_item and a.service_item.service_number not in svc_nos:
+                svc_nos.append(a.service_item.service_number)
+        rows.append({
+            'ref': ', '.join(refs) or pr.reference or pr.payment_number,
+            'svc_nos': svc_nos,
+            'payment_number': pr.payment_number,
+            'payment_date': pr.payment_date,
+            'method': pr.method,
+            'amount': pr.amount,
+            'currency': pr.currency,
+            'exchange_rate': float(pr.exchange_rate) or 1,
+            'amount_sar': pr.amount_sar,
+            'note': pr.note or '',
+            'proof': pr.proof,
+        })
+    return rows
+
+
 def _invoice_scoped(company, invoice_ids):
     qs = JournalLine.objects.all()
     if company:
@@ -118,27 +191,31 @@ def reservation_paid_map(invoice_id):
 
 
 def cl_paid_sar_map(letters):
-    """Bulk ConfirmationLetter.paid_sar(): {cl_pk: paid_sar} in one query.
+    """Bulk ConfirmationLetter.paid_sar: {cl_pk: paid_sar} dari jurnal.
 
-    Attribution rule sama dgn properti per-CL: Payment milik `cl` bila di-set,
-    kalau tidak ia di-link lewat confirmation_number."""
+    Nomor CL = nomor reservasi pada invoice hotel, jadi CL dicocokkan ke baris
+    pembayaran lewat `reservation.reservation_number == confirmation_number`
+    (dalam company yang sama). Paid = kredit bersih Piutang (payment - reversal)
+    pada baris jurnal ber-dimensi reservasi itu — konsisten dengan
+    `reservation_paid_map`."""
     if not letters:
         return {}
-    from django.db.models import Q
-    from ..models.invoice import Payment
-    from ..utils import convert_to_sar
-
-    pk_by_number = {cl.confirmation_number: cl.pk for cl in letters}
-    paid = {cl.pk: 0 for cl in letters}
-    rows = Payment.objects.filter(
-        Q(cl_id__in=paid) |
-        Q(linked_number__in=pk_by_number, cl__isnull=True),
-    ).values_list("cl_id", "linked_number", "amount", "currency", "exchange_rate")
-    for cl_id, linked_number, amount, currency, rate in rows:
-        target = cl_id or pk_by_number.get(linked_number)
-        if target in paid:
-            paid[target] += int(round(convert_to_sar(amount, currency, float(rate))))
-    return paid
+    numbers = {cl.confirmation_number for cl in letters}
+    companies = {cl.company for cl in letters}
+    rows = (
+        _ar_qs(
+            reservation__reservation_number__in=numbers,
+            journal_entry__company__in=companies,
+        )
+        .exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        .values("journal_entry__company", "reservation__reservation_number")
+        .annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+    by_key = {
+        (r["journal_entry__company"], r["reservation__reservation_number"]): (r["c"] or 0) - (r["d"] or 0)
+        for r in rows
+    }
+    return {cl.pk: by_key.get((cl.company, cl.confirmation_number), 0) for cl in letters}
 
 
 def client_receivable(client_id):
@@ -394,6 +471,23 @@ def reservation_cash_breakdown(company=None):
         }
         for rid, d in out.items()
     }
+
+
+def reservation_first_payment_date_map(reservation_numbers, company=None):
+    """{reservation_number: tanggal pembayaran paling awal} dari baris jurnal
+    kredit Piutang (bukan charge) — dipakai mengurutkan baris remittance sesuai
+    kapan reservasi mulai dibayar."""
+    if not reservation_numbers:
+        return {}
+    qs = _ar_qs(reservation__reservation_number__in=list(reservation_numbers))
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+    rows = (
+        qs.exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        .values("reservation__reservation_number")
+        .annotate(first=Min("journal_entry__entry_date"))
+    )
+    return {r["reservation__reservation_number"]: r["first"] for r in rows}
 
 
 def reservation_remittance_map(company=None, linked_numbers=None):
