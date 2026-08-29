@@ -37,7 +37,9 @@ def _save_payments(invoice, request, default_currency):
         # payment untuk invoice ini, lalu re-post dari baris baru.
         reverse_invoice_payments(invoice, created_by=request.user)
 
-        client = _billing_client(invoice)
+        # Dimensi client untuk jurnal: client tunggal dari CL, kalau CL ambigu
+        # (menunjuk >1 client) jatuh ke invoice.client yang dipilih user di form.
+        client = _billing_client(invoice) or invoice.client
         is_hotel = invoice.invoice_type == InvoiceType.HOTEL
         reservations_by_number = {r.reservation_number: r for r in invoice.reservations.all()} if is_hotel else {}
         service_items_by_number = {} if is_hotel else {s.service_number: s for s in invoice.service_items.all()}
@@ -69,12 +71,11 @@ def _save_payments(invoice, request, default_currency):
                     service_item = None
 
             if client is None:
-                # Jurnal double-entry butuh dimensi client. `_billing_client`
-                # hanya None kalau CL-CL invoice menunjuk ke client berbeda —
-                # user harus benahi tautan CL dulu.
+                # Jurnal double-entry butuh dimensi client dan form invoice
+                # tidak punya field client sendiri untuk di-set di sini.
                 raise ValueError(
-                    "Tidak bisa mencatat pembayaran: client invoice ambigu "
-                    "(CL terhubung ke lebih dari satu client). Perbaiki tautan CL dulu."
+                    "Tidak bisa mencatat pembayaran: invoice belum punya client. "
+                    "Pilih client di invoice atau benahi tautan CL dulu."
                 )
             method_l = (method or '').lower()
             received_in = 'pusat' if method_l == 'direct' else 'sby'

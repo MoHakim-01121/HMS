@@ -97,6 +97,16 @@ class InvoiceEditDualWriteTest(DualWriteTestBase):
         # Charge lama di-reverse, charge baru diposting — net Piutang = 8000.
         self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 8000)
 
+    def test_repeated_payment_edits_leave_one_effective_payment_record(self):
+        res = [{"reservation_number": "R1", "hotel": "Hotel A", "check_in": "", "check_out": "", "reservation_total": "5000"}]
+        for amt in ("1000", "2000", "3000"):
+            self._edit(res, [{"ref": "R1", "date": "2026-01-05", "method": "Cash", "amount": amt, "currency": "SAR", "exchange": "1"}])
+        # PaymentRecord append-only: baris lama ditandai REVERSED, bukan menumpuk.
+        eff = PaymentRecord.objects.filter(invoice=self.invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
+        self.assertEqual(eff.count(), 1)
+        self.assertEqual(fq.invoice_paid_sar(self.invoice.id), 3000)
+        self.assertEqual(len(fq.payment_history_rows(self.invoice)), 1)
+
 
 class ServicesDualWriteTest(DualWriteTestBase):
     def test_creating_services_invoice_posts_service_income(self):

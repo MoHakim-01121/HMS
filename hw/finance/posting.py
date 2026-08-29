@@ -8,6 +8,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
+from ..models.payment import PaymentRecord, PaymentLog
 from ..models.choices import Company, InvoiceType
 from ..finance_helpers import (
     FinanceError, JournalImbalanceError, PeriodLockedError,
@@ -282,19 +283,38 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None):
 
 @transaction.atomic
 def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
-    """Reverse semua journal entry payment yang bersumber PaymentRecord milik
-    invoice ini yang belum di-reverse. Dipakai form invoice yang full delete-
-    recreate daftar pembayaran."""
+    """Reverse journal entry payment dari PaymentRecord ber-reference
+    'invoice-form' milik invoice ini, DAN tandai PaymentRecord-nya REVERSED.
+
+    Form invoice full delete-recreate daftar pembayaran; PaymentRecord
+    append-only jadi baris lama tak dihapus — kalau statusnya tidak di-flip,
+    baris pembayaran basi ikut tampil di riwayat & bikin
+    Σ PaymentRecord ≠ paid_sar jurnal."""
     entry_date = entry_date or timezone.now().date()
-    pr_ids = list(
-        invoice.payment_records.filter(reference="invoice-form").values_list("pk", flat=True)
+    old_prs = list(
+        invoice.payment_records.filter(
+            reference="invoice-form",
+            status__in=PaymentRecord.EFFECTIVE_STATUSES,
+        )
     )
     reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
     for e in JournalEntry.objects.filter(
-        reference_type="PaymentRecord", reference_id__in=pr_ids,
+        reference_type="PaymentRecord", reference_id__in=[p.pk for p in old_prs],
         entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
     ).exclude(pk__in=reversed_ids):
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+
+    for pr in old_prs:
+        pr.status = PaymentRecord.STATUS_REVERSED
+        pr.save(update_fields=["status"])
+        PaymentLog.objects.create(
+            payment=pr,
+            action=PaymentLog.ACTION_REVERSED,
+            before_state={"status": PaymentRecord.STATUS_ALLOCATED},
+            after_state={"status": PaymentRecord.STATUS_REVERSED},
+            performed_by=created_by,
+            note="Superseded by invoice-form payment re-sync",
+        )
 
 
 @transaction.atomic
