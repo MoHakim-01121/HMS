@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { loadLeaflet } from "../../utils/leaflet.js";
+import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { MAP, heatColor } from "../../components/mapColors.js";
 
 // Client map — imperative Leaflet app ported from the original client_map
@@ -40,11 +40,8 @@ export default function ClientMap() {
       };
       map.on("click", () => { if (isMobile()) closeSheet(); });
 
-      function getTileUrl() {
-        const theme = document.documentElement.getAttribute("data-theme");
-        return "https://{s}.basemaps.cartocdn.com/" + (theme === "light" ? "light_all" : "dark_all") + "/{z}/{x}/{y}{r}.png";
-      }
-      const tileLayer = L.tileLayer(getTileUrl(), { attribution: "© OpenStreetMap © CartoDB", subdomains: "abcd", maxZoom: 19 }).addTo(map);
+      const getTileUrl = () => basemapUrl(document.documentElement.getAttribute("data-theme"));
+      const tileLayer = L.tileLayer(getTileUrl(), basemapOptions).addTo(map);
       const themeObserver = new MutationObserver(() => tileLayer.setUrl(getTileUrl()));
       themeObserver.observe(document.documentElement, { attributeFilter: ["data-theme"] });
 

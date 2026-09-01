@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { loadLeaflet } from "../../utils/leaflet.js";
+import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
 import DetailCard from "../../components/shadcn/detail-card.jsx";
 import DetailGrid from "../../components/shadcn/detail-grid.jsx";
@@ -36,11 +36,8 @@ function HotelMiniMap({ hotel }) {
       map = L.map(ref.current, { zoomControl: false, scrollWheelZoom: false, dragging: true });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      const tileUrl = () => {
-        const theme = document.documentElement.getAttribute("data-theme");
-        return "https://{s}.basemaps.cartocdn.com/" + (theme === "light" ? "light_all" : "dark_all") + "/{z}/{x}/{y}{r}.png";
-      };
-      const tileLayer = L.tileLayer(tileUrl(), { attribution: "© OpenStreetMap © CartoDB", subdomains: "abcd", maxZoom: 19 }).addTo(map);
+      const tileUrl = () => basemapUrl(document.documentElement.getAttribute("data-theme"));
+      const tileLayer = L.tileLayer(tileUrl(), basemapOptions).addTo(map);
       observer = new MutationObserver(() => tileLayer.setUrl(tileUrl()));
       observer.observe(document.documentElement, { attributeFilter: ["data-theme"] });
 
