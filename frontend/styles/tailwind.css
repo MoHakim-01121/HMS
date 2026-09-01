@@ -873,6 +873,14 @@
   display: none;
 }
 
+/* Hidden by default (mobile uses .m-top-bar instead); shown at 601px+ inside
+   the @media block below. Without this base rule the desktop <header> falls
+   back to its default block display on mobile, rendering as a second topbar
+   under .m-top-bar. */
+.hms-topbar {
+  display: none;
+}
+
 @media (min-width: 601px) {
   /* Sidebar width still measured off the live Homlu reference; internal
      spacing/nav-row sizing below now follows 21st.dev's "Dashboard Sidebar"
