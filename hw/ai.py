@@ -9,8 +9,11 @@ from django.conf import settings
 from .models import ConfirmationLetter, Invoice
 
 _API_URL     = "https://api.groq.com/openai/v1/chat/completions"
-_MODEL_SMALL = "llama-3.1-8b-instant"
-_MODEL_CHAT  = "llama-3.1-8b-instant"
+# Groq pensiunkan seri Llama untuk akun ini (404 model_not_found) sejak 2026.
+# openai/gpt-oss-20b: kecil, cepat, masih tersedia. Lihat daftar aktif via
+# GET https://api.groq.com/openai/v1/models.
+_MODEL_SMALL = "openai/gpt-oss-20b"
+_MODEL_CHAT  = "openai/gpt-oss-20b"
 _logger      = logging.getLogger(__name__)
 
 
@@ -22,7 +25,10 @@ def _call_groq(messages: list, model: str = _MODEL_SMALL) -> str | None:
     payload = json.dumps({
         "model": model,
         "messages": messages,
-        "max_tokens": 150,
+        # gpt-oss memakai sebagian budget token untuk reasoning internal
+        # (tak ikut ke content), jadi beri ruang lebih longgar dari 150.
+        "max_tokens": 512,
+        "reasoning_effort": "low",
         "temperature": 0.3,
     }).encode()
 
