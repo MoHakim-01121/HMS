@@ -116,6 +116,7 @@ def _compute_stats():
     )
     kewajiban_kirim = finance_queries.kewajiban_kirim_sby(KONOZ)
     selisih_kurs = finance_queries.selisih_kurs(KONOZ)
+    rupiah_dari_klien = finance_queries.rupiah_mengendap_sby(KONOZ)
 
     return {
         'total_tagihan': total_tagihan,
@@ -124,6 +125,7 @@ def _compute_stats():
         'kewajiban_kirim': kewajiban_kirim,
         'saldo_dana_klien': saldo_dana_klien,
         'selisih_kurs': selisih_kurs,
+        'rupiah_dari_klien': rupiah_dari_klien,
     }
 
 
@@ -221,6 +223,8 @@ def remittance_list(request):
         "status_filter": status_filter,
         "q": q,
         "total_count": Remittance.objects.filter(company=KONOZ).count(),
+        "tracking": dict(zip(("clients", "total_sisa_kirim"), _compute_tracking_data())),
+        "monthly": _compute_recap_data(),
     })
 
 
@@ -629,6 +633,14 @@ def remittance_delete(request, pk):
 
 @require_perm('remittance', 'view')
 def remittance_recap(request):
+    return inertia_render(request, "Remittance/Recap", props={
+        "monthly": _compute_recap_data(),
+    })
+
+
+def _compute_recap_data():
+    """Rangkuman remittance per bulan (dipakai tab Recap pada halaman List
+    dan view /remittance/recap/ mandiri)."""
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
     monthly = {}
     for rem in remittances:
@@ -660,9 +672,7 @@ def remittance_recap(request):
         else:
             monthly[key]['total_pending'] += amt
             monthly[key]['count_pending'] += 1
-    return inertia_render(request, "Remittance/Recap", props={
-        "monthly": list(monthly.values()),
-    })
+    return list(monthly.values())
 
 
 @require_perm('remittance', 'view')
@@ -674,6 +684,16 @@ def remittance_tracking(request):
     dikirim. Dikelompokkan per client supaya siap dipakai saat menentukan
     "10 reservasi terdekat" untuk transfer berikutnya.
     """
+    clients, total_sisa_kirim = _compute_tracking_data()
+    return inertia_render(request, "Remittance/Tracking", props={
+        'clients': clients,
+        'total_sisa_kirim': total_sisa_kirim,
+    })
+
+
+def _compute_tracking_data():
+    """Data pelacakan per client -> reservasi (tab Tracking pada halaman List
+    dan view /remittance/tracking/ mandiri). Mengembalikan (clients, total)."""
     from ..models import Invoice
 
     rows = _build_reservasi_mengendap()
@@ -729,10 +749,7 @@ def remittance_tracking(request):
             } for x in ress],
         })
 
-    return inertia_render(request, "Remittance/Tracking", props={
-        'clients': clients,
-        'total_sisa_kirim': sum(c['total_mengendap'] for c in clients),
-    })
+    return clients, sum(c['total_mengendap'] for c in clients)
 
 
 def _build_ledger_rows(date_from=None, date_to=None):

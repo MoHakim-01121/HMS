@@ -57,6 +57,31 @@ def invoice_paid_sar(invoice_id):
     return invoice_charged_sar(invoice_id) - invoice_outstanding_sar(invoice_id)
 
 
+def invoice_unallocated_sar(invoice_id):
+    """Jumlah pembayaran yang sudah diterima tapi belum dialokasikan ke
+    reservasi/service mana pun = invoice_paid - sum(reservation_paid_map).
+
+    Positif = ada sisa yang belum ditentukan alokasinya.
+    Nol = semua pembayaran sudah teralokasi."""
+    paid_total = invoice_paid_sar(invoice_id)
+    rpm = reservation_paid_map(invoice_id)
+    return max(0, paid_total - sum(rpm.values()))
+
+
+def payment_unallocated_sar(payment_id):
+    """Sisa alokasi satu payment yang belum ditentukan.
+
+    = amount_sar - sum(PaymentAllocation.amount_sar).
+    Berguna untuk menampilkan badge 'X SAR unallocated' di payment detail."""
+    from ..models.payment import PaymentRecord
+    try:
+        pr = PaymentRecord.objects.get(pk=payment_id)
+    except PaymentRecord.DoesNotExist:
+        return 0
+    alloc_sum = sum(int(a.amount_sar) for a in pr.allocations.all())
+    return max(0, int(pr.amount_sar) - alloc_sum)
+
+
 def invoice_paid_map(invoice_ids):
     """{invoice_id: paid_sar} — charged - outstanding, dua query."""
     charged = {
@@ -133,6 +158,9 @@ def payment_history_rows(invoice):
             if a.service_item_id and a.service_item and a.service_item.service_number not in svc_nos:
                 svc_nos.append(a.service_item.service_number)
         rows.append({
+            'pk': pr.pk,
+            'status': pr.status,
+            'unallocated_sar': pr.amount_sar - sum(a.amount_sar for a in pr.allocations.all()),
             'ref': ', '.join(refs) or pr.reference or pr.payment_number,
             'svc_nos': svc_nos,
             'payment_number': pr.payment_number,
@@ -218,22 +246,37 @@ def cl_paid_sar_map(letters):
     return {cl.pk: by_key.get((cl.company, cl.confirmation_number), 0) for cl in letters}
 
 
-def client_receivable(client_id):
+def client_receivable(client_id, company=None):
     """Piutang client (positif = client berutang ke kita)."""
-    return _net(JournalLine.objects.filter(client_id=client_id, account_id=coa.AR))
+    qs = JournalLine.objects.filter(client_id=client_id, account_id=coa.AR)
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+    return _net(qs)
 
 
-def client_billed_sar(client_id):
+def client_wallet_map(client_ids):
+    """{client_id: saldo piutang} — sama dengan client_receivable() tapi untuk
+    banyak client dalam satu aggregate query (dipakai client_list agar tidak
+    N+1 query per baris)."""
+    rows = (
+        JournalLine.objects.filter(client_id__in=client_ids, account_id=coa.AR)
+        .values("client_id")
+        .annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+    return {r["client_id"]: (r["d"] or 0) - (r["c"] or 0) for r in rows}
+
+
+def client_billed_sar(client_id, company=None):
     """Total ditagih ke client = debit Piutang dari charge yang masih hidup."""
     return (
-        _ar_qs(client_id=client_id)
+        _ar_qs(client_id=client_id, **({"journal_entry__company": company} if company else {}))
         .filter(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
         .exclude(journal_entry_id__in=_reversed_entry_ids())
         .aggregate(d=Sum("debit"))["d"] or 0
     )
 
 
-def client_paid_sar(client_id):
+def client_paid_sar(client_id, company=None):
     """Total kas yang masuk dari client = debit kas dari entry payment yang
     masih hidup (from-credit payment tidak menyentuh kas, jadi tidak
     dobel-hitung)."""
@@ -243,15 +286,17 @@ def client_paid_sar(client_id):
             account_id__in=[coa.CASH_SBY, coa.CASH_JKT, coa.CASH_PUSAT],
             debit__gt=0,
             journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
+            **({"journal_entry__company": company} if company else {}),
         ).exclude(journal_entry_id__in=_reversed_entry_ids())
     )
 
 
-def client_credit_balance(client_id):
+def client_credit_balance(client_id, company=None):
     """Saldo titipan / dana client (positif = kita berutang ke client)."""
-    a = JournalLine.objects.filter(
-        client_id=client_id, account_id=coa.CUST_CREDIT,
-    ).aggregate(d=Sum("debit"), c=Sum("credit"))
+    qs = JournalLine.objects.filter(client_id=client_id, account_id=coa.CUST_CREDIT)
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+    a = qs.aggregate(d=Sum("debit"), c=Sum("credit"))
     return (a["c"] or 0) - (a["d"] or 0)
 
 
@@ -276,7 +321,7 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
     qs = _scoped(
         JournalLine.objects.filter(
             client_id=client_id, account_id__in=[coa.AR, coa.CUST_CREDIT],
-        ).select_related("journal_entry", "account"),
+        ).select_related("journal_entry", "account", "invoice"),
         company=company, as_of=as_of,
     ).order_by("journal_entry__entry_date", "journal_entry__created_at", "line_no")
     if date_from:
@@ -296,6 +341,7 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
             "description": e.description,
             "account": ln.account_id,
             "account_name": ln.account.name,
+            "invoice_number": ln.invoice.invoice_number if ln.invoice_id else None,
             "debit": ln.debit,
             "credit": ln.credit,
             "balance": balance,
@@ -332,6 +378,136 @@ def client_statement_with_opening(client_id, *, company=None, date_from=None, da
         "total_debit": st["total_debit"],
         "total_credit": st["total_credit"],
     }
+
+
+def client_aging(client_id, *, company=None, as_of=None):
+    """Aging summary per invoice — berapa lama piutang belum dibayar.
+
+    Returns {buckets: {0_30, 31_60, 61_90, 90_plus}, total, invoices: [...]}."""
+    from datetime import date as _date
+
+    today = as_of.date() if as_of else _date.today()
+
+    # Net AR lines per invoice (charge - payment/reversal)
+    ar_lines = _scoped(
+        _ar_qs(client_id=client_id),
+        company=company, as_of=as_of,
+    )
+    invoice_nets = (
+        ar_lines
+        .values("invoice_id")
+        .annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+
+    # Fetch invoices with due_date
+    from ..models.invoice import Invoice
+    inv_map = {
+        inv["id"]: inv
+        for inv in Invoice.objects.filter(
+            id__in=[r["invoice_id"] for r in invoice_nets if r["invoice_id"]]
+        ).values("id", "invoice_number", "due_date", "issued_date")
+    }
+
+    buckets = {"0_30": 0, "31_60": 0, "61_90": 0, "90_plus": 0}
+    total = 0
+    invoices = []
+
+    for row in invoice_nets:
+        net = (row["d"] or 0) - (row["c"] or 0)
+        if net <= 0:
+            continue  # fully paid or credit
+        inv = inv_map.get(row["invoice_id"])
+        if not inv:
+            continue
+
+        due = inv.get("due_date") or inv.get("issued_date")
+        if due:
+            age_days = (today - due).days
+        else:
+            age_days = 0
+
+        if age_days <= 30:
+            buckets["0_30"] += net
+        elif age_days <= 60:
+            buckets["31_60"] += net
+        elif age_days <= 90:
+            buckets["61_90"] += net
+        else:
+            buckets["90_plus"] += net
+
+        total += net
+        invoices.append({
+            "invoice_number": inv["invoice_number"],
+            "amount": net,
+            "due_date": inv["due_date"].isoformat() if inv.get("due_date") else None,
+            "age_days": max(age_days, 0),
+        })
+
+    invoices.sort(key=lambda x: -x["age_days"])
+    return {"buckets": buckets, "total": total, "invoices": invoices}
+
+
+def open_items(client_id, *, company=None, date_to=None, as_of=None):
+    """Open Item mode — daftar invoice yang belum lunas per client.
+
+    Satu baris per invoice: nomor, tanggal terbit, jatuh tempo, jumlah tagihan,
+    jumlah dibayar, dan sisa yang masih terbuka. Hanya invoice dengan
+    remaining > 0 yang tampil. Konsisten dengan balance-forward (angka dari
+    JournalLine), jadi kedua mode selalu reconciled."""
+    from datetime import date as _date
+
+    today = _date.today()
+
+    ar_net = _scoped(
+        _ar_qs(client_id=client_id),
+        company=company, as_of=as_of,
+    ).values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
+
+    charged = _scoped(
+        _live_charges(client_id=client_id),
+        company=company, as_of=as_of,
+    ).values("invoice_id").annotate(d=Sum("debit"))
+
+    net_map = {
+        r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in ar_net if r["invoice_id"]
+    }
+    charged_map = {r["invoice_id"]: r["d"] or 0 for r in charged if r["invoice_id"]}
+
+    inv_ids = set(net_map) | set(charged_map)
+    from ..models.invoice import Invoice
+    inv_map = {
+        inv["id"]: inv
+        for inv in Invoice.objects.filter(id__in=inv_ids).values(
+            "id", "invoice_number", "invoice_type", "issued_date", "due_date",
+        )
+    }
+
+    rows = []
+    for inv_id in sorted(inv_ids):
+        remaining = net_map.get(inv_id, 0)
+        if remaining <= 0:
+            continue
+        inv = inv_map.get(inv_id)
+        if not inv:
+            continue
+        billed = charged_map.get(inv_id, 0)
+        paid = max(0, billed - remaining) if billed else 0
+        due = inv.get("due_date")
+        rows.append({
+            "invoice_number": inv["invoice_number"],
+            "invoice_type": inv["invoice_type"],
+            "issued_date": inv["issued_date"].isoformat() if inv.get("issued_date") else None,
+            "due_date": due.isoformat() if due else None,
+            "billed": billed,
+            "paid": paid,
+            "remaining": remaining,
+            "overdue": bool(due and (today - due).days > 0),
+        })
+
+    rows.sort(key=lambda x: (x["overdue"], x["due_date"] or "9999-12-31"))
+    total_remaining = sum(r["remaining"] for r in rows)
+    return {"rows": rows, "total_remaining": total_remaining}
 
 
 # ── Kas ────────────────────────────────────────────────────────
@@ -374,6 +550,67 @@ def total_allocated(company=None):
 
 def surplus_pusat(company=None):
     return kas_pusat(company) + selisih_kurs(company) - total_allocated(company)
+
+
+def _client_idr_payments_qs(company=None):
+    from ..models.payment import PaymentRecord
+    qs = PaymentRecord.objects.filter(
+        currency='IDR',
+        received_in__in=('sby', 'jkt'),
+        status__in=PaymentRecord.EFFECTIVE_STATUSES,
+    )
+    if company:
+        qs = qs.filter(company=company)
+    return qs
+
+
+def rupiah_diterima_dari_klien(company=None):
+    """Total rupiah (IDR asli) pembayaran klien yang masuk ke kas lokal
+    (Surabaya/Jakarta). Angka analitik dari PaymentRecord.amount."""
+    return int(_client_idr_payments_qs(company).aggregate(s=Sum('amount'))['s'] or 0)
+
+
+def _kurs_rata_rata_klien(company=None):
+    """Kurs IDR/SAR rata-rata tertimbang dari pembayaran klien (ΣIDR / ΣSAR).
+    Dipakai untuk menaksir nilai rupiah remittance lama yang tidak menyimpan
+    amount_idr/exchange_rate."""
+    from decimal import Decimal
+    agg = _client_idr_payments_qs(company).aggregate(idr=Sum('amount'), sar=Sum('amount_sar'))
+    if not agg['idr'] or not agg['sar']:
+        return None
+    return Decimal(agg['idr']) / Decimal(agg['sar'])
+
+
+def rupiah_mengendap_sby(company=None):
+    """Rupiah dari klien yang masih mengendap di Surabaya — belum dikirim ke
+    pusat. = Σ(pembayaran klien IDR) − Σ(rupiah yang sudah keluar via remittance).
+
+    Rupiah keluar per remittance memakai amount_idr bila ada, lalu
+    total_sar × exchange_rate, dan terakhir total_sar × kurs rata-rata klien
+    untuk RMT lama yang tak menyimpan data transfer bank."""
+    from decimal import Decimal
+    from ..models.remittance import Remittance
+
+    diterima = rupiah_diterima_dari_klien(company)
+    avg_rate = _kurs_rata_rata_klien(company)
+
+    rmts = Remittance.objects.all()
+    if company:
+        rmts = rmts.filter(company=company)
+
+    dikirim = Decimal(0)
+    for rem in rmts:
+        if rem.amount_idr:
+            dikirim += Decimal(rem.amount_idr)
+            continue
+        sent_sar = remittance_sent_sar(rem.id)
+        if not sent_sar:
+            continue
+        rate = rem.exchange_rate or avg_rate
+        if rate:
+            dikirim += Decimal(sent_sar) * rate
+
+    return int(Decimal(diterima) - dikirim)
 
 
 def kewajiban_kirim_sby(company=None):
@@ -494,7 +731,7 @@ def reservation_remittance_map(company=None, linked_numbers=None):
     """Riwayat remittance per reservasi (baca RemittanceLine, bukan jurnal):
     {reservation_number: [{rmt_id, rmt_number, date, status, amount_sar}]}."""
     from collections import defaultdict
-    from ..models.invoice import RemittanceLine
+    from ..models.remittance import RemittanceLine
     qs = RemittanceLine.objects.select_related("remittance").order_by(
         "remittance__date", "remittance__created_at",
     )
