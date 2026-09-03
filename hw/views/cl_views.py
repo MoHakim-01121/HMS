@@ -494,11 +494,12 @@ def cl_export_csv(request):
     response['Content-Disposition'] = 'attachment; filename="confirmation_letters.csv"'
     response.write('﻿')
     writer = csv.writer(response)
-    writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total SAR', 'Status', 'Note'])
+    writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note'])
     for cl in qs:
         writer.writerow([
             cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
             cl.check_in or '', cl.check_out or '',
+            cl.total_rooms, cl.num_nights,
             cl.total_price or 0, cl.reservation_status, cl.note or '',
         ])
     return response
