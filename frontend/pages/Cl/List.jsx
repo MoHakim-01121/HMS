@@ -172,7 +172,6 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         {letters.length ? (
           <>
             <Table
-              mobileStub
               columns={[
                 {
                   header: t("No CL"),

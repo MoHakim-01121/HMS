@@ -835,6 +835,39 @@
    .shadcn-root so the legacy Django pages keep design.css's own toolbar. ── */
 .shadcn-root .filter-bar { gap: 10px; align-items: flex-start; margin-bottom: 14px; }
 
+/* Mobile toolbar (doc 02d): search pill + a compact sort icon-button + the
+   Filter button with its count badge, all on one row. */
+@media (max-width: 600px) {
+  .shadcn-root .filter-bar { flex-direction: row; flex-wrap: nowrap; gap: 8px; align-items: center; }
+  .shadcn-root .filter-bar .search-wrap { height: 44px; min-width: 0; flex: 1 1 auto; }
+  .shadcn-root .filter-bar .search-wrap input:not([type="checkbox"]):not([type="radio"]) { min-width: 0; }
+  .shadcn-root .filter-bar .fbar-actions { width: auto; min-width: 0; margin-top: 0; gap: 8px; flex: 0 0 auto; }
+  .shadcn-root .filter-bar .fbar-actions .sort-wrap,
+  .shadcn-root .filter-bar .fbar-actions .filter-panel-wrap { flex: 0 0 auto; width: auto; }
+  /* the sort button collapses to its icon only */
+  .shadcn-root .filter-bar .sort-wrap .fbar-btn {
+    width: 44px; height: 44px; padding: 0; gap: 0;
+    font-size: 0; overflow: hidden;
+  }
+  .shadcn-root .filter-bar .sort-wrap .fbar-btn svg { width: 17px; height: 17px; }
+  .shadcn-root .filter-bar .filter-panel-wrap .fbar-btn {
+    width: auto; height: 44px; padding: 0 14px; border-color: var(--foreground);
+  }
+}
+
+/* ── List-page header (PageHeader.jsx) ── */
+.hms-ph { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.hms-ph-text { min-width: 0; }
+.hms-ph-title { font-size: 21px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; color: var(--foreground); }
+.hms-ph-sub { font-size: 12.5px; color: var(--muted-foreground); margin-top: 4px; line-height: 1.5; }
+.hms-ph-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+/* Mobile (doc 02d): title 18px, no action buttons. */
+@media (max-width: 600px) {
+  .hms-ph { margin-bottom: 14px; }
+  .hms-ph-title { font-size: 18px; }
+  .hms-ph-actions { display: none; }
+}
+
 .shadcn-root .search-wrap {
   height: 38px;
   border: 1px solid var(--input);
@@ -875,17 +908,51 @@
 }
 
 /* Sort menu + Filter panel — the library .pnl: 20px radius, deep soft
-   shadow, no tint. */
+   shadow, no tint. Desktop only; mobile turns them into bottom sheets
+   further down. */
 .shadcn-root .sort-menu,
 .shadcn-root .filter-panel {
-  top: calc(100% + 6px);
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
-  box-shadow: 0 22px 50px -24px oklch(0.205 0.012 260 / .28);
   background: var(--popover);
 }
-.shadcn-root .sort-menu { width: 236px; padding: 8px; }
-.shadcn-root .filter-panel { width: 320px; }
+@media (min-width: 601px) {
+  .shadcn-root .sort-menu,
+  .shadcn-root .filter-panel {
+    top: calc(100% + 6px);
+    box-shadow: 0 22px 50px -24px oklch(0.205 0.012 260 / .28);
+  }
+  .shadcn-root .sort-menu { width: 236px; padding: 8px; }
+  .shadcn-root .filter-panel { width: 320px; }
+}
+
+/* Mobile: bottom sheet with a grabber + a scrim (faked with a huge ring so
+   no extra DOM is needed), doc 02b-1c. */
+@media (max-width: 600px) {
+  .shadcn-root .filter-panel.open,
+  .shadcn-root .sort-menu.open {
+    border-radius: 24px 24px 0 0;
+    border-left: 0; border-right: 0; border-bottom: 0;
+    box-shadow: 0 0 0 100vmax oklch(0.205 0.012 260 / .34);
+    padding-top: 14px;
+    animation: sheetIn .24s cubic-bezier(.32,.72,0,1);
+  }
+  .shadcn-root .filter-panel.open::before,
+  .shadcn-root .sort-menu.open::before {
+    content: "";
+    display: block;
+    width: 38px; height: 4px;
+    border-radius: 9999px;
+    background: var(--border);
+    margin: 0 auto 12px;
+  }
+  .shadcn-root .fp-status-opt { height: 46px; }
+  .shadcn-root .fp-footer {
+    padding: 14px 18px calc(16px + env(safe-area-inset-bottom));
+  }
+  /* full-width Apply on the sheet */
+  .shadcn-root .fp-footer [data-slot="button"]:last-child { flex: 1; }
+}
 
 .shadcn-root .sort-opt {
   height: 40px; padding: 0 10px;
@@ -966,6 +1033,40 @@
 .shadcn-root .fp-status-opt.c-mad, .shadcn-root .fp-status-opt.c-all { color: var(--foreground); }
 
 .shadcn-root .fp-footer { padding: 13px 18px; border-top: 1px solid var(--hairline); background: transparent; }
+
+/* ── List mobile card — Homlu v2.1 doc 02d ──────────────────────────────
+   Plain card (no colour stub, no inline row actions): no + status badge,
+   then guest / hotel, then a hairline row with stay·rooms on the left and
+   the Total figure on the right. ── */
+@media (max-width: 600px) {
+  .shadcn-root .m-card,
+  .shadcn-root .m-card.m-card--no-stub {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+  .shadcn-root .m-card-stub { display: none; }
+  .shadcn-root .m-card-actions { display: none; }
+  .shadcn-root .m-card-main { padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; }
+  .shadcn-root .m-card:hover .m-card-main { background: transparent; }
+  .shadcn-root .m-card-head { gap: 10px; margin: 0; padding: 0; }
+  .shadcn-root .m-card-primary { font-size: 13.5px; font-weight: 600; }
+  .shadcn-root .m-card-secondary { font-size: 13px; font-weight: 500; color: var(--foreground); margin: 0; padding: 0; border: 0; }
+  .shadcn-root .m-card-meta { font-size: 11.5px; color: var(--muted-foreground); margin: 0; padding: 0; border: 0; min-height: 0; }
+  .shadcn-root .m-card-meta:empty { display: none; }
+  .shadcn-root .m-card-amount {
+    margin-top: 1px; padding-top: 9px;
+    border-top: 1px solid var(--hairline);
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  }
+  .shadcn-root .m-card-total-group { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: 0; }
+  .shadcn-root .m-card-total-group > span:first-child { font-size: 11px !important; color: var(--muted-foreground) !important; letter-spacing: 0 !important; font-weight: 500 !important; text-transform: none !important; }
+  .shadcn-root .m-card-total-group > span:last-child { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+}
 
 :root { --hms-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L19 7'/%3E%3C/svg%3E"); }
 

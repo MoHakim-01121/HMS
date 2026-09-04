@@ -31,9 +31,10 @@ const CSS = `
 .hms-btn-primary { border:1px solid var(--primary); background:var(--primary); color:var(--primary-foreground); padding:0 18px; }
 .hms-btn-primary:hover { background:var(--primary-hover); border-color:var(--primary-hover); }
 
-/* "Saldo kas" strip — same divided card as .hms-kpi-row, and the SAME
-   responsive breakpoint so the two rows always stack at identical column
-   counts / widths. */
+/* "Saldo kas" strip — must read as one system with the KPI board above it:
+   identical divided-card shell, identical responsive breakpoints, and the
+   SAME cell box model (padding, min-height, label/figure rhythm) as
+   .hms-kpi / .hms-kpi-body so the two rows line up top and bottom. */
 .hms-cash-row {
   display:grid; grid-template-columns:repeat(2,1fr);
   gap:1px; background:var(--border);
@@ -43,21 +44,30 @@ const CSS = `
 @media (min-width:1280px) { .hms-cash-row { grid-template-columns:repeat(4,1fr); } }
 .hms-cash {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
-  padding:14px 18px; background:var(--card);
+  padding:16px 18px; background:var(--card);
 }
 .hms-cash-label { font-size:12px; font-weight:500; color:var(--muted-foreground); }
-.hms-cash-val { margin-top:5px; font-size:19px; font-weight:600; letter-spacing:-.02em; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-cash-val { margin-top:7px; font-size:19px; font-weight:600; letter-spacing:-.02em; color:var(--foreground); font-variant-numeric:tabular-nums; }
 .hms-cash-cur { margin-left:5px; font-size:10.5px; font-weight:600; color:var(--muted-foreground); letter-spacing:0; }
 .hms-cash-badge {
-  flex:none; height:24px; padding:0 10px;
+  flex:none; height:22px; padding:0 10px;
   display:inline-flex; align-items:center;
   border:1px solid var(--input); border-radius:9999px;
   font-size:11px; font-weight:600; color:var(--muted-foreground); white-space:nowrap;
 }
+/* Mobile (doc 01 1c): the cash strip stacks into rows inside one card —
+   label left, figure right. */
 @media (max-width:600px) {
-  .hms-cash-row { grid-template-columns:repeat(2,1fr); }
-  .hms-cash { padding:12px 14px; }
-  .hms-cash-val { font-size:16px; }
+  .hms-cash-row { grid-template-columns:1fr; gap:0; }
+  .hms-cash {
+    padding:13px 15px;
+    border-top:1px solid var(--hairline);
+  }
+  .hms-cash:first-child { border-top:0; }
+  .hms-cash > div { display:flex; align-items:baseline; justify-content:space-between; gap:12px; width:100%; }
+  .hms-cash-label { order:0; }
+  .hms-cash-val { font-size:15px; margin-top:0; }
+  .hms-cash-badge { display:none; }
 }
 
 /* Panel grid — wide chart card + recent-CLs card, Homlu's 12-col rhythm
@@ -114,6 +124,25 @@ const CSS = `
   .hms-home-hotels .hms-dv-body,
   .hms-home-map .hms-dv-body,
   .hms-home-funnel .hms-dv-body { padding:20px 16px 12px; }
+
+  /* doc 01 1c: no dashboard action buttons on mobile; tighter title */
+  .hms-home-head-actions { display:none; }
+  .hms-home-title { font-size:20px; }
+  .hms-home-head { margin-bottom:12px; }
+
+  /* "CL terbaru" mobile: compact two-line rows (no + badge / guest + date),
+     not the generic label:value collapse. */
+  .hms-home-card .hms-dv-table tbody tr {
+    display:grid; grid-template-columns:1fr auto; gap:4px 10px;
+    padding:11px 0;
+  }
+  .hms-home-card .hms-dv-table tbody td { padding:0; border:0; display:block; font-size:13px; min-width:0; text-align:left; }
+  .hms-home-card .hms-dv-table tbody td::before { display:none; }
+  .hms-home-card .hms-dv-table tbody td .sub { display:none; }
+  .hms-home-card .hms-dv-table tbody td:nth-child(1) { grid-column:1; grid-row:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hms-home-card .hms-dv-table tbody td:nth-child(4) { grid-column:2; grid-row:1; justify-self:end; }
+  .hms-home-card .hms-dv-table tbody td:nth-child(2) { grid-column:1; grid-row:2; font-size:12px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hms-home-card .hms-dv-table tbody td:nth-child(3) { grid-column:2; grid-row:2; justify-self:end; font-size:12px; white-space:nowrap; }
 }
 
 /* Bottom row — billing donut, top hotels, reservation funnel, all 3-up
@@ -175,17 +204,20 @@ const CSS = `
 .hms-funnel-row:first-child .hms-funnel-bar { background:var(--green); }
 .hms-funnel-row:last-child .hms-funnel-bar { background:var(--yellow); }
 
-/* Ask AI — same Homlu surfaces as the other floating menus (--popover + the
-   two-layer soft shadow), primary FAB instead of the brand-orange gradient. */
-.ai-fab { position:fixed; bottom:56px; right:24px; width:52px; height:52px; border-radius:50%; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px -10px rgba(0,0,0,.4); transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:10; }
-.ai-fab:hover { transform:scale(1.08) rotate(6deg); } .ai-fab:active { transform:scale(.93); opacity:.85; }
-.ai-fab svg { width:21px; height:21px; position:absolute; transition:opacity .18s,transform .25s cubic-bezier(.34,1.56,.64,1); }
-.ai-fab .fab-ic-close { opacity:0; transform:rotate(-90deg) scale(.5); }
-.ai-fab.open .fab-ic-spark { opacity:0; transform:rotate(90deg) scale(.5); }
-.ai-fab.open .fab-ic-close { opacity:1; transform:rotate(0deg) scale(1); }
+/* Ask AI — doc 01 (1f): the gold pulsing FAB is replaced by a plain inked
+   pill labelled "Tanya data" (44px, no pulse). Panel surfaces stay on the
+   Homlu floating-menu recipe (--popover + two-layer soft shadow). */
+.ai-fab { position:fixed; bottom:56px; right:24px; height:44px; padding:0 16px 0 13px; border-radius:9999px; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--primary); cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:12.5px; font-weight:600; white-space:nowrap; box-shadow:0 12px 26px -12px rgba(0,0,0,.5); transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:10; }
+.ai-fab:hover { transform:translateY(-1px); } .ai-fab:active { transform:scale(.97); opacity:.9; }
+.ai-fab svg { width:16px; height:16px; flex:none; transition:opacity .18s,transform .22s cubic-bezier(.34,1.56,.64,1); }
+.ai-fab .fab-ic-close { display:none; }
+.ai-fab.open .fab-ic-spark { display:none; }
+.ai-fab.open .fab-ic-close { display:block; }
 .ai-panel { position:fixed; bottom:120px; right:24px; width:340px; max-height:480px; background:var(--popover); border:1px solid var(--border); border-radius:20px; overflow:hidden; box-shadow:0 10px 24px -6px rgba(0,0,0,.18), 0 4px 8px -4px rgba(0,0,0,.12); display:flex; flex-direction:column; z-index:10; transform:translateY(16px) scale(.95); transform-origin:bottom right; opacity:0; pointer-events:none; transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .16s; }
 .ai-panel.open { transform:translateY(0) scale(1); opacity:1; pointer-events:all; }
 @media (max-width:640px){ .ai-fab{bottom:108px;right:16px;} .ai-panel{bottom:172px;right:16px;left:16px;width:auto;} }
+/* doc 01 1c omits the assistant on mobile — it belongs on the desktop topbar */
+@media (max-width:600px){ .ai-fab, .ai-panel{ display:none !important; } }
 .ai-panel-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
 .ai-head-icon { width:30px; height:30px; border-radius:10px; background:var(--secondary); color:var(--foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .ai-head-text { flex:1; min-width:0; }
@@ -193,24 +225,26 @@ const CSS = `
 .ai-panel-sub { font-size:11px; color:var(--muted-foreground); line-height:1.3; }
 .ai-panel-close { background:none; border:none; cursor:pointer; color:var(--muted-foreground); padding:4px; display:flex; align-items:center; border-radius:8px; transition:color .12s,background .12s; }
 .ai-panel-close:hover { color:var(--foreground); background:var(--secondary); }
-.chat-messages { flex:1; padding:12px; display:flex; flex-direction:column; gap:8px; overflow-y:auto; min-height:0; }
+.chat-messages { flex:1; padding:14px 13px; display:flex; flex-direction:column; gap:11px; overflow-y:auto; min-height:0; background:var(--muted); }
 .chat-empty { margin:auto; display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 14px; text-align:center; }
 .chat-empty-icon { width:38px; height:38px; border-radius:50%; background:var(--secondary); color:var(--foreground); display:flex; align-items:center; justify-content:center; margin-bottom:2px; }
 .chat-empty-title { font-size:13px; font-weight:600; color:var(--foreground); }
 .chat-empty-sub { font-size:11.5px; color:var(--muted-foreground); }
 .chat-sugs { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:8px; }
-.chat-sug { background:var(--secondary); border:1px solid var(--border); border-radius:9999px; padding:5px 11px; font-size:11.5px; font-weight:500; color:var(--foreground); cursor:pointer; transition:background .12s,color .12s,border-color .12s; }
-.chat-sug:hover { background:var(--surface-hover); border-color:var(--ring); }
+.chat-sug { background:transparent; border:1px solid var(--input); border-radius:9999px; padding:5px 11px; font-size:11.5px; font-weight:500; color:var(--foreground); cursor:pointer; transition:background .12s,color .12s,border-color .12s; }
+.chat-sug:hover { background:var(--secondary); border-color:var(--ring); }
 @keyframes bubbleIn { from{opacity:0;transform:translateY(8px) scale(.96);} to{opacity:1;transform:translateY(0) scale(1);} }
-.chat-bubble { padding:8px 12px; border-radius:16px; font-size:13px; line-height:1.5; max-width:88%; word-break:break-word; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
+.chat-bubble { padding:9px 13px; border-radius:14px; font-size:13px; line-height:1.55; max-width:88%; word-break:break-word; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
 .bubble-user { background:var(--primary); color:var(--primary-foreground); align-self:flex-end; border-bottom-right-radius:4px; }
-.bubble-ai { background:var(--secondary); border:1px solid var(--border); color:var(--foreground); align-self:flex-start; border-bottom-left-radius:4px; }
-.bubble-typing { display:flex; gap:4px; align-items:center; padding:10px 14px; }
+.bubble-ai { background:var(--card); border:1px solid var(--border); color:var(--foreground); align-self:flex-start; border-bottom-left-radius:4px; }
+.bubble-typing { display:flex; gap:4px; align-items:center; padding:10px 13px; }
 .bubble-typing span { width:5px; height:5px; background:var(--muted-foreground); border-radius:50%; animation:bounce 1.2s infinite; }
 .bubble-typing span:nth-child(2){animation-delay:.2s;} .bubble-typing span:nth-child(3){animation-delay:.4s;}
 @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-4px);} }
+.chat-typing-row { display:flex; align-items:center; gap:8px; align-self:flex-start; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
+.chat-typing-note { font-size:11px; color:var(--muted-foreground); }
 .chat-input-row { display:flex; align-items:center; padding:2px 12px 12px; gap:8px; flex-shrink:0; }
-.chat-input-pill { flex:1; display:flex; align-items:center; background:var(--secondary); border:1px solid var(--border); border-radius:9999px; padding:0 14px; height:36px; transition:border-color .15s,box-shadow .15s; }
+.chat-input-pill { flex:1; display:flex; align-items:center; background:var(--card); border:1px solid var(--input); border-radius:9999px; padding:0 15px; height:40px; transition:border-color .15s,box-shadow .15s; }
 .chat-input-pill:focus-within { border-color:var(--ring); box-shadow:0 0 0 3px var(--surface-hover); }
 /* Beats the global input reset in design.css (same idiom as .search-wrap) */
 .chat-input-pill input:not([type="checkbox"]):not([type="radio"]) { flex:1; width:auto; background:transparent; border:none; outline:none; box-shadow:none; font-size:13px; font-family:inherit; color:var(--foreground); height:100%; padding:0; border-radius:0; appearance:none; -webkit-appearance:none; }
@@ -671,9 +705,10 @@ export default function Home() {
 
       <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} financeSummary={props.finance_summary} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
 
-      <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" aria-label="Ask AI" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button className={"ai-fab" + (open ? " open" : "")} title={t("Ask AI")} aria-label={t("Ask AI")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>
         <svg className="fab-ic-close" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        <span>{t("Ask AI")}</span>
       </button>
 
       <div className={"ai-panel" + (open ? " open" : "")}>
@@ -681,7 +716,7 @@ export default function Home() {
           <div className="ai-head-icon"><svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
           <div className="ai-head-text">
             <div className="ai-panel-title">{t("Ask AI")}</div>
-            <div className="ai-panel-sub">{t("Instant answers from your data")}</div>
+            <div className="ai-panel-sub">{t("Reads only the data you're allowed to see")}</div>
           </div>
           <button className="ai-panel-close" onClick={() => setOpen(false)}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -705,7 +740,12 @@ export default function Home() {
               ? <div key={i} className="chat-bubble bubble-user">{m.text}</div>
               : <div key={i} className="chat-bubble bubble-ai" dangerouslySetInnerHTML={{ __html: m.html }} />
           ))}
-          {typing && <div className="chat-bubble bubble-ai bubble-typing"><span></span><span></span><span></span></div>}
+          {typing && (
+            <div className="chat-typing-row">
+              <div className="chat-bubble bubble-ai bubble-typing"><span></span><span></span><span></span></div>
+              <span className="chat-typing-note">{t("Reading your records…")}</span>
+            </div>
+          )}
         </div>
         <div className="chat-input-row">
           <div className="chat-input-pill">
