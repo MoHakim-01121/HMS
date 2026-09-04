@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
-import StatusBadge from "../../components/ui/StatusBadge.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
@@ -50,7 +52,7 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query }), 300);
+    debounce.current = setTimeout(() => visit({ q: query }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
@@ -70,23 +72,23 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
   return (
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Invoice Hotel")}</h1>
-          <div className="page-sub">{t("{count} invoices saved", { count: total_count })}</div>
-        </div>
-        <div className="page-actions">
-          <ExportMenu
-            items={[
-              { href: `/invoice/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
-              { href: `/invoice/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
-            ]}
-          />
-          {perms.can("invoice", "create") && (
-            <button type="button" onClick={() => openForm("/invoice/new/")} onPointerEnter={() => openForm.prefetch("/invoice/new/")} onFocus={() => openForm.prefetch("/invoice/new/")} className="btn btn-primary">+ {t("Create New")}</button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Invoice Hotel")}
+        sub={t("{count} invoices saved", { count: total_count })}
+        actions={
+          <>
+            <ExportMenu
+              items={[
+                { href: `/invoice/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
+                { href: `/invoice/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
+              ]}
+            />
+            {perms.can("invoice", "create") && (
+              <Button type="button" size="lg" onClick={() => openForm("/invoice/new/")} onPointerEnter={() => openForm.prefetch("/invoice/new/")} onFocus={() => openForm.prefetch("/invoice/new/")}>+ {t("Create New")}</Button>
+            )}
+          </>
+        }
+      />
 
       {remit_stats && (
         <div className="hms-kpi-row cols-5">
@@ -149,8 +151,8 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
                   <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
-                  <button type="button" className="fp-apply" onClick={applyFilters}>{t("Apply")}</button>
+                  <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
+                  <Button type="button" size="sm" onClick={applyFilters}>{t("Apply")}</Button>
                 </div>
               </div>
             )}
@@ -158,7 +160,7 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
         </div>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {invoices.length ? (
           <>
             <Table
@@ -188,8 +190,18 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
                     </>
                   ),
                 },
-                { header: t("Status"), className: "col-m-badge", render: (inv) => <StatusBadge status={inv.status} /> },
-                { header: t("Created"), className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
+                { header: t("Status"), className: "col-m-badge", render: (inv) => (
+                  <StatusPill tone={
+                    inv.status === "overpaid" ? "green" :
+                    inv.status === "paid" ? "green" :
+                    inv.status === "partial" ? "yellow" : "red"
+                  } label={t({
+                    overpaid: "Overpaid",
+                    paid: "Paid",
+                    partial: "Partial",
+                    unpaid: "Unpaid",
+                  }[inv.status] || "Unpaid")} />
+                ) },
                 {
                   header: "",
                   className: "col-m-actions",

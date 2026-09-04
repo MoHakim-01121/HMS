@@ -7,6 +7,9 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -26,9 +29,9 @@ const STAR_OPTS = [
 
 function distBadge(d) {
   if (d === null || d === undefined) return null;
-  if (d < 500) return "badge badge-green";
-  if (d < 1500) return "badge badge-yellow";
-  return "badge badge-red";
+  if (d < 500) return "green";
+  if (d < 1500) return "yellow";
+  return "red";
 }
 
 function buildQuery({ q, city, stars, area, page }) {
@@ -56,7 +59,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => go({ q: query }), 300);
+    debounce.current = setTimeout(() => go({ q: query }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
@@ -72,23 +75,25 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
   return (
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Hotels")}</h1>
-          <div className="page-sub">{t("{count} hotels registered", { count: total_count })}</div>
-        </div>
-        <div className="page-actions">
-          <a href="/hotels/map/" className="btn btn-secondary">
-            <Icon name="map-pin" size={14} />
-            {t("Map")}
-          </a>
-          {perms.can("hotels", "create") && (
-            <button type="button" onClick={() => openForm("/hotels/new/")} onPointerEnter={() => openForm.prefetch("/hotels/new/")} onFocus={() => openForm.prefetch("/hotels/new/")} className="btn btn-primary">
-              + {t("New hotel")}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Hotels")}
+        sub={t("{count} hotels registered", { count: total_count })}
+        actions={
+          <>
+            <Button variant="outline" size="lg" asChild>
+              <a href="/hotels/map/">
+                <Icon name="map-pin" size={14} />
+                {t("Map")}
+              </a>
+            </Button>
+            {perms.can("hotels", "create") && (
+              <Button type="button" size="lg" onClick={() => openForm("/hotels/new/")} onPointerEnter={() => openForm.prefetch("/hotels/new/")} onFocus={() => openForm.prefetch("/hotels/new/")}>
+                + {t("New hotel")}
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="filter-bar">
         <div className="search-wrap">
@@ -114,8 +119,8 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                   <FilterRadioGroup label={t("Stars")} options={STAR_OPTS} value={stars} onChange={setStars} dot />
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
-                  <button type="button" className="fp-apply" onClick={apply}>{t("Apply")}</button>
+                  <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
+                  <Button type="button" size="sm" onClick={apply}>{t("Apply")}</Button>
                 </div>
               </div>
             )}
@@ -123,7 +128,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
         </div>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {hotels.length ? (
           <>
             <Table
@@ -132,14 +137,14 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                 {
                   header: t("Status"),
                   className: "col-m-badge",
-                  render: (h) => h.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span>,
+                  render: (h) => h.is_active ? <StatusPill tone="green" label={t("Active")} /> : <StatusPill tone="gray" label={t("Inactive")} />,
                 },
                 {
                   header: t("City"),
                   className: "col-m-secondary",
                   render: (h) => (
                     <>
-                      <span className={"badge " + (h.city === "makkah" ? "badge-blue" : "badge-green")}>{h.city_display}</span>
+                      <StatusPill tone={h.city === "makkah" ? "blue" : "green"} label={h.city_display} />
                       {h.area && <span className="m-only" style={{ marginLeft: 6, color: "var(--text-3)" }}>{h.area}</span>}
                     </>
                   ),
@@ -166,7 +171,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                   className: "col-m-amount",
                   render: (h) => (
                     <>
-                      <span className="m-hide">{h.distance !== null ? <span className={distBadge(h.distance)}>{h.distance_label}</span> : <span className="col-dim">—</span>}</span>
+                      <span className="m-hide">{h.distance !== null ? <StatusPill tone={distBadge(h.distance)} label={h.distance_label} /> : <span className="col-dim">—</span>}</span>
                       <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Distance")}</span>
                       {h.distance !== null ? <span className="m-only" style={h.distance < 500 ? { color: "var(--green)" } : h.distance < 1500 ? { color: "var(--yellow)" } : { color: "var(--red)" }}>{h.distance_label}</span> : <span className="m-only" style={{ color: "var(--text-3)" }}>—</span>}
                     </>

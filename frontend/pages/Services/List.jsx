@@ -8,6 +8,9 @@ import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -23,7 +26,7 @@ export default function List({ invoices, total_count, q, pagination }) {
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query }), 300);
+    debounce.current = setTimeout(() => visit({ q: query }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
@@ -37,23 +40,23 @@ export default function List({ invoices, total_count, q, pagination }) {
   return (
     <div className="page shadcn-root">
       <PageBack />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Invoice Services")}</h1>
-          <div className="page-sub">{t("{count} invoices saved", { count: total_count })}</div>
-        </div>
-        <div className="page-actions">
-          <ExportMenu
-            items={[
-              { href: `/services/export/csv/${qs}`, label: "CSV", icon: "invoice" },
-              { href: `/services/export/pdf/${qs}`, label: "PDF", icon: "cl", external: true },
-            ]}
-          />
-          {perms.can("services", "create") && (
-            <button type="button" onClick={() => openForm("/services/new/")} onPointerEnter={() => openForm.prefetch("/services/new/")} onFocus={() => openForm.prefetch("/services/new/")} className="btn btn-primary">{t("+ Create New")}</button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Invoice Services")}
+        sub={t("{count} invoices saved", { count: total_count })}
+        actions={
+          <>
+            <ExportMenu
+              items={[
+                { href: `/services/export/csv/${qs}`, label: "CSV", icon: "invoice" },
+                { href: `/services/export/pdf/${qs}`, label: "PDF", icon: "cl", external: true },
+              ]}
+            />
+            {perms.can("services", "create") && (
+              <Button type="button" size="lg" onClick={() => openForm("/services/new/")} onPointerEnter={() => openForm.prefetch("/services/new/")} onFocus={() => openForm.prefetch("/services/new/")}>{t("+ Create New")}</Button>
+            )}
+          </>
+        }
+      />
 
       <div className="filter-bar">
         <div className="search-wrap">
@@ -63,13 +66,13 @@ export default function List({ invoices, total_count, q, pagination }) {
         </div>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {invoices.length ? (
           <>
             <Table
               columns={[
                 { header: t("Invoice #"), className: "col-m-primary", render: (inv) => <span className="col-bold col-nowrap">{inv.invoice_number}</span> },
-                { header: t("Currency"), className: "col-m-badge", render: (inv) => <span className="badge badge-gray">{inv.currency}</span> },
+                { header: t("Currency"), className: "col-m-badge", render: (inv) => <StatusPill tone="gray" label={inv.currency} small /> },
                 { header: t("Customer"), className: "col-m-secondary", render: (inv) => inv.customer_name },
                 {
                   header: t("Issued"),

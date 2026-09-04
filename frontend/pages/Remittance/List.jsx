@@ -38,7 +38,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query, status: status_filter || "" }), 300);
+    debounce.current = setTimeout(() => visit({ q: query, status: status_filter || "" }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 

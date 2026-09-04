@@ -7,6 +7,9 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -19,9 +22,9 @@ const STATUS_OPTS = [
 ];
 
 function statusBadge(s) {
-  if (s === "DEFINITE") return ["badge badge-green", "Definite"];
-  if (s === "CANCELLED") return ["badge badge-red", "Cancelled"];
-  return ["badge badge-yellow", "Tentative"];
+  if (s === "DEFINITE") return ["green", "Definite"];
+  if (s === "CANCELLED") return ["red", "Cancelled"];
+  return ["yellow", "Tentative"];
 }
 
 // Mobile card only: "12/08/2026" -> "12 Aug" so the stay line stays short
@@ -60,7 +63,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => go({ q: query }), 300);
+    debounce.current = setTimeout(() => go({ q: query }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
@@ -79,24 +82,24 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   return (
     <div className="page shadcn-root">
       <PageBack />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Confirmation Letter")}</h1>
-          <div className="page-sub">{t("{count} documents saved", { count: total_count })}</div>
-        </div>
-        <div className="page-actions">
-          <ExportMenu
-            items={[
-              { href: `/cl/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
-              { href: `/cl/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
-              { href: `/cl/export/pdf-v2/${exportQs}`, label: "PDF v2", icon: "cl", external: true },
-            ]}
-          />
-          {perms.can("cl", "create") && (
-            <button type="button" onClick={() => openForm("/cl/new/")} onPointerEnter={() => openForm.prefetch("/cl/new/")} onFocus={() => openForm.prefetch("/cl/new/")} className="btn btn-primary">{t("+ Create New")}</button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Confirmation Letter")}
+        sub={t("{count} documents saved", { count: total_count })}
+        actions={
+          <>
+            <ExportMenu
+              items={[
+                { href: `/cl/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
+                { href: `/cl/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
+                { href: `/cl/export/pdf-v2/${exportQs}`, label: "PDF v2", icon: "cl", external: true },
+              ]}
+            />
+            {perms.can("cl", "create") && (
+              <Button type="button" size="lg" onClick={() => openForm("/cl/new/")} onPointerEnter={() => openForm.prefetch("/cl/new/")} onFocus={() => openForm.prefetch("/cl/new/")}>{t("+ Create New")}</Button>
+            )}
+          </>
+        }
+      />
 
       <div className="filter-bar">
         <div className="search-wrap">
@@ -142,7 +145,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                     <span className="fp-section-label">{t("Status")}</span>
                     <button type="button" className="fp-reset" onClick={() => setSel([])}>{t("Reset")}</button>
                   </div>
-                  <div className="fp-status-group" role="group" aria-label={t("Status")}>
+                  <div className="fp-status-group" data-multi role="group" aria-label={t("Status")}>
                     {STATUS_OPTS.map((o) => (
                       <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`}
                         role="checkbox" aria-checked={sel.includes(o.val)} tabIndex={0}
@@ -156,8 +159,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   </div>
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
-                  <button type="button" className="fp-apply" onClick={applyFilters}>{t("Apply")}</button>
+                  <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
+                  <Button type="button" size="sm" onClick={applyFilters}>{t("Apply")}</Button>
                 </div>
               </div>
             )}
@@ -165,7 +168,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         </div>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {letters.length ? (
           <>
             <Table
@@ -186,8 +189,8 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                   header: t("Status"),
                   className: "col-m-badge",
                   render: (cl) => {
-                    const [bcls, blabel] = statusBadge(cl.reservation_status);
-                    return <span className={bcls}>{t(blabel)}</span>;
+                    const [tone, blabel] = statusBadge(cl.reservation_status);
+                    return <StatusPill tone={tone} label={t(blabel)} />;
                   },
                 },
                 { header: t("Client/Travel"), className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },

@@ -7,6 +7,9 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -20,9 +23,9 @@ const STATUS_OPTS = [
 ];
 
 function riskBadge(risk) {
-  if (risk === "high") return ["badge badge-red", "Risk"];
-  if (risk === "medium") return ["badge badge-yellow", "Overdue"];
-  if (risk === "dormant") return ["badge badge-gray", "Dormant"];
+  if (risk === "high") return ["red", "Risk"];
+  if (risk === "medium") return ["yellow", "Overdue"];
+  if (risk === "dormant") return ["gray", "Dormant"];
   return null;
 }
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
@@ -43,7 +46,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query, status: status || "" }), 300);
+    debounce.current = setTimeout(() => visit({ q: query, status: status || "" }), 350);
     return () => clearTimeout(debounce.current);
   }, [query]);
 
@@ -54,23 +57,25 @@ export default function List({ clients, total_count, q, status, pagination }) {
   return (
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Clients")}</h1>
-          <div className="page-sub">{t("{count} travel agents registered", { count: total_count })}</div>
-        </div>
-        <div className="page-actions">
-          <a href="/clients/map/" className="btn btn-secondary">
-            <Icon name="map-pin" size={14} />
-            {t("Map")}
-          </a>
-          {perms.can("clients", "create") && (
-            <button type="button" onClick={() => openForm("/clients/new/")} onPointerEnter={() => openForm.prefetch("/clients/new/")} onFocus={() => openForm.prefetch("/clients/new/")} className="btn btn-primary">
-              + {t("New client")}
-            </button>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("Clients")}
+        sub={t("{count} travel agents registered", { count: total_count })}
+        actions={
+          <>
+            <Button variant="outline" size="lg" asChild>
+              <a href="/clients/map/">
+                <Icon name="map-pin" size={14} />
+                {t("Map")}
+              </a>
+            </Button>
+            {perms.can("clients", "create") && (
+              <Button type="button" size="lg" onClick={() => openForm("/clients/new/")} onPointerEnter={() => openForm.prefetch("/clients/new/")} onFocus={() => openForm.prefetch("/clients/new/")}>
+                + {t("New client")}
+              </Button>
+            )}
+          </>
+        }
+      />
 
       <div className="filter-bar">
         <div className="search-wrap">
@@ -92,8 +97,8 @@ export default function List({ clients, total_count, q, status, pagination }) {
                   <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
                 </div>
                 <div className="fp-footer">
-                  <button type="button" className="btn btn-ghost" style={{ fontSize: 12 }} onClick={resetAll}>{t("Reset all")}</button>
-                  <button type="button" className="fp-apply" onClick={apply}>{t("Apply")}</button>
+                  <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
+                  <Button type="button" size="sm" onClick={apply}>{t("Apply")}</Button>
                 </div>
               </div>
             )}
@@ -101,7 +106,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
         </div>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {clients.length ? (
           <>
           <Table
@@ -114,7 +119,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
                   return (
                     <>
                       <span style={{ fontWeight: 600 }}>{c.name}</span>
-                      {rb && <span className={rb[0]} style={{ marginLeft: 6 }}>{t(rb[1])}</span>}
+                      {rb && <span style={{ marginLeft: 6, display: "inline-flex" }}><StatusPill tone={rb[0]} label={t(rb[1])} /></span>}
                     </>
                   );
                 },
@@ -138,7 +143,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
                   <>
                     <div style={{ fontSize: 13 }}>{c.pic || "-"}</div>
                     {c.wa && <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "var(--green)", textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{c.wa}</a>}
-                    {needsWaGroup(c) && <span className="badge badge-yellow" style={{ fontSize: 9, marginLeft: 6 }}>{t("Group not set")}</span>}
+                    {needsWaGroup(c) && <span style={{ fontSize: 9, marginLeft: 6, display: "inline-flex" }}><StatusPill tone="yellow" label={t("Group not set")} /></span>}
                   </>
                 ),
               },
@@ -162,7 +167,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
                 className: "col-m-hide col-num",
                 render: (c) => c.avg_days_to_pay != null ? <span className="mono">{c.avg_days_to_pay}d</span> : <span className="col-dim">—</span>,
               },
-              { header: t("Status"), className: "col-m-badge", render: (c) => c.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span> },
+              { header: t("Status"), className: "col-m-badge", render: (c) => c.is_active ? <StatusPill tone="green" label={t("Active")} /> : <StatusPill tone="gray" label={t("Inactive")} /> },
               {
                 header: "",
                 className: "col-m-actions",

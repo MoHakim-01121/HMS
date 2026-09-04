@@ -829,6 +829,146 @@
   .hms-pag-num.is-active { min-width: 38px; border: 1px solid var(--border); }
 }
 
+/* ══ List toolbar — Homlu v2.1 doc 02b ═══════════════════════════════════
+   One bar, two doors: Sort opens a single-choice menu, Filter opens a panel
+   that only commits on Terapkan. Search stands alone. All keyed to
+   .shadcn-root so the legacy Django pages keep design.css's own toolbar. ── */
+.shadcn-root .filter-bar { gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+
+.shadcn-root .search-wrap {
+  height: 38px;
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: var(--card);
+  padding: 0 14px;
+  gap: 10px;
+  box-shadow: none;
+}
+.shadcn-root .search-wrap:hover { border-color: var(--input); }
+.shadcn-root .search-wrap:focus-within { border-color: var(--foreground); box-shadow: none; }
+.shadcn-root .search-wrap svg { color: var(--muted-foreground); }
+.shadcn-root .search-wrap input::placeholder { color: var(--muted-foreground); }
+
+.shadcn-root .fbar-btn {
+  height: 38px;
+  padding: 0 16px;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  color: var(--foreground);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.shadcn-root .fbar-btn:hover { color: var(--foreground); border-color: var(--foreground); background: var(--card); }
+.shadcn-root .fbar-btn svg { color: var(--muted-foreground); }
+/* open panel / active filters → the button border goes to full ink */
+.shadcn-root .sort-wrap:has(.sort-menu.open) .fbar-btn,
+.shadcn-root .filter-panel-wrap:has(.filter-panel.open) .fbar-btn,
+.shadcn-root .fbar-btn:has(.fbar-count) { border-color: var(--foreground); }
+.shadcn-root .fbar-btn .fbar-count {
+  min-width: 19px; height: 19px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--foreground); color: var(--background);
+  border-radius: 9999px;
+  font-size: 10.5px; font-weight: 600; line-height: 1;
+}
+
+/* Sort menu + Filter panel — the library .pnl: 20px radius, deep soft
+   shadow, no tint. */
+.shadcn-root .sort-menu,
+.shadcn-root .filter-panel {
+  top: calc(100% + 6px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 22px 50px -24px oklch(0.205 0.012 260 / .28);
+  background: var(--popover);
+}
+.shadcn-root .sort-menu { width: 236px; padding: 8px; }
+.shadcn-root .filter-panel { width: 320px; }
+
+.shadcn-root .sort-opt {
+  height: 40px; padding: 0 10px;
+  border-radius: 12px;
+  font-size: 13px; font-weight: 400; color: var(--foreground);
+}
+.shadcn-root .sort-opt:hover { background: var(--secondary); color: var(--foreground); }
+.shadcn-root .sort-opt.active { color: var(--foreground); font-weight: 600; }
+.shadcn-root .sort-opt.active::after { content: ""; width: 15px; height: 15px; flex: none; background: var(--foreground); -webkit-mask: var(--hms-check) center/contain no-repeat; mask: var(--hms-check) center/contain no-repeat; }
+
+.shadcn-root .fp-head { padding: 15px 18px 13px; border-bottom: 1px solid var(--hairline); }
+.shadcn-root .fp-title { font-size: 14.5px; font-weight: 600; color: var(--foreground); text-transform: none; letter-spacing: normal; }
+.shadcn-root .fp-section { padding: 16px 18px 4px; border-bottom: 0; }
+.shadcn-root .fp-section + .fp-section { padding-top: 12px; }
+.shadcn-root .fp-section-head { padding: 0; margin-bottom: 9px; }
+.shadcn-root .fp-section-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .13em;
+  text-transform: uppercase; color: var(--muted-foreground);
+}
+.shadcn-root .fp-reset { font-size: 11px; color: var(--muted-foreground); }
+.shadcn-root .fp-reset:hover { color: var(--foreground); }
+
+.shadcn-root .fp-date-row { padding: 0; gap: 9px; }
+.shadcn-root .fp-date-field label { font-size: 11px; color: var(--muted-foreground); }
+.shadcn-root .fp-date-field input[type="date"] {
+  height: 38px;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  font-size: 12.5px;
+  padding: 0 12px;
+}
+.shadcn-root .fp-date-field input[type="date"]:focus { border-color: var(--foreground); }
+
+.shadcn-root .fp-status-group { gap: 0; }
+.shadcn-root .fp-status-opt { height: 40px; padding: 0 10px; border-radius: 12px; }
+.shadcn-root .fp-status-opt:hover,
+.shadcn-root .fp-status-opt.selected { background: var(--secondary); }
+/* the dot becomes an 18px check marker — round for single-select,
+   .fp-status-group[data-multi] makes it a rounded square */
+.shadcn-root .fp-status-dot {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--input);
+  border-radius: 9999px;
+  background: transparent;
+}
+.shadcn-root .fp-status-group[data-multi] .fp-status-dot { border-radius: 6px; }
+.shadcn-root .fp-status-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.shadcn-root .fp-status-opt.selected .fp-status-dot {
+  border-color: var(--foreground);
+  background: var(--foreground);
+}
+.shadcn-root .fp-status-opt.selected .fp-status-dot::after {
+  content: "";
+  width: 11px; height: 11px;
+  background: var(--background);
+  -webkit-mask: var(--hms-check) center/contain no-repeat;
+  mask: var(--hms-check) center/contain no-repeat;
+}
+.shadcn-root .fp-status-opt-label { font-size: 13px; font-weight: 400; color: var(--foreground); }
+.shadcn-root .fp-status-opt.selected .fp-status-opt-label { font-weight: 600; }
+.shadcn-root .fp-status-count {
+  height: 21px; padding: 0 8px;
+  display: inline-flex; align-items: center;
+  background: var(--secondary); border-radius: 9999px;
+  font-size: 11px; font-weight: 600; color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+/* v2.1 drops the per-status hue on the option text — the pill in the table
+   already carries it, and a menu full of coloured labels reads as noise. */
+.shadcn-root .fp-status-opt.c-def, .shadcn-root .fp-status-opt.c-lun,
+.shadcn-root .fp-status-opt.c-rec, .shadcn-root .fp-status-opt.c-act,
+.shadcn-root .fp-status-opt.c-ten, .shadcn-root .fp-status-opt.c-par,
+.shadcn-root .fp-status-opt.c-pen, .shadcn-root .fp-status-opt.c-star,
+.shadcn-root .fp-status-opt.c-can, .shadcn-root .fp-status-opt.c-bel,
+.shadcn-root .fp-status-opt.c-ina, .shadcn-root .fp-status-opt.c-mak,
+.shadcn-root .fp-status-opt.c-mad, .shadcn-root .fp-status-opt.c-all { color: var(--foreground); }
+
+.shadcn-root .fp-footer { padding: 13px 18px; border-top: 1px solid var(--hairline); background: transparent; }
+
+:root { --hms-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L19 7'/%3E%3C/svg%3E"); }
+
 /* ── Data table (bulk-select bar + hover-reveal actions, additive pattern) ── */
 .hms-bulk-bar {
   position: fixed;
