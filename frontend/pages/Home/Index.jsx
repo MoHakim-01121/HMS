@@ -31,14 +31,16 @@ const CSS = `
 .hms-btn-primary { border:1px solid var(--primary); background:var(--primary); color:var(--primary-foreground); padding:0 18px; }
 .hms-btn-primary:hover { background:var(--primary-hover); border-color:var(--primary-hover); }
 
-/* "Saldo kas" strip — same divided card as .hms-kpi-row, horizontal cells. */
+/* "Saldo kas" strip — same divided card as .hms-kpi-row, and the SAME
+   responsive breakpoint so the two rows always stack at identical column
+   counts / widths. */
 .hms-cash-row {
   display:grid; grid-template-columns:repeat(2,1fr);
   gap:1px; background:var(--border);
   border:1px solid var(--border); border-radius:var(--radius-card);
-  overflow:hidden; margin-bottom:14px;
+  overflow:hidden; margin-bottom:16px;
 }
-@media (min-width:900px) { .hms-cash-row { grid-template-columns:repeat(4,1fr); } }
+@media (min-width:1280px) { .hms-cash-row { grid-template-columns:repeat(4,1fr); } }
 .hms-cash {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:14px 18px; background:var(--card);
