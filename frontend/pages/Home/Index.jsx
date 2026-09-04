@@ -31,6 +31,33 @@ const CSS = `
 .hms-btn-primary { border:1px solid var(--primary); background:var(--primary); color:var(--primary-foreground); padding:0 18px; }
 .hms-btn-primary:hover { background:var(--primary-hover); border-color:var(--primary-hover); }
 
+/* "Saldo kas" strip — same divided card as .hms-kpi-row, horizontal cells. */
+.hms-cash-row {
+  display:grid; grid-template-columns:repeat(2,1fr);
+  gap:1px; background:var(--border);
+  border:1px solid var(--border); border-radius:var(--radius-card);
+  overflow:hidden; margin-bottom:14px;
+}
+@media (min-width:900px) { .hms-cash-row { grid-template-columns:repeat(4,1fr); } }
+.hms-cash {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 18px; background:var(--card);
+}
+.hms-cash-label { font-size:12px; font-weight:500; color:var(--muted-foreground); }
+.hms-cash-val { margin-top:5px; font-size:19px; font-weight:600; letter-spacing:-.02em; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-cash-cur { margin-left:5px; font-size:10.5px; font-weight:600; color:var(--muted-foreground); letter-spacing:0; }
+.hms-cash-badge {
+  flex:none; height:24px; padding:0 10px;
+  display:inline-flex; align-items:center;
+  border:1px solid var(--input); border-radius:9999px;
+  font-size:11px; font-weight:600; color:var(--muted-foreground); white-space:nowrap;
+}
+@media (max-width:600px) {
+  .hms-cash-row { grid-template-columns:repeat(2,1fr); }
+  .hms-cash { padding:12px 14px; }
+  .hms-cash-val { font-size:16px; }
+}
+
 /* Panel grid — wide chart card + recent-CLs card, Homlu's 12-col rhythm
    (lg:grid-cols-12 with a 7/5 split) approximated with fr units. Both cards
    stretch to the same height; the chart fills the slack so a taller table
@@ -317,7 +344,24 @@ function MapIndonesia({ regionData }) {
   );
 }
 
-function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
+// "Saldo kas" tile (doc 01) — label + figure on the left, an outline badge
+// on the right. Sits in the same divided card as the KPI board.
+function CashTile({ label, value, meta, plain }) {
+  return (
+    <div className="hms-cash">
+      <div>
+        <div className="hms-cash-label">{label}</div>
+        <div className="hms-cash-val">
+          {typeof value === "number" ? value.toLocaleString("en-US") : value}
+          {!plain && <span className="hms-cash-cur">SAR</span>}
+        </div>
+      </div>
+      {meta && <span className="hms-cash-badge">{meta}</span>}
+    </div>
+  );
+}
+
+function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, financeSummary, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
   const { t } = useI18n();
   const [period, setPeriod] = useState("6M");
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -379,15 +423,27 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
           foot={t("{amount} SAR outstanding", { amount: fmtNum(kpis?.unpaid_total) })}
         />
         <KpiCard
-          label={remittance ? t("Remittance Pending") : t("Outstanding")}
-          value={remittance ? fmtNum(kpis?.remittance_pending) : fmtNum(kpis?.unpaid_total)}
-          trend={remittance ? deltas.remittance : deltas.unpaid}
+          label={t("Payments Pending")}
+          value={fmtNum(financeSummary?.payments_pending ?? kpis?.remittance_pending ?? 0)}
+          trend={remittance ? deltas.remittance : undefined}
           trendGood={false}
-          foot={remittance
-            ? t("{n} last month", { n: fmtNum(deltas.remittance?.prev ?? 0) })
-            : t("{n} invoices unpaid", { n: fmtNum(kpis?.unpaid_invoices) })}
+          foot={t("needs review")}
         />
       </div>
+
+      {financeSummary && (
+        <div className="hms-cash-row">
+          <CashTile label={t("Cash Surabaya")} value={financeSummary.kas_sby} meta="SAR" />
+          <CashTile label={t("Cash HQ")} value={financeSummary.kas_pusat} meta="SAR" />
+          <CashTile label={t("Total Receivable")} value={financeSummary.total_piutang} meta="SAR" />
+          <CashTile
+            label={t("Payments This Month")}
+            value={financeSummary.payments_this_month}
+            plain
+            meta={t("{n} pending", { n: fmtNum(financeSummary.payments_pending || 0) })}
+          />
+        </div>
+      )}
 
       <div className="hms-home-grid">
         <div className="hms-dv-card hms-home-chart">
@@ -611,7 +667,7 @@ export default function Home() {
     <div className="page shadcn-root hms-home">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
+      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} financeSummary={props.finance_summary} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
 
       <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" aria-label="Ask AI" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>

@@ -62,7 +62,7 @@ export default function SearchOverlay({ open, onClose }) {
           blur is no longer set here — DialogOverlay carries it for every
           overlay in the app now (see dialog.jsx). */}
       <DialogContent
-        className="overflow-hidden p-0 rounded-[20px] border border-border shadow-2xl bg-card max-w-[min(576px,calc(100%-2rem))] max-[600px]:top-[30%] max-[600px]:translate-y-[-50%]"
+        className="hms-search-panel overflow-hidden p-0 rounded-[20px] border border-border bg-card max-w-[min(520px,calc(100%-2rem))] top-[64px] translate-y-0 sm:top-[64px] sm:translate-y-0 max-[600px]:top-[64px] max-[600px]:translate-y-0"
         showCloseButton={false}
       >
         <Command shouldFilter={false}>
@@ -72,7 +72,7 @@ export default function SearchOverlay({ open, onClose }) {
             onValueChange={setQ}
             right={
               <kbd
-                className="shrink-0 rounded-lg border border-border bg-secondary px-2 py-1 text-[11px] font-semibold text-foreground"
+                className="shrink-0 rounded-[8px] bg-secondary px-2.5 h-[22px] inline-flex items-center text-[11px] font-semibold text-muted-foreground"
                 style={{ marginRight: 6 }}
               >
                 Esc
@@ -120,12 +120,17 @@ export default function SearchOverlay({ open, onClose }) {
               </CommandGroup>
             ))}
           </CommandList>
-          <div className="flex items-center gap-3.5 border-t border-border bg-secondary/40 px-4 py-[7px] max-[600px]:hidden">
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <kbd className="flex size-5 items-center justify-center rounded-md border border-border bg-secondary text-[11px] font-semibold leading-none text-foreground">↑↓</kbd> {t("navigate")}
+          <div className="flex items-center gap-3.5 border-t border-[color:var(--hairline)] px-[18px] py-[11px] max-[600px]:hidden">
+            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <kbd className="flex h-5 items-center rounded-[8px] bg-secondary px-1.5 text-[10.5px] font-semibold leading-none text-muted-foreground">↑↓</kbd> {t("navigate")}
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <kbd className="flex size-5 items-center justify-center rounded-md border border-border bg-secondary text-[11px] font-semibold leading-none text-foreground">↵</kbd> {t("select")}
+            <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <kbd className="flex h-5 items-center rounded-[8px] bg-secondary px-1.5 text-[10.5px] font-semibold leading-none text-muted-foreground">Enter</kbd> {t("open")}
+            </span>
+            <span className="ml-auto text-[11px] text-muted-foreground">
+              {state.kind === "results"
+                ? t("{n} results across modules", { n: state.data.results.length })
+                : t("across all modules")}
             </span>
           </div>
         </Command>

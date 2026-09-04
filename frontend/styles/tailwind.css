@@ -174,12 +174,23 @@
    The empty/loading/error blocks carry their own data-slots in
    search-overlay.jsx so the CSS does not have to guess which direct child
    of the list is which. */
-[data-slot="dialog-content"] [data-slot="command-input-wrapper"] { padding-inline: 16px; }
-[data-slot="dialog-content"] [data-slot="command-input-wrapper"] kbd { padding: 4px 8px; }
-[data-slot="dialog-content"] [data-slot="command-group"] { padding: 4px; }
-[data-slot="dialog-content"] [data-slot="command-group"] [cmdk-group-heading] { padding: 6px 8px; }
-[data-slot="dialog-content"] [data-slot="command-item"] { padding: 6px 8px; }
-[data-slot="dialog-content"] [data-slot="command"] > div:last-child { padding: 7px 16px; }
+[data-slot="dialog-content"] [data-slot="command-input-wrapper"] { padding-inline: 18px; height: 54px; }
+[data-slot="dialog-content"] [data-slot="command-input-wrapper"] kbd { padding: 0; }
+[data-slot="dialog-content"] [data-slot="command-group"] { padding: 0; }
+/* v2.1 doc 1d: group label = caps, rows 46px, panel elevation. */
+[data-slot="dialog-content"] [data-slot="command-group"] [cmdk-group-heading] {
+  padding: 12px 18px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  border-top: 1px solid var(--hairline);
+}
+[data-slot="dialog-content"] [data-slot="command-group"]:first-child [cmdk-group-heading] { border-top: 0; }
+[data-slot="dialog-content"] [data-slot="command-item"] { min-height: 46px; padding: 0 18px; border-radius: 0; gap: 12px; }
+[data-slot="dialog-content"] [data-slot="command"] > div:last-child { padding: 11px 18px; }
+.hms-search-panel { box-shadow: 0 30px 60px -26px oklch(0.205 0.012 260 / .42); }
 [data-slot="dialog-content"] [data-slot="command-state-empty"] { padding: 48px 24px; }
 [data-slot="dialog-content"] [data-slot="command-state-loading"] { padding: 32px 0; }
 [data-slot="dialog-content"] [data-slot="command-state-error"] { padding: 16px; }

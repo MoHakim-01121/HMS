@@ -38,14 +38,9 @@ const DialogOverlay = React.forwardRef(function DialogOverlay({
       ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        // backdrop-blur-xs lives on the base scrim, not on individual call
-        // sites. Homlu's own overlay measures as a flat black/50 with no
-        // backdrop-filter, and the form modal was built to match that — but
-        // that left it the only overlay in HMS without blur, while the ⌘K
-        // palette, the Invoice CL-import modal and design.css's legacy
-        // .modal-overlay all had it. One scrim treatment for every overlay
-        // beats literal fidelity to the reference on this one detail.
-        "fixed inset-0 z-50 bg-black/50 backdrop-blur-xs data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        // v2.1 (doc 07): one flat scrim, no blur — "tidak ada blur/glow".
+        // A cool near-black at ~32% over the page.
+        "fixed inset-0 z-50 bg-[color:oklch(0.205_0.012_260/0.32)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props} />
