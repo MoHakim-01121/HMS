@@ -117,6 +117,14 @@ function Csrf() {
   return <input type="hidden" name="csrfmiddlewaretoken" value={getCsrf()} />;
 }
 
+// Two-letter monogram for the topbar avatar / account menu (v2.1, no photo).
+function userInitials(user) {
+  const src = (user?.name && user.name !== user.username ? user.name : user?.username) || "?";
+  const parts = src.trim().split(/\s+/);
+  const s = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : src.slice(0, 2);
+  return s.toUpperCase();
+}
+
 // ── Mobile More page (full-screen module grid) ─────────────────────────
 function MobileMore({ page, perms, onClose }) {
   const { t } = useI18n();
@@ -165,17 +173,20 @@ function MobileMore({ page, perms, onClose }) {
         {groups.map((g) => (
           <div key={g.heading} className="m-more-group">
             <div className="m-more-heading">{t(g.heading)}</div>
-            {g.items.map((item) => (
-              <a
-                key={item.key}
-                href={item.href}
-                className={"m-more-item" + (page === item.key ? " active" : "")}
-                onClick={onClose}
-              >
-                <span className="m-more-icon"><Icon name={item.icon} size={20} strokeWidth={1.8} /></span>
-                <span className="m-more-label">{t(item.label)}</span>
-              </a>
-            ))}
+            <div className="m-more-card">
+              {g.items.map((item) => (
+                <a
+                  key={item.key}
+                  href={item.href}
+                  className={"m-more-item" + (page === item.key ? " active" : "")}
+                  onClick={onClose}
+                >
+                  <Icon name={item.icon} size={18} strokeWidth={page === item.key ? 2 : 1.6} />
+                  <span className="m-more-label">{t(item.label)}</span>
+                  <Icon name="chevron" size={15} strokeWidth={1.8} className="m-more-chev" />
+                </a>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -369,28 +380,45 @@ export default function AppLayout({ children }) {
                 <Icon name={theme === "light" ? "sun" : "moon"} />
               </button>
 
-              <LanguageSwitcher />
-
               <div className="hms-topbar-account" ref={accountWrap} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <button type="button" className="account-btn" aria-label="Account"
+                <button type="button" className="hms-acct-trigger" aria-label="Account"
                   aria-haspopup="true" aria-expanded={account}
                   onClick={(e) => { e.stopPropagation(); setAccount((v) => !v); setNotif(false); }}>
-                  {user.avatar
-                    ? <img src={user.avatar} className="account-avatar-img" alt={user.username} />
-                    : <Icon name="user" size={18} strokeWidth={0} fill="currentColor" className="account-avatar-default" />}
-                  <span className="account-username">{user.username}</span>
-                  <Icon name="chevron" size={10} strokeWidth={2.5} className="account-chevron" />
+                  <span className="hms-acct-trigger-avatar">
+                    {user.avatar
+                      ? <img src={user.avatar} alt={user.username} />
+                      : userInitials(user)}
+                  </span>
+                  <span className="hms-acct-trigger-name">{user.username}</span>
+                  <Icon name="chevron" size={12} strokeWidth={2.2} className="hms-acct-trigger-chev" />
                 </button>
-                <div className={"account-dropdown hms-topbar-dropdown" + (account ? " open" : "")}>
-                  <div className="account-dd-head">
-                    <span className="account-dd-name">{user.username}</span>
-                    {user.is_superuser && <span className="account-dd-role">{t("Admin")}</span>}
+                <div className={"hms-acct-menu" + (account ? " open" : "")}>
+                  <div className="hms-acct-head">
+                    <span className="hms-acct-avatar">
+                      {user.avatar ? <img src={user.avatar} alt={user.username} /> : userInitials(user)}
+                    </span>
+                    <span className="hms-acct-id">
+                      <span className="hms-acct-name">{user.username}</span>
+                      <span className="hms-acct-full">{user.name && user.name !== user.username ? user.name : user.role_label}</span>
+                    </span>
+                    <span className="hms-acct-role">{user.role_label || (user.is_superuser ? t("Admin") : user.is_staff ? t("Staff") : t("Member"))}</span>
                   </div>
-                  <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> {t("My Profile")}</a>
-                  <div className="co-dropdown-sep"></div>
+                  <a href={NAV.account} className="hms-acct-row">
+                    <Icon name="user" size={16} /><span>{t("My Profile")}</span>
+                  </a>
+                  <button type="button" className="hms-acct-row" onClick={toggle}>
+                    <Icon name={theme === "light" ? "sun" : "moon"} size={16} /><span>{t("Theme")}</span>
+                    <span className="hms-acct-meta">{theme === "light" ? t("Light") : t("Dark")}</span>
+                  </button>
+                  <div className="hms-acct-langrow">
+                    <Icon name="globe" size={16} /><span>{t("Language")}</span>
+                    <LanguageSwitcher variant="mini" />
+                  </div>
                   <form method="post" action={NAV.logout} style={{ margin: 0 }}>
                     <Csrf />
-                    <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> {t("Log out")}</button>
+                    <button type="submit" className="hms-acct-row hms-acct-row--danger">
+                      <Icon name="logout" size={16} /><span>{t("Log out")}</span>
+                    </button>
                   </form>
                 </div>
               </div>
@@ -423,7 +451,7 @@ export default function AppLayout({ children }) {
                 <span className="m-top-bar-avatar">
                   {user.avatar
                     ? <img src={user.avatar} alt={user.username} />
-                    : <span className="m-top-bar-avatar-default"><Icon name="user" size={16} strokeWidth={0} fill="currentColor" /></span>}
+                    : <span className="m-top-bar-avatar-default">{userInitials(user)}</span>}
                 </span>
               </button>
             </div>
@@ -457,23 +485,34 @@ export default function AppLayout({ children }) {
             <MobileMore page={page} perms={perms} onClose={() => setMMore(false)} />
           )}
 
-          {/* ── Mobile account dropdown ── */}
-          <div className={"bnav-account-dd" + (mAccount ? " open" : "")} onClick={(e) => e.stopPropagation()}>
-            <div className="bnav-account-head">
-              <span className="bnav-account-name">{user.username}</span>
-              {user.is_superuser ? <span className="badge badge-blue" style={{ fontSize: 9 }}>{t("Admin")}</span>
-                : user.is_staff ? <span className="badge badge-green" style={{ fontSize: 9 }}>{t("Staff")}</span> : null}
+          {/* ── Mobile account sheet (v2.1 bottom sheet) ── */}
+          {mAccount && <div className="m-sheet-scrim" onClick={() => setMAccount(false)} />}
+          <div className={"m-acct-sheet" + (mAccount ? " open" : "")} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("Account")}>
+            <span className="m-sheet-grab" aria-hidden="true" />
+            <div className="m-acct-sheet-head">
+              <span className="m-acct-sheet-avatar">
+                {user.avatar ? <img src={user.avatar} alt={user.username} /> : userInitials(user)}
+              </span>
+              <span className="m-acct-sheet-id">
+                <span className="m-acct-sheet-name">{user.username}</span>
+                <span className="m-acct-sheet-full">{user.name && user.name !== user.username ? user.name : user.role_label}</span>
+              </span>
+              <span className="hms-acct-role">{user.role_label || (user.is_superuser ? t("Admin") : user.is_staff ? t("Staff") : t("Member"))}</span>
             </div>
-            <a href={NAV.account} className="co-option"><Icon name="user" size={13} /> {t("My Profile")}</a>
-            <button type="button" className="co-option" onClick={toggle}>
-              <Icon name={theme === "light" ? "sun" : "moon"} size={13} /> {t("Toggle Theme")}
+            <a href={NAV.account} className="m-acct-row"><Icon name="user" size={18} /><span>{t("My Profile")}</span></a>
+            <button type="button" className="m-acct-row" onClick={toggle}>
+              <Icon name={theme === "light" ? "sun" : "moon"} size={18} /><span>{t("Theme")}</span>
+              <span className="hms-acct-meta">{theme === "light" ? t("Light") : t("Dark")}</span>
             </button>
-            <LanguageSwitcher compact />
-            <div className="co-dropdown-sep"></div>
+            <div className="m-acct-row m-acct-row--lang">
+              <Icon name="globe" size={18} /><span>{t("Language")}</span>
+              <LanguageSwitcher variant="mini" />
+            </div>
             <form method="post" action={NAV.logout} style={{ margin: 0 }}>
               <Csrf />
-              <button type="submit" className="co-option co-option-muted"><Icon name="logout" size={13} /> {t("Log out")}</button>
+              <button type="submit" className="m-acct-row m-acct-row--danger"><Icon name="logout" size={18} /><span>{t("Log out")}</span></button>
             </form>
+            <button type="button" className="m-acct-sheet-close" onClick={() => setMAccount(false)}>{t("Close")}</button>
           </div>
 
           {/* ── Shared notification dropdown ── */}

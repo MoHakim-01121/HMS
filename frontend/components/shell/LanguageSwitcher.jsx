@@ -1,14 +1,18 @@
 import axios from "axios";
 import { router } from "@inertiajs/react";
 import { useI18n } from "../../utils/i18n.jsx";
-import { Icon } from "../icons.jsx";
 
+// Homlu v2.1 (doc 1e): one component, two shapes.
+//  - default  → segmented control for a wide topbar / settings row
+//  - "mini"   → the same segmented control, tightened for the account menu row
+// Language codes shown as value chips, no flags. HMS ships id + en locales
+// (AR has no translation catalogue yet, so it is omitted rather than shown dead).
 const LANGUAGES = [
-  { code: "en", label: "EN" },
   { code: "id", label: "ID" },
+  { code: "en", label: "EN" },
 ];
 
-export default function LanguageSwitcher({ compact = false }) {
+export default function LanguageSwitcher({ variant = "default" }) {
   const { locale, t } = useI18n();
 
   const change = async (value) => {
@@ -21,56 +25,19 @@ export default function LanguageSwitcher({ compact = false }) {
     }
   };
 
-  const current = LANGUAGES.find((l) => l.code === locale) || LANGUAGES[0];
-
-  // Desktop: segmented control (shadcn style)
-  if (!compact) {
-    return (
-      <div className="hms-lang-switch" role="group" aria-label={t("Language")}>
-        {LANGUAGES.map((lang) => (
-          <button
-            key={lang.code}
-            type="button"
-            className={`hms-lang-btn ${locale === lang.code ? "active" : ""}`}
-            title={lang.label}
-            aria-pressed={locale === lang.code}
-            onClick={() => change(lang.code)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                change(lang.code);
-              }
-            }}
-          >
-            <span className="hms-lang-code">{lang.label}</span>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  // Mobile/compact: one row, matching app's co-option pattern. No dropdown —
-  // tapping it switches straight to the other language; the badge on the
-  // right just labels what the tap does.
-  const other = LANGUAGES.find((l) => l.code !== locale) || LANGUAGES[1];
   return (
-    <button
-      type="button"
-      className="hms-lang-trigger co-option"
-      aria-label={t("Switch language to {lang}", { lang: other.label })}
-      onClick={(e) => {
-        e.stopPropagation();
-        change(other.code);
-      }}
-    >
-      <span className="hms-lang-trigger-label">
-        <Icon name="globe" size={13} />
-        <span className="hms-lang-name">{current.label}</span>
-      </span>
-      <span className="hms-lang-switch-badge">
-        {t("Switch")}
-        <Icon name="swap" size={11} strokeWidth={2.2} />
-      </span>
-    </button>
+    <div className={"hms-seg" + (variant === "mini" ? " hms-seg--mini" : "")} role="group" aria-label={t("Language")}>
+      {LANGUAGES.map((lang) => (
+        <button
+          key={lang.code}
+          type="button"
+          className={"hms-seg-opt" + (locale === lang.code ? " active" : "")}
+          aria-pressed={locale === lang.code}
+          onClick={(e) => { e.stopPropagation(); change(lang.code); }}
+        >
+          {lang.label}
+        </button>
+      ))}
+    </div>
   );
 }

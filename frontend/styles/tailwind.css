@@ -1065,73 +1065,128 @@
   .hms-topbar .topbar-icon-btn:hover { background: var(--secondary); }
   .hms-topbar .topbar-icon-btn:active { transform: scale(0.96); }
 
+  /* Search — v2.1 doc 1a: 36px white pill, 1px control border, muted prompt,
+     and a keycap chip (22px, radius 7) on the neutral fill. */
   .hms-topbar-search {
     display: flex;
     align-items: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 14px;
-    border-radius: calc(var(--radius) + 4px);
-    border: 1px solid var(--border);
-    background: var(--secondary);
+    gap: 9px;
+    height: 36px;
+    padding: 0 6px 0 14px;
+    border-radius: 9999px;
+    border: 1px solid var(--input);
+    background: var(--card);
     color: var(--muted-foreground);
     font-size: 13px;
     cursor: pointer;
-    transition: border-color .12s, background .12s, color .12s, transform .12s ease;
+    transition: border-color .12s, color .12s, transform .12s ease;
   }
-  /* Hover darkens the prompt text too, not just the ring, so the whole control
-     acknowledges the pointer rather than only its edge. */
-  .hms-topbar-search:hover { border-color: var(--ring); color: var(--foreground); }
+  .hms-topbar-search:hover { border-color: var(--foreground); color: var(--foreground); }
   .hms-topbar-search:active { transform: scale(0.98); }
   .hms-topbar-search span { white-space: nowrap; }
-  /* Keycap, not a tag: a small radius + a 1px bottom shadow reads as a physical
-     key, and --card lifts it off the inset --secondary pill instead of hiding
-     in it. */
   .hms-topbar-search kbd {
-    margin-left: 4px;
-    padding: 2px 6px;
-    border-radius: 5px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    box-shadow: 0 1px 0 var(--border);
-    font-size: 10px;
+    width: 22px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 7px;
+    background: var(--secondary);
+    border: 0;
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 600;
     font-family: var(--font-mono);
+    color: var(--muted-foreground);
   }
   @media (max-width: 900px) {
+    .hms-topbar-search { padding: 0 12px; }
     .hms-topbar-search span, .hms-topbar-search kbd { display: none; }
   }
 
-  /* Account trigger (.account-btn base rules live in design.css, shared
-     with older layouts) — desktop override drops the pill/border chrome for
-     a plain avatar + hover fill, matching Homlu's borderless topbar avatar. */
-  .hms-topbar-account .account-btn {
-    height: 40px;
-    padding: 0 8px 0 0;
-    background: transparent;
-    border: none;
-    border-radius: var(--radius-full, 9999px);
-    transition: background .12s, transform .12s ease;
+  /* Account trigger — v2.1 doc 1a: a bordered pill, 34px, with a 24px
+     near-black monogram avatar + username + chevron. */
+  .hms-acct-trigger {
+    display: inline-flex; align-items: center; gap: 9px;
+    height: 34px; padding: 0 12px 0 5px;
+    background: var(--card);
+    border: 1px solid var(--input);
+    border-radius: 9999px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color .12s, background .12s;
   }
-  .hms-topbar-account .account-btn:hover { background: var(--secondary); }
-  .hms-topbar-account .account-btn:active { transform: scale(0.97); }
-  .hms-topbar-account .account-avatar-img,
-  .hms-topbar-account .account-avatar-default {
-    width: 32px; height: 32px;
-    border-radius: var(--radius-full, 9999px);
+  .hms-acct-trigger:hover { border-color: var(--foreground); }
+  .hms-acct-trigger-avatar {
+    width: 24px; height: 24px; flex: none;
+    border-radius: 9999px;
+    background: var(--foreground); color: var(--background);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10.5px; font-weight: 600; overflow: hidden;
   }
+  .hms-acct-trigger-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .hms-acct-trigger-name { font-size: 12.5px; font-weight: 500; color: var(--foreground); }
+  .hms-acct-trigger-chev { color: var(--muted-foreground); }
 
-  /* Account dropdown (desktop only — .account-dropdown's base rules in
-     design.css are shared with nothing else, but kept there since it's an
-     old shared class name; this override matches the same 8px/soft-shadow
-     menu treatment as .hms-ws-panel above, both modeled on Homlu's Radix
-     DropdownMenu popover. */
-  .hms-topbar-dropdown {
-    border-radius: 8px;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+  /* Account menu — v2.1 doc 1e: card radius 20, modal elevation, 266px.
+     Header carries avatar 38 + username + full name + a filled ink role
+     badge; option rows are 42px with an optional right-hand value; Log out
+     is red text under a full-width rule, not a red button. */
+  .hms-acct-menu {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    width: 266px;
     background: var(--popover);
     border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: 0 22px 50px -22px oklch(0.205 0.012 260 / .34);
+    overflow: hidden;
+    opacity: 0; transform: translateY(-6px) scale(.98);
+    pointer-events: none;
+    transition: opacity .14s, transform .14s;
+    z-index: 60;
   }
-  .hms-topbar-dropdown .account-dd-head { padding: 8px; }
+  .hms-acct-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+  .hms-acct-head {
+    display: flex; align-items: center; gap: 11px;
+    padding: 15px 17px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .hms-acct-avatar {
+    width: 38px; height: 38px; flex: none;
+    border-radius: 9999px;
+    background: var(--foreground); color: var(--background);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 600; overflow: hidden;
+  }
+  .hms-acct-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .hms-acct-id { min-width: 0; display: flex; flex-direction: column; }
+  .hms-acct-name { font-size: 13.5px; font-weight: 600; color: var(--foreground); }
+  .hms-acct-full { font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hms-acct-role {
+    flex: none; height: 22px; padding: 0 9px;
+    display: inline-flex; align-items: center;
+    border-radius: 9999px;
+    background: var(--foreground); color: var(--background);
+    font-size: 10.5px; font-weight: 600; white-space: nowrap;
+  }
+  .hms-acct-row, .hms-acct-langrow {
+    display: flex; align-items: center; gap: 11px;
+    width: 100%;
+    height: 42px; padding: 0 17px;
+    border: 0; border-top: 1px solid var(--hairline);
+    background: transparent;
+    font-family: inherit; font-size: 13px; font-weight: 500;
+    color: var(--foreground); text-decoration: none;
+    cursor: pointer;
+  }
+  .hms-acct-row:first-of-type { border-top: 0; }
+  .hms-acct-row svg, .hms-acct-langrow svg { color: var(--muted-foreground); flex: none; }
+  .hms-acct-row > span:not(.hms-acct-meta), .hms-acct-langrow > span { flex: 1; text-align: left; }
+  .hms-acct-row:hover { background: var(--secondary); }
+  .hms-acct-meta { flex: none; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+  .hms-acct-langrow { cursor: default; }
+  .hms-acct-langrow .hms-seg { flex: none; }
+  .hms-acct-row--danger { border-top: 1px solid var(--border); color: oklch(0.55 0.19 25); }
+  .hms-acct-row--danger svg { color: currentColor; }
+  :root:not([data-theme="light"]) .hms-acct-row--danger,
+  [data-theme="dark"] .hms-acct-row--danger { color: oklch(0.70 0.17 25); }
 
   /* Notification popover — Homlu's own notification dropdown specifically
      uses a much larger radius (rounded-4xl = 32px = our --radius-card
@@ -1228,12 +1283,20 @@
 [data-theme="dark"] .hms-kpi-val.tone-yellow { color:oklch(0.78 0.14 62); }
 :root:not([data-theme="light"]) .hms-kpi-val.tone-blue,
 [data-theme="dark"] .hms-kpi-val.tone-blue   { color:oklch(0.70 0.13 250); }
-.hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; height:22px; padding:0 8px; border-radius:9999px; background:var(--secondary); font-size:11px; font-weight:600; color:var(--muted-foreground); white-space:nowrap; }
-.hms-kpi-trend svg { width:11px; height:11px; }
-.hms-kpi-trend.up   { color:var(--kpi-positive); background:var(--green-muted, var(--secondary)); }
-.hms-kpi-trend.down { color:var(--destructive); background:var(--red-muted, var(--secondary)); }
-.hms-kpi-trend.bad.up   { color:var(--destructive); background:var(--red-muted, var(--secondary)); }
-.hms-kpi-trend.bad.down { color:var(--kpi-positive); background:var(--green-muted, var(--secondary)); }
+/* Delta row: FILLED library badge (.bdg spec — h22, radius 999, 600 11px)
+   carrying the change, then the plain meta text beside it. Green = the
+   change is good, red = bad, grey = neutral/no direction. */
+.hms-kpi-delta-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.hms-kpi-badge {
+  display:inline-flex; align-items:center;
+  height:22px; padding:0 9px;
+  border-radius:9999px;
+  font-size:11px; font-weight:600; white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.hms-kpi-badge.good    { background:oklch(0.62 0.16 152); color:oklch(1 0 0); }
+.hms-kpi-badge.bad     { background:oklch(0.58 0.21 25);  color:oklch(1 0 0); }
+.hms-kpi-badge.neutral { background:var(--secondary); color:var(--muted-foreground); }
 .hms-kpi-foot { font-size:11.5px; color:var(--muted-foreground); }
 @media (max-width:600px) {
   .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); }
@@ -1304,18 +1367,40 @@
 .hms-dv-sub a:hover, .hms-dv-link:hover { border-bottom-color:var(--foreground); }
 .hms-dv-body { padding:0 20px 20px; }
 
+/* Badge — Homlu v2.1 Component Library sheet 4. One pill shape: FILLED for
+   document-cycle status (Paid/Unpaid/Partial/Sent/Revised), grey for neutral
+   states (Locked/Inactive/Draft), OUTLINE (.outline) for derived tags like a
+   currency code or a role. Height 24 on lists / 26 default, radius 999,
+   600 12px, gap 6. Semantic hues are literal library values, not the pale
+   `-muted` fills. */
 .hms-dv-pill {
   display:inline-flex; align-items:center; gap:6px; flex-shrink:0;
-  padding:4px 11px; border-radius:9999px;
-  border:1px solid var(--border); background:var(--secondary); color:var(--foreground);
-  font-size:12px; font-weight:500; white-space:nowrap;
+  height:26px; padding:0 11px; border-radius:9999px;
+  border:1px solid transparent; background:var(--secondary); color:var(--muted-foreground);
+  font-size:12px; font-weight:600; white-space:nowrap;
 }
-.hms-dv-pill.tone-green  { color:var(--green);  background:var(--green-muted);  border-color:color-mix(in oklch, var(--green) 28%, transparent); }
-.hms-dv-pill.tone-yellow { color:var(--yellow); background:var(--yellow-muted); border-color:color-mix(in oklch, var(--yellow) 28%, transparent); }
-.hms-dv-pill.tone-red    { color:var(--red);    background:var(--red-muted);    border-color:color-mix(in oklch, var(--red) 28%, transparent); }
-.hms-dv-pill.tone-blue   { color:var(--blue);   background:var(--blue-muted);   border-color:color-mix(in oklch, var(--blue) 28%, transparent); }
-.hms-dv-pill.tone-gray   { color:var(--muted-foreground); }
-.hms-dv-pill.sm { padding:2px 8px; font-size:11.5px; }
+.hms-dv-pill.sm { height:24px; padding:0 9px; font-size:11px; }
+.hms-dv-pill.tone-green  { background:oklch(0.62 0.16 152); color:oklch(1 0 0); }
+.hms-dv-pill.tone-yellow { background:oklch(0.72 0.16 62);  color:oklch(0.20 0.012 260); }
+.hms-dv-pill.tone-red    { background:oklch(0.58 0.21 25);  color:oklch(1 0 0); }
+.hms-dv-pill.tone-blue   { background:oklch(0.55 0.16 250); color:oklch(1 0 0); }
+.hms-dv-pill.tone-purple { background:oklch(0.52 0.20 300); color:oklch(1 0 0); }
+.hms-dv-pill.tone-gray   { background:var(--secondary); color:var(--muted-foreground); }
+/* Outline / derived: transparent fill, tinted ink + low-alpha border. */
+.hms-dv-pill.outline { background:transparent; border-color:var(--input); color:var(--muted-foreground); }
+.hms-dv-pill.outline.tone-green  { color:oklch(0.46 0.13 152); border-color:oklch(0.62 0.16 152 / .45); }
+.hms-dv-pill.outline.tone-yellow { color:oklch(0.48 0.13 62);  border-color:oklch(0.72 0.16 62 / .5); }
+.hms-dv-pill.outline.tone-red    { color:oklch(0.50 0.19 25);  border-color:oklch(0.58 0.21 25 / .4); }
+.hms-dv-pill.outline.tone-blue   { color:oklch(0.44 0.15 250); border-color:oklch(0.55 0.16 250 / .4); }
+.hms-dv-pill.outline.tone-purple { color:oklch(0.45 0.18 300); border-color:oklch(0.52 0.20 300 / .4); }
+:root:not([data-theme="light"]) .hms-dv-pill.outline.tone-green,
+[data-theme="dark"] .hms-dv-pill.outline.tone-green  { color:oklch(0.72 0.15 152); }
+:root:not([data-theme="light"]) .hms-dv-pill.outline.tone-yellow,
+[data-theme="dark"] .hms-dv-pill.outline.tone-yellow { color:oklch(0.78 0.14 62); }
+:root:not([data-theme="light"]) .hms-dv-pill.outline.tone-red,
+[data-theme="dark"] .hms-dv-pill.outline.tone-red    { color:oklch(0.70 0.17 25); }
+:root:not([data-theme="light"]) .hms-dv-pill.outline.tone-blue,
+[data-theme="dark"] .hms-dv-pill.outline.tone-blue   { color:oklch(0.70 0.14 250); }
 
 /* Two fixed columns, not auto-fit: auto-fit resolved to four tracks at card
    width, and with one item spanning two of them the rows below started in
@@ -1583,121 +1668,44 @@ body.map-mode .m-top-bar { display: none !important; }
 body.map-mode #map-wrap { height: 100dvh !important; }
 body.map-mode .map-back-btn { display: flex !important; }
 
-/* ── Language Switcher ────────────────────────────────────────────────────
-   Desktop: segmented control (EN/ID toggle)
-   Mobile: dropdown matching co-option pattern in account menu
-*/
-.hms-lang-switch {
+/* ── Segmented control (Homlu v2.1, library sheet 4) ──────────────────────
+   Grey track, radius 999, 3px inset; each option h30 / 0 14px / 600 12px,
+   muted when idle; the active option is a white card lifted on a hairline
+   border. Used by LanguageSwitcher (ID / EN) and any period/scope toggle. */
+.hms-seg {
   display: inline-flex;
   align-items: center;
-  gap: 0;
+  gap: 2px;
+  padding: 3px;
   background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 2px;
+  border-radius: 9999px;
 }
-
-.hms-lang-btn {
+.hms-seg-opt {
+  appearance: none;
+  height: 30px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted-foreground);
+  border: 1px solid transparent;
+  border-radius: 9999px;
   background: transparent;
-  border: none;
-  border-radius: calc(var(--radius) - 2px);
-  cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-  white-space: nowrap;
-}
-
-.hms-lang-btn:hover {
-  color: var(--foreground);
-  background: var(--surface-hover);
-}
-
-.hms-lang-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
-
-.hms-lang-btn.active {
-  color: var(--primary-foreground);
-  background: var(--primary);
-}
-
-.hms-lang-btn.active:hover {
-  background: var(--primary);
-  color: var(--primary-foreground);
-}
-
-.hms-lang-flag {
-  font-size: 13px;
-  line-height: 1;
-}
-
-.hms-lang-code {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
-
-/* Mobile: single-tap switch styled as a plain full-width row so it reads as
-   one more item in the account dropdown's option list (My Profile, Toggle
-   Theme, …) instead of a standalone bordered pill floating in the flow. */
-.hms-lang-trigger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--foreground);
-  background: none;
-  border: none;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.hms-lang-trigger-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hms-lang-trigger:hover {
-  background: var(--secondary);
-}
-
-.hms-lang-trigger:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
-}
-
-/* Right-side badge: click the row to switch straight to the other language,
-   no dropdown/list involved — the badge just labels what the tap does. */
-.hms-lang-switch-badge {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  padding: 3px 8px;
-  font-size: 11px;
+  font-family: inherit;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted-foreground);
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .12s, background .12s;
 }
-
-.hms-lang-trigger:hover .hms-lang-switch-badge {
+.hms-seg-opt:hover { color: var(--foreground); }
+.hms-seg-opt:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.hms-seg-opt.active {
+  background: var(--card);
+  border-color: var(--border);
   color: var(--foreground);
-  border-color: var(--ring);
 }
+.hms-seg--mini { padding: 2px; }
+.hms-seg--mini .hms-seg-opt { height: 24px; padding: 0 10px; font-size: 11px; }
 
 /* ── Fullscreen map pages (Client/Hotel maps) ─────────────────────────────
    AppLayout tags <body> with .map-fullscreen whenever the route is a map
@@ -1805,12 +1813,11 @@ body.public-page {
   }
 
   .m-top-bar-avatar {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 9999px;
     overflow: hidden;
     flex-shrink: 0;
-    border: 1.5px solid var(--border);
   }
 
   .m-top-bar-avatar img {
@@ -1826,8 +1833,10 @@ body.public-page {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--secondary);
-    color: var(--muted-foreground);
+    background: var(--foreground);
+    color: var(--background);
+    font-size: 11px;
+    font-weight: 600;
   }
 
   .m-top-bar-badge {
@@ -1861,8 +1870,9 @@ body.public-page {
     bottom: 0;
     left: 0;
     right: 0;
-    height: calc(56px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding: 0 6px env(safe-area-inset-bottom);
+    align-items: center;
     background: var(--card);
     border-top: 1px solid var(--border);
     z-index: var(--z-sticky, 200);
@@ -1873,7 +1883,9 @@ body.public-page {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
+    height: 52px;
+    border-radius: 12px;
     text-decoration: none;
     color: var(--muted-foreground);
     background: none;
@@ -1882,8 +1894,6 @@ body.public-page {
     font-family: inherit;
     -webkit-appearance: none;
     appearance: none;
-    padding: 6px 0 2px;
-    min-height: 44px;
     transition: color 0.12s ease;
   }
 
@@ -2019,63 +2029,50 @@ body.public-page {
   .m-more-body {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: 8px 16px 20px;
     -webkit-overflow-scrolling: touch;
   }
 
-  .m-more-group {
-    padding: 0 0 8px;
-  }
+  .m-more-group { padding: 0 0 6px; }
 
   .m-more-heading {
-    padding: 16px 20px 6px;
+    padding: 14px 4px 8px;
     font-size: 11px;
     font-weight: 600;
     color: var(--muted-foreground);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.13em;
+  }
+
+  /* v2.1 doc 1c: rows grouped in a card, 48px, plain icon + label + chevron. */
+  .m-more-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
   }
 
   .m-more-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 12px 20px;
+    gap: 12px;
+    height: 48px;
+    padding: 0 15px;
+    border-top: 1px solid var(--hairline);
     text-decoration: none;
     color: var(--foreground);
+    font-size: 13.5px;
+    font-weight: 500;
     transition: background 0.12s ease;
   }
+  .m-more-item:first-child { border-top: 0; }
+  .m-more-item:active { background: var(--secondary); }
+  .m-more-item.active { font-weight: 600; }
+  .m-more-item > svg:first-child { color: var(--muted-foreground); flex: none; }
+  .m-more-item.active > svg:first-child { color: var(--foreground); }
 
-  .m-more-item:active {
-    background: var(--secondary);
-  }
-
-  .m-more-item.active {
-    background: var(--secondary);
-  }
-
-  .m-more-icon {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    background: var(--secondary);
-    color: var(--muted-foreground);
-    flex-shrink: 0;
-  }
-
-  .m-more-item.active .m-more-icon {
-    background: var(--foreground);
-    color: var(--background);
-  }
-
-  .m-more-label {
-    flex: 1;
-    font-size: 15px;
-    font-weight: 500;
-  }
+  .m-more-label { flex: 1; }
+  .m-more-chev { color: var(--muted-foreground); flex: none; }
 }
 
 /* ── Mobile content padding ────────────────────────────────────────────── */
@@ -2147,20 +2144,86 @@ body.public-page {
   }
 }
 
-/* ── Mobile account dropdown ───────────────────────────────────────────── */
-/* Same top-anchored treatment as .notif-float, right below the avatar
-   button instead of floating up from the bottom nav. */
+/* ── Mobile account sheet (Homlu v2.1 doc 1e — bottom sheet) ───────────── */
+.m-sheet-scrim { display: none; }
+.m-acct-sheet { display: none; }
+
 @media (max-width: 600px) {
-  .bnav-account-dd {
-    top: calc(48px + env(safe-area-inset-top) + 8px) !important;
-    bottom: auto !important;
-    left: 12px !important;
-    right: 12px !important;
-    width: auto !important;
-    max-width: none !important;
-    max-height: 60dvh !important;
-    overflow-y: auto !important;
-    border-radius: 14px !important;
+  .m-sheet-scrim {
+    display: block;
+    position: fixed; inset: 0;
+    background: oklch(0.205 0.012 260 / .28);
+    z-index: calc(var(--z-sticky, 200) + 4);
+    animation: mScrimIn .16s ease;
+  }
+  @keyframes mScrimIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .m-acct-sheet {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: calc(var(--z-sticky, 200) + 5);
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 14px 0 calc(18px + env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform .24s cubic-bezier(.32,.72,0,1);
+  }
+  .m-acct-sheet.open { transform: none; }
+
+  .m-sheet-grab {
+    width: 38px; height: 4px;
+    border-radius: 9999px;
+    background: var(--border);
+    margin: 0 auto 14px;
+  }
+  .m-acct-sheet-head {
+    display: flex; align-items: center; gap: 11px;
+    padding: 0 18px 14px;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .m-acct-sheet-avatar {
+    width: 40px; height: 40px; flex: none;
+    border-radius: 9999px;
+    background: var(--foreground); color: var(--background);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600; overflow: hidden;
+  }
+  .m-acct-sheet-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .m-acct-sheet-id { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+  .m-acct-sheet-name { font-size: 14px; font-weight: 600; color: var(--foreground); }
+  .m-acct-sheet-full { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .m-acct-row {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%;
+    height: 52px; padding: 0 18px;
+    border: 0; border-top: 1px solid var(--hairline);
+    background: transparent;
+    font-family: inherit; font-size: 13.5px; font-weight: 500;
+    color: var(--foreground); text-decoration: none;
+    cursor: pointer;
+  }
+  .m-acct-row:first-of-type { border-top: 0; }
+  .m-acct-row svg { color: var(--muted-foreground); flex: none; }
+  .m-acct-row > span:not(.hms-acct-meta) { flex: 1; text-align: left; }
+  .m-acct-row:active { background: var(--secondary); }
+  .m-acct-row--lang { cursor: default; }
+  .m-acct-row--danger { border-top: 1px solid var(--border); color: oklch(0.55 0.19 25); }
+  .m-acct-row--danger svg { color: currentColor; }
+  :root:not([data-theme="light"]) .m-acct-row--danger,
+  [data-theme="dark"] .m-acct-row--danger { color: oklch(0.70 0.17 25); }
+
+  .m-acct-sheet-close {
+    margin: 14px 18px 0;
+    height: 48px;
+    border: 1px solid var(--input);
+    border-radius: 9999px;
+    background: var(--card);
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    color: var(--foreground);
+    cursor: pointer;
   }
 }
 

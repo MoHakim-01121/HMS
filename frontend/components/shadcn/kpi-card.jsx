@@ -1,14 +1,21 @@
-import { Icon } from "../icons.jsx";
-
 // KPI cell for the "papan angka" board (Homlu v2.1, doc 01/02). One row of
 // these lives inside a single divided card (.hms-kpi-row) — no per-cell
-// border, icon or sparkline. Three stacked parts: label, figure (+ optional
-// delta badge), then a meta line. `icon` and `sparkline` are still accepted
-// so existing call sites keep working, but v2.1 renders neither.
+// border, icon or sparkline. Three stacked parts: label, figure, then a
+// delta row: a FILLED library badge (green good / red bad / grey neutral)
+// carrying the change, followed by the plain meta text.
 const TONE_CLASS = { red: "tone-red", green: "tone-green", yellow: "tone-yellow", blue: "tone-blue" };
 
 export default function KpiCard({ label, value, unit, tone, warn, trend, trendGood = true, foot }) {
   const valCls = "hms-kpi-val" + (warn ? " warn" : tone && TONE_CLASS[tone] ? ` ${TONE_CLASS[tone]}` : "");
+
+  let deltaCls = "neutral";
+  let deltaText = null;
+  if (trend && trend.dir && trend.dir !== "flat") {
+    const good = trendGood ? trend.dir === "up" : trend.dir === "down";
+    deltaCls = good ? "good" : "bad";
+    const pct = Math.abs(trend.pct ?? 0).toFixed(0);
+    deltaText = `${trend.dir === "up" ? "+" : "−"}${pct}%`;
+  }
 
   return (
     <div className="hms-kpi">
@@ -19,14 +26,13 @@ export default function KpiCard({ label, value, unit, tone, warn, trend, trendGo
             {value}
             {unit && <span className="hms-kpi-unit">{unit}</span>}
           </span>
-          {trend && trend.dir && trend.dir !== "flat" && (
-            <span className={"hms-kpi-trend " + trend.dir + (trendGood ? "" : " bad")}>
-              <Icon name={trend.dir === "up" ? "trend-up" : "trend-down"} strokeWidth={2.5} />
-              {Math.abs(trend.pct ?? 0).toFixed(0)}%
-            </span>
-          )}
         </div>
-        {foot && <div className="hms-kpi-foot">{foot}</div>}
+        {(deltaText || foot) && (
+          <div className="hms-kpi-delta-row">
+            {deltaText && <span className={"hms-kpi-badge " + deltaCls}>{deltaText}</span>}
+            {foot && <span className="hms-kpi-foot">{foot}</span>}
+          </div>
+        )}
       </div>
     </div>
   );

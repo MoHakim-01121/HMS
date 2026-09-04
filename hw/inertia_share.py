@@ -49,6 +49,7 @@ class InertiaShareMiddleware:
                 auth={
                     "user": {
                         "username": user.username,
+                        "name": user.get_full_name() or user.username,
                         "is_superuser": user.is_superuser,
                         "is_staff": user.is_staff,
                         "avatar": _avatar_url(user),
