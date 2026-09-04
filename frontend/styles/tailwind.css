@@ -4,20 +4,24 @@
 
 :root,
 [data-theme="light"] {
-  /* Homlu direction (2026-07-26, values extracted directly from the live
-     https://homlu-dashboard-template.vercel.app/ reference via computed-style
-     inspection — not guessed). Homlu's palette is neutral monochrome (chroma
-     0): no colored brand accent at all, color is reserved for semantic
-     status only (task/event badges, dots). --primary inverts light↔dark
-     instead of using a hue. */
-  --background: oklch(0.955 0 0);       /* measured rgb(241,241,241) */
-  --foreground: oklch(0.145 0 0);       /* measured body text color */
-  --primary: oklch(0.145 0 0);          /* black CTA (measured "Sign in"/"Buy template") */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.94 0 0);
-  --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.94 0 0);
-  --muted-foreground: oklch(0.55 0 0);  /* measured rgb(114,114,114), inactive nav text */
+  /* Homlu v2.1 Component Library (2026-09-04). Supersedes the "White / Gold /
+     Black" warm-luxury ramp. The system is near-monochrome on a cool-neutral
+     axis (hue ~250-260, chroma near zero): a faint cool canvas, pure white
+     cards, near-black ink, and a near-black pill for every primary action.
+     Gold survives in exactly one place — the 2px focus ring (--ring) — and
+     nowhere else on the chrome. Status hues (--green/--yellow/--red/--blue)
+     stay semantic only. Geometry: card radius 20, control radius 14, button
+     pill 999. */
+  --background: oklch(0.972 0.003 250);   /* cool near-white canvas */
+  --foreground: oklch(0.205 0.012 260);   /* near-black ink */
+  --primary: oklch(0.205 0.012 260);      /* near-black primary pill */
+  --primary-hover: oklch(0.30 0.012 260);
+  --primary-active: oklch(0.36 0.012 260);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.958 0.004 250);    /* quiet-button / chip fill, hover surfaces */
+  --secondary-foreground: oklch(0.205 0.012 260);
+  --muted: oklch(0.972 0.003 250);
+  --muted-foreground: oklch(0.52 0.012 258);  /* supporting text, vs card ≈ 5.5:1 (AA) */
   /* NOTE: shadcn's convention names this token "accent" (generic hover/highlight
      surface for Radix primitives — SelectItem, DropdownMenuItem, etc), but that
      collides with hw/static/hw/css/design.css's own --accent (HMS's brand color,
@@ -27,44 +31,54 @@
      instead to keep the two systems independent; only --color-accent (the
      Tailwind utility, e.g. bg-accent) still points at it, so shadcn components
      are unaffected. */
-  --surface-hover: oklch(0.94 0 0);
-  --surface-hover-foreground: oklch(0.145 0 0);
-  --destructive: oklch(0.52 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 25);
-  --border: oklch(0.922 0 0);           /* measured */
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.145 0 0);
+  --surface-hover: oklch(0.958 0.004 250);
+  --surface-hover-foreground: oklch(0.205 0.012 260);
+  --destructive: oklch(0.58 0.21 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.912 0.005 250);       /* card / section hairline */
+  --input: oklch(0.878 0.006 250);        /* control + table-row border, one step firmer */
+  --ring: oklch(0.72 0.15 85);            /* gold — the one hued colour on the chrome */
   --radius: 0.75rem;
-  /* "surface2" card tone (measured rgb(253,253,253)) — brighter than the page
-     background, matching Homlu's card-vs-canvas separation. */
-  --card: oklch(0.995 0 0);
+  --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.995 0 0);
+  --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
+  /* --brand kept defined for the bg-brand/text-brand utilities and the dev
+     StyleGuide, but v2.1 uses no decorative gold — nothing in the chrome
+     consumes it. Mirrors --ring. */
+  --brand: oklch(0.72 0.15 85);
+  --brand-foreground: oklch(1 0 0);
+  --brand-deep: var(--foreground);
 }
 
 [data-theme="dark"] {
-  --background: oklch(0.17 0 0);        /* measured */
-  --foreground: oklch(1 0 0);           /* measured, pure white */
-  --primary: oklch(0.985 0 0);          /* white CTA, inverted from light mode */
-  --primary-foreground: oklch(0.17 0 0);
+  /* v2.1 dark tokens: canvas 0.145, card 0.18, hairline 0.22, separator 0.24,
+     card border 0.26, control border 0.32, text 0.985, muted 0.66. Primary
+     inverts to a white pill; the focus ring stays gold in both themes. */
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-hover: oklch(0.90 0 0);
+  --primary-active: oklch(0.82 0 0);
+  --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.24 0 0);
-  --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.24 0 0);
-  --muted-foreground: oklch(0.58 0 0);  /* measured rgb(123,123,123) */
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.18 0 0);
+  --muted-foreground: oklch(0.66 0 0);  /* vs card(0.18) ≈ 4.6:1 (AA) */
   --surface-hover: oklch(0.24 0 0);
-  --surface-hover-foreground: oklch(1 0 0);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 25);
-  --border: oklch(1 0 0 / 0.08);        /* measured */
-  --input: oklch(1 0 0 / 0.08);
-  --ring: oklch(0.985 0 0);
-  /* measured rgb(25,25,25) — barely lighter than the page background,
-     exactly as subtle in the real dark-mode screenshot. */
-  --card: oklch(0.2 0 0);
+  --surface-hover-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.58 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.26 0 0);
+  --input: oklch(0.32 0 0);
+  --ring: oklch(0.72 0.15 85);
+  --card: oklch(0.18 0 0);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.2 0 0);
+  --popover: oklch(0.18 0 0);
   --popover-foreground: var(--foreground);
+  --brand: oklch(0.72 0.15 85);
+  --brand-foreground: oklch(0.145 0 0);
+  --brand-deep: var(--foreground);
 }
 
 @theme inline {
@@ -87,6 +101,8 @@
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
   --radius-lg: var(--radius);
   /* Superseded 2026-07-26: replaced Fira Sans/Fira Code (the "Data-Dense
      Dashboard" pairing used for the retired Terminal/Workbench directions)
@@ -97,9 +113,9 @@
   --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  /* Large "surface" radius (measured rounded-4xl on Homlu's dashboard/KPI
-     cards) — distinct from the smaller --radius used by buttons/inputs/badges. */
-  --radius-card: 2rem;
+  /* v2.1: card / sheet radius is a flat 20px, one value everywhere. Distinct
+     from the smaller --radius-control used by fields. */
+  --radius-card: 20px;
   /* Form-control geometry, measured off Homlu's live reference: every
      interactive control it renders (topbar search box, date-range pills,
      the appearance drawer's theme/brand/font choice cards) is h-12 with
@@ -113,7 +129,7 @@
      out 12.5% under its name — h-12 is 42px, size-8 is 28px, rounded-2xl is
      14px. Homlu's numbers were measured in px, so the control tokens and the
      component classes below both use explicit px to land on them exactly. */
-  --radius-control: 16px;
+  --radius-control: 14px;
 }
 
 /* design.css's body already defaults to Fira Sans now that every page carries this class,
@@ -406,6 +422,20 @@
   min-height: 40px;
   padding: 7px 10px;
   font-size: 13px;
+}
+
+/* iOS Safari zooms the whole page when a focused control's text is under 16px.
+   The Homlu-measured field size is 14px, so keep that from ≥601px and only
+   lift the text to 16px on phone widths where the zoom fires — height/padding
+   are untouched so the control geometry doesn't shift. */
+@media (max-width: 600px) {
+  [data-slot="form-field"] input:not([type="checkbox"]):not([type="radio"]),
+  [data-slot="form-field"] select,
+  [data-slot="form-field"] textarea,
+  [data-slot="form-field"] [data-slot="select-trigger"],
+  [data-slot="input"]:not([type="checkbox"]):not([type="radio"]) {
+    font-size: 16px;
+  }
 }
 
 /* FormPanel and FormSection are flex columns, and a flex item defaults to
@@ -899,7 +929,14 @@
     padding: 20px;
     gap: 8px;
     border-right: 1px solid var(--border);
-    background: var(--background);
+    /* Chrome/content separation (2026-08-29): the whole shell previously
+       shared --background (ivory), so the sidebar visually merged with the
+       page cards and the app read as one undifferentiated field of ivory.
+       Chrome (sidebar + topbar) now paints the white surface (--card) while
+       the content column keeps the warm-tinted --background canvas — the
+       "white shell over a tinted content plane" pattern profiled dashboards
+       use to make the two meet with a crisp joint instead of a wash. */
+    background: var(--card);
     z-index: var(--z-sticky, 200);
     overflow-y: auto;
     /* Keep scrolling but hide the scrollbar — sidebar reads cleaner and the
@@ -916,15 +953,24 @@
   body.sidebar-collapsed .hms-sidebar { width: var(--sidebar-w-collapsed); padding-left: 12px; padding-right: 12px; }
 
   .hms-collapse-btn {
+    position: relative;
     flex-shrink: 0;
-    width: 28px; height: 28px;
+    width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
-    border: none; background: transparent; border-radius: 6px;
+    border: none; background: transparent; border-radius: 8px;
     color: var(--muted-foreground);
     cursor: pointer;
-    transition: background .12s, color .12s;
+    transition: background .12s, color .12s, transform .12s ease;
+  }
+  /* 32px visible, 40px hit target — keeps the chrome compact without a
+     sub-spec tap area. */
+  .hms-collapse-btn::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
   }
   .hms-collapse-btn:hover { background: var(--secondary); color: var(--foreground); }
+  .hms-collapse-btn:active { transform: scale(0.94); }
 
   /* Grouped nav (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference,
      arunjdass): headed clusters (Operations/Schedule/Admin) instead of one
@@ -976,12 +1022,11 @@
      rail, where the link's own padding leaves less width than the icon's
      20px intrinsic size. */
   .hms-sidebar-link svg { flex-shrink: 0; }
-  /* Active nav item: a bordered "card" surface (bg var(--card) + 1px
-     var(--border), radius var(--radius)) sitting on the sidebar's own
-     var(--card) background — reproduces Homlu's two-layer active-pill
-     (.gradient-menu border wrapper + inset bg-b-pop panel). Text stays
-     regular weight, not bold — only the card + color change signal "active". */
-  .hms-sidebar-link.active { color: var(--foreground); background: var(--card); border-color: var(--border); font-weight: 400; }
+  /* Active nav item (v2.1): a plain white card on the tinted rail — full ink,
+     weight 600, hairline border. No gold wash; the rail is the only "second
+     surface" and it earns its place through the shell/canvas split, not hue.
+     Identical in light and dark (dark card 0.18 reads against canvas 0.145). */
+  .hms-sidebar-link.active { color: var(--foreground); background: var(--card); border-color: var(--border); font-weight: 600; }
 
   /* Collapsed state: icon-only rail — hide every text label, center icons. */
   body.sidebar-collapsed .hms-sidebar-heading,
@@ -1010,7 +1055,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 0 20px;
-    background: var(--background);
+    background: var(--card);
     border-bottom: 1px solid var(--border);
     z-index: var(--z-sticky, 200);
     transition: left .18s ease;
@@ -1024,38 +1069,48 @@
   .hms-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .hms-topbar-account { margin-left: 4px; }
 
-  /* Icon buttons (bell/theme) restyled desktop-only to a 36px circular
-     hit-target with a transparent idle state — .topbar-icon-btn's base rules
-     live in design.css (shared with mobile chrome), so this only overrides
-     inside .hms-topbar. */
+  /* Icon buttons (bell/theme) restyled desktop-only to a circular hit-target
+     with a transparent idle state — .topbar-icon-btn's base rules live in
+     design.css (shared with mobile chrome), so this only overrides inside
+     .hms-topbar. 40px clears the desktop min hit area (was 36); the base rule
+     already transitions colour/background, this adds the press response. */
   .hms-topbar .topbar-icon-btn {
-    width: 36px; height: 36px;
+    width: 40px; height: 40px;
     border-radius: var(--radius-full, 9999px);
+    transition: color .12s, background .12s, transform .12s ease;
   }
   .hms-topbar .topbar-icon-btn:hover { background: var(--secondary); }
+  .hms-topbar .topbar-icon-btn:active { transform: scale(0.96); }
 
   .hms-topbar-search {
     display: flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
+    height: 40px;
     padding: 0 14px;
     border-radius: calc(var(--radius) + 4px);
     border: 1px solid var(--border);
-    background: var(--card);
+    background: var(--secondary);
     color: var(--muted-foreground);
     font-size: 13px;
     cursor: pointer;
-    transition: border-color .12s, background .12s;
+    transition: border-color .12s, background .12s, color .12s, transform .12s ease;
   }
-  .hms-topbar-search:hover { border-color: var(--ring); }
+  /* Hover darkens the prompt text too, not just the ring, so the whole control
+     acknowledges the pointer rather than only its edge. */
+  .hms-topbar-search:hover { border-color: var(--ring); color: var(--foreground); }
+  .hms-topbar-search:active { transform: scale(0.98); }
   .hms-topbar-search span { white-space: nowrap; }
+  /* Keycap, not a tag: a small radius + a 1px bottom shadow reads as a physical
+     key, and --card lifts it off the inset --secondary pill instead of hiding
+     in it. */
   .hms-topbar-search kbd {
     margin-left: 4px;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: var(--secondary);
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: var(--card);
     border: 1px solid var(--border);
+    box-shadow: 0 1px 0 var(--border);
     font-size: 10px;
     font-family: var(--font-mono);
   }
@@ -1067,13 +1122,15 @@
      with older layouts) — desktop override drops the pill/border chrome for
      a plain avatar + hover fill, matching Homlu's borderless topbar avatar. */
   .hms-topbar-account .account-btn {
-    height: 36px;
+    height: 40px;
     padding: 0 8px 0 0;
     background: transparent;
     border: none;
     border-radius: var(--radius-full, 9999px);
+    transition: background .12s, transform .12s ease;
   }
   .hms-topbar-account .account-btn:hover { background: var(--secondary); }
+  .hms-topbar-account .account-btn:active { transform: scale(0.97); }
   .hms-topbar-account .account-avatar-img,
   .hms-topbar-account .account-avatar-default {
     width: 32px; height: 32px;
@@ -1191,7 +1248,7 @@
 .hms-kpi-val.tone-red { color:var(--red); }
 .hms-kpi-val.tone-green { color:var(--green); }
 .hms-kpi-val.tone-yellow { color:var(--yellow); }
-.hms-kpi-val.tone-blue { color:var(--blue, var(--accent)); }
+.hms-kpi-val.tone-blue { color:var(--blue); }
 .hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
 .hms-kpi-trend svg { width:12px; height:12px; }
 .hms-kpi-trend.up { color:var(--kpi-positive); }
@@ -1239,6 +1296,15 @@
   overflow: hidden;
   box-shadow: 0 2px 10px rgba(0,0,0,.04);
 }
+/* List-page table/empty-state surface — same card treatment as the detail
+   card above, replaces the legacy `.card` wrapper (design.css) so list
+   pages read as one system. Radius 20px to match --radius-card. */
+.hms-list-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+}
 .hms-dv-strip {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:9px 20px;
@@ -1271,6 +1337,7 @@
 .hms-dv-pill.tone-green  { color:var(--green);  background:var(--green-muted);  border-color:color-mix(in oklch, var(--green) 28%, transparent); }
 .hms-dv-pill.tone-yellow { color:var(--yellow); background:var(--yellow-muted); border-color:color-mix(in oklch, var(--yellow) 28%, transparent); }
 .hms-dv-pill.tone-red    { color:var(--red);    background:var(--red-muted);    border-color:color-mix(in oklch, var(--red) 28%, transparent); }
+.hms-dv-pill.tone-blue   { color:var(--blue);   background:var(--blue-muted);   border-color:color-mix(in oklch, var(--blue) 28%, transparent); }
 .hms-dv-pill.tone-gray   { color:var(--muted-foreground); }
 .hms-dv-pill.sm { padding:2px 8px; font-size:11.5px; }
 
@@ -1420,6 +1487,110 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
   .hms-dv-table tfoot tr.multi .val { display:flex; gap:8px; align-items:baseline; }
   .hms-dv-table tfoot tr.multi .val::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); }
   .hms-dv-foot-total { font-size:20px; }
+}
+
+/* Gold-CTA modifier for the compact detail-page action buttons — used for
+   the primary "Edit" / "Create" action in the CL record layout. */
+.hms-dv-act.primary {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: transparent;
+  font-weight: 600;
+}
+.hms-dv-act.primary:hover { background: color-mix(in oklch, var(--primary) 90%, black); }
+.hms-dv-act.primary svg { stroke: currentColor; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   CL Detail — record layout (hms-cldv-*)
+
+   Unlike the single-document detail card (hms-dv-*), the confirmation letter
+   reads as a record: a page-level header, a left column of content cards
+   (rooms / files / notes / penalty) and a right rail carrying the money,
+   the stay and the client. Cancelled adds a status banner + penalty card.
+   ───────────────────────────────────────────────────────────────────────── */
+.hms-cldv-page { max-width: 1180px; }
+
+.hms-cldv-head { display:flex; align-items:flex-start; justify-content:space-between; gap:32px; }
+.hms-cldv-headmain { min-width:0; }
+.hms-cldv-titlerow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.hms-cldv-title { font-size:30px; font-weight:600; letter-spacing:-.022em; line-height:1.15; margin:0; color:var(--foreground); }
+.hms-cldv-subline { font-size:13.5px; color:var(--muted-foreground); margin-top:8px; line-height:1.5; }
+.hms-cldv-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; padding-top:4px; }
+.hms-cldv-actions .hms-dv-act svg { color:var(--muted-foreground); }
+.hms-cldv-actions .hms-dv-act.primary svg { color:currentColor; }
+
+.hms-cldv-banner {
+  display:flex; align-items:center; gap:10px; margin-top:20px;
+  padding:11px 16px; border-radius:12px; font-size:13px;
+  border:1px solid color-mix(in oklab, var(--red) 20%, var(--border));
+  background:color-mix(in oklab, var(--red-muted) 60%, transparent);
+}
+.hms-cldv-banner svg { color:var(--red); flex-shrink:0; }
+
+.hms-cldv-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:22px; margin-top:22px; align-items:start; }
+.hms-cldv-col { display:grid; gap:18px; min-width:0; }
+
+.hms-cldv-card {
+  background:var(--card); border:1px solid var(--border); border-radius:18px;
+  box-shadow:0 2px 10px rgba(0,0,0,.04); overflow:hidden;
+}
+.hms-cldv-cardh {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 18px; border-bottom:1px solid var(--border);
+}
+.hms-cldv-cardh-title { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--foreground); }
+.hms-cldv-cardh-title svg { color:var(--muted-foreground); }
+.hms-cldv-cardh-right { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted-foreground); flex-shrink:0; }
+.hms-cldv-cardbody { padding:14px 18px 16px; }
+.hms-cldv-cardbody .hms-dv-table td:first-child,
+.hms-cldv-cardbody .hms-dv-table th:first-child { padding-left:0; }
+
+.hms-cldv-cardempty { text-align:center; padding:12px 0 4px; }
+.hms-cldv-cardempty div { font-size:13px; color:var(--muted-foreground); }
+.hms-cldv-cardempty .hms-dv-act { margin-top:12px; }
+
+.hms-cldv-notes { font-size:13.5px; line-height:1.7; white-space:pre-wrap; color:var(--foreground); }
+
+/* Rail — total price block */
+.hms-cldv-total { padding:18px; }
+.hms-cldv-total-l { font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-foreground); }
+.hms-cldv-total-num { font-size:30px; font-weight:600; letter-spacing:-.02em; line-height:1; margin-top:8px; font-variant-numeric:tabular-nums; color:var(--foreground); }
+.hms-cldv-total-num .cur { font-size:13px; font-weight:500; color:var(--muted-foreground); margin-left:5px; letter-spacing:0; }
+.hms-cldv-total-rows { display:grid; gap:9px; margin-top:14px; padding-top:13px; border-top:1px solid var(--border); font-size:12.5px; color:var(--muted-foreground); }
+.hms-cldv-total-rows > div { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.hms-cldv-total-rows .v { color:var(--foreground); font-weight:500; font-variant-numeric:tabular-nums; text-decoration:none; }
+.hms-cldv-total-rows a.v { border-bottom:1px solid var(--border); }
+.hms-cldv-total-rows a.v:hover { border-bottom-color:var(--foreground); }
+
+/* Rail — stay / client blocks */
+.hms-cldv-stay-hotel { display:flex; align-items:center; gap:11px; font-size:13.5px; font-weight:500; color:var(--foreground); }
+.hms-cldv-stay-ico { width:32px; height:32px; flex-shrink:0; border-radius:9px; background:var(--secondary); border:1px solid var(--border); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; }
+.hms-cldv-stay-timeline { display:flex; align-items:center; gap:12px; margin-top:15px; padding-top:15px; border-top:1px solid var(--border); }
+.hms-cldv-stay-timeline .e { text-align:center; }
+.hms-cldv-stay-timeline .e:last-child { text-align:right; }
+.hms-cldv-stay-timeline .k { font-size:10.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--muted-foreground); }
+.hms-cldv-stay-timeline .d { font-size:14px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; color:var(--foreground); }
+.hms-cldv-stay-timeline .bar { flex:1; display:flex; align-items:center; gap:6px; }
+.hms-cldv-stay-timeline .bar .dot { width:6px; height:6px; border-radius:9999px; background:var(--foreground); flex-shrink:0; }
+.hms-cldv-stay-timeline .bar .line { flex:1; height:1px; background:var(--border); }
+.hms-cldv-stay-timeline .bar .n { font-size:11px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
+.hms-cldv-stay-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+.hms-cldv-stay-row > span:first-child { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted-foreground); }
+.hms-cldv-stay-row > span:first-child svg { color:var(--muted-foreground); }
+.hms-cldv-stay-row .v { font-size:13.5px; font-weight:500; color:var(--foreground); }
+
+.hms-cldv-client { display:flex; align-items:center; gap:11px; }
+.hms-cldv-client a { font-size:13.5px; font-weight:500; color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
+.hms-cldv-client a:hover { border-bottom-color:var(--foreground); }
+.hms-cldv-avatar { width:36px; height:36px; flex-shrink:0; border-radius:10px; background:var(--secondary); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--muted-foreground); }
+
+@media (max-width: 860px) {
+  .hms-cldv-grid { grid-template-columns:1fr; gap:14px; }
+  .hms-cldv-rail { order:-1; }
+  .hms-cldv-head { flex-direction:column; gap:14px; }
+  .hms-cldv-actions { padding-top:0; flex-wrap:wrap; }
+  .hms-cldv-title { font-size:21px; letter-spacing:-.01em; }
+  .hms-cldv-card { border-radius:14px; box-shadow:none; }
 }
 
 /* ── Map mode ────────────────────────────────────────────────────────────
@@ -1606,7 +1777,7 @@ body.public-page {
     height: calc(48px + env(safe-area-inset-top));
     padding-top: env(safe-area-inset-top);
     padding-inline: 16px;
-    background: var(--background);
+    background: var(--card);
     border-bottom: 1px solid var(--border);
     z-index: var(--z-sticky, 200);
   }
@@ -1699,7 +1870,7 @@ body.public-page {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    border: 1.5px solid var(--background);
+    border: 1.5px solid var(--card);
   }
 }
 
@@ -1716,7 +1887,7 @@ body.public-page {
     right: 0;
     height: calc(56px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    background: var(--background);
+    background: var(--card);
     border-top: 1px solid var(--border);
     z-index: var(--z-sticky, 200);
   }
@@ -1765,6 +1936,8 @@ body.public-page {
     letter-spacing: 0.01em;
   }
 
+  /* v2.1: active tab reads through full ink + stroke-2 icon + weight-600
+     label, not a separate hue — keeps the chrome monochrome. */
   .m-bnav-tab.active {
     color: var(--foreground);
   }
@@ -1790,7 +1963,7 @@ body.public-page {
     align-items: center;
     justify-content: center;
     pointer-events: none;
-    border: 1.5px solid var(--background);
+    border: 1.5px solid var(--card);
   }
 }
 
@@ -2019,5 +2192,191 @@ body.public-page {
 @media (max-width: 600px) {
   .hms-bulk-bar {
     bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+  }
+}
+
+/* ── Remittance tabbed page ──────────────────────────────────────────────
+   One Remittance page carrying Transfers / Tracking / Recap as tabs, so the
+   three formerly-separate list views collapse into a single navigation home.
+   The tab bar is a segmented control on the same neutral monochrome system
+   as the rest of the Homlu UI. */
+.rmt-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 3px;
+  margin: 6px 0 18px;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.rmt-tab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.rmt-tab:hover {
+  color: var(--foreground);
+}
+.rmt-tab.active {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Tracking panel */
+.trk-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.trk-summary-num {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+.trk-summary-lbl {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.trk-summary-sub {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.trk-group {
+  margin-bottom: 18px;
+}
+.trk-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 8px;
+}
+.trk-group-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.trk-group-amt {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.trk-res {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+.trk-res-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+.trk-rmt-count {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-2);
+  border: 1px dashed color-mix(in oklab, var(--accent-2) 45%, transparent);
+  border-radius: 9999px;
+  padding: 1px 8px;
+  cursor: help;
+  white-space: nowrap;
+}
+.trk-sent {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.trk-idle {
+  color: var(--yellow);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.trk-over {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.trk-zero {
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Recap panel */
+.recap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.recap-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 8px;
+}
+.recap-group-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+.recap-group-stats {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 600px) {
+  .rmt-tabs {
+    width: 100%;
+    margin: 4px 0 14px;
+  }
+  .rmt-tab {
+    flex: 1;
+    text-align: center;
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+  .trk-summary {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .trk-summary-sub {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .trk-group-head,
+  .recap-group-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
 }

@@ -18,6 +18,7 @@ const NAV = {
   calendar: "/calendar/",
   services: "/services/",
   clients: "/clients/",
+  visits: "/visits/",
   remittance: "/remittance/",
   users: "/users/",
   roles: "/roles/",
@@ -43,19 +44,20 @@ const NAV_GROUPS = [
   {
     heading: "Finance",
     items: [
-      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "invoice" },
+      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "payments" },
       { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "wallet", perm: "remittance" },
-      { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "clients", perm: "clients" },
+      { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "clients", perm: "statements" },
       { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "tag", perm: "penalty" },
-      { key: "journal", label: "Journal", href: "/finance/journal/", icon: "invoice", perm: "invoice" },
-      { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", icon: "sort", perm: "invoice" },
-      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "calendar", perm: "remittance" },
+      { key: "journal", label: "Journal", href: "/finance/journal/", icon: "invoice", perm: "journal" },
+      { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", icon: "sort", perm: "journal" },
+      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "calendar", perm: "periods" },
     ],
   },
   {
     heading: "Schedule",
     items: [
       { key: "calendar", label: "Calendar", href: NAV.calendar, icon: "calendar", perm: "calendar" },
+      { key: "visits", label: "Visits", href: NAV.visits, icon: "visits", perm: "visits" },
     ],
   },
   {
@@ -74,6 +76,7 @@ const PAGE_TITLES = {
   hotels: "Hotels",
   services: "Services",
   calendar: "Calendar",
+  visits: "Visits",
   clients: "Clients",
   remittance: "Remittance",
   payments: "Payments",
@@ -100,7 +103,7 @@ function pageKeyFromUrl(url) {
   const map = [
     ["/hotels", "hotels"], ["/invoice", "invoice"], ["/services", "services"],
     ["/calendar", "calendar"], ["/clients", "clients"], ["/remittance", "remittance"],
-    ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
+    ["/visits", "visits"], ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
     ["/finance/payments", "payments"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
     ["/finance/statements", "statements"], ["/finance/penalties", "penalties"],
@@ -472,14 +475,7 @@ export default function AppLayout({ children }) {
         </>
       )}
 
-      {/* ── Animated ambient background ── */}
-      <div className="base-bg" aria-hidden="true">
-        <div className="base-blob base-blob-1"></div>
-        <div className="base-blob base-blob-2"></div>
-        <div className="base-blob base-blob-3"></div>
-        <div className="base-blob base-blob-4"></div>
-      </div>
-
+      {/* v2.1 is a flat solid canvas — no ambient blobs, gradients, or texture. */}
       <div className="page-shell">{children}</div>
 
       <Toast />

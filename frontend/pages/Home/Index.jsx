@@ -306,7 +306,7 @@ function MapIndonesia({ regionData }) {
   );
 }
 
-function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHotels, topHotelsTotal, regionData, reservationFunnel, financeSummary }) {
+function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
   const { t } = useI18n();
   const [period, setPeriod] = useState("6M");
   const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -362,7 +362,6 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
           label={t("Unpaid Invoices")}
           value={fmtNum(kpis?.unpaid_invoices)}
           icon="invoice"
-          tone={kpis?.unpaid_invoices > 0 ? "yellow" : "green"}
           trend={deltas.unpaid}
           trendGood={false}
           foot={t("{amount} SAR outstanding", { amount: fmtNum(kpis?.unpaid_total) })}
@@ -371,51 +370,12 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
           label={remittance ? t("Remittance Pending") : t("Outstanding")}
           value={remittance ? fmtNum(kpis?.remittance_pending) : fmtNum(kpis?.unpaid_total)}
           icon="remittance"
-          tone={remittance && kpis?.remittance_pending > 0 ? "yellow" : undefined}
           trend={remittance ? deltas.remittance : deltas.unpaid}
           trendGood={false}
           foot={remittance
             ? t("{n} last month", { n: fmtNum(deltas.remittance?.prev ?? 0) })
             : t("{n} invoices unpaid", { n: fmtNum(kpis?.unpaid_invoices) })}
         />
-      </div>
-
-      {/* Finance summary row */}
-      <div className="hms-home-grid" style={{ marginTop: 20 }}>
-        <div className="hms-dv-card">
-          <div className="hms-dv-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--foreground)' }}>{t("Finance Summary")}</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Surabaya")}</div>
-                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(financeSummary?.kas_sby || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
-                </div>
-              </div>
-              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Kas Pusat")}</div>
-                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(financeSummary?.kas_pusat || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
-                </div>
-              </div>
-              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Total Piutang")}</div>
-                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(financeSummary?.total_piutang || 0)} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
-                </div>
-              </div>
-              <div style={{ padding: '12px 16px', background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)' }}>
-                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{t("Payments This Month")}</div>
-                <div style={{ fontSize: 20, fontWeight: 600, fontVariantNumeric: 'tabular-nums', marginTop: 4 }}>
-                  {fmtNum(financeSummary?.payments_this_month || 0)}
-                </div>
-                <div style={{ fontSize: 11, color: financeSummary?.payments_pending > 0 ? '#eab308' : 'var(--muted-foreground)', marginTop: 2 }}>
-                  {financeSummary?.payments_pending || 0} {t("pending")}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div className="hms-home-grid">
@@ -654,7 +614,7 @@ export default function Home() {
     <div className="page shadcn-root hms-home">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} financeSummary={props.finance_summary || {}} />
+      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
 
       <button className={"ai-fab" + (open ? " open" : "")} title="Ask AI" aria-label="Ask AI" aria-haspopup="true" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>

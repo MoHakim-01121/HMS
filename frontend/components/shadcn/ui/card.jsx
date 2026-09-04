@@ -11,7 +11,8 @@ function Card({
       data-slot="card"
       className={cn(
         // border-border, not bare `border` — Preflight is off, see dialog.jsx.
-        "flex flex-col gap-6 rounded-xl border border-border bg-card py-6 text-card-foreground shadow-sm",
+        // v2.1: 20px surface radius, hairline border, no shadow (only overlays float).
+        "flex flex-col gap-6 rounded-[var(--radius-card)] border border-border bg-card py-6 text-card-foreground",
         className
       )}
       {...props} />
