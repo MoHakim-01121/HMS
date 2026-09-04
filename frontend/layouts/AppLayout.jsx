@@ -303,6 +303,13 @@ export default function AppLayout({ children }) {
         <>
           {/* ── Desktop sidebar ── */}
           <aside className="hms-sidebar" aria-label="Sidebar">
+            <a href={NAV.home} className="hms-brand" aria-label="Konoz United — Home">
+              <span className="hms-brand-mark">KU</span>
+              <span className="hms-brand-text">
+                <span className="hms-brand-name">Konoz United</span>
+                <span className="hms-brand-sub">{t("Hotel Management")}</span>
+              </span>
+            </a>
             <nav className="hms-sidebar-nav">
               {NAV_GROUPS.map((g) => {
                 const items = g.items.filter((it) => !it.perm || (perms[it.perm] || []).length);
@@ -310,14 +317,17 @@ export default function AppLayout({ children }) {
                 return (
                   <div key={g.heading} className="hms-sidebar-group">
                     <div className="hms-sidebar-heading">{t(g.heading)}</div>
-                    {items.map((item) => (
-                      <a key={item.key} href={item.href}
-                        className={"hms-sidebar-link" + (page === item.key ? " active" : "")}
-                        title={t(item.label)}>
-                        <Icon name={item.icon} size={18} />
-                        <span>{t(item.label)}</span>
-                      </a>
-                    ))}
+                    {items.map((item) => {
+                      const active = page === item.key;
+                      return (
+                        <a key={item.key} href={item.href}
+                          className={"hms-sidebar-link" + (active ? " active" : "")}
+                          title={t(item.label)}>
+                          <Icon name={item.icon} size={17} strokeWidth={active ? 2 : 1.6} />
+                          <span>{t(item.label)}</span>
+                        </a>
+                      );
+                    })}
                   </div>
                 );
               })}

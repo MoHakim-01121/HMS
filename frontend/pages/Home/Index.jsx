@@ -6,6 +6,7 @@ import { useI18n } from "../../utils/i18n.jsx";
 import { fmt as fmtNum, fmtDate } from "../../utils/format.js";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { Icon } from "../../components/icons.jsx";
 import { heatColor } from "../../components/mapColors.js";
 import mapSvg from "../../assets/id.svg?raw";
 
@@ -16,9 +17,19 @@ const CSS = `
    color is used solely for the delta badges, status pills, and the unpaid
    warning. */
 .hms-home { padding: 4px 24px 40px; max-width: 1280px; }
-.hms-home-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; flex-wrap:wrap; }
-.hms-home-title { font-size:30px; font-weight:600; letter-spacing:-.025em; line-height:1.2; color:var(--foreground); margin:0; }
-.hms-home-date { font-size:13px; color:var(--muted-foreground); margin-top:5px; }
+.hms-home-head { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:16px; flex-wrap:wrap; }
+.hms-home-title { font-size:26px; font-weight:600; letter-spacing:-.024em; line-height:1.1; color:var(--foreground); margin:0; }
+.hms-home-date { font-size:12.5px; color:var(--muted-foreground); margin-top:4px; font-variant-numeric:tabular-nums; }
+.hms-home-head-actions { display:flex; gap:9px; flex-shrink:0; }
+.hms-btn-outline, .hms-btn-primary {
+  height:38px; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:0 17px; border-radius:9999px; font-family:inherit; font-size:12.5px; font-weight:600;
+  cursor:pointer; white-space:nowrap; text-decoration:none; transition:background .12s, border-color .12s;
+}
+.hms-btn-outline { border:1px solid var(--input); background:var(--card); color:var(--foreground); }
+.hms-btn-outline:hover { border-color:var(--foreground); }
+.hms-btn-primary { border:1px solid var(--primary); background:var(--primary); color:var(--primary-foreground); padding:0 18px; }
+.hms-btn-primary:hover { background:var(--primary-hover); border-color:var(--primary-hover); }
 
 /* Panel grid — wide chart card + recent-CLs card, Homlu's 12-col rhythm
    (lg:grid-cols-12 with a 7/5 split) approximated with fr units. Both cards
@@ -76,21 +87,22 @@ const CSS = `
   .hms-home-funnel .hms-dv-body { padding:20px 16px 12px; }
 }
 
-/* Second row — payment donut (5fr) + top hotels by CL volume (7fr). */
-.hms-home-grid2 { display:grid; grid-template-columns:1fr; gap:20px; margin-top:20px; }
+/* Bottom row — billing donut, top hotels, reservation funnel, all 3-up
+   (doc 01). Customer Map moved to the Calendar/Maps batch. */
+.hms-home-grid2 { display:grid; grid-template-columns:1fr; gap:14px; margin-top:14px; }
 @media (min-width:900px) {
-  .hms-home-grid2 { grid-template-columns:minmax(0,5fr) minmax(0,7fr); align-items:stretch; }
+  .hms-home-grid2.cols-3 { grid-template-columns:repeat(3,minmax(0,1fr)); align-items:stretch; }
 }
 .hms-home-donut .hms-dv-body { display:flex; flex-direction:column; }
-.hms-donut-wrap { display:flex; align-items:center; gap:18px; padding:6px 0 2px; margin:auto 0; }
-.hms-donut-ring { position:relative; width:132px; height:132px; flex-shrink:0; }
+.hms-donut-wrap { display:flex; align-items:center; gap:16px; padding:6px 0 2px; margin:auto 0; flex-wrap:wrap; }
+.hms-donut-ring { position:relative; width:104px; height:104px; flex-shrink:0; }
 .hms-donut-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
 .hms-donut-pct { font-size:20px; font-weight:600; letter-spacing:-.02em; color:var(--foreground); font-variant-numeric:tabular-nums; line-height:1.1; }
 .hms-donut-lbl { font-size:10.5px; color:var(--muted-foreground); }
 .hms-donut-legend { display:flex; flex-direction:column; gap:10px; min-width:0; flex:1; }
-.hms-donut-item { display:flex; align-items:center; gap:8px; font-size:12px; min-width:0; }
+.hms-donut-item { display:flex; align-items:center; gap:8px; font-size:11.5px; min-width:0; }
 .hms-donut-dot { width:8px; height:8px; border-radius:9999px; flex-shrink:0; }
-.hms-donut-name { color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hms-donut-name { color:var(--muted-foreground); }
 .hms-donut-val { margin-left:auto; color:var(--foreground); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .hms-hotel-list { display:flex; flex-direction:column; gap:16px; padding:8px 0 4px; flex:1; min-height:160px; justify-content:center; }
 .hms-hotel-row { display:flex; flex-direction:column; gap:7px; }
@@ -136,8 +148,7 @@ const CSS = `
 
 /* Ask AI — same Homlu surfaces as the other floating menus (--popover + the
    two-layer soft shadow), primary FAB instead of the brand-orange gradient. */
-@keyframes fabPulse { 0%,100%{box-shadow:0 4px 16px rgba(0,0,0,.16);} 50%{box-shadow:0 4px 22px rgba(0,0,0,.26);} }
-.ai-fab { position:fixed; bottom:56px; right:24px; width:52px; height:52px; border-radius:50%; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; animation:fabPulse 3.5s ease-in-out infinite; transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:10; }
+.ai-fab { position:fixed; bottom:56px; right:24px; width:52px; height:52px; border-radius:50%; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--border); cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px -10px rgba(0,0,0,.4); transition:transform .2s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:10; }
 .ai-fab:hover { transform:scale(1.08) rotate(6deg); } .ai-fab:active { transform:scale(.93); opacity:.85; }
 .ai-fab svg { width:21px; height:21px; position:absolute; transition:opacity .18s,transform .25s cubic-bezier(.34,1.56,.64,1); }
 .ai-fab .fab-ic-close { opacity:0; transform:rotate(-90deg) scale(.5); }
@@ -339,29 +350,30 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
           <h1 className="hms-home-title">{t("Dashboard")}</h1>
           <div className="hms-home-date">{today}</div>
         </div>
+        <div className="hms-home-head-actions">
+          <a className="hms-btn-outline" href="/cl/export/csv/">{t("Export recap")}</a>
+          <a className="hms-btn-primary" href="/cl/new/">
+            <Icon name="plus" size={15} strokeWidth={1.9} />{t("New CL")}
+          </a>
+        </div>
       </div>
 
       <div className="hms-kpi-row">
         <KpiCard
           label={t("CL This Month")}
           value={fmtNum(kpis?.cl_month)}
-          icon="cl"
           trend={deltas.cl_month}
-          sparkline={monthly.slice(-6)}
-          sparkKey="count"
           foot={t("{n} last month", { n: fmtNum(deltas.cl_month?.prev ?? 0) })}
         />
         <KpiCard
           label={t("Check-ins Next 7 Days")}
           value={fmtNum(kpis?.upcoming_checkins)}
-          icon="calendar"
           trend={deltas.checkins}
           foot={t("{n} last 7 days", { n: fmtNum(deltas.checkins?.prev ?? 0) })}
         />
         <KpiCard
           label={t("Unpaid Invoices")}
           value={fmtNum(kpis?.unpaid_invoices)}
-          icon="invoice"
           trend={deltas.unpaid}
           trendGood={false}
           foot={t("{amount} SAR outstanding", { amount: fmtNum(kpis?.unpaid_total) })}
@@ -369,7 +381,6 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
         <KpiCard
           label={remittance ? t("Remittance Pending") : t("Outstanding")}
           value={remittance ? fmtNum(kpis?.remittance_pending) : fmtNum(kpis?.unpaid_total)}
-          icon="remittance"
           trend={remittance ? deltas.remittance : deltas.unpaid}
           trendGood={false}
           foot={remittance
@@ -457,7 +468,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
         </div>
       </div>
 
-      <div className="hms-home-grid2">
+      <div className="hms-home-grid2 cols-3">
         <div className="hms-dv-card hms-home-donut">
           <div className="hms-dv-body">
             <div className="hms-dv-sech">
@@ -471,7 +482,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
                     <Pie data={donutData} dataKey="value" nameKey="name" innerRadius="72%" outerRadius="96%"
                       paddingAngle={3} stroke="none" startAngle={90} endAngle={-270} isAnimationActive={false}>
                       <Cell fill="var(--primary)" />
-                      <Cell fill="var(--yellow)" />
+                      <Cell fill="var(--border)" />
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
@@ -487,7 +498,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
                   <span className="hms-donut-val">{fmtNum(collected)} {t("SAR")}</span>
                 </div>
                 <div className="hms-donut-item">
-                  <span className="hms-donut-dot" style={{ background: "var(--yellow)" }} />
+                  <span className="hms-donut-dot" style={{ background: "var(--border)" }} />
                   <span className="hms-donut-name">{t("Outstanding")}</span>
                   <span className="hms-donut-val">{fmtNum(outstanding)} {t("SAR")}</span>
                 </div>
@@ -521,18 +532,6 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
             <div className="hms-hotel-foot">{t("{n} reservations", { n: fmtNum(topHotelsTotal) })}</div>
           </div>
         </div>
-      </div>
-
-      <div className="hms-home-grid3">
-        <div className="hms-dv-card hms-home-map">
-          <div className="hms-dv-body">
-            <div className="hms-dv-sech">
-              <span className="hms-dv-sec-title">{t("Customer Map")}</span>
-              <span className="hms-dv-count">{regionData.length} {t("regions")}</span>
-            </div>
-            <MapIndonesia regionData={regionData} />
-          </div>
-        </div>
 
         <div className="hms-dv-card hms-home-funnel">
           <div className="hms-dv-body">
@@ -547,12 +546,10 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, topHote
                 {reservationFunnel.map((f, i) => {
                   const prev = i === 0 ? f.value : reservationFunnel[i - 1].value;
                   const pct = prev ? Math.round((f.value / prev) * 100) : 100;
-                  const colors = ["var(--green)", "var(--primary)", "var(--yellow)"];
                   return (
                     <div className="hms-funnel-row" key={f.label}>
                       <div className="hms-funnel-head">
                         <span className="hms-funnel-label">
-                          <span className="hms-funnel-dot" style={{ background: colors[i] }} />
                           {t(FUNNEL_LABELS[f.label] || f.label)}
                         </span>
                         <span className="hms-funnel-count">{fmtNum(f.value)}<span>{i === 0 ? "100%" : `${pct}%`}</span></span>

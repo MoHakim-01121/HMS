@@ -944,13 +944,29 @@
      20px icons, 14px labels) is kept at its pre-existing Homlu-direction
      values on purpose — the grouping/heading structure is new, the physical
      size of each row is not. */
-  .hms-sidebar-group + .hms-sidebar-group { margin-top: 16px; }
+  /* Brand block (v2.1) — replaces the empty space above the nav: a 34px
+     rounded near-black mark + the two-line product name. */
+  .hms-brand { display:flex; align-items:center; gap:11px; padding:0 8px; margin-bottom:4px; text-decoration:none; flex:none; }
+  .hms-brand-mark {
+    width:34px; height:34px; flex:none; border-radius:11px;
+    background:var(--foreground); color:var(--background);
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:600; letter-spacing:-.02em;
+  }
+  .hms-brand-text { min-width:0; display:flex; flex-direction:column; }
+  .hms-brand-name { font-size:13.5px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hms-brand-sub { font-size:11px; color:var(--muted-foreground); white-space:nowrap; }
+  body.sidebar-collapsed .hms-brand { justify-content:center; padding:0; }
+  body.sidebar-collapsed .hms-brand-text { display:none; }
+
+  .hms-sidebar-group + .hms-sidebar-group { margin-top: 15px; }
   .hms-sidebar-heading {
-    padding: 8px 10px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--foreground);
-    opacity: .7;
+    padding: 0 10px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
 
   .hms-sidebar-nav {
@@ -966,23 +982,24 @@
   }
   .hms-sidebar-nav::-webkit-scrollbar { display: none; }
 
-  .hms-sidebar-group { display: flex; flex-direction: column; gap: 2px; }
+  .hms-sidebar-group { display: flex; flex-direction: column; gap: 1px; }
 
   .hms-sidebar-link {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-height: 48px;
-    padding: 8px 12px;
-    border-radius: var(--radius);
+    gap: 11px;
+    min-height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
     border: 1px solid transparent;
-    font-size: 14px;
-    font-weight: 400;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--muted-foreground);
     text-decoration: none;
-    transition: background .12s, color .12s, border-color .12s;
+    transition: color .12s, border-color .12s;
   }
-  .hms-sidebar-link:hover { color: var(--foreground); background: var(--secondary); }
+  /* v2.1: hover only shifts the ink — no champagne fill. */
+  .hms-sidebar-link:hover { color: var(--foreground); }
   /* Icons are flex children of the link; without this they inherit the
      default flex-shrink:1 and get visually squeezed down in the collapsed
      rail, where the link's own padding leaves less width than the icon's
@@ -1005,12 +1022,12 @@
      dropped here in favor of centering. Radius 10px on this now-square
      48x48 box reads as a rounded box; var(--radius) (12px) was tuned for
      the wider expanded row and looked stadium-like at this size. */
-  body.sidebar-collapsed .hms-sidebar-link { justify-content: center; padding-left: 0; padding-right: 0; border-radius: 10px; }
+  body.sidebar-collapsed .hms-sidebar-link { justify-content: center; min-height: 48px; padding-left: 0; padding-right: 0; border-radius: 10px; }
 
   /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
      h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
      muted ws + medium foreground page) instead of the old 64px/28px-title bar. */
-  :root { --topbar-h: 56px; }
+  :root { --topbar-h: 60px; }
   body { padding-top: var(--topbar-h); }
   .hms-topbar {
     position: fixed;
@@ -1163,73 +1180,65 @@
    legacy design.css .rs-grid/.rem-stats cards. Page-specific layout (Home's
    960px centered column) stays local to that page — this block only owns
    the card shell + a generic row grid. */
-.hms-kpi-row { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px; position:relative; z-index:1; }
+/* v2.1 "papan angka": ONE divided card, not a row of separate cards. The
+   row is the card (surface + 20px radius + border); each .hms-kpi is a cell
+   split off by a left hairline. No icons, no sparkline, no per-cell footer
+   rule — three stacked parts only: label, figure, meta. */
+.hms-kpi-row {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:1px;                       /* the gap IS the divider — row bg shows through */
+  background:var(--border);
+  border:1px solid var(--border);
+  border-radius:var(--radius-card);
+  overflow:hidden;
+  margin-bottom:16px;
+  --kpi-positive: oklch(0.55 0.13 150);
+}
 .hms-kpi-row.cols-3 { grid-template-columns:repeat(3,1fr); }
 .hms-kpi-row.cols-5 { grid-template-columns:repeat(5,1fr); }
-/* 2-up until the content column is wide enough for four side-by-side cards,
-   matching the Homlu reference (grid-cols-2 → xl:grid-cols-4, gap 1rem→1.5rem).
-   The 5-up Invoice row and 3-up Remittance row keep their explicit counts. */
 @media (min-width:1280px) {
-  .hms-kpi-row { grid-template-columns:repeat(4,1fr); gap:20px; }
+  .hms-kpi-row { grid-template-columns:repeat(4,1fr); }
 }
-/* 5-up rows are noticeably narrower per card than the 3/4-up rows — the
-   default 36px headline plus a currency unit overflows a 6-digit SAR value
-   at that width (clips against .hms-kpi's overflow:hidden), so it steps down
-   a size here specifically. */
-.hms-kpi-row.cols-5 .hms-kpi-val { font-size:25px; }
-.hms-kpi-row.cols-5 .hms-kpi-body { padding:16px 16px 12px; }
-.hms-kpi {
-  position:relative;
-  overflow:hidden;
-  display:flex;
-  flex-direction:column;
-  min-height:150px;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:20px;
-  box-shadow:0 2px 10px rgba(0,0,0,.04);
-  --kpi-positive: oklch(0.6 0.14 150);
-}
-/* Confined to the card's right ~55% and masked so it fades in from the left
-   — full-bleed at 100% width made a short series look like a sharp jagged
-   triangle instead of a soft wave, since the mini card is much narrower than
-   a full-width chart the same data renders smoothly in elsewhere. */
-.hms-kpi-spark {
-  position:absolute; top:0; right:0; bottom:0; width:56%; z-index:0;
-  -webkit-mask-image: linear-gradient(to right, transparent, black 60%);
-  mask-image: linear-gradient(to right, transparent, black 60%);
-}
-.hms-kpi-body { position:relative; z-index:1; padding:20px 22px 16px; display:flex; flex-direction:column; gap:8px; }
-.hms-kpi-head { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
-.hms-kpi-icon { width:30px; height:30px; border-radius:10px; background:var(--secondary); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.hms-kpi-icon svg { width:15px; height:15px; }
-.hms-kpi-label { font-size:13px; font-weight:500; color:var(--muted-foreground); }
+
+.hms-kpi { display:flex; flex-direction:column; background:var(--card); }
+
+.hms-kpi-body { padding:16px 18px; display:flex; flex-direction:column; gap:7px; }
+.hms-kpi-label { font-size:12px; font-weight:500; color:var(--muted-foreground); }
 .hms-kpi-val-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; }
-.hms-kpi-val { font-size:36px; font-weight:600; color:var(--foreground); line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-.hms-kpi-val .hms-kpi-unit { font-size:14px; font-weight:500; color:var(--muted-foreground); margin-left:3px; }
-/* v2.1: the KPI number is always ink — "angka menguasai layout", and colour
-   is carried by the row cells / status badges / delta, never by the headline
-   figure. `warn` stays as the one genuine-alert exception. Tone classes are
-   kept as no-ops so callers don't need touching. */
+.hms-kpi-val { font-size:27px; font-weight:600; color:var(--foreground); line-height:1; letter-spacing:-.028em; font-variant-numeric:tabular-nums; }
+/* Denser list boards (4+ tinted metrics across a content column) step the
+   figure down, per doc 02. */
+.hms-kpi-row.cols-3 .hms-kpi-val,
+.hms-kpi-row.cols-5 .hms-kpi-val { font-size:21px; }
+.hms-kpi-val .hms-kpi-unit { font-size:11px; font-weight:600; color:var(--muted-foreground); margin-left:3px; }
 .hms-kpi-val.warn { color:var(--destructive); }
-.hms-kpi-val.tone-red,
-.hms-kpi-val.tone-green,
-.hms-kpi-val.tone-yellow,
-.hms-kpi-val.tone-blue { color:var(--foreground); }
-.hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
-.hms-kpi-trend svg { width:12px; height:12px; }
-.hms-kpi-trend.up { color:var(--kpi-positive); }
-.hms-kpi-trend.down { color:var(--destructive); }
-/* trendGood=false flips the reading: for unpaid/remittance, up = red, down = green. */
-.hms-kpi-trend.bad.up { color:var(--destructive); }
-.hms-kpi-trend.bad.down { color:var(--kpi-positive); }
-.hms-kpi-foot { position:relative; z-index:1; margin-top:auto; padding:12px 22px; border-top:1px solid var(--border); font-size:11.5px; color:var(--muted-foreground); }
+/* v2.1 list-page KPIs tint the figure with a dark, legible semantic ink
+   (doc 02); the label above keeps colour from being the sole carrier. The
+   dashboard passes no tone, so its figures stay full ink. */
+.hms-kpi-val.tone-red    { color:oklch(0.50 0.19 25); }
+.hms-kpi-val.tone-green  { color:oklch(0.46 0.13 152); }
+.hms-kpi-val.tone-yellow { color:oklch(0.48 0.13 62); }
+.hms-kpi-val.tone-blue   { color:oklch(0.48 0.14 250); }
+:root:not([data-theme="light"]) .hms-kpi-val.tone-red,
+[data-theme="dark"] .hms-kpi-val.tone-red    { color:oklch(0.70 0.17 25); }
+:root:not([data-theme="light"]) .hms-kpi-val.tone-green,
+[data-theme="dark"] .hms-kpi-val.tone-green  { color:oklch(0.72 0.15 152); }
+:root:not([data-theme="light"]) .hms-kpi-val.tone-yellow,
+[data-theme="dark"] .hms-kpi-val.tone-yellow { color:oklch(0.78 0.14 62); }
+:root:not([data-theme="light"]) .hms-kpi-val.tone-blue,
+[data-theme="dark"] .hms-kpi-val.tone-blue   { color:oklch(0.70 0.13 250); }
+.hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; height:22px; padding:0 8px; border-radius:9999px; background:var(--secondary); font-size:11px; font-weight:600; color:var(--muted-foreground); white-space:nowrap; }
+.hms-kpi-trend svg { width:11px; height:11px; }
+.hms-kpi-trend.up   { color:var(--kpi-positive); background:var(--green-muted, var(--secondary)); }
+.hms-kpi-trend.down { color:var(--destructive); background:var(--red-muted, var(--secondary)); }
+.hms-kpi-trend.bad.up   { color:var(--destructive); background:var(--red-muted, var(--secondary)); }
+.hms-kpi-trend.bad.down { color:var(--kpi-positive); background:var(--green-muted, var(--secondary)); }
+.hms-kpi-foot { font-size:11.5px; color:var(--muted-foreground); }
 @media (max-width:600px) {
-  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); gap:8px; }
-  .hms-kpi { min-height:120px; border-radius:14px; }
-  .hms-kpi-body { padding:12px 14px 10px; }
-  .hms-kpi-foot { padding:8px 14px; }
-  .hms-kpi-val { font-size:24px; }
+  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); }
+  .hms-kpi-body { padding:13px 15px; }
+  .hms-kpi-val { font-size:22px; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

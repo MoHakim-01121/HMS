@@ -56,6 +56,9 @@ const PATHS = {
   close: (
     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
   ),
+  plus: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+  ),
   message: (
     <path
       strokeLinecap="round"
