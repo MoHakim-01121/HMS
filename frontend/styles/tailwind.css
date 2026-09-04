@@ -36,7 +36,8 @@
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(1 0 0);
   --border: oklch(0.912 0.005 250);       /* card / section hairline */
-  --input: oklch(0.878 0.006 250);        /* control + table-row border, one step firmer */
+  --input: oklch(0.878 0.006 250);        /* control border + table total-row rule, one step firmer */
+  --hairline: oklch(0.944 0.004 250);     /* between table rows — softer than --border */
   --ring: oklch(0.72 0.15 85);            /* gold — the one hued colour on the chrome */
   --radius: 0.75rem;
   --card: oklch(1 0 0);
@@ -71,6 +72,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.26 0 0);
   --input: oklch(0.32 0 0);
+  --hairline: oklch(0.22 0 0);
   --ring: oklch(0.72 0.15 85);
   --card: oklch(0.18 0 0);
   --card-foreground: var(--foreground);
@@ -691,78 +693,50 @@
   body[data-scroll-locked] { padding-top: calc(48px + env(safe-area-inset-top)) !important; }
 }
 
-/* ── List data table — HeroUI v3 Table direction (21st.dev reference, chosen
-   2026-07-30). The reference's signature is a tinted header strip with the
-   body as a lighter "sheet" in front of it, whose rounded top corners let the
-   strip show through at the notches. Scoped to `.hms-table-v2` (set by
-   components/shadcn/table.jsx) so design.css's global table rules keep owning
-   the detail-page and Remittance line-item tables, and confined to ≥601px so
-   the mobile row-as-card collapse is untouched. ── */
+/* ── List data table — Homlu v2.1 "ledger" skin. The card wrapper
+   (.hms-list-card) already draws the white surface + 20px radius + hairline
+   border; the table just fills it. Header row = one bottom hairline, muted
+   11.5px labels, no tint and no vertical rules. Body rows separated by the
+   softer --hairline. Total row (tfoot) gets the firmer --input rule. Scoped
+   to `.hms-table-v2` (set by components/shadcn/table.jsx) so design.css's
+   global table rules keep owning the detail-page and Remittance line-item
+   tables, and confined to ≥601px so the mobile row-as-card collapse is
+   untouched. ── */
 @media (min-width: 601px) {
-  .hms-table-v2 { border-radius: 10px; background: var(--secondary); }
+  .hms-table-v2 { border-radius: 0; background: transparent; }
 
-  /* Header strip: muted ink on the tint, no rule underneath — the sheet's
-     edge is what separates it from the body. */
-  .hms-table-v2 thead tr { border-bottom: none; }
+  .hms-table-v2 thead tr { border-bottom: 1px solid var(--hairline); }
   .hms-table-v2 thead th {
-    position: relative;
-    padding: 12px 16px;
-    font-size: 12.5px;
+    padding: 10px 12px;
+    font-size: 11.5px;
     font-weight: 500;
     color: var(--muted-foreground);
     background: transparent;
     border-bottom: none;
   }
-  /* Short vertical rules between header cells, as in the reference. Skipped
-     after the bulk-select checkbox, where a rule just reads as clutter. */
-  .hms-table-v2 thead th + th::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 1px;
-    height: 15px;
-    transform: translateY(-50%);
-    background: var(--border);
-  }
-  .hms-table-v2 thead th.hms-th-select + th::before,
-  .hms-table-v2 thead th.hms-th-blank::before { content: none; }
 
-  /* Body sheet. Painted per-cell rather than on <tbody> so the corner cells
-     can round without a square tbody box showing through behind them. */
   .hms-table-v2 tbody td {
-    padding: 14px 16px;
+    padding: 12px;
     font-weight: 400;
     background: var(--card);
+    border-top: 1px solid var(--hairline);
   }
+  .hms-table-v2 tbody tr:first-child td { border-top: none; }
   .hms-table-v2 tbody td.col-bold { font-weight: 600; }
 
-  /* Flat full-bleed hover — the sheet owns the rounding here, so design.css's
-     per-row rounded hover is switched off. This pair must stay ahead of the
-     corner rules below: identical specificity, so later wins. */
-  .hms-table-v2 tbody tr:hover td { background: color-mix(in oklab, var(--secondary) 55%, var(--card)); }
-  .hms-table-v2 tbody tr:hover td:first-child,
-  .hms-table-v2 tbody tr:hover td:last-child { border-radius: 0; }
+  .hms-table-v2 tbody tr:hover td { background: var(--surface-hover); }
 
-  /* Sheet corners: top always, bottom only when no footer strip follows. */
-  .hms-table-v2 tbody tr:first-child td:first-child { border-top-left-radius: 10px; }
-  .hms-table-v2 tbody tr:first-child td:last-child { border-top-right-radius: 10px; }
-  .hms-table-v2 table:not(:has(tfoot)) tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
-  .hms-table-v2 table:not(:has(tfoot)) tbody tr:last-child td:last-child { border-bottom-right-radius: 10px; }
-
-  /* Footer summary mirrors the header strip: transparent, letting the wrapper
-     tint through so it reads as the same surface. */
+  /* Total row: firmer rule, one step above the row hairline. */
   .hms-table-v2 tfoot td {
-    padding: 13px 16px;
-    background: transparent;
-    border-top: none;
+    padding: 12px;
+    background: var(--card);
+    border-top: 1px solid var(--input);
+    font-weight: 600;
   }
 }
 
-/* ── List pagination — the closing band of the table card, same HeroUI v3
-   reference as the skin above. It carries the header's tint so the body sheet
-   reads as floating between two strips; the sheet's own bottom corners (set
-   above) are what let the tint show through at the notches. Replaces
+/* ── List pagination — the closing band inside the table card: a plain strip
+   on the card surface, separated from the last row by one hairline. Replaces
    design.css's centred `.pagination` row. ── */
 .hms-pag {
   display: flex;
@@ -770,17 +744,9 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 11px 16px;
-  background: var(--secondary);
-}
-/* The wrapper rounds its own bottom corners so a table that ends the card
-   looks finished; when the strip follows, that rounding would punch two
-   surface-coloured notches between two same-tinted bands. */
-@media (min-width: 601px) {
-  .hms-table-v2:has(+ .hms-pag) {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-  }
+  padding: 12px 16px;
+  background: var(--card);
+  border-top: 1px solid var(--hairline);
 }
 .hms-pag-count { font-size: 12.5px; color: var(--muted-foreground); }
 .hms-pag-nav { display: flex; align-items: center; gap: 2px; margin-left: auto; }
@@ -814,13 +780,13 @@
 }
 .hms-pag-step:disabled { opacity: .4; cursor: default; }
 
-/* Current page: filled pill on the tint, matching the reference. */
+/* Current page: filled near-black circle (white in dark), v2.1. */
 .hms-pag-num.is-active {
-  background: var(--card);
-  color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+  border-radius: 9999px;
   font-weight: 600;
   cursor: default;
-  box-shadow: 0 1px 2px rgb(0 0 0 / .06);
 }
 
 .hms-pag-gap { padding: 0 4px; font-size: 12.5px; color: var(--muted-foreground); user-select: none; }
@@ -1241,14 +1207,15 @@
 .hms-kpi-val-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px; }
 .hms-kpi-val { font-size:36px; font-weight:600; color:var(--foreground); line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
 .hms-kpi-val .hms-kpi-unit { font-size:14px; font-weight:500; color:var(--muted-foreground); margin-left:3px; }
+/* v2.1: the KPI number is always ink — "angka menguasai layout", and colour
+   is carried by the row cells / status badges / delta, never by the headline
+   figure. `warn` stays as the one genuine-alert exception. Tone classes are
+   kept as no-ops so callers don't need touching. */
 .hms-kpi-val.warn { color:var(--destructive); }
-/* Tone variants reuse design.css's legacy semantic colors so these cards read
-   consistently with StatusBadge and the rest of Invoice/Remittance, which
-   still use --green/--red/--yellow/--blue everywhere else. */
-.hms-kpi-val.tone-red { color:var(--red); }
-.hms-kpi-val.tone-green { color:var(--green); }
-.hms-kpi-val.tone-yellow { color:var(--yellow); }
-.hms-kpi-val.tone-blue { color:var(--blue); }
+.hms-kpi-val.tone-red,
+.hms-kpi-val.tone-green,
+.hms-kpi-val.tone-yellow,
+.hms-kpi-val.tone-blue { color:var(--foreground); }
 .hms-kpi-trend { display:inline-flex; align-items:center; gap:3px; font-size:12px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
 .hms-kpi-trend svg { width:12px; height:12px; }
 .hms-kpi-trend.up { color:var(--kpi-positive); }

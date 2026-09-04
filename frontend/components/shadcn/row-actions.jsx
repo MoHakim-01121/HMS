@@ -1,9 +1,11 @@
 import { Icon } from "../icons.jsx";
 import { Button } from "./ui/button.jsx";
 
+// v2.1: row-action icons are muted ink; only a destructive action carries
+// colour (red). "green" is accepted but no longer tints — it falls through
+// to the default muted ghost so callers don't need touching.
 const VARIANT_COLOR = {
   red: "var(--destructive)",
-  green: "var(--green, #15803D)",
 };
 
 // Reverted from the single kebab-dropdown trigger back to one icon button
