@@ -11,6 +11,7 @@ import StatusPill from "../../components/shadcn/status-pill.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -51,8 +52,14 @@ export default function List({ clients, total_count, q, status, pagination }) {
   }, [query]);
 
   const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
-  const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
+  const resetAll = () => { setQuery(""); setSel(""); setPanelOpen(false); visit({ q: "", status: "" }); };
   const del = (e, pk, name) => { e.stopPropagation(); confirm({ title: t("Delete client"), message: t("Delete client {name}?", { name }), onConfirm: () => router.post(`/clients/${pk}/delete/`) }); };
+  const dirty = sel !== (status || "");
+  const statusLabelOf = (v) => STATUS_OPTS.find((o) => o.val === v)?.label || v;
+  const chips = [
+    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); visit({ q: "", status: status || "" }); } }] : []),
+    ...(status ? [{ key: "status", label: t("Status {status}", { status: t(statusLabelOf(status)) }), onRemove: () => { setSel(""); visit({ q: query, status: "" }); } }] : []),
+  ];
 
   return (
     <div className="page shadcn-root">
@@ -98,13 +105,15 @@ export default function List({ clients, total_count, q, status, pagination }) {
                 </div>
                 <div className="fp-footer">
                   <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={apply}>{t("Apply")}</Button>
+                  <Button type="button" size="sm" onClick={apply}>{dirty ? t("Apply changes") : t("Apply")}</Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <FilterChips chips={chips} onClearAll={resetAll} />
 
       <div className="hms-list-card">
         {clients.length ? (

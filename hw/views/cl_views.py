@@ -106,7 +106,10 @@ def cl_list(request):
     qs = _apply_cl_filters(base_qs, q, status_list, date_from, date_to)
     qs = qs.order_by(_SORT_MAP.get(sort, '-check_in'))
 
-    active_filters = len(status_list) + bool(date_from) + bool(date_to)
+    # Counts filter GROUPS in use, not individual values (doc 02b "Badge
+    # hitung"): three checked statuses is still one group, a date range is
+    # one more — so the badge reads 2, not 5.
+    active_filters = bool(status_list) + bool(date_from or date_to)
     _status_counts = {
         row['reservation_status']: row['n']
         for row in base_qs.values('reservation_status').annotate(n=Count('id'))
@@ -472,11 +475,12 @@ def cl_export_csv(request):
     response['Content-Disposition'] = 'attachment; filename="confirmation_letters.csv"'
     response.write('﻿')
     writer = csv.writer(response)
-    writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total SAR', 'Status', 'Note'])
+    writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note'])
     for cl in qs:
         writer.writerow([
             cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
             cl.check_in or '', cl.check_out or '',
+            cl.total_rooms, cl.num_nights,
             cl.total_price or 0, cl.reservation_status, cl.note or '',
         ])
     return response

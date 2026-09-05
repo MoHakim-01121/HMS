@@ -11,6 +11,7 @@ import StatusPill from "../../components/shadcn/status-pill.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -64,13 +65,21 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
   }, [query]);
 
   const apply = () => { setPanelOpen(false); go({ city, stars }); };
-  const resetAll = () => { setCity(""); setStars(""); setPanelOpen(false); go({ city: "", stars: "" }); };
+  const resetAll = () => { setQuery(""); setCity(""); setStars(""); setPanelOpen(false); go({ q: "", city: "", stars: "" }); };
   const [confirm, confirmDialog] = useConfirm();
   const del = (e, pk, name) => { e.stopPropagation(); confirm({ title: t("Delete hotel"), message: t("Delete hotel {name}?", { name }), onConfirm: () => router.post(`/hotels/${pk}/delete/`) }); };
   const openForm = useFormModal();
   const perms = usePerms();
 
   const filterCount = (city_filter ? 1 : 0) + (stars_filter ? 1 : 0);
+  const dirty = city !== (city_filter || "") || stars !== (stars_filter || "");
+  const cityLabelOf = (v) => CITY_OPTS.find((o) => o.val === v)?.label || v;
+  const starLabelOf = (v) => STAR_OPTS.find((o) => o.val === v)?.label || v;
+  const chips = [
+    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); go({ q: "" }); } }] : []),
+    ...(city_filter ? [{ key: "city", label: t(cityLabelOf(city_filter)), onRemove: () => { setCity(""); go({ city: "" }); } }] : []),
+    ...(stars_filter ? [{ key: "stars", label: t(starLabelOf(stars_filter)), onRemove: () => { setStars(""); go({ stars: "" }); } }] : []),
+  ];
 
   return (
     <div className="page shadcn-root">
@@ -120,13 +129,15 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
                 </div>
                 <div className="fp-footer">
                   <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={apply}>{t("Apply")}</Button>
+                  <Button type="button" size="sm" onClick={apply}>{dirty ? t("Apply changes") : t("Apply")}</Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <FilterChips chips={chips} onClearAll={resetAll} />
 
       <div className="hms-list-card">
         {hotels.length ? (

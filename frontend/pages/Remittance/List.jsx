@@ -10,6 +10,7 @@ import PageHeader from "../../components/shadcn/page-header.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
@@ -43,7 +44,13 @@ export default function List({ remittances, stats, status_filter, q, total_count
   }, [query]);
 
   const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
-  const resetAll = () => { setSel(""); setPanelOpen(false); visit({ q: query, status: "" }); };
+  const resetAll = () => { setQuery(""); setSel(""); setPanelOpen(false); visit({ q: "", status: "" }); };
+  const dirty = sel !== (status_filter || "");
+  const statusLabelOf = (v) => STATUS_OPTS.find((o) => o.val === v)?.label || v;
+  const chips = [
+    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); visit({ q: "", status: status_filter || "" }); } }] : []),
+    ...(status_filter ? [{ key: "status", label: t("Status {status}", { status: t(statusLabelOf(status_filter)) }), onRemove: () => { setSel(""); visit({ q: query, status: "" }); } }] : []),
+  ];
   const markReceived = (e, pk) => { e.stopPropagation(); router.post(`/remittance/${pk}/mark-received/`); };
   const [confirm, confirmDialog] = useConfirm();
   const del = (e, pk, label) => { e.stopPropagation(); confirm({ title: t("Delete remittance"), message: t("Delete remittance {label}?", { label }), onConfirm: () => router.post(`/remittance/${pk}/delete/`) }); };
@@ -175,13 +182,15 @@ export default function List({ remittances, stats, status_filter, q, total_count
                 </div>
                 <div className="fp-footer">
                   <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={apply}>{t("Apply")}</Button>
+                  <Button type="button" size="sm" onClick={apply}>{dirty ? t("Apply changes") : t("Apply")}</Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <FilterChips chips={chips} onClearAll={resetAll} />
 
       <div className="hms-list-card">
         {remittances.length ? (

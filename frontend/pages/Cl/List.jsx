@@ -9,6 +9,7 @@ import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
@@ -69,10 +70,23 @@ export default function List({ letters, total_count, q, status_list, date_from, 
 
   const toggleStatus = (val) => setSel((prev) => prev.includes(val) ? prev.filter((s) => s !== val) : [...prev, val]);
   const applyFilters = () => { setPanelOpen(false); go({ status: sel, date_from: from, date_to: to }); };
-  const resetAll = () => { setSel([]); setFrom(""); setTo(""); setPanelOpen(false); go({ status: [], date_from: "", date_to: "" }); };
+  const resetAll = () => { setSel([]); setFrom(""); setTo(""); setPanelOpen(false); go({ q: "", status: [], date_from: "", date_to: "" }); setQuery(""); };
+  const appliedList = status_list || [];
+  const dirty = sel.slice().sort().join() !== appliedList.slice().sort().join() || from !== (date_from || "") || to !== (date_to || "");
 
   const [confirm, confirmDialog] = useConfirm();
   const { t } = useI18n();
+
+  const statusOptByVal = Object.fromEntries(STATUS_OPTS.map((o) => [o.val, o]));
+  const chips = [
+    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); go({ q: "" }); } }] : []),
+    ...((date_from || date_to) ? [{ key: "date", label: t("Check-in {from} to {to}", { from: date_from || "…", to: date_to || "…" }), onRemove: () => { setFrom(""); setTo(""); go({ date_from: "", date_to: "" }); } }] : []),
+    ...appliedList.map((val) => ({
+      key: "status-" + val,
+      label: t("Status {status}", { status: t(statusOptByVal[val]?.label || val) }),
+      onRemove: () => { const next = appliedList.filter((s) => s !== val); setSel(next); go({ status: next }); },
+    })),
+  ];
   const del = (e, pk, number) => { e.stopPropagation(); confirm({ title: t("Delete CL"), message: t("Delete CL {number}?", { number }), onConfirm: () => router.post(`/cl/${pk}/delete/`) }); };
   const openForm = useFormModal();
   const perms = usePerms();
@@ -160,13 +174,15 @@ export default function List({ letters, total_count, q, status_list, date_from, 
                 </div>
                 <div className="fp-footer">
                   <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={applyFilters}>{t("Apply")}</Button>
+                  <Button type="button" size="sm" onClick={applyFilters}>{dirty ? t("Apply changes") : t("Apply")}</Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <FilterChips chips={chips} onClearAll={resetAll} />
 
       <div className="hms-list-card">
         {letters.length ? (

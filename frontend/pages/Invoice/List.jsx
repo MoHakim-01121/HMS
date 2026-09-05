@@ -11,6 +11,7 @@ import Table from "../../components/shadcn/table.jsx";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
@@ -57,11 +58,19 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
   }, [query]);
 
   const applyFilters = () => { setPanelOpen(false); visit({ status: sel, date_from: from, date_to: to }); };
-  const resetAll = () => { setSel(""); setFrom(""); setTo(""); setPanelOpen(false); visit({ status: "", date_from: "", date_to: "" }); };
+  const resetAll = () => { setQuery(""); setSel(""); setFrom(""); setTo(""); setPanelOpen(false); visit({ q: "", status: "", date_from: "", date_to: "" }); };
+  const dirty = sel !== (status_filter || "") || from !== (date_from || "") || to !== (date_to || "");
+  const activeGroups = (status_filter ? 1 : 0) + ((date_from || date_to) ? 1 : 0);
 
   const [confirm, confirmDialog] = useConfirm();
   const openForm = useFormModal();
   const perms = usePerms();
+  const statusLabelOf = (v) => STATUS_OPTS.find((o) => o.val === v)?.label || v;
+  const chips = [
+    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); visit({ q: "" }); } }] : []),
+    ...((date_from || date_to) ? [{ key: "date", label: t("Due {from} to {to}", { from: date_from || "…", to: date_to || "…" }), onRemove: () => { setFrom(""); setTo(""); visit({ date_from: "", date_to: "" }); } }] : []),
+    ...(status_filter ? [{ key: "status", label: t("Status {status}", { status: t(statusLabelOf(status_filter)) }), onRemove: () => { setSel(""); visit({ status: "" }); } }] : []),
+  ];
   const del = (e, pk, number) => {
     e.stopPropagation();
     confirm({ title: t("Delete invoice"), message: t("Delete invoice {number}?", { number }), onConfirm: () => router.post(`/invoice/${pk}/delete/`) });
@@ -128,7 +137,7 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
           <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
             <button type="button" className="fbar-btn" onClick={() => setPanelOpen((v) => !v)}>
               <Icon name="filter" size={13} /> {t("Filter")}
-              {(status_filter || date_from || date_to) && <span className="fbar-count">1</span>}
+              {activeGroups > 0 && <span className="fbar-count">{activeGroups}</span>}
             </button>
             {panelOpen && (
               <div className="filter-panel open">
@@ -152,13 +161,15 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
                 </div>
                 <div className="fp-footer">
                   <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={applyFilters}>{t("Apply")}</Button>
+                  <Button type="button" size="sm" onClick={applyFilters}>{dirty ? t("Apply changes") : t("Apply")}</Button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <FilterChips chips={chips} onClearAll={resetAll} />
 
       <div className="hms-list-card">
         {invoices.length ? (
