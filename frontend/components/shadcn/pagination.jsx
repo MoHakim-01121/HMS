@@ -33,10 +33,10 @@ export default function Pagination({ pagination, onPage, unit = "results" }) {
           type="button"
           className="hms-pag-step"
           disabled={!has_previous}
+          aria-label={t("Previous page")}
           onClick={() => onPage(previous_page_number)}
         >
-          <span className="hms-pag-chev back"><Icon name="chevron" size={13} /></span>
-          {t("Prev")}
+          <span className="hms-pag-chev back"><Icon name="chevron" size={14} /></span>
         </button>
 
         {range.map((p, i) =>
@@ -55,10 +55,10 @@ export default function Pagination({ pagination, onPage, unit = "results" }) {
           type="button"
           className="hms-pag-step"
           disabled={!has_next}
+          aria-label={t("Next page")}
           onClick={() => onPage(next_page_number)}
         >
-          {t("Next")}
-          <span className="hms-pag-chev fwd"><Icon name="chevron" size={13} /></span>
+          <span className="hms-pag-chev fwd"><Icon name="chevron" size={14} /></span>
         </button>
       </div>
     </nav>

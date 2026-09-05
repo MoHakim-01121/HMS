@@ -765,34 +765,43 @@
 .hms-pag-count { font-size: 12.5px; color: var(--muted-foreground); }
 .hms-pag-nav { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 
-.hms-pag-step,
+/* v2.1 doc 02: icon-only chevron circles (no "Prev"/"Next" text) flanking
+   plain numbered circles, all 32px. */
+.hms-pag-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px; height: 32px;
+  border: 1px solid var(--input);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
 .hms-pag-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  height: 28px;
+  min-width: 32px; height: 32px;
   padding: 0 9px;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 9999px;
   background: transparent;
   font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--muted-foreground);
   cursor: pointer;
-  transition: background .12s, color .12s;
+  font-variant-numeric: tabular-nums;
+  transition: background .12s, color .12s, border-color .12s;
 }
-.hms-pag-num { min-width: 28px; padding: 0 6px; font-variant-numeric: tabular-nums; }
 
 @media (hover: hover) {
-  .hms-pag-step:not(:disabled):hover,
-  button.hms-pag-num:hover {
-    background: color-mix(in oklab, var(--foreground) 7%, transparent);
-    color: var(--foreground);
-  }
+  .hms-pag-step:not(:disabled):hover { border-color: var(--foreground); }
+  button.hms-pag-num:hover { color: var(--foreground); border-color: var(--input); }
 }
-.hms-pag-step:disabled { opacity: .4; cursor: default; }
+.hms-pag-step:disabled { color: var(--muted-foreground); opacity: .45; cursor: default; }
 
 /* Current page: filled near-black circle (white in dark), v2.1. */
 .hms-pag-num.is-active {
@@ -804,6 +813,7 @@
 }
 
 .hms-pag-gap { padding: 0 4px; font-size: 12.5px; color: var(--muted-foreground); user-select: none; }
+.hms-pag-count-current { padding: 0 6px; font-size: 12.5px; font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* The shared `chevron` glyph points down — rotate it into the step arrows. */
 .hms-pag-chev { display: inline-flex; }
@@ -826,10 +836,9 @@
      `.pagination` mobile rules design.css used to hold. */
   .hms-pag-num:not(.is-active),
   .hms-pag-gap { display: none; }
-  .hms-pag-step,
-  .hms-pag-num { height: 38px; border-radius: 12px; font-size: 13px; }
-  .hms-pag-step { padding: 0 14px; }
-  .hms-pag-num.is-active { min-width: 38px; border: 1px solid var(--border); }
+  .hms-pag-step { width: 40px; height: 40px; }
+  .hms-pag-num { height: 40px; font-size: 13px; }
+  .hms-pag-num.is-active { min-width: 40px; }
 }
 
 /* ══ List toolbar — Homlu v2.1 doc 02b ═══════════════════════════════════
@@ -1660,6 +1669,7 @@
 .hms-dv-pill.tone-red    { background:oklch(0.58 0.21 25);  color:oklch(1 0 0); }
 .hms-dv-pill.tone-blue   { background:oklch(0.55 0.16 250); color:oklch(1 0 0); }
 .hms-dv-pill.tone-purple { background:oklch(0.52 0.20 300); color:oklch(1 0 0); }
+.hms-dv-pill.tone-orange { background:oklch(0.62 0.19 48);  color:oklch(1 0 0); }
 .hms-dv-pill.tone-gray   { background:var(--secondary); color:var(--muted-foreground); }
 /* Outline / derived: transparent fill, tinted ink + low-alpha border. */
 .hms-dv-pill.outline { background:transparent; border-color:var(--input); color:var(--muted-foreground); }
@@ -1668,6 +1678,7 @@
 .hms-dv-pill.outline.tone-red    { color:oklch(0.50 0.19 25);  border-color:oklch(0.58 0.21 25 / .4); }
 .hms-dv-pill.outline.tone-blue   { color:oklch(0.44 0.15 250); border-color:oklch(0.55 0.16 250 / .4); }
 .hms-dv-pill.outline.tone-purple { color:oklch(0.45 0.18 300); border-color:oklch(0.52 0.20 300 / .4); }
+.hms-dv-pill.outline.tone-orange { color:oklch(0.48 0.16 48);  border-color:oklch(0.62 0.19 48 / .45); }
 :root:not([data-theme="light"]) .hms-dv-pill.outline.tone-green,
 [data-theme="dark"] .hms-dv-pill.outline.tone-green  { color:oklch(0.72 0.15 152); }
 :root:not([data-theme="light"]) .hms-dv-pill.outline.tone-yellow,
@@ -1839,95 +1850,145 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 /* ─────────────────────────────────────────────────────────────────────────
    Record view — shared "record layout" for detail pages (hms-rv-*)
 
-   Unlike the single-document detail card (hms-dv-*), a record page reads as
-   a document with a ledger attached: a page-level header, a left column of
-   content cards (line items / files / notes) and a right rail carrying the
-   money, the key facts and any related party. Introduced with Cl/Detail.jsx
-   and shared by every 03-detail-pages screen via components/shadcn/record-view.jsx.
+   Modeled on Claude Design's "03 Detail Pages v2" mockup (project "Konoz
+   United HMS Redesign"): one hero card answers the question the page was
+   opened for (identity + one sentence + one primary action), a content card
+   below carries the supporting ledger, and a plain 320px rail holds the
+   things read once in a while (party, dates, attachments, history). See
+   components/shadcn/record-view.jsx for the React pieces.
    ───────────────────────────────────────────────────────────────────────── */
 .hms-rv-page { max-width: 1180px; }
 
-.hms-rv-head { display:flex; align-items:flex-start; justify-content:space-between; gap:32px; }
-.hms-rv-headmain { min-width:0; }
-.hms-rv-titlerow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.hms-rv-title { font-size:30px; font-weight:600; letter-spacing:-.022em; line-height:1.15; margin:0; color:var(--foreground); }
-.hms-rv-subline { font-size:13.5px; color:var(--muted-foreground); margin-top:8px; line-height:1.5; }
-.hms-rv-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; padding-top:4px; }
-.hms-rv-actions .hms-dv-act svg { color:var(--muted-foreground); }
-.hms-rv-actions .hms-dv-act.primary svg { color:currentColor; }
+.hms-rv-top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.hms-rv-backlink { display:inline-flex; align-items:center; gap:6px; height:26px; font-size:13px; font-weight:600; color:var(--foreground); text-decoration:none; }
+.hms-rv-backlink:hover { color:var(--muted-foreground); }
+.hms-rv-stamp { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 
-.hms-rv-banner {
-  display:flex; align-items:center; gap:10px; margin-top:20px;
-  padding:11px 16px; border-radius:12px; font-size:13px;
-  border:1px solid color-mix(in oklab, var(--red) 20%, var(--border));
-  background:color-mix(in oklab, var(--red-muted) 60%, transparent);
+/* Hero action buttons — exact mockup geometry: 42px pill, three tones.
+   `.hms-rv-btn` = mockup `.btn` (bordered), `.primary` = `.pri` (solid ink —
+   var(--primary) is already tuned to the mockup's exact oklch(0.205 .012 260)
+   ink, not gold: this redesign's CTA is monochrome, gold stays chrome-only),
+   `.danger` = `.dgr` (red outline, never solid — destructive actions always
+   confirm before anything is written). */
+.hms-rv-btn {
+  height:42px; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:0 18px; border:1px solid var(--border); background:var(--card);
+  border-radius:9999px; font-size:13px; font-weight:600; color:var(--foreground);
+  cursor:pointer; white-space:nowrap; text-decoration:none; font-family:inherit;
 }
-.hms-rv-banner svg { color:var(--red); flex-shrink:0; }
+.hms-rv-btn:hover { border-color:var(--foreground); }
+.hms-rv-btn.primary { border-color:var(--primary); background:var(--primary); color:var(--primary-foreground); }
+.hms-rv-btn.primary:hover { background:color-mix(in oklch, var(--primary) 88%, black); border-color:color-mix(in oklch, var(--primary) 88%, black); }
+.hms-rv-btn.danger { border-color:color-mix(in oklab, var(--red) 40%, transparent); background:var(--card); color:var(--red); }
+.hms-rv-btn.danger:hover { background:color-mix(in oklab, var(--red) 7%, var(--card)); }
+.hms-rv-btn:disabled { opacity:.5; cursor:not-allowed; }
+.hms-rv-btn svg { flex-shrink:0; }
 
-.hms-rv-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:22px; margin-top:22px; align-items:start; }
-.hms-rv-col { display:grid; gap:18px; min-width:0; }
-
-.hms-rv-card {
-  background:var(--card); border:1px solid var(--border); border-radius:18px;
-  box-shadow:0 2px 10px rgba(0,0,0,.04); overflow:hidden;
+/* Icon-only 42px circle (mockup `.ico`) — used for the hero kebab overflow. */
+.hms-rv-note-r .dv-kebab {
+  width:42px; height:42px; border-radius:9999px;
+  background:var(--card); border:1px solid var(--border); color:var(--muted-foreground);
 }
-.hms-rv-cardh {
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
-  padding:14px 18px; border-bottom:1px solid var(--border);
-}
-.hms-rv-cardh-title { display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:600; color:var(--foreground); }
-.hms-rv-cardh-title svg { color:var(--muted-foreground); }
-.hms-rv-cardh-right { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted-foreground); flex-shrink:0; }
-.hms-rv-cardbody { padding:14px 18px 16px; }
-.hms-rv-cardbody .hms-dv-table td:first-child,
-.hms-rv-cardbody .hms-dv-table th:first-child { padding-left:0; }
+.hms-rv-note-r .dv-kebab:hover { border-color:var(--foreground); background:var(--card); color:var(--foreground); }
+.hms-rv-note-r .dv-kebab svg { stroke:currentColor; width:17px; height:17px; }
+.hms-rv-note-r .dv-kebab::after { content:none; }
 
-.hms-rv-cardempty { text-align:center; padding:12px 0 4px; }
-.hms-rv-cardempty div { font-size:13px; color:var(--muted-foreground); }
-.hms-rv-cardempty .hms-dv-act { margin-top:12px; }
+.hms-rv-hero { margin-top:14px; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:24px 26px; }
+.hms-rv-hero-top { display:flex; align-items:flex-start; justify-content:space-between; gap:32px; }
+.hms-rv-hero-kicker { display:flex; align-items:center; gap:10px; }
+.hms-rv-kicker { font:600 12.5px ui-monospace, "SF Mono", Menlo, monospace; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.hms-rv-h1 { margin:9px 0 0; font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.15; color:var(--foreground); }
+.hms-rv-facts { margin-top:12px; display:flex; align-items:baseline; gap:26px; flex-wrap:wrap; }
+.hms-rv-lbl { font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; color:var(--muted-foreground); }
+.hms-rv-factv { margin-top:3px; font-size:13px; font-weight:500; color:var(--foreground); font-variant-numeric:tabular-nums; }
 
-.hms-rv-notes { font-size:13.5px; line-height:1.7; white-space:pre-wrap; color:var(--foreground); }
+.hms-rv-side { flex:none; width:300px; }
 
-/* Rail — total tile */
-.hms-rv-total { padding:18px; }
-.hms-rv-total-l { font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-foreground); }
-.hms-rv-total-num { font-size:30px; font-weight:600; letter-spacing:-.02em; line-height:1; margin-top:8px; font-variant-numeric:tabular-nums; color:var(--foreground); }
-.hms-rv-total-num .cur { font-size:13px; font-weight:500; color:var(--muted-foreground); margin-left:5px; letter-spacing:0; }
-.hms-rv-total-rows { display:grid; gap:9px; margin-top:14px; padding-top:13px; border-top:1px solid var(--border); font-size:12.5px; color:var(--muted-foreground); }
-.hms-rv-total-rows > div { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
-.hms-rv-total-rows .v { color:var(--foreground); font-weight:500; font-variant-numeric:tabular-nums; text-decoration:none; }
-.hms-rv-total-rows a.v { border-bottom:1px solid var(--border); }
-.hms-rv-total-rows a.v:hover { border-bottom-color:var(--foreground); }
+/* Hero figure — the one big answer number, right-aligned beside the facts */
+.hms-rv-figure { width:100%; }
+.hms-rv-figv { margin-top:5px; display:flex; align-items:baseline; gap:7px; font-size:32px; font-weight:600; letter-spacing:-.02em; line-height:1; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-rv-figv .u { font-size:12px; font-weight:600; color:var(--muted-foreground); }
+.hms-rv-bar { margin-top:14px; height:6px; border-radius:999px; background:var(--muted); overflow:hidden; display:flex; }
+.hms-rv-bar span { display:block; }
+.hms-rv-fignote { margin-top:8px; font-size:12.5px; line-height:1.55; color:var(--muted-foreground); }
 
-/* Rail — key-value row + stay timeline + avatar (client/PIC) */
-.hms-rv-stay-hotel { display:flex; align-items:center; gap:11px; font-size:13.5px; font-weight:500; color:var(--foreground); }
-.hms-rv-stay-ico { width:32px; height:32px; flex-shrink:0; border-radius:9px; background:var(--secondary); border:1px solid var(--border); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; }
-.hms-rv-stay-timeline { display:flex; align-items:center; gap:12px; margin-top:15px; padding-top:15px; border-top:1px solid var(--border); }
-.hms-rv-stay-timeline .e { text-align:center; }
-.hms-rv-stay-timeline .e:last-child { text-align:right; }
-.hms-rv-stay-timeline .k { font-size:10.5px; font-weight:500; letter-spacing:.06em; text-transform:uppercase; color:var(--muted-foreground); }
-.hms-rv-stay-timeline .d { font-size:14px; font-weight:600; margin-top:3px; font-variant-numeric:tabular-nums; color:var(--foreground); }
-.hms-rv-stay-timeline .bar { flex:1; display:flex; align-items:center; gap:6px; }
-.hms-rv-stay-timeline .bar .dot { width:6px; height:6px; border-radius:9999px; background:var(--foreground); flex-shrink:0; }
-.hms-rv-stay-timeline .bar .line { flex:1; height:1px; background:var(--border); }
-.hms-rv-stay-timeline .bar .n { font-size:11px; font-weight:500; color:var(--muted-foreground); white-space:nowrap; }
-.hms-rv-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
-.hms-rv-row > span:first-child { display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted-foreground); }
-.hms-rv-row > span:first-child svg { color:var(--muted-foreground); }
-.hms-rv-row .v { font-size:13.5px; font-weight:500; color:var(--foreground); }
+/* Hero step tracker (Remittance / Visit) — inline under the facts row */
+.hms-rv-steps { margin-top:20px; display:flex; align-items:flex-start; max-width:560px; }
+.hms-rv-step { flex:1; min-width:0; display:flex; flex-direction:column; gap:7px; }
+.hms-rv-step-top { display:flex; align-items:center; gap:0; }
+.hms-rv-step-dot { flex:none; width:24px; height:24px; border-radius:999px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600; }
+.hms-rv-step.done .hms-rv-step-dot { border-color:var(--green); background:var(--green); color:#fff; }
+.hms-rv-step.now .hms-rv-step-dot { border-color:var(--green); color:var(--green); }
+.hms-rv-step-line { flex:1; height:2px; background:var(--border); }
+.hms-rv-step.done .hms-rv-step-line { background:var(--green); }
+.hms-rv-step-label { font-size:12px; font-weight:500; color:var(--muted-foreground); padding-right:10px; }
+.hms-rv-step.now .hms-rv-step-label { font-weight:600; color:var(--foreground); }
 
-.hms-rv-client { display:flex; align-items:center; gap:11px; }
-.hms-rv-client a { font-size:13.5px; font-weight:500; color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
-.hms-rv-client a:hover { border-bottom-color:var(--foreground); }
-.hms-rv-avatar { width:36px; height:36px; flex-shrink:0; border-radius:10px; background:var(--secondary); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--muted-foreground); }
+/* Hero pairs (Period debit/credit) */
+.hms-rv-pairs { margin-top:18px; max-width:520px; display:flex; flex-direction:column; gap:8px; }
+.hms-rv-pairs > div { display:flex; align-items:baseline; justify-content:space-between; gap:14px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+.hms-rv-pairs > div:last-child { border-bottom:none; }
+.hms-rv-pairs .v { font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; }
+
+/* The "one answer" note banner + actions, closing the hero card */
+.hms-rv-notebar { margin-top:20px; padding-top:18px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+.hms-rv-note-l { display:flex; align-items:flex-start; gap:11px; max-width:560px; }
+.hms-rv-note-ico { flex:none; width:20px; height:20px; margin-top:1px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:#fff; }
+.hms-rv-note-title { font-size:13.5px; font-weight:600; color:var(--foreground); }
+.hms-rv-note-text { margin-top:3px; line-height:1.6; font-size:12.5px; color:var(--muted-foreground); }
+.hms-rv-note-r { display:flex; align-items:center; gap:8px; flex:none; flex-wrap:wrap; }
+
+.hms-rv-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:18px; margin-top:14px; align-items:stretch; }
+.hms-rv-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
+
+.hms-rv-card { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; height:100%; display:flex; flex-direction:column; }
+
+/* Sections inside a content card — divided by hairlines, no per-section chrome */
+.hms-rv-sec { border-top:1px solid var(--border); }
+.hms-rv-sec.first { border-top:none; }
+.hms-rv-sech { padding:16px 22px 13px; display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
+.hms-rv-sec-title { font-size:14.5px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); }
+.hms-rv-sec-meta { font-size:12.5px; color:var(--muted-foreground); }
+.hms-rv-sec .hms-dv-table td:first-child, .hms-rv-sec .hms-dv-table th:first-child { padding-left:22px; }
+.hms-rv-sec .hms-dv-table td:last-child, .hms-rv-sec .hms-dv-table th:last-child { padding-right:22px; }
+.hms-rv-sec .hms-dv-empty-cell { padding-left:22px; }
+
+/* Related-documents chip row, closing the content card */
+.hms-rv-links { margin-top:auto; padding:14px 22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hms-rv-linkchip { height:28px; display:inline-flex; align-items:center; gap:7px; padding:0 11px; border:1px solid var(--border); border-radius:999px; font-size:12px; font-weight:600; color:var(--foreground); text-decoration:none; font-variant-numeric:tabular-nums; }
+.hms-rv-linkchip:hover { border-color:var(--foreground); }
+.hms-rv-linkchip .s { font-weight:400; font-size:11.5px; color:var(--muted-foreground); }
+
+/* Right rail — one plain card, paired key/value list + attachments/history */
+.hms-rv-railcard { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 20px 18px; height:100%; display:flex; flex-direction:column; }
+.hms-rv-raillist { display:flex; flex-direction:column; }
+.hms-rv-railrow { padding:13px 0; border-top:1px solid var(--border); display:flex; align-items:baseline; justify-content:space-between; gap:14px; font-size:13px; }
+.hms-rv-railrow .k { font-size:12.5px; color:var(--muted-foreground); white-space:nowrap; }
+.hms-rv-railrow .v { font-size:13px; font-weight:600; text-align:right; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-rv-railrow .v .s { display:block; font-weight:400; font-size:11.5px; color:var(--muted-foreground); }
+
+.hms-rv-railblock { margin-top:14px; padding-top:14px; border-top:1px solid var(--border); }
+.hms-rv-railblock.pin { margin-top:auto; }
+
+/* Rail file list (Attachments) */
+.hms-rv-filerow { display:flex; align-items:center; gap:9px; min-width:0; }
+.hms-rv-filerow svg { flex:none; color:var(--muted-foreground); }
+.hms-rv-filerow .t { flex:1; min-width:0; font-size:12.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--foreground); }
+.hms-rv-filerow .s { font-size:11.5px; flex:none; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+
+.hms-rv-railtext { line-height:1.6; font-size:12.5px; color:var(--muted-foreground); }
+.hms-rv-raillink { display:inline-block; margin-top:7px; font-size:12.5px; font-weight:600; color:var(--muted-foreground); cursor:pointer; background:none; border:none; padding:0; text-decoration:none; }
+.hms-rv-raillink:hover { color:var(--foreground); }
 
 @media (max-width: 860px) {
+  .hms-rv-hero { padding:18px 18px 16px; border-radius:16px; }
+  .hms-rv-hero-top { flex-direction:column; gap:16px; }
+  .hms-rv-side { width:100%; }
+  .hms-rv-h1 { font-size:20px; }
+  .hms-rv-notebar { flex-direction:column; align-items:stretch; }
+  .hms-rv-note-r { width:100%; }
   .hms-rv-grid { grid-template-columns:1fr; gap:14px; }
-  .hms-rv-rail { order:-1; }
-  .hms-rv-head { flex-direction:column; gap:14px; }
-  .hms-rv-actions { padding-top:0; flex-wrap:wrap; }
-  .hms-rv-title { font-size:21px; letter-spacing:-.01em; }
-  .hms-rv-card { border-radius:14px; box-shadow:none; }
+  .hms-rv-card, .hms-rv-railcard { border-radius:14px; }
 }
 
 /* ── Map mode ────────────────────────────────────────────────────────────
