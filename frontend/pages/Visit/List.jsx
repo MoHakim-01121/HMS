@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import Pagination from "../../components/shadcn/pagination.jsx";
+import ListCard from "../../components/shadcn/list-card.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
@@ -13,6 +12,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
+import FilterPanel, { FilterSection } from "../../components/shadcn/filter-panel.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -272,102 +272,83 @@ export default function List({
               {t("Today")}
             </button>
 
-            <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
-              <button type="button" className="fbar-btn" onClick={() => setPanelOpen((v) => !v)}>
-                <Icon name="filter" size={13} /> {t("Filter")}
-                {(status_filter || client_filter || staff_filter) && <span className="fbar-count">1</span>}
-              </button>
-              {panelOpen && (
-                <div className="filter-panel open">
-                  <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
-                  <div className="fp-section">
-                    <div className="fp-section-head">
-                      <span className="fp-section-label">{t("Status")}</span>
-                      <button type="button" className="fp-reset" onClick={() => setSelStatus("")}>{t("Reset")}</button>
-                    </div>
-                    <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={selStatus} onChange={setSelStatus} dot />
-                  </div>
-                  <div className="fp-section">
-                    <div className="fp-section-head">
-                      <span className="fp-section-label">{t("Client")}</span>
-                      <button type="button" className="fp-reset" onClick={() => setSelClient("")}>{t("Reset")}</button>
-                    </div>
-                    <select
-                      value={selClient}
-                      onChange={(e) => setSelClient(e.target.value)}
-                      className="btn btn-secondary"
-                      style={{ width: "100%", height: 30, padding: "0 10px", fontSize: 12 }}
-                    >
-                      <option value="">{t("All clients")}</option>
-                      {(clients || []).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {!is_staff && (
-                    <div className="fp-section">
-                      <div className="fp-section-head">
-                        <span className="fp-section-label">{t("Staff")}</span>
-                        <button type="button" className="fp-reset" onClick={() => setSelStaff("")}>{t("Reset")}</button>
-                      </div>
-                      <select
-                        value={selStaff}
-                        onChange={(e) => setSelStaff(e.target.value)}
-                        className="btn btn-secondary"
-                        style={{ width: "100%", height: 30, padding: "0 10px", fontSize: 12 }}
-                      >
-                        <option value="">{t("All staff")}</option>
-                        {(staff_list || []).map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div className="fp-footer">
-                    <Button type="button" variant="ghost" size="sm" onClick={resetPanel}>{t("Reset all")}</Button>
-                    <Button type="button" size="sm" onClick={applyPanel}>{t("Apply")}</Button>
-                  </div>
-                </div>
+            <FilterPanel
+              count={(status_filter || client_filter || staff_filter) ? 1 : 0}
+              open={panelOpen}
+              onToggle={() => setPanelOpen((v) => !v)}
+              dirty={false}
+              onApply={applyPanel}
+              onResetAll={resetPanel}
+            >
+              <FilterSection label={t("Status")} onReset={() => setSelStatus("")}>
+                <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={selStatus} onChange={setSelStatus} dot />
+              </FilterSection>
+              <FilterSection label={t("Client")} onReset={() => setSelClient("")}>
+                <select
+                  value={selClient}
+                  onChange={(e) => setSelClient(e.target.value)}
+                  className="btn btn-secondary"
+                  style={{ width: "100%", height: 30, padding: "0 10px", fontSize: 12 }}
+                >
+                  <option value="">{t("All clients")}</option>
+                  {(clients || []).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </FilterSection>
+              {!is_staff && (
+                <FilterSection label={t("Staff")} onReset={() => setSelStaff("")}>
+                  <select
+                    value={selStaff}
+                    onChange={(e) => setSelStaff(e.target.value)}
+                    className="btn btn-secondary"
+                    style={{ width: "100%", height: 30, padding: "0 10px", fontSize: 12 }}
+                  >
+                    <option value="">{t("All staff")}</option>
+                    {(staff_list || []).map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </FilterSection>
               )}
-            </div>
+            </FilterPanel>
           </div>
         )}
       </div>
 
       {tab === "history" ? (
-        <div className="hms-list-card">
-          {visits && visits.length ? (
-            <>
-              <Table
-                columns={[
-                  { header: t("Client"), className: "col-m-primary", render: (v) => v.client_name || "—" },
-                  {
-                    header: t("Status"), className: "col-m-badge",
-                    render: (v) => <StatusPill tone={STATUS_TONE[v.status] || "yellow"} label={statusLabel(v.status, t)} />,
-                  },
-                  { header: t("Date"), className: "col-muted col-nowrap col-m-hide", render: (v) => v.scheduled_date + (v.time ? ` · ${v.time}` : "") },
-                  { header: t("Purpose"), className: "col-ellipsis col-m-secondary", render: (v) => v.purpose },
-                  { header: t("Staff"), className: "col-muted col-m-meta", render: (v) => v.staff_name || "—" },
-                  {
-                    header: "", className: "col-m-actions",
-                    render: (v) => (
-                      <RowActions actions={[
-                        v.status === "PLANNED" && perms.can("visits", "edit") &&
-                          { icon: "edit", label: t("Edit"), onClick: () => openForm(`/visits/${v.id}/edit/`) },
-                      ]} />
-                    ),
-                  },
-                ]}
-                rows={visits}
-                rowKey={(v) => v.id}
-                onRowClick={(v) => router.visit(`/visits/${v.id}/`)}
-              />
-              <Pagination pagination={pagination} unit={t("visits")} onPage={(p) => go({ page: p, tab: "history" })} />
-            </>
-          ) : (
-            <EmptyState iconName="visits" title="No visits yet" sub="Use the Filter panel or the + New Visit button in the top right" />
-          )}
-        </div>
+        <ListCard
+          columns={[
+            { header: t("Client"), className: "col-m-primary", render: (v) => v.client_name || "—" },
+            {
+              header: t("Status"), className: "col-m-badge",
+              render: (v) => <StatusPill tone={STATUS_TONE[v.status] || "yellow"} label={statusLabel(v.status, t)} />,
+            },
+            { header: t("Date"), className: "col-muted col-nowrap col-m-hide", render: (v) => v.scheduled_date + (v.time ? ` · ${v.time}` : "") },
+            { header: t("Purpose"), className: "col-ellipsis col-m-secondary", render: (v) => v.purpose },
+            { header: t("Staff"), className: "col-muted col-m-meta", render: (v) => v.staff_name || "—" },
+            {
+              header: "", className: "col-m-actions",
+              render: (v) => (
+                <RowActions actions={[
+                  v.status === "PLANNED" && perms.can("visits", "edit") &&
+                    { icon: "edit", label: t("Edit"), onClick: () => openForm(`/visits/${v.id}/edit/`) },
+                ]} />
+              ),
+            },
+          ]}
+          rows={visits}
+          rowKey={(v) => v.id}
+          onRowClick={(v) => router.visit(`/visits/${v.id}/`)}
+          empty={{
+            icon: "visits",
+            title: "No visits yet",
+            sub: "Use the Filter panel or the + New Visit button in the top right",
+          }}
+          pagination={pagination}
+          unit={t("visits")}
+          onPage={(p) => go({ page: p, tab: "history" })}
+        />
       ) : (
         <div className="hms-list-card" style={{ padding: 0 }}>
           {busy ? (

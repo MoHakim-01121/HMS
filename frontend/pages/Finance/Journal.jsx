@@ -4,7 +4,7 @@ import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
-import ListPager from "../../components/shadcn/list-pager.jsx";
+import Pagination from "../../components/shadcn/pagination.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
@@ -100,7 +100,7 @@ export default function Journal({
               rowKey={(e) => e.id}
               onRowClick={(e) => router.visit(`/finance/journal/${e.id}/`)}
             />
-            <ListPager page={page_num} numPages={num_pages} total={total} unit="entries" onPage={gotoPage} />
+            <Pagination page={page_num} numPages={num_pages} total={total} unit="entries" onPage={gotoPage} />
           </>
         ) : (
           <EmptyState iconName="invoice" title="No journal entries found" sub="No entries match your filters." />

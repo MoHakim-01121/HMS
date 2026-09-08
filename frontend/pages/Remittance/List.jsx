@@ -1,19 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { Icon } from "../../components/icons.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
-import EmptyState from "../../components/shadcn/empty-state.jsx";
+import ListCard from "../../components/shadcn/list-card.jsx";
+import SearchBox from "../../components/shadcn/search-box.jsx";
+import FilterPanel, { FilterSection } from "../../components/shadcn/filter-panel.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
+import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { listVisit } from "../../utils/listVisit.js";
@@ -29,19 +32,10 @@ const visit = (params) => listVisit("/remittance/", params);
 
 export default function List({ remittances, stats, status_filter, q, total_count, tracking, monthly }) {
   const { t } = useI18n();
-  const [query, setQuery] = useState(q || "");
   const [tab, setTab] = useState("transfers");
   const [panelOpen, setPanelOpen] = useState(false);
   const [sel, setSel] = useState(status_filter || "");
-  const debounce = useRef(null);
-  const first = useRef(true);
-
-  useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => visit({ q: query, status: status_filter || "" }), 350);
-    return () => clearTimeout(debounce.current);
-  }, [query]);
+  const { query, setQuery } = useDebouncedSearch(q, (qq) => visit({ q: qq, status: status_filter || "" }));
 
   const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
   const resetAll = () => { setQuery(""); setSel(""); setPanelOpen(false); visit({ q: "", status: "" }); };
@@ -61,6 +55,54 @@ export default function List({ remittances, stats, status_filter, q, total_count
     { key: "transfers", label: t("Transfers") },
     { key: "tracking", label: t("Tracking") },
     { key: "recap", label: t("Recap") },
+  ];
+
+  const columns = [
+    { header: t("Remittance No"), className: "col-m-primary col-nowrap", render: (rem) => rem.remittance_number },
+    {
+      header: t("Status"),
+      className: "col-m-badge",
+      render: (rem) => rem.status === "received" ? <StatusPill tone="green" label={t("Received")} /> : <StatusPill tone="yellow" label={t("Pending")} />,
+    },
+    { header: t("Date"), className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
+    {
+      header: t("Proof"),
+      className: "col-m-hide",
+      render: (rem) => (
+        <>
+          <span className="m-hide">
+            {rem.proof_url
+              ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{t("View")} ↗</a>
+              : "—"}
+          </span>
+          {rem.proof_url && <a href={rem.proof_url} target="_blank" rel="noreferrer" className="dv-link m-only" onClick={(e) => e.stopPropagation()}>{t("Proof")}</a>}
+        </>
+      ),
+    },
+    {
+      header: t("Total SAR"),
+      className: "mono col-m-amount",
+      style: { fontWeight: 600 },
+      render: (rem) => (
+        <>
+          <span className="m-hide">{fmt(rem.total_sar)} SAR</span>
+          <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
+          <span className="m-only">{fmt(rem.total_sar)} SAR</span>
+        </>
+      ),
+    },
+    {
+      header: "",
+      className: "col-m-actions",
+      render: (rem) => (
+        <RowActions actions={[
+          rem.status === "pending" && perms.can("remittance", "edit") && { icon: "check", label: t("Mark as Received"), variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
+          { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
+          perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
+          rem.status === "pending" && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
+        ]} />
+      ),
+    },
   ];
 
   return (
@@ -161,99 +203,40 @@ export default function List({ remittances, stats, status_filter, q, total_count
             </div>
           )}
 
-      <div className="filter-bar">
-        <div className="search-wrap">
-          <Icon name="search" size={13} />
-          <input type="text" value={query} placeholder={t("Search remittance number or reference…")} onChange={(e) => setQuery(e.target.value)} />
-          {query && <button type="button" className="sw-clear" title={t("Clear search")} onClick={() => setQuery("")}><Icon name="close" size={11} strokeWidth={2.5} /></button>}
-        </div>
-        <div className="fbar-actions">
-          <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="fbar-btn" onClick={() => setPanelOpen((v) => !v)}>
-              <Icon name="filter" size={13} /> {t("Filter")}
-              {status_filter && <span className="fbar-count">1</span>}
-            </button>
-            {panelOpen && (
-              <div className="filter-panel open">
-                <div className="fp-head"><span className="fp-title">{t("Filter")}</span></div>
-                <div className="fp-section">
-                  <div className="fp-section-head"><span className="fp-section-label">{t("Status")}</span><button type="button" className="fp-reset" onClick={() => setSel("")}>{t("Reset")}</button></div>
+          <div className="filter-bar">
+            <SearchBox value={query} onChange={setQuery} placeholder="Search remittance number or reference…" />
+            <div className="fbar-actions">
+              <FilterPanel
+                count={status_filter ? 1 : 0}
+                open={panelOpen}
+                onToggle={() => setPanelOpen((v) => !v)}
+                dirty={dirty}
+                onApply={apply}
+                onResetAll={resetAll}
+              >
+                <FilterSection label={t("Status")} onReset={() => setSel("")}>
                   <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
-                </div>
-                <div className="fp-footer">
-                  <Button type="button" variant="ghost" size="sm" onClick={resetAll}>{t("Reset all")}</Button>
-                  <Button type="button" size="sm" onClick={apply}>{dirty ? t("Apply changes") : t("Apply")}</Button>
-                </div>
-              </div>
-            )}
+                </FilterSection>
+              </FilterPanel>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <FilterChips chips={chips} onClearAll={resetAll} />
+          <FilterChips chips={chips} onClearAll={resetAll} />
 
-      <div className="hms-list-card">
-        {remittances.length ? (
-          <Table
-            columns={[
-              { header: t("Remittance No"), className: "col-m-primary col-nowrap", render: (rem) => rem.remittance_number },
-              {
-                header: t("Status"),
-                className: "col-m-badge",
-                render: (rem) => rem.status === "received" ? <StatusPill tone="green" label={t("Received")} /> : <StatusPill tone="yellow" label={t("Pending")} />,
-              },
-              { header: t("Date"), className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
-              {
-                header: t("Proof"),
-                className: "col-m-hide",
-                render: (rem) => (
-                  <>
-                    <span className="m-hide">
-                      {rem.proof_url
-                        ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{t("View")} ↗</a>
-                        : "—"}
-                    </span>
-                    {rem.proof_url && <a href={rem.proof_url} target="_blank" rel="noreferrer" className="dv-link m-only" onClick={(e) => e.stopPropagation()}>{t("Proof")}</a>}
-                  </>
-                ),
-              },
-              {
-                header: t("Total SAR"),
-                className: "mono col-m-amount",
-                style: { fontWeight: 600 },
-                render: (rem) => (
-                  <>
-                    <span className="m-hide">{fmt(rem.total_sar)} SAR</span>
-                    <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
-                    <span className="m-only">{fmt(rem.total_sar)} SAR</span>
-                  </>
-                ),
-              },
-              {
-                header: "",
-                className: "col-m-actions",
-                render: (rem) => (
-                  <RowActions actions={[
-                    rem.status === "pending" && perms.can("remittance", "edit") && { icon: "check", label: t("Mark as Received"), variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
-                    { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
-                    perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
-                    rem.status === "pending" && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
-                  ]} />
-                ),
-              },
-            ]}
+          <ListCard
+            columns={columns}
             rows={remittances}
             rowKey={(rem) => rem.id}
             onRowClick={(rem) => router.visit(`/remittance/${rem.id}/`)}
+            empty={{
+              icon: "invoice",
+              title: "No remittances yet",
+              sub: 'Click "+ New Transfer" to record a transfer to HQ',
+              filteredTitle: "No results",
+              filteredSub: "Try adjusting your search filters",
+            }}
+            hasFilter={!!(q || status_filter)}
           />
-        ) : (
-          <EmptyState
-            iconName="invoice"
-            title={(q || status_filter) ? "No results" : "No remittances yet"}
-            sub={(q || status_filter) ? "Try adjusting your search filters" : 'Click "+ New Transfer" to record a transfer to HQ'}
-          />
-        )}
-      </div>
         </>
       )}
 

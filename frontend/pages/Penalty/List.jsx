@@ -4,7 +4,7 @@ import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
-import ListPager from "../../components/shadcn/list-pager.jsx";
+import Pagination from "../../components/shadcn/pagination.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -101,7 +101,7 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
               rowKey={(p) => p.id}
               onRowClick={(p) => router.visit(`/penalty/${p.id}/`)}
             />
-            <ListPager total={total} unit="penalties" />
+            <Pagination total={total} unit="penalties" />
           </>
         ) : (
           <EmptyState iconName="invoice" title="No penalties found" sub="No penalties match your filters." />
