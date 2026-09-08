@@ -67,7 +67,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.middleware.gzip.GZipMiddleware',
     'hw.brotli_middleware.BrotliMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -141,7 +140,21 @@ CACHES = {
     }
 }
 
-WHITENOISE_IMMUTABLE_FILE_TEST = re.compile(r'.*\.[a-fA-F0-9]{8}\.[a-z]+$')
+# Matter which hasher produced the file: Django's ManifestFilesMixin appends a
+# 12-hex hash (style.3042d4c1e7e2.css), Vite's dist files use 8-hex. A single
+# regex (8-or-more hex) marks every content-hashed file immutable.
+WHITENOISE_IMMUTABLE_FILE_TEST = re.compile(r'.*\.[a-fA-F0-9]{8,}\.[a-z]+$')
+
+# In production, collectstatic runs under CompressedManifestStaticFilesStorage
+# so every collected file gets a content hash (see bin/startup.sh / Dockerfile);
+# that makes the 1-year WHITENOISE_MAX_AGE below genuinely safe even for the
+# hand-written hw/css/*.css files (previously non-hashed → stale-cache risk).
+if not DEBUG:
+    STORAGES = {
+        'staticfiles': {
+            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        },
+    }
 
 # H-1/H-0 guest reminders. Requires the hworkspace-qcluster.service worker
 # to be running (processes the queued WhatsApp sends) — verified deployed
@@ -298,6 +311,12 @@ SESSION_COOKIE_AGE = 3600  # 1 hour
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 
+# Who gets emailed on ERROR-level django.request logs (the mail_admins handler);
+# only populated when ADMIN_EMAILS is set in the environment, otherwise the
+# handler is harmless no-op (the mail_admins handler skips without ADMINS).
+ADMIN_EMAILS = get_list_env('ADMIN_EMAILS', [])
+ADMINS = [(email, email) for email in ADMIN_EMAILS]
+
 # Logging Configuration
 LOGGING = {
     'version': 1,
@@ -316,8 +335,12 @@ LOGGING = {
     'handlers': {
         'file': {
             'level': 'WARNING',
-            'class': 'logging.FileHandler',
+            # RotatingFileHandler instead of plain FileHandler: prevents the
+            # singular django.log from growing without bound in production.
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': str(BASE_DIR / 'logs' / 'django.log'),
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB
+            'backupCount': 5,
             'formatter': 'verbose',
         },
         'console': {

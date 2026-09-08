@@ -1,9 +1,15 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import ListPager from "../../components/shadcn/list-pager.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../../components/shadcn/ui/select.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -61,33 +67,32 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Penalties")}</h1>
-          <div className="page-sub">{t("All cancellation penalties across confirmation letters.")}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Penalties")}
+        sub={t("All cancellation penalties across confirmation letters.")}
+      />
 
       <div className="filter-bar">
-        <input
-          className="input w-64" style={{ height: 40 }}
+        <Input
+          className="w-64"
           placeholder={t("Search penalty / CL / client...")}
           value={vals.q}
           onChange={(e) => setVal("q", e.target.value)}
         />
-        <select
-          className="input w-36" style={{ height: 40 }}
-          value={vals.status}
-          onChange={(e) => setVal("status", e.target.value)}
-        >
-          <option value="">{t("All Status")}</option>
-          <option value="paid">{t("Paid")}</option>
-          <option value="unpaid">{t("Unpaid")}</option>
-        </select>
-        <button type="button" className="fp-apply" onClick={() => apply()}>{t("Apply")}</button>
+        <Select value={vals.status} onValueChange={(v) => setVal("status", v)}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder={t("All Status")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t("All Status")}</SelectItem>
+            <SelectItem value="paid">{t("Paid")}</SelectItem>
+            <SelectItem value="unpaid">{t("Unpaid")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button type="button" size="lg" onClick={() => apply()}>{t("Apply")}</Button>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {penalties.length > 0 ? (
           <>
             <Table

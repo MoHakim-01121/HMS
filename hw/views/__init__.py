@@ -25,11 +25,14 @@ from .services_views import (
     services_export_csv, services_list, services_list_pdf, services_new, services_pdf,
 )
 from .calendar_views import (
-    calendar_view, cl_estimasi_save, calendar_send_recap,
+    calendar_view, cl_estimasi_save,
+    calendar_checkin_pdf,
+)
+from .reminder_views import (
+    calendar_send_recap,
     calendar_send_reminder_group,
     wa_target_add, wa_target_toggle, wa_target_delete,
     message_template_save, calendar_recap_settings,
-    calendar_checkin_pdf,
 )
 from .billing_views import billing_send
 from .search_views import global_search
@@ -57,14 +60,18 @@ from .penalty_views import (
 )
 from .finance_views import (
     journal_list, journal_detail, trial_balance, statements_list,
+    client_finance_statement,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
 )
+from .receipt_views import (
+    receipt_void, receipt_pdf,
+)
 from .payment_views import (
     payment_list, payment_detail, payment_record_new, payment_record,
-    payment_confirm, payment_reject, payment_reverse,
-    client_finance_statement, payment_export_csv,
+    payment_confirm, payment_reject, payment_reverse, payment_reallocate,
+    payment_apply, payment_void, payment_export_csv,
 )
 from .dev_views import style_guide, health_check
 from .visit_views import (

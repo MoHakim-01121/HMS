@@ -1,4 +1,15 @@
-"""Ledger models: Charge, Allocation, CashMovement.
+"""[LEGACY / DEPRECATED] Ledger models: Charge, Allocation, CashMovement.
+
+Pernah menjadi sumber utama untuk wallet/piutang klien, namun kini DIGANTIKAN
+oleh general ledger baru (hw/models/journal.py + hw/finance/). Model di file ini
+SENGAJA dipertahankan untuk kompatibilitas dengan seeder/backfill dan data
+historis -- JANGAN menulis data baru melalui model ini pada fitur yang sudah
+ada padanannya di jurnal (lihat finance/posting.py & finance/queries.py).
+
+Contoh penggunaan aktif residual:
+- ``CashAccount`` dipakai oleh ``hw/views/client_views.py`` (REFUND_ACCOUNTS /
+  from_account pada refund) -- sedang ditransisikan ke chart of accounts.
+- ``Charge``/``Allocation``/``CashMovement`` hanya dibaca oleh backfill/check.
 
 Convention: all amount_sar fields are IntegerField (minor units, e.g. fils).
 """
@@ -8,7 +19,12 @@ from .choices import Company
 
 
 class CashAccount(models.TextChoices):
-    """Cash-routing destinations (legacy). See journal.py:Account for Chart of Accounts."""
+    """[LEGACY / DEPRECATED] Cash-routing destinations.
+
+    Masih dipakai oleh ``REFUND_ACCOUNTS`` di client_views.py untuk memilih
+    asal dana refund; sedang ditransisikan ke chart of accounts
+    (hw/finance/accounts.py). Lihat journal.py:Account untuk Chart of Accounts.
+    """
     CLIENT = 'client', 'Client'
     SBY    = 'sby',    'Surabaya'
     JKT    = 'jkt',    'Jakarta'
@@ -63,6 +79,9 @@ class LedgerEntryTarget(models.Model):
 
 
 class Charge(LedgerEntryTarget):
+    """[LEGACY / DEPRECATED] Ditulis ke general ledger via
+    finance/posting.post_invoice_charge/penalty_charge. READ-ONLY sia-sianya
+    (backfill/seed). Jangan menulis baru."""
     company    = models.CharField(max_length=20, choices=Company.choices, db_index=True)
     # Nullable: historical invoices frequently have no resolvable client (Invoice.client
     # FK was never populated by the form, and the linked ConfirmationLetter may also
@@ -94,6 +113,8 @@ class Charge(LedgerEntryTarget):
 
 
 class Allocation(LedgerEntryTarget):
+    """[LEGACY / DEPRECATED] Alokasi kas masuk/gabung. Dilihat/reversed via
+    jurnal (posting.allocate_payment / queries). READ-ONLY sia-sianya."""
     company        = models.CharField(max_length=20, choices=Company.choices, db_index=True)
     client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='allocations')
     date           = models.DateField(db_index=True)
@@ -121,6 +142,8 @@ class Allocation(LedgerEntryTarget):
 
 
 class CashMovement(models.Model):
+    """[LEGACY / DEPRECATED] Transfer kas. Pindah ke jurnal via
+    posting.post_fund_transfer / post_remittance_send. READ-ONLY sia-sianya."""
     company           = models.CharField(max_length=20, choices=Company.choices, db_index=True)
     client            = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cash_movements')
     date              = models.DateField(db_index=True)

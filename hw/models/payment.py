@@ -16,23 +16,34 @@ class PaymentRecord(models.Model):
     PaymentLog + reversing entry di JournalEntry.
     """
 
-    STATUS_PENDING   = 'pending'
-    STATUS_CONFIRMED = 'confirmed'
-    STATUS_ALLOCATED = 'allocated'
-    STATUS_REJECTED  = 'rejected'
-    STATUS_REVERSED  = 'reversed'
+    STATUS_PENDING          = 'pending'
+    STATUS_RECEIVED         = 'received'
+    STATUS_CONFIRMED        = 'confirmed'
+    STATUS_ALLOCATED        = 'allocated'
+    STATUS_PARTIALLY_APPLIED = 'partially_applied'
+    STATUS_APPLIED          = 'applied'
+    STATUS_REJECTED         = 'rejected'
+    STATUS_REVERSED         = 'reversed'
+    STATUS_VOIDED           = 'voided'
     STATUS_CHOICES = [
-        (STATUS_PENDING,   'Pending'),
-        (STATUS_CONFIRMED, 'Confirmed'),
-        (STATUS_ALLOCATED, 'Allocated'),
-        (STATUS_REJECTED,  'Rejected'),
-        (STATUS_REVERSED,  'Reversed'),
+        (STATUS_PENDING,          'Pending'),
+        (STATUS_RECEIVED,         'Received'),
+        (STATUS_CONFIRMED,        'Confirmed'),
+        (STATUS_ALLOCATED,        'Allocated'),
+        (STATUS_PARTIALLY_APPLIED, 'Partially Applied'),
+        (STATUS_APPLIED,          'Applied'),
+        (STATUS_REJECTED,         'Rejected'),
+        (STATUS_REVERSED,         'Reversed'),
+        (STATUS_VOIDED,           'Voided'),
     ]
 
     # Status yang punya efek jurnal (uang benar-benar masuk). Semua derivasi
     # angka pembayaran — footer invoice, riwayat, avg-days-to-pay — menyaring
     # ke daftar ini. Satu definisi, dipakai queries + model property.
-    EFFECTIVE_STATUSES = (STATUS_CONFIRMED, STATUS_ALLOCATED)
+    EFFECTIVE_STATUSES = (
+        STATUS_RECEIVED, STATUS_CONFIRMED, STATUS_ALLOCATED,
+        STATUS_PARTIALLY_APPLIED, STATUS_APPLIED,
+    )
 
     # Identitas
     payment_number = models.CharField(max_length=50, unique=True, db_index=True)
@@ -103,21 +114,25 @@ class PaymentRecord(models.Model):
     def is_editable(self):
         return self.status == self.STATUS_PENDING
 
+    def derive_status(self):
+        """Compute derived status from allocation sum vs amount.
+
+        Call after allocations are created/updated to set the correct
+        status: applied (fully allocated), partially_applied, or received.
+        """
+        total_alloc = self.allocations.aggregate(
+            total=models.Sum('amount_sar')
+        )['total'] or 0
+        if total_alloc >= self.amount_sar:
+            return self.STATUS_APPLIED
+        if total_alloc > 0:
+            return self.STATUS_PARTIALLY_APPLIED
+        return self.STATUS_RECEIVED
+
     @staticmethod
     def generate_number():
-        from django.db import transaction
-        with transaction.atomic():
-            nums = []
-            for num_str in PaymentRecord.objects.select_for_update().filter(
-                payment_number__startswith='PAY-',
-            ).values_list('payment_number', flat=True):
-                parts = num_str.split('-')
-                if len(parts) == 2:
-                    try:
-                        nums.append(int(parts[1]))
-                    except ValueError:
-                        pass
-            return f"PAY-{(max(nums) + 1 if nums else 1):04d}"
+        from ..numbering import generate_sequential_number
+        return generate_sequential_number(PaymentRecord, 'PAY', field='payment_number', padding=4)
 
 
 class PaymentAllocation(models.Model):
@@ -165,18 +180,24 @@ class PaymentLog(models.Model):
     """
 
     ACTION_CREATED   = 'created'
+    ACTION_RECEIVED  = 'received'
     ACTION_CONFIRMED = 'confirmed'
     ACTION_ALLOCATED = 'allocated'
+    ACTION_APPLIED   = 'applied'
     ACTION_REJECTED  = 'rejected'
     ACTION_UPDATED   = 'updated'
     ACTION_REVERSED  = 'reversed'
+    ACTION_VOIDED    = 'voided'
     ACTION_CHOICES = [
         (ACTION_CREATED,   'Created'),
+        (ACTION_RECEIVED,  'Received'),
         (ACTION_CONFIRMED, 'Confirmed'),
         (ACTION_ALLOCATED, 'Allocated'),
+        (ACTION_APPLIED,   'Applied'),
         (ACTION_REJECTED,  'Rejected'),
         (ACTION_UPDATED,   'Updated'),
         (ACTION_REVERSED,  'Reversed'),
+        (ACTION_VOIDED,    'Voided'),
     ]
 
     payment        = models.ForeignKey(PaymentRecord, on_delete=models.CASCADE, related_name='logs')

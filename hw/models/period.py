@@ -83,28 +83,43 @@ class FinancialPeriod(models.Model):
 
     def close(self, user):
         """Tutup periode. Tidak bisa dibuka lagi."""
-        if self.status not in (self.STATUS_OPEN, self.STATUS_SOFT_CLOSE):
-            raise ValueError("Periode sudah ditutup/locked")
+        from django.db import transaction
 
-        # Validate all journal entries in this period are balanced.
-        # JournalEntry has no stored status/total fields — every entry is
-        # posted at creation (create_journal_entry() enforces balance
-        # before and after save), so re-check via the line aggregate here.
-        from .journal import JournalEntry
-        unbalanced_ids = []
-        for entry in JournalEntry.objects.filter(period=self).prefetch_related('lines'):
-            if not entry.is_balanced:
-                unbalanced_ids.append(entry.entry_number)
-        if unbalanced_ids:
-            raise ValueError(
-                f"Ada {len(unbalanced_ids)} journal entry yang tidak seimbang: "
-                f"{', '.join(unbalanced_ids)}. Harus diselesaikan dulu."
-            )
+        with transaction.atomic():
+            # Lock this period row so a concurrent post_entry (which also locks
+            # the period via get_period_for_date) cannot slip an entry into the
+            # period between our balance sweep and the status flip.
+            locked = type(self).objects.select_for_update().get(pk=self.pk)
+            if locked.status not in (self.STATUS_OPEN, self.STATUS_SOFT_CLOSE):
+                raise ValueError("Periode sudah ditutup/locked")
 
-        self.status = self.STATUS_CLOSED
-        self.closed_by = user
-        self.closed_at = timezone.now()
-        self.save(update_fields=['status', 'closed_by', 'closed_at'])
+            # Validate all journal entries in this period are balanced.
+            # JournalEntry has no stored status/total fields — every entry is
+            # posted at creation (create_journal_entry() enforces balance
+            # before and after save), so re-check via the line aggregate here.
+            from .journal import JournalEntry
+            unbalanced_ids = [
+                e.entry_number
+                for e in JournalEntry.objects.filter(period=locked)
+                .prefetch_related('lines')
+                if not e.is_balanced
+            ]
+            if unbalanced_ids:
+                raise ValueError(
+                    f"Ada {len(unbalanced_ids)} journal entry yang tidak seimbang: "
+                    f"{', '.join(unbalanced_ids)}. Harus diselesaikan dulu."
+                )
+
+            locked.status = self.STATUS_CLOSED
+            locked.closed_by = user
+            locked.closed_at = timezone.now()
+            locked.save(update_fields=['status', 'closed_by', 'closed_at'])
+
+            # Sinkronkan status ke instance pemanggil — lock()/views/test
+            # membaca `self.status` setelah close() tanpa re-fetch.
+            self.status = locked.status
+            self.closed_by = locked.closed_by
+            self.closed_at = locked.closed_at
 
     def lock(self, user):
         """Lock periode. Irreversible."""

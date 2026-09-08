@@ -1,14 +1,11 @@
-﻿import csv
-import json
+﻿import json
 import logging
 from datetime import date, timedelta
-from django.utils import timezone
 
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
@@ -23,8 +20,12 @@ from .helpers import (
     _parse_date,
     _render_list_pdf,
     _to_float,
+    csv_export_response,
+    due_soon_alert,
     get_active_company,
     pagination_props,
+    snapshot_fields,
+    track_changes,
 )
 from .invoice_billing import _billing_client, _billing_props, _save_service_payments
 from .pdf import _render_services_pdf
@@ -142,16 +143,7 @@ def services_detail(request, pk):
         "proof_url": p["proof"].url if p["proof"] else None,
     } for p in payments_raw]
 
-    # Same rule as invoice_detail: only warn while money is still owed.
-    due_alert = None
-    if invoice.due_date and services_remaining > 0:
-        days = (invoice.due_date - timezone.now().date()).days
-        if days < 0:
-            due_alert = {"type": "red", "msg": f"Payment is {abs(days)} day(s) overdue."}
-        elif days == 0:
-            due_alert = {"type": "red", "msg": "Due today!"}
-        elif days <= 7:
-            due_alert = {"type": "yellow", "msg": f"Due in {days} day(s)."}
+    due_alert = due_soon_alert(invoice.due_date, services_remaining)
 
     return inertia_render(request, "Services/Detail", props={
         "invoice": {
@@ -178,14 +170,7 @@ def services_edit(request, pk):
     invoice = _get_service_invoice(request, pk)
 
     if request.method == "POST":
-        _before = {
-            'Customer Name': invoice.customer_name,
-            'Invoice No.':   invoice.invoice_number,
-            'Issued Date':   str(invoice.issued_date or ''),
-            'Due Date':      str(invoice.due_date or ''),
-            'Currency':      invoice.currency,
-            'Company':       invoice.company,
-        }
+        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency', 'company'])
         new_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
             echo = _services_echo(request)
@@ -213,15 +198,11 @@ def services_edit(request, pk):
             invoice.service_items.all().delete()
             _save_service_items(invoice, request)
             _save_service_payments(invoice, request)
-        _after = {
-            'Customer Name': invoice.customer_name,
-            'Invoice No.':   invoice.invoice_number,
-            'Issued Date':   str(invoice.issued_date or ''),
-            'Due Date':      str(invoice.due_date or ''),
-            'Currency':      invoice.currency,
-            'Company':       invoice.company,
-        }
-        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency', 'company'])
+        changes = track_changes(
+            _before, _after,
+            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'currency': 'Currency', 'company': 'Company'},
+        )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Services', invoice.invoice_number, invoice.company, changes)
         messages.success(request, f"Services Invoice {invoice.invoice_number} updated successfully.")
         return redirect("services_detail", pk=invoice.pk)
@@ -278,17 +259,12 @@ def services_export_csv(request):
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="invoices_services.csv"'
-    response.write('﻿')
-    writer = csv.writer(response)
-    writer.writerow(['Invoice #', 'Company', 'Customer', 'Currency', 'Issued Date', 'Due Date'])
-    for inv in qs:
-        writer.writerow([
-            inv.invoice_number, inv.company, inv.customer_name,
-            inv.currency, inv.issued_date or '', inv.due_date or '',
-        ])
-    return response
+    headers = ['Invoice #', 'Company', 'Customer', 'Currency', 'Issued Date', 'Due Date']
+    rows = ([
+        inv.invoice_number, inv.company, inv.customer_name,
+        inv.currency, inv.issued_date or '', inv.due_date or '',
+    ] for inv in qs)
+    return csv_export_response('invoices_services.csv', headers, rows)
 
 
 @require_perm('services', 'create')

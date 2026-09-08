@@ -6,7 +6,7 @@
 //
 // No leading dot: the tint and the label already carry the status, so the dot
 // was redundant decoration. The `dot` prop is gone with it.
-const TONES = { green: "tone-green", yellow: "tone-yellow", red: "tone-red", blue: "tone-blue", purple: "tone-purple", gray: "tone-gray" };
+const TONES = { green: "tone-green", yellow: "tone-yellow", red: "tone-red", blue: "tone-blue", purple: "tone-purple", orange: "tone-orange", gray: "tone-gray" };
 
 // Homlu v2.1 badge. Filled by default (document-cycle status); pass
 // `outline` for derived tags (currency code, role) and `gray` tone for

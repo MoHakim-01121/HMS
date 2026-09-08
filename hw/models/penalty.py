@@ -41,16 +41,5 @@ class CancellationPenalty(models.Model):
 
     @classmethod
     def generate_number(cls):
-        from django.db import transaction
-        with transaction.atomic():
-            nums = []
-            for num_str in cls.objects.select_for_update().filter(
-                penalty_number__startswith='PNL-',
-            ).values_list('penalty_number', flat=True):
-                parts = num_str.split('-')
-                if len(parts) == 2:
-                    try:
-                        nums.append(int(parts[1]))
-                    except ValueError:
-                        pass
-            return f"PNL-{(max(nums) + 1 if nums else 1):03d}"
+        from ..numbering import generate_sequential_number
+        return generate_sequential_number(cls, 'PNL', field='penalty_number', padding=3)

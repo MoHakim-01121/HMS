@@ -7,6 +7,8 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 /** "6 modules · 24 permissions" — enough to tell two roles apart at a glance. */
@@ -72,21 +74,19 @@ export default function List({ roles = [], modules = [], current_role }) {
   return (
     <div className="page shadcn-root">
       <PageBack href="/users/" />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Roles")}</h1>
-          <div className="page-sub">
-            {t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}
-          </div>
-        </div>
-        <div className="page-actions">
-          <Link href="/roles/new/" className="btn btn-primary">
-            + {t("New role")}
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Roles")}
+        sub={t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}
+        actions={
+          <Button asChild size="lg">
+            <Link href="/roles/new/">
+              + {t("New role")}
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="card">
+      <div className="hms-list-card">
         <Table
           columns={[
             {
@@ -95,9 +95,9 @@ export default function List({ roles = [], modules = [], current_role }) {
               render: (r) => (
                 <>
                   {r.label}
-                  {r.locked && <span className="badge badge-blue" style={{ marginLeft: 6 }}>{t("Locked")}</span>}
-                  {!r.locked && r.is_system && <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t("Built-in")}</span>}
-                  {r.slug === current_role && <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t("Yours")}</span>}
+                  {r.locked && <span style={{ marginLeft: 6 }}><StatusPill tone="blue" label={t("Locked")} /></span>}
+                  {!r.locked && r.is_system && <span style={{ marginLeft: 6 }}><StatusPill tone="gray" label={t("Built-in")} /></span>}
+                  {r.slug === current_role && <span style={{ marginLeft: 6 }}><StatusPill tone="gray" label={t("Yours")} /></span>}
                 </>
               ),
             },
@@ -126,7 +126,7 @@ export default function List({ roles = [], modules = [], current_role }) {
             {
               header: t("Accounts"),
               className: "col-m-badge",
-              render: (r) => <span className="badge badge-gray">{r.user_count}</span>,
+              render: (r) => <StatusPill tone="gray" label={String(r.user_count)} small />,
             },
             {
                 header: "",

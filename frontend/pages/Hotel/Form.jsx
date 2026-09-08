@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useForm } from "@inertiajs/react";
-import { loadLeaflet } from "../../utils/leaflet.js";
+import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
@@ -58,9 +58,7 @@ export default function HotelForm({ hotel, edit }) {
       const initLng = parseFloat(inpLng.value) || HARAM[1];
 
       map = L.map("pick-map", { zoomControl: true }).setView([initLat, initLng], 15);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap © CartoDB", subdomains: "abcd", maxZoom: 19,
-      }).addTo(map);
+      L.tileLayer(basemapUrl(document.documentElement.getAttribute("data-theme")), basemapOptions).addTo(map);
 
       const dot = (size, color, glow) => L.divIcon({
         className: "",

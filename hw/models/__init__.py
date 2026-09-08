@@ -7,8 +7,8 @@ from .confirmation import ConfirmationLetter, Room
 from .invoice import (
     Invoice, Reservation, ServiceItem, Payment,
     Attachment, _attachment_path,
-    Remittance, RemittanceLine,
 )
+from .remittance import Remittance, RemittanceLine
 from .ledger import CashAccount, ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
@@ -16,6 +16,7 @@ from .reminder import ReminderLog, RecapLog, WATarget, MessageTemplate
 from .billing import BillingLog
 from .visit import Visit, VisitPhoto
 from .landing import Pricelist, TeamMember
+from .receipt import Receipt
 
 # ── Finance Redesign (new models) ──────────────────────────────
 from .period import FinancialPeriod
@@ -34,6 +35,7 @@ __all__ = [
     'ConfirmationLetter', 'Room',
     # Invoice (legacy — kept for backward compat during migration)
     'Invoice', 'Reservation', 'ServiceItem', 'Payment', 'Attachment', '_attachment_path',
+    # Remittance
     'Remittance', 'RemittanceLine',
     # Ledger (legacy — kept for backward compat during migration)
     'CashAccount', 'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
@@ -49,6 +51,8 @@ __all__ = [
     'Visit', 'VisitPhoto',
     # Landing
     'Pricelist', 'TeamMember',
+    # Receipt
+    'Receipt',
     # ── Finance Redesign ──
     'FinancialPeriod',
     'PaymentRecord', 'PaymentLog', 'PaymentAllocation',

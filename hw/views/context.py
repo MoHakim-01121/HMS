@@ -44,6 +44,17 @@ def _build_reservation_context(invoice):
     return result
 
 
+def _build_invoice_unallocated_context(invoice):
+    """Info pembayaran yang diterima tapi belum dialokasikan ke reservasi.
+
+    Dipakai invoice detail & payment record dialog supaya user tahu ada sisa
+    yang mengambang (belum tentukan alokasinya) dan bisa dialokasikan nanti."""
+    unallocated = fq.invoice_unallocated_sar(invoice.id)
+    return {
+        "unallocated_int": unallocated,
+    }
+
+
 def _build_visa_services_context(invoice):
     main_currency = invoice.currency
     payments_by_svc = {}

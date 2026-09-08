@@ -1,4 +1,7 @@
-from datetime import datetime
+import csv
+import re
+from datetime import date, datetime
+
 import magic
 
 from django.http import HttpResponse
@@ -175,3 +178,112 @@ def journal_line_dimension(line):
     if getattr(line, 'penalty_id', None):
         return line.penalty.penalty_number
     return ''
+
+
+# ── CSV Export ────────────────────────────────────────────────────────
+
+
+def csv_export_response(filename, headers, rows, encoding='utf-8', bom=True):
+    """Create a CSV download response with standard writer boilerplate.
+
+    Parameters
+    ----------
+    filename : str
+        Output filename (e.g. ``'invoices.csv'``).
+    headers : list[str]
+        Column headers.
+    rows : iterable[list|tuple]
+        One row per item.
+    encoding : str
+        Charset (default ``utf-8``).  ``utf-8-sig`` is the Excel-friendly
+        variant; combine it with ``bom=False`` so the charset itself emits
+        the byte-order mark instead of us writing it twice.
+    bom : bool
+        Whether to prepend a UTF-8 byte-order mark (default ``True``).
+    """
+    response = HttpResponse(content_type=f'text/csv; charset={encoding}')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    if bom and encoding.lower() != 'utf-8-sig':
+        response.write('\ufeff')
+    writer = csv.writer(response)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return response
+
+
+# ── Change Tracking ──────────────────────────────────────────────────
+
+
+def snapshot_fields(obj, fields):
+    """Return a dict of ``{field: value}`` for the given field names.
+
+    ``date``/``datetime`` values are serialized to strings so the resulting
+    snapshot is JSON-serializable (matching how the activity log stores it).
+    """
+    snapshot = {}
+    for f in fields:
+        value = getattr(obj, f, None)
+        if isinstance(value, (datetime, date)):
+            value = value.isoformat()
+        snapshot[f] = value
+    return snapshot
+
+
+def track_changes(before, after, labels=None):
+    """Compare two field snapshots and return a list of changes.
+
+    Parameters
+    ----------
+    before : dict
+        Snapshot before the edit (from ``snapshot_fields``).
+    after : dict
+        Snapshot after the edit.
+    labels : dict, optional
+        Human-readable labels, e.g. ``{'name': 'Name'}``.
+
+    Returns
+    -------
+    list[dict]
+        ``[{'label': str, 'before': ..., 'after': ...}, ...]``
+    """
+    labels = labels or {}
+    changes = []
+    for key in before:
+        if before[key] != after[key]:
+            changes.append({
+                'label': labels.get(key, key),
+                'before': before[key],
+                'after': after[key],
+            })
+    return changes
+
+
+# ── Due-Soon Alert ───────────────────────────────────────────────────
+
+
+def due_soon_alert(due_date, remaining=0):
+    """Check if a due date is approaching or overdue.
+
+    Parameters
+    ----------
+    due_date : datetime.date or None
+    remaining : int
+        Outstanding amount — alert is suppressed when fully paid.
+
+    Returns
+    -------
+    dict or None
+        ``{'type': 'red'|'yellow', 'msg': str}`` or ``None``.
+    """
+    if not due_date or remaining <= 0:
+        return None
+
+    days = (due_date - date.today()).days
+
+    if days < 0:
+        return {'type': 'red', 'msg': f'Payment is {abs(days)} day(s) overdue.'}
+    if days == 0:
+        return {'type': 'red', 'msg': 'Due today!'}
+    if days <= 7:
+        return {'type': 'yellow', 'msg': f'Due in {days} day(s).'}
+    return None

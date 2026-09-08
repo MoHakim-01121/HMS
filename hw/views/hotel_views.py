@@ -11,7 +11,7 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, log_activity
 from ..permissions import require_perm
-from .helpers import _is_mobile, get_active_company, pagination_props
+from .helpers import _is_mobile, get_active_company, pagination_props, snapshot_fields, track_changes
 
 
 def _save_hotel(h, data):
@@ -100,10 +100,13 @@ def hotel_new(request):
 def hotel_edit(request, pk):
     h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
     if request.method == 'POST':
-        _before = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
+        _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
-        _after  = {'Nama': h.name, 'Kota': h.city, 'Area': h.area, 'Bintang': str(h.stars)}
-        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        _after = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
+        changes = track_changes(
+            _before, _after,
+            labels={'name': 'Nama', 'city': 'Kota', 'area': 'Area', 'stars': 'Bintang'},
+        )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name, h.company, changes)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={

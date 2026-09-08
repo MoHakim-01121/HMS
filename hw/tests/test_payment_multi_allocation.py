@@ -8,10 +8,11 @@ PaymentRecord whose SAR amount was re-divided by the (non-SAR) exchange
 rate — producing "Allocation (10.000) != Amount (48.000.000)".
 """
 import json
+import base64
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.contrib.messages import get_messages
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from hw.models import Client, Invoice, Reservation, PaymentRecord, PaymentAllocation
@@ -40,7 +41,7 @@ class MultiAllocationSaveTest(TestCase):
         )
 
     def _post(self, amount, allocations, currency='SAR', exchange_rate='1'):
-        return self.client.post('/finance/payments/record/', {
+        payload = {
             'invoice_id': self.invoice.pk,
             'payment_date': '2026-08-21',
             'amount': str(amount),
@@ -49,7 +50,15 @@ class MultiAllocationSaveTest(TestCase):
             'received_in': 'sby',
             'method': 'Transfer',
             'allocations': json.dumps(allocations),
-        }, follow=True)
+        }
+        payload['proof'] = SimpleUploadedFile(
+            'proof.png',
+            base64.b64decode(
+                'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+            ),
+            content_type='image/png',
+        )
+        return self.client.post('/finance/payments/record/', payload, follow=True)
 
     def test_all_rows_become_one_record_plus_allocations(self):
         resp = self._post(1500, [
@@ -62,7 +71,7 @@ class MultiAllocationSaveTest(TestCase):
         p = payments[0]
         self.assertEqual(p.amount, 1500)
         self.assertEqual(p.amount_sar, 1500)
-        self.assertEqual(p.status, PaymentRecord.STATUS_ALLOCATED)
+        self.assertEqual(p.status, PaymentRecord.STATUS_APPLIED)
 
         allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
         self.assertEqual(

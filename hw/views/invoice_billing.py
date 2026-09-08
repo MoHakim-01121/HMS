@@ -35,7 +35,24 @@ def _save_payments(invoice, request, default_currency):
     with transaction.atomic():
         # Full delete-recreate daftar pembayaran: reverse dulu semua journal
         # payment untuk invoice ini, lalu re-post dari baris baru.
-        reverse_invoice_payments(invoice, created_by=request.user)
+        #
+        # Tanggal reversal = tanggal pembayaran baru TERAWAL (bukan "hari ini"
+        # default) supaya reversal + repost selalu jatuh di periode yang sama.
+        # Kalau tanggal itu berada di periode terkunci, reverse_entry melempar
+        # PeriodLockedError → seluruh blok rollback → pesan error jelas ke user,
+        # tidak ada mutasi parsial (sebelumnya reversal tercatat di periode
+        # berbeda dari repost, mengotori ledger walau posting akhirnya gagal).
+        new_rows = [r for r in rows if _to_float(r.get('amount'))]
+        rev_date = None
+        if new_rows:
+            dates = [
+                _parse_date(r.get('date')) or invoice.issued_date or datetime.now().date()
+                for r in new_rows
+            ]
+            rev_date = min(dates)
+        reverse_invoice_payments(
+            invoice, created_by=request.user, entry_date=rev_date,
+        )
 
         # Dimensi client untuk jurnal: client tunggal dari CL, kalau CL ambigu
         # (menunjuk >1 client) jatuh ke invoice.client yang dipilih user di form.

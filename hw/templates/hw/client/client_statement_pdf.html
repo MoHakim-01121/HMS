@@ -47,14 +47,14 @@
     thead th {
       text-align: left;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 400;
       color: #333;
-      padding: 6px 8px;
-      border: 1px solid #ddd;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #111;
       white-space: nowrap;
     }
     thead th.r { text-align: right; }
-    tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+    tbody td { padding: 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
     tbody td.r { text-align: right; }
     .mono { font-family: 'Courier New', monospace; font-size: 11px; }
     .nowrap { white-space: nowrap; }
@@ -69,29 +69,47 @@
 
     tbody tr { break-inside: avoid; page-break-inside: avoid; }
     tr.opening-row td {
-      background: #fafafa;
       font-weight: 700;
       font-size: 10.5px;
       color: #444;
     }
-    tr.total-row td {
-      padding: 6px 8px;
-      border: 1px solid #ddd;
-      font-weight: 700;
-      color: #111;
-      font-size: 11.5px;
-    }
-    tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
 
     .summary {
-      margin-top: 20px;
+      margin-top: 16px;
       display: flex;
-      justify-content: flex-end;
-      gap: 32px;
+      flex-direction: column;
+      align-items: flex-end;
     }
-    .summary-box { text-align: right; }
-    .summary-box .sk { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: .5px; }
-    .summary-box .sv { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .summary-title {
+      align-self: flex-end;
+      font-size: 12px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 2px;
+    }
+    .sum-row {
+      display: flex;
+      gap: 0;
+      padding: 2px 0;
+      font-size: 12px;
+      width: 320px;
+    }
+    .sum-row:first-of-type { border-top: 1px solid #ddd; padding-top: 3px; margin-top: 2px; }
+    .sum-row .lbl { flex: 1; color: #555; text-align: left; }
+    .sum-row .lbl .sub { font-size: 10px; color: #999; font-weight: 400; }
+    .sum-row .val { width: 120px; text-align: right; color: #111; white-space: nowrap; }
+    .sum-row.main {
+      border-top: 1px solid #ddd;
+      border-bottom: 2px solid #111;
+      margin-top: 4px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .sum-row.main .lbl,
+    .sum-row.main .val { font-weight: 700; color: #111; }
+    .v-due  { color: #dc2626; }
+    .v-cred { color: #15803d; }
+    .v-zero { color: #111; }
 
     .note {
       margin-top: 24px;
@@ -102,6 +120,24 @@
       padding-top: 10px;
     }
     .note b { color: #333; }
+
+    .contact {
+      margin-top: 24px;
+      font-size: 9.5px;
+      color: #444;
+      line-height: 1.7;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    .contact .ck {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: #666;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .contact b { color: #333; }
 
     .watermark {
       position: fixed;
@@ -128,12 +164,14 @@
   <div class="meta-row"><span class="mk">Client</span><span class="mv">{{ client.name }}</span></div>
   <div class="meta-row"><span class="mk">Periode</span><span class="mv">{{ period_label }}</span></div>
   <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
+  {% if client.pic %}<div class="meta-row"><span class="mk">PIC</span><span class="mv">{{ client.pic }}</span></div>{% endif %}
 </div>
 
 <table>
   <thead>
     <tr>
       <th class="nowrap">Tanggal</th>
+      <th>No. Invoice</th>
       <th>Keterangan</th>
       <th class="r">Debit (SAR)</th>
       <th class="r">Credit (SAR)</th>
@@ -143,13 +181,14 @@
   <tbody>
     {% if opening_balance %}
     <tr class="opening-row">
-      <td colspan="4">Saldo awal periode</td>
+      <td colspan="5">Saldo awal periode</td>
       <td class="r mono">{{ opening_balance|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
     {% for row in rows %}
     <tr>
       <td class="nowrap">{{ row.date }}</td>
+      <td class="nowrap mono">{{ row.invoice_number|default:"—" }}</td>
       <td>
         {{ row.description }}
         {% if row.type == 'memo' %}<div class="sub">Transfer — tidak mengubah saldo</div>{% endif %}
@@ -167,25 +206,28 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">Tidak ada transaksi pada periode ini</td></tr>
+    <tr><td colspan="6" style="text-align:center;color:#999;padding:24px;">Tidak ada transaksi pada periode ini</td></tr>
     {% endfor %}
-    {% if rows %}
-    <tr class="total-row">
-      <td colspan="2" class="label">Total periode</td>
-      <td class="r mono">{{ total_debit|floatformat:0|intcomma }}</td>
-      <td class="r mono">{{ total_credit|floatformat:0|intcomma }}</td>
-      <td class="r mono">{{ closing_balance|floatformat:0|intcomma }}</td>
-    </tr>
-    {% endif %}
   </tbody>
 </table>
 
 <div class="summary">
-  <div class="summary-box">
-    <div class="sk">Saldo Akhir</div>
-    <div class="sv" style="color: {% if closing_balance > 0 %}#dc2626{% elif closing_balance < 0 %}#b45309{% else %}#15803d{% endif %};">
-      {{ closing_balance|floatformat:0|intcomma }} SAR
-    </div>
+  <div class="summary-title">Ringkasan Akun (SAR)</div>
+  <div class="sum-row">
+    <span class="lbl">Saldo Awal</span>
+    <span class="val">{{ opening_balance|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Tagihan <span class="sub">(billed)</span></span>
+    <span class="val">{{ total_debit|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Pembayaran <span class="sub">(received)</span></span>
+    <span class="val">−{{ total_credit|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row main">
+    <span class="lbl">Saldo Terhutang</span>
+    <span class="val {% if closing_balance > 0 %}v-due{% elif closing_balance < 0 %}v-cred{% else %}v-zero{% endif %}">{{ closing_balance|floatformat:0|intcomma }}</span>
   </div>
 </div>
 
@@ -195,6 +237,13 @@
   memindahkan dana antar reservasi tanpa mengubah saldo total. Statement ini dikunci per tanggal
   cetak — koreksi yang dicatat setelah tanggal generate di atas tidak memengaruhi angka pada
   cetakan ini.
+</div>
+
+<div class="contact">
+  <div class="ck">Pembayaran &amp; Kontak</div>
+  Konoz United Surabaya — Jl. Ikan Mungsing VII No.51, Perak Bar., Kec. Krembangan, Surabaya 60177
+  <br><b>Pembayaran / pertanyaan:</b> konozsurabaya@gmail.com
+  {% if client.pic %}<br><b>PIC:</b> {{ client.pic }}{% endif %}
 </div>
 
 </body>

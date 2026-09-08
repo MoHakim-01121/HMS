@@ -67,6 +67,125 @@ class QueriesTests(TestCase):
         self.assertEqual(st["closing_balance"], 60000)  # 100k charge - 40k paid
         self.assertEqual(st["rows"][0]["balance"], 100000)
 
+    def test_client_statement_carries_invoice_number(self):
+        st = q.client_statement(self.client_obj.id)
+        charge_row = st["rows"][0]
+        self.assertEqual(charge_row["invoice_number"], "INV-Q1")
+        self.assertEqual(charge_row["debit"], 100000)
+        self.assertEqual(charge_row["credit"], 0)
+
+    def test_client_statement_with_opening(self):
+        self._pay(20000)
+        st = q.client_statement_with_opening(
+            self.client_obj.id, date_from=date(2046, 1, 6),
+        )
+        # Charge 01/05 falls before date_from → opening. Payment 02/01 after.
+        self.assertEqual(st["opening_balance"], 100000)
+        self.assertEqual(st["closing_balance"], 80000)
+        self.assertEqual(st["rows"][0]["balance"], 80000)
+
+    def test_client_aging_buckets(self):
+        from datetime import datetime, time as dt_time
+        from django.utils import timezone as dj_tz
+        as_of = dj_tz.make_aware(datetime(2046, 6, 1))
+        st = q.client_aging(self.client_obj.id, as_of=as_of)
+        # Charge 100k on 01/05, due-date fallback issued (01/05) → ~150 days old
+        self.assertEqual(st["total"], 100000)
+        self.assertEqual(st["buckets"]["90_plus"], 100000)
+        self.assertEqual(len(st["invoices"]), 1)
+        self.assertEqual(st["invoices"][0]["invoice_number"], "INV-Q1")
+
+    def test_client_aging_after_full_payment(self):
+        self._pay(100000)
+        st = q.client_aging(self.client_obj.id)
+        self.assertEqual(st["total"], 0)
+        self.assertEqual(st["invoices"], [])
+
+    def test_open_items_partial(self):
+        self._pay(40000)
+        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        self.assertEqual(oi["total_remaining"], 60000)
+        self.assertEqual(len(oi["rows"]), 1)
+        row = oi["rows"][0]
+        self.assertEqual(row["invoice_number"], "INV-Q1")
+        self.assertEqual(row["billed"], 100000)
+        self.assertEqual(row["paid"], 40000)
+        self.assertEqual(row["remaining"], 60000)
+
+    def test_open_items_full_payment_omitted(self):
+        self._pay(100000)
+        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        self.assertEqual(oi["total_remaining"], 0)
+        self.assertEqual(oi["rows"], [])
+
+    def test_open_items_overdue_flag(self):
+        # due_date in the (real) past → flag overdue.
+        self.invoice.due_date = date(2020, 2, 1)
+        self.invoice.save()
+        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        self.assertEqual(len(oi["rows"]), 1)
+        self.assertTrue(oi["rows"][0]["overdue"])
+
+    def test_open_items_reconciles_with_statement(self):
+        self._pay(75000)
+        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        st = q.client_statement(self.client_obj.id)
+        self.assertEqual(oi["total_remaining"], 25000)
+        self.assertEqual(st["closing_balance"], 25000)
+
+    def test_statement_by_reservation_groups_and_reconciles(self):
+        self._pay(40000)
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(len(st["reservations"]), 1)
+        g = st["reservations"][0]
+        self.assertEqual(g["reservation_number"], "R-Q1")
+        self.assertEqual(g["billed"], 100000)
+        self.assertEqual(g["paid"], 40000)
+        self.assertEqual(g["balance"], 60000)
+        self.assertFalse(g["settled"])
+        self.assertEqual(st["unallocated"], 0)
+        self.assertEqual(st["closing_balance"], 60000)
+
+    def test_statement_by_reservation_settled_flag(self):
+        self._pay(100000)
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        g = st["reservations"][0]
+        self.assertEqual(g["balance"], 0)
+        self.assertTrue(g["settled"])
+
+    def test_statement_by_reservation_multi(self):
+        inv2 = Invoice.objects.create(
+            company="konoz", invoice_type="hotel", invoice_number="INV-Q2",
+            customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 8),
+        )
+        res2 = Reservation.objects.create(
+            invoice=inv2, reservation_number="R-Q2", total_sar=30000,
+        )
+        posting.post_invoice_charge(inv2, created_by=self.user)
+        self._pay(100000)  # fully settles R-Q1
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(len(st["reservations"]), 2)
+        # Outstanding (R-Q2) sorts before settled (R-Q1).
+        self.assertEqual(st["reservations"][0]["reservation_number"], "R-Q2")
+        self.assertEqual(st["reservations"][0]["balance"], 30000)
+        self.assertTrue(st["reservations"][1]["settled"])
+        self.assertEqual(
+            st["opening_balance"]
+            + sum(g["balance"] for g in st["reservations"])
+            + st["unallocated"],
+            st["closing_balance"],
+        )
+
+    def test_statement_by_reservation_with_opening(self):
+        self._pay(20000)
+        st = q.client_statement_by_reservation(
+            self.client_obj.id, date_from=date(2046, 1, 6),
+        )
+        # Charge 01/05 → opening; payment 02/01 → in-period.
+        self.assertEqual(st["opening_balance"], 100000)
+        self.assertEqual(st["closing_balance"], 80000)
+
     def test_trial_balance_zero(self):
         self._pay(55000)
         tb = q.trial_balance(company=Company.KONOZ)

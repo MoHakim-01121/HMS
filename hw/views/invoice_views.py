@@ -1,14 +1,11 @@
-﻿import csv
-import json
+﻿import json
 import logging
 from datetime import date, timedelta
-from django.utils import timezone
 
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import F, Q
 from django.core.paginator import Paginator
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
@@ -17,6 +14,7 @@ from ..models import ActivityLog, Client, Company, ConfirmationLetter, Invoice, 
 from ..models.choices import InvoiceType
 from ..permissions import require_perm
 from ..finance import queries as fq
+from ..finance.errors import FinanceError
 from .context import _build_reservation_context
 from .helpers import (
     _client_options,
@@ -24,8 +22,12 @@ from .helpers import (
     _parse_date,
     _render_list_pdf,
     _to_float,
+    csv_export_response,
+    due_soon_alert,
     get_active_company,
     pagination_props,
+    snapshot_fields,
+    track_changes,
 )
 from .invoice_billing import _billing_client, _billing_props, _save_hotel_payments
 from .pdf import _logo_file_url, _render_invoice_pdf
@@ -80,6 +82,31 @@ def _filter_by_status(qs, status):
     return qs.filter(pk__in=filtered_ids)
 
 
+def _filter_invoice_qs(base_qs, request, apply_status=True, order=True):
+    """Apply standard hotel-invoice filters (q/status/dates) to a queryset.
+
+    Shared by the list, PDF and CSV endpoints so the three never drift.
+    """
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+
+    qs = base_qs
+    if q:
+        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+    if date_from:
+        qs = qs.filter(due_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(due_date__lte=date_to)
+    if apply_status:
+        qs = _filter_by_status(qs, status)
+    if order:
+        qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
+
+    return qs, {'q': q, 'status': status, 'date_from': date_from, 'date_to': date_to}
+
+
 @require_perm('invoice', 'view')
 def invoice_list(request):
     active_company = get_active_company(request)
@@ -87,25 +114,13 @@ def invoice_list(request):
         invoice_type=InvoiceType.HOTEL, company=active_company
     ).prefetch_related('reservations', 'service_items')
 
-    q = request.GET.get('q', '').strip()
-    status = request.GET.get('status', '')
-    due_soon = request.GET.get('due_soon')
-    date_from = request.GET.get('date_from', '').strip()
-    date_to = request.GET.get('date_to', '').strip()
+    qs, filters = _filter_invoice_qs(base_qs, request)
+    q, status, date_from, date_to = filters['q'], filters['status'], filters['date_from'], filters['date_to']
 
-    qs = base_qs
-    if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+    due_soon = request.GET.get('due_soon')
     if due_soon:
         threshold = date.today() + timedelta(days=7)
         qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
-    if date_from:
-        qs = qs.filter(due_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(due_date__lte=date_to)
-    qs = _filter_by_status(qs, status)
-
-    qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
 
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -173,48 +188,68 @@ def invoice_new(request):
 
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
-        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+
+        def _reject(errors):
             return inertia_render(request, "Invoice/Form", props={
                 "edit": False,
                 "invoice": None,
-                "suggested_number": invoice_number,
+                "suggested_number": invoice_number or suggested_number,
                 "cl_data": _cl_data_for_form(active_company),
                 "clients": _client_options(active_company),
                 "initial": _invoice_echo(request),
-                "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
+                "errors": errors,
             })
 
-        with transaction.atomic():
-            client = _resolve_client_from_post(request, active_company)
-            invoice = Invoice.objects.create(
-                # Server-assigned, never read from the POST body. The form used to
-                # submit a company of its own, unchecked against can_use_company —
-                # so a user restricted to one company could file a record under the
-                # other, and every read path here (list/detail/edit/delete/PDF/CSV)
-                # filters by the active company, meaning the row simply vanished
-                # from the list it was created in.
-                company=active_company,
-                invoice_type=InvoiceType.HOTEL,
-                invoice_number=invoice_number,
-                client=client,
-                issued_date=_parse_date(request.POST.get("issued_date")),
-                due_date=_parse_date(request.POST.get("due_date")),
-                currency="SAR",
-            )
-            # CL must be linked before _save_reservations/_save_hotel_payments run --
-            # both call _billing_client(invoice), which resolves the client from
-            # invoice.confirmation_letters. Linking after would leave the journal
-            # charge lines client=None even when a CL was selected.
-            cl_ids = _parse_cl_ids(request)
-            if cl_ids:
+        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+            return _reject({"invoice_number": f"Invoice number '{invoice_number}' is already in use."})
+
+        cl_ids = _billable_cl_ids(request, active_company)
+        client = _resolve_client_from_post(request, active_company)
+        # Hotel invoice butuh isi: minimal harus ada CL yang bisa ditagih ATAU
+        # baris reservasi manual ATAU client yang dipilih langsung di form.
+        # (Kiriman kosong → reject, jangan bikin invoice yatim.)
+        if not cl_ids and not client and not _has_reservation_rows(request):
+            return _reject({"reservations": "Pick at least one confirmation letter that isn't already on an invoice."})
+
+        try:
+            with transaction.atomic():
+                client = _resolve_client_from_post(request, active_company)
+                invoice = Invoice.objects.create(
+                    # Server-assigned, never read from the POST body. The form used to
+                    # submit a company of its own, unchecked against can_use_company —
+                    # so a user restricted to one company could file a record under the
+                    # other, and every read path here (list/detail/edit/delete/PDF/CSV)
+                    # filters by the active company, meaning the row simply vanished
+                    # from the list it was created in.
+                    company=active_company,
+                    invoice_type=InvoiceType.HOTEL,
+                    invoice_number=invoice_number,
+                    client=client,
+                    issued_date=_parse_date(request.POST.get("issued_date")),
+                    due_date=_parse_date(request.POST.get("due_date")),
+                    currency="SAR",
+                )
+                # CL must be linked before _save_reservations/_save_hotel_payments run --
+                # both call _billing_client(invoice), which resolves the client from
+                # invoice.confirmation_letters. Linking after would leave the journal
+                # charge lines client=None even when a CL was selected.
                 ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
-            _save_reservations(invoice, request)
-            _save_hotel_payments(invoice, request)
+                _save_reservations(invoice, request)
+                _save_hotel_payments(invoice, request)
+        except (FinanceError, ValueError) as e:
+            return _reject({"finance": str(e)})
 
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
         messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
+
+    initial = None
+    preselect_cl = ConfirmationLetter.objects.filter(
+        pk=request.GET.get("cl"), company=active_company, invoice__isnull=True,
+    ).first()
+    if preselect_cl:
+        initial = {"linked_cl_ids": [preselect_cl.pk]}
 
     return inertia_render(request, "Invoice/Form", props={
         "edit": False,
@@ -222,6 +257,7 @@ def invoice_new(request):
         "suggested_number": suggested_number,
         "cl_data": _cl_data_for_form(active_company),
         "clients": _client_options(active_company),
+        "initial": initial,
     })
 
 
@@ -244,6 +280,9 @@ def invoice_detail(request, pk):
     } for r in res_ctx]
 
     payments = [{
+        "id": p["pk"],
+        "status": p["status"],
+        "unallocated_sar": p["unallocated_sar"],
         "linked_number": p["ref"],
         "payment_date": p["payment_date"].strftime("%d/%m/%Y") if p["payment_date"] else None,
         "method": p["method"],
@@ -256,15 +295,7 @@ def invoice_detail(request, pk):
         "note": p["note"],
     } for p in fq.payment_history_rows(invoice)]
 
-    due_alert = None
-    if invoice.due_date and invoice.remaining_sar > 0:
-        days = (invoice.due_date - timezone.now().date()).days
-        if days < 0:
-            due_alert = {"type": "red", "msg": f"Payment is {abs(days)} day(s) overdue."}
-        elif days == 0:
-            due_alert = {"type": "red", "msg": "Due today!"}
-        elif days <= 7:
-            due_alert = {"type": "yellow", "msg": f"Due in {days} day(s)."}
+    due_alert = due_soon_alert(invoice.due_date, invoice.remaining_sar)
 
     return inertia_render(request, "Invoice/Detail", props={
         "invoice": {
@@ -296,56 +327,62 @@ def invoice_edit(request, pk):
             ]
             return ' | '.join(rows) if rows else '—'
 
-        _before = {
-            'Customer Name':    invoice.customer_name,
-            'Invoice No.':      invoice.invoice_number,
-            'Issued Date':      str(invoice.issued_date or ''),
-            'Due Date':         str(invoice.due_date or ''),
-            'Company':          invoice.company,
-            'Reservations':     _res_snapshot(invoice),
-        }
+        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'company'])
+        _res_before = _res_snapshot(invoice)
         new_number = request.POST.get("invoice_number", "")
-        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+
+        def _reject(errors):
             return inertia_render(request, "Invoice/Form", props={
                 "edit": True,
                 "invoice": _serialize_hotel_invoice(invoice),
                 "cl_data": _cl_data_for_form(active_company),
                 "clients": _client_options(active_company),
                 "initial": _invoice_echo(request),
-                "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
+                "errors": errors,
             })
+
+        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+            return _reject({"invoice_number": f"Invoice number '{new_number}' is already in use."})
+
+        cl_ids = _billable_cl_ids(request, active_company, invoice)
+        # Hotel invoice butuh isi: CL yang bisa ditagih ATAU baris reservasi
+        # manual ATAU client pilihan form — kiriman kosong jangan disimpan.
+        if not cl_ids and not _resolve_client_from_post(request, active_company) and not _has_reservation_rows(request):
+            return _reject({"reservations": "Pick at least one confirmation letter that isn't already on an invoice."})
 
         # invoice.company is deliberately left alone: the fetch above already
         # constrains it to active_company, so any value arriving in the POST
         # body could only ever move the record OUT of the caller's own scope.
-        with transaction.atomic():
-            client = _resolve_client_from_post(request, active_company)
-            invoice.invoice_number = new_number
-            invoice.client = client
-            invoice.issued_date = _parse_date(request.POST.get("issued_date"))
-            invoice.due_date = _parse_date(request.POST.get("due_date"))
-            invoice.save()
+        try:
+            with transaction.atomic():
+                client = _resolve_client_from_post(request, active_company)
+                invoice.invoice_number = new_number
+                invoice.client = client
+                invoice.issued_date = _parse_date(request.POST.get("issued_date"))
+                invoice.due_date = _parse_date(request.POST.get("due_date"))
+                invoice.save()
 
-            invoice.reservations.all().delete()
+                invoice.reservations.all().delete()
 
-            # Relink CL selection before recreating reservations/payments -- see
-            # the matching comment in invoice_new for why the order matters.
-            cl_ids = _parse_cl_ids(request)
-            ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
-            if cl_ids:
+                # Relink CL selection before recreating reservations/payments -- see
+                # the matching comment in invoice_new for why the order matters.
+                ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
                 ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
-            _save_reservations(invoice, request)
-            _save_hotel_payments(invoice, request)
-        _after = {
-            'Customer Name':    invoice.customer_name,
-            'Invoice No.':      invoice.invoice_number,
-            'Issued Date':      str(invoice.issued_date or ''),
-            'Due Date':         str(invoice.due_date or ''),
-            'Company':          invoice.company,
-            'Reservations':     _res_snapshot(invoice),
-        }
-        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+                _save_reservations(invoice, request)
+                _save_hotel_payments(invoice, request)
+        except (FinanceError, ValueError) as e:
+            # A finance failure (e.g. PeriodLockedError when a payment falls in a
+            # closed period) must roll back cleanly and show the user a form error,
+            # not a raw 500.
+            return _reject({"finance": str(e)})
+        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'company'])
+        _res_after = _res_snapshot(invoice)
+        changes = track_changes(
+            {**_before, 'reservations': _res_before},
+            {**_after, 'reservations': _res_after},
+            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'company': 'Company', 'reservations': 'Reservations'},
+        )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, invoice.company, changes)
         messages.success(request, f"Invoice {invoice.invoice_number} updated successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
@@ -370,7 +407,20 @@ def invoice_delete(request, pk):
         if JournalLine.objects.filter(invoice=invoice).exists():
             messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('invoice_detail', pk=pk)
-        invoice.delete()
+        try:
+            invoice.delete()
+        except Exception as exc:
+            # A pending PaymentRecord (PROTECT) may still exist even when no
+            # journal lines were written; surface that cleanly instead of a 500.
+            from django.db.models.deletion import ProtectedError
+            if isinstance(exc, ProtectedError):
+                messages.error(
+                    request,
+                    f'Invoice {num} tidak bisa dihapus karena masih punya '
+                    'PaymentRecord terkait. Batalkan/balik pembayarannya dulu.',
+                )
+                return redirect('invoice_detail', pk=pk)
+            raise
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
         messages.success(request, f"Invoice {num} deleted successfully.")
         return redirect("invoice_list")
@@ -388,19 +438,8 @@ def invoice_pdf(request, pk):
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
     active_company = get_active_company(request)
-    qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=active_company).prefetch_related('reservations', 'service_items')
-    q = request.GET.get('q', '').strip()
-    status = request.GET.get('status', '').strip()
-    date_from = request.GET.get('date_from', '').strip()
-    date_to = request.GET.get('date_to', '').strip()
-    if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    if date_from:
-        qs = qs.filter(due_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(due_date__lte=date_to)
-    qs = _filter_by_status(qs, status)
-    qs = qs.order_by(F('due_date').asc(nulls_last=True), '-created_at')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=active_company).prefetch_related('reservations', 'service_items')
+    qs, _ = _filter_invoice_qs(base_qs, request)
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
     total_remaining = sum(i.remaining_sar for i in inv_list)
@@ -421,30 +460,15 @@ def invoice_list_pdf(request):
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=get_active_company(request)).prefetch_related('reservations', 'service_items')
-    q = request.GET.get('q', '').strip()
-    status = request.GET.get('status', '').strip()
-    date_from = request.GET.get('date_from', '').strip()
-    date_to = request.GET.get('date_to', '').strip()
-    if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    if date_from:
-        qs = qs.filter(due_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(due_date__lte=date_to)
-    qs = _filter_by_status(qs, status)
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="invoices_hotel.csv"'
-    response.write('﻿')
-    writer = csv.writer(response)
-    writer.writerow(['Invoice #', 'Company', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR'])
-    for inv in qs:
-        writer.writerow([
-            inv.invoice_number, inv.company, inv.customer_name,
-            inv.issued_date or '', inv.due_date or '',
-            inv.total_sar, inv.total_sar - inv.remaining_sar, inv.remaining_sar,
-        ])
-    return response
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=get_active_company(request)).prefetch_related('reservations', 'service_items')
+    qs, _ = _filter_invoice_qs(base_qs, request)
+    headers = ['Invoice #', 'Company', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR']
+    rows = ([
+        inv.invoice_number, inv.company, inv.customer_name,
+        inv.issued_date or '', inv.due_date or '',
+        inv.total_sar, inv.total_sar - inv.remaining_sar, inv.remaining_sar,
+    ] for inv in qs)
+    return csv_export_response('invoices_hotel.csv', headers, rows)
 
 
 @require_perm('invoice', 'create')
@@ -452,24 +476,30 @@ def invoice_duplicate(request, pk):
     original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL, company=get_active_company(request))
     new_num = Invoice.generate_number(InvoiceType.HOTEL)
     today = date.today()
-    new_inv = Invoice.objects.create(
-        company=original.company,
-        invoice_type=InvoiceType.HOTEL,
-        invoice_number=new_num,
-        customer_name=original.customer_name,
-        issued_date=today,
-        due_date=today + timedelta(days=30),
-        currency=original.currency,
-    )
-    for res in original.reservations.all():
-        Reservation.objects.create(
-            invoice=new_inv,
-            reservation_number=res.reservation_number,
-            hotel=res.hotel,
-            check_in=res.check_in,
-            check_out=res.check_out,
-            total_sar=res.total_sar,
-        )
+    try:
+        with transaction.atomic():
+            new_inv = Invoice.objects.create(
+                company=original.company,
+                invoice_type=InvoiceType.HOTEL,
+                invoice_number=new_num,
+                customer_name=original.customer_name,
+                issued_date=today,
+                due_date=today + timedelta(days=30),
+                currency=original.currency,
+            )
+            for res in original.reservations.all():
+                Reservation.objects.create(
+                    invoice=new_inv,
+                    reservation_number=res.reservation_number,
+                    hotel=res.hotel,
+                    check_in=res.check_in,
+                    check_out=res.check_out,
+                    total_sar=res.total_sar,
+                )
+    except Exception as e:  # IntegrityError dll — jangan tinggalkan invoice yatim tanpa reservasi
+        logger.warning("Duplikasi invoice %s gagal: %s", original.pk, e)
+        messages.error(request, f"Gagal menduplikasi invoice: {e}")
+        return redirect("invoice_edit", pk=original.pk)
     messages.success(request, f"Invoice duplicated as {new_num} (from {original.invoice_number}).")
     return redirect("invoice_edit", pk=new_inv.pk)
 
@@ -537,6 +567,11 @@ def _serialize_hotel_invoice(invoice):
         "invoice_number": invoice.invoice_number,
         "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",
         "due_date": invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "",
+        # Read-only figures for the form's summary rail — payments themselves are
+        # recorded through the Payment module, not this form.
+        "total_sar": invoice.total_sar,
+        "paid_sar": invoice.total_paid_sar,
+        "remaining_sar": invoice.remaining_sar,
         "reservations": [{
             "reservation_number": r.reservation_number,
             "hotel": r.hotel,
@@ -549,6 +584,7 @@ def _serialize_hotel_invoice(invoice):
             "date": p["payment_date"].strftime("%Y-%m-%d") if p["payment_date"] else "",
             "method": p["method"] or "Cash",
             "amount": float(p["amount"]),
+            "amount_sar": p["amount_sar"],
             "currency": p["currency"],
             "exchange": p["exchange_rate"],
             "note": p["note"],
@@ -565,6 +601,30 @@ def _parse_cl_ids(request):
     except (ValueError, TypeError):
         ids = []
     return [i for i in ids if i]
+
+
+def _has_reservation_rows(request):
+    """True jika body form memuat minimal satu baris reservasi manual ber-isi."""
+    try:
+        rows = json.loads(request.POST.get("reservations", "[]"))
+    except (ValueError, TypeError):
+        return False
+    return any(_to_float(r.get("reservation_total")) for r in rows if isinstance(r, dict))
+
+
+def _billable_cl_ids(request, company, invoice=None):
+    """CL pks from the POST this invoice may bill: same company, and either not
+    yet on any invoice or already on this one (edit). A hotel invoice can only
+    be built from existing confirmation letters — there is no manual line."""
+    ids = _parse_cl_ids(request)
+    if not ids:
+        return []
+    qs = ConfirmationLetter.objects.filter(pk__in=ids, company=company)
+    if invoice is not None:
+        qs = qs.filter(Q(invoice__isnull=True) | Q(invoice=invoice))
+    else:
+        qs = qs.filter(invoice__isnull=True)
+    return list(qs.values_list("pk", flat=True))
 
 
 def _cl_data_for_form(active_company):

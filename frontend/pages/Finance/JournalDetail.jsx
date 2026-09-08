@@ -1,4 +1,5 @@
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import {
@@ -14,15 +15,15 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
     <div className="page shadcn-root">
       <PageBack label={t("Back")} fallbackHref="/finance/journal/" />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">
+      <PageHeader
+        title={
+          <>
             {entry.entry_number}
             {entry.is_reversal && <span style={{ marginLeft: 10 }}><StatusPill tone="red" label={t("Reversal")} /></span>}
-          </h1>
-          <div className="page-sub">{entry.description}</div>
-        </div>
-      </div>
+          </>
+        }
+        sub={entry.description}
+      />
 
       {/* Meta */}
       <div className="hms-kpi-row" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>

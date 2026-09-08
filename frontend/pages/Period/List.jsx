@@ -11,7 +11,9 @@ import {
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { usePerms } from "../../utils/perms.js";
 
 const STATUS_TONE = {
   open: "green",
@@ -22,6 +24,8 @@ const STATUS_TONE = {
 
 export default function List({ periods = [] }) {
   const { t } = useI18n();
+  const perms = usePerms();
+  const canManage = perms.can("periods", "edit");
   const [confirm, confirmDialog] = useConfirm();
   const [createDialog, setCreateDialog] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -63,10 +67,10 @@ export default function List({ periods = [] }) {
       render: (p) => (
         <RowActions
           actions={[
-            ...(p.is_postable ? [
+            ...(canManage && p.is_postable ? [
               { label: t("Close"), onClick: () => confirm({ title: t("Close Period"), message: t("Close this period?"), onConfirm: () => router.post(`/finance/periods/${p.id}/close/`) }) },
             ] : []),
-            ...(p.status === "closed" ? [
+            ...(canManage && p.status === "closed" ? [
               { label: t("Lock"), destructive: true, onClick: () => confirm({ title: t("Lock Period"), message: t("Lock this period? This is irreversible."), onConfirm: () => router.post(`/finance/periods/${p.id}/lock/`) }) },
             ] : []),
           ]}
@@ -79,17 +83,15 @@ export default function List({ periods = [] }) {
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Financial Periods")}</h1>
-          <div className="page-sub">{t("Manage accounting periods and locking.")}</div>
-        </div>
-        <div className="page-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => setCreateDialog(true)}>+ {t("Create Periods")}</button>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Financial Periods")}
+        sub={t("Manage accounting periods and locking.")}
+        actions={
+          canManage && <Button type="button" size="lg" onClick={() => setCreateDialog(true)}>+ {t("Create Periods")}</Button>
+        }
+      />
 
-      <div className="card">
+      <div className="hms-list-card">
         {periods.length > 0 ? (
           <Table
             columns={columns}

@@ -1,6 +1,9 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -9,12 +12,10 @@ export default function Recap({ monthly }) {
   return (
     <div className="page shadcn-root">
       <PageBack href="/remittance/" />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Monthly Recap")}</h1>
-          <div className="page-sub">{t("Remittance summary per month")}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Monthly Recap")}
+        sub={t("Remittance summary per month")}
+      />
 
       {monthly.length ? monthly.map((m, i) => (
         <div className="month-card" key={i}>
@@ -22,11 +23,13 @@ export default function Recap({ monthly }) {
             <div className="month-label">{m.label}</div>
             <div className="month-meta">
               <div className="month-badges">
-                {m.count_pending > 0 && <span className="badge badge-yellow">{m.count_pending} {t("Pending")}</span>}
-                {m.count_received > 0 && <span className="badge badge-green">{m.count_received} {t("Received")}</span>}
+                {m.count_pending > 0 && <StatusPill tone="yellow" label={`${m.count_pending} ${t("Pending")}`} />}
+                {m.count_received > 0 && <StatusPill tone="green" label={`${m.count_received} ${t("Received")}`} />}
               </div>
               <div className="month-total">{fmt(m.total_sent)} SAR</div>
-              <a href={`/remittance/export/pdf/?month=${m.period}`} target="_blank" rel="noreferrer" className="btn btn-ghost pdf-btn">PDF ↓</a>
+              <Button variant="ghost" size="xs" asChild>
+                <a href={`/remittance/export/pdf/?month=${m.period}`} target="_blank" rel="noreferrer">PDF ↓</a>
+              </Button>
             </div>
           </div>
           <table className="recap-table">
@@ -39,7 +42,7 @@ export default function Recap({ monthly }) {
                   <td className="mono" style={{ fontWeight: 600 }}>{rem.remittance_number}</td>
                   <td>{rem.date}</td>
                   <td style={{ color: "var(--text-2)" }}>{rem.lines_count} {t("reservations")}</td>
-                  <td>{rem.status === "received" ? <span className="badge badge-green">{t("Received")}</span> : <span className="badge badge-yellow">{t("Pending")}</span>}</td>
+                  <td>{rem.status === "received" ? <StatusPill tone="green" label={t("Received")} /> : <StatusPill tone="yellow" label={t("Pending")} />}</td>
                   <td className="mono r" style={{ fontWeight: 600 }}>{fmt(rem.total_sar)}</td>
                 </tr>
               ))}
@@ -54,7 +57,7 @@ export default function Recap({ monthly }) {
           </div>
         </div>
       )) : (
-        <div className="card">
+        <div className="hms-list-card">
           <EmptyState iconName="remittance" title="No remittance data yet" />
         </div>
       )}

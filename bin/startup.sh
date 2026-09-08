@@ -5,6 +5,10 @@ mkdir -p "$(dirname "$0")/../logs"
 
 python manage.py migrate --noinput
 
+# Build the hashed manifest (CompressedManifestStaticFilesStorage in prod) —
+# must run after any code/static change so new hashes land in STATIC_ROOT.
+python manage.py collectstatic --noinput
+
 # Background WhatsApp sends (see hw/tasks.py) are processed by qcluster, not
 # the web workers. Run it as its own long-lived process (separate systemd
 # unit / supervisor program) alongside this script — it is NOT started here

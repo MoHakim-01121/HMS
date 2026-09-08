@@ -2,6 +2,8 @@ import { useState } from "react";
 import axios from "axios";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
@@ -22,10 +24,10 @@ function action(userId, fields) {
 }
 
 const ROLE_TONE = {
-  admin: "badge-blue",
-  manager: "badge-green",
-  staff: "badge-gray",
-  viewer: "badge-yellow",
+  admin: "blue",
+  manager: "green",
+  staff: "gray",
+  viewer: "yellow",
 };
 
 // Role + company access live in one dialog: they are the two halves of "what
@@ -267,16 +269,17 @@ export default function List({ users, role_choices = [], company_choices = [] })
   return (
     <div className="page shadcn-root">
       <PageBack />
-      <div className="page-header">
-        <div><h1 className="page-title">{t("Users")}</h1><div className="page-sub">{t("{count} accounts registered", { count: users.length })}</div></div>
-        <div className="page-actions">
-          <button type="button" onClick={() => openForm("/users/new/")} onPointerEnter={() => openForm.prefetch("/users/new/")} onFocus={() => openForm.prefetch("/users/new/")} className="btn btn-primary">
+      <PageHeader
+        title={t("Users")}
+        sub={t("{count} accounts registered", { count: users.length })}
+        actions={
+          <Button type="button" size="lg" onClick={() => openForm("/users/new/")} onPointerEnter={() => openForm.prefetch("/users/new/")} onFocus={() => openForm.prefetch("/users/new/")}>
             + {t("New user")}
-          </button>
-        </div>
-      </div>
+          </Button>
+        }
+      />
 
-      <div className="card">
+      <div className="hms-list-card">
         <Table
           columns={[
             {
@@ -285,7 +288,7 @@ export default function List({ users, role_choices = [], company_choices = [] })
               render: (u) => (
                 <>
                   {u.username}
-                  {u.is_self && <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t("You")}</span>}
+                  {u.is_self && <span style={{ marginLeft: 6, display: "inline-flex" }}><StatusPill tone="gray" label={t("You")} /></span>}
                 </>
               ),
             },
@@ -297,13 +300,13 @@ export default function List({ users, role_choices = [], company_choices = [] })
             {
               header: t("Status"),
               className: "col-m-badge",
-              render: (u) => u.is_active ? <span className="badge badge-green">{t("Active")}</span> : <span className="badge badge-gray">{t("Inactive")}</span>,
+              render: (u) => u.is_active ? <StatusPill tone="green" label={t("Active")} /> : <StatusPill tone="gray" label={t("Inactive")} />,
             },
             {
               header: t("Role"),
               className: "col-m-badge",
               render: (u) => (
-                <span className={"badge " + (ROLE_TONE[u.role] || "badge-gray")}>{u.role_label}</span>
+                <StatusPill tone={ROLE_TONE[u.role] || "gray"} label={u.role_label} />
               ),
             },
             {

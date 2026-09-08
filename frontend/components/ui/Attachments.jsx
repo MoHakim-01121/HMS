@@ -3,6 +3,7 @@ import { fetchJson } from "../../utils/fetchJson.js";
 import { showToast } from "../shadcn/toast.jsx";
 import { useConfirm } from "../shadcn/confirm-dialog.jsx";
 import Section from "../shadcn/section.jsx";
+import { Icon } from "../icons.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -22,7 +23,7 @@ function AttIcon({ icon }) {
   return <svg viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>;
 }
 
-export default function Attachments({ targetType, targetId, initial = [] }) {
+export default function Attachments({ targetType, targetId, initial = [], bare = false, compact = false }) {
   const { t } = useI18n();
   const [items, setItems] = useState(initial);
   const [confirm, confirmDialog] = useConfirm();
@@ -63,13 +64,46 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
     });
   };
 
+  // Compact list for the record-view rail (matches the Claude Design "Lampiran"
+  // block: icon + name + size in a plain list, an "Add file" link below —
+  // instead of the bordered tile grid used elsewhere).
+  const compactInner = (
+    <>
+      {items.length ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {items.map((att) => (
+            <div className="hms-rv-filerow" key={att.id}>
+              <AttIcon icon={att.icon} />
+              <a href={att.url} target="_blank" rel="noreferrer" className="t" title={att.name}>{att.name}</a>
+              <span className="s n">{fmtSize(att.size)}</span>
+              {canEdit && (
+                <button type="button" className="hms-rv-filedel" onClick={() => del(att.id)} title={t("Delete")} aria-label={t("Delete {name}", { name: att.name })}>
+                  <Icon name="trash" size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="hms-dv-empty">{t("No attachments yet")}</div>
+      )}
+      {canEdit && (
+        <label className="hms-rv-raillink" style={{ marginTop: 8, cursor: "pointer" }}>
+          {items.length ? t("Add file") : t("Add the first file")}
+          <input type="file" style={{ display: "none" }} multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={upload} />
+        </label>
+      )}
+      {confirmDialog}
+    </>
+  );
+
   // File tiles + a dashed "add" tile, following the Attachment block of the
   // detail-page reference (21st.dev Project Detail View, demo 8248) instead of
   // the old full-width dv-item rows. The dashed tile is the only upload
   // affordance — a second "Upload" button in the section header said the
   // same thing twice.
-  return (
-    <Section label={t("Attachments")} icon="paperclip" count={items.length || null}>
+  const inner = (
+    <>
       {items.length || canEdit ? (
         <div className="hms-dv-att-grid">
           {items.map((att) => (
@@ -103,6 +137,14 @@ export default function Attachments({ targetType, targetId, initial = [] }) {
         <div className="hms-dv-empty">{t("No attachments yet")}</div>
       )}
       {confirmDialog}
+    </>
+  );
+
+  if (compact) return compactInner;
+  if (bare) return inner;
+  return (
+    <Section label={t("Attachments")} icon="paperclip" count={items.length || null}>
+      {inner}
     </Section>
   );
 }

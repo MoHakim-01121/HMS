@@ -231,7 +231,7 @@ function gridCss(days) {
 /* 2-zone arrival card: reservation number (primary) + guest + form fields */
 .uc-bb-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
 .uc-bb-id { min-width:0; flex:1; }
-.uc-bb-conf { display:block; font-size:18px; font-weight:800; letter-spacing:-.01em; color:var(--foreground); line-height:1.2; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.uc-bb-conf { display:block; font-size:18px; font-weight:700; letter-spacing:-.01em; color:var(--foreground); line-height:1.2; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .uc-bb-guest { display:block; font-size:13.5px; font-weight:600; color:var(--foreground); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:none; }
 .uc-bb-guest:active { opacity:.7; }
 .uc-bb-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:14px; row-gap:8px; margin-top:12px; align-items:start; }

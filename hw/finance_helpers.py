@@ -1,10 +1,20 @@
-"""Finance helpers — immutable double-entry journal posting functions.
+"""[COMPATIBILITY LAYER — DEPRECATED] Finance helpers lama.
 
-All functions enforce:
-1. Double-entry balance invariant (SUM(lines) = 0)
-2. Period lock check (no posting to closed periods)
-3. Immutable entries (no UPDATE/DELETE)
-4. Complete audit trail via PaymentLog
+File ini dulunya berisi campuran exception classes, period helpers, adapter
+jurnal, logika lifecycle pembayaran, dan query helper. Saat merapikan, bagian-
+bagian yang sudah punya rumah sendiri kini di-re-export dari lokasi tersebut:
+
+- exception classes      → hw/finance/errors.py
+- period helpers         → hw/finance/posting.py
+- adapter jurnal         → hw/finance/posting.py (post_entry / reverse_entry)
+
+Yang MASIH di sini (logika asli):
+- lifecycle pembayaran   → create_payment_record / confirm_payment /
+                           allocate_payment (lapisan manipulasi PaymentRecord)
+- query helper kas_saldo / account_summary yang dipakai view (home, payment)
+
+KERAS DIRENCANAKAN: kode baru panggil langsung dari hw/finance/*. Fungsi di
+file ini dipertahankan agar import lama (view + test) tidak pecah.
 """
 from decimal import Decimal
 
@@ -12,14 +22,36 @@ from django.db import transaction, models
 from django.db.models import Sum
 from django.utils import timezone
 
-from .models.period import FinancialPeriod
+from .finance.errors import (
+    FinanceError, PeriodLockedError, JournalImbalanceError,
+    PaymentAlreadyProcessedError, InsufficientAllocationError,
+)
+from .finance.posting import (
+    get_current_period, get_period_for_date, check_period_postable,
+)
 from .models.payment import PaymentRecord, PaymentLog
 from .models.journal import (
     JournalEntry, JournalLine, LedgerAccount, Account, AccountType, ACCOUNT_TYPE_MAP,
 )
-from .models.invoice import Invoice
 from .models.choices import Company
 from .finance.accounts import resolve_account_code, AR
+
+__all__ = [
+    # exceptions (re-exported)
+    'FinanceError', 'PeriodLockedError', 'JournalImbalanceError',
+    'PaymentAlreadyProcessedError', 'InsufficientAllocationError',
+    # period helpers (re-exported)
+    'get_current_period', 'get_period_for_date', 'check_period_postable',
+    # adapters (delegates)
+    'create_journal_entry', 'reverse_journal_entry',
+    # payment lifecycle (original logic)
+    'create_payment_record', 'confirm_payment', 'allocate_payment',
+    # query helpers
+    'client_balance', 'invoice_paid_sar_jl', 'kas_saldo',
+    'client_statement', 'account_summary',
+    # shared
+    'ACCOUNT_TYPE_MAP', 'Account', 'LedgerAccount', 'JournalEntry', 'JournalLine',
+]
 
 
 def _account_obj(ref):
@@ -29,79 +61,7 @@ def _account_obj(ref):
     return LedgerAccount.objects.get(pk=resolve_account_code(str(ref)))
 
 
-class FinanceError(Exception):
-    """Base exception for finance operations."""
-    pass
-
-
-class PeriodLockedError(FinanceError):
-    """Posting to a locked period."""
-    pass
-
-
-class JournalImbalanceError(FinanceError):
-    """Journal entry doesn't balance (debit != credit)."""
-    pass
-
-
-class PaymentAlreadyProcessedError(FinanceError):
-    """Payment already confirmed/allocated."""
-    pass
-
-
-class InsufficientAllocationError(FinanceError):
-    """Payment amount exceeds invoice remaining."""
-    pass
-
-
-# ── Period helpers ─────────────────────────────────────────────
-
-
-def get_current_period(company=None):
-    """Return the current open period. Raises PeriodLockedError if none open."""
-    now = timezone.now().date()
-    period = FinancialPeriod.objects.filter(
-        date_from__lte=now,
-        date_to__gte=now,
-        status=FinancialPeriod.STATUS_OPEN,
-    ).first()
-    if not period:
-        raise PeriodLockedError("Tidak ada periode terbuka untuk tanggal saat ini")
-    return period
-
-
-def get_period_for_date(date, company=None):
-    """Return the period that contains the given date."""
-    period = FinancialPeriod.objects.filter(
-        date_from__lte=date,
-        date_to__gte=date,
-    ).first()
-    if not period:
-        raise PeriodLockedError(f"Tidak ada periode untuk tanggal {date}")
-    return period
-
-
-def check_period_postable(period):
-    """Verify period allows posting."""
-    if not period.is_postable:
-        raise PeriodLockedError(
-            f"Periode {period.name} sudah {period.get_status_display()}, "
-            "tidak bisa posting journal entry"
-        )
-
-
-# ── Journal entry creation ─────────────────────────────────────
-
-
-def _validate_balance(lines):
-    """Ensure journal entry balances (SUM = 0)."""
-    total = sum(l['amount_sar'] for l in lines)
-    if total != 0:
-        raise JournalImbalanceError(
-            f"Journal entry tidak balance: total = {total:+,} SAR. "
-            f"Debit: {sum(l['amount_sar'] for l in lines if l['amount_sar'] > 0):,}, "
-            f"Credit: {abs(sum(l['amount_sar'] for l in lines if l['amount_sar'] < 0)):,}"
-        )
+# ── Adapter jurnal (delegasi ke posting layer) ─────────────────
 
 
 def create_journal_entry(
@@ -116,11 +76,10 @@ def create_journal_entry(
     is_reversal=False,
     reverses=None,
 ):
-    """Adapter lama — delegasi ke hw.finance.posting.post_entry.
+    """[DEPRECATED] Adapter lama — delegasi ke hw.finance.posting.post_entry.
 
-    `lines` = list {account: <kode v1/v2>, amount_sar: <signed>, dimensi...}.
-    Dipakai penalty_views & confirm_payment sampai dirombak ke posting
-    layer (Fase 5). Kode baru panggil post_entry() langsung.
+    Dipakai penalty_views & test sampai dirombak ke posting layer.
+    Kode baru panggil post_entry() langsung.
     """
     from .finance.posting import post_entry
 
@@ -139,7 +98,7 @@ def create_journal_entry(
 
 
 def reverse_journal_entry(original_entry, reversal_date, created_by, note=''):
-    """Adapter lama — delegasi ke hw.finance.posting.reverse_entry."""
+    """[DEPRECATED] Adapter lama — delegasi ke hw.finance.posting.reverse_entry."""
     from .finance.posting import reverse_entry
 
     return reverse_entry(
@@ -147,7 +106,7 @@ def reverse_journal_entry(original_entry, reversal_date, created_by, note=''):
     )
 
 
-# ── Payment helpers ─────────────────────────────────────────────
+# ── Payment lifecycle (logika asli PaymentRecord) ───────────────
 
 
 @transaction.atomic
@@ -302,7 +261,7 @@ def _payment_snapshot(payment):
     }
 
 
-# ── Query helpers (to replace ledger.py functions) ──────────────
+# ── Query helpers (untuk kompatibilitas; prefer hw/finance/queries.py) ──
 
 
 def _net(qs):
@@ -311,19 +270,13 @@ def _net(qs):
 
 
 def client_balance(client):
-    """Client's receivable balance from journal lines.
-
-    Positive = client owes us (receivable).
-    """
+    """[DEPRECATED] Piutang client dari jurnal. Prefer finance.queries.client_receivable."""
     return _net(JournalLine.objects.filter(client=client, account_id=AR))
 
 
 def invoice_paid_sar_jl(invoice_id):
-    """How much has been credited to AR for an invoice (from journal lines).
-
-    Returns a NEGATIVE number (credits), matching the legacy convention:
-    callers negate it to get a positive "paid" amount.
-    """
+    """[DEPRECATED] Total kredit Piutang untuk sebuah invoice (negatif).
+    Prefer finance.queries.invoice_paid_sar / invoice_paid_map."""
     agg = JournalLine.objects.filter(
         invoice_id=invoice_id, account_id=AR, credit__gt=0,
     ).aggregate(c=Sum('credit'))
@@ -331,7 +284,7 @@ def invoice_paid_sar_jl(invoice_id):
 
 
 def kas_saldo(account, company=None):
-    """Cash/account balance (debit - credit) from journal lines."""
+    """Saldo kas/akun (debit - credit) dari baris jurnal."""
     qs = JournalLine.objects.filter(account_id=resolve_account_code(str(account)))
     if company:
         qs = qs.filter(journal_entry__company=company)
@@ -339,12 +292,7 @@ def kas_saldo(account, company=None):
 
 
 def client_statement(client, date_from=None, date_to=None):
-    """Generate a client statement from JournalLines.
-
-    Returns a list of transactions sorted by date with running balance.
-    Positive balance = client owes us (receivable).
-    Negative balance = we owe client (prepaid/credit).
-    """
+    """[DEPRECATED] Statement klien dari jurnal. Prefer finance.queries.client_statement."""
     lines = JournalLine.objects.filter(
         client=client,
     ).select_related('journal_entry', 'account').order_by('journal_entry__entry_date', 'journal_entry__created_at')
@@ -384,7 +332,8 @@ def client_statement(client, date_from=None, date_to=None):
 
 
 def account_summary(company=None):
-    """Summary of all accounts from JournalLines (balance = debit - credit)."""
+    """[DEPRECATED] Ringkasan semua akun dari jurnal. Prefer finance.queries
+    (trial_balance / account_balance). Dipakai payment_views sementara."""
     qs = JournalLine.objects.all()
     if company:
         qs = qs.filter(journal_entry__company=company)

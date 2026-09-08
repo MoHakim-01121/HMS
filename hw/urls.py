@@ -165,6 +165,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/payments/record/', views.payment_record, name='payment_record'),
     path('finance/payments/<int:pk>/', views.payment_detail, name='payment_detail'),
     path('finance/payments/<int:pk>/confirm/', views.payment_confirm, name='payment_confirm'),
+    path('finance/payments/<int:pk>/reallocate/', views.payment_reallocate, name='payment_reallocate'),
+    path('finance/payments/<int:pk>/apply/', views.payment_apply, name='payment_apply'),
+    path('finance/payments/<int:pk>/void/', views.payment_void, name='payment_void'),
     path('finance/payments/<int:pk>/reject/', views.payment_reject, name='payment_reject'),
     path('finance/payments/<int:pk>/reverse/', views.payment_reverse, name='payment_reverse'),
     path('finance/clients/<int:pk>/statement/', views.client_finance_statement, name='client_finance_statement'),
@@ -180,4 +183,8 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/trial-balance/', views.trial_balance, name='trial_balance'),
     path('finance/statements/', views.statements_list, name='statements_list'),
     path('finance/penalties/', views.penalty_list, name='penalty_list'),
-]
+
+    # ── Receipts (Kwitansi) ──
+    path('receipts/<int:pk>/pdf/', views.receipt_pdf, name='receipt_pdf'),
+    path('receipts/<int:pk>/void/', views.receipt_void, name='receipt_void'),
+  ]

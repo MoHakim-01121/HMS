@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -50,14 +51,12 @@ export default function Statements({ clients = [] }) {
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Client Ledger")}</h1>
-          <div className="page-sub">{t("Balances per client based on the operational ledger. Open a client for the full statement.")}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Client Ledger")}
+        sub={t("Balances per client based on the operational ledger. Open a client for the full statement.")}
+      />
 
-      <div className="card">
+      <div className="hms-list-card">
         {clients.length > 0 ? (
           <Table
             columns={columns}

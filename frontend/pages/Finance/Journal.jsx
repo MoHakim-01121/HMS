@@ -1,10 +1,16 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import ListPager from "../../components/shadcn/list-pager.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
+import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 export default function Journal({
@@ -55,46 +61,37 @@ export default function Journal({
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Journal Entries")}</h1>
-          <div className="page-sub">{t("Immutable double-entry ledger. Corrections are made via reversal entries.")}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Journal Entries")}
+        sub={t("Immutable double-entry ledger. Corrections are made via reversal entries.")}
+      />
 
       {/* Filter Bar */}
       <div className="filter-bar">
-        <input
-          className="input w-56" style={{ height: 40 }}
+        <Input
+          className="w-56"
           placeholder={t("Search number or description...")}
           value={vals.q}
           onChange={(e) => setVal("q", e.target.value)}
         />
-        <select
-          className="input w-40" style={{ height: 40 }}
-          value={vals.type}
-          onChange={(e) => setVal("type", e.target.value)}
-        >
-          <option value="">{t("All Types")}</option>
-          {type_choices.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
-          ))}
-        </select>
-        <input
-          type="date" className="input" style={{ height: 40 }}
-          value={vals.date_from}
-          onChange={(e) => setVal("date_from", e.target.value)}
-        />
-        <input
-          type="date" className="input" style={{ height: 40 }}
-          value={vals.date_to}
-          onChange={(e) => setVal("date_to", e.target.value)}
-        />
-        <button type="button" className="fp-apply" onClick={() => apply()}>{t("Apply")}</button>
+        <Select value={vals.type} onValueChange={(v) => setVal("type", v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder={t("All Types")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t("All Types")}</SelectItem>
+            {type_choices.map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input type="date" value={vals.date_from} onChange={(e) => setVal("date_from", e.target.value)} />
+        <Input type="date" value={vals.date_to} onChange={(e) => setVal("date_to", e.target.value)} />
+        <Button type="button" size="lg" onClick={() => apply()}>{t("Apply")}</Button>
       </div>
 
       {/* Table */}
-      <div className="card">
+      <div className="hms-list-card">
         {entries.length > 0 ? (
           <>
             <Table

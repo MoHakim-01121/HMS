@@ -14,7 +14,6 @@ from inertia import render as inertia_render
 
 from ..models import (
     ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity,
-    CashAccount,
 )
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
@@ -27,6 +26,8 @@ from .helpers import (
     get_active_company,
     pagination_props,
     period_label as _period_label,
+    snapshot_fields,
+    track_changes,
     validate_proof_file,
 )
 
@@ -56,23 +57,113 @@ def client_list(request):
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
 
-    data = [{
-        "id": c.pk,
-        "name": c.name,
-        "brand": c.brand,
-        "city": c.city,
-        "province": c.province,
-        "pic": c.pic,
-        "wa": c.wa,
-        "wa_group": c.wa_group,
-        "reminder_target": c.reminder_target,
-        "avg_days_to_pay": c.avg_days_to_pay,
-        "days_since_last_order": c.days_since_last_order,
-        "risk_label": c.risk_label,
-        "is_active": c.is_active,
-    } for c in page_obj]
+    # ── Batch metrics (menghindari N+1 dari property Client.avg_days_to_pay /
+    # risk_label / days_since_last_order yang masing-masing memicu query berlapis
+    # per baris: resolved_invoices → remaining per invoice → PaymentRecord).
+    from django.utils import timezone
+    from django.db.models import Count
+    from ..models.journal import JournalLine
+    from ..models.payment import PaymentRecord
+
+    cl_ids = [c.pk for c in page_obj]
+
+    # 1. Piutang kantong per client — max(0, client_receivable(...)).
+    net_wallets = finance_queries.client_wallet_map(cl_ids)
+
+    # 2. Invoice relevan per client: FK Invoice.client ATAU dimensi JournalLine.
+    journal_invoice_ids = (
+        JournalLine.objects.filter(client_id__in=cl_ids, invoice__isnull=False)
+        .values_list('invoice_id', flat=True).distinct()
+    )
+    inv_rows = list(
+        Invoice.objects.filter(Q(client_id__in=cl_ids) | Q(pk__in=journal_invoice_ids))
+        .prefetch_related('reservations', 'service_items')
+        .distinct()
+    )
+    paid_map = finance_queries.invoice_paid_map([i.pk for i in inv_rows])
+
+    invs_by_client = {cid: [] for cid in cl_ids}
+    for inv_obj in inv_rows:
+        if inv_obj.client_id in invs_by_client:
+            invs_by_client[inv_obj.client_id].append(inv_obj)
+
+    # 3. Payment terakhir yang efektif per invoice — satu query, dedupe by invoice.
+    last_pay = {}
+    for pr in PaymentRecord.objects.filter(
+        invoice_id__in=[i.pk for i in inv_rows],
+        status__in=PaymentRecord.EFFECTIVE_STATUSES,
+    ).order_by('invoice_id', '-payment_date', '-pk'):
+        last_pay.setdefault(pr.invoice_id, pr.payment_date)
+
+    # 4. Jumlah ConfirmationLetter per client — satu query.
+    cl_counts = dict(
+        ConfirmationLetter.objects.filter(client_id__in=cl_ids)
+        .values('client_id').annotate(n=Count('id'))
+        .values_list('client_id', 'n')
+    )
+
+    def _total_sar(inv_obj):
+        return (
+            sum(r.total_sar for r in inv_obj.reservations.all())
+            + sum(s.qty * s.price for s in inv_obj.service_items.all())
+        )
+
+    def _avg_days_to_pay(invs):
+        days_list = []
+        for inv_obj in invs:
+            remaining = _total_sar(inv_obj) - paid_map.get(inv_obj.pk, 0)
+            if remaining <= 0 and inv_obj.issued_date:
+                last = last_pay.get(inv_obj.pk)
+                if last:
+                    days_list.append((last - inv_obj.issued_date).days)
+        return round(sum(days_list) / len(days_list)) if days_list else None
+
+    def _days_since_order(invs):
+        if not invs:
+            return None
+        lt = max(inv_obj.created_at for inv_obj in invs)
+        if lt.tzinfo is None:
+            lt = timezone.make_aware(lt)
+        return (timezone.now() - lt).days
+
+    def _risk_label(c, invs, outstanding, days_since):
+        if outstanding > 0:
+            due_invs = sorted(
+                [i for i in invs if i.due_date is not None],
+                key=lambda i: i.due_date,
+            )
+            if due_invs:
+                overdue = (date.today() - due_invs[0].due_date).days
+                if overdue > 60:
+                    return 'high'
+                if overdue > 0:
+                    return 'medium'
+        if days_since and days_since > 45 and (len(invs) + cl_counts.get(c.pk, 0)) > 0:
+            return 'dormant'
+        return 'ok'
+
+    rows = []
+    for c in page_obj:
+        invs = invs_by_client.get(c.pk, [])
+        outstanding = max(0, net_wallets.get(c.pk, 0))
+        days_since = _days_since_order(invs)
+        rows.append({
+            "id": c.pk,
+            "name": c.name,
+            "brand": c.brand,
+            "city": c.city,
+            "province": c.province,
+            "pic": c.pic,
+            "wa": c.wa,
+            "wa_group": c.wa_group,
+            "reminder_target": c.reminder_target,
+            "avg_days_to_pay": _avg_days_to_pay(invs),
+            "days_since_last_order": days_since,
+            "risk_label": _risk_label(c, invs, outstanding, days_since),
+            "is_active": c.is_active,
+        })
     return inertia_render(request, "Client/List", props={
-        "clients": data, "q": q, "status": status,
+        "clients": rows, "q": q, "status": status,
         "total_count": paginator.count,
         "pagination": pagination_props(page_obj),
     })
@@ -126,10 +217,13 @@ def client_edit(request, pk):
             return inertia_render(request, "Client/Form", props={
                 "client": echo, "edit": True, "errors": errors,
             })
-        _before = {'Name': c.name, 'Brand': c.brand, 'City': c.city, 'Province': c.province, 'Address': c.address, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
+        _before = snapshot_fields(c, ['name', 'brand', 'city', 'province', 'address', 'pic', 'wa', 'email'])
         _save_client(c, request.POST)
-        _after  = {'Name': c.name, 'Brand': c.brand, 'City': c.city, 'Province': c.province, 'Address': c.address, 'PIC': c.pic, 'WhatsApp': c.wa, 'Email': c.email}
-        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        _after = snapshot_fields(c, ['name', 'brand', 'city', 'province', 'address', 'pic', 'wa', 'email'])
+        changes = track_changes(
+            _before, _after,
+            labels={'name': 'Name', 'brand': 'Brand', 'city': 'City', 'province': 'Province', 'address': 'Address', 'pic': 'PIC', 'wa': 'WhatsApp', 'email': 'Email'},
+        )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
         messages.success(request, f'Client "{c.name}" updated successfully.')
         return redirect('client_detail', pk=c.pk)
@@ -150,7 +244,20 @@ def client_edit(request, pk):
 def client_delete(request, pk):
     c = get_object_or_404(Client, pk=pk, company=_company(request))
     name = c.name
-    c.delete()
+    try:
+        c.delete()
+    except Exception as exc:
+        # JournalLine.client / PaymentRecord.client use PROTECT — a client with
+        # financial history must never vanish from the ledger's perspective.
+        from django.db.models.deletion import ProtectedError
+        if isinstance(exc, ProtectedError):
+            messages.error(
+                request,
+                f'Client "{name}" tidak bisa dihapus karena sudah tercatat di '
+                'jurnal keuangan/pembayaran. Nonaktifkan saja (is_active=False).',
+            )
+            return redirect('client_detail', pk=pk)
+        raise
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
     messages.success(request, f'Client "{name}" deleted.')
     return redirect('client_list')
@@ -367,12 +474,17 @@ def client_transfer(request, pk):
     })
 
 
-# Where a refund can be paid from. Source of truth is CashAccount; the view
-# hands the frontend the {value, label} pairs so the picker never drifts from
-# the choices the POST handler actually validates against.
+# Lokasi kas tempat refund dibayar. Value = lokasi string yang sama dengan
+# `_CASH_BY_LOCATION` di finance/posting.py ('sby'/'pusat'), bukan kode akun —
+# post_refund(from_location=...) mengurai value ini ke kode kas via chart of
+# accounts. (Sebelumnya pakai hw.models.ledger.CashAccount yang kini deprecated.)
+REFUND_LOCATIONS = ['sby', 'pusat']
+# Where a refund can be paid from. The view hands the frontend the {value,
+# label} pairs so the picker never drifts from the choices the POST handler
+# actually validates against.
 REFUND_ACCOUNTS = [
-    {'value': CashAccount.SBY, 'label': str(CashAccount.SBY.label)},
-    {'value': CashAccount.PUSAT, 'label': str(CashAccount.PUSAT.label)},
+    {'value': loc, 'label': 'Surabaya' if loc == 'sby' else 'Pusat'}
+    for loc in REFUND_LOCATIONS
 ]
 
 
@@ -382,13 +494,13 @@ def client_refund(request, pk):
     client_obj = get_object_or_404(Client, pk=pk, company=company)
 
     if request.method == 'POST':
-        from_account = request.POST.get('from_account') or CashAccount.SBY
+        from_account = request.POST.get('from_account') or REFUND_LOCATIONS[0]
         amount = int(round(_to_float(request.POST.get('amount_sar'))))
         note = (request.POST.get('note') or '').strip()
         proof = request.FILES.get('proof')
 
         errors = {}
-        if from_account not in (CashAccount.SBY, CashAccount.PUSAT):
+        if from_account not in REFUND_LOCATIONS:
             errors['from_account'] = 'Choose where the refund is paid from.'
         if amount <= 0:
             errors['amount_sar'] = 'Enter an amount greater than zero.'
@@ -451,10 +563,63 @@ def client_statement_pdf(request, pk):
     company = _company(request)
     c = get_object_or_404(Client, pk=pk, company=company)
 
+    mode = request.GET.get('mode', 'balance')
+    if mode not in ('balance', 'open', 'byres'):
+        mode = 'balance'
+
     date_from = _parse_date(request.GET.get('from', ''))
     date_to = _parse_date(request.GET.get('to', ''))
     as_of_date = _parse_date(request.GET.get('as_of', ''))
     as_of = dj_timezone.make_aware(datetime.combine(as_of_date, dt_time.max)) if as_of_date else None
+
+    period_label = _period_label(date_from, date_to)
+
+    if mode == 'open':
+        open_items = finance_queries.open_items(c.id, company=company, date_to=date_to, as_of=as_of)
+        return _render_list_pdf(
+            request, Client.objects.none(),
+            template='hw/client/client_open_items_pdf.html',
+            filename=f'open_items_{c.name}_{date.today()}.pdf'.replace(' ', '_'),
+            extra_ctx={
+                'client': c,
+                'open_items': open_items['rows'],
+                'total_open': open_items['total_remaining'],
+                'period_label': period_label,
+                'logo_url': _logo_file_url(company),
+            },
+        )
+
+    if mode == 'byres':
+        st = finance_queries.client_statement_by_reservation(
+            c.id, company=company, date_from=date_from, date_to=date_to, as_of=as_of,
+        )
+        reservations = [{
+            'reservation_number': g['reservation_number'],
+            'hotel': g['hotel'],
+            'check_in': g['check_in'].strftime('%d/%m/%Y') if g['check_in'] else '—',
+            'billed': g['billed'],
+            'paid': g['paid'],
+            'balance': g['balance'],
+            'settled': g['settled'],
+        } for g in st['reservations']]
+        return _render_list_pdf(
+            request, Client.objects.none(),
+            template='hw/client/client_statement_byres_pdf.html',
+            filename=f'statement_{c.name}_{date.today()}.pdf'.replace(' ', '_'),
+            extra_ctx={
+                'client': c,
+                'reservations': reservations,
+                'unallocated': st['unallocated'],
+                'opening_balance': st['opening_balance'],
+                'closing_balance': st['closing_balance'],
+                'total_debit': st['total_debit'],
+                'total_credit': st['total_credit'],
+                'aging': st['aging']['buckets'],
+                'aging_total': st['aging']['total'],
+                'period_label': period_label,
+                'logo_url': _logo_file_url(company),
+            },
+        )
 
     statement = finance_queries.client_statement_with_opening(c.id, date_from=date_from, date_to=date_to, as_of=as_of)
     opening_balance = statement['opening_balance']
@@ -465,12 +630,11 @@ def client_statement_pdf(request, pk):
         'date': r['date'].strftime('%d/%m/%Y') if r['date'] else '—',
         'type': r['type'],
         'description': r['description'],
+        'invoice_number': r['invoice_number'],
         'debit': r['debit'],
         'credit': r['credit'],
         'balance': r['balance'],
     } for r in statement['rows']]
-
-    period_label = _period_label(date_from, date_to)
 
     return _render_list_pdf(
         request, Client.objects.none(),

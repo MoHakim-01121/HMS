@@ -31,17 +31,9 @@ const CSS = `
 .hms-btn-primary { border:1px solid var(--primary); background:var(--primary); color:var(--primary-foreground); padding:0 18px; }
 .hms-btn-primary:hover { background:var(--primary-hover); border-color:var(--primary-hover); }
 
-/* "Saldo kas" strip — must read as one system with the KPI board above it:
-   identical divided-card shell, identical responsive breakpoints, and the
-   SAME cell box model (padding, min-height, label/figure rhythm) as
-   .hms-kpi / .hms-kpi-body so the two rows line up top and bottom. */
-.hms-cash-row {
-  display:grid; grid-template-columns:repeat(2,1fr);
-  gap:1px; background:var(--border);
-  border:1px solid var(--border); border-radius:var(--radius-card);
-  overflow:hidden; margin-bottom:16px;
-}
-@media (min-width:1280px) { .hms-cash-row { grid-template-columns:repeat(4,1fr); } }
+/* "Saldo kas" strip — the row element reuses .hms-kpi-row verbatim (see
+   JSX) so its width, column count and every breakpoint are byte-identical
+   to the KPI board above it; this block only styles the cells inside. */
 .hms-cash {
   display:flex; align-items:center; justify-content:space-between; gap:12px;
   padding:16px 18px; background:var(--card);
@@ -55,18 +47,9 @@ const CSS = `
   border:1px solid var(--input); border-radius:9999px;
   font-size:11px; font-weight:600; color:var(--muted-foreground); white-space:nowrap;
 }
-/* Mobile (doc 01 1c): the cash strip stacks into rows inside one card —
-   label left, figure right. */
 @media (max-width:600px) {
-  .hms-cash-row { grid-template-columns:1fr; gap:0; }
-  .hms-cash {
-    padding:13px 15px;
-    border-top:1px solid var(--hairline);
-  }
-  .hms-cash:first-child { border-top:0; }
-  .hms-cash > div { display:flex; align-items:baseline; justify-content:space-between; gap:12px; width:100%; }
-  .hms-cash-label { order:0; }
-  .hms-cash-val { font-size:15px; margin-top:0; }
+  .hms-cash { padding:13px 15px; }
+  .hms-cash-val { font-size:17px; }
   .hms-cash-badge { display:none; }
 }
 
@@ -204,64 +187,79 @@ const CSS = `
 .hms-funnel-row:first-child .hms-funnel-bar { background:var(--green); }
 .hms-funnel-row:last-child .hms-funnel-bar { background:var(--yellow); }
 
-/* Ask AI — doc 01 (1f): the gold pulsing FAB is replaced by a plain inked
-   pill labelled "Tanya data" (44px, no pulse). Panel surfaces stay on the
-   Homlu floating-menu recipe (--popover + two-layer soft shadow). */
-.ai-fab { position:fixed; bottom:56px; right:24px; height:44px; padding:0 16px 0 13px; border-radius:9999px; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--primary); cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:12.5px; font-weight:600; white-space:nowrap; box-shadow:0 12px 26px -12px rgba(0,0,0,.5); transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:10; }
+/* Ask AI — rebuilt to Claude Design doc 01 (1f). The gold pulsing FAB
+   becomes a plain inked pill "Ask AI" (44px, no pulse). The panel is a
+   340 / radius-20 card: header with a squared spark tile, a tinted
+   conversation area whose answers are bordered data cards (never loose
+   paragraphs), and a footer that carries suggestion pills above a 44px
+   input pill with a 32px inked send button. */
+.ai-fab { position:fixed; bottom:24px; right:24px; height:44px; padding:0 16px 0 13px; border-radius:9999px; background:var(--primary); color:var(--primary-foreground); border:1px solid var(--primary); cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-family:inherit; font-size:12.5px; font-weight:600; white-space:nowrap; box-shadow:0 12px 26px -12px rgba(0,0,0,.5); transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s; z-index:40; }
 .ai-fab:hover { transform:translateY(-1px); } .ai-fab:active { transform:scale(.97); opacity:.9; }
-.ai-fab svg { width:16px; height:16px; flex:none; transition:opacity .18s,transform .22s cubic-bezier(.34,1.56,.64,1); }
+.ai-fab svg { width:16px; height:16px; flex:none; }
 .ai-fab .fab-ic-close { display:none; }
-.ai-fab.open .fab-ic-spark { display:none; }
-.ai-fab.open .fab-ic-close { display:block; }
-.ai-panel { position:fixed; bottom:120px; right:24px; width:340px; max-height:480px; background:var(--popover); border:1px solid var(--border); border-radius:20px; overflow:hidden; box-shadow:0 10px 24px -6px rgba(0,0,0,.18), 0 4px 8px -4px rgba(0,0,0,.12); display:flex; flex-direction:column; z-index:10; transform:translateY(16px) scale(.95); transform-origin:bottom right; opacity:0; pointer-events:none; transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .16s; }
+/* Panel open → the pill retracts; the panel header X (and Esc) close it. */
+.ai-fab.open { opacity:0; pointer-events:none; transform:scale(.9); }
+
+.ai-panel { position:fixed; bottom:24px; right:24px; width:340px; max-height:min(540px, calc(100vh - 96px)); background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; box-shadow:0 22px 50px -22px rgba(0,0,0,.34), 0 4px 12px -4px rgba(0,0,0,.14); display:flex; flex-direction:column; z-index:40; transform:translateY(16px) scale(.97); transform-origin:bottom right; opacity:0; pointer-events:none; transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .16s; }
 .ai-panel.open { transform:translateY(0) scale(1); opacity:1; pointer-events:all; }
-@media (max-width:640px){ .ai-fab{bottom:108px;right:16px;} .ai-panel{bottom:172px;right:16px;left:16px;width:auto;} }
-/* doc 01 1c omits the assistant on mobile — it belongs on the desktop topbar */
-@media (max-width:600px){ .ai-fab, .ai-panel{ display:none !important; } }
-.ai-panel-head { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
-.ai-head-icon { width:30px; height:30px; border-radius:10px; background:var(--secondary); color:var(--foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+@media (max-width:640px){ .ai-fab{bottom:16px;right:16px;} .ai-panel{bottom:16px;right:16px;left:16px;width:auto;} }
+
+.ai-panel-head { display:flex; align-items:center; gap:11px; padding:14px 17px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.ai-head-icon { width:32px; height:32px; border-radius:10px; background:var(--secondary); border:1px solid var(--border); color:var(--foreground); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
 .ai-head-text { flex:1; min-width:0; }
-.ai-panel-title { font-size:13px; font-weight:600; color:var(--foreground); line-height:1.2; }
-.ai-panel-sub { font-size:11px; color:var(--muted-foreground); line-height:1.3; }
-.ai-panel-close { background:none; border:none; cursor:pointer; color:var(--muted-foreground); padding:4px; display:flex; align-items:center; border-radius:8px; transition:color .12s,background .12s; }
+.ai-panel-title { font-size:13.5px; font-weight:600; color:var(--foreground); line-height:1.2; }
+.ai-panel-sub { font-size:11.5px; color:var(--muted-foreground); line-height:1.35; margin-top:1px; }
+.ai-panel-close { width:28px; height:28px; background:none; border:none; cursor:pointer; color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; border-radius:8px; transition:color .12s,background .12s; flex-shrink:0; }
 .ai-panel-close:hover { color:var(--foreground); background:var(--secondary); }
-.chat-messages { flex:1; padding:14px 13px; display:flex; flex-direction:column; gap:11px; overflow-y:auto; min-height:0; background:var(--muted); }
-.chat-empty { margin:auto; display:flex; flex-direction:column; align-items:center; gap:6px; padding:18px 14px; text-align:center; }
-.chat-empty-icon { width:38px; height:38px; border-radius:50%; background:var(--secondary); color:var(--foreground); display:flex; align-items:center; justify-content:center; margin-bottom:2px; }
+
+.chat-messages { flex:1; padding:16px 17px; display:flex; flex-direction:column; gap:13px; overflow-y:auto; min-height:0; background:var(--muted); }
+
+/* Empty state — a left-aligned intro card, not a centred hero. */
+.chat-empty { display:flex; flex-direction:column; gap:4px; }
 .chat-empty-title { font-size:13px; font-weight:600; color:var(--foreground); }
-.chat-empty-sub { font-size:11.5px; color:var(--muted-foreground); }
-.chat-sugs { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:8px; }
-.chat-sug { background:transparent; border:1px solid var(--input); border-radius:9999px; padding:5px 11px; font-size:11.5px; font-weight:500; color:var(--foreground); cursor:pointer; transition:background .12s,color .12s,border-color .12s; }
+.chat-empty-sub { font-size:12px; line-height:1.6; color:var(--muted-foreground); }
+.chat-empty .chat-sugs { margin-top:12px; }
+
+.chat-sugs { display:flex; flex-direction:column; gap:7px; }
+.chat-sug { display:flex; align-items:center; height:36px; padding:0 13px; background:transparent; border:1px solid var(--input); border-radius:9999px; font-size:12.5px; font-weight:500; color:var(--foreground); font-family:inherit; text-align:left; cursor:pointer; transition:background .12s,border-color .12s; }
 .chat-sug:hover { background:var(--secondary); border-color:var(--ring); }
+
 @keyframes bubbleIn { from{opacity:0;transform:translateY(8px) scale(.96);} to{opacity:1;transform:translateY(0) scale(1);} }
-.chat-bubble { padding:9px 13px; border-radius:14px; font-size:13px; line-height:1.55; max-width:88%; word-break:break-word; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
-.bubble-user { background:var(--primary); color:var(--primary-foreground); align-self:flex-end; border-bottom-right-radius:4px; }
-.bubble-ai { background:var(--card); border:1px solid var(--border); color:var(--foreground); align-self:flex-start; border-bottom-left-radius:4px; }
-.bubble-typing { display:flex; gap:4px; align-items:center; padding:10px 13px; }
+.chat-bubble { padding:9px 13px; font-size:13px; line-height:1.55; max-width:82%; word-break:break-word; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
+.bubble-user { background:var(--primary); color:var(--primary-foreground); align-self:flex-end; border-radius:14px 14px 4px 14px; }
+.bubble-ai { background:var(--card); border:1px solid var(--border); color:var(--foreground); align-self:flex-start; border-radius:14px 14px 14px 4px; }
+
+.chat-typing-row { display:flex; align-items:center; gap:8px; align-self:flex-start; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
+.chat-typing-note { font-size:11.5px; color:var(--muted-foreground); }
+.bubble-typing { display:flex; gap:4px; align-items:center; padding:9px 13px; }
 .bubble-typing span { width:5px; height:5px; background:var(--muted-foreground); border-radius:50%; animation:bounce 1.2s infinite; }
 .bubble-typing span:nth-child(2){animation-delay:.2s;} .bubble-typing span:nth-child(3){animation-delay:.4s;}
 @keyframes bounce { 0%,60%,100%{transform:translateY(0);} 30%{transform:translateY(-4px);} }
-.chat-typing-row { display:flex; align-items:center; gap:8px; align-self:flex-start; animation:bubbleIn .22s cubic-bezier(.34,1.56,.64,1) both; }
-.chat-typing-note { font-size:11px; color:var(--muted-foreground); }
-.chat-input-row { display:flex; align-items:center; padding:2px 12px 12px; gap:8px; flex-shrink:0; }
-.chat-input-pill { flex:1; display:flex; align-items:center; background:var(--card); border:1px solid var(--input); border-radius:9999px; padding:0 15px; height:40px; transition:border-color .15s,box-shadow .15s; }
-.chat-input-pill:focus-within { border-color:var(--ring); box-shadow:0 0 0 3px var(--surface-hover); }
+
+.chat-foot { flex-shrink:0; padding:12px 17px 15px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:11px; }
+.chat-foot .chat-sugs { flex-direction:row; flex-wrap:wrap; gap:7px; }
+.chat-foot .chat-sug { height:28px; padding:0 11px; font-size:11.5px; color:var(--muted-foreground); }
+.chat-input-pill { display:flex; align-items:center; gap:9px; background:var(--card); border:1px solid var(--input); border-radius:9999px; padding:0 6px 0 15px; height:44px; transition:border-color .15s,box-shadow .15s; }
+.chat-input-pill:focus-within { border-color:var(--ring); }
 /* Beats the global input reset in design.css (same idiom as .search-wrap) */
 .chat-input-pill input:not([type="checkbox"]):not([type="radio"]) { flex:1; width:auto; background:transparent; border:none; outline:none; box-shadow:none; font-size:13px; font-family:inherit; color:var(--foreground); height:100%; padding:0; border-radius:0; appearance:none; -webkit-appearance:none; }
 .chat-input-pill input:not([type="checkbox"]):not([type="radio"]):focus { border:none; box-shadow:none; outline:none; }
 .chat-input::placeholder { color:var(--muted-foreground); }
-.chat-send { background:var(--primary); color:var(--primary-foreground); border:none; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s,box-shadow .15s; flex-shrink:0; }
-.chat-send:hover { transform:scale(1.08); box-shadow:0 2px 12px rgba(0,0,0,.18); }
-.chat-send:active { transform:scale(.92); } .chat-send:disabled { opacity:.4; cursor:not-allowed; transform:none; box-shadow:none; }
-.chat-send svg { width:14px; height:14px; }
+.chat-send { background:var(--primary); color:var(--primary-foreground); border:none; border-radius:9999px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; transition:transform .15s cubic-bezier(.34,1.56,.64,1),opacity .15s; }
+.chat-send:hover { transform:scale(1.06); }
+.chat-send:active { transform:scale(.92); } .chat-send:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.chat-send svg { width:15px; height:15px; }
+
 .bubble-ai .ai-ul { margin:4px 0 2px 4px; padding-left:14px; display:flex; flex-direction:column; gap:3px; }
 .bubble-ai .ai-ul li { font-size:13px; line-height:1.5; } .bubble-ai strong { font-weight:600; color:var(--foreground); }
-.ai-card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin:3px 0; display:flex; flex-direction:column; gap:3px; }
-.ai-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; }
-.ai-card-num { font-size:11px; font-weight:700; color:var(--foreground); font-variant-numeric:tabular-nums; }
-.ai-card-badge { font-size:10px; font-weight:600; padding:1px 7px; border-radius:9999px; flex-shrink:0; }
+/* AI data card — bordered rows, per 1f: answers are inspectable data, not prose. */
+.ai-card { background:var(--card); border:1px solid var(--border); border-radius:12px; margin:3px 0; overflow:hidden; display:flex; flex-direction:column; }
+.ai-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:10px 13px; }
+.ai-card-head + .ai-card-name { padding-top:0; }
+.ai-card-num { font-size:12px; font-weight:600; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.ai-card-badge { font-size:10px; font-weight:600; padding:2px 8px; border-radius:9999px; flex-shrink:0; }
 .ai-badge-green { background:var(--green-muted); color:var(--green); } .ai-badge-red { background:var(--red-muted); color:var(--red); }
-.ai-card-name { font-size:12px; font-weight:500; color:var(--foreground); } .ai-card-meta { font-size:11px; color:var(--muted-foreground); }
+.ai-card-name { font-size:12.5px; font-weight:500; color:var(--foreground); padding:0 13px 4px; } .ai-card-meta { font-size:11px; color:var(--muted-foreground); padding:0 13px 10px; }
 `;
 
 // ── AI reply formatter (ported from home.html) ──
@@ -316,6 +314,10 @@ function ChartTip({ active, payload, label }) {
     </div>
   );
 }
+
+// Ask AI starter prompts (doc 01 1f) — shown as pills in the empty state and
+// again above the input once a conversation has started.
+const SUGGESTIONS = ["Check-ins in the next 7 days", "Overdue invoices", "Outstanding remittance to HQ"];
 
 const PERIODS = ["7D", "30D", "6M", "12M"];
 const PERIOD_SUB = { "7D": "last 7 days", "30D": "last 30 days", "6M": "last 6 months", "12M": "last 12 months" };
@@ -468,7 +470,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
       </div>
 
       {financeSummary && (
-        <div className="hms-cash-row">
+        <div className="hms-kpi-row hms-cash-row">
           <CashTile label={t("Cash Surabaya")} value={financeSummary.kas_sby} meta="SAR" />
           <CashTile label={t("Cash HQ")} value={financeSummary.kas_pusat} meta="SAR" />
           <CashTile label={t("Total Receivable")} value={financeSummary.total_piutang} meta="SAR" />
@@ -725,12 +727,11 @@ export default function Home() {
         <div className="chat-messages" ref={msgRef} aria-live="polite">
           {messages.length === 0 && !typing && (
             <div className="chat-empty">
-              <div className="chat-empty-icon"><svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
-              <div className="chat-empty-title">{t("Ask anything")}</div>
-              <div className="chat-empty-sub">{t("Invoices, reservations, or clients — answered from your data")}</div>
+              <div className="chat-empty-title">{t("Ask anything about today's data")}</div>
+              <div className="chat-empty-sub">{t("Every answer carries the figures and links to the source records, so you can check it yourself.")}</div>
               <div className="chat-sugs">
-                {[t("Unpaid invoices"), t("Reservations this month"), t("Total outstanding")].map((s) => (
-                  <button key={s} type="button" className="chat-sug" onClick={() => send(s)}>{s}</button>
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" className="chat-sug" onClick={() => send(t(s))}>{t(s)}</button>
                 ))}
               </div>
             </div>
@@ -747,14 +748,21 @@ export default function Home() {
             </div>
           )}
         </div>
-        <div className="chat-input-row">
+        <div className="chat-foot">
+          {messages.length > 0 && (
+            <div className="chat-sugs">
+              {SUGGESTIONS.map((s) => (
+                <button key={s} type="button" className="chat-sug" disabled={typing} onClick={() => send(t(s))}>{t(s)}</button>
+              ))}
+            </div>
+          )}
           <div className="chat-input-pill">
-            <input ref={inputRef} type="text" className="chat-input" placeholder={t("Ask about your data…")} autoComplete="off"
+            <input ref={inputRef} type="text" className="chat-input" placeholder={t("Ask about invoices, rooms, or remittances")} autoComplete="off"
               value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+            <button className="chat-send" title={t("Send")} disabled={typing || !input.trim()} onClick={() => send()}>
+              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h13M12 6l6 6-6 6" /></svg>
+            </button>
           </div>
-          <button className="chat-send" title={t("Send")} disabled={typing} onClick={() => send()}>
-            <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
-          </button>
         </div>
       </div>
     </div>

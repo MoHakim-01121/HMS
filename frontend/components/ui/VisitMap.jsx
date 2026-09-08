@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { loadLeaflet } from "../../utils/leaflet.js";
+import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 
 // Two-pin comparison map: where the Client is on file vs. where the staff
 // actually checked in from. Read-only, no filters/heat coloring — that
@@ -14,9 +14,7 @@ export default function VisitMap({ clientLat, clientLng, checkinLat, checkinLng 
     loadLeaflet().then((L) => {
       if (disposed || !ref.current) return;
       map = L.map(ref.current, { zoomControl: true, scrollWheelZoom: false });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "© OpenStreetMap © CartoDB", subdomains: "abcd", maxZoom: 19,
-      }).addTo(map);
+      L.tileLayer(basemapUrl(document.documentElement.getAttribute("data-theme")), basemapOptions).addTo(map);
 
       const points = [];
       if (clientLat != null && clientLng != null) {

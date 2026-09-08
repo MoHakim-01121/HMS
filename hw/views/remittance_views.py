@@ -1,4 +1,3 @@
-import csv
 import json
 import logging
 
@@ -9,7 +8,6 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q, Sum
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
@@ -20,7 +18,7 @@ from ..models.choices import Company
 from ..finance import posting
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
-from .helpers import validate_proof_file, period_label as _period_label
+from .helpers import validate_proof_file, period_label as _period_label, csv_export_response
 from .invoice_billing import _billing_client
 
 logger = logging.getLogger(__name__)
@@ -370,15 +368,13 @@ def remittance_detail(request, pk):
 @require_perm('remittance', 'export')
 def remittance_export_csv(request):
     remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines__invoice')
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="remittance.csv"'
-    writer = csv.writer(response)
-    writer.writerow(['Tanggal', 'Total SAR', 'Note', 'Res#', 'Invoice', 'Amount SAR'])
+    headers = ['Tanggal', 'Total SAR', 'Note', 'Res#', 'Invoice', 'Amount SAR']
+    rows = []
     for rem in remittances:
         lines = list(rem.lines.all())
         if lines:
             for i, line in enumerate(lines):
-                writer.writerow([
+                rows.append([
                     rem.date.strftime('%d/%m/%Y') if i == 0 else '',
                     rem.total_sar if i == 0 else '',
                     rem.note if i == 0 else '',
@@ -387,8 +383,8 @@ def remittance_export_csv(request):
                     line.amount_sar,
                 ])
         else:
-            writer.writerow([rem.date.strftime('%d/%m/%Y'), rem.total_sar, rem.note, '', '', ''])
-    return response
+            rows.append([rem.date.strftime('%d/%m/%Y'), rem.total_sar, rem.note, '', '', ''])
+    return csv_export_response('remittance.csv', headers, rows)
 
 
 @require_perm('remittance', 'edit')

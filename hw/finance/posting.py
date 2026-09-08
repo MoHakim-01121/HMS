@@ -4,25 +4,73 @@
 barisnya, balance per currency, dengan seq monoton + rantai hash +
 idempotency. Semua fungsi posting per-event (Fase 3) dibangun di atasnya.
 """
-from django.db import models, transaction
+import logging
+
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..models.payment import PaymentRecord, PaymentLog
+from ..models.period import FinancialPeriod
 from ..models.choices import Company, InvoiceType
-from ..finance_helpers import (
+from .errors import (
     FinanceError, JournalImbalanceError, PeriodLockedError,
-    get_period_for_date, check_period_postable,
 )
 from . import accounts as coa
 from .accounts import resolve_account_code
 from .hashing import entry_hash
+
+logger = logging.getLogger(__name__)
 
 _DIMS = ("client", "invoice", "reservation", "service_item", "penalty", "remittance")
 
 
 class MissingDimensionError(FinanceError):
     """Baris akun piutang/titipan wajib punya dimensi client."""
+
+
+# ── Period helpers ─────────────────────────────────────────────
+
+def get_current_period(company=None):
+    """Return the current open period (with row lock). Raises PeriodLockedError if none open."""
+    now = timezone.now().date()
+    period = FinancialPeriod.objects.select_for_update().filter(
+        date_from__lte=now,
+        date_to__gte=now,
+        status=FinancialPeriod.STATUS_OPEN,
+    ).first()
+    if not period:
+        raise PeriodLockedError("Tidak ada periode terbuka untuk tanggal saat ini")
+    return period
+
+
+def get_period_for_date(date, company=None):
+    """Return the period that contains the given date (with row lock).
+
+    When ``company`` is supplied the result is scoped to that company,
+    preventing cross-company period mixups in a multi-tenant deployment.
+    """
+    qs = FinancialPeriod.objects.select_for_update().filter(
+        date_from__lte=date,
+        date_to__gte=date,
+    )
+    if company is not None:
+        qs = qs.filter(company=company)
+    period = qs.first()
+    if not period:
+        raise PeriodLockedError(f"Tidak ada periode untuk tanggal {date}")
+    return period
+
+
+def check_period_postable(period):
+    """Verify period allows posting.  Period is already locked by callers
+    (get_period_for_date / get_current_period), so the status check is
+    stable within the same transaction."""
+    if not period.is_postable:
+        raise PeriodLockedError(
+            f"Periode {period.name} sudah {period.get_status_display()}, "
+            "tidak bisa posting journal entry"
+        )
 
 
 def _norm_line(spec, line_no):
@@ -107,7 +155,16 @@ def post_entry(
     entry yang sudah ada, tidak dobel-posting.
     """
     if idempotency_key:
-        existing = JournalEntry.objects.filter(idempotency_key=idempotency_key).first()
+        existing = (
+            JournalEntry.objects
+            .filter(idempotency_key=idempotency_key, is_reversal=False)
+            .exclude(
+                pk__in=JournalEntry.objects.filter(
+                    reverses__isnull=False,
+                ).values_list("reverses_id", flat=True),
+            )
+            .first()
+        )
         if existing:
             return existing
 
@@ -121,10 +178,14 @@ def post_entry(
                 f"Baris {r['line_no']} ({r['account_id']}) wajib punya dimensi client"
             )
 
-    period = get_period_for_date(entry_date)
+    period = get_period_for_date(entry_date, company=company)
     check_period_postable(period)
 
-    # seq monoton per company + prev_hash dari entry terakhir
+    # seq monoton per company + prev_hash dari entry terakhir.
+    # select_for_update() memastikan dua transaksi paralel tidak menghasilkan
+    # seq yang sama. Untuk tabel kosong (entry pertama), kita menggunakan
+    # 0 + 1 = 1. IntegrityError (company, seq) ditangkap sebagai fallback
+    # untuk race condition extremely-narrow-window.
     last = (
         JournalEntry.objects.select_for_update()
         .filter(company=company, seq__isnull=False)
@@ -151,7 +212,20 @@ def post_entry(
         proof=proof,
     )
     entry.entry_hash = entry_hash(entry, rows, prev_hash)
-    entry.save()
+
+    try:
+        entry.save()
+    except IntegrityError as exc:
+        if 'journal_entry_company_seq' in str(exc) or 'unique' in str(exc).lower():
+            logger.warning("post_entry seq race detected for company=%s, retrying", company)
+            return post_entry(
+                entry_type=entry_type, description=description,
+                entry_date=entry_date, lines=lines, company=company,
+                source_type=source_type, source_id=source_id,
+                idempotency_key=idempotency_key, created_by=created_by,
+                is_reversal=is_reversal, reverses=reverses, proof=proof,
+            )
+        raise
 
     JournalLine.objects.bulk_create([
         JournalLine(journal_entry=entry, **r) for r in rows
@@ -168,7 +242,20 @@ def post_entry(
 
 @transaction.atomic
 def reverse_entry(original, *, reversal_date, created_by, note=""):
-    """Entry pembalik: tukar debit↔credit tiap baris, tautkan via `reverses`."""
+    """Entry pembalik: tukar debit↔credit tiap baris, tautkan via `reverses`.
+
+    `original` di-lock (select_for_update) supaya dua reversal paralel tidak
+    bisa dobel-reverse entry yang sama. Meneruskan FX/currency-origin fields
+    supaya jejak audit multi-currency tetap utuh.
+    """
+    # Lock the original row for the duration of this transaction so two
+    # concurrent reversals cannot both pass the "already reversed" guard below.
+    from ..models.journal import JournalEntry as _JE
+    try:
+        original = _JE.objects.select_for_update().get(pk=original.pk)
+    except _JE.DoesNotExist:
+        raise FinanceError(f"Entry {getattr(original, 'entry_number', original.pk)} tidak ditemukan")
+
     if original.is_reversal:
         raise FinanceError("Tidak bisa me-reverse entry yang sudah reversal")
     if JournalEntry.objects.filter(reverses=original).exists():
@@ -181,6 +268,9 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
             "debit": ln.credit,
             "credit": ln.debit,
             "currency": ln.currency,
+            "orig_amount": ln.orig_amount,
+            "orig_currency": ln.orig_currency,
+            "fx_rate": ln.fx_rate,
             "note": note or f"Reversal of {original.entry_number}",
         }
         for dim in _DIMS:
@@ -395,15 +485,69 @@ def _payment_dims(payment):
     return dims
 
 
+def _payment_targets(payment):
+    """Daftar identitas yang dibayar oleh payment ini, untuk deskripsi jurnal.
+
+    Sumbernya dua: field langsung (payment.reservation / service_item) dan
+    PaymentAllocation (satu payment bisa menutup beberapa reservasi/service).
+    Nomor reservasi dipakai karena identitas stabil + konsisten dengan
+    deskripsi jurnal lain (Charge/Remittance pakai nomor, bukan nama).
+    """
+    refs = []
+    seen = set()
+
+    def _add(spec):
+        if spec is None or spec in seen:
+            return
+        seen.add(spec)
+        refs.append(spec)
+
+    if payment.reservation_id and payment.reservation:
+        _add(payment.reservation.reservation_number)
+    if payment.service_item_id and payment.service_item:
+        _add(f"SVC#{payment.service_item.service_number}")
+
+    if payment.pk:
+        for pa in payment.allocations.all():
+            if pa.reservation_id and pa.reservation:
+                _add(pa.reservation.reservation_number)
+            elif pa.service_item_id and pa.service_item:
+                _add(f"SVC#{pa.service_item.service_number}")
+
+    return refs
+
+
 @transaction.atomic
-def post_payment(payment, *, created_by):
+def post_payment(payment, *, created_by, idempotency_key=None):
     """DR Kas (sesuai received_in) / CR Piutang. Idempotent per payment.
 
     Kalau payment punya PaymentAllocation → CR Piutang dipecah per alokasi
     (dimensi reservation/service_item) supaya piutang & mengendap per-
     reservasi akurat; sisa yang belum dialokasikan jadi satu baris CR
     Piutang bertingkat client/invoice saja.
+
+    `idempotency_key` (opsional) meng-override key default. Dipakai realokasi,
+    di mana jurnal lama sudah di-reverse (key default sudah terpakai & unik).
     """
+    if idempotency_key is None:
+        default_key = f"payment:{payment.payment_number}:confirm"
+        existing = JournalEntry.objects.filter(idempotency_key=default_key).first()
+        if existing is not None:
+            reversed_ids = JournalEntry.objects.filter(
+                reverses__isnull=False,
+            ).values_list("reverses_id", flat=True)
+            if existing.pk in reversed_ids:
+                # Entry lama sudah di-reverse: idempotency key default tetap
+                # tertombstone (reversal melepas baris, bukan unique key-nya).
+                # Re-post (mis. re-confirm setelah reverse) butuh key baru agar
+                # tidak menabrak UNIQUE constraint.
+                n = 2
+                while JournalEntry.objects.filter(
+                    idempotency_key=f"{default_key}#{n}",
+                ).exists():
+                    n += 1
+                idempotency_key = f"{default_key}#{n}"
+
     cash_acc = _CASH_BY_LOCATION.get(payment.received_in, coa.CASH_SBY)
     amt = int(payment.amount_sar)
     base = {"client": payment.client_id, "invoice": payment.invoice_id}
@@ -435,21 +579,24 @@ def post_payment(payment, *, created_by):
 
     return post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
-        description=f"Payment {payment.payment_number} — {payment.client}",
+        description=f"Payment {payment.payment_number} - {', '.join(_payment_targets(payment)) or 'unallocated'}",
         entry_date=payment.payment_date,
         lines=lines,
         company=payment.company,
         source_type="PaymentRecord",
         source_id=payment.pk,
-        idempotency_key=f"payment:{payment.payment_number}:confirm",
+        idempotency_key=idempotency_key or f"payment:{payment.payment_number}:confirm",
         created_by=created_by,
     )
 
 
-def client_credit_balance(client_id):
+def client_credit_balance(client_id, company=None):
     agg = JournalLine.objects.filter(
         client_id=client_id, account_id=coa.CUST_CREDIT,
-    ).aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
+    )
+    if company is not None:
+        agg = agg.filter(journal_entry__company=company)
+    agg = agg.aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
     return (agg["c"] or 0) - (agg["d"] or 0)
 
 
@@ -459,16 +606,30 @@ class InsufficientCreditError(FinanceError):
 
 @transaction.atomic
 def post_payment_from_credit(payment, *, created_by):
-    """Bayar invoice pakai saldo titipan: DR Titipan / CR Piutang."""
+    """Bayar invoice pakai saldo titipan: DR Titipan / CR Piutang.
+
+    Mengunci baris titipan terkait (via client_credit_balance dengan select_
+    for_update pada company/jurnal) supaya dua pembayaran dari-titipan paralel
+    tidak double-spend saldo yang sama (lost update).
+    """
     amt = int(payment.amount_sar)
-    if client_credit_balance(payment.client_id) < amt:
+    if not amt:
+        raise FinanceError("Jumlah pembayaran harus > 0")
+    # Lock the client's titipan rows for this company inside the transaction
+    # so two concurrent from-credit payments serialize on the current balance.
+    JournalLine.objects.select_for_update().filter(
+        client_id=payment.client_id, account_id=coa.CUST_CREDIT,
+        journal_entry__company=payment.company,
+    ).aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
+    balance = client_credit_balance(payment.client_id, company=payment.company)
+    if balance < amt:
         raise InsufficientCreditError(
             f"Saldo titipan {payment.client} tidak cukup untuk {amt:,}"
         )
     dims = _payment_dims(payment)
     return post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
-        description=f"Payment {payment.payment_number} (titipan) — {payment.client}",
+        description=f"Payment {payment.payment_number} (titipan) - {', '.join(_payment_targets(payment)) or 'unallocated'}",
         entry_date=payment.payment_date,
         lines=[
             {"account": coa.CUST_CREDIT, "debit": amt, **dims},
@@ -767,3 +928,78 @@ def post_adjustment(*, lines, description, entry_date, created_by,
         idempotency_key=idempotency_key,
         created_by=created_by,
     )
+
+
+@transaction.atomic
+def reallocate_payment(payment, allocations, *, created_by):
+    """Ubah alokasi payment yang sudah efektif (confirmed/allocated).
+
+    Append-only ledger: jurnal payment yang live di-reverse, PaymentAllocation
+    lama diganti, lalu diposting ulang dengan dimensi baru supaya baris CR
+    Piutang menempel ke reservasi/service yang benar.
+
+    `allocations`: iterable (target, amount_sar) — lihat allocate_payment.
+    Total alokasi baru tidak boleh melebihi amount_sar payment.
+    """
+    from .errors import PaymentAlreadyProcessedError
+    if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
+        raise PaymentAlreadyProcessedError(
+            f"Payment {payment.payment_number} harus efektif dulu "
+            "(confirmed/allocated) untuk direalokasi."
+        )
+
+    allocations = list(allocations)
+    total = sum(int(a) for _, a in allocations)
+    if total > int(payment.amount_sar):
+        raise FinanceError(
+            f"Alokasi {total:,} melebihi pembayaran {payment.amount_sar:,}"
+        )
+
+    # Reverse live payment journal entry(ies).
+    reversed_ids = JournalEntry.objects.filter(
+        reverses__isnull=False,
+    ).values_list("reverses_id", flat=True)
+    live = JournalEntry.objects.filter(
+        reference_type="PaymentRecord", reference_id=payment.pk,
+        entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
+    ).exclude(pk__in=reversed_ids)
+    for entry in live:
+        reverse_entry(
+            entry, reversal_date=payment.payment_date or timezone.now().date(),
+            created_by=created_by,
+            note=f"Reallocation of {payment.payment_number}",
+        )
+
+    # Replace PaymentAllocation rows.
+    from ..models import CancellationPenalty, Reservation, ServiceItem
+    from ..models.payment import PaymentAllocation
+    payment.allocations.all().delete()
+    for target, amt in allocations:
+        kw = {"reservation": None, "service_item": None, "penalty": None}
+        if isinstance(target, Reservation):
+            kw["reservation"] = target
+        elif isinstance(target, ServiceItem):
+            kw["service_item"] = target
+        elif isinstance(target, CancellationPenalty):
+            kw["penalty"] = target
+        else:
+            raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
+        PaymentAllocation.objects.create(payment=payment, amount_sar=int(amt), **kw)
+
+    # Repost with the new allocation dims. Fresh idempotency key because the
+    # default key (payment:...:confirm) is still held by the now-reversed
+    # original entry, and idempotency_key is unique.
+    repost_key = f"payment:{payment.payment_number}:realloc:{timezone.now().timestamp()}"
+    post_payment(payment, created_by=created_by, idempotency_key=repost_key)
+
+    # Re-sync invoice status.
+    if payment.invoice_id:
+        payment.invoice.sync_status()
+
+    PaymentLog.objects.create(
+        payment=payment,
+        action=PaymentLog.ACTION_ALLOCATED,
+        performed_by=created_by,
+        note=f"Reallocated {payment.payment_number}",
+    )
+    return payment

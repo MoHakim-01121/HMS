@@ -72,6 +72,17 @@ def payment_unallocated_sar(payment_id):
     """Sisa alokasi satu payment yang belum ditentukan.
 
     = amount_sar - sum(PaymentAllocation.amount_sar).
+
+    Sebuah payment dianggap TERALOKASI penuh ke reservasi di dua cara:
+    1. Punya baris PaymentAllocation -> sisa dihitung per baris.
+    2. Tanpa baris PaymentAllocation tapi terikat LANGSUNG ke satu reservasi
+       (payment.reservation_id terisi) -> dianggap penuh dialokasikan ke
+       target tunggal itu (unallocated = 0).
+
+    Hanya punya invoice_id (tanpa reservation/allocation) BUKAN tanda
+    teralokasi: payment masih menunggu pemecahan alokasi per reservasi via
+    reallocate, sehingga tetap dihitung sebagai unallocated.
+
     Berguna untuk menampilkan badge 'X SAR unallocated' di payment detail."""
     from ..models.payment import PaymentRecord
     try:
@@ -79,7 +90,11 @@ def payment_unallocated_sar(payment_id):
     except PaymentRecord.DoesNotExist:
         return 0
     alloc_sum = sum(int(a.amount_sar) for a in pr.allocations.all())
-    return max(0, int(pr.amount_sar) - alloc_sum)
+    if alloc_sum:
+        return max(0, int(pr.amount_sar) - alloc_sum)
+    if pr.reservation_id:
+        return 0
+    return int(pr.amount_sar)
 
 
 def invoice_paid_map(invoice_ids):
@@ -321,7 +336,7 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
     qs = _scoped(
         JournalLine.objects.filter(
             client_id=client_id, account_id__in=[coa.AR, coa.CUST_CREDIT],
-        ).select_related("journal_entry", "account", "invoice"),
+        ).select_related("journal_entry", "account", "invoice", "reservation"),
         company=company, as_of=as_of,
     ).order_by("journal_entry__entry_date", "journal_entry__created_at", "line_no")
     if date_from:
@@ -342,6 +357,10 @@ def client_statement(client_id, *, company=None, date_from=None, date_to=None, a
             "account": ln.account_id,
             "account_name": ln.account.name,
             "invoice_number": ln.invoice.invoice_number if ln.invoice_id else None,
+            "reservation_id": ln.reservation_id,
+            "reservation_number": ln.reservation.reservation_number if ln.reservation_id else None,
+            "hotel": ln.reservation.hotel if ln.reservation_id else None,
+            "check_in": ln.reservation.check_in if ln.reservation_id else None,
             "debit": ln.debit,
             "credit": ln.credit,
             "balance": balance,
@@ -377,6 +396,73 @@ def client_statement_with_opening(client_id, *, company=None, date_from=None, da
         "closing_balance": closing_balance,
         "total_debit": st["total_debit"],
         "total_credit": st["total_credit"],
+    }
+
+
+def client_statement_by_reservation(
+    client_id, *, company=None, date_from=None, date_to=None, as_of=None,
+):
+    """Statement open-item: baris jurnal client di-rollup jadi satu baris per
+    reservasi (Tagihan / Terbayar / Sisa), bukan satu baris per transaksi.
+
+    Baris tanpa dimensi reservasi (titipan dana level-client di CUST_CREDIT,
+    payment yang belum dipecah alokasinya) masuk bucket `unallocated`.
+
+    Invarian: opening_balance + Σ(reservasi.balance) + unallocated ==
+    closing_balance — sama persis dengan versi balance-forward. Di-assert.
+    """
+    from datetime import date
+
+    st = client_statement_with_opening(
+        client_id, company=company, date_from=date_from, date_to=date_to, as_of=as_of,
+    )
+
+    groups = {}
+    unallocated = 0
+    for r in st["rows"]:
+        rid = r["reservation_id"]
+        if rid is None:
+            unallocated += r["debit"] - r["credit"]
+            continue
+        g = groups.get(rid)
+        if g is None:
+            g = groups[rid] = {
+                "reservation_id": rid,
+                "reservation_number": r["reservation_number"],
+                "hotel": r["hotel"],
+                "check_in": r["check_in"],
+                "billed": 0,
+                "paid": 0,
+            }
+        g["billed"] += r["debit"]
+        g["paid"] += r["credit"]
+
+    reservations = []
+    for g in groups.values():
+        g["balance"] = g["billed"] - g["paid"]
+        g["settled"] = g["balance"] <= 0
+        reservations.append(g)
+
+    # Outstanding dulu (check_in naik), lunas di bawah.
+    reservations.sort(
+        key=lambda g: (g["settled"], g["check_in"] or date.max, g["reservation_number"] or "")
+    )
+
+    assert (
+        st["opening_balance"]
+        + sum(g["balance"] for g in reservations)
+        + unallocated
+        == st["closing_balance"]
+    ), "by-reservation rollup tidak rekonsiliasi dengan balance-forward"
+
+    return {
+        "opening_balance": st["opening_balance"],
+        "closing_balance": st["closing_balance"],
+        "total_debit": st["total_debit"],
+        "total_credit": st["total_credit"],
+        "unallocated": unallocated,
+        "reservations": reservations,
+        "aging": client_aging(client_id, company=company, as_of=as_of),
     }
 
 

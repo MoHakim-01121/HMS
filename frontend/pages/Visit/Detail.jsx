@@ -1,9 +1,5 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import DetailCard from "../../components/shadcn/detail-card.jsx";
-import DetailGrid from "../../components/shadcn/detail-grid.jsx";
-import Section from "../../components/shadcn/section.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
 import VisitMap from "../../components/ui/VisitMap.jsx";
 import VisitPhotos from "../../components/ui/VisitPhotos.jsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../components/shadcn/ui/dialog.jsx";
@@ -19,6 +15,8 @@ import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { RvBack, RvHero, RvFigure, RvSteps, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
+import { Icon } from "../../components/icons.jsx";
 
 const OUTCOMES = [
   ["ORDER", "Order received"],
@@ -45,50 +43,12 @@ function heroPill(s) {
   return { label: "Planned", tone: "yellow" };
 }
 
-const FLOW_STEPS = [
-  { key: "scheduled", label: "Scheduled" },
-  { key: "result", label: "Result" },
-  { key: "done", label: "Done" },
-];
-
-function StatusStepper({ status }) {
-  const { t } = useI18n();
-  let current;
-  if (status === "COMPLETED") current = "done";
-  else if (status === "CANCELLED") current = "cancelled";
-  else current = "result";
-  const index = FLOW_STEPS.findIndex((s) => s.key === current);
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 16px", padding: "10px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--card)" }}>
-      {FLOW_STEPS.map((s, i) => {
-        const reached = current === "cancelled" ? false : i <= index;
-        const done = current === "cancelled" ? false : i < index;
-        return (
-          <div key={s.key} style={{ display: "flex", alignItems: "center", flex: 1, gap: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{
-                width: 22, height: 22, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 600, flexShrink: 0,
-                background: done ? "var(--green)" : reached ? "var(--accent-2)" : "var(--muted)",
-                color: done || reached ? "#fff" : "var(--muted-foreground)",
-              }}>{done ? "✓" : i + 1}</span>
-              <span style={{ fontSize: 12, fontWeight: reached ? 600 : 500, color: reached ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                {t(s.label)}
-              </span>
-            </div>
-            {i < FLOW_STEPS.length - 1 && (
-              <div style={{ flex: 1, height: 2, borderRadius: 1, background: i < index ? "var(--green)" : "var(--border)" }} />
-            )}
-          </div>
-        );
-      })}
-      {current === "cancelled" && (
-        <span style={{ flexShrink: 0 }}><StatusPill tone="red" label={t("Cancelled")} /></span>
-      )}
-    </div>
-  );
-}
+const fmtDay = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+};
 
 // Built on the same Dialog/DialogContent primitives as ui/dialog.jsx (Radix),
 // not a hand-rolled overlay — there is no ".modal"/".modal-overlay" styling
@@ -209,6 +169,51 @@ export default function Detail({ visit, photos }) {
   const canEdit = perms.can("visits", "edit");
   const hero = heroPill(visit.status);
 
+  const steps = visit.status === "COMPLETED"
+    ? [{ label: t("Scheduled"), state: "done" }, { label: t("Result"), state: "done" }, { label: t("Done"), state: "done" }]
+    : visit.status === "CANCELLED"
+      ? [{ label: t("Scheduled"), state: "todo" }, { label: t("Result"), state: "todo" }, { label: t("Done"), state: "todo" }]
+      : [{ label: t("Scheduled"), state: "done" }, { label: t("Result"), state: "now" }, { label: t("Done"), state: "todo" }];
+
+  const note =
+    visit.status === "CANCELLED"
+      ? { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--red)", title: t("Cancelled"), text: t("This visit appointment was cancelled.") }
+      : visit.status === "COMPLETED"
+        ? {
+            icon: <Icon name="check" size={12} strokeWidth={2.4} />,
+            iconBg: "var(--green)",
+            title: visit.outcome_label || t("Completed"),
+            text: t("This visit is complete."),
+          }
+        : {
+            icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
+            iconBg: "var(--yellow)",
+            title: t("Planned"),
+            text: t("This visit is scheduled but has not happened yet."),
+          };
+
+  const detailCells = [];
+  detailCells.push(
+    <div key="time">
+      <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{t("Time slot")}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 4 }}>{visit.time || t("Not set")}</div>
+    </div>,
+  );
+  detailCells.push(
+    <div key="purpose">
+      <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{t("Purpose")}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 4 }}>{visit.purpose}</div>
+    </div>,
+  );
+  if (visit.next_follow_up_date) {
+    detailCells.push(
+      <div key="next">
+        <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--muted-foreground)" }}>{t("Next follow-up")}</div>
+        <div style={{ fontSize: 13.5, fontWeight: 500, marginTop: 4 }}>{visit.next_follow_up_date}</div>
+      </div>,
+    );
+  }
+
   // useConfirm() (components/shadcn/confirm-dialog.jsx) is the house pattern
   // for a destructive-ish action confirmation — the same hook Cl/List.jsx
   // uses for delete — not a native window.confirm().
@@ -220,68 +225,117 @@ export default function Detail({ visit, photos }) {
     });
   };
 
-  return (
-    <div className="page dv-page hms-dv-page shadcn-root">
-      <PageBack href="/visits/" />
-      <StatusStepper status={visit.status} />
-      <DetailCard
-        crumbs={[{ label: t("Visits"), href: "/visits/" }]}
-        kicker={visit.scheduled_date}
-        title={visit.client ? visit.client.name : t("(no client)")}
-        sub={visit.staff_name}
-        pill={{ ...hero, label: t(hero.label) }}
-        actions={
-          visit.status === "PLANNED" && canEdit ? (
-            <>
-              <button type="button" className="hms-dv-act" onClick={() => openForm(`/visits/${visit.id}/edit/`)}>{t("Edit")}</button>
-              <button type="button" className="hms-dv-act" onClick={() => setShowComplete(true)}>{t("Complete Visit")}</button>
-              <button type="button" className="hms-dv-act" onClick={cancelVisit}>{t("Cancel")}</button>
-            </>
-          ) : (
-            perms.can("visits", "export") && (
-              <a className="hms-dv-act" href={`/visits/${visit.id}/pdf/`} target="_blank" rel="noreferrer">{t("Report PDF")}</a>
-            )
-          )
-        }
-      >
-        <DetailGrid
-          rows={[
-            { label: t("Time slot"), icon: "clock", value: visit.time || t("—") },
-            { label: t("Purpose"), icon: "tag", value: visit.purpose },
-            visit.next_follow_up_date && { label: t("Next follow-up"), icon: "calendar", value: visit.next_follow_up_date },
-          ]}
-        />
-      </DetailCard>
-
-      {visit.status === "COMPLETED" && (
-        <Section label={t("Visit Result")} icon="check">
+  const sections = [
+    {
+      title: t("Details"),
+      body: (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+          {detailCells}
+        </div>
+      ),
+    },
+  ];
+  if (visit.status === "COMPLETED") {
+    sections.push({
+      title: t("Visit Result"),
+      body: (
+        <>
           <p style={{ marginTop: 0 }}>{visit.result_notes}</p>
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 12 }}>
             {t("Checked in")}: {visit.visited_at}
             {visit.distance_meters != null && (
-              <span> · {visit.distance_meters > 500 ? "⚠ " : ""}{visit.distance_meters} m {t("from client's recorded location")}</span>
+              <span> – {visit.distance_meters} m {t("from client's recorded location")}</span>
             )}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
             {visit.outcome && outcomeBadge(visit.outcome)}
             {visit.pic_name && (
-              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("PIC")}: <strong style={{ color: "var(--foreground)" }}>{visit.pic_name}</strong>{visit.pic_phone ? ` · ${visit.pic_phone}` : ""}</span>
+              <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("PIC")}: <strong style={{ color: "var(--foreground)" }}>{visit.pic_name}</strong>{visit.pic_phone ? ` – ${visit.pic_phone}` : ""}</span>
             )}
             {visit.estimated_value != null && (
               <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("Estimated value")}: <strong style={{ color: "var(--foreground)", fontVariantNumeric: "tabular-nums" }}>{fmt(visit.estimated_value)} SAR</strong></span>
             )}
             {perms.can("visits", "export") && (
-              <a href={`/visits/${visit.id}/pdf/`} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>{t("Report PDF")} ↓</a>
+              <a href={`/visits/${visit.id}/pdf/`} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>{t("Report PDF")}</a>
             )}
           </div>
           <VisitMap
             clientLat={visit.client?.lat} clientLng={visit.client?.lng}
             checkinLat={visit.checkin_lat} checkinLng={visit.checkin_lng}
           />
-        </Section>
-      )}
+        </>
+      ),
+    });
+  }
+  sections.push({
+    title: t("Photos"),
+    body: <VisitPhotos visitId={visit.id} initial={photos} canEdit={canEdit} bare />,
+  });
 
-      <VisitPhotos visitId={visit.id} initial={photos} canEdit={canEdit} />
+  return (
+    <div className="page shadcn-root hms-rv-page">
+      <RvBack href="/visits/" label={t("Back")} />
+
+      <RvHero
+        badge={{ label: t(hero.label), tone: hero.tone }}
+        title={visit.client ? visit.client.name : t("No client")}
+        facts={[
+          visit.staff_name ? { k: t("Staff"), v: visit.staff_name } : null,
+          fmtDay(visit.scheduled_date) ? { k: t("Date"), v: fmtDay(visit.scheduled_date) } : null,
+          visit.time ? { k: t("Time"), v: visit.time } : null,
+        ].filter(Boolean)}
+        mainExtra={<RvSteps steps={steps} />}
+        side={
+          visit.status === "COMPLETED" && visit.estimated_value != null ? (
+            <RvFigure
+              label={t("Estimated value")}
+              value={fmt(visit.estimated_value)}
+              unit="SAR"
+              color="var(--green)"
+            />
+          ) : null
+        }
+        note={note}
+        actions={
+          visit.status === "PLANNED" && canEdit ? (
+            <>
+              <button type="button" className="hms-rv-btn" onClick={() => openForm(`/visits/${visit.id}/edit/`)}>{t("Edit")}</button>
+              <button type="button" className="hms-rv-btn primary" onClick={() => setShowComplete(true)}>{t("Complete Visit")}</button>
+              <button type="button" className="hms-rv-btn danger" onClick={cancelVisit}>{t("Cancel")}</button>
+            </>
+          ) : (
+            perms.can("visits", "export") && (
+              <a className="hms-rv-btn" href={`/visits/${visit.id}/pdf/`} target="_blank" rel="noreferrer">{t("Report PDF")}</a>
+            )
+          )
+        }
+      />
+
+      <div className="hms-rv-grid">
+        <div className="hms-rv-col">
+          <RvCard>
+            {sections.map((s, i) => (
+              <RvSection key={s.title} title={s.title} first={i === 0}>
+                {s.body}
+              </RvSection>
+            ))}
+          </RvCard>
+        </div>
+
+        <RvRail
+          rows={[
+            visit.client
+              ? { k: t("Client"), v: <a href={`/clients/${visit.client.id}/`}>{visit.client.name}</a> }
+              : null,
+            fmtDay(visit.scheduled_date) ? { k: t("Date"), v: fmtDay(visit.scheduled_date) } : null,
+            visit.time ? { k: t("Time"), v: visit.time } : null,
+            visit.purpose ? { k: t("Purpose"), v: visit.purpose } : null,
+            visit.next_follow_up_date ? { k: t("Next follow-up"), v: visit.next_follow_up_date } : null,
+            visit.status === "COMPLETED" && visit.visited_at ? { k: t("Checked in"), v: visit.visited_at } : null,
+            visit.status === "COMPLETED" && visit.distance_meters != null ? { k: t("Distance"), v: `${visit.distance_meters} m` } : null,
+          ].filter(Boolean)}
+        />
+      </div>
 
       <CompleteDialog
         visitId={visit.id}

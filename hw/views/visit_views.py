@@ -9,7 +9,7 @@ Validation is plain request.POST/JSON dict checking, like hw/views/cl_views.py
 """
 import json
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 import magic
@@ -132,6 +132,27 @@ def _slot_label(v):
     return fmt(v.start_time or v.end_time)
 
 
+def _visit_cell(v):
+    """Visit serialized for the schedule board (month cell / week grid / agenda).
+
+    Kept in one place so the month view, the week (staff x day) grid and the
+    agenda list all render from the same shape, with the same status/colour
+    mapping on the frontend."""
+    return {
+        'id': v.id,
+        'client_name': v.client.name if v.client_id else '—',
+        'day': v.scheduled_date.day,
+        'date': v.scheduled_date.isoformat(),
+        'start_time': v.start_time.strftime('%H:%M') if v.start_time else None,
+        'end_time': v.end_time.strftime('%H:%M') if v.end_time else None,
+        'status': v.status,
+        'outcome': v.outcome,
+        'staff_name': (v.staff.get_full_name() or v.staff.username) if v.staff_id else '—',
+        'staff_id': v.staff_id,
+        'purpose': v.purpose,
+    }
+
+
 @require_perm('visits', 'view')
 def visit_list(request):
     active_company = get_active_company(request)
@@ -142,6 +163,21 @@ def visit_list(request):
     today = date.today()
     is_staff = get_role(request.user) == Role.STAFF.value
 
+    # -- filters apply to every surface (month/week/agenda/history) --
+    status_filter = (request.GET.get('status') or '').strip().upper()
+    if status_filter not in (Visit.PLANNED, Visit.COMPLETED, Visit.CANCELLED):
+        status_filter = ''
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    client_filter = None
+    try:
+        client_filter = int(request.GET.get('client') or 0) or None
+    except (TypeError, ValueError):
+        client_filter = None
+    if client_filter:
+        qs = qs.filter(client_id=client_filter)
+
     staff_filter = None
     if not is_staff:
         try:
@@ -151,35 +187,41 @@ def visit_list(request):
         if staff_filter:
             qs = qs.filter(staff_id=staff_filter)
 
-    # -- schedule board: the month of the selected date + its day timeline --
+    view = request.GET.get('view') or 'month'
+    if view not in ('month', 'week', 'agenda'):
+        view = 'month'
+
+    # -- board: the span containing the selected date --
     selected_date = _parse_date(request.GET.get('date')) or today
-    month_qs = qs.filter(
-        scheduled_date__year=selected_date.year,
-        scheduled_date__month=selected_date.month,
-    ).order_by('scheduled_date', 'start_time')
+
+    week_start = None
+    week_visits = None
+    if view == 'week':
+        # The staff x day grid anchors on Monday of the week, like Mews/Cloudbeds.
+        week_start = selected_date - timedelta(days=selected_date.weekday())
+        week_qs = qs.filter(
+            scheduled_date__gte=week_start,
+            scheduled_date__lte=week_start + timedelta(days=6),
+        ).order_by('scheduled_date', 'start_time')
+        week_visits = [_visit_cell(v) for v in week_qs]
+        span_qs = week_qs
+    else:
+        span_qs = qs.filter(
+            scheduled_date__year=selected_date.year,
+            scheduled_date__month=selected_date.month,
+        ).order_by('scheduled_date', 'start_time')
+
+    month_visits = [_visit_cell(v) for v in span_qs]
 
     staff_list = []
     if not is_staff:
         from django.contrib.auth.models import User
-        staff_ids = list(month_qs.exclude(staff_id=None).values_list('staff_id', flat=True).distinct())
+        staff_ids = list(span_qs.exclude(staff_id=None).values_list('staff_id', flat=True).distinct())
         if staff_ids:
             staff_list = [
                 {'id': u.id, 'name': (u.get_full_name() or u.username)}
                 for u in User.objects.filter(id__in=staff_ids).order_by('username')
             ]
-
-    month_visits = [{
-        'id': v.id,
-        'client_name': v.client.name if v.client_id else '—',
-        'day': v.scheduled_date.day,
-        'start_time': v.start_time.strftime('%H:%M') if v.start_time else None,
-        'end_time': v.end_time.strftime('%H:%M') if v.end_time else None,
-        'status': v.status,
-        'outcome': v.outcome,
-        'staff_name': (v.staff.get_full_name() or v.staff.username) if v.staff_id else '—',
-        'staff_id': v.staff_id,
-        'purpose': v.purpose,
-    } for v in month_qs]
 
     # -- history table (only served on the History tab) --
     tab = request.GET.get('tab', 'schedule')
@@ -202,6 +244,9 @@ def visit_list(request):
             'distance_meters': v.distance_meters,
         } for v in page_obj]
         pagination = pagination_props(page_obj)
+    elif tab == 'recap':
+        visits = None
+        pagination = None
     else:
         tab = 'schedule'
         visits = None
@@ -210,18 +255,29 @@ def visit_list(request):
     scoped = Visit.objects.filter(company=active_company)
     if is_staff:
         scoped = scoped.filter(staff=request.user)
+    if status_filter:
+        scoped = scoped.filter(status=status_filter)
+    if client_filter:
+        scoped = scoped.filter(client_id=client_filter)
 
     return inertia_render(request, 'Visit/List', props={
         'tab': tab,
+        'view': view,
         'selected_date': selected_date.isoformat(),
         'year': selected_date.year,
         'month': selected_date.month,
+        'status_filter': status_filter,
+        'client_filter': client_filter,
+        'clients': _client_options(active_company),
         'staff_filter': staff_filter,
         'is_staff': is_staff,
         'staff_list': staff_list,
         'month_visits': month_visits,
+        'week_visits': week_visits,
+        'week_start': week_start.isoformat() if week_start else None,
         'visits': visits,
         'pagination': pagination,
+        'recap': _build_recap(qs) if tab == 'recap' else None,
         'total_count': scoped.count(),
     })
 
@@ -252,8 +308,14 @@ def visit_new(request):
         messages.success(request, 'Visit appointment created.')
         return redirect('visit_detail', pk=visit.pk)
 
+    # ?date=YYYY-MM-DD pre-fills the form (quick-create from a calendar cell).
+    prefill_date = _parse_date(request.GET.get('date'))
     return inertia_render(request, 'Visit/Form', props={
-        'visit': None, 'edit': False, 'clients': _client_options(active_company),
+        'visit': {
+            'client_id': '', 'scheduled_date': prefill_date.isoformat() if prefill_date else '',
+            'start_time': '', 'end_time': '', 'purpose': '',
+        },
+        'edit': False, 'clients': _client_options(active_company),
     })
 
 
@@ -473,13 +535,9 @@ def _accumulate_visit(v, bucket):
         bucket['planned'] += 1
 
 
-@require_perm('visits', 'view')
-def visit_recap(request):
-    active_company = get_active_company(request)
-    qs = Visit.objects.filter(company=active_company).select_related('client', 'staff')
-    if get_role(request.user) == Role.STAFF.value:
-        qs = qs.filter(staff=request.user)
-
+def _build_recap(qs):
+    """Sum per-month visit stats (outcome, staff, distance, value) from a
+    queryset. Shared by the List 'Recap' tab."""
     monthly = {}
     for v in qs.order_by('scheduled_date'):
         key = v.scheduled_date.strftime('%Y-%m')
@@ -520,5 +578,11 @@ def visit_recap(request):
             'outcomes': list(m['outcomes'].values()),
             'staffs': list(m['staffs'].values()),
         })
+    return months
 
-    return inertia_render(request, 'Visit/Recap', props={'monthly': months})
+
+@require_perm('visits', 'view')
+def visit_recap(request):
+    """Redirect to the List 'Recap' tab — recap statistics now live inside the
+    visits list page instead of a separate surface."""
+    return redirect('/visits/?tab=recap')

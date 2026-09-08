@@ -1,8 +1,10 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -12,15 +14,15 @@ export default function Tracking({ clients, total_sisa_kirim }) {
   return (
     <div className="page shadcn-root">
       <PageBack href="/remittance/" />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Remittance Tracking")}</h1>
-          <div className="page-sub">{t("Per client and reservation: sent to HQ, remaining idle funds, and which RMT covered them")}</div>
-        </div>
-        <div className="page-actions">
-          <a href="/remittance/" className="btn btn-secondary" style={{ height: 32, padding: "0 12px", fontSize: 13 }}>{t("Remittances")}</a>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Remittance Tracking")}
+        sub={t("Per client and reservation: sent to HQ, remaining idle funds, and which RMT covered them")}
+        actions={
+          <Button variant="outline" size="lg" asChild>
+            <a href="/remittance/">{t("Remittances")}</a>
+          </Button>
+        }
+      />
 
       <div className="hms-kpi-row cols-3">
         <KpiCard

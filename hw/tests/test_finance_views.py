@@ -154,6 +154,22 @@ class FinanceViewsTest(TestCase):
         self.assertEqual(row['piutang'], 40000)
         self.assertEqual(row['saldo_dana'], 0)
 
+    def test_statement_pdf_by_reservation_mode(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        p = create_payment_record(
+            invoice=self.invoice, client=self.konoz_client,
+            payment_date=date(2026, 3, 2), amount=40000, method='transfer',
+            created_by=self.user, received_in='sby', reservation=self.res,
+        )
+        posting.post_payment(p, created_by=self.user)
+
+        r = self.client.get(
+            reverse('client_statement_pdf', args=[self.konoz_client.id]),
+            {'mode': 'byres'},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+
     # â”€â”€ Penalty list â”€â”€
 
     def test_penalty_list_render_and_status_filter(self):

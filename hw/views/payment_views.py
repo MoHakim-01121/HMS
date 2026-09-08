@@ -5,7 +5,9 @@ import logging
 from datetime import date
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 
 from inertia import render as inertia_render
 
@@ -14,12 +16,12 @@ from ..models.invoice import Invoice
 from ..models.journal import JournalEntry
 from ..finance_helpers import (
     create_payment_record, confirm_payment, allocate_payment,
-    reverse_journal_entry, client_statement, account_summary,
+    reverse_journal_entry, _payment_snapshot,
     FinanceError,
 )
 from ..permissions import require_perm
-from .helpers import get_active_company, serialize_journal_entry
-from .helpers import get_active_company, _parse_date, _to_float
+from ..finance import posting
+from .helpers import get_active_company, serialize_journal_entry, _parse_date, _to_float, _is_mobile, pagination_props, csv_export_response
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ logger = logging.getLogger(__name__)
 def _payment_props(p):
     from django.conf import settings
     proof_url = p.proof.url if p.proof else None
+    from ..finance import queries as fq
+    unallocated = fq.payment_unallocated_sar(p.pk)
     return {
         'id': p.pk,
         'payment_number': p.payment_number,
@@ -43,6 +47,8 @@ def _payment_props(p):
             'service_item_id': a.service_item_id,
             'amount_sar': a.amount_sar,
         } for a in p.allocations.select_related('reservation', 'service_item')],
+        'unallocated_sar': unallocated,
+        'allocated_sar': p.amount_sar - unallocated,
         'payment_date': p.payment_date.isoformat() if p.payment_date else None,
         'amount': p.amount,
         'currency': p.currency,
@@ -67,7 +73,7 @@ def _payment_props(p):
     }
 
 
-@require_perm('invoice', 'view')
+@require_perm('payments', 'view')
 def payment_list(request):
     company = get_active_company(request)
     payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by')
@@ -89,10 +95,22 @@ def payment_list(request):
 
     payments = payments.order_by('-created_at')
 
-    # Invoice choices for the record dialog — include per-reservation breakdown
+    # Server-side pagination (matches the other list pages: 10 on mobile, 15
+    # otherwise). The `status` filter above is honoured so a filter + pagination
+    # combination stays consistent.
+    paginator = Paginator(payments, 10 if _is_mobile(request) else 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    page_payments = list(page_obj)
+
+    # Invoice choices for the record dialog — include per-reservation breakdown.
+    # Scoped to the active company (a user restricted to company A must never
+    # see company B's invoice numbers in the dropdown).
     invoices = Invoice.objects.filter(
+        company=company,
         status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
     ).select_related('client').order_by('-created_at')[:50]
+    from ..finance import queries as fq
+    paid_map = fq.invoice_paid_map([inv.pk for inv in invoices])
     invoice_choices = []
     for inv in invoices:
         # Fetch reservations via linked CLs
@@ -109,33 +127,44 @@ def payment_list(request):
         invoice_choices.append({
             'id': inv.pk,
             'label': f'{inv.invoice_number} - {inv.client.name if inv.client else inv.customer_name}',
-            'remaining': inv.remaining_sar,
+            'remaining': inv.total_sar - paid_map.get(inv.pk, 0),
             'reservations': reservations,
         })
 
     # Summary stats
     all_payments = PaymentRecord.objects.filter(company=company)
+    stat_effective = all_payments.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
+    unapplied_rows = [fq.payment_unallocated_sar(p.pk) for p in stat_effective]
+    unapplied_total = sum(unapplied_rows)
     stats = {
         'total': all_payments.count(),
         'pending': all_payments.filter(status=PaymentRecord.STATUS_PENDING).count(),
         'confirmed': all_payments.filter(status=PaymentRecord.STATUS_CONFIRMED).count(),
         'allocated': all_payments.filter(status=PaymentRecord.STATUS_ALLOCATED).count(),
-        'total_amount': sum(p.amount_sar for p in all_payments.filter(status=PaymentRecord.STATUS_ALLOCATED)),
+        'received': all_payments.filter(status=PaymentRecord.STATUS_RECEIVED).count(),
+        'partially_applied': all_payments.filter(status=PaymentRecord.STATUS_PARTIALLY_APPLIED).count(),
+        'applied': all_payments.filter(status=PaymentRecord.STATUS_APPLIED).count(),
+        'total_amount': sum(p.amount_sar for p in stat_effective),
+        'unapplied_total': unapplied_total,
+        'unapplied_count': sum(1 for v in unapplied_rows if v > 0),
     }
 
     return inertia_render(request, 'Payment/List', props={
-        'payments': [_payment_props(p) for p in payments[:100]],
+        'payments': [_payment_props(p) for p in page_payments],
         'status_choices': PaymentRecord.STATUS_CHOICES,
         'invoice_choices': invoice_choices,
         'stats': stats,
+        'status_filter': status or 'all',
+        'pagination': pagination_props(page_obj),
     })
 
 
-@require_perm('invoice', 'view')
+@require_perm('payments', 'view')
 def payment_detail(request, pk):
+    company = get_active_company(request)
     payment = get_object_or_404(
         PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'period'),
-        pk=pk,
+        pk=pk, company=company,
     )
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
 
@@ -145,8 +174,28 @@ def payment_detail(request, pk):
         reference_id=payment.pk,
     ).order_by('-entry_date')
 
+    # Reservations for post-hoc allocation (unallocated payment). Filter to the
+    # payment's own invoice only, so a user can't allocate a payment to a
+    # reservation on another invoice.
+    from .context import _build_reservation_context
+    reservations = []
+    if payment.invoice_id:
+        reservations = _build_reservation_context(payment.invoice)
+
+    # Receipts (kwitansi) auto-generated for this payment.
+    from ..models import Receipt
+    receipts = [{
+        'id': r.pk,
+        'receipt_number': r.receipt_number,
+        'status': r.status,
+        'status_display': r.get_status_display(),
+        'voided_reason': r.voided_reason,
+    } for r in Receipt.objects.filter(payment=payment)]
+
     return inertia_render(request, 'Payment/Detail', props={
         'payment': _payment_props(payment),
+        'reservations': reservations,
+        'receipts': receipts,
         'logs': [{
             'action': l.action,
             'action_display': l.get_action_display(),
@@ -160,7 +209,7 @@ def payment_detail(request, pk):
     })
 
 
-@require_perm('invoice', 'edit')
+@require_perm('payments', 'create')
 def payment_record_new(request, invoice_pk):
     invoice = get_object_or_404(Invoice, pk=invoice_pk, company=get_active_company(request))
 
@@ -205,7 +254,7 @@ def payment_record_new(request, invoice_pk):
     return redirect('invoice_detail', pk=invoice.pk)
 
 
-@require_perm('invoice', 'edit')
+@require_perm('payments', 'create')
 def payment_record(request):
     """Record a new payment from the Payment List page.
     
@@ -262,6 +311,11 @@ def payment_record(request):
         if proof_error:
             messages.error(request, proof_error)
             return redirect('payment_list')
+    else:
+        # Proof is required on every payment (Receive/Apply flow): the receipt
+        # anchors the CR Piutang entry that auto-posts at receive time.
+        messages.error(request, 'Bukti pembayaran wajib dilampirkan.')
+        return redirect('payment_list')
 
     # Parse per-reservation allocations
     allocations_raw = data.get('allocations', '')
@@ -295,7 +349,9 @@ def payment_record(request):
         # PaymentAllocation per reservasi — nominal dalam SAR (riyal patokan).
         targets = []
         for alloc in valid_alloc:
-            reservation = Reservation.objects.filter(pk=alloc.get('reservation_id')).first()
+            reservation = Reservation.objects.filter(
+                pk=alloc.get('reservation_id'), invoice=invoice,
+            ).first()
             if reservation is None:
                 continue
             targets.append((reservation, int(_to_float(alloc.get('amount', 0)))))
@@ -314,65 +370,113 @@ def payment_record(request):
             )
             return redirect('payment_list')
 
-        payment = create_payment_record(
-            invoice=invoice,
-            client=client,
-            payment_date=payment_date or tz.now().date(),
-            amount=amount,                 # currency asli (mis. IDR) — utk analisis
-            currency=currency,
-            exchange_rate=exchange_rate,   # kurs asli — utk analisis
-            method=data.get('method', ''),
-            bank_name=data.get('bank_name', ''),
-            account_number=data.get('account_number', ''),
-            reference=data.get('reference', ''),
-            note=data.get('note', '') or f'Allocated to {len(valid_alloc)} reservation(s)',
-            created_by=request.user,
-            received_in=received_in,
-        )
-        if proof_file:
-            payment.proof = proof_file
-            payment.save(update_fields=['proof'])
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                payment = create_payment_record(
+                    invoice=invoice,
+                    client=client,
+                    payment_date=payment_date or tz.now().date(),
+                    amount=amount,                 # currency asli (mis. IDR) — utk analisis
+                    currency=currency,
+                    exchange_rate=exchange_rate,   # kurs asli — utk analisis
+                    method=data.get('method', ''),
+                    bank_name=data.get('bank_name', ''),
+                    account_number=data.get('account_number', ''),
+                    reference=data.get('reference', ''),
+                    note=data.get('note', '') or f'Allocated to {len(valid_alloc)} reservation(s)',
+                    created_by=request.user,
+                    received_in=received_in,
+                )
+                if proof_file:
+                    payment.proof = proof_file
+                    payment.save(update_fields=['proof'])
 
-        posting.allocate_payment(payment, targets, created_by=request.user)
+                posting.allocate_payment(payment, targets, created_by=request.user)
 
-        # Auto-confirm + allocate (mirror ke ledger legacy per reservasi)
-        confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
-        allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+                # Auto-post journal immediately — no manual confirm step.
+                posting.post_payment(payment, created_by=request.user)
+
+                # Derive status from allocation sum vs amount.
+                old_state = _payment_snapshot(payment)
+                payment.status = payment.derive_status()
+                payment.confirmed_by = request.user
+                payment.confirmed_at = tz.now()
+                payment.save(update_fields=['status', 'confirmed_by', 'confirmed_at'])
+
+                from ..finance.receipt_service import ensure_receipt
+                ensure_receipt(payment, created_by=request.user)
+
+                PaymentLog.objects.create(
+                    payment=payment,
+                    action=PaymentLog.ACTION_RECEIVED,
+                    before_state=old_state,
+                    after_state=_payment_snapshot(payment),
+                    performed_by=request.user,
+                    note='Payment received and journal posted',
+                )
+        except FinanceError as e:
+            messages.error(request, str(e))
+            return redirect('payment_list')
 
         messages.success(request, 'Payment berhasil dibuat dan dialokasikan.')
         return redirect(f'/finance/payments/?invoice={invoice.pk}')
     else:
-        # No allocations — create single payment (legacy flow)
-        payment = create_payment_record(
-            invoice=invoice,
-            client=client,
-            payment_date=payment_date or tz.now().date(),
-            amount=amount,
-            currency=currency,
-            exchange_rate=exchange_rate,
-            method=data.get('method', ''),
-            bank_name=data.get('bank_name', ''),
-            account_number=data.get('account_number', ''),
-            reference=data.get('reference', ''),
-            note=data.get('note', ''),
-            created_by=request.user,
-            received_in=received_in,
-        )
-        if proof_file:
-            payment.proof = proof_file
-            payment.save(update_fields=['proof'])
+        # No allocations — single payment, unallocated.
+        from django.db import transaction
+        try:
+            with transaction.atomic():
+                payment = create_payment_record(
+                    invoice=invoice,
+                    client=client,
+                    payment_date=payment_date or tz.now().date(),
+                    amount=amount,
+                    currency=currency,
+                    exchange_rate=exchange_rate,
+                    method=data.get('method', ''),
+                    bank_name=data.get('bank_name', ''),
+                    account_number=data.get('account_number', ''),
+                    reference=data.get('reference', ''),
+                    note=data.get('note', ''),
+                    created_by=request.user,
+                    received_in=received_in,
+                )
+                if proof_file:
+                    payment.proof = proof_file
+                    payment.save(update_fields=['proof'])
 
-        # Auto-confirm + allocate
-        confirm_payment(payment, confirmed_by=request.user, note='Auto-confirmed on creation')
-        allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+                # Auto-post journal immediately — unallocated.
+                posting.post_payment(payment, created_by=request.user)
+
+                old_state = _payment_snapshot(payment)
+                payment.status = PaymentRecord.STATUS_RECEIVED
+                payment.confirmed_by = request.user
+                payment.confirmed_at = tz.now()
+                payment.save(update_fields=['status', 'confirmed_by', 'confirmed_at'])
+
+                from ..finance.receipt_service import ensure_receipt
+                ensure_receipt(payment, created_by=request.user)
+
+                PaymentLog.objects.create(
+                    payment=payment,
+                    action=PaymentLog.ACTION_RECEIVED,
+                    before_state=old_state,
+                    after_state=_payment_snapshot(payment),
+                    performed_by=request.user,
+                    note='Payment received and journal posted (unallocated)',
+                )
+        except FinanceError as e:
+            messages.error(request, str(e))
+            return redirect('payment_list')
 
         messages.success(request, f'Payment {payment.payment_number} berhasil dibuat.')
         return redirect('payment_detail', pk=payment.pk)
 
 
-@require_perm('invoice', 'edit')
+@require_perm('payments', 'edit')
 def payment_confirm(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
     if request.method == 'POST':
         try:
             note = ''
@@ -385,6 +489,13 @@ def payment_confirm(request, pk):
 
             confirm_payment(payment, confirmed_by=request.user, note=note)
             allocate_payment(payment, allocation_date=payment.payment_date, created_by=request.user)
+
+            # Auto-generate the payment receipt (kwitansi) on confirmation.
+            from ..finance.receipt_service import ensure_receipt
+            receipt = ensure_receipt(payment, created_by=request.user)
+            if receipt is None:
+                logger.warning("Receipt tidak dibuat utk payment %s: data kurang (invoice/client).", payment.payment_number)
+
             messages.success(request, f'Payment {payment.payment_number} berhasil dikonfirmasi.')
         except FinanceError as e:
             messages.error(request, str(e))
@@ -392,10 +503,25 @@ def payment_confirm(request, pk):
     return redirect('payment_detail', pk=pk)
 
 
-@require_perm('invoice', 'edit')
+@require_perm('payments', 'edit')
 def payment_reject(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
     if request.method == 'POST':
+        # Only a PENDING payment may be rejected. A confirmed/allocated payment
+        # has already touched the ledger (DR Kas / CR Piutang); flipping it to
+        # REJECTED without reversing its journal entry would desync the ledger
+        # from the payment record. Rejection on effective payments must go
+        # through payment_reverse.
+        if payment.status not in (PaymentRecord.STATUS_PENDING,):
+            messages.error(
+                request,
+                f'Payment {payment.payment_number} berstatus '
+                f'{payment.get_status_display()}. Hanya payment pending yang bisa '
+                'ditolak. Gunakan "Revers sebagai koreksi untuk pembayaran efektif.',
+            )
+            return redirect('payment_detail', pk=pk)
+
         reason = ''
         if request.content_type == 'application/json':
             try:
@@ -425,30 +551,100 @@ def payment_reject(request, pk):
     return redirect('payment_detail', pk=pk)
 
 
-@require_perm('invoice', 'edit')
+@require_perm('payments', 'edit')
+def payment_reallocate(request, pk):
+    """Reallokasi alokasi payment yang sudah efektif (confirmed/allocated).
+
+    Body (JSON or form): allocations = [{"reservation_id": 1, "amount": 5000}, ...]
+    Sisa yang tidak dialokasikan tetap mengambang (unallocated).
+    """
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    if request.method != 'POST':
+        return redirect('payment_detail', pk=pk)
+
+    if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
+        messages.error(
+            request,
+            f'Payment {payment.payment_number} berstatus '
+            f'{payment.get_status_display()}. Hanya payment efektif yang bisa '
+            'direalokasi.',
+        )
+        return redirect('payment_detail', pk=pk)
+
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = request.POST
+    else:
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+        except (json.JSONDecodeError, ValueError):
+            data = request.POST
+
+    raw = data.get('allocations', '')
+    try:
+        allocations = json.loads(raw) if isinstance(raw, str) else raw or []
+    except (json.JSONDecodeError, ValueError):
+        allocations = []
+
+    from ..models import Reservation
+    from ..finance import posting
+
+    targets = []
+    for alloc in allocations:
+        amt = _to_float(alloc.get('amount', 0))
+        if not amt or amt <= 0:
+            continue
+        reservation = Reservation.objects.filter(
+            pk=alloc.get('reservation_id'), invoice=payment.invoice,
+        ).first()
+        if reservation is None:
+            continue
+        targets.append((reservation, int(_to_float(alloc.get('amount', 0)))))
+
+    try:
+        posting.reallocate_payment(payment, targets, created_by=request.user)
+        messages.success(
+            request,
+            f'Payment {payment.payment_number} berhasil direalokasi.',
+        )
+    except FinanceError as e:
+        messages.error(request, str(e))
+
+    return redirect('payment_detail', pk=pk)
+
+
+@require_perm('payments', 'edit')
 def payment_reverse(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
     if request.method == 'POST':
         try:
-            from django.utils import timezone
+            # Resilai habis: sebuah payment efektif (confirmed/allocated) yang
+            # masih punya journal entry hidup harus di-reverse dulu jurnalnya,
+            # baru status payment-nya di-flip ke REVERSED.
+            if payment.status not in PaymentRecord.EFFECTIVE_STATUSES + (PaymentRecord.STATUS_PENDING,):
+                messages.error(
+                    request,
+                    f'Payment {payment.payment_number} berstatus '
+                    f'{payment.get_status_display()} dan tidak bisa di-reverse.',
+                )
+                return redirect('payment_detail', pk=pk)
             reversed_ids = JournalEntry.objects.filter(
                 reverses__isnull=False,
             ).values_list('reverses_id', flat=True)
-            journal = JournalEntry.objects.filter(
+            journals = JournalEntry.objects.filter(
                 reference_type='PaymentRecord', reference_id=payment.pk,
-                entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
-            ).exclude(pk__in=reversed_ids).first()
+                entry_type__in=[JournalEntry.TYPE_PAYMENT], is_reversal=False,
+            ).exclude(pk__in=reversed_ids)
 
-            if journal:
+            for journal in journals:
                 reverse_journal_entry(
                     journal, timezone.now().date(), request.user,
                     note=f'Reversal for {payment.payment_number}',
                 )
-                if payment.invoice_id:
-                    payment.invoice.sync_status()
 
-            payment.status = PaymentRecord.STATUS_REVERSED
-            payment.save(update_fields=['status'])
+            if payment.invoice_id:
+                payment.invoice.sync_status()
 
             PaymentLog.objects.create(
                 payment=payment,
@@ -456,6 +652,9 @@ def payment_reverse(request, pk):
                 performed_by=request.user,
                 note='Payment reversed',
             )
+            payment.status = PaymentRecord.STATUS_REVERSED
+            payment.save(update_fields=['status'])
+
             messages.success(request, f'Payment {payment.payment_number} di-reverse.')
         except FinanceError as e:
             messages.error(request, str(e))
@@ -463,39 +662,175 @@ def payment_reverse(request, pk):
     return redirect('payment_detail', pk=pk)
 
 
-@require_perm('clients', 'view')
-def client_finance_statement(request, pk):
-    """Client finance statement from JournalEntries."""
-    from ..models.client import Client
-    client = get_object_or_404(Client, pk=pk)
+@require_perm('payments', 'edit')
+def payment_apply(request, pk):
+    """Apply / allocate an existing payment to reservations.
 
-    date_from = request.GET.get('from')
-    date_to = request.GET.get('to')
+    POST only. Accepts ``allocations`` JSON: ``[{"reservation_id": N, "amount": M}]``.
 
-    if date_from:
-        date_from = _parse_date(date_from)
-    if date_to:
-        date_to = _parse_date(date_to)
+    Validates:
+    - payment is in an allocatable status (received or partially_applied)
+    - reservations belong to the payment's invoice
+    - total allocations <= payment amount_sar
 
-    statement = client_statement(client, date_from=date_from, date_to=date_to)
+    Then reverses the old journal, replaces allocations, and reposts with
+    new reservation dims via ``reallocate_payment``.
+    """
+    if request.method != 'POST':
+        return redirect('payment_detail', pk=pk)
 
-    return inertia_render(request, 'Payment/ClientStatement', props={
-        'client': {
-            'id': client.pk,
-            'name': client.name,
-        },
-        'statement': statement,
-        'date_from': date_from.isoformat() if date_from else None,
-        'date_to': date_to.isoformat() if date_to else None,
-    })
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+
+    # Only received / partially_applied payments can be (re-)applied.
+    allocatable = (
+        PaymentRecord.STATUS_RECEIVED,
+        PaymentRecord.STATUS_PARTIALLY_APPLIED,
+        # Also allow re-apply on already-applied (change the split).
+        PaymentRecord.STATUS_APPLIED,
+    )
+    if payment.status not in allocatable:
+        messages.error(
+            request,
+            f'Payment {payment.payment_number} berstatus '
+            f'{payment.get_status_display()} dan tidak bisa dialokasi.',
+        )
+        return redirect('payment_detail', pk=pk)
+
+    # Parse allocations JSON
+    raw = request.POST.get('allocations', '')
+    if not raw:
+        messages.error(request, 'Alokasi tidak boleh kosong.')
+        return redirect('payment_detail', pk=pk)
+    try:
+        allocs = json.loads(raw) if isinstance(raw, str) else raw
+    except (json.JSONDecodeError, ValueError):
+        messages.error(request, 'Format alokasi tidak valid.')
+        return redirect('payment_detail', pk=pk)
+
+    valid_allocs = [
+        a for a in allocs
+        if _to_float(a.get('amount', 0)) and _to_float(a.get('amount', 0)) > 0
+    ]
+    if not valid_allocs:
+        messages.error(request, 'Tidak ada alokasi yang valid.')
+        return redirect('payment_detail', pk=pk)
+
+    total_alloc = sum(int(_to_float(a['amount'])) for a in valid_allocs)
+    if total_alloc > payment.amount_sar:
+        messages.error(
+            request,
+            f'Total alokasi ({total_alloc:,}) melebihi jumlah pembayaran '
+            f'({payment.amount_sar:,}).',
+        )
+        return redirect('payment_detail', pk=pk)
+
+    # Resolve Reservation objects — must belong to the same invoice.
+    from ..models import Reservation
+    targets = []
+    for a in valid_allocs:
+        res = Reservation.objects.filter(
+            pk=a.get('reservation_id'), invoice=payment.invoice,
+        ).first()
+        if res is None:
+            continue
+        targets.append((res, int(_to_float(a['amount']))))
+
+    if not targets:
+        messages.error(request, 'Tidak ada reservasi yang valid untuk alokasi ini.')
+        return redirect('payment_detail', pk=pk)
+
+    try:
+        posting.reallocate_payment(
+            payment, targets, created_by=request.user,
+        )
+
+        # Derive and save new status.
+        old_state = _payment_snapshot(payment)
+        payment.status = payment.derive_status()
+        payment.save(update_fields=['status'])
+
+        PaymentLog.objects.create(
+            payment=payment,
+            action=PaymentLog.ACTION_APPLIED,
+            before_state=old_state,
+            after_state=_payment_snapshot(payment),
+            performed_by=request.user,
+            note=f'Applied to {len(targets)} reservation(s)',
+        )
+
+        if payment.invoice_id:
+            payment.invoice.sync_status()
+
+    except FinanceError as e:
+        messages.error(request, str(e))
+
+    return redirect('payment_detail', pk=pk)
 
 
-@require_perm('invoice', 'view')
+@require_perm('payments', 'edit')
+def payment_void(request, pk):
+    """Void a payment — posts a reversal journal entry and marks status voided.
+
+    Only effective payments (received / partially_applied / applied / confirmed
+    / allocated) may be voided. Pending payments should use reject instead.
+    """
+    if request.method != 'POST':
+        return redirect('payment_detail', pk=pk)
+
+    company = get_active_company(request)
+    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+
+    voidable = PaymentRecord.EFFECTIVE_STATUSES
+    if payment.status not in voidable:
+        messages.error(
+            request,
+            f'Payment {payment.payment_number} berstatus '
+            f'{payment.get_status_display()} dan tidak bisa di-void.',
+        )
+        return redirect('payment_detail', pk=pk)
+
+    try:
+        reversed_ids = JournalEntry.objects.filter(
+            reverses__isnull=False,
+        ).values_list('reverses_id', flat=True)
+        journals = JournalEntry.objects.filter(
+            reference_type='PaymentRecord', reference_id=payment.pk,
+            entry_type__in=[JournalEntry.TYPE_PAYMENT], is_reversal=False,
+        ).exclude(pk__in=reversed_ids)
+
+        for journal in journals:
+            reverse_journal_entry(
+                journal, payment.payment_date, request.user,
+                note=f'Voided: {payment.payment_number}',
+            )
+
+        if payment.invoice_id:
+            payment.invoice.sync_status()
+
+        old_state = _payment_snapshot(payment)
+        payment.status = PaymentRecord.STATUS_VOIDED
+        payment.save(update_fields=['status'])
+
+        PaymentLog.objects.create(
+            payment=payment,
+            action=PaymentLog.ACTION_VOIDED,
+            before_state=old_state,
+            after_state=_payment_snapshot(payment),
+            performed_by=request.user,
+            note='Payment voided',
+        )
+
+        messages.success(request, f'Payment {payment.payment_number} di-void.')
+    except FinanceError as e:
+        messages.error(request, str(e))
+
+    return redirect('payment_detail', pk=pk)
+
+
+@require_perm('payments', 'export')
 def payment_export_csv(request):
     """Export payments as CSV."""
-    import csv
-    from django.http import HttpResponse
-
     company = get_active_company(request)
     payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
 
@@ -504,33 +839,26 @@ def payment_export_csv(request):
     if status:
         payments = payments.filter(status=status)
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="payments-{date.today().isoformat()}.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow([
+    headers = [
         'Payment #', 'Date', 'Client', 'Invoice', 'Amount', 'Currency',
         'Rate', 'Amount SAR', 'Method', 'Status', 'Confirmed By',
         'Confirmed At', 'Reference', 'Note', 'Created At',
-    ])
-
-    for p in payments:
-        writer.writerow([
-            p.payment_number,
-            p.payment_date,
-            p.client.name if p.client else '',
-            p.invoice.invoice_number if p.invoice else '',
-            p.amount,
-            p.currency,
-            p.exchange_rate,
-            p.amount_sar,
-            p.method,
-            p.status,
-            p.confirmed_by.username if p.confirmed_by else '',
-            p.confirmed_at,
-            p.reference,
-            p.note,
-            p.created_at,
-        ])
-
-    return response
+    ]
+    rows = ([
+        p.payment_number,
+        p.payment_date,
+        p.client.name if p.client else '',
+        p.invoice.invoice_number if p.invoice else '',
+        p.amount,
+        p.currency,
+        p.exchange_rate,
+        p.amount_sar,
+        p.method,
+        p.status,
+        p.confirmed_by.username if p.confirmed_by else '',
+        p.confirmed_at,
+        p.reference,
+        p.note,
+        p.created_at,
+    ] for p in payments)
+    return csv_export_response(f'payments-{date.today().isoformat()}.csv', headers, rows)

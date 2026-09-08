@@ -362,7 +362,8 @@
 [data-slot="form-field"] input:not([type="checkbox"]):not([type="radio"]):focus,
 [data-slot="form-field"] select:focus,
 [data-slot="form-field"] textarea:focus {
-  outline: none;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
   border-color: var(--ring);
   box-shadow: none;
 }
@@ -422,7 +423,8 @@
   transition: border-color .14s ease;
 }
 [data-slot="input"]:not([type="checkbox"]):not([type="radio"]):focus {
-  outline: none;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
   border-color: var(--ring);
   box-shadow: none;
 }
@@ -1899,8 +1901,12 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-kicker { font:600 12.5px ui-monospace, "SF Mono", Menlo, monospace; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 .hms-rv-h1 { margin:9px 0 0; font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.15; color:var(--foreground); }
 .hms-rv-facts { margin-top:12px; display:flex; align-items:baseline; gap:26px; flex-wrap:wrap; }
-.hms-rv-lbl { font-size:11px; letter-spacing:.1em; text-transform:uppercase; font-weight:600; color:var(--muted-foreground); }
+.hms-rv-lbl { font-size:11px; letter-spacing:.13em; text-transform:uppercase; font-weight:600; color:var(--muted-foreground); }
 .hms-rv-factv { margin-top:3px; font-size:13px; font-weight:500; color:var(--foreground); font-variant-numeric:tabular-nums; }
+
+/* Hero status badge — exact mockup geometry (24px pill, 11.5px), distinct
+   from the 26px .hms-dv-pill used on list rows and other detail chrome. */
+.hms-dv-pill.hms-rv-badge { height:24px; padding:0 11px; font-size:11.5px; }
 
 .hms-rv-side { flex:none; width:300px; }
 
@@ -1946,12 +1952,20 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 /* Sections inside a content card — divided by hairlines, no per-section chrome */
 .hms-rv-sec { border-top:1px solid var(--border); }
 .hms-rv-sec.first { border-top:none; }
+.hms-rv-sec.first .hms-rv-sech { padding-top:22px; }
 .hms-rv-sech { padding:16px 22px 13px; display:flex; align-items:baseline; justify-content:space-between; gap:16px; }
 .hms-rv-sec-title { font-size:14.5px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); }
 .hms-rv-sec-meta { font-size:12.5px; color:var(--muted-foreground); }
+.hms-rv-sec .hms-dv-table th { padding:9px 12px; }
+.hms-rv-sec .hms-dv-table td { padding:13px 12px; }
 .hms-rv-sec .hms-dv-table td:first-child, .hms-rv-sec .hms-dv-table th:first-child { padding-left:22px; }
 .hms-rv-sec .hms-dv-table td:last-child, .hms-rv-sec .hms-dv-table th:last-child { padding-right:22px; }
 .hms-rv-sec .hms-dv-empty-cell { padding-left:22px; }
+/* Non-table section bodies (plain text, badges, file rows) get no padding of
+   their own — without this they sit flush against the card edge instead of
+   lining up under the 22px-indented section title. */
+.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-dv-table-wrap):not(.hms-rv-links) { padding-left:22px; padding-right:22px; }
+.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-rv-links):last-child { padding-bottom:20px; }
 
 /* Related-documents chip row, closing the content card */
 .hms-rv-links { margin-top:auto; padding:14px 22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -1972,9 +1986,13 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 
 /* Rail file list (Attachments) */
 .hms-rv-filerow { display:flex; align-items:center; gap:9px; min-width:0; }
-.hms-rv-filerow svg { flex:none; color:var(--muted-foreground); }
-.hms-rv-filerow .t { flex:1; min-width:0; font-size:12.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--foreground); }
+.hms-rv-filerow svg { flex:none; width:14px; height:14px; stroke:currentColor; stroke-width:1.6; fill:none; stroke-linecap:round; stroke-linejoin:round; color:var(--muted-foreground); }
+.hms-rv-filerow .t { flex:1; min-width:0; font-size:12.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--foreground); text-decoration:none; }
+.hms-rv-filerow .t:hover { text-decoration:underline; text-underline-offset:2px; }
 .hms-rv-filerow .s { font-size:11.5px; flex:none; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.hms-rv-filedel { flex:none; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; border:none; background:none; padding:0; color:var(--muted-foreground); cursor:pointer; border-radius:6px; }
+.hms-rv-filedel:hover { background:var(--secondary); color:var(--red); }
+.hms-rv-filedel svg { width:12px; height:12px; }
 
 .hms-rv-railtext { line-height:1.6; font-size:12.5px; color:var(--muted-foreground); }
 .hms-rv-raillink { display:inline-block; margin-top:7px; font-size:12.5px; font-weight:600; color:var(--muted-foreground); cursor:pointer; background:none; border:none; padding:0; text-decoration:none; }

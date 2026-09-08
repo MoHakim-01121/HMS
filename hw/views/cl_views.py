@@ -1,4 +1,3 @@
-import csv
 import json
 import logging
 from datetime import date
@@ -8,7 +7,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
@@ -17,7 +15,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, log_activity
 from ..permissions import require_perm
 from ..i18n import tr
-from .helpers import _is_mobile, _parse_date, _render_list_pdf, get_active_company, pagination_props
+from .helpers import _is_mobile, _parse_date, _render_list_pdf, csv_export_response, get_active_company, pagination_props, snapshot_fields, track_changes
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
 
@@ -273,6 +271,16 @@ def cl_detail(request, pk):
         "id": a.id, "icon": a.icon, "url": a.file.url, "name": a.name, "size": a.size,
     } for a in cl.attachments.all()]
 
+    log_qs = ActivityLog.objects.filter(
+        model_name='CL', object_ref=cl.confirmation_number, company=cl.company,
+    ).select_related('user').order_by('-timestamp')
+    logs = [{
+        "action": l.get_action_display(),
+        "by": l.user.get_full_name() or l.user.username,
+        "changes": l.changes,
+        "timestamp": l.timestamp.strftime("%d %b %Y %H:%M"),
+    } for l in log_qs]
+
     return inertia_render(request, "Cl/Detail", props={
         "cl": {
             "pk": cl.pk,
@@ -287,12 +295,14 @@ def cl_detail(request, pk):
             "num_guests": cl.num_guests,
             "total_price": round_half_up(cl.total_price) if cl.total_price else 0,
             "note": cl.note,
+            "created_at": cl.created_at.strftime("%d %b %Y") if cl.created_at else None,
             "client": {"pk": cl.client.pk, "name": cl.client.name} if cl.client_id else None,
             "invoice": {"pk": cl.invoice.pk, "invoice_number": cl.invoice.invoice_number} if cl.invoice_id else None,
         },
         "rooms": rooms,
         "penalty": penalty,
         "attachments": attachments,
+        "logs": logs,
     })
 
 
@@ -314,16 +324,8 @@ def cl_edit(request, pk):
                 "default_company": cl.company, **_form_context_data(),
             })
 
-        _before = {
-            'Hotel':     cl.hotel_name,
-            'Guest':     cl.guest_name,
-            'Phone':     cl.guest_phone,
-            'Check-in':  str(cl.check_in or ''),
-            'Check-out': str(cl.check_out or ''),
-            'Status':    cl.reservation_status,
-            'Company':   cl.company,
-            'Rooms':     _room_snapshot(cl.rooms.all()),
-        }
+        _before = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status', 'company'])
+        _rooms_before = _room_snapshot(cl.rooms.all())
 
         # Company is locked to the CL's existing (active-company) scope; the form
         # no longer submits it, so we never reassign and risk a cross-company 404.
@@ -348,17 +350,13 @@ def cl_edit(request, pk):
         if cl.invoice_id:
             _sync_invoice_reservation_from_cl(cl, request.user)
 
-        _after = {
-            'Hotel':     cl.hotel_name,
-            'Guest':     cl.guest_name,
-            'Phone':     cl.guest_phone,
-            'Check-in':  str(cl.check_in or ''),
-            'Check-out': str(cl.check_out or ''),
-            'Status':    cl.reservation_status,
-            'Company':   cl.company,
-            'Rooms':     _room_snapshot(cl.rooms.all()),
-        }
-        changes = [{'label': k, 'before': _before[k], 'after': _after[k]} for k in _before if _before[k] != _after[k]]
+        _after = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status', 'company'])
+        _rooms_after = _room_snapshot(cl.rooms.all())
+        changes = track_changes(
+            {**_before, 'Rooms': _rooms_before},
+            {**_after, 'Rooms': _rooms_after},
+            labels={'hotel_name': 'Hotel', 'guest_name': 'Guest', 'guest_phone': 'Phone', 'check_in': 'Check-in', 'check_out': 'Check-out', 'reservation_status': 'Status', 'company': 'Company', 'Rooms': 'Rooms'},
+        )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, cl.company, changes)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} updated successfully.")
         return redirect("cl_detail", pk=cl.pk)
@@ -471,19 +469,14 @@ def cl_export_csv(request):
     active_company = get_active_company(request)
     qs = ConfirmationLetter.objects.filter(company=active_company)
     qs = _filter_cl_qs(qs, request)
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="confirmation_letters.csv"'
-    response.write('﻿')
-    writer = csv.writer(response)
-    writer.writerow(['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note'])
-    for cl in qs:
-        writer.writerow([
-            cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
-            cl.check_in or '', cl.check_out or '',
-            cl.total_rooms, cl.num_nights,
-            cl.total_price or 0, cl.reservation_status, cl.note or '',
-        ])
-    return response
+    headers = ['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note']
+    rows = ([
+        cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
+        cl.check_in or '', cl.check_out or '',
+        cl.total_rooms, cl.num_nights,
+        cl.total_price or 0, cl.reservation_status, cl.note or '',
+    ] for cl in qs)
+    return csv_export_response('confirmation_letters.csv', headers, rows)
 
 
 @require_perm('cl', 'create')

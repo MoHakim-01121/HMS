@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { loadLeaflet } from "../../utils/leaflet.js";
+import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
-import DetailCard from "../../components/shadcn/detail-card.jsx";
-import DetailGrid from "../../components/shadcn/detail-grid.jsx";
-import DetailAmount from "../../components/shadcn/detail-amount.jsx";
-import Section from "../../components/shadcn/section.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
+import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
+import { Icon } from "../../components/icons.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -36,11 +33,8 @@ function HotelMiniMap({ hotel }) {
       map = L.map(ref.current, { zoomControl: false, scrollWheelZoom: false, dragging: true });
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      const tileUrl = () => {
-        const theme = document.documentElement.getAttribute("data-theme");
-        return "https://{s}.basemaps.cartocdn.com/" + (theme === "light" ? "light_all" : "dark_all") + "/{z}/{x}/{y}{r}.png";
-      };
-      const tileLayer = L.tileLayer(tileUrl(), { attribution: "© OpenStreetMap © CartoDB", subdomains: "abcd", maxZoom: 19 }).addTo(map);
+      const tileUrl = () => basemapUrl(document.documentElement.getAttribute("data-theme"));
+      const tileLayer = L.tileLayer(tileUrl(), basemapOptions).addTo(map);
       observer = new MutationObserver(() => tileLayer.setUrl(tileUrl()));
       observer.observe(document.documentElement, { attributeFilter: ["data-theme"] });
 
@@ -72,7 +66,7 @@ function HotelMiniMap({ hotel }) {
 function RoomCalculator({ avg }) {
   const { t } = useI18n();
   const [jamaah, setJamaah] = useState(35);
-  const rooms = jamaah > 0 ? Math.ceil(jamaah / avg) : "—";
+  const rooms = jamaah > 0 ? Math.ceil(jamaah / avg) : null;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 260 }}>
@@ -85,7 +79,7 @@ function RoomCalculator({ avg }) {
           onChange={(e) => setJamaah(parseInt(e.target.value) || 0)}
         />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 14, background: "color-mix(in oklab, var(--secondary) 40%, transparent)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 14, background: "var(--secondary)" }}>
         <div>
           <div style={{ fontSize: 13, fontWeight: 500 }}>{t("Rooms needed")}</div>
           <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t("avg {avg} pax/room", { avg })}</div>
@@ -103,57 +97,81 @@ export default function Detail({ hotel }) {
   const hasCoords = hotel.lat != null && hotel.lng != null;
   const distTone =
     hotel.distance == null ? undefined :
-    hotel.distance < 500 ? "green" :
-    hotel.distance < 1500 ? "yellow" : "red";
-  return (
-    <div className="page dv-page hms-dv-page shadcn-root">
-      <PageBack href="/hotels/" label={t("Back")} />
+    hotel.distance < 500 ? "var(--green)" :
+    hotel.distance < 1500 ? "var(--yellow)" : "var(--red)";
 
-      <DetailCard
-        crumbs={[{ label: t("Hotels"), href: "/hotels/" }]}
+  const sections = [];
+  sections.push({
+    title: t("Room Calculator"),
+    body: hotel.avg_occupancy
+      ? <RoomCalculator avg={hotel.avg_occupancy} />
+      : <div className="hms-dv-empty">{t("This hotel has no average set")}</div>,
+  });
+  sections.push({
+    title: t("Location"),
+    meta: hasCoords ? <a className="hms-dv-act" href="/hotels/map/">{t("Full map")}</a> : undefined,
+    body: hasCoords ? (
+      <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
+        <HotelMiniMap hotel={hotel} />
+      </div>
+    ) : (
+      <div className="hms-dv-empty">{t("Coordinates not set yet. Add coordinates on the edit page.")}</div>
+    ),
+  });
+  if (hotel.note) {
+    sections.push({ title: t("Notes"), body: <div className="hms-rv-railtext">{hotel.note}</div> });
+  }
+
+  return (
+    <div className="page shadcn-root hms-rv-page">
+      <RvBack href="/hotels/" label={t("Back")} />
+
+      <RvHero
+        badge={hotel.is_active ? { label: t("Active"), tone: "green" } : { label: t("Inactive"), tone: "gray" }}
         title={hotel.name}
-        sub={`${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}`}
-        pill={hotel.is_active ? { label: t("Active"), tone: "green" } : { label: t("Inactive"), tone: "gray" }}
-        actions={
-          perms.can("hotels", "edit") ? (
-            <button type="button" className="hms-dv-act" onClick={() => openForm(`/hotels/${hotel.id}/edit/`)}>{t("Edit")}</button>
+        side={
+          hotel.distance_label ? (
+            <RvFigure label={t("Distance")} value={hotel.distance_label} color={distTone} />
           ) : null
         }
-      >
-        <DetailGrid
+        note={
+          !hasCoords
+            ? {
+                icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
+                iconBg: "var(--yellow)",
+                title: t("Location not set"),
+                text: t("Add coordinates on the edit page to show this hotel on the map."),
+              }
+            : undefined
+        }
+        actions={
+          perms.can("hotels", "edit") ? (
+            <button type="button" className="hms-rv-btn primary" onClick={() => openForm(`/hotels/${hotel.id}/edit/`)}>
+              {t("Edit")}
+            </button>
+          ) : null
+        }
+      />
+
+      <div className="hms-rv-grid">
+        <div className="hms-rv-col">
+          <RvCard>
+            {sections.map((s, i) => (
+              <RvSection key={s.title} title={s.title} meta={s.meta} first={i === 0}>
+                {s.body}
+              </RvSection>
+            ))}
+          </RvCard>
+        </div>
+
+        <RvRail
           rows={[
-            { label: t("Location"), value: `${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}`, icon: "map-pin" },
-            hotel.stars && { label: t("Stars"), value: `${hotel.stars}★`, icon: "tag" },
-            hotel.avg_occupancy && { label: t("Avg Occupancy"), value: `${hotel.avg_occupancy} pax/room`, icon: "users" },
-            hotel.note && { label: t("Notes"), value: hotel.note, icon: "file-text", span2: true, pre: true },
-          ]}
-          right={
-            hotel.distance_label ? (
-              <DetailAmount label={t("Distance")} value={hotel.distance_label} tone={distTone} />
-            ) : null
-          }
+            { k: t("Location"), v: `${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}` },
+            hotel.stars ? { k: t("Stars"), v: `${hotel.stars}★` } : null,
+            hotel.avg_occupancy ? { k: t("Avg Occupancy"), v: `${hotel.avg_occupancy} pax/room` } : null,
+          ].filter(Boolean)}
         />
-
-        <Section label={t("Room Calculator")} icon="users">
-          {hotel.avg_occupancy
-            ? <RoomCalculator avg={hotel.avg_occupancy} />
-            : <div className="hms-dv-empty">{t("This hotel has no average set")}</div>}
-        </Section>
-
-        <Section
-          label={t("Location")}
-          icon="map-pin"
-          action={hasCoords ? <a className="hms-dv-act" href="/hotels/map/">{t("Full map")}</a> : null}
-        >
-          {hasCoords ? (
-            <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
-              <HotelMiniMap hotel={hotel} />
-            </div>
-          ) : (
-            <div className="hms-dv-empty">{t("Coordinates not set yet. Add coordinates on the edit page.")}</div>
-          )}
-        </Section>
-      </DetailCard>
+      </div>
     </div>
   );
 }

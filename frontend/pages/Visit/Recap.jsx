@@ -1,5 +1,6 @@
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -28,12 +29,10 @@ export default function Recap({ monthly }) {
   return (
     <div className="page shadcn-root">
       <PageBack href="/visits/" />
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Visits Recap")}</h1>
-          <div className="page-sub">{t("Visit results summary per month")}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={t("Visits Recap")}
+        sub={t("Visit results summary per month")}
+      />
 
       {monthly.length ? monthly.map((m, i) => (
         <div className="month-card" key={i}>
@@ -41,10 +40,10 @@ export default function Recap({ monthly }) {
             <div className="month-label">{m.label}</div>
             <div className="month-meta">
               <div className="month-badges">
-                {m.planned > 0 && <span className="badge badge-yellow">{m.planned} {t("Planned")}</span>}
-                {m.completed > 0 && <span className="badge badge-green">{m.completed} {t("Completed")}</span>}
-                {m.cancelled > 0 && <span className="badge badge-red">{m.cancelled} {t("Cancelled")}</span>}
-                <span className="badge">{t("{rate}% done", { rate: m.completion_rate })}</span>
+                {m.planned > 0 && <StatusPill tone="yellow" label={`${m.planned} ${t("Planned")}`} />}
+                {m.completed > 0 && <StatusPill tone="green" label={`${m.completed} ${t("Completed")}`} />}
+                {m.cancelled > 0 && <StatusPill tone="red" label={`${m.cancelled} ${t("Cancelled")}`} />}
+                <StatusPill tone="gray" label={t("{rate}% done", { rate: m.completion_rate })} />
               </div>
               <div className="month-total">{m.total} {t("visits")}</div>
             </div>
@@ -104,7 +103,7 @@ export default function Recap({ monthly }) {
           </div>
         </div>
       )) : (
-        <div className="card">
+        <div className="hms-list-card">
           <EmptyState iconName="visits" title="No visit data yet" />
         </div>
       )}

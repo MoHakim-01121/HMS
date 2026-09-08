@@ -38,6 +38,9 @@ class CompanyLoginView(LoginView):
         if not can_use_company(self.request.user, company):
             company = default_company(self.request.user)
         self.request.session['active_company'] = company
+        # "Ingat perangkat ini" (login form): keep the session past browser
+        # close, otherwise expire it when the browser is closed.
+        self.request.session.set_expiry(None if self.request.POST.get('remember') else 0)
         self.request.session.modified = True
         return response
 
@@ -447,10 +450,42 @@ def avatar_upload(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     f = request.FILES.get('avatar')
     if f:
+        # Re-encode through Pillow so a malicious file that merely *claims* to
+        # be an image (or an SVG/HTML served as image) is neutralized — the
+        # stored file is always a freshly-written JPEG/PNG with a safe name.
+        # The model field alone is not enough: it only validates via a form's
+        # clean(), and this endpoint assigns the file directly.
+        from io import BytesIO
+        from .helpers import PROOF_MAX_SIZE
+        if f.size > PROOF_MAX_SIZE:
+            messages.error(request, "Avatar terlalu besar (maks 10 MB).")
+            return redirect(_safe_redirect(request))
+        try:
+            from PIL import Image
+            img = Image.open(f)
+            img.load()
+            fmt = (img.format or '').upper()
+            if fmt not in ('JPEG', 'PNG', 'WEBP', 'GIF'):
+                messages.error(request, "File type not allowed. Use JPG/PNG/WEBP/GIF.")
+                return redirect(_safe_redirect(request))
+            img = img.convert('RGB') if fmt != 'GIF' else img
+        except Exception:
+            messages.error(request, "File is not a valid image.")
+            return redirect(_safe_redirect(request))
+
+        out = BytesIO()
+        target_fmt = 'JPEG' if fmt in ('JPEG', 'WEBP', 'GIF') else 'PNG'
+        if img.mode in ('RGBA', 'LA', 'P') and target_fmt == 'JPEG':
+            img = img.convert('RGB')
+        img.save(out, format=target_fmt)
+        out.seek(0)
+
+        from django.core.files.base import ContentFile
+        safe_name = f'avatar_{profile.user.pk}.{"jpg" if target_fmt == "JPEG" else "png"}'
         if profile.avatar:
             profile.avatar.delete(save=False)
-        profile.avatar = f
-        profile.save()
+        profile.avatar.save(safe_name, ContentFile(out.getvalue()), save=True)
+        messages.success(request, "Avatar diperbarui.")
     return redirect(_safe_redirect(request))
 
 

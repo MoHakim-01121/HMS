@@ -22,3 +22,14 @@ export function loadLeaflet() {
   });
   return promise;
 }
+
+// Keyless basemap tiles. CARTO's basemaps.cartocdn.com began serving an
+// "API KEY REQUIRED" watermark tile in 2026; Esri's World Gray Canvas is the
+// closest keyless look-alike — a muted dark/light base that lets the markers
+// carry the map. Esri serves z/y/x (not z/x/y) and tops out at native z16.
+export function basemapUrl(theme) {
+  const style = theme === "light" ? "World_Light_Gray_Base" : "World_Dark_Gray_Base";
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${style}/MapServer/tile/{z}/{y}/{x}`;
+}
+
+export const basemapOptions = { attribution: "© Esri", maxZoom: 19, maxNativeZoom: 16 };

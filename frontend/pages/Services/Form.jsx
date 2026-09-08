@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
@@ -7,6 +7,7 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
 import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -95,10 +96,13 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
       service_items: JSON.stringify(serviceItems),
     }));
     const url = edit ? `/services/${src.pk}/edit/` : "/services/new/";
-    form.post(url);
+    form.post(url, { forceFormData: true });
   };
 
-  return (
+  const inModal = useContext(FormModalContext)?.inModal;
+  const closeHref = edit ? `/services/${src.pk}/` : "/services/";
+
+  const page = (
     <div className="page svc-form shadcn-root">
       <style>{CSS}</style>
       <PageBack href="/services/" />
@@ -234,6 +238,8 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
       </form>
     </div>
   );
+
+  return inModal ? page : <StandaloneFormModal closeHref={closeHref}>{page}</StandaloneFormModal>;
 }
 
 const CSS = `

@@ -1,12 +1,8 @@
-import DetailCard from "../../components/shadcn/detail-card.jsx";
-import DetailGrid from "../../components/shadcn/detail-grid.jsx";
 import DetailTable from "../../components/shadcn/detail-table.jsx";
-import Section from "../../components/shadcn/section.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { DvLink } from "../../components/shadcn/item-row.jsx";
-import FooterSummary from "../../components/shadcn/footer-summary.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
+import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail, RvRailBlock } from "../../components/shadcn/record-view.jsx";
+import { Icon } from "../../components/icons.jsx";
 import LastBilling from "../../components/ui/LastBilling.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -34,152 +30,149 @@ export default function Detail({ invoice, visa_services, payments_history, servi
   const remainingTotal = visa_services.reduce((s, v) => s + Math.max(0, v.remaining || 0), 0);
   const receivedTotal = payments_history.reduce((s, p) => s + (p.payment_amount_main || 0), 0);
   const hero = heroPill(servicesTotal, services_remaining);
+  const canEdit = perms.can("services", "edit");
+
+  const actions = (
+    <>
+      {!paid && <a className="hms-rv-btn primary" href={`/finance/payments/?invoice=${invoice.pk}`}>{t("Record Payment")}</a>}
+      {canEdit && (
+        <button type="button" className="hms-rv-btn" onClick={() => openDraft(paid ? "services_lunas" : "services", invoice.pk, wa_send)}>
+          {paid ? t("Paid Message") : t("Draft Message")}
+        </button>
+      )}
+      <a className="hms-rv-btn" href={`/services/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
+      {canEdit && (
+        <button type="button" className={paid ? "hms-rv-btn primary" : "hms-rv-btn"} onClick={() => openForm(`/services/${invoice.pk}/edit/`)}>
+          {t("Edit")}
+        </button>
+      )}
+    </>
+  );
+
+  const facts = [
+    { k: t("Invoice total"), v: `${fmt(servicesTotal)} ${cur}` },
+    { k: t("Issued"), v: invoice.issued_date || invoice.created_at || t("Not issued") },
+  ];
+  if (!paid && invoice.due_date) facts.push({ k: t("Due"), v: invoice.due_date });
+  facts.push({ k: t("Currency"), v: cur });
 
   return (
-    <div className="page dv-page hms-dv-page shadcn-root">
-      <PageBack href="/services/" />
+    <div className="page shadcn-root hms-rv-page">
+      <RvBack href="/services/" label={t("Back")} />
 
-      <DetailCard
-        crumbs={[{ label: t("Services"), href: "/services/" }]}
+      <RvHero
         kicker={invoice.invoice_number}
+        badge={{ label: t(hero.label), tone: hero.tone }}
         title={invoice.customer_name}
-        sub={t("Services invoice")}
-        pill={{ ...hero, label: t(hero.label) }}
-        actions={
-          <>
-            <a className="hms-dv-act" href={`/finance/payments/?invoice=${invoice.pk}`} style={{ fontSize: 12 }}>
-              {t("Record Payment")}
-            </a>
-            <a className="hms-dv-act" href={`/services/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">PDF</a>
-            {perms.can("services", "edit") && (
-              <button type="button" className="hms-dv-act" onClick={() => openForm(`/services/${invoice.pk}/edit/`)}>{t("Edit")}</button>
-            )}
-          </>
+        facts={facts}
+        side={
+          <RvFigure
+            label={paid ? t("Paid in full") : t("Amount due")}
+            value={fmt(paid ? servicesTotal : services_remaining)}
+            unit={cur}
+            color={paid ? "var(--green)" : "var(--red)"}
+            bar={{
+              pct: servicesTotal > 0 ? `${Math.min(100, (paidTotal / servicesTotal) * 100)}%` : "0%",
+              color: paid ? "var(--green)" : "var(--yellow)",
+            }}
+            note={`${fmt(paidTotal)} ${t("of")} ${fmt(servicesTotal)} ${cur} ${t("paid")}`}
+          />
         }
-      >
-        {/* Four rows, two full columns — the same anatomy as Invoice and CL
-            detail. The invoice number is not repeated here since it is already
-            the kicker, the company is dropped (a record only ever renders under
-            the company it belongs to), and the amount moves from the right-hand
-            tile into the grid: that tile squeezed the grid until the Services
-            row wrapped, and on a wholly unpaid invoice it only restated the
-            footer's Total Amount. */}
-        <DetailGrid
+        note={
+          paid
+            ? { icon: <Icon name="check" size={12} strokeWidth={2.4} />, iconBg: "var(--green)", title: t("Paid in full") }
+            : {
+                icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
+                iconBg: due_alert?.type === "red" ? "var(--red)" : "var(--yellow)",
+                title: due_alert?.msg || t("Payment is still owed."),
+                text: due_alert ? t("Payment is still owed.") : undefined,
+              }
+        }
+        actions={actions}
+      />
+
+      <div className="hms-rv-grid">
+        <div className="hms-rv-col">
+          <RvCard>
+            <RvSection title={t("Services")} meta={visa_services.length ? `${visa_services.length}` : undefined} first>
+              <DetailTable
+                columns={[
+                  { header: "#SVC", strong: true, render: (svc) => svc.service_no },
+                  { header: t("Product"), render: (svc) => svc.product },
+                  { header: t("Qty"), render: (svc) => svc.qty },
+                  { header: t("Price"), align: "right", render: (svc) => fmt(svc.price) },
+                  {
+                    header: t("Status"),
+                    align: "right",
+                    render: (svc) =>
+                      svc.remaining <= 0 ? (
+                        <StatusPill small label={t("Settled")} tone="green" />
+                      ) : svc.remaining < svc.total ? (
+                        <StatusPill small label={t("Partial")} tone="yellow" />
+                      ) : (
+                        <StatusPill small label={t("Unpaid")} tone="red" />
+                      ),
+                  },
+                  { header: t("Total"), align: "right", strong: true, render: (svc) => fmt(svc.total) },
+                  { header: t("Paid"), align: "right", render: (svc) => <span style={{ color: svc.paid_int > 0 ? "var(--green)" : undefined }}>{fmt(svc.paid_int)}</span> },
+                  { header: t("Remaining"), align: "right", render: (svc) => fmt(Math.max(0, svc.remaining || 0)) },
+                ]}
+                rows={visa_services}
+                empty={t("No service data")}
+                footer={
+                  visa_services.length
+                    ? [{
+                        label: t("Total"),
+                        value: [`${fmt(servicesTotal)} ${cur}`, `${fmt(paidTotal)} ${cur}`, `${fmt(remainingTotal)} ${cur}`],
+                        tone: [null, "green", remainingTotal > 0 ? "red" : null],
+                        total: true,
+                      }]
+                    : null
+                }
+              />
+            </RvSection>
+
+            <RvSection title={t("Payments")} meta={payments_history.length ? `${payments_history.length}` : undefined}>
+              <DetailTable
+                columns={[
+                  { header: "#REF", strong: true, render: (p) => p.linked_number || t("Unlinked") },
+                  { header: t("Date"), render: (p) => p.payment_date || t("Not set") },
+                  {
+                    header: t("Method"),
+                    render: (p) => (
+                      <>
+                        {p.payment_method || t("Payment")}
+                        {p.proof_url ? <DvLink href={p.proof_url} newTab>{t("Proof")}</DvLink> : null}
+                      </>
+                    ),
+                  },
+                  { header: t("Amount"), align: "right", render: (p) => `${fmt(p.payment_amount)} ${p.payment_currency}` },
+                  { header: t("Rate"), align: "right", render: (p) => (p.payment_currency === cur ? "1.00" : p.payment_exchange) },
+                  { header: t("Amount in {cur}", { cur }), align: "right", strong: true, render: (p) => fmt(p.payment_amount_main) },
+                ]}
+                rows={payments_history}
+                empty={t("No payments")}
+                footer={payments_history.length ? [{ label: t("Total received"), value: `${fmt(receivedTotal)} ${cur}`, total: true, tone: "green" }] : null}
+              />
+            </RvSection>
+          </RvCard>
+        </div>
+
+        <RvRail
           rows={[
-            { label: t("Issued"), value: invoice.issued_date || invoice.created_at || t("Not issued"), icon: "calendar" },
-            {
-              label: t("Services"),
-              icon: "services",
-              value: (
-                <>
-                  {visa_services.length} {t(visa_services.length === 1 ? "item" : "items")}
-                  {invoice.due_date ? <span className="hms-dv-mval-sub"> · {t("due")} {invoice.due_date}</span> : null}
-                </>
-              ),
-            },
-            { label: t("Payments"), icon: "wallet", value: t("{count} received", { count: payments_history.length }) },
-            {
-              label: t(paid ? "Paid in full" : "Amount due"),
-              icon: "invoice",
-              color: paid ? "var(--green)" : "var(--red)",
-              value: (
-                <>
-                  {fmt(paid ? servicesTotal : services_remaining)} {cur}
-                  {!paid && due_alert ? <span className="hms-dv-mval-sub"> · {due_alert.msg}</span> : null}
-                </>
-              ),
-            },
-          ]}
-        />
-
-        <Section label={t("Services")} icon="services" count={visa_services.length || null} right={cur}>
-          <DetailTable
-            columns={[
-              { header: "#SVC", strong: true, render: (svc) => svc.service_no },
-              { header: t("Product"), render: (svc) => svc.product },
-              { header: t("Qty"), render: (svc) => svc.qty },
-              { header: t("Price"), align: "right", render: (svc) => fmt(svc.price) },
-              {
-                // Remaining has its own column, so the pill carries the state
-                // word only instead of repeating the figure.
-                header: t("Status"),
-                align: "right",
-                render: (svc) =>
-                  svc.remaining <= 0 ? (
-                    <StatusPill small label={t("Settled")} tone="green" />
-                  ) : svc.remaining < svc.total ? (
-                    <StatusPill small label={t("Partial")} tone="yellow" />
-                  ) : (
-                    <StatusPill small label={t("Unpaid")} tone="red" />
-                  ),
-              },
-              { header: t("Total"), align: "right", strong: true, render: (svc) => fmt(svc.total) },
-              { header: t("Paid"), align: "right", render: (svc) => <span style={{ color: svc.paid_int > 0 ? "var(--green)" : undefined }}>{fmt(svc.paid_int)}</span> },
-              { header: t("Remaining"), align: "right", render: (svc) => fmt(Math.max(0, svc.remaining || 0)) },
-            ]}
-            rows={visa_services}
-            empty={t("No service data")}
-            footer={
-              visa_services.length
-                ? [{
-                    label: t("Total"),
-                    value: [`${fmt(servicesTotal)} ${cur}`, `${fmt(paidTotal)} ${cur}`, `${fmt(remainingTotal)} ${cur}`],
-                    tone: [null, "green", remainingTotal > 0 ? "red" : null],
-                    total: true,
-                  }]
-                : null
-            }
-          />
-        </Section>
-
-        <Section label={t("Payments")} icon="wallet" count={payments_history.length || null} right={cur}>
-          <DetailTable
-            columns={[
-              // The only reference a services payment has is the service it
-              // settles — same shape as Invoice's #REF column.
-              { header: "#REF", strong: true, render: (p) => p.linked_number || t("Unlinked") },
-              { header: t("Date"), render: (p) => p.payment_date || t("Not set") },
-              {
-                header: t("Method"),
-                render: (p) => (
-                  <>
-                    {p.payment_method || t("Payment")}
-                    {p.proof_url ? <DvLink href={p.proof_url} newTab>{t("Proof")}</DvLink> : null}
-                  </>
-                ),
-              },
-              // Original currency and rate get their own columns, so the
-              // "IDR, rate 4810.00" sub-line under Method is retired.
-              { header: t("Amount"), align: "right", render: (p) => `${fmt(p.payment_amount)} ${p.payment_currency}` },
-              // A payment in the invoice's own currency settles at parity, so
-              // the column shows 1.00 rather than a placeholder — every row
-              // keeps a real number.
-              { header: t("Rate"), align: "right", render: (p) => (p.payment_currency === cur ? "1.00" : p.payment_exchange) },
-              { header: t("Amount {cur}", { cur }), align: "right", strong: true, render: (p) => fmt(p.payment_amount_main) },
-            ]}
-            rows={payments_history}
-            empty={t("No payments")}
-            footer={payments_history.length ? [{ label: t("Total received"), value: `${fmt(receivedTotal)} ${cur}`, total: true, tone: "green" }] : null}
-          />
-        </Section>
-
-        {/* Billing collapses into the card's closing strip: one action plus the
-            last log is not enough weight for a section of its own. The Paid /
-            Total Amount figures that used to sit here are gone — each table
-            already carries its own total, so the footer only repeated them.
-            Sending calls /billing/send/, which the server guards with
-            invoice.edit — a read-only role just sees the log. */}
-        <FooterSummary
-          left={<LastBilling last={last_billing} />}
-          right={
-            perms.can("invoice", "edit") ? (
-              <Button type="button" onClick={() => openDraft(paid ? "services_lunas" : "services", invoice.pk, wa_send)}>
-                {t(paid ? "Paid Message" : "Draft Message")}
-              </Button>
-            ) : null
-          }
-        />
-      </DetailCard>
+            { k: t("Issued"), v: invoice.issued_date || invoice.created_at || t("Not issued") },
+            { k: t("Services"), v: `${visa_services.length}` },
+            !paid && invoice.due_date ? { k: t("Due"), v: invoice.due_date } : null,
+            { k: t("Currency"), v: cur },
+          ].filter(Boolean)}
+        >
+          {last_billing ? (
+            <RvRailBlock label={t("Billing")}>
+              <LastBilling last={last_billing} />
+            </RvRailBlock>
+          ) : null}
+        </RvRail>
+      </div>
     </div>
   );
 }

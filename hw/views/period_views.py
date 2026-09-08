@@ -5,6 +5,7 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 
 from django.contrib import messages
+from django.db import IntegrityError
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
 
@@ -36,7 +37,7 @@ def _period_props(p):
     }
 
 
-@require_perm('remittance', 'view')
+@require_perm('periods', 'view')
 def period_list(request):
     periods = FinancialPeriod.objects.all()
     return inertia_render(request, 'Period/List', props={
@@ -44,7 +45,7 @@ def period_list(request):
     })
 
 
-@require_perm('remittance', 'view')
+@require_perm('periods', 'view')
 def period_detail(request, pk):
     period = get_object_or_404(FinancialPeriod, pk=pk)
     entries = period.journal_entries.select_related('created_by').order_by('-entry_date', '-created_at')[:50]
@@ -86,7 +87,7 @@ def period_detail(request, pk):
     })
 
 
-@require_perm('remittance', 'edit')
+@require_perm('periods', 'edit')
 def period_close(request, pk):
     period = get_object_or_404(FinancialPeriod, pk=pk)
     if request.method == 'POST':
@@ -99,7 +100,7 @@ def period_close(request, pk):
     return redirect('period_detail', pk=pk)
 
 
-@require_perm('remittance', 'edit')
+@require_perm('periods', 'edit')
 def period_lock(request, pk):
     period = get_object_or_404(FinancialPeriod, pk=pk)
     if request.method == 'POST':
@@ -112,7 +113,7 @@ def period_lock(request, pk):
     return redirect('period_detail', pk=pk)
 
 
-@require_perm('remittance', 'edit')
+@require_perm('periods', 'edit')
 def period_create(request):
     """Create 12 monthly periods for the given year."""
     if request.method == 'POST':
@@ -122,20 +123,38 @@ def period_create(request):
         except (json.JSONDecodeError, ValueError):
             data = request.POST
 
-        year = int(data.get('year', date.today().year))
+        try:
+            year = int(data.get('year', date.today().year))
+        except (TypeError, ValueError):
+            messages.error(request, 'Tahun tidak valid.')
+            return redirect('period_list')
+
         created = 0
-        for m in range(1, 13):
-            date_from = date(year, m, 1)
-            if m == 12:
-                date_to = date(year + 1, 1, 1) - relativedelta(days=1)
-            else:
-                date_to = date(year, m + 1, 1) - relativedelta(days=1)
-            name = f'{year}-{m:02d}'
-            _, was_created = FinancialPeriod.objects.get_or_create(
-                name=name, defaults={'date_from': date_from, 'date_to': date_to},
-            )
-            if was_created:
-                created += 1
+        company = get_active_company(request)
+        try:
+            for m in range(1, 13):
+                date_from = date(year, m, 1)
+                if m == 12:
+                    date_to = date(year + 1, 1, 1) - relativedelta(days=1)
+                else:
+                    date_to = date(year, m + 1, 1) - relativedelta(days=1)
+                name = f'{year}-{m:02d}'
+                try:
+                    _, was_created = FinancialPeriod.objects.get_or_create(
+                        company=company,
+                        name=name,
+                        defaults={'date_from': date_from, 'date_to': date_to},
+                    )
+                except IntegrityError:
+                    # name ber-constraint unique global: jika dipakai oleh
+                    # company lain atau ada race, jangan 500 — anggap sudah ada.
+                    logger.warning('Periode %s untuk company %s ditandai sudah ada', name, company)
+                    was_created = False
+                if was_created:
+                    created += 1
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Gagal membuat periode: {e}')
+            return redirect('period_list')
 
         messages.success(request, f'{created} periode untuk tahun {year} berhasil dibuat.')
         return redirect('period_list')

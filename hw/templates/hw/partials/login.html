@@ -4,55 +4,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Login — Hakim Workspace</title>
+  <title>Masuk — Konoz United</title>
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Homlu design system — neutral monochrome tokens (chroma 0, matched to
-       frontend/styles/tailwind.css). Color reserved for status only; brand
-       CTA inverts between light/dark. Flat surfaces, no texture. */
+    /* Homlu v2.1 — login surface rebuilt to Claude Design doc 01 (1g).
+       Two bidang: an always-ink narrative panel on the left carrying a
+       breathing 3D lattice, and the form panel (400) on the right. Neutral
+       monochrome tokens, matched to frontend/styles/tailwind.css. */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root,
     [data-theme="light"] {
-      --background: oklch(0.905 0 0);        /* darker canvas to lift the card */
-      --foreground: oklch(0.145 0 0);
-      --card:       oklch(0.995 0 0);
-      --primary:    oklch(0.145 0 0);
-      --primary-foreground: oklch(0.985 0 0);
-      --secondary:  oklch(0.94 0 0);
-      --muted:      oklch(0.94 0 0);
-      --muted-foreground: oklch(0.55 0 0);
-      --input:      oklch(0.922 0 0);
-      --border:     oklch(0.922 0 0);
-      --ring:       oklch(0.145 0 0);
-      --destructive: oklch(0.52 0.22 25);
-      --destructive-foreground: oklch(0.98 0.01 25);
-      --accent-m:   rgba(0,0,0,.08);
-      --shadow-card: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px -4px rgba(0,0,0,.08), 0 26px 60px -30px rgba(0,0,0,.22);
-      --grid-line:       color-mix(in oklab, var(--foreground) 4%, transparent);
-      --grid-line-major: color-mix(in oklab, var(--foreground) 8%, transparent);
+      --background: oklch(0.972 0.003 250);
+      --foreground: oklch(0.205 0.012 260);
+      --card:       oklch(1 0 0);
+      --primary:    oklch(0.205 0.012 260);
+      --primary-foreground: oklch(1 0 0);
+      --primary-hover: oklch(0.30 0.012 260);
+      --muted:      oklch(0.985 0.001 250);
+      --muted-foreground: oklch(0.52 0.012 258);
+      --label:      oklch(0.44 0.012 258);
+      --input:      oklch(0.878 0.006 250);
+      --border:     oklch(0.912 0.005 250);
+      --hairline:   oklch(0.944 0.004 250);
+      --ring:       oklch(0.205 0.012 260);
+      --focus:      oklch(0.72 0.15 85);
+      --destructive: oklch(0.58 0.21 25);
+      /* Form panel follows the theme; the narrative panel is its inverse. */
+      --form-bg:   oklch(1 0 0);
+      --aside-bg:  oklch(0.205 0.012 260);
+      --aside-fg:  oklch(1 0 0);
+      --aside-sub: oklch(0.84 0 0);
+      --lat-line:  oklch(1 0 0 / .18);
+      --lat-dot:   oklch(1 0 0 / .42);
+      --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px -12px rgba(0,0,0,.14), 0 40px 80px -40px rgba(0,0,0,.20);
     }
     [data-theme="dark"] {
-      --background: oklch(0.125 0 0);        /* darker canvas to lift the card */
-      --foreground: oklch(1 0 0);
-      --card:       oklch(0.2 0 0);
+      --background: oklch(0.125 0 0);
+      --foreground: oklch(0.985 0 0);
+      --card:       oklch(0.18 0 0);
       --primary:    oklch(0.985 0 0);
       --primary-foreground: oklch(0.17 0 0);
-      --secondary:  oklch(0.24 0 0);
-      --muted:      oklch(0.24 0 0);
-      --muted-foreground: oklch(0.58 0 0);
-      --input:      oklch(1 0 0 / 0.08);
-      --border:     oklch(1 0 0 / 0.08);
+      --primary-hover: oklch(0.90 0 0);
+      --muted:      oklch(0.21 0 0);
+      --muted-foreground: oklch(0.62 0 0);
+      --label:      oklch(0.66 0 0);
+      --input:      oklch(0.32 0 0);
+      --border:     oklch(0.26 0 0);
+      --hairline:   oklch(0.24 0 0);
       --ring:       oklch(0.985 0 0);
-      --destructive: oklch(0.58 0.22 25);
-      --destructive-foreground: oklch(0.98 0.01 25);
-      --accent-m:   rgba(255,255,255,.1);
-      --shadow-card: 0 1px 0 rgba(255,255,255,.05) inset, 0 6px 16px -6px rgba(0,0,0,.5), 0 34px 70px -36px rgba(0,0,0,.85);
-      --grid-line:       color-mix(in oklab, var(--foreground) 4%, transparent);
-      --grid-line-major: color-mix(in oklab, var(--foreground) 8%, transparent);
+      --focus:      oklch(0.72 0.15 85);
+      --destructive: oklch(0.66 0.19 25);
+      /* Right panel goes true black; left panel flips to white, lattice inks. */
+      --form-bg:   oklch(0.03 0 0);
+      --aside-bg:  oklch(0.97 0 0);
+      --aside-fg:  oklch(0.19 0 0);
+      --aside-sub: oklch(0.40 0 0);
+      --lat-line:  oklch(0 0 0 / .16);
+      --lat-dot:   oklch(0 0 0 / .40);
+      --shadow-card: 0 1px 0 rgba(255,255,255,.04) inset, 0 12px 32px -14px rgba(0,0,0,.6), 0 44px 90px -46px rgba(0,0,0,.85);
     }
 
     html, body {
@@ -62,370 +75,381 @@
       color: var(--foreground);
       overflow-x: hidden;
       overscroll-behavior: none;
+      -webkit-font-smoothing: antialiased;
     }
     body { min-height: 100vh; min-height: 100dvh; }
-
     input, button { font-family: inherit; touch-action: manipulation; }
 
-    /* ── Spotlight behind the card ─────────────────────────────────────
-       A single focused light lifts the card off the (darker) canvas.
-       No texture, no color — pure monochrome elevation per Homlu. */
-    .bg-glow {
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background: radial-gradient(46% 56% at 50% 46%, var(--grid-line-major), transparent 78%);
-    }
-
-    /* ── Layout ──────────────────────────────────────────────────────── */
-    .login-wrap {
-      position: relative; z-index: 2;
-      min-height: 100vh; min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      padding:
-        calc(env(safe-area-inset-top, 0px) + 24px) 20px
-        calc(env(safe-area-inset-bottom, 0px) + 26px);
-    }
-
-    .login-brand {
-      position: absolute;
-      top: calc(env(safe-area-inset-top, 0px) + 64px);
-      left: 0; right: 0;
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1;
-    }
-    .login-logo { display: flex; }
-    .login-logo img {
-      height: 124px; width: auto; display: block;
-      filter: drop-shadow(0 6px 26px var(--accent-m));
-    }
-    .login-logo .logo-light { display: none; }
-    [data-theme="light"] .login-logo .logo-light { display: block; }
-    [data-theme="light"] .login-logo .logo-dark { display: none; }
-    @media (min-width: 520px) { .login-logo img { height: 164px; } }
-
+    /* ── Full-page split ─────────────────────────────────────────────── */
     .login-card {
       width: 100%;
-      max-width: 400px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 24px 20px 20px;
-      box-shadow: var(--shadow-card);
-    }
-    @media (min-width: 520px) {
-      .login-card { padding: 30px 28px 26px; }
+      min-height: 100vh; min-height: 100dvh;
+      display: grid;
+      grid-template-columns: 1fr clamp(440px, 40vw, 560px);
+      background: var(--form-bg);
     }
 
-    /* ── Staggered entrance ──────────────────────────────────────────── */
-    @keyframes reveal {
-      from { opacity: 0; transform: translateY(12px); }
-      to   { opacity: 1; transform: translateY(0); }
+    /* ── Left: narrative + lattice — the inverse of the active theme ──── */
+    .login-aside {
+      position: relative;
+      background: var(--aside-bg);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      color: var(--aside-fg);
     }
-    .reveal { animation: reveal .45s cubic-bezier(.16,1,.3,1) both; }
+    .aside-stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; }
+    .lat {
+      position: absolute; inset: -30%;
+      display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr;
+      transform-style: preserve-3d;
+    }
+    .lc { position: relative; }
+    .lq  { position: absolute; inset: 14%; border: 1px solid var(--lat-line); }
+    .lq2 { position: absolute; inset: 14%; border: 1px solid var(--lat-line); transform: rotate(45deg); }
+    .ld  { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 999px; background: var(--lat-dot); }
+    .plane { position: absolute; inset: 0; transform-style: preserve-3d; animation: latSpin 92s linear infinite; }
+    .planeB { animation: latSpinB 140s linear infinite; opacity: .24; }
+    @keyframes latSpin  { 0% { transform: rotateX(58deg) rotateZ(0deg) scale(1.02); } 100% { transform: rotateX(58deg) rotateZ(360deg) scale(1.02); } }
+    @keyframes latSpinB { 0% { transform: rotateX(58deg) rotateZ(360deg) scale(1.5); } 100% { transform: rotateX(58deg) rotateZ(0deg) scale(1.5); } }
+    @keyframes latRise  { 0%, 100% { transform: translateZ(0px); } 50% { transform: translateZ(46px); } }
 
-    /* ── Header ──────────────────────────────────────────────────────── */
-    .login-heading {
-      font-size: 22px; font-weight: 700;
-      letter-spacing: -.4px;
-      line-height: 1.2;
-      margin-bottom: 4px;
-      text-wrap: balance;
+    .aside-brand {
+      position: absolute; left: 36px; top: 30px;
+      display: flex; align-items: center;
+      pointer-events: none; z-index: 1;
     }
-    .login-sub {
-      font-size: 13px; line-height: 1.5;
-      color: var(--muted-foreground); margin-bottom: 18px;
-      text-wrap: balance;
+    .aside-logo { display: flex; }
+    .aside-logo img { height: 132px; width: auto; display: block; }
+    /* logo-w = white lockup (for the dark aside → light theme);
+       logo-k = black lockup (for the white aside → dark theme). */
+    .aside-logo .logo-k { display: none; }
+    [data-theme="dark"] .aside-logo .logo-w { display: none; }
+    [data-theme="dark"] .aside-logo .logo-k { display: block; }
+    @media (min-width: 1100px) { .aside-logo img { height: 164px; } }
+    .aside-copy {
+      position: absolute; left: 36px; right: 36px; bottom: 38px;
+      pointer-events: none; z-index: 1;
     }
+    .aside-copy h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.24; }
+    .aside-copy p { margin-top: 10px; font-size: 12.5px; line-height: 1.7; color: var(--aside-sub); max-width: 400px; }
 
-    /* ── Error banner ────────────────────────────────────────────────── */
+    /* ── Right: form ─────────────────────────────────────────────────── */
+    .login-main { padding: 40px 34px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--form-bg); }
+    .login-inner { width: 100%; max-width: 384px; }
+    @media (min-width: 520px) { .login-main { padding: 48px 44px; } }
+
+    .login-heading { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; line-height: 1.2; }
+    .login-sub { margin-top: 5px; font-size: 12.5px; line-height: 1.6; color: var(--muted-foreground); }
+
     .login-error {
       display: flex; align-items: flex-start; gap: 9px;
-      padding: 12px 14px;
-      background: color-mix(in oklab, var(--destructive) 9%, transparent);
-      border: 1px solid color-mix(in oklab, var(--destructive) 28%, transparent);
-      border-radius: 12px;
-      font-size: 13px; color: var(--destructive); font-weight: 500;
-      line-height: 1.45;
-      margin-bottom: 16px;
-      animation: reveal .4s cubic-bezier(.16,1,.3,1) both;
+      margin-top: 16px; padding: 12px 14px;
+      background: oklch(0.58 0.21 25 / .06);
+      border: 1px solid oklch(0.58 0.21 25 / .34);
+      border-radius: 14px;
     }
-    .login-error svg { flex-shrink: 0; margin-top: 1px; }
+    .login-error svg { flex: none; margin-top: 2px; color: var(--destructive); }
+    .login-error b { display: block; font-size: 12.5px; font-weight: 600; color: var(--destructive); }
+    .login-error span { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.55; color: var(--muted-foreground); }
 
-    /* ── Fields ──────────────────────────────────────────────────────── */
-    .login-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
-    .lf label {
-      display: block;
-      font-size: 13px; font-weight: 600;
-      color: var(--foreground); margin-bottom: 6px;
-    }
-    .lf-input { position: relative; }
-    .lf-input svg.lf-icon {
-      position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
-      color: var(--muted-foreground); pointer-events: none;
-    }
-    /* Homlu control: 48px tall, 16px radius, 2px stroke. Focus = stroke
-       to full-contrast ink, no glow. */
+    .login-fields { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
+    .lf { display: flex; flex-direction: column; gap: 7px; }
+    .lf label { font-size: 12px; font-weight: 500; color: var(--label); }
+    .lf-input { position: relative; display: flex; align-items: center; }
     .lf-input input {
-      height: 48px; width: 100%;
-      background: var(--muted);
-      border: 2px solid var(--input);
-      border-radius: 16px;
+      height: 46px; width: 100%;
+      background: var(--card);
+      border: 1px solid var(--input);
+      border-radius: 14px;
       color: var(--foreground);
-      font-size: 16px;         /* ≥16px: mencegah auto-zoom iOS */
-      font-weight: 500;
-      padding: 0 46px 0 44px;
+      font-size: 16px; font-weight: 500;
+      padding: 0 15px;
       outline: none;
-      transition: border-color .15s, background .15s;
+      transition: border-color .14s;
     }
+    .lf-input.has-toggle input { padding-right: 46px; }
     .lf-input input::placeholder { color: var(--muted-foreground); font-weight: 400; }
     .lf-input input:focus {
       border-color: var(--ring);
-      background: var(--muted);
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
     }
     .lf-toggle {
-      position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
-      width: 44px; height: 44px;
+      position: absolute; right: 6px;
+      width: 34px; height: 34px;
       display: flex; align-items: center; justify-content: center;
-      background: none; border: none;
-      color: var(--muted-foreground); cursor: pointer;
-      border-radius: 12px;
-      transition: color .15s, transform .1s;
+      background: none; border: none; cursor: pointer;
+      color: var(--muted-foreground);
+      border-radius: 10px;
+      transition: color .14s, transform .1s;
     }
-    .lf-toggle:active { transform: translateY(-50%) scale(.9); }
+    .lf-toggle:hover { color: var(--foreground); }
+    .lf-toggle:active { transform: scale(.9); }
+    .lf-toggle svg:last-child { display: none; }
+    .lf-toggle.on svg:first-child { display: none; }
+    .lf-toggle.on svg:last-child { display: block; }
 
-    /* Cross-fade icon swap */
-    .icon-swap { position: relative; display: inline-block; }
-    .icon-swap svg {
-      transition: opacity .2s cubic-bezier(.2,0,0,1), transform .2s cubic-bezier(.2,0,0,1), filter .2s cubic-bezier(.2,0,0,1);
-      opacity: 0; transform: scale(.25); filter: blur(4px);
+    .login-row {
+      margin-top: 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
     }
-    .icon-swap svg:first-child { position: static; }
-    .icon-swap svg:last-child { position: absolute; inset: 0; }
-    .icon-swap svg.active { opacity: 1; transform: scale(1); filter: blur(0); }
+    .lf-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 12.5px; font-weight: 500; }
+    .lf-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .lf-check .box {
+      width: 18px; height: 18px; flex: none;
+      border-radius: 6px; border: 1.5px solid var(--ring);
+      display: flex; align-items: center; justify-content: center;
+      color: transparent;
+      transition: background .12s, color .12s;
+    }
+    .lf-check input:checked + .box { background: var(--ring); color: var(--primary-foreground); }
+    .lf-check input:focus-visible + .box { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .login-forgot { font-size: 12.5px; font-weight: 600; color: var(--label); cursor: pointer; background: none; border: none; text-decoration: none; }
+    .login-forgot:hover { color: var(--foreground); }
 
-    /* ── Submit — full-pill primary CTA ──────────────────────────────── */
     .login-btn {
-      width: 100%; height: 52px;
-      background: var(--primary);
-      color: var(--primary-foreground);
-      border: none; border-radius: 999px;
-      font-size: 15px; font-weight: 600;
-      cursor: pointer; letter-spacing: .1px;
+      width: 100%; height: 46px; margin-top: 18px;
+      background: var(--primary); color: var(--primary-foreground);
+      border: 1px solid var(--primary); border-radius: 999px;
+      font-size: 13px; font-weight: 600; letter-spacing: .1px;
+      cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: 9px;
-      transition: opacity .15s, transform .1s;
+      transition: background .14s, border-color .14s, opacity .14s, transform .1s;
     }
-    .login-btn:hover { opacity: .9; }
-    .login-btn:active { opacity: .85; transform: scale(.97); }
-    .login-btn:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
-
+    .login-btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .login-btn:active { transform: scale(.98); }
+    .login-btn:disabled { opacity: .6; cursor: not-allowed; }
     .login-spinner {
-      display: none; width: 15px; height: 15px;
+      display: none; width: 14px; height: 14px;
       border: 2px solid color-mix(in oklab, var(--primary-foreground) 40%, transparent);
       border-top-color: var(--primary-foreground); border-radius: 50%;
-      animation: spin .65s linear infinite; flex-shrink: 0;
+      animation: spin .65s linear infinite; flex: none;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .login-btn.loading .login-spinner { display: block; }
 
-    /* ── Footer ──────────────────────────────────────────────────────── */
-    .login-footer {
-      margin-top: 16px; text-align: center;
-      font-size: 12.5px; line-height: 1.5; color: var(--muted-foreground);
+    .login-foot {
+      margin-top: 18px; padding-top: 18px;
+      border-top: 1px solid var(--hairline);
+      font-size: 11.5px; line-height: 1.6; color: var(--muted-foreground);
     }
-    .login-footer b { color: var(--foreground); font-weight: 600; }
 
     /* ── Theme toggle ────────────────────────────────────────────────── */
     .theme-btn {
-      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); right: 14px; z-index: 10;
-      width: 40px; height: 40px; border-radius: 50%;
-      background: var(--card);
-      border: 1px solid var(--border);
+      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 16px; z-index: 10;
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--card); border: 1px solid var(--border);
       color: var(--muted-foreground); cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, border-color .15s, color .15s, transform .1s;
+      transition: background .14s, color .14s, transform .1s;
     }
-    .theme-btn::before { content: ''; position: absolute; inset: -2px; }
-    .theme-btn:hover { background: var(--secondary); color: var(--foreground); }
+    .theme-btn:hover { color: var(--foreground); }
     .theme-btn:active { transform: scale(.9); }
+    .theme-btn svg:last-child { display: none; }
+    [data-theme="light"] .theme-btn svg:first-child { display: none; }
+    [data-theme="light"] .theme-btn svg:last-child { display: block; }
 
-    /* ── Autofill fix ────────────────────────────────────────────────── */
+    /* ── Autofill ────────────────────────────────────────────────────── */
     input:-webkit-autofill,
     input:-webkit-autofill:hover,
     input:-webkit-autofill:focus {
-      -webkit-box-shadow: 0 0 0 100px var(--muted) inset !important;
+      -webkit-box-shadow: 0 0 0 100px var(--card) inset !important;
       -webkit-text-fill-color: var(--foreground) !important;
       caret-color: var(--foreground);
       transition: background-color 5000s ease-in-out 0s;
     }
 
     /* ── Toast ───────────────────────────────────────────────────────── */
-    .toast-container { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 12px); left: 50%; transform: translateX(-50%); z-index: 999; width: max-content; max-width: calc(100vw - 32px); }
-    @keyframes toast-in {
-      from { opacity: 0; transform: translate(-50%, -10px); }
-      to   { opacity: 1; transform: translate(-50%, 0); }
-    }
+    .toast-container { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); left: 50%; transform: translateX(-50%); z-index: 999; width: max-content; max-width: calc(100vw - 32px); }
     .toast-success {
       display: flex; align-items: center; justify-content: center;
-      background: var(--card);
-      border: 1px solid var(--border);
+      background: var(--card); border: 1px solid var(--border);
       padding: 11px 18px; border-radius: 999px;
       font-size: 13px; font-weight: 600; color: var(--foreground);
       box-shadow: 0 8px 30px -12px rgba(0,0,0,.35);
       white-space: nowrap;
       animation: toast-in .25s cubic-bezier(.16,1,.3,1) both;
     }
+    @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
-    /* ── Landscape / short screens ───────────────────────────────────── */
-    @media (max-height: 640px) {
-      .login-wrap { gap: 14px; justify-content: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
-      .login-brand { position: static; margin-bottom: 6px; }
-      .login-logo img { height: 56px; }
-      .login-card { padding: 20px 16px; }
-      .login-sub { margin-bottom: 14px; }
-      .login-fields { gap: 10px; margin-bottom: 14px; }
+    /* ── Responsive: drop the narrative pane ─────────────────────────── */
+    @media (max-width: 860px) {
+      .login-card { grid-template-columns: 1fr; }
+      .login-aside { display: none; }
+    }
+    @media (max-width: 460px) {
+      .login-main { padding: 32px 22px; }
+      .login-btn { height: 50px; }
+      .login-row { display: none; }        /* mobile: personal device, no "remember" */
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .reveal, .login-error, .toast-success { animation: none !important; opacity: 1 !important; transform: none !important; }
-      .icon-swap svg { transition: none !important; }
-      .lf-toggle, .login-btn, .theme-btn { transition-duration: 0s !important; }
+      .plane, .planeB, .lc { animation: none !important; }
+      .login-error, .toast-success { animation: none !important; }
     }
   </style>
 </head>
 <body>
 
-  <div class="bg-glow"></div>
-
-  <!-- Theme toggle -->
   <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema" aria-label="Ganti tema">
-    <span class="icon-swap">
-      <svg id="icon-moon" class="active" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-      <svg id="icon-sun" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-    </span>
+    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
   </button>
 
-  <div class="login-wrap">
+  <div class="login-card">
 
-    <!-- Brand -->
-    <div class="login-brand reveal">
-      <div class="login-logo">
-        <img class="logo-dark" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
-        <img class="logo-light" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
+    <!-- Bidang naratif -->
+    <div class="login-aside">
+      <div class="aside-stage" id="stage" aria-hidden="true"></div>
+      <div class="aside-brand">
+        <span class="aside-logo">
+          <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
+          <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
+        </span>
+      </div>
+      <div class="aside-copy">
+        <h2>Sistem manajemen internal</h2>
+        <p>Dipakai tim Surabaya dan Madinah untuk mengurus akomodasi jamaah dari pemesanan sampai setoran ke pusat.</p>
       </div>
     </div>
 
-    <div class="login-card">
+    <!-- Bidang formulir -->
+    <div class="login-main">
+      <div class="login-inner">
+        <div class="login-heading">Masuk</div>
+        <div class="login-sub">Pakai akun yang diberikan admin. Tidak ada pendaftaran sendiri.</div>
 
-      <div class="reveal" style="animation-delay:60ms">
-        <div class="login-heading">Welcome back</div>
-        <div class="login-sub">Sign in to continue to your workspace</div>
-      </div>
-
-      {% if request.GET.locked %}
-      <div class="login-error">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        <span>Account locked. Too many failed attempts.</span>
-      </div>
-      {% elif form.errors %}
-      <div class="login-error">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        <span>Invalid username or password</span>
-      </div>
-      {% endif %}
-
-      <form method="post" id="login-form">
-        {% csrf_token %}
-        <input type="hidden" name="company" id="company-val" value="konoz">
-
-        <!-- Fields -->
-        <div class="login-fields reveal" style="animation-delay:140ms">
-          <div class="lf">
-            <label for="id_username">Username</label>
-            <div class="lf-input">
-              <svg class="lf-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <input type="text" id="id_username" name="username"
-                autofocus autocomplete="username" placeholder="Enter username">
-            </div>
-          </div>
-          <div class="lf">
-            <label for="id_password">Password</label>
-            <div class="lf-input">
-              <svg class="lf-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path stroke-linecap="round" stroke-linejoin="round" d="M7 10V7a5 5 0 0110 0v3"/></svg>
-              <input type="password" id="id_password" name="password"
-                autocomplete="current-password" placeholder="Enter password">
-              <button type="button" class="lf-toggle" onclick="togglePassword()" title="Show/hide password" aria-label="Show/hide password">
-                <span class="icon-swap">
-                  <svg id="icon-eye-open" class="active" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg id="icon-eye-closed" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
-                </span>
-              </button>
-            </div>
+        {% if request.GET.locked %}
+        <div class="login-error">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+          <div>
+            <b>Akun terkunci sementara</b>
+            <span>Terlalu banyak percobaan gagal. Coba lagi dalam lima belas menit atau hubungi admin.</span>
           </div>
         </div>
+        {% elif form.errors %}
+        <div class="login-error">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v6M12 16v.5"/></svg>
+          <div>
+            <b>Nama pengguna atau sandi salah</b>
+            <span>Periksa huruf besar-kecil lalu coba lagi. Akun terkunci sementara setelah beberapa percobaan gagal.</span>
+          </div>
+        </div>
+        {% endif %}
 
-        <!-- Submit -->
-        <div class="reveal" style="animation-delay:200ms">
+        <form method="post" id="login-form">
+          {% csrf_token %}
+          <input type="hidden" name="company" value="konoz">
+
+          <div class="login-fields">
+            <div class="lf">
+              <label for="id_username">Nama pengguna</label>
+              <div class="lf-input">
+                <input type="text" id="id_username" name="username" autofocus
+                  autocomplete="username" placeholder="nama pengguna">
+              </div>
+            </div>
+            <div class="lf">
+              <label for="id_password">Kata sandi</label>
+              <div class="lf-input has-toggle">
+                <input type="password" id="id_password" name="password"
+                  autocomplete="current-password" placeholder="kata sandi">
+                <button type="button" class="lf-toggle" onclick="togglePassword(this)" title="Tampilkan / sembunyikan sandi" aria-label="Tampilkan atau sembunyikan sandi">
+                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6zM12 15a3 3 0 100-6 3 3 0 000 6"/></svg>
+                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="login-row">
+            <label class="lf-check">
+              <input type="checkbox" name="remember" value="1">
+              <span class="box"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L19 7"/></svg></span>
+              <span>Ingat perangkat ini</span>
+            </label>
+            <a class="login-forgot" href="https://wa.me/?text=Halo%20admin%2C%20saya%20lupa%20kata%20sandi%20HMS" target="_blank" rel="noopener">Lupa sandi</a>
+          </div>
+
           <button type="submit" class="login-btn" id="login-btn">
-            <div class="login-spinner"></div>
-            <span class="login-btn-text">Sign in</span>
+            <span class="login-spinner"></span>
+            <span class="login-btn-text">Masuk</span>
           </button>
-        </div>
-      </form>
+        </form>
 
-      <div class="login-footer reveal" style="animation-delay:240ms">Ada kendala saat masuk? <b>Hubungi admin</b></div>
+        <div class="login-foot">Lupa sandi ditangani admin lewat WhatsApp, bukan surel, karena tidak semua staf punya surel kantor.</div>
+      </div>
+    </div>
 
-    </div><!-- /.login-card -->
   </div>
 
   <script>
-    /* Password visibility */
-    function togglePassword() {
+    /* Build the breathing lattice: a back plane and a front plane, each a
+       7×7 grid of stacked squares; front cells rise on the Z axis with
+       staggered timing (doc 01, 1g). */
+    (function () {
+      var stage = document.getElementById('stage');
+      if (!stage) return;
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function cell(front, i) {
+        var lc = document.createElement('div');
+        lc.className = 'lc';
+        if (front && !reduce) {
+          var dur = (11 + (i % 5) * 1.6).toFixed(1);
+          var delay = ((i % 7) * 0.55 + Math.floor(i / 7) * 0.35).toFixed(2);
+          lc.style.animation = 'latRise ' + dur + 's ease-in-out ' + delay + 's infinite';
+        }
+        lc.innerHTML = '<span class="lq"></span><span class="lq2"></span>' + (front ? '<span class="ld"></span>' : '');
+        return lc;
+      }
+      function plane(front, cls) {
+        var p = document.createElement('div');
+        p.className = 'plane' + (cls ? ' ' + cls : '');
+        var lat = document.createElement('div');
+        lat.className = 'lat';
+        for (var i = 0; i < 49; i++) lat.appendChild(cell(front, i));
+        p.appendChild(lat);
+        return p;
+      }
+      stage.appendChild(plane(false, 'planeB'));
+      stage.appendChild(plane(true, ''));
+    })();
+
+    function togglePassword(btn) {
       var input = document.getElementById('id_password');
-      var open  = document.getElementById('icon-eye-open');
-      var closed = document.getElementById('icon-eye-closed');
       var show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      open.classList.toggle('active', !show);
-      closed.classList.toggle('active', show);
+      btn.classList.toggle('on', show);
     }
 
-    /* Loading state */
-    document.getElementById('login-form').addEventListener('submit', function() {
+    document.getElementById('login-form').addEventListener('submit', function () {
       var btn = document.getElementById('login-btn');
       btn.classList.add('loading');
       btn.disabled = true;
-      btn.querySelector('.login-btn-text').textContent = 'Signing in…';
+      document.getElementById('id_username').readOnly = true;
+      document.getElementById('id_password').readOnly = true;
+      btn.querySelector('.login-btn-text').textContent = 'Memeriksa';
     });
 
-    /* Theme toggle */
     function toggleTheme() {
       var html = document.documentElement;
       var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       html.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
-      document.getElementById('icon-moon').classList.toggle('active', next === 'dark');
-      document.getElementById('icon-sun').classList.toggle('active', next === 'light');
     }
-    (function(){
-      var t = localStorage.getItem('theme') || 'dark';
-      document.getElementById('icon-moon').classList.toggle('active', t === 'dark');
-      document.getElementById('icon-sun').classList.toggle('active', t === 'light');
-    })();
   </script>
 
   {% if request.GET.logged_out %}
   <div class="toast-container">
-    <div id="logout-toast" class="toast-success">Logged out successfully</div>
+    <div id="logout-toast" class="toast-success">Berhasil keluar</div>
   </div>
   <script>
-    history.replaceState(null,'','/login/');
-    setTimeout(function(){
-      var t=document.getElementById('logout-toast');
-      if(t){t.style.transition='opacity .3s';t.style.opacity='0';setTimeout(function(){t.remove();},300);}
-    },3000);
+    history.replaceState(null, '', '/login/');
+    setTimeout(function () {
+      var t = document.getElementById('logout-toast');
+      if (t) { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }
+    }, 3000);
   </script>
   {% endif %}
 

@@ -1,3 +1,5 @@
+import json
+
 from django.test import TestCase
 from django.contrib.auth.models import User
 
@@ -69,9 +71,15 @@ class HotelInvoiceCompanyIsServerAssignedTests(TestCase):
             "customer_name": "Cust",
             "issued_date": "2026-07-01",
             "due_date": "2026-07-31",
-            "reservations": "[]",
+            # Hotel invoice perlu isi (baris reservasi manual cukup); tetap tanpa
+            # CL/client supaya fokus assert-nya adalah company server-assigned.
+            "reservations": json.dumps([
+                {"reservation_number": "R1", "hotel": "H", "check_in": "2026-07-01",
+                 "check_out": "2026-07-02", "reservation_total": "1000"},
+            ]),
             "payments": "[]",
             "linked_cl_ids": "[]",
+            "client_id": "",
         }
         data.update(over)
         return data

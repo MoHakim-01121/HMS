@@ -1,10 +1,13 @@
 import PageBack from "../../components/shadcn/page-back.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import {
   Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "../../components/shadcn/ui/table.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 export default function TrialBalance({
@@ -31,31 +34,21 @@ export default function TrialBalance({
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
 
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Trial Balance")}</h1>
-          <div className="page-sub">{t("Debit and credit totals per account, based on the journal ledger.")}</div>
-        </div>
-        <div className="page-actions">
+      <PageHeader
+        title={t("Trial Balance")}
+        sub={t("Debit and credit totals per account, based on the journal ledger.")}
+        actions={
           <StatusPill tone={balanced ? "green" : "red"} label={balanced ? t("Balanced") : t("Unbalanced")} />
-        </div>
-      </div>
+        }
+      />
 
       <div className="filter-bar">
-        <input
-          type="date" className="input" style={{ height: 40 }}
-          value={vals.date_from}
-          onChange={(e) => setVal("date_from", e.target.value)}
-        />
-        <input
-          type="date" className="input" style={{ height: 40 }}
-          value={vals.date_to}
-          onChange={(e) => setVal("date_to", e.target.value)}
-        />
-        <button type="button" className="fp-apply" onClick={() => apply()}>{t("Apply")}</button>
+        <Input type="date" value={vals.date_from} onChange={(e) => setVal("date_from", e.target.value)} />
+        <Input type="date" value={vals.date_to} onChange={(e) => setVal("date_to", e.target.value)} />
+        <Button type="button" size="lg" onClick={() => apply()}>{t("Apply")}</Button>
       </div>
 
-      <div className="card">
+      <div className="hms-list-card">
         {groups.length > 0 ? (
           <div className="table-wrap hms-table-v2">
             <ShadcnTable>

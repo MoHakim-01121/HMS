@@ -41,6 +41,9 @@ MODULES = (
     'cl', 'invoice', 'services', 'hotels', 'clients',
     'remittance', 'calendar', 'penalty', 'users', 'dev', 'visits',
     'landing',
+    # Finance areas, each its own module so money operations can be granted
+    # independently (least privilege / segregation of duties).
+    'payments', 'journal', 'statements', 'periods',
 )
 
 ACTIONS = ('view', 'create', 'edit', 'delete', 'export')
@@ -61,7 +64,13 @@ DEFAULT_ROLE_MATRIX = {
     # Runs the business: full CRUD on operational data, but cannot manage
     # accounts or reach the dev-only style guide.
     Role.MANAGER.value: {
-        m: set(_ALL) for m in MODULES if m not in ('users', 'dev')
+        **{m: set(_ALL) for m in MODULES if m not in ('users', 'dev', 'journal', 'statements')},
+        # Journal and statements are system-generated ledgers — managers read
+        # and export them, never hand-edit. Periods keep create/edit (open,
+        # close, lock) but stop short of deletion.
+        'journal':    set(_READ),
+        'statements': set(_READ),
+        'periods':    set(_NO_DELETE),
     },
 
     # Day-to-day operators: create and edit their work, never delete it, and
@@ -77,6 +86,13 @@ DEFAULT_ROLE_MATRIX = {
         'visits':   set(_NO_DELETE),
         'landing':  set(_NO_DELETE),
         'remittance': set(_READ),
+        # Staff record and amend payments, but financial reporting and
+        # period control stay read-only — closing/locking a period is a
+        # control decision, not a day-to-day operator action.
+        'payments':    set(_NO_DELETE),
+        'journal':     set(_READ),
+        'statements':  set(_READ),
+        'periods':     set(_READ),
     },
 
     # Read-only account: reporting, exports, PDF — nothing that mutates.
@@ -91,6 +107,10 @@ DEFAULT_ROLE_MATRIX = {
         'visits':     set(_READ),
         'landing':    set(_READ),
         'remittance': set(_READ),
+        'payments':   set(_READ),
+        'journal':    set(_READ),
+        'statements': set(_READ),
+        'periods':    set(_READ),
     },
 }
 

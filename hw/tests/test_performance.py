@@ -21,18 +21,21 @@ class AiSummaryRemovedTest(TestCase):
 # ── Task 2: Settings ──────────────────────────────────────────────────────────
 
 class GzipMiddlewareTest(TestCase):
-    def test_gzip_middleware_is_configured(self):
+    def test_gzip_middleware_is_removed_to_avoid_double_compression(self):
+        """Single compression layer: custom BrotliMiddleware replaces Django's
+        GZipMiddleware. Keeping both means HTML/JSON get compressed twice (and
+        GZip re-compresses WhiteNoise's own precompressed static responses)."""
         from django.conf import settings
-        self.assertIn('django.middleware.gzip.GZipMiddleware', settings.MIDDLEWARE)
+        self.assertNotIn('django.middleware.gzip.GZipMiddleware', settings.MIDDLEWARE)
 
-    def test_gzip_middleware_position(self):
+    def test_brotli_middleware_sits_between_security_and_whitenoise(self):
         from django.conf import settings
         mw = settings.MIDDLEWARE
-        gzip_idx = mw.index('django.middleware.gzip.GZipMiddleware')
+        brotli_idx = mw.index('hw.brotli_middleware.BrotliMiddleware')
         security_idx = mw.index('django.middleware.security.SecurityMiddleware')
         whitenoise_idx = mw.index('whitenoise.middleware.WhiteNoiseMiddleware')
-        self.assertGreater(gzip_idx, security_idx)
-        self.assertLess(gzip_idx, whitenoise_idx)
+        self.assertGreater(brotli_idx, security_idx)
+        self.assertLess(brotli_idx, whitenoise_idx)
 
 
 class SettingsTest(TestCase):
@@ -61,8 +64,8 @@ class CalendarCacheTest(TestCase):
 
     def test_get_message_templates_cached_on_second_call(self):
         from django.core.cache import cache
-        from hw.views.calendar_views import _get_message_templates
-        with patch('hw.views.calendar_views.MessageTemplate') as MockModel:
+        from hw.views.reminder_views import _get_message_templates
+        with patch('hw.views.reminder_views.MessageTemplate') as MockModel:
             MockModel.objects.all.return_value = []
             _get_message_templates()
             _get_message_templates()
