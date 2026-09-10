@@ -1,8 +1,7 @@
 from datetime import date, timedelta
-from unittest.mock import patch
 from django.core.cache import cache
-from django.test import TestCase, override_settings
-from hw.models import ConfirmationLetter, ReminderLog, RecapLog
+from django.test import TestCase
+from hw.models import ConfirmationLetter
 
 
 def _make_cl(**kwargs):
@@ -16,68 +15,13 @@ def _make_cl(**kwargs):
     return ConfirmationLetter.objects.create(**defaults)
 
 
-class ReminderLogModelTest(TestCase):
-    def test_create_reminder_log(self):
-        cl = _make_cl()
-        log = ReminderLog.objects.create(
-            cl=cl, reminder_type='H0_GUEST', phone='628123456789', status='SENT',
-        )
-        self.assertEqual(ReminderLog.objects.count(), 1)
-        self.assertEqual(log.cl, cl)
-        self.assertEqual(log.error, '')
-
-    def test_create_recap_log(self):
-        log = RecapLog.objects.create(
-            target_type='PHONE', target='628xxx', cl_count=3,
-            message='test', status='SENT', triggered_by='AUTO',
-        )
-        self.assertEqual(RecapLog.objects.count(), 1)
-        self.assertEqual(log.error, '')
-
+class ClEstimasiFieldTest(TestCase):
     def test_cl_estimasi_fields(self):
         from datetime import time
         cl = _make_cl(estimasi_tiba=time(14, 0), pic_name='Budi', pic_phone='0812xxx')
         cl.refresh_from_db()
         self.assertEqual(cl.estimasi_tiba.hour, 14)
         self.assertEqual(cl.pic_name, 'Budi')
-
-
-class FonnteServiceTest(TestCase):
-    @patch('hw.services.fonnte.requests.post')
-    def test_send_wa_success(self, mock_post):
-        from hw.services.fonnte import send_wa
-        mock_post.return_value.json.return_value = {'status': True}
-        result = send_wa('628123', 'Hello')
-        self.assertEqual(result, {'status': True})
-        call_kwargs = mock_post.call_args
-        self.assertEqual(call_kwargs.args[0], 'https://api.fonnte.com/send')
-        self.assertEqual(call_kwargs.kwargs['data']['target'], '628123')
-
-    @patch('hw.services.fonnte.requests.post')
-    def test_send_wa_failure_returns_dict(self, mock_post):
-        from hw.services.fonnte import send_wa
-        mock_post.return_value.json.return_value = {'status': False, 'reason': 'invalid token'}
-        result = send_wa('628123', 'Hello')
-        self.assertFalse(result['status'])
-
-    @patch('hw.services.fonnte.requests.post')
-    def test_send_wa_connection_error_returns_clean_dict(self, mock_post):
-        import requests as _req
-        from hw.services.fonnte import send_wa
-        mock_post.side_effect = _req.exceptions.ConnectionError('getaddrinfo failed')
-        result = send_wa('628123', 'Hello')
-        self.assertFalse(result['status'])
-        self.assertIn('Fonnte', result['reason'])
-        self.assertNotIn('getaddrinfo', result['reason'])
-
-    @patch('hw.services.fonnte.requests.post')
-    def test_send_wa_timeout_returns_clean_dict(self, mock_post):
-        import requests as _req
-        from hw.services.fonnte import send_wa
-        mock_post.side_effect = _req.exceptions.Timeout()
-        result = send_wa('628123', 'Hello')
-        self.assertFalse(result['status'])
-        self.assertIn('timed out', result['reason'])
 
 
 class RecapServiceTest(TestCase):
@@ -405,20 +349,7 @@ class CalendarUpcomingCheckinsTest(TestCase):
         self.assertEqual(len(props['upcoming_checkins']), 1)
         entry = props['upcoming_checkins'][0]
         self.assertEqual(entry['pk'], self.cl.pk)
-        self.assertIn('h0_sent', entry)
-        self.assertIn('h1_sent', entry)
-        self.assertIn('h0_failed', entry)
-        self.assertIn('h1_failed', entry)
         self.assertIn('rooms', entry)
-
-    def test_h0_failed_flag_when_reminder_failed(self):
-        ReminderLog.objects.create(
-            cl=self.cl, reminder_type='H0_GUEST', phone='628123456789', status='FAILED',
-        )
-        resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
-        entry = resp.json()['props']['upcoming_checkins'][0]
-        self.assertTrue(entry['h0_failed'])
-        self.assertFalse(entry['h0_sent'])
 
     def test_includes_client_id_and_name_when_set(self):
         from hw.models import Client
@@ -474,31 +405,25 @@ class SendRecapViewTest(TestCase):
         s = self.client.session; s['active_company'] = 'konoz'; s.save()
         self.cl = _make_cl(estimasi_tiba=time(14, 0), pic_name='Budi', pic_phone='0812')
 
-    @patch('hw.tasks.send_wa')
-    def test_sends_recap_and_creates_log(self, mock_send):
-        from hw.models import WATarget
-        WATarget.objects.create(label='Tim', target='628111222333')
-        mock_send.return_value = {'status': True}
+    def test_returns_recap_message(self):
         resp = self.client.post('/calendar/send-recap/')
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(RecapLog.objects.filter(triggered_by='MANUAL').count(), 1)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertIn('HILTON', data['message'])
+        self.assertEqual(data['cl_count'], 1)
 
-    @patch('hw.tasks.send_wa')
-    def test_sends_recap_even_without_estimasi(self, mock_send):
-        from hw.models import WATarget
-        WATarget.objects.create(label='Tim', target='628111222333')
-        mock_send.return_value = {'status': True}
+    def test_builds_message_even_without_estimasi(self):
         self.cl.estimasi_tiba = None
         self.cl.save()
         resp = self.client.post('/calendar/send-recap/')
         self.assertTrue(resp.json()['ok'])
+        self.assertIn('message', resp.json())
 
     def test_returns_error_if_no_bookings_at_all(self):
         self.cl.delete()
         resp = self.client.post('/calendar/send-recap/')
-        data = resp.json()
-        self.assertFalse(data['ok'])
+        self.assertFalse(resp.json()['ok'])
 
 
 class SendReminderGroupViewTest(TestCase):
@@ -513,33 +438,26 @@ class SendReminderGroupViewTest(TestCase):
         defaults.update(kwargs)
         return Client.objects.create(**defaults)
 
-    @override_settings(REMINDER_H1_H0_ENABLED=False)
-    def test_returns_error_when_disabled(self):
-        client = self._make_client()
-        cl = _make_cl(client=client, check_in=date.today())
-        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
-        self.assertFalse(resp.json()['ok'])
-
-    @patch('hw.tasks.send_wa')
-    def test_sends_grouped_message_and_creates_logs(self, mock_send):
-        mock_send.return_value = {'status': True}
+    def test_returns_grouped_message_and_phone(self):
         client = self._make_client()
         cl1 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V1')
         cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-V2')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertIn('CL-V1', data['message'])
+        self.assertIn('CL-V2', data['message'])
+        self.assertEqual(data['phone'], '628111')
+        self.assertEqual(data['reminder_type'], 'H0_GUEST')
 
-    @patch('hw.tasks.send_wa')
-    def test_sends_reminder_for_check_in_beyond_h1(self, mock_send):
-        mock_send.return_value = {'status': True}
+    def test_builds_message_for_check_in_beyond_h1(self):
         client = self._make_client()
         cl = _make_cl(client=client, check_in=date.today() + timedelta(days=3), confirmation_number='CL-H3')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['reminder_type'], 'H1_GUEST')
 
     def test_error_when_check_in_already_passed(self):
         client = self._make_client()
@@ -562,23 +480,23 @@ class SendReminderGroupViewTest(TestCase):
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         self.assertFalse(resp.json()['ok'])
 
-    def test_error_when_no_wa_configured(self):
+    def test_message_built_even_without_wa_number(self):
         client = self._make_client(wa='', wa_group='', reminder_target='GROUP')
         cl = _make_cl(client=client, check_in=date.today())
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
-        self.assertFalse(resp.json()['ok'])
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['phone'], '')
 
-    @patch('hw.tasks.send_wa')
-    def test_sends_guest_grouped_message_when_no_client(self, mock_send):
-        mock_send.return_value = {'status': True}
+    def test_builds_guest_grouped_message_when_no_client(self):
         cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
-                        check_in=date.today(), confirmation_number='CL-GV1')
+                       check_in=date.today(), confirmation_number='CL-GV1')
         cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
-                        check_in=date.today(), confirmation_number='CL-GV2')
+                       check_in=date.today(), confirmation_number='CL-GV2')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['phone'], '628999')
 
     def test_error_when_guest_names_differ_and_no_client(self):
         cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', check_in=date.today(), confirmation_number='CL-GD1')
@@ -593,284 +511,16 @@ class SendReminderGroupViewTest(TestCase):
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         self.assertFalse(resp.json()['ok'])
 
-    def test_error_when_guest_has_no_phone(self):
-        cl = _make_cl(client=None, guest_phone='', check_in=date.today())
-        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
-        self.assertFalse(resp.json()['ok'])
-
-    @patch('hw.tasks.send_wa')
-    def test_sends_guest_group_when_one_booking_has_blank_phone(self, mock_send):
-        mock_send.return_value = {'status': True}
+    def test_guest_group_message_when_one_booking_has_blank_phone(self):
         cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
-                        check_in=date.today(), confirmation_number='CL-BPV1')
+                       check_in=date.today(), confirmation_number='CL-BPV1')
         cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='085385557053',
-                        check_in=date.today(), confirmation_number='CL-BPV2')
+                       check_in=date.today(), confirmation_number='CL-BPV2')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(ReminderLog.objects.filter(cl__in=[cl1, cl2]).count(), 2)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['phone'], '085385557053')
 
-    @patch('hw.tasks.send_wa')
-    def test_resend_allowed_when_already_sent_today(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client()
-        cl = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-AS1')
-        ReminderLog.objects.create(cl=cl, reminder_type='H0_GUEST', phone='628111', status='SENT')
-        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(ReminderLog.objects.filter(cl=cl, status='SENT').count(), 2)
-
-    @patch('hw.tasks.send_wa')
-    def test_resend_includes_already_sent_bookings(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client()
-        cl_sent = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-PS1')
-        cl_new  = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-PS2')
-        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628111', status='SENT')
-        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl_sent.pk, cl_new.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        message = mock_send.call_args[0][1]
-        self.assertIn('CL-PS2', message)
-        self.assertIn('CL-PS1', message)
-        self.assertEqual(ReminderLog.objects.filter(cl=cl_sent).count(), 2)
-        self.assertTrue(ReminderLog.objects.filter(cl=cl_new, status='SENT').exists())
-
-    @patch('hw.tasks.send_wa')
-    def test_guest_phone_resolved_from_already_sent_sibling(self, mock_send):
-        mock_send.return_value = {'status': True}
-        cl_sent  = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
-                            check_in=date.today(), confirmation_number='CL-SB1')
-        cl_blank = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
-                            check_in=date.today(), confirmation_number='CL-SB2')
-        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628999', status='SENT')
-        resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl_sent.pk, cl_blank.pk]})
-        self.assertTrue(resp.json()['ok'])
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(mock_send.call_args[0][0], '628999')
-        self.assertTrue(ReminderLog.objects.filter(cl=cl_blank, status='SENT').exists())
-
-
-from django.core.management import call_command
-
-
-class SendCheckInRemindersCommandTest(TestCase):
-    def setUp(self):
-        self.cl_today     = _make_cl(check_in=date.today(), confirmation_number='CL-T01')
-        self.cl_tomorrow  = _make_cl(check_in=date.today() + timedelta(days=1), confirmation_number='CL-T02')
-        self.cl_cancelled = _make_cl(check_in=date.today(), reservation_status='CANCELLED', confirmation_number='CL-T03')
-
-    @override_settings(REMINDER_H1_H0_ENABLED=False)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_skips_when_disabled(self, mock_send):
-        call_command('send_checkin_reminders')
-        mock_send.assert_not_called()
-        self.assertEqual(ReminderLog.objects.count(), 0)
-
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_sends_h0_for_today(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_reminders')
-        self.assertEqual(ReminderLog.objects.filter(cl=self.cl_today, reminder_type='H0_GUEST', status='SENT').count(), 1)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_sends_h1_for_tomorrow(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_reminders')
-        self.assertEqual(ReminderLog.objects.filter(cl=self.cl_tomorrow, reminder_type='H1_GUEST', status='SENT').count(), 1)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_skips_cancelled(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_reminders')
-        self.assertFalse(ReminderLog.objects.filter(cl=self.cl_cancelled).exists())
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_idempotent_skips_already_sent(self, mock_send):
-        mock_send.return_value = {'status': True}
-        ReminderLog.objects.create(
-            cl=self.cl_today, reminder_type='H0_GUEST', phone='628123456789', status='SENT',
-        )
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)  # hanya H1 tomorrow, H0 today di-skip
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_records_failed_log_on_error(self, mock_send):
-        mock_send.return_value = {'status': False, 'reason': 'invalid token'}
-        call_command('send_checkin_reminders')
-        log = ReminderLog.objects.get(cl=self.cl_today, reminder_type='H0_GUEST')
-        self.assertEqual(log.status, 'FAILED')
-        self.assertEqual(log.error, 'invalid token')
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_skips_cl_without_phone(self, mock_send):
-        cl_no_phone = _make_cl(guest_name='Tanpa Telepon', guest_phone='', confirmation_number='CL-NP')
-        call_command('send_checkin_reminders')
-        self.assertFalse(ReminderLog.objects.filter(cl=cl_no_phone).exists())
-
-
-class GroupedReminderCommandTest(TestCase):
-    def _make_client(self, **kwargs):
-        from hw.models import Client
-        defaults = dict(company='konoz', name='PT Grup Command', wa='628111', reminder_target='PIC')
-        defaults.update(kwargs)
-        return Client.objects.create(**defaults)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_two_bookings_same_hotel_send_once_log_twice(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client()
-        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-G1')
-        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-G2')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_two_bookings_different_hotels_still_one_send(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client()
-        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-D1')
-        _make_cl(client=client, hotel_name='Swissotel Madinah', check_in=date.today(), confirmation_number='CL-D2')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        sent_message = mock_send.call_args[0][1]
-        self.assertIn('HILTON MAKKAH', sent_message)
-        self.assertIn('SWISSOTEL MADINAH', sent_message)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_cl_without_client_sent_individually(self, mock_send):
-        mock_send.return_value = {'status': True}
-        _make_cl(client=None, check_in=date.today(), confirmation_number='CL-NOCLIENT')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        log = ReminderLog.objects.get(reminder_type='H0_GUEST')
-        self.assertEqual(log.cl.confirmation_number, 'CL-NOCLIENT')
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_partial_already_sent_only_sends_pending(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client()
-        cl_sent    = _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-P1')
-        cl_pending = _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-P2')
-        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628111', status='SENT')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        sent_message = mock_send.call_args[0][1]
-        self.assertNotIn('CL-P1', sent_message)
-        self.assertIn('CL-P2', sent_message)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_both_target_sends_to_two_channels(self, mock_send):
-        mock_send.return_value = {'status': True}
-        client = self._make_client(wa='628111', wa_group='120363xxx', reminder_target='BOTH')
-        _make_cl(client=client, hotel_name='Hilton Makkah', check_in=date.today(), confirmation_number='CL-B1')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 2)
-        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_skips_when_group_target_has_no_wa_group(self, mock_send):
-        client = self._make_client(wa='', wa_group='', reminder_target='GROUP')
-        _make_cl(client=client, check_in=date.today(), confirmation_number='CL-SKIP1')
-        call_command('send_checkin_reminders')
-        mock_send.assert_not_called()
-        self.assertEqual(ReminderLog.objects.count(), 0)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_guest_without_client_same_name_and_phone_grouped(self, mock_send):
-        mock_send.return_value = {'status': True}
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', hotel_name='Sawaed Al Kheir',
-                  check_in=date.today(), confirmation_number='CL-GU1')
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', hotel_name='Sawaed Al Kheir',
-                  check_in=date.today(), confirmation_number='CL-GU2')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(mock_send.call_args[0][0], '628999')
-        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_guest_without_client_different_phone_not_grouped(self, mock_send):
-        mock_send.return_value = {'status': True}
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999', check_in=date.today(), confirmation_number='CL-DP1')
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628111', check_in=date.today(), confirmation_number='CL-DP2')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 2)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_guest_without_client_blank_phone_merges_with_filled(self, mock_send):
-        mock_send.return_value = {'status': True}
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='', hotel_name='Sawaed Al Kheir',
-                  check_in=date.today(), confirmation_number='CL-BP1')
-        _make_cl(client=None, guest_name='Nur Sultan', guest_phone='085385557053', hotel_name='Sawaed Al Kheir',
-                  check_in=date.today(), confirmation_number='CL-BP2')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(mock_send.call_args[0][0], '085385557053')
-        self.assertEqual(ReminderLog.objects.filter(reminder_type='H0_GUEST', status='SENT').count(), 2)
-
-    @override_settings(REMINDER_H1_H0_ENABLED=True)
-    @patch('hw.management.commands.send_checkin_reminders.send_wa')
-    def test_blank_phone_booking_retried_with_sibling_phone(self, mock_send):
-        mock_send.return_value = {'status': True}
-        cl_sent = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
-                           check_in=date.today(), confirmation_number='CL-RT1')
-        cl_blank = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
-                            check_in=date.today(), confirmation_number='CL-RT2')
-        ReminderLog.objects.create(cl=cl_sent, reminder_type='H0_GUEST', phone='628999', status='SENT')
-        call_command('send_checkin_reminders')
-        self.assertEqual(mock_send.call_count, 1)
-        self.assertEqual(mock_send.call_args[0][0], '628999')
-        self.assertTrue(ReminderLog.objects.filter(cl=cl_blank, status='SENT').exists())
-
-
-class SendCheckInRecapCommandTest(TestCase):
-    def setUp(self):
-        self.cl1 = _make_cl(hotel_name='Hilton', confirmation_number='CL-R01')
-        self.cl2 = _make_cl(hotel_name='Marriott', confirmation_number='CL-R02')
-
-    @override_settings(FONNTE_TEAM_TARGETS=['628team'])
-    @patch('hw.management.commands.send_checkin_recap.send_wa')
-    def test_sends_recap_to_all_targets(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_recap')
-        self.assertEqual(mock_send.call_count, 1)
-        log = RecapLog.objects.first()
-        self.assertEqual(log.cl_count, 2)
-        self.assertEqual(log.triggered_by, 'AUTO')
-
-    @override_settings(FONNTE_TEAM_TARGETS=['628a', '628b'])
-    @patch('hw.management.commands.send_checkin_recap.send_wa')
-    def test_sends_to_multiple_targets(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_recap')
-        self.assertEqual(mock_send.call_count, 2)
-
-    @override_settings(FONNTE_TEAM_TARGETS=['628team'])
-    @patch('hw.management.commands.send_checkin_recap.send_wa')
-    def test_message_contains_hotel_groups(self, mock_send):
-        mock_send.return_value = {'status': True}
-        call_command('send_checkin_recap')
-        msg = mock_send.call_args.args[1]
-        self.assertIn('HILTON', msg)
-        self.assertIn('MARRIOTT', msg)
-
-from django.contrib.auth.models import User
 
 
 class DueSoonNotificationsTest(TestCase):

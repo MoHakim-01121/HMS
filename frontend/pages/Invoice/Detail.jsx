@@ -1,9 +1,8 @@
 import DetailTable from "../../components/shadcn/detail-table.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { DvLink } from "../../components/shadcn/item-row.jsx";
-import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail, RvRailBlock } from "../../components/shadcn/record-view.jsx";
+import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
 import { Icon } from "../../components/icons.jsx";
-import LastBilling from "../../components/ui/LastBilling.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -29,7 +28,7 @@ function openDraft(type, pk, waSend) {
   window.dispatchEvent(new CustomEvent("open-draft", { detail: { type, pk, waSend } }));
 }
 
-export default function Detail({ invoice, reservations, payments, due_alert, wa_send, last_billing }) {
+export default function Detail({ invoice, reservations, payments, due_alert, wa_send }) {
   const openForm = useFormModal();
   const perms = usePerms();
   const { t } = useI18n();
@@ -189,13 +188,8 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
             !paid && due_alert ? { k: t("Due"), v: due_alert.msg } : null,
             { k: t("Currency"), v: "SAR" },
           ].filter(Boolean)}
-        >
-          {last_billing ? (
-            <RvRailBlock label={t("Billing")}>
-              <LastBilling last={last_billing} />
-            </RvRailBlock>
-          ) : null}
-        </RvRail>
+        />
+
       </div>
     </div>
   );

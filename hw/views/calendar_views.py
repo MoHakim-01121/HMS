@@ -1,14 +1,13 @@
 ﻿import calendar
 from datetime import date, timedelta
 
-from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
 from inertia import render as inertia_render
 
-from ..models import ConfirmationLetter, RecapLog
+from ..models import ConfirmationLetter
 from ..permissions import require_perm
 from ..i18n import tr, user_language
 from .helpers import get_active_company
@@ -34,7 +33,7 @@ def _get_upcoming_checkins(active_company):
         .filter(check_in__gte=today, check_in__lte=week_end)
         .exclude(reservation_status='CANCELLED')
         .select_related('client')
-        .prefetch_related('rooms', 'reminder_logs')
+        .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name')
     )
     if active_company:
@@ -42,27 +41,6 @@ def _get_upcoming_checkins(active_company):
     result = []
     for cl in qs:
         rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
-        logs = list(cl.reminder_logs.all())
-        h0_sent = any(
-            l.reminder_type == 'H0_GUEST' and l.status == 'SENT'
-            and cl.check_in and l.sent_at.date() == cl.check_in
-            for l in logs
-        )
-        h1_sent = any(
-            l.reminder_type == 'H1_GUEST' and l.status == 'SENT'
-            and cl.check_in and l.sent_at.date() == cl.check_in - timedelta(days=1)
-            for l in logs
-        )
-        h0_failed = (not h0_sent) and any(
-            l.reminder_type == 'H0_GUEST' and l.status == 'FAILED'
-            and cl.check_in and l.sent_at.date() == cl.check_in
-            for l in logs
-        )
-        h1_failed = (not h1_sent) and any(
-            l.reminder_type == 'H1_GUEST' and l.status == 'FAILED'
-            and cl.check_in and l.sent_at.date() == cl.check_in - timedelta(days=1)
-            for l in logs
-        )
         result.append({
             'pk': cl.pk,
             'guest_name': cl.guest_name,
@@ -74,29 +52,11 @@ def _get_upcoming_checkins(active_company):
             'estimasi_tiba': cl.estimasi_tiba.strftime('%H:%M') if cl.estimasi_tiba is not None else '',
             'pic_name': cl.pic_name,
             'pic_phone': cl.pic_phone,
-            'h0_sent': h0_sent,
-            'h1_sent': h1_sent,
-            'h0_failed': h0_failed,
-            'h1_failed': h1_failed,
             'client_id': cl.client_id,
             'client_name': cl.client.name if cl.client_id else None,
             'url': cl.get_absolute_url(),
         })
     return result
-
-
-def _get_last_recap():
-    def _fetch():
-        log = RecapLog.objects.filter(status='SENT').order_by('-sent_at').first()
-        if not log:
-            return None
-        return {
-            'sent_at': log.sent_at.strftime('%d %b %Y %H:%M'),
-            'target': log.target,
-            'cl_count': log.cl_count,
-            'triggered_by': log.triggered_by,
-        }
-    return cache.get_or_set('last_recap', _fetch, 60)
 
 
 def _inv_color(request, remaining, total):
@@ -213,7 +173,6 @@ def calendar_view(request):
         "tentative_count": tentative_count,
         "active_today": active_today,
         "upcoming_checkins": _get_upcoming_checkins(active_company),
-        "last_recap": _get_last_recap(),
     })
 
 

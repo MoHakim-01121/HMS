@@ -265,7 +265,7 @@ function TemplateEditorPanel({ title, body, onChange, vars, sample, onClose, onS
             {t("WhatsApp preview")}
           </div>
           <WhatsAppPreview text={body} sample={sample} />
-          <div className="rs-hint">{t("Variables are replaced with real data when sent.")}</div>
+          <div className="rs-hint">{t("Variables are replaced with real data when the message is generated.")}</div>
         </div>
       </div>
 
@@ -326,7 +326,7 @@ function WATargetSection({ initialTargets, highlighted }) {
       style={highlighted ? { border: "2px solid var(--ring)", padding: "21px 23px" } : undefined}>
       <div style={{ marginBottom: 18 }}>
         <div className="rs-panel-title" style={{ marginBottom: 4 }}>{t("Recap Recipients")}</div>
-        <div className="rs-hint" style={{ marginTop: 0 }}>{t("The daily recap is sent to every active number below.")}</div>
+        <div className="rs-hint" style={{ marginTop: 0 }}>{t("Reference list of numbers to forward the recap message to. The app does not send it automatically.")}</div>
       </div>
 
       {targets.length > 0 ? (
@@ -449,7 +449,7 @@ export default function RecapSettings({
         <NotifCard
           title={t("Daily Recap")}
           tags={GRUP_WA}
-          description={t("A recap of check-in guests sent to the operator group. Use {guest_list} to insert the automatic list.")}
+          description={t("A recap of check-in guests for the operator group. Use {guest_list} to insert the automatic list.")}
           active={true}
           onToggle={() => {}}
           selected={selected === 'recap'}

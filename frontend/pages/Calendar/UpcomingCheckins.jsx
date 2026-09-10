@@ -78,9 +78,10 @@ const CSS = `
 
 /* ── Booking card (mobile) — "Readiness" ───────────────────────────────
    The card answers one question: is this arrival ready to receive?
-   Hotel + #reservation up top, then three checks — ETA, PIC, Reminder —
-   each green when done, red when still outstanding. The front desk works
-   the red rows; tapping a row jumps straight to fixing it.
+   Hotel + #reservation up top, then ETA + PIC checks (green when done, red
+   when still outstanding) plus a Reminder row that builds the WA message to
+   copy/send by hand. The front desk works the red rows; tapping a row jumps
+   straight to fixing it.
    NOT on the card: client/guest name (the group header right above states
    it — see the CL-guest rule) and the arrival date (the day header does). */
 .uc-booking { display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:13px 14px; cursor:pointer; -webkit-tap-highlight-color:transparent; transition:transform .1s, border-color .12s; box-shadow:0 1px 2px rgba(0,0,0,.04); }
@@ -279,18 +280,26 @@ const AlertMark = () => (
     strokeLinecap="round" aria-hidden="true"><path d="M12 8v5M12 16h.01" /></svg>
 );
 
-function ReminderChip({ sent, failed, label }) {
-  const { t } = useI18n();
-  if (!sent && !failed) return null;
-  return (
-    <span className={"uc-rem " + (sent ? "sent" : "failed")} title={sent ? t("Sent") : t("Failed to send")}>
-      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        {sent ? <polyline points="20 6 9 17 4 12" /> : <><path d="M18 6 6 18" /><path d="m6 6 12 12" /></>}
-      </svg>
-      {label}
-    </span>
-  );
+// Build the grouped-reminder message on the server, then hand it to the
+// shared draft modal for the operator to copy / open in WhatsApp. The app
+// never sends the message itself.
+async function openReminderDraft(clPks, t) {
+  const body = new URLSearchParams();
+  clPks.forEach((pk) => body.append('cl_ids', pk));
+  try {
+    const r = await axios.post('/calendar/send-reminder-group/', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    if (r.data.ok) {
+      window.dispatchEvent(new CustomEvent('open-draft', {
+        detail: { message: r.data.message, waNumber: r.data.phone || '', title: t("Check-in Reminder") },
+      }));
+    } else {
+      showToast(r.data.message || t('Failed to build message'), 'error');
+    }
+  } catch {
+    showToast(t('Failed to build message'), 'error');
+  }
 }
 
 // ── Booking card ─────────────────────────────────────────────
@@ -306,7 +315,7 @@ export function BookingCard({ cl, clientGroup }) {
   const [draft, setDraft] = useState(saved);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false); // true = edit mode (inputs shown)
-  const [sendingWA, setSendingWA] = useState(false);
+  const [buildingMsg, setBuildingMsg] = useState(false);
   const [open, setOpen] = useState(false); // true = detail bottom sheet shown
 
   const group = clientGroup && clientGroup.length ? clientGroup : [cl];
@@ -336,19 +345,12 @@ export function BookingCard({ cl, clientGroup }) {
     }
   };
 
-  const handleSendWA = async () => {
-    if (sendingWA) return;
-    setSendingWA(true);
-    try {
-      const group = clientGroup && clientGroup.length ? clientGroup : [cl];
-      const body = new URLSearchParams();
-      group.forEach(g => body.append('cl_ids', g.pk));
-      const r = await axios.post('/calendar/send-reminder-group/', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      showToast(r.data.ok ? (group.length > 1 ? t("Message sent for {count} bookings", { count: group.length }) : t("WA sent")) : (r.data.message || t('Failed')), r.data.ok ? 'success' : 'error');
-    } catch { showToast(t('Failed to send'), 'error'); }
-    setSendingWA(false);
+  const handleReminderMsg = async () => {
+    if (buildingMsg) return;
+    setBuildingMsg(true);
+    const grp = clientGroup && clientGroup.length ? clientGroup : [cl];
+    await openReminderDraft(grp.map((g) => g.pk), t);
+    setBuildingMsg(false);
   };
 
   const beginEdit = () => { setDraft(saved); setEditing(true); };
@@ -412,15 +414,7 @@ export function BookingCard({ cl, clientGroup }) {
     ? saved.picName + (saved.picPhone ? ' · ' + saved.picPhone : '')
     : '';
 
-  // Reminder readiness — "done" once a pre-arrival message has gone out.
-  const remSent   = cl.h1_sent || cl.h0_sent;
-  const remFailed = (cl.h1_failed || cl.h0_failed) && !remSent;
-  const remText   = cl.h1_sent && cl.h0_sent ? t("Sent")
-    : cl.h1_sent ? t("H-1 sent")
-    : cl.h0_sent ? t("H-0 sent")
-    : remFailed  ? t("Send failed")
-    : t("Not sent");
-  const sendRem = (e) => { e.stopPropagation(); if (!sendingWA) handleSendWA(); };
+  const openRem = (e) => { e.stopPropagation(); if (!buildingMsg) handleReminderMsg(); };
 
   const bsField = (label, val) => (
     val
@@ -454,13 +448,11 @@ export function BookingCard({ cl, clientGroup }) {
             <span className="uc-chk-v">{picText || t("Missing")}</span>
           </button>
 
-          <button type="button" className={"uc-chk " + (remSent ? "done" : "todo")}
-            onClick={remSent ? (e) => e.stopPropagation() : sendRem}
-            disabled={remSent || sendingWA}
-            aria-label={remSent ? t("Reminder status") : t("Send reminder")}>
-            <span className="uc-chk-ico">{remSent ? <CheckMark /> : <AlertMark />}</span>
+          <button type="button" className="uc-chk" onClick={openRem} disabled={buildingMsg}
+            aria-label={t("Build reminder message")}>
+            <span className="uc-chk-ico"><WAIcon size={11} /></span>
             <span className="uc-chk-k">{t("Reminder")}</span>
-            <span className="uc-chk-v">{sendingWA ? '…' : remText}</span>
+            <span className="uc-chk-v">{buildingMsg ? '…' : t("Build message")}</span>
           </button>
         </div>
       </div>
@@ -485,8 +477,8 @@ export function BookingCard({ cl, clientGroup }) {
                 </div>
                 <div className="bs-actions">
                   {singleWA && (
-                    <Button variant="outline" size="default" className="bs-act" onClick={handleSendWA} disabled={sendingWA}>
-                      <WAIcon size={15} /> {sendingWA ? '…' : t("Send WA")}
+                    <Button variant="outline" size="default" className="bs-act" onClick={handleReminderMsg} disabled={buildingMsg}>
+                      <WAIcon size={15} /> {buildingMsg ? '…' : t("Reminder message")}
                     </Button>
                   )}
                   <Button variant="outline" size="default" className="bs-act" asChild title={t("Download PDF")}>
@@ -528,6 +520,7 @@ function DesktopBookingRow({ cl }) {
   });
   const [draft, setDraft] = useState(saved);
   const [saving, setSaving] = useState(false);
+  const [buildingMsg, setBuildingMsg] = useState(false);
 
   const dirty = draft.estimasi !== saved.estimasi
     || draft.picName !== saved.picName
@@ -550,6 +543,13 @@ function DesktopBookingRow({ cl }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleReminderMsg = async () => {
+    if (buildingMsg) return;
+    setBuildingMsg(true);
+    await openReminderDraft([cl.pk], t);
+    setBuildingMsg(false);
   };
 
   return (
@@ -578,10 +578,10 @@ function DesktopBookingRow({ cl }) {
             <Button size="xs" onClick={handleSave} disabled={saving}>{saving ? '…' : t("Save")}</Button>
           </>
         ) : (
-          <>
-            <ReminderChip sent={cl.h1_sent} failed={cl.h1_failed} label="H-1" />
-            <ReminderChip sent={cl.h0_sent} failed={cl.h0_failed} label="H-0" />
-          </>
+          <Button variant="ghost" size="xs" onClick={handleReminderMsg} disabled={buildingMsg}
+            title={t("Build reminder message")}>
+            {buildingMsg ? '…' : <><WAIcon size={12} /> {t("Reminder")}</>}
+          </Button>
         )}
       </div>
     </div>
@@ -595,14 +595,7 @@ export function ClientBlock({ clientName, cls, isMobile }) {
 
   const handleSend = async () => {
     setSending(true);
-    try {
-      const body = new URLSearchParams();
-      cls.forEach(cl => body.append('cl_ids', cl.pk));
-      const r = await axios.post('/calendar/send-reminder-group/', body, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      });
-      showToast(r.data.ok ? t("Message sent to {name}", { name: clientName }) : (r.data.message || t('Failed to send message')), r.data.ok ? 'success' : 'error');
-    } catch { showToast(t('Failed to send message'), 'error'); }
+    await openReminderDraft(cls.map((cl) => cl.pk), t);
     setSending(false);
   };
 
@@ -674,8 +667,12 @@ function DayBlock({ dateStr, cls, defaultOpen, isMobile, isLast }) {
         new URLSearchParams({ date: dateStr }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
-      showToast(r.data.ok ? t('Recap queued.') : (r.data.message || t('Failed to send recap')), r.data.ok ? 'success' : 'error');
-    } catch { showToast(t('Failed to send recap'), 'error'); }
+      if (r.data.ok) {
+        window.dispatchEvent(new CustomEvent('open-draft', { detail: { message: r.data.message, title: t('Check-in Recap') } }));
+      } else {
+        showToast(r.data.message || t('Failed to build recap'), 'error');
+      }
+    } catch { showToast(t('Failed to build recap'), 'error'); }
     setSending(false);
   };
 
@@ -695,7 +692,7 @@ function DayBlock({ dateStr, cls, defaultOpen, isMobile, isLast }) {
           </div>
           <div className="uc-tl-right">
             <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleSendRecap(); }} disabled={sending}
-              title={t("Send Recap")} aria-label={t("Send Recap")}>
+              title={t("Recap")} aria-label={t("Recap")}>
               <WAIcon size={14} />
             </Button>
             <span className={"uc-tl-chevron" + (open ? " open" : "")}>
@@ -727,7 +724,7 @@ function DayBlock({ dateStr, cls, defaultOpen, isMobile, isLast }) {
             </a>
           </Button>
           <Button size="sm" onClick={handleSendRecap} disabled={sending}>
-            {sending ? '…' : <><WAIcon size={12} /> {t("Send Recap")}</>}
+            {sending ? '…' : <><WAIcon size={12} /> {t("Recap")}</>}
           </Button>
         </div>
       </div>
@@ -737,7 +734,7 @@ function DayBlock({ dateStr, cls, defaultOpen, isMobile, isLast }) {
 }
 
 // ── Page ──────────────────────────────────────────────────
-export default function UpcomingCheckins({ upcoming_checkins, last_recap }) {
+export default function UpcomingCheckins({ upcoming_checkins }) {
   const { t } = useI18n();
   const checkins = upcoming_checkins || [];
   const isMobile = typeof window !== "undefined" && window.innerWidth <= 600;
@@ -772,7 +769,6 @@ export default function UpcomingCheckins({ upcoming_checkins, last_recap }) {
             <h2 className="uc-title">{t("Upcoming Check-ins")}</h2>
             <div className="uc-sub">
               {t("{count} guests · next 7 days", { count: checkins.length })}
-              {last_recap && t(" · last recap {time}", { time: last_recap.sent_at })}
             </div>
           </div>
           <div className="uc-head-actions">

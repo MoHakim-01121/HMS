@@ -41,8 +41,5 @@ python-magic-bin==0.4.14; sys_platform == 'win32'
 inertia-django==1.2.0
 django-vite==3.1.0
 
-# Background tasks (WhatsApp sends) — ORM broker, no Redis needed
-django-q2==1.10.0
-
 # Error tracking (optional, gated on SENTRY_DSN)
 sentry-sdk==2.66.1

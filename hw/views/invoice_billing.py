@@ -143,9 +143,9 @@ def _billing_client(invoice):
 
 
 def _billing_props(invoice):
-    """Shared Inertia props for the billing-message WA send feature."""
+    """Shared Inertia props for the billing-message generator. The client's WA
+    number (when known) feeds the wa.me deep link in the draft modal."""
     client = _billing_client(invoice)
-    last = invoice.billing_logs.order_by('-sent_at').first()
     return {
         'wa_send': {
             'client_name': client.name if client else None,
@@ -153,9 +153,4 @@ def _billing_props(invoice):
             'has_wa': bool(client and client.wa),
             'has_group': bool(client and client.wa_group),
         },
-        'last_billing': {
-            'sent_at': last.sent_at.strftime('%d %b %Y %H:%M'),
-            'target': last.target,
-            'status': last.status,
-        } if last else None,
     }

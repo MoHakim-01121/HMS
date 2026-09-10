@@ -4,16 +4,15 @@ Dipesah dari calendar_views.py agar file view selaras dengan satu fitur.
 Router (hw/views/__init__.py) me-re-export nama-nama ini sehingga URL dan
 frontend tidak berubah -- hanya lokasi backend yang dirapikan.
 
-Logika pengolahan pesan / kirim berada di hw/services/recap.py & hw/services/fonnte.py;
-modul ini hanya handler HTTP (request/response).
+Aplikasi tidak mengirim WhatsApp sendiri: endpoint di bawah hanya menyusun
+teks pesan (via hw/services/recap.py) untuk disalin/dikirim manual oleh
+operator.
 """
 from datetime import date, timedelta
 
-from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from django_q.tasks import async_task
 
 from inertia import render as inertia_render
 
@@ -76,21 +75,13 @@ def calendar_send_recap(request):
     if not cls:
         return JsonResponse({'ok': False, 'message': tr(request, f'No check-in guests in the {err_label}', f'Tidak ada tamu check-in {err_label}')})
     message = build_recap_message(cls, recap_date)
-    wa_targets = list(WATarget.objects.filter(is_active=True))
-    if not wa_targets:
-        return JsonResponse({'ok': False, 'message': tr(request, 'No active recap recipient number yet', 'Belum ada nomor penerima rekap yang aktif')})
-    for t in wa_targets:
-        async_task('hw.tasks.send_recap_task', t.target_type, t.target, t.label, message, len(cls))
-    cache.delete('last_recap')
-    return JsonResponse({'ok': True, 'queued': len(wa_targets)})
+    return JsonResponse({'ok': True, 'message': message, 'cl_count': len(cls)})
 
 
 @require_perm('calendar', 'edit')
 def calendar_send_reminder_group(request):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
-    if not settings.REMINDER_H1_H0_ENABLED:
-        return JsonResponse({'ok': False, 'message': tr(request, 'H-1/H-0 reminders are temporarily disabled', 'Reminder H-1/H-0 sedang dinonaktifkan sementara')})
     cl_ids = request.POST.getlist('cl_ids')
     if not cl_ids:
         return JsonResponse({'ok': False, 'message': tr(request, 'No bookings selected', 'Tidak ada booking dipilih')})
@@ -108,14 +99,12 @@ def calendar_send_reminder_group(request):
         client = cls[0].client
         recipient_name = client.name
         resolve_targets = lambda cl_list: resolve_reminder_targets(client, cl_list)
-        no_target_message = tr(request, 'Client has no active WA number/Group', 'Client belum punya nomor WA/Group yang aktif')
     elif client_ids == {None}:
         if len(group_guests(cls)) != 1:
             return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same guest', 'Booking harus dari tamu yang sama')})
         recipient_name = cls[0].guest_name
         # Resolve from the whole group: the phone may live on a sibling booking.
         resolve_targets = lambda cl_list: resolve_guest_target(cl_list)
-        no_target_message = tr(request, 'Guest has no WhatsApp number', 'Tamu belum punya nomor WhatsApp')
     else:
         return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same client', 'Booking harus dari 1 client yang sama')})
     check_ins = {cl.check_in for cl in cls}
@@ -129,18 +118,12 @@ def calendar_send_reminder_group(request):
         reminder_type = 'H1_GUEST'
     else:
         return JsonResponse({'ok': False, 'message': tr(request, 'Check-in date has already passed', 'Tanggal check-in sudah lewat')})
-    # Manual send never dedups against ReminderLog: the operator may need to
-    # resend a reminder that was already sent today (e.g. after editing the
-    # booking). Only the scheduled command (send_checkin_reminders) is
-    # idempotent per day.
     targets = resolve_targets(cls)
-    if not targets:
-        return JsonResponse({'ok': False, 'message': no_target_message})
     message = build_grouped_reminder_message(cls, reminder_type, recipient_name=recipient_name)
-    cl_pks = [cl.pk for cl in cls]
-    for channel, phone in targets:
-        async_task('hw.tasks.send_reminder_group_task', cl_pks, reminder_type, phone, message)
-    return JsonResponse({'ok': True, 'queued': True})
+    # A resolved phone (if any) drives the wa.me deep link in the modal; a
+    # missing number is not an error here — the operator can still copy the text.
+    phone = next((p for _channel, p in targets), '') if targets else ''
+    return JsonResponse({'ok': True, 'message': message, 'phone': phone, 'reminder_type': reminder_type})
 
 
 @require_perm('calendar', 'edit')

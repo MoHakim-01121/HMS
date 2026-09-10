@@ -71,15 +71,6 @@ class CalendarCacheTest(TestCase):
             _get_message_templates()
             MockModel.objects.all.assert_called_once()
 
-    def test_get_last_recap_cached_on_second_call(self):
-        from django.core.cache import cache
-        from hw.views.calendar_views import _get_last_recap
-        with patch('hw.views.calendar_views.RecapLog') as MockModel:
-            MockModel.objects.filter.return_value.order_by.return_value.first.return_value = None
-            _get_last_recap()
-            _get_last_recap()
-            MockModel.objects.filter.assert_called_once()
-
 
 # ── Task 4: CL list defer ─────────────────────────────────────────────────────
 

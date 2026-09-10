@@ -142,7 +142,7 @@ export default function StyleGuide() {
               <Button
                 variant="outline"
                 onClick={() => window.dispatchEvent(new CustomEvent("open-draft", {
-                  detail: { type: "invoice", pk: 0, waSend: { client_wa: "6281234567890", has_wa: true } },
+                  detail: { message: "Assalamualaikum, berikut rincian tagihan...", title: "Billing Message", waNumber: "6281234567890" },
                 }))}
               >
                 Draft

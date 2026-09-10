@@ -34,7 +34,6 @@ from .reminder_views import (
     wa_target_add, wa_target_toggle, wa_target_delete,
     message_template_save, calendar_recap_settings,
 )
-from .billing_views import billing_send
 from .search_views import global_search
 from .attachment_views import attachment_delete, attachment_upload
 from .user_views import account_profile, account_profile_update, avatar_delete, avatar_upload, user_credential_card, user_delete, user_edit, user_list, user_new, set_language

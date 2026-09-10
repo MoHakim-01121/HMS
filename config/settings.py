@@ -61,7 +61,6 @@ INSTALLED_APPS = [
     'axes',
     'inertia',
     'django_vite',
-    'django_q',
     'hw',
 ]
 
@@ -156,30 +155,6 @@ if not DEBUG:
         },
     }
 
-# H-1/H-0 guest reminders. Requires the hworkspace-qcluster.service worker
-# to be running (processes the queued WhatsApp sends) — verified deployed
-# 2026-07-12.
-REMINDER_H1_H0_ENABLED = True
-
-# ── django-q2 (background WhatsApp sends) ──
-# ORM broker: reuses the existing Postgres DB as the task queue, so no Redis
-# or extra service is needed. In production a separate `manage.py qcluster`
-# process must be running to actually process queued tasks (see bin/startup.sh).
-import sys
-Q_CLUSTER = {
-    'name': 'hms',
-    'workers': 2,
-    'timeout': 30,
-    'retry': 60,
-    'queue_limit': 50,
-    'bulk': 10,
-    'orm': 'default',
-    # Sync mode runs tasks in-process: always during tests, and in local dev
-    # (DEBUG=True) where no qcluster worker is running — otherwise WA sends
-    # would queue forever and never actually go out.
-    'sync': DEBUG or 'test' in sys.argv,
-}
-
 SESSION_ENGINE = 'django.contrib.sessions.backends.cached_db'
 
 
@@ -256,9 +231,6 @@ DJANGO_VITE = {
 # AI
 GROQ_API_KEY   = get_env_variable('GROQ_API_KEY', '')
 GEMINI_API_KEY = get_env_variable('GEMINI_API_KEY', '')
-
-FONNTE_TOKEN        = get_env_variable('FONNTE_TOKEN', '')
-FONNTE_TEAM_TARGETS = get_list_env('FONNTE_TEAM_TARGETS', [])
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

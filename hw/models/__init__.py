@@ -12,8 +12,7 @@ from .remittance import Remittance, RemittanceLine
 from .ledger import CashAccount, ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
-from .reminder import ReminderLog, RecapLog, WATarget, MessageTemplate
-from .billing import BillingLog
+from .reminder import WATarget, MessageTemplate
 from .visit import Visit, VisitPhoto
 from .landing import Pricelist, TeamMember
 from .receipt import Receipt
@@ -44,9 +43,7 @@ __all__ = [
     # Penalty
     'CancellationPenalty',
     # Reminder
-    'ReminderLog', 'RecapLog', 'WATarget', 'MessageTemplate',
-    # Billing
-    'BillingLog',
+    'WATarget', 'MessageTemplate',
     # Visit
     'Visit', 'VisitPhoto',
     # Landing

@@ -66,7 +66,6 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('ai/draft/', views.ai_draft_message, name='ai_draft_message'),
 
     # Billing WA send
-    path('billing/send/', views.billing_send, name='billing_send'),
 
     # Clients
     path('clients/', views.client_list, name='client_list'),

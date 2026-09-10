@@ -310,7 +310,7 @@ export default function Calendar(props) {
   const { t, locale } = useI18n();
   const { year, month, month_name, days, today_day, hotels, prev_year, prev_month, next_year, next_month,
     total_reservations, checkins_today, checkouts_today, tentative_count, active_today,
-    upcoming_checkins = [], last_recap = null } = props;
+    upcoming_checkins = [] } = props;
   const [tip, setTip] = useState(null); // { res, x, y }
 
   const isMobile = useIsMobile();
@@ -448,8 +448,12 @@ export default function Calendar(props) {
         new URLSearchParams({ date: dayYMD(selectedDay) }),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
-      showToast(r.data.ok ? t('Recap queued.') : (r.data.message || t('Failed to send recap')), r.data.ok ? 'success' : 'error');
-    } catch { showToast(t('Failed to send recap'), 'error'); }
+      if (r.data.ok) {
+        window.dispatchEvent(new CustomEvent('open-draft', { detail: { message: r.data.message, title: t('Check-in Recap') } }));
+      } else {
+        showToast(r.data.message || t('Failed to build recap'), 'error');
+      }
+    } catch { showToast(t('Failed to build recap'), 'error'); }
     setSendingRecap(false);
   };
 
@@ -553,7 +557,7 @@ export default function Calendar(props) {
             <span className="cal-agenda-head-date">{selectedDateLabel}</span>
             <div className="cal-agenda-head-actions">
               <Button variant="outline" size="sm" onClick={handleSendRecap} disabled={sendingRecap}>
-                {sendingRecap ? '…' : <><Icon name="message" className="size-3.5" /> {t("Send Recap")}</>}
+                {sendingRecap ? '…' : <><Icon name="message" className="size-3.5" /> {t("Recap")}</>}
               </Button>
               {!isTodaySelected && today_day && (
                 <button type="button" className="cal-agenda-today" onClick={() => setSelectedDay(today_day)}>
@@ -737,7 +741,7 @@ export default function Calendar(props) {
         </>
       )}
 
-      {!isMobile && <UpcomingCheckins upcoming_checkins={upcoming_checkins} last_recap={last_recap} />}
+      {!isMobile && <UpcomingCheckins upcoming_checkins={upcoming_checkins} />}
     </div>
   );
 }
