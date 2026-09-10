@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import render
 
 from .models import (
-    ActivityLog, Attachment, Branch, Client, ConfirmationLetter,
+    ActivityLog, Attachment, BankAccount, Branch, CashAccount, Client, ConfirmationLetter,
     Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceLine,
     Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
 )
@@ -104,6 +104,18 @@ class RoleDefinitionAdmin(admin.ModelAdmin):
 class BranchAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'is_active')
     list_filter = ('is_active',)
+
+
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+    list_display = ('bank_name', 'name', 'branch', 'currency', 'is_active')
+    list_filter = ('branch', 'currency', 'is_active')
+
+
+@admin.register(CashAccount)
+class CashAccountAdmin(admin.ModelAdmin):
+    list_display = ('name', 'branch', 'currency', 'is_active')
+    list_filter = ('branch', 'currency', 'is_active')
 
 
 admin.site.register(Reservation)

@@ -10,7 +10,8 @@ from .invoice import (
     Attachment, _attachment_path,
 )
 from .remittance import Remittance, RemittanceLine
-from .ledger import CashAccount, ChargeReason, AllocationReason, Charge, Allocation, CashMovement
+from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMovement
+from .bank import BankAccount, CashAccount
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
 from .reminder import WATarget, MessageTemplate
@@ -40,7 +41,9 @@ __all__ = [
     # Remittance
     'Remittance', 'RemittanceLine',
     # Ledger (legacy — kept for backward compat during migration)
-    'CashAccount', 'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
+    'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
+    # Bank / Cash accounts (Master Architecture v2.0 FASE B)
+    'BankAccount', 'CashAccount',
     # Hotel
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     # Penalty
