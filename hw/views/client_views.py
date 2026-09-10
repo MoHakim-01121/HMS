@@ -593,6 +593,16 @@ def client_statement_pdf(request, pk):
         st = finance_queries.client_statement_by_reservation(
             c.id, company=company, date_from=date_from, date_to=date_to, as_of=as_of,
         )
+        # This statement is client-facing and English-only, so it does not reuse
+        # the Indonesian `_period_label` helper shared by the internal views.
+        if date_from and date_to:
+            period_en = f"{date_from:%d %b %Y} – {date_to:%d %b %Y}"
+        elif date_from:
+            period_en = f"From {date_from:%d %b %Y}"
+        elif date_to:
+            period_en = f"To {date_to:%d %b %Y}"
+        else:
+            period_en = "All transactions to date"
         reservations = [{
             'reservation_number': g['reservation_number'],
             'hotel': g['hotel'],
@@ -616,7 +626,7 @@ def client_statement_pdf(request, pk):
                 'total_credit': st['total_credit'],
                 'aging': st['aging']['buckets'],
                 'aging_total': st['aging']['total'],
-                'period_label': period_label,
+                'period_label': period_en,
                 'logo_url': _logo_file_url(company),
             },
         )

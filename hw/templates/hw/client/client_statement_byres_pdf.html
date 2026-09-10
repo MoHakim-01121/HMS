@@ -9,7 +9,7 @@
       size: A4;
       margin: 56px 64px 48px;
       @bottom-left {
-        content: "Customer Statement — {{ now|date:'d M Y, H:i' }}";
+        content: string(doc-date);
         font-size: 10px; color: #111;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       }
@@ -19,95 +19,157 @@
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       }
     }
+    .doc-date-anchor { string-set: doc-date content(); display: none; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-      background: #fff; color: #111;
-      font-size: 12px; line-height: 1.6;
+      background: #fff;
+      color: #111;
+      font-size: 12px;
+      line-height: 1.6;
     }
 
     .top {
-      display: flex; justify-content: space-between; align-items: flex-start;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
       margin-bottom: 20px;
     }
     .doc-title { font-size: 28px; font-weight: 700; color: #111; }
     .logo { max-height: 68px; width: auto; }
 
-    .meta { margin-bottom: 22px; font-size: 12px; }
+    .meta { margin-bottom: 28px; font-size: 12px; }
     .meta-row { display: flex; gap: 8px; }
     .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
     .meta-row .mv { color: #111; }
 
-    .section-title {
-      font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
-      color: #666; font-weight: 700; margin: 0 0 6px;
-    }
-
-    /* Account summary — atas */
-    .summary { margin-bottom: 24px; }
-    .sum-box { width: 320px; }
-    .sum-row {
-      display: flex; padding: 3px 0; font-size: 12px;
-      border-bottom: 1px solid #eee;
-    }
-    .sum-row .lbl { flex: 1; color: #555; }
-    .sum-row .val { width: 130px; text-align: right; white-space: nowrap; }
-    .sum-row.main {
-      border-top: 1px solid #111; border-bottom: 2px solid #111;
-      margin-top: 2px; padding: 5px 0; font-weight: 700;
-    }
-    .sum-row.main .lbl, .sum-row.main .val { color: #111; }
-    .v-due  { color: #dc2626; }
-    .v-cred { color: #15803d; }
-
     table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
     thead th {
-      text-align: left; font-size: 11px; font-weight: 700; color: #333;
-      padding: 6px 8px; border: 1px solid #ddd; white-space: nowrap;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 400;
+      color: #333;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #111;
+      white-space: nowrap;
     }
     thead th.r { text-align: right; }
-    tbody td { padding: 6px 8px; vertical-align: top; color: #111; border: 1px solid #ddd; }
+    tbody td { padding: 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
     tbody td.r { text-align: right; }
     .mono { font-family: 'Courier New', monospace; font-size: 11px; }
     .nowrap { white-space: nowrap; }
     .muted { color: #bbb; }
-    .sub { font-size: 9.5px; color: #888; }
+    .sub { font-size: 10px; color: #888; }
+
+    .amt { color: #111; }
+    .bal-pos { font-weight: 700; }
+    .bal-zero { color: #15803d; font-weight: 700; }
+    .bal-neg { color: #dc2626; font-weight: 700; }
+
     tbody tr { break-inside: avoid; page-break-inside: avoid; }
-    .bal-open { color: #dc2626; font-weight: 700; }
-    .bal-settled { color: #15803d; font-weight: 700; }
-    tr.settled td { color: #666; }
-
-    tr.total-row td {
-      padding: 6px 8px; border: 1px solid #ddd;
-      font-weight: 700; color: #111; font-size: 11.5px;
+    tr.line-row td {
+      font-weight: 700;
+      font-size: 10.5px;
+      color: #444;
     }
-    tr.total-row td.label { text-align: right; letter-spacing: .5px; font-size: 9px; text-transform: uppercase; }
+    tr.settled td { color: #777; }
+    tr.settled td .sub { color: #999; }
 
-    .aging { margin-top: 24px; }
-    .aging table { width: auto; }
-    .aging th, .aging td { padding: 5px 14px 5px 0; border: none; text-align: right; }
-    .aging th { font-size: 9px; text-transform: uppercase; letter-spacing: .4px; color: #666; }
-    .aging td { font-family: 'Courier New', monospace; font-size: 11px; }
-    .aging th:first-child, .aging td:first-child { text-align: left; }
+    .summary {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .summary-title {
+      align-self: flex-end;
+      font-size: 12px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 2px;
+    }
+    .sum-row {
+      display: flex;
+      gap: 0;
+      padding: 2px 0;
+      font-size: 12px;
+      width: 320px;
+    }
+    .sum-row:first-of-type { border-top: 1px solid #ddd; padding-top: 3px; margin-top: 2px; }
+    .sum-row .lbl { flex: 1; color: #555; text-align: left; }
+    .sum-row .lbl .sub { font-size: 10px; color: #999; font-weight: 400; }
+    .sum-row .val { width: 120px; text-align: right; color: #111; white-space: nowrap; }
+    .sum-row.main {
+      border-top: 1px solid #ddd;
+      border-bottom: 2px solid #111;
+      margin-top: 4px;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .sum-row.main .lbl,
+    .sum-row.main .val { font-weight: 700; color: #111; }
+    .v-due  { color: #dc2626; }
+    .v-cred { color: #15803d; }
+    .v-zero { color: #111; }
+
+    .aging {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .aging-title {
+      font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+      color: #666; font-weight: 700; margin-bottom: 3px; align-self: flex-end;
+    }
+    .aging-row { display: flex; width: 320px; font-size: 11px; padding: 1px 0; }
+    .aging-row .lbl { flex: 1; color: #666; }
+    .aging-row .val { width: 110px; text-align: right; font-family: 'Courier New', monospace; }
+    .aging-row.tot { border-top: 1px solid #ddd; margin-top: 2px; padding-top: 3px; font-weight: 700; color: #111; }
 
     .note {
-      margin-top: 24px; font-size: 9.5px; color: #666; line-height: 1.7;
-      border-top: 1px solid #eee; padding-top: 10px;
+      margin-top: 24px;
+      font-size: 9.5px;
+      color: #666;
+      line-height: 1.7;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
     }
     .note b { color: #333; }
 
     .contact {
-      margin-top: 20px; font-size: 9.5px; color: #444; line-height: 1.7;
-      border-top: 1px solid #ddd; padding-top: 10px;
+      margin-top: 24px;
+      font-size: 9.5px;
+      color: #444;
+      line-height: 1.7;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
     }
     .contact .ck {
-      font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
-      color: #666; font-weight: 700; margin-bottom: 2px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: #666;
+      font-weight: 700;
+      margin-bottom: 2px;
     }
     .contact b { color: #333; }
+
+    .watermark {
+      position: fixed;
+      top: 45%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-40deg);
+      font-size: 90px; font-weight: 900;
+      color: rgba(0,0,0,0.04);
+      white-space: nowrap;
+      letter-spacing: 8px;
+    }
   </style>
 </head>
 <body>
+
+<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+<div class="watermark">STATEMENT</div>
 
 <div class="top">
   <div class="doc-title">Customer Statement</div>
@@ -115,46 +177,30 @@
 </div>
 
 <div class="meta">
-  <div class="meta-row"><span class="mk">Client</span><span class="mv">{{ client.name }}</span></div>
-  <div class="meta-row"><span class="mk">Periode</span><span class="mv">{{ period_label }}</span></div>
-  <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
-  {% if client.pic %}<div class="meta-row"><span class="mk">PIC</span><span class="mv">{{ client.pic }}</span></div>{% endif %}
+  <div class="meta-row"><span class="mk">Account</span><span class="mv">{{ client.name }}</span></div>
+  <div class="meta-row"><span class="mk">Period</span><span class="mv">{{ period_label }}</span></div>
+  <div class="meta-row"><span class="mk">Statement date</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
+  <div class="meta-row"><span class="mk">Basis</span><span class="mv">By reservation</span></div>
+  {% if client.pic %}<div class="meta-row"><span class="mk">Attn.</span><span class="mv">{{ client.pic }}</span></div>{% endif %}
 </div>
 
-<div class="summary">
-  <div class="section-title">Ringkasan Akun (SAR)</div>
-  <div class="sum-box">
-    <div class="sum-row">
-      <span class="lbl">Saldo awal periode</span>
-      <span class="val">{{ opening_balance|floatformat:0|intcomma }}</span>
-    </div>
-    <div class="sum-row">
-      <span class="lbl">Tagihan periode ini</span>
-      <span class="val">{{ total_debit|floatformat:0|intcomma }}</span>
-    </div>
-    <div class="sum-row">
-      <span class="lbl">Pembayaran diterima</span>
-      <span class="val">&minus;{{ total_credit|floatformat:0|intcomma }}</span>
-    </div>
-    <div class="sum-row main">
-      <span class="lbl">Saldo Terhutang</span>
-      <span class="val {% if closing_balance > 0 %}v-due{% elif closing_balance < 0 %}v-cred{% endif %}">{{ closing_balance|floatformat:0|intcomma }}</span>
-    </div>
-  </div>
-</div>
-
-<div class="section-title">Rincian per Reservasi (SAR)</div>
 <table>
   <thead>
     <tr>
-      <th>Reservasi</th>
+      <th>Reservation</th>
       <th class="nowrap">Check-in</th>
-      <th class="r">Tagihan</th>
-      <th class="r">Terbayar</th>
-      <th class="r">Sisa</th>
+      <th class="r">Invoiced (SAR)</th>
+      <th class="r">Received (SAR)</th>
+      <th class="r">Balance (SAR)</th>
     </tr>
   </thead>
   <tbody>
+    {% if opening_balance %}
+    <tr class="line-row">
+      <td colspan="4">Balance brought forward</td>
+      <td class="r mono">{{ opening_balance|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
     {% for row in reservations %}
     <tr class="{% if row.settled %}settled{% endif %}">
       <td>
@@ -162,68 +208,74 @@
         {% if row.hotel %}<div class="sub">{{ row.hotel }}</div>{% endif %}
       </td>
       <td class="nowrap">{{ row.check_in }}</td>
-      <td class="r mono">{{ row.billed|floatformat:0|intcomma }}</td>
-      <td class="r mono">{{ row.paid|floatformat:0|intcomma }}</td>
+      <td class="r mono amt">{% if row.billed %}{{ row.billed|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono amt">{% if row.paid %}{{ row.paid|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="r mono">
-        {% if row.balance > 0 %}<span class="bal-open">{{ row.balance|floatformat:0|intcomma }}</span>
-        {% elif row.balance < 0 %}<span class="bal-settled">{{ row.balance|floatformat:0|intcomma }}</span>
-        {% else %}<span class="bal-settled">0</span>{% endif %}
+        {% if row.balance > 0 %}
+          <span class="bal-pos">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% elif row.balance < 0 %}
+          <span class="bal-neg">{{ row.balance|floatformat:0|intcomma }}</span>
+        {% else %}
+          <span class="bal-zero">0</span>
+        {% endif %}
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">Tidak ada reservasi pada periode ini</td></tr>
+    <tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No reservations in this period</td></tr>
     {% endfor %}
-    {% if opening_balance %}
-    <tr class="total-row">
-      <td colspan="4" class="label">Saldo awal periode</td>
-      <td class="r mono">{{ opening_balance|floatformat:0|intcomma }}</td>
-    </tr>
-    {% endif %}
     {% if unallocated %}
-    <tr class="total-row">
-      <td colspan="4" class="label">Dana belum dialokasikan</td>
+    <tr class="line-row">
+      <td colspan="4">Unapplied payments on account</td>
       <td class="r mono">{{ unallocated|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
-    <tr class="total-row">
-      <td colspan="4" class="label">Saldo Terhutang</td>
-      <td class="r mono">{{ closing_balance|floatformat:0|intcomma }}</td>
-    </tr>
   </tbody>
 </table>
 
-<div class="aging">
-  <div class="section-title">Umur Piutang (SAR)</div>
-  <table>
-    <thead>
-      <tr><th>Bucket</th><th>0&ndash;30</th><th>31&ndash;60</th><th>61&ndash;90</th><th>90+</th><th>Total</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Piutang jatuh tempo</td>
-        <td>{{ aging.0_30|floatformat:0|intcomma }}</td>
-        <td>{{ aging.31_60|floatformat:0|intcomma }}</td>
-        <td>{{ aging.61_90|floatformat:0|intcomma }}</td>
-        <td>{{ aging.90_plus|floatformat:0|intcomma }}</td>
-        <td>{{ aging_total|floatformat:0|intcomma }}</td>
-      </tr>
-    </tbody>
-  </table>
+<div class="summary">
+  <div class="summary-title">Account Summary (SAR)</div>
+  <div class="sum-row">
+    <span class="lbl">Opening Balance</span>
+    <span class="val">{{ opening_balance|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Total Invoiced</span>
+    <span class="val">{{ total_debit|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Total Received</span>
+    <span class="val">−{{ total_credit|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row main">
+    <span class="lbl">Amount Due</span>
+    <span class="val {% if closing_balance > 0 %}v-due{% elif closing_balance < 0 %}v-cred{% else %}v-zero{% endif %}">{{ closing_balance|floatformat:0|intcomma }}</span>
+  </div>
 </div>
 
+{% if aging_total %}
+<div class="aging">
+  <div class="aging-title">Aged Receivables (SAR)</div>
+  <div class="aging-row"><span class="lbl">Current &amp; 1–30 days</span><span class="val">{{ aging.0_30|floatformat:0|intcomma }}</span></div>
+  <div class="aging-row"><span class="lbl">31–60 days</span><span class="val">{{ aging.31_60|floatformat:0|intcomma }}</span></div>
+  <div class="aging-row"><span class="lbl">61–90 days</span><span class="val">{{ aging.61_90|floatformat:0|intcomma }}</span></div>
+  <div class="aging-row"><span class="lbl">90+ days</span><span class="val">{{ aging.90_plus|floatformat:0|intcomma }}</span></div>
+  <div class="aging-row tot"><span class="lbl">Total Outstanding</span><span class="val">{{ aging_total|floatformat:0|intcomma }}</span></div>
+</div>
+{% endif %}
+
 <div class="note">
-  <b>Cara baca:</b> Setiap baris adalah satu reservasi &mdash; "Sisa" positif berarti masih
-  ada kewajiban bayar, "Sisa" negatif berarti kelebihan bayar pada reservasi itu.
-  "Dana belum dialokasikan" adalah titipan dana yang belum ditautkan ke reservasi mana pun.
-  Dokumen ini dikunci per tanggal cetak &mdash; koreksi yang dicatat setelah tanggal generate
-  di atas tidak memengaruhi angka pada cetakan ini.
+  <b>Notes:</b> each line is one reservation. A positive balance is an amount still receivable on
+  that reservation; a negative balance is an overpayment held on account against it. Settled
+  reservations remain listed (shown in grey). "Unapplied payments on account" are amounts received
+  but not yet applied to a specific reservation. This statement is rendered as at the statement date
+  shown above; entries posted subsequently are not reflected in these figures.
 </div>
 
 <div class="contact">
-  <div class="ck">Pembayaran &amp; Kontak</div>
-  Konoz United Surabaya &mdash; Jl. Ikan Mungsing VII No.51, Perak Bar., Kec. Krembangan, Surabaya 60177
-  <br><b>Pembayaran / pertanyaan:</b> konozsurabaya@gmail.com
-  {% if client.pic %}<br><b>PIC:</b> {{ client.pic }}{% endif %}
+  <div class="ck">Payment Instructions</div>
+  Konoz United Surabaya — Jl. Ikan Mungsing VII No.51, Perak Bar., Kec. Krembangan, Surabaya 60177
+  <br><b>Remittances &amp; enquiries:</b> konozsurabaya@gmail.com
+  {% if client.pic %}<br><b>Attn.:</b> {{ client.pic }}{% endif %}
 </div>
 
 </body>
