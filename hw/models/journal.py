@@ -140,6 +140,7 @@ class JournalEntry(AppendOnlyModel):
     TYPE_REFUND     = 'refund'
     TYPE_PENALTY    = 'penalty'
     TYPE_REMITTANCE = 'remittance'
+    TYPE_EXPENSE    = 'expense'
     TYPE_REVERSAL   = 'reversal'
     TYPE_ADJUSTMENT = 'adjustment'
     TYPE_CHOICES = [
@@ -150,6 +151,7 @@ class JournalEntry(AppendOnlyModel):
         (TYPE_REFUND,     'Refund'),
         (TYPE_PENALTY,    'Penalty'),
         (TYPE_REMITTANCE, 'Remittance'),
+        (TYPE_EXPENSE,    'Expense'),
         (TYPE_REVERSAL,   'Reversal'),
         (TYPE_ADJUSTMENT, 'Adjustment'),
     ]

@@ -3,6 +3,7 @@ from django.shortcuts import render
 
 from .models import (
     ActivityLog, Attachment, BankAccount, Branch, CashAccount, Client, ConfirmationLetter,
+    Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
     Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceLine,
     Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
 )
@@ -116,6 +117,31 @@ class BankAccountAdmin(admin.ModelAdmin):
 class CashAccountAdmin(admin.ModelAdmin):
     list_display = ('name', 'branch', 'currency', 'is_active')
     list_filter = ('branch', 'currency', 'is_active')
+
+
+class ExpenseLineInline(admin.TabularInline):
+    model = ExpenseLine
+    extra = 0
+
+
+class ExpensePaymentInline(admin.TabularInline):
+    model = ExpensePayment
+    extra = 0
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ('expense_number', 'branch', 'expense_date', 'vendor',
+                    'total_amount_sar', 'status')
+    list_filter = ('branch', 'status', 'expense_date')
+    search_fields = ('expense_number', 'vendor', 'description')
+    inlines = [ExpenseLineInline, ExpensePaymentInline]
+
+
+@admin.register(ExpenseCategory)
+class ExpenseCategoryAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'ledger_account', 'is_active')
+    list_filter = ('is_active',)
 
 
 admin.site.register(Reservation)

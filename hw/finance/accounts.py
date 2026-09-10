@@ -15,6 +15,7 @@ AR = "1100-AR"
 TRANSIT = "1200-TRANSIT"
 FX_CLEARING = "1900-FX-CLR"
 
+AP = "2000-AP"
 CUST_CREDIT = "2100-CUST-CREDIT"
 
 OPENING_EQUITY = "3000-OPENING"
@@ -28,6 +29,17 @@ EXP_BANKFEE = "5100-EXP-BANKFEE"
 EXP_FX_LOSS = "5200-EXP-FXLOSS"
 EXP_PENALTY = "5300-EXP-PENALTY"
 
+# Beban operasional cabang (FASE D). Kategori Expense memetakan ke sini.
+EXP_UTILITIES     = "5410-EXP-UTIL"
+EXP_TELECOM       = "5420-EXP-TELECOM"
+EXP_TRANSPORT     = "5430-EXP-TRANSPORT"
+EXP_SUPPLIES      = "5440-EXP-SUPPLIES"
+EXP_RENT          = "5450-EXP-RENT"
+EXP_MEALS         = "5460-EXP-MEALS"
+EXP_MAINTENANCE   = "5470-EXP-MAINT"
+EXP_MARKETING     = "5480-EXP-MKT"
+EXP_MISC          = "5490-EXP-MISC"
+
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
 
@@ -38,6 +50,7 @@ ACCOUNTS = [
     {"code": AR, "name": "Piutang Client", "type": AccountType.ASSET},
     {"code": TRANSIT, "name": "Kas Dalam Perjalanan (Remittance)", "type": AccountType.ASSET},
     {"code": FX_CLEARING, "name": "Kliring Selisih Kurs", "type": AccountType.ASSET},
+    {"code": AP, "name": "Utang Usaha (Accounts Payable)", "type": AccountType.LIABILITY},
     {"code": CUST_CREDIT, "name": "Titipan / Saldo Dana Client", "type": AccountType.LIABILITY},
     {"code": OPENING_EQUITY, "name": "Ekuitas Saldo Awal", "type": AccountType.EQUITY},
     {"code": INC_HOTEL, "name": "Pendapatan Hotel", "type": AccountType.INCOME},
@@ -47,6 +60,30 @@ ACCOUNTS = [
     {"code": EXP_BANKFEE, "name": "Beban Biaya Transfer/Bank", "type": AccountType.EXPENSE},
     {"code": EXP_FX_LOSS, "name": "Rugi Selisih Kurs", "type": AccountType.EXPENSE},
     {"code": EXP_PENALTY, "name": "Beban Penalty", "type": AccountType.EXPENSE},
+    {"code": EXP_UTILITIES, "name": "Beban Listrik & Air", "type": AccountType.EXPENSE},
+    {"code": EXP_TELECOM, "name": "Beban Internet & Telepon", "type": AccountType.EXPENSE},
+    {"code": EXP_TRANSPORT, "name": "Beban Transportasi", "type": AccountType.EXPENSE},
+    {"code": EXP_SUPPLIES, "name": "Beban ATK & Perlengkapan", "type": AccountType.EXPENSE},
+    {"code": EXP_RENT, "name": "Beban Sewa Kantor", "type": AccountType.EXPENSE},
+    {"code": EXP_MEALS, "name": "Beban Konsumsi & Rapat", "type": AccountType.EXPENSE},
+    {"code": EXP_MAINTENANCE, "name": "Beban Pemeliharaan", "type": AccountType.EXPENSE},
+    {"code": EXP_MARKETING, "name": "Beban Marketing", "type": AccountType.EXPENSE},
+    {"code": EXP_MISC, "name": "Beban Lain-lain", "type": AccountType.EXPENSE},
+]
+
+# Kategori Expense default (code → (nama, ledger account code)). Di-seed ke
+# ExpenseCategory oleh migrasi; bisa ditambah lewat admin.
+DEFAULT_EXPENSE_CATEGORIES = [
+    ("UTIL",      "Listrik & Air",        EXP_UTILITIES),
+    ("TELECOM",   "Internet & Telepon",   EXP_TELECOM),
+    ("TRANSPORT", "Transportasi",         EXP_TRANSPORT),
+    ("SUPPLIES",  "ATK & Perlengkapan",   EXP_SUPPLIES),
+    ("RENT",      "Sewa Kantor",          EXP_RENT),
+    ("MEALS",     "Konsumsi & Rapat",     EXP_MEALS),
+    ("MAINT",     "Pemeliharaan",         EXP_MAINTENANCE),
+    ("MARKETING", "Marketing",            EXP_MARKETING),
+    ("BANKFEE",   "Biaya Bank",           EXP_BANKFEE),
+    ("MISC",      "Lain-lain",            EXP_MISC),
 ]
 
 # Peta kode akun v1 (enum Account lama) → kode v2. Dipakai adapter

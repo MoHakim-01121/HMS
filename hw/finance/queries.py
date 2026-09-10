@@ -620,6 +620,25 @@ def transit(company=None):
     return account_balance(coa.TRANSIT, company=company)
 
 
+def ap_balance(company=None):
+    """Saldo Utang Usaha (positif = KONOZ berutang ke vendor)."""
+    return -account_balance(coa.AP, company=company)
+
+
+def branch_expense_sar(branch_code, *, company=None, date_from=None, date_to=None):
+    """Total beban (net debit akun 5xxx) untuk satu cabang pada rentang tanggal."""
+    qs = JournalLine.objects.filter(
+        branch_id=branch_code, account__type='expense',
+    )
+    if company:
+        qs = qs.filter(journal_entry__company=company)
+    if date_from:
+        qs = qs.filter(journal_entry__entry_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(journal_entry__entry_date__lte=date_to)
+    return _net(qs)
+
+
 def mengendap_per_reservation(reservation_id, company=None):
     """Kas Surabaya yang menempel pada reservasi ini (belum diremit)."""
     return _net(_scoped(
