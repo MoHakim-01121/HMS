@@ -12,6 +12,7 @@ import base64
 from datetime import date
 
 from django.contrib.auth.models import User
+from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
