@@ -22,7 +22,7 @@ from .hashing import entry_hash
 
 logger = logging.getLogger(__name__)
 
-_DIMS = ("client", "invoice", "reservation", "service_item", "penalty", "remittance")
+_DIMS = ("branch", "client", "invoice", "reservation", "service_item", "penalty", "remittance")
 
 
 class MissingDimensionError(FinanceError):

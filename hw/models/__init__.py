@@ -1,5 +1,6 @@
 from .choices import Company, HotelCity, InvoiceType
-from .user import CompanyAccess, Language, Role, UserProfile
+from .branch import Branch
+from .user import BranchAccess, CompanyAccess, Language, Role, UserProfile
 from .role import RoleDefinition
 from .activity import ActivityLog, log_activity
 from .client import Client
@@ -25,8 +26,10 @@ from .journal import AccountType, Account, LedgerAccount, JournalEntry, JournalL
 __all__ = [
     # Choices
     'Company', 'HotelCity', 'InvoiceType',
+    # Branch
+    'Branch',
     # User
-    'UserProfile', 'Role', 'CompanyAccess', 'Language', 'RoleDefinition',
+    'UserProfile', 'Role', 'CompanyAccess', 'BranchAccess', 'Language', 'RoleDefinition',
     # Activity
     'ActivityLog', 'log_activity',
     # Core

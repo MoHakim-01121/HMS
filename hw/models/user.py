@@ -23,6 +23,12 @@ class CompanyAccess(models.TextChoices):
     KONOZ = 'konoz', 'Konoz United only'
 
 
+class BranchAccess(models.TextChoices):
+    """Sentinel untuk akses semua cabang. Nilai lain = satu Branch.code
+    (mis. 'sby'), sejajar pola CompanyAccess."""
+    ALL = 'all', 'All branches'
+
+
 class Language(models.TextChoices):
     EN = 'en', 'English'
     ID = 'id', 'Indonesian'
@@ -37,6 +43,9 @@ class UserProfile(models.Model):
     company_access = models.CharField(
         max_length=10, choices=CompanyAccess.choices, default=CompanyAccess.ALL,
     )
+    # 'all' = semua cabang; selain itu satu Branch.code. Co-exist dengan
+    # company_access selama transisi (FASE A).
+    branch_access = models.CharField(max_length=10, default=BranchAccess.ALL)
     language = models.CharField(max_length=5, choices=Language.choices, default=Language.EN)
 
     class Meta:
@@ -52,3 +61,16 @@ class UserProfile(models.Model):
         if self.company_access == CompanyAccess.ALL:
             return [Company.KONOZ.value]
         return [self.company_access]
+
+    @property
+    def has_all_branches(self):
+        return self.branch_access == BranchAccess.ALL
+
+    @property
+    def branches(self):
+        """Branch codes this profile may act in ('all' → every active branch)."""
+        from .branch import Branch
+        qs = Branch.objects.filter(is_active=True)
+        if not self.has_all_branches:
+            qs = qs.filter(code=self.branch_access)
+        return list(qs.values_list('code', flat=True))

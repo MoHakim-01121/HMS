@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import render
 
 from .models import (
-    ActivityLog, Attachment, Client, ConfirmationLetter,
+    ActivityLog, Attachment, Branch, Client, ConfirmationLetter,
     Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceLine,
     Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
 )
@@ -98,6 +98,12 @@ class RoleDefinitionAdmin(admin.ModelAdmin):
     list_filter   = ('is_system', 'grants_django_staff')
     search_fields = ('slug', 'label')
     readonly_fields = ('is_system',)
+
+
+@admin.register(Branch)
+class BranchAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_active')
+    list_filter = ('is_active',)
 
 
 admin.site.register(Reservation)

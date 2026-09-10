@@ -13,6 +13,9 @@ _ENTRY_FIELDS = (
     "entry_number", "entry_type", "entry_date", "company", "seq",
     "is_reversal", "reverses_id", "reference_type", "reference_id", "description",
 )
+# `branch_id` sengaja TIDAK di sini: branch adalah dimensi analitik/pelaporan
+# yang boleh dikoreksi tanpa reversal (sama alasannya dgn JournalEntry.proof).
+# Memasukkannya akan membatalkan semua entry_hash historis.
 _LINE_FIELDS = (
     "line_no", "account_id", "debit", "credit", "currency",
     "client_id", "invoice_id", "reservation_id", "service_item_id",

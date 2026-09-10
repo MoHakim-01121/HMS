@@ -261,6 +261,7 @@ class JournalLine(AppendOnlyModel):
     fx_rate       = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
 
     # Dimensi analitik — snapshot, salah satu atau lebih bisa null
+    branch        = models.ForeignKey('Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     client        = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     invoice       = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     reservation   = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -290,6 +291,7 @@ class JournalLine(AppendOnlyModel):
         ]
         indexes = [
             models.Index(fields=['account', 'client'], name='journal_acct_client_idx'),
+            models.Index(fields=['branch', 'account'], name='journal_branch_acct_idx'),
             models.Index(fields=['account', 'invoice'], name='journal_acct_invoice_idx'),
             models.Index(fields=['client', 'account'], name='journal_client_acct_idx'),
             models.Index(fields=['reservation', 'account'], name='journal_res_acct_idx'),

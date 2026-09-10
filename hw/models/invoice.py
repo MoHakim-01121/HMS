@@ -114,6 +114,9 @@ class Invoice(models.Model):
 
 class Reservation(models.Model):
     invoice            = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='reservations')
+    # Cabang pemilik order. Nullable selama FASE A (di-backfill ke SBY); v2.0 §4
+    # membedakan owner branch dari cabang penerima uang (nanti dari BankAccount).
+    owner_branch       = models.ForeignKey('Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='reservations')
     reservation_number = models.CharField(max_length=100)
     hotel              = models.CharField(max_length=200, blank=True)
     check_in           = models.DateField(null=True, blank=True)
