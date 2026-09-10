@@ -13,6 +13,7 @@ import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import FilterPanel, { FilterSection } from "../../components/shadcn/filter-panel.jsx";
+import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -152,6 +153,34 @@ export default function List({
     go({ status: "", client: "", staff: "" });
   };
 
+  // Applied (server-confirmed) filter state vs. the panel's pending selection.
+  const appliedStatus = status_filter || "";
+  const appliedClient = client_filter ? String(client_filter) : "";
+  const appliedStaff = staff_filter ? String(staff_filter) : "";
+  const activeCount = [appliedStatus, appliedClient, appliedStaff].filter(Boolean).length;
+  const dirty = selStatus !== appliedStatus || selClient !== appliedClient || selStaff !== appliedStaff;
+
+  const statusOptByVal = Object.fromEntries(STATUS_OPTS.map((o) => [o.val, o]));
+  const clientName = (id) => (clients || []).find((c) => String(c.id) === id)?.name || id;
+  const staffName = (id) => (staff_list || []).find((s) => String(s.id) === id)?.name || id;
+  const chips = [
+    ...(appliedStatus ? [{
+      key: "status",
+      label: t("Status {status}", { status: t(statusOptByVal[appliedStatus]?.label || appliedStatus) }),
+      onRemove: () => { setSelStatus(""); go({ status: "" }); },
+    }] : []),
+    ...(appliedClient ? [{
+      key: "client",
+      label: t("Client {name}", { name: clientName(appliedClient) }),
+      onRemove: () => { setSelClient(""); go({ client: "" }); },
+    }] : []),
+    ...(appliedStaff ? [{
+      key: "staff",
+      label: t("Staff {name}", { name: staffName(appliedStaff) }),
+      onRemove: () => { setSelStaff(""); go({ staff: "" }); },
+    }] : []),
+  ];
+
   const shiftMonth = (delta) => {
     setDrawerDay(null);
     go({ date: addDays(`${year}-${pad(month)}-01`, 40 * delta).slice(0, 7) + "-01" });
@@ -273,10 +302,10 @@ export default function List({
             </button>
 
             <FilterPanel
-              count={(status_filter || client_filter || staff_filter) ? 1 : 0}
+              count={activeCount}
               open={panelOpen}
               onToggle={() => setPanelOpen((v) => !v)}
-              dirty={false}
+              dirty={dirty}
               onApply={applyPanel}
               onResetAll={resetPanel}
             >
@@ -315,6 +344,8 @@ export default function List({
           </div>
         )}
       </div>
+
+      {tab !== "recap" && <FilterChips chips={chips} onClearAll={resetPanel} />}
 
       {tab === "history" ? (
         <ListCard
