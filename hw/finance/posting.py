@@ -325,10 +325,11 @@ def _invoice_charge_lines(invoice):
         amt = int(r.total_sar or 0)
         if not amt:
             continue
+        br = r.owner_branch_id
         lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                      "invoice": invoice.pk, "reservation": r.pk})
+                      "invoice": invoice.pk, "reservation": r.pk, "branch": br})
         lines.append({"account": income, "credit": amt,
-                      "invoice": invoice.pk, "reservation": r.pk})
+                      "invoice": invoice.pk, "reservation": r.pk, "branch": br})
     for s in invoice.service_items.all():
         amt = int(s.total or 0)
         if not amt:
@@ -548,9 +549,13 @@ def post_payment(payment, *, created_by, idempotency_key=None):
                     n += 1
                 idempotency_key = f"{default_key}#{n}"
 
-    cash_acc = _CASH_BY_LOCATION.get(payment.received_in, coa.CASH_SBY)
+    # Akun kas: kalau ada receiving_account konkret pakai ledger-nya, kalau
+    # tidak fallback ke peta received_in lama.
+    acc = payment.receiving_account
+    cash_acc = acc.ledger_account_id if acc else _CASH_BY_LOCATION.get(payment.received_in, coa.CASH_SBY)
     amt = int(payment.amount_sar)
-    base = {"client": payment.client_id, "invoice": payment.invoice_id}
+    base = {"client": payment.client_id, "invoice": payment.invoice_id,
+            "branch": payment.receiving_branch_code}
 
     # Segmen (nominal, dimensi target) — dari PaymentAllocation kalau ada,
     # kalau tidak dari payment.reservation/service_item, kalau tidak satu

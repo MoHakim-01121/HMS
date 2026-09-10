@@ -127,6 +127,8 @@ def create_payment_record(
     reservation=None,
     service_item=None,
     received_in='sby',
+    bank_account=None,
+    cash_account=None,
 ):
     """Create a PaymentRecord + JournalEntry atomically.
 
@@ -143,6 +145,15 @@ def create_payment_record(
     # Get period
     period = get_period_for_date(payment_date)
 
+    received_in = received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby'
+    # Kalau pemanggil tidak memberi rekening konkret, turunkan CashAccount
+    # cabang dari received_in (v2.0 FASE C). Rekening bank riil harus eksplisit.
+    if bank_account is None and cash_account is None:
+        from .models import CashAccount
+        cash_account = CashAccount.objects.filter(
+            branch_id=received_in, is_active=True,
+        ).order_by('id').first()
+
     # Create PaymentRecord
     payment = PaymentRecord.objects.create(
         payment_number=PaymentRecord.generate_number(),
@@ -155,7 +166,9 @@ def create_payment_record(
         currency=currency,
         exchange_rate=exchange_rate,
         amount_sar=amount_sar,
-        received_in=received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby',
+        received_in=received_in,
+        bank_account=bank_account,
+        cash_account=cash_account,
         method=method,
         bank_name=bank_name,
         account_number=account_number,
