@@ -5,7 +5,8 @@ hw/models/settlement.py. Tidak menggantikan post_remittance_receive() (jalur
 lama, satu tanda terima lump-sum); keduanya boleh hidup berdampingan selama
 transisi, tapi satu Remittance sebaiknya konsisten pakai salah satu jalur.
 """
-from django.db import transaction
+from django.db import models, transaction
+from django.utils import timezone
 
 from ..models.journal import JournalEntry
 from ..models.settlement import HQObligation, RemittanceAllocation, RemittanceSettlement
@@ -87,3 +88,59 @@ def allocate_settlement(settlement, allocations, *, created_by=None):
         obligation.status = obligation.derive_status()
         obligation.save(update_fields=['status'])
     return rows
+
+
+@transaction.atomic
+def close_remittance_diff(remittance, *, created_by=None, entry_date=None):
+    """Bukukan selisih expected_sar vs Σ RemittanceSettlement.received_amount_sar
+    sekali, saat remittance dianggap selesai diterima (biaya transfer/FX —
+    v2.0 §46). Panggil paling banyak sekali per remittance; panggilan kedua
+    tanpa reversal manual ditolak (bukan idempotent-by-content seperti
+    post_entry lain — perbedaan bisa disengaja butuh review manusia)."""
+    from ..models.journal import JournalEntry as _JE
+
+    expected = remittance.expected_sar
+    if expected is None:
+        raise FinanceError(
+            'Remittance ini tidak punya amount_idr/exchange_rate — expected_sar tak terhitung'
+        )
+    reversed_ids = _JE.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
+    if _JE.objects.filter(
+        reference_type='RemittanceDiff', reference_id=remittance.pk, is_reversal=False,
+    ).exclude(pk__in=reversed_ids).exists():
+        raise FinanceError(
+            'Selisih remittance ini sudah pernah dibukukan — reverse entry lama dulu untuk mengoreksi'
+        )
+
+    received_total = remittance.settlements.aggregate(
+        t=models.Sum('received_amount_sar'),
+    )['t'] or 0
+    diff = expected - received_total
+    if diff == 0:
+        return None
+
+    entry_date = entry_date or timezone.now().date()
+    if diff > 0:
+        lines = [
+            {'account': coa.EXP_BANKFEE, 'debit': diff, 'branch': 'pusat', 'remittance': remittance.pk},
+            {'account': coa.TRANSIT, 'credit': diff, 'remittance': remittance.pk},
+        ]
+        desc = f"Biaya transfer/selisih kurs {remittance.remittance_number}"
+    else:
+        lines = [
+            {'account': coa.TRANSIT, 'debit': -diff, 'remittance': remittance.pk},
+            {'account': coa.INC_FX_GAIN, 'credit': -diff, 'branch': 'pusat', 'remittance': remittance.pk},
+        ]
+        desc = f"Laba selisih kurs {remittance.remittance_number}"
+
+    return post_entry(
+        entry_type=JournalEntry.TYPE_REMITTANCE,
+        description=desc,
+        entry_date=entry_date,
+        lines=lines,
+        company=remittance.company,
+        source_type='RemittanceDiff',
+        source_id=remittance.pk,
+        idempotency_key=f"remittance:{remittance.pk}:settlement-diff",
+        created_by=created_by,
+    )

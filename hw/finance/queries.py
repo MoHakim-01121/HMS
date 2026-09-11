@@ -620,6 +620,27 @@ def transit(company=None):
     return account_balance(coa.TRANSIT, company=company)
 
 
+def money_accounts_overview(branch=None):
+    """Daftar rekening bank + kas dengan book_balance masing-masing.
+    Data-layer untuk halaman saldo bank (v2.0 §78) — belum ada UI-nya."""
+    from ..models.bank import BankAccount, CashAccount
+
+    bank_qs = BankAccount.objects.filter(is_active=True).select_related('branch')
+    cash_qs = CashAccount.objects.filter(is_active=True).select_related('branch')
+    if branch:
+        bank_qs = bank_qs.filter(branch_id=branch)
+        cash_qs = cash_qs.filter(branch_id=branch)
+    rows = []
+    for kind, qs in (('bank', bank_qs), ('cash', cash_qs)):
+        for acc in qs:
+            rows.append({
+                'id': acc.pk, 'kind': kind, 'name': str(acc),
+                'branch': acc.branch_id, 'currency': acc.currency,
+                'book_balance': acc.book_balance,
+            })
+    return rows
+
+
 def ap_balance(company=None):
     """Saldo Utang Usaha (positif = KONOZ berutang ke vendor)."""
     return -account_balance(coa.AP, company=company)

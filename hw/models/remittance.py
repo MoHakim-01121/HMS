@@ -73,6 +73,27 @@ class Remittance(models.Model):
             return 0
         return int(self.received_amount_sar) - self.allocated_sar
 
+    @property
+    def settlement_status(self):
+        """Status 5-state v2.0 §90 (sent/partially_settled/fully_settled),
+        DITURUNKAN dari RemittanceSettlement (jalur baru — lihat
+        hw/models/settlement.py). None kalau remittance ini tak punya
+        amount_idr/exchange_rate (expected_sar tak terhitung): berarti masih
+        dikelola lewat `status` (pending/received) + jalur lump-sum lama.
+        Tidak mencakup draft/cancelled — belum ada sinyal untuk itu di data
+        yang ada."""
+        expected = self.expected_sar
+        if expected is None:
+            return None
+        received = self.settlements.aggregate(
+            t=models.Sum('received_amount_sar'),
+        )['t'] or 0
+        if received <= 0:
+            return 'sent'
+        if received >= expected:
+            return 'fully_settled'
+        return 'partially_settled'
+
 
 class RemittanceLine(models.Model):
     remittance    = models.ForeignKey(Remittance, on_delete=models.CASCADE, related_name='lines')

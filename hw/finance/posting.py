@@ -656,7 +656,7 @@ def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=N
         return None
     cash_acc = _CASH_BY_LOCATION.get(received_in, coa.CASH_SBY)
     entry_date = entry_date or getattr(penalty, "payment_date", None) or timezone.now().date()
-    dims = {"client": _penalty_client_id(penalty), "penalty": penalty.pk}
+    dims = {"client": _penalty_client_id(penalty), "penalty": penalty.pk, "branch": received_in}
     return post_entry(
         entry_type=JournalEntry.TYPE_PENALTY,
         description=f"Pembayaran penalty {penalty.penalty_number}",
@@ -685,7 +685,7 @@ def post_remittance_send(remittance, *, from_location, amount_sar, created_by, e
     """
     src = _CASH_BY_LOCATION.get(from_location, coa.CASH_SBY)
     entry_date = entry_date or remittance.date or timezone.now().date()
-    dims = {"remittance": remittance.pk}
+    dims = {"remittance": remittance.pk, "branch": from_location}
     if reservation is not None:
         dims["reservation"] = getattr(reservation, "pk", reservation)
     if invoice is not None:
@@ -712,14 +712,14 @@ def post_remittance_receive(remittance, *, expected_sar, received_sar, created_b
     """Kas Pusat terima; selisih expected vs received → beban bank."""
     entry_date = entry_date or remittance.date or timezone.now().date()
     lines = [
-        {"account": coa.CASH_PUSAT, "debit": received_sar, "remittance": remittance.pk},
+        {"account": coa.CASH_PUSAT, "debit": received_sar, "remittance": remittance.pk, "branch": "pusat"},
         {"account": coa.TRANSIT, "credit": expected_sar, "remittance": remittance.pk},
     ]
     diff = expected_sar - received_sar
     if diff > 0:
-        lines.append({"account": coa.EXP_BANKFEE, "debit": diff, "remittance": remittance.pk})
+        lines.append({"account": coa.EXP_BANKFEE, "debit": diff, "remittance": remittance.pk, "branch": "pusat"})
     elif diff < 0:
-        lines.append({"account": coa.INC_FX_GAIN, "credit": -diff, "remittance": remittance.pk})
+        lines.append({"account": coa.INC_FX_GAIN, "credit": -diff, "remittance": remittance.pk, "branch": "pusat"})
     return post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
         description=f"Remittance {remittance.remittance_number} diterima",
@@ -854,8 +854,8 @@ def post_refund(client, *, from_location, amount_sar, created_by, entry_date,
         description=f"Refund ke {client}",
         entry_date=entry_date,
         lines=[
-            {"account": debit_acc, "debit": amount_sar, "client": client.pk},
-            {"account": src, "credit": amount_sar, "client": client.pk},
+            {"account": debit_acc, "debit": amount_sar, "client": client.pk, "branch": from_location},
+            {"account": src, "credit": amount_sar, "client": client.pk, "branch": from_location},
         ],
         company=company,
         source_type="Client",

@@ -7,7 +7,7 @@ from django.test import TestCase
 from hw.models import Branch, HQObligation, Remittance
 from hw.models.journal import JournalEntry
 from hw.models.period import FinancialPeriod
-from hw.finance import settlement_service as svc
+from hw.finance import posting, settlement_service as svc
 from hw.finance import queries as fq
 from hw.finance.errors import FinanceError
 
@@ -89,3 +89,61 @@ class SettlementFlowTest(SettlementBase):
         )
         je = JournalEntry.objects.get(reference_type='RemittanceSettlement', reference_id=s1.pk)
         self.assertTrue(je.is_balanced)
+
+
+class RemittanceSettlementStatusTest(SettlementBase):
+    def test_none_without_amount_idr(self):
+        self.assertIsNone(self.rmt.settlement_status)
+
+    def test_sent_partially_fully(self):
+        self.rmt.amount_idr = 240_000_000
+        self.rmt.exchange_rate = 4800
+        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        self.assertEqual(self.rmt.settlement_status, 'sent')
+
+        svc.add_settlement(self.rmt, received_amount_sar=30000, received_date=date(2026, 4, 5),
+                           created_by=self.user)
+        self.assertEqual(self.rmt.settlement_status, 'partially_settled')
+
+        svc.add_settlement(self.rmt, received_amount_sar=20000, received_date=date(2026, 4, 8),
+                           created_by=self.user)
+        self.assertEqual(self.rmt.settlement_status, 'fully_settled')
+
+
+class CloseRemittanceDiffTest(SettlementBase):
+    def setUp(self):
+        super().setUp()
+        self.rmt.amount_idr = 240_000_000
+        self.rmt.exchange_rate = 4800  # expected_sar = 50000
+        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        posting.post_remittance_send(
+            self.rmt, from_location='sby', amount_sar=50000, created_by=self.user,
+        )
+
+    def test_shortfall_books_bank_fee(self):
+        svc.add_settlement(self.rmt, received_amount_sar=49500, received_date=date(2026, 4, 5),
+                           created_by=self.user)
+        svc.close_remittance_diff(self.rmt, created_by=self.user)
+        self.assertEqual(fq.account_balance('5100-EXP-BANKFEE'), 500)
+        self.assertEqual(fq.account_balance('1200-TRANSIT'), 0)
+
+    def test_double_close_is_rejected(self):
+        svc.add_settlement(self.rmt, received_amount_sar=49500, received_date=date(2026, 4, 5),
+                           created_by=self.user)
+        svc.close_remittance_diff(self.rmt, created_by=self.user)
+        with self.assertRaises(FinanceError):
+            svc.close_remittance_diff(self.rmt, created_by=self.user)
+
+    def test_no_diff_is_a_noop(self):
+        svc.add_settlement(self.rmt, received_amount_sar=50000, received_date=date(2026, 4, 5),
+                           created_by=self.user)
+        result = svc.close_remittance_diff(self.rmt, created_by=self.user)
+        self.assertIsNone(result)
+
+
+class MoneyAccountsOverviewTest(SettlementBase):
+    def test_overview_lists_seeded_cash_accounts(self):
+        rows = fq.money_accounts_overview()
+        codes = {r['branch'] for r in rows}
+        self.assertIn('sby', codes)
+        self.assertTrue(all(r['kind'] == 'cash' for r in rows))  # no bank accounts seeded
