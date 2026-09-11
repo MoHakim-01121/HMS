@@ -43,7 +43,7 @@ MODULES = (
     'landing',
     # Finance areas, each its own module so money operations can be granted
     # independently (least privilege / segregation of duties).
-    'payments', 'journal', 'statements', 'periods',
+    'payments', 'journal', 'statements', 'periods', 'expenses',
 )
 
 ACTIONS = ('view', 'create', 'edit', 'delete', 'export')
@@ -93,6 +93,7 @@ DEFAULT_ROLE_MATRIX = {
         'journal':     set(_READ),
         'statements':  set(_READ),
         'periods':     set(_READ),
+        'expenses':    set(_NO_DELETE),
     },
 
     # Read-only account: reporting, exports, PDF — nothing that mutates.
@@ -111,6 +112,7 @@ DEFAULT_ROLE_MATRIX = {
         'journal':    set(_READ),
         'statements': set(_READ),
         'periods':    set(_READ),
+        'expenses':   set(_READ),
     },
 }
 

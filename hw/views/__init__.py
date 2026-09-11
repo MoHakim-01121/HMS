@@ -72,6 +72,10 @@ from .payment_views import (
     payment_confirm, payment_reject, payment_reverse, payment_reallocate,
     payment_apply, payment_void, payment_export_csv,
 )
+from .expense_views import (
+    expense_list, expense_detail, expense_record, expense_pay, expense_void,
+    expense_export_csv,
+)
 from .dev_views import style_guide, health_check
 from .visit_views import (
     visit_cancel, visit_complete, visit_detail, visit_edit, visit_list,
