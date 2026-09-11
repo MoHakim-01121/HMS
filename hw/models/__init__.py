@@ -13,6 +13,7 @@ from .remittance import Remittance, RemittanceLine
 from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .bank import BankAccount, CashAccount
 from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
+from .settlement import HQObligation, RemittanceAllocation, RemittanceSettlement
 from .hotel import Hotel, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .penalty import CancellationPenalty
 from .reminder import WATarget, MessageTemplate
@@ -47,6 +48,8 @@ __all__ = [
     'BankAccount', 'CashAccount',
     # Expense (Master Architecture v2.0 FASE D)
     'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment',
+    # Settlement (Master Architecture v2.0 FASE E)
+    'HQObligation', 'RemittanceSettlement', 'RemittanceAllocation',
     # Hotel
     'Hotel', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     # Penalty

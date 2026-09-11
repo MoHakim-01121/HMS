@@ -4,7 +4,8 @@ from django.shortcuts import render
 from .models import (
     ActivityLog, Attachment, BankAccount, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
-    Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceLine,
+    HQObligation, Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceAllocation,
+    RemittanceLine, RemittanceSettlement,
     Reservation, RoleDefinition, Room, ServiceItem, TeamMember, UserProfile,
 )
 
@@ -142,6 +143,23 @@ class ExpenseAdmin(admin.ModelAdmin):
 class ExpenseCategoryAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'ledger_account', 'is_active')
     list_filter = ('is_active',)
+
+
+@admin.register(HQObligation)
+class HQObligationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'branch', 'amount_sar', 'status', 'due_date')
+    list_filter = ('branch', 'status')
+
+
+class RemittanceAllocationInline(admin.TabularInline):
+    model = RemittanceAllocation
+    extra = 0
+
+
+@admin.register(RemittanceSettlement)
+class RemittanceSettlementAdmin(admin.ModelAdmin):
+    list_display = ('remittance', 'received_amount_sar', 'received_date')
+    inlines = [RemittanceAllocationInline]
 
 
 admin.site.register(Reservation)
