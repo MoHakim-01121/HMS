@@ -132,6 +132,37 @@ def period_label(date_from=None, date_to=None):
     return 'Semua transaksi'
 
 
+def money_account_choices(branch=None):
+    """[{value, label, branch, currency}] for a receiving/paying-account
+    picker — value is "cash:<id>" or "bank:<id>", parsed back by
+    resolve_money_account(). Shared by payment_views and expense_views."""
+    from ..models.bank import BankAccount, CashAccount
+    cash_qs = CashAccount.objects.filter(is_active=True).select_related('branch')
+    bank_qs = BankAccount.objects.filter(is_active=True).select_related('branch')
+    if branch:
+        cash_qs = cash_qs.filter(branch_id=branch)
+        bank_qs = bank_qs.filter(branch_id=branch)
+    choices = []
+    for a in cash_qs:
+        choices.append({'value': f'cash:{a.pk}', 'label': f'{a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
+    for a in bank_qs:
+        choices.append({'value': f'bank:{a.pk}', 'label': f'{a.bank_name} {a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
+    return choices
+
+
+def resolve_money_account(value):
+    """"cash:<id>" / "bank:<id>" -> (bank_account, cash_account)."""
+    from ..models.bank import BankAccount, CashAccount
+    if not value or ':' not in value:
+        return None, None
+    kind, _, pk = value.partition(':')
+    if kind == 'cash':
+        return None, CashAccount.objects.filter(pk=pk).first()
+    if kind == 'bank':
+        return BankAccount.objects.filter(pk=pk).first(), None
+    return None, None
+
+
 def _client_options(active_company):
     """Active clients of a company as [{id, name}] options for form dropdowns."""
     from ..models import Client

@@ -1,7 +1,10 @@
 """FASE C — receiving_account + branch dimension threaded into journal lines."""
 from datetime import date
 
+import base64
+
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
 from django.test import TestCase
 
@@ -75,3 +78,44 @@ class ReceivingAccountTest(TestCase):
         )
         self.assertTrue(lines.exists())
         self.assertTrue(all(l.branch_id == 'sby' for l in lines))
+
+
+class PaymentRecordAccountPickerViewTest(TestCase):
+    """The Payment List 'Record Payment' dialog posts `account` (cash:<id> /
+    bank:<id>) instead of a raw `received_in` string."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('acctpick', password='pw12345')
+        self.user.profile.role = 'manager'
+        self.user.profile.save(update_fields=['role'])
+        self.client.force_login(self.user)
+        FinancialPeriod.objects.create(
+            name='2020-2030', company='konoz',
+            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+        )
+        self.client_obj = Client.objects.create(company='konoz', name='PT Picker')
+        self.inv = Invoice.objects.create(
+            invoice_number='INV-PICK-1', customer_name='PT Picker', client=self.client_obj,
+        )
+        self.jkt_cash = CashAccount.objects.get(branch_id='jkt')
+
+    def test_account_field_sets_cash_account_and_receiving_branch(self):
+        proof = SimpleUploadedFile('proof.png', base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+        ), content_type='image/png')
+        resp = self.client.post('/finance/payments/record/', {
+            'invoice_id': str(self.inv.pk), 'payment_date': '2026-02-01',
+            'amount': '4000', 'currency': 'SAR', 'exchange_rate': '1',
+            'account': f'cash:{self.jkt_cash.pk}', 'proof': proof,
+        })
+        self.assertEqual(resp.status_code, 302)
+        pr = PaymentRecord.objects.get(invoice=self.inv)
+        self.assertEqual(pr.cash_account_id, self.jkt_cash.pk)
+        self.assertEqual(pr.receiving_branch_code, 'jkt')
+
+    def test_list_props_expose_account_choices(self):
+        resp = self.client.get('/finance/payments/', HTTP_X_INERTIA='true')
+        self.assertEqual(resp.status_code, 200)
+        props = resp.json()['props']
+        self.assertIn('account_choices', props)
+        self.assertTrue(any(c['branch'] == 'jkt' for c in props['account_choices']))

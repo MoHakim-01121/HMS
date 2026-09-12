@@ -742,4 +742,5 @@ export const id = {
   "Created by": "Dibuat oleh",
   "Outstanding: {n} SAR": "Belum dibayar: {n} SAR",
   "Record Payment": "Catat Pembayaran",
+  "Received Into": "Diterima di",
 };

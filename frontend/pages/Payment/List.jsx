@@ -70,16 +70,7 @@ const STATUS_TONE = {
 // Same list the Penalty form offers.
 const CURRENCIES = ["SAR", "IDR", "USD"];
 
-// Where the money physically lands — drives ledger routing (see
-// hw/ledger.py cash_destination). "Direct" is no longer a method here:
-// the destination is what matters, not how the client paid.
-const RECEIVED_IN = [
-  { value: "sby", label: "Surabaya" },
-  { value: "jkt", label: "Jakarta" },
-  { value: "pusat", label: "HQ (Direct)" },
-];
-
-export default function List({ payments = [], status_choices = [], invoice_choices = [], stats = {}, pagination = null, status_filter = "all" }) {
+export default function List({ payments = [], status_choices = [], invoice_choices = [], account_choices = [], stats = {}, pagination = null, status_filter = "all" }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canCreate = perms.can("payments", "create");
@@ -96,7 +87,7 @@ export default function List({ payments = [], status_choices = [], invoice_choic
     currency: "SAR",
     exchange_rate: "1",
     method: "",
-    received_in: "sby",
+    account: account_choices[0]?.value || "",
     bank_name: "",
     reference: "",
     note: "",
@@ -401,11 +392,11 @@ export default function List({ payments = [], status_choices = [], invoice_choic
                         onChange={(v) => setRecordForm({ ...recordForm, exchange_rate: v })}
                         hint={sarEquiv ? `≈ ${sarEquiv} SAR` : undefined} />
                     )}
-                    <FormField label={t("Received In")} name="received_in">
-                      <Select value={recordForm.received_in} onValueChange={(v) => setRecordForm({ ...recordForm, received_in: v })}>
-                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <FormField label={t("Received Into")} name="account" required>
+                      <Select value={recordForm.account} onValueChange={(v) => setRecordForm({ ...recordForm, account: v })}>
+                        <SelectTrigger className="w-full"><SelectValue placeholder={t("Select account...")} /></SelectTrigger>
                         <SelectContent>
-                          {RECEIVED_IN.map((r) => <SelectItem key={r.value} value={r.value}>{t(r.label)}</SelectItem>)}
+                          {account_choices.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </FormField>

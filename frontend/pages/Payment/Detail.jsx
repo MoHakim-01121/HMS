@@ -372,7 +372,9 @@ export default function Detail({ payment = {}, reservations = [], logs = [], jou
                 : t("Not invoiced"),
             },
             payment.method ? { k: t("Method"), v: payment.method } : null,
-            payment.received_in_display ? { k: t("Received In"), v: payment.received_in_display } : null,
+            payment.receiving_account_label
+              ? { k: t("Received Into"), v: payment.receiving_account_label }
+              : payment.received_in_display ? { k: t("Received In"), v: payment.received_in_display } : null,
             paymentDate ? { k: t("Date"), v: paymentDate } : null,
             payment.reference ? { k: t("Reference"), v: payment.reference } : null,
             payment.bank_name ? { k: t("Bank"), v: payment.bank_name } : null,

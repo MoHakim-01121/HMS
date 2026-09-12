@@ -15,42 +15,19 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models.bank import BankAccount, CashAccount
 from ..models.branch import Branch
 from ..models.expense import Expense, ExpenseCategory, ExpensePayment
 from ..models.journal import JournalEntry
 from ..finance import expense_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
-from .helpers import get_active_company, serialize_journal_entry, _parse_date, _to_float, _is_mobile, pagination_props, csv_export_response
+from .helpers import (
+    get_active_company, serialize_journal_entry, _parse_date, _to_float, _is_mobile,
+    pagination_props, csv_export_response, money_account_choices, resolve_money_account,
+)
 
-
-def _account_choices(branch=None):
-    """[{value, label, branch, currency}] for the account picker — value is
-    "cash:<id>" or "bank:<id>", parsed back by _resolve_account()."""
-    cash_qs = CashAccount.objects.filter(is_active=True).select_related('branch')
-    bank_qs = BankAccount.objects.filter(is_active=True).select_related('branch')
-    if branch:
-        cash_qs = cash_qs.filter(branch_id=branch)
-        bank_qs = bank_qs.filter(branch_id=branch)
-    choices = []
-    for a in cash_qs:
-        choices.append({'value': f'cash:{a.pk}', 'label': f'{a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
-    for a in bank_qs:
-        choices.append({'value': f'bank:{a.pk}', 'label': f'{a.bank_name} {a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
-    return choices
-
-
-def _resolve_account(value):
-    """"cash:<id>" / "bank:<id>" -> (bank_account, cash_account)."""
-    if not value or ':' not in value:
-        return None, None
-    kind, _, pk = value.partition(':')
-    if kind == 'cash':
-        return None, CashAccount.objects.filter(pk=pk).first()
-    if kind == 'bank':
-        return BankAccount.objects.filter(pk=pk).first(), None
-    return None, None
+_account_choices = money_account_choices
+_resolve_account = resolve_money_account
 
 
 def _expense_props(e):
