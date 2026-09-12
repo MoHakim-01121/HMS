@@ -35,8 +35,8 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
 
     Dr Kas Pusat / Cr Kas Dalam Perjalanan (Transit), sebesar nominal yang
     BENAR-BENAR diterima. Selisih terhadap expected_sar (biaya transfer/FX)
-    tidak dibukukan di sini — direkonsiliasi terpisah saat remittance
-    dianggap fully settled (lihat TODO FASE I)."""
+    tidak dibukukan di sini — pakai close_remittance_diff() terpisah saat
+    remittance dianggap fully settled."""
     if received_amount_sar <= 0:
         raise FinanceError('received_amount_sar harus > 0')
 
@@ -59,6 +59,15 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
         source_id=settlement.pk,
         idempotency_key=f"settlement:{settlement.pk}:receive",
         created_by=created_by,
+    )
+
+    from ..models.bank import CashAccount
+    from .bank_ledger import record_bank_transaction
+    record_bank_transaction(
+        account=CashAccount.objects.filter(branch_id='pusat', is_active=True).first(),
+        direction='in', amount_sar=received_amount_sar,
+        source_type='RemittanceSettlement', source_id=settlement.pk,
+        transaction_date=received_date, reference=reference,
     )
     return settlement
 

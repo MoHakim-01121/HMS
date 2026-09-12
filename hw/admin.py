@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import render
 
 from .models import (
-    ActivityLog, Attachment, BankAccount, Branch, CashAccount, Client, ConfirmationLetter,
+    ActivityLog, Attachment, BankAccount, BankTransaction, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
     HQObligation, Hotel, Invoice, MealPlan, Payment, Pricelist, Remittance, RemittanceAllocation,
     RemittanceLine, RemittanceSettlement,
@@ -131,6 +131,13 @@ class BankAccountAdmin(admin.ModelAdmin):
 class CashAccountAdmin(admin.ModelAdmin):
     list_display = ('name', 'branch', 'currency', 'is_active')
     list_filter = ('branch', 'currency', 'is_active')
+
+
+@admin.register(BankTransaction)
+class BankTransactionAdmin(admin.ModelAdmin):
+    list_display = ('transaction_date', 'account', 'direction', 'amount_sar', 'source_type', 'source_id', 'status')
+    list_filter = ('direction', 'status', 'source_type')
+    date_hierarchy = 'transaction_date'
 
 
 class ExpenseLineInline(admin.TabularInline):

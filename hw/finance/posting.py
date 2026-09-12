@@ -582,7 +582,7 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim})
         lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})
 
-    return post_entry(
+    entry = post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
         description=f"Payment {payment.payment_number} - {', '.join(_payment_targets(payment)) or 'unallocated'}",
         entry_date=payment.payment_date,
@@ -593,6 +593,16 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         idempotency_key=idempotency_key or f"payment:{payment.payment_number}:confirm",
         created_by=created_by,
     )
+    # Traceable movement log (v2.0 §25-28) — no-op for legacy payments with no
+    # concrete receiving_account (received_in-only rows).
+    from .bank_ledger import record_bank_transaction
+    record_bank_transaction(
+        account=acc, direction="in", amount_sar=amt,
+        source_type="PaymentRecord", source_id=payment.pk,
+        transaction_date=payment.payment_date, currency=payment.currency,
+        reference=payment.reference,
+    )
+    return entry
 
 
 def client_credit_balance(client_id, company=None):

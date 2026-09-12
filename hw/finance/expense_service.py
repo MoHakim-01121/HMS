@@ -140,6 +140,13 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
     )
     expense.status = expense.derive_status()
     expense.save(update_fields=['status', 'updated_at'])
+
+    from .bank_ledger import record_bank_transaction
+    record_bank_transaction(
+        account=src, direction='out', amount_sar=amt_sar,
+        source_type='ExpensePayment', source_id=ep.pk,
+        transaction_date=payment_date, currency=currency, reference=reference,
+    )
     return ep
 
 
