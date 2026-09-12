@@ -61,3 +61,23 @@ class CLHotelRoomTypeLinkTest(TestCase):
             hotel_props['room_types'],
             [{'id': self.room_type.pk, 'name': 'Double View Kaaba', 'capacity': 2}],
         )
+
+    def test_cl_edit_get_includes_room_type_ref_id(self):
+        self.client.post('/cl/new/', self._cl_payload(room_type_id=self.room_type.pk))
+        cl = ConfirmationLetter.objects.get(confirmation_number='CL-LINK-001')
+        room = cl.rooms.get()
+        self.assertEqual(room.room_type_ref_id, self.room_type.pk)
+        resp = self.client.get(f'/cl/{cl.pk}/edit/', HTTP_X_INERTIA='true')
+        self.assertEqual(resp.status_code, 200)
+        room_data = resp.json()['props']['cl']['rooms'][0]
+        self.assertEqual(room_data['room_type_id'], self.room_type.pk)
+
+    def test_cl_edit_get_returns_empty_string_for_null_room_type_ref(self):
+        payload = self._cl_payload()
+        payload['hotel_id'] = ''
+        self.client.post('/cl/new/', payload)
+        cl = ConfirmationLetter.objects.get(confirmation_number='CL-LINK-001')
+        resp = self.client.get(f'/cl/{cl.pk}/edit/', HTTP_X_INERTIA='true')
+        self.assertEqual(resp.status_code, 200)
+        room_data = resp.json()['props']['cl']['rooms'][0]
+        self.assertEqual(room_data['room_type_id'], "")

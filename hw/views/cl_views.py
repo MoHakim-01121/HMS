@@ -379,8 +379,8 @@ def cl_edit(request, pk):
         return redirect("cl_detail", pk=cl.pk)
 
     rooms = [{
-        "room_type": r.room_type, "meals": r.meals,
-        "quantity": r.quantity, "price": float(r.price),
+        "room_type": r.room_type, "room_type_id": r.room_type_ref_id or "",
+        "meals": r.meals, "quantity": r.quantity, "price": float(r.price),
     } for r in cl.rooms.all()]
     return inertia_render(request, "Cl/Form", props={
         "cl": {

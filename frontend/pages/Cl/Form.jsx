@@ -37,6 +37,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     // Company is set server-side from the active company; not a form field.
     client_id: c.client_id || "",
     hotel_name: c.hotel_name || "",
+    hotel_id: c.hotel_id || "",
     guest_name: c.guest_name || "",
     guest_phone: c.guest_phone || "",
     check_in: c.check_in || "",
@@ -44,7 +45,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     confirmation_number: c.confirmation_number || suggested_number || "",
     reservation_status: c.reservation_status || "DEFINITE",
     note: c.note || "",
-    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", meals: "", quantity: 1, price: "" }],
+    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", room_type_id: "", meals: "", quantity: 1, price: "" }],
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
@@ -63,11 +64,49 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     form.setData("client_id", String(cl.id));
   };
 
+  // Hotel = optional link to the catalog (RoomType-scoped rooms). Typed text
+  // that doesn't match a cataloged hotel keeps hotel_id empty — rooms then
+  // fall back to free text (see RoomRows). Switching hotels always clears
+  // any room_type selections made against the previous catalog.
+  const hotelList = hotels || [];
+  const selectedHotel = hotelList.find((h) => String(h.id) === String(form.data.hotel_id));
+  const resetRoomTypesIfHotelChanged = (newHotelId) => {
+    if (String(newHotelId || "") !== String(form.data.hotel_id || "")) {
+      form.setData("rooms", form.data.rooms.map((r) => ({ ...r, room_type_id: "", room_type: "" })));
+    }
+  };
+  const onHotelText = (text) => {
+    const q = text.trim().toLowerCase();
+    const match = hotelList.find((h) => h.name.toLowerCase() === q);
+    form.setData("hotel_name", text);
+    if (match) {
+      resetRoomTypesIfHotelChanged(String(match.id));
+      form.setData("hotel_id", String(match.id));
+    } else {
+      resetRoomTypesIfHotelChanged("");
+      form.setData("hotel_id", "");
+    }
+  };
+  const onHotelSelect = (h) => {
+    resetRoomTypesIfHotelChanged(String(h.id));
+    form.setData("hotel_name", h.name);
+    form.setData("hotel_id", String(h.id));
+  };
+
   const nights = nightsBetween(form.data.check_in, form.data.check_out);
   const rooms = form.data.rooms;
   const total = nights * rooms.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price) || 0), 0);
   const totalRooms = rooms.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-  const capacity = rooms.reduce((s, r) => s + (CAPACITY[r.room_type] || 1) * (Number(r.quantity) || 0), 0);
+  // Cataloged rooms use the linked RoomType's real capacity; uncataloged
+  // (legacy free-text) rooms fall back to the old fixed guess.
+  const roomTypeCapacity = (r) => {
+    if (r.room_type_id && selectedHotel) {
+      const rt = selectedHotel.room_types.find((t) => String(t.id) === String(r.room_type_id));
+      if (rt) return rt.capacity;
+    }
+    return CAPACITY[r.room_type] || 1;
+  };
+  const capacity = rooms.reduce((s, r) => s + roomTypeCapacity(r) * (Number(r.quantity) || 0), 0);
 
   // Room-type mix for the summary rail — one bar segment + one legend line per
   // distinct room type that carries a subtotal.
@@ -174,9 +213,9 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                   <Combobox
                     name="hotel_name"
                     value={form.data.hotel_name}
-                    onTextChange={(text) => form.setData("hotel_name", text)}
-                    onSelect={(h) => form.setData("hotel_name", h.name)}
-                    options={hotels || []}
+                    onTextChange={onHotelText}
+                    onSelect={onHotelSelect}
+                    options={hotelList}
                     getLabel={(o) => o.name}
                     getSub={(o) => o.city || ""}
                     placeholder={t("Search hotel or type name…")}
@@ -205,7 +244,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                 <span className="rd-sec-desc">{t("Subtotal = qty × rate × nights, filled automatically.")}</span>
               </div>
               <div className="rd-sec-b">
-                <RoomRows rooms={rooms} onChange={(next) => form.setData("rooms", next)} nights={nights} />
+                <RoomRows
+                  rooms={rooms} onChange={(next) => form.setData("rooms", next)} nights={nights}
+                  roomTypes={selectedHotel ? selectedHotel.room_types : null}
+                  addHotelHref={`/hotels/new/?name=${encodeURIComponent(form.data.hotel_name || "")}`}
+                  editHotelHref={selectedHotel ? `/hotels/${selectedHotel.id}/edit/` : null}
+                />
                 <div className="rd-rooms-foot">
                   <span>{totalRooms} {t(totalRooms === 1 ? "room" : "rooms")} · {t("capacity")} {capacity} {t("pax")}</span>
                   <span className="rd-rooms-foot-total">{t("Total")} {fmt(total)} <span className="cur">SAR</span></span>

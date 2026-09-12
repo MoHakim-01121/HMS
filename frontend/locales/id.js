@@ -788,4 +788,10 @@ export const id = {
   "Book Balance": "Saldo Buku",
   "No accounts found": "Tidak ada rekening",
   "No bank or cash accounts are set up yet.": "Belum ada rekening bank atau kas yang disiapkan.",
+
+  // CL hotel room-type catalog scoping
+  "Select a hotel from the catalog to add rooms.": "Pilih hotel dari katalog untuk menambah kamar.",
+  "+ Add this hotel": "+ Tambah hotel ini",
+  "This hotel has no room types yet.": "Hotel ini belum punya tipe kamar.",
+  "Add room types on the hotel's edit page": "Tambahkan tipe kamar di halaman edit hotel",
 };
