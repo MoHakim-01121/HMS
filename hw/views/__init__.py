@@ -55,6 +55,7 @@ from .remittance_views import (
 )
 from .settlement_views import (
     settlement_list, obligation_new, settlement_new, settlement_allocate,
+    remittance_close_diff,
 )
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
@@ -62,7 +63,7 @@ from .penalty_views import (
 )
 from .finance_views import (
     journal_list, journal_detail, trial_balance, statements_list,
-    client_finance_statement,
+    client_finance_statement, bank_account_list,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,

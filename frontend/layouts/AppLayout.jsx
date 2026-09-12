@@ -49,6 +49,7 @@ const NAV_GROUPS = [
       { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "wallet", perm: "remittance" },
       { key: "settlement", label: "HQ Settlement", href: "/remittance/settlement/", icon: "wallet", perm: "remittance" },
       { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "clients", perm: "statements" },
+      { key: "bank_accounts", label: "Bank Balances", href: "/finance/bank-accounts/", icon: "wallet", perm: "statements" },
       { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "tag", perm: "penalty" },
       { key: "journal", label: "Journal", href: "/finance/journal/", icon: "invoice", perm: "journal" },
       { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", icon: "sort", perm: "journal" },
@@ -86,6 +87,7 @@ const PAGE_TITLES = {
   expenses: "Expenses",
   periods: "Periods",
   statements: "Client Ledger",
+  bank_accounts: "Bank Balances",
   penalties: "Penalties",
   journal: "Journal",
   trial_balance: "Trial Balance",
@@ -111,7 +113,8 @@ function pageKeyFromUrl(url) {
     ["/visits", "visits"], ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
     ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
-    ["/finance/statements", "statements"], ["/finance/penalties", "penalties"],
+    ["/finance/statements", "statements"], ["/finance/bank-accounts", "bank_accounts"],
+    ["/finance/penalties", "penalties"],
     ["/penalty", "penalties"],
   ];
   for (const [pre, key] of map) if (url.startsWith(pre)) return key;

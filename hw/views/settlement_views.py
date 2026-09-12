@@ -14,17 +14,45 @@ import json
 from datetime import date
 
 from django.contrib import messages
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
 from ..models.branch import Branch
+from ..models.journal import JournalEntry
 from ..models.remittance import Remittance
 from ..models.settlement import HQObligation, RemittanceSettlement
 from ..finance import settlement_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float
+
+
+def _pending_diff_rows():
+    """Remittances with settlements recorded, a known expected_sar, a
+    non-zero gap against Σ received, and no diff entry booked yet."""
+    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
+    closed_ids = set(JournalEntry.objects.filter(
+        reference_type='RemittanceDiff', is_reversal=False,
+    ).exclude(pk__in=reversed_ids).values_list('reference_id', flat=True))
+
+    rows = []
+    for r in Remittance.objects.filter(settlements__isnull=False).distinct():
+        if r.pk in closed_ids:
+            continue
+        expected = r.expected_sar
+        if expected is None:
+            continue
+        received_total = r.settlements.aggregate(t=Sum('received_amount_sar'))['t'] or 0
+        diff = expected - received_total
+        if diff == 0:
+            continue
+        rows.append({
+            'id': r.pk, 'remittance_number': r.remittance_number,
+            'expected_sar': expected, 'received_total_sar': received_total, 'diff_sar': diff,
+        })
+    return rows
 
 
 def _obligation_props(o):
@@ -76,6 +104,7 @@ def settlement_list(request):
     return inertia_render(request, 'Settlement/List', props={
         'obligations': [_obligation_props(o) for o in obligations],
         'settlements': [_settlement_props(s) for s in settlements],
+        'pending_diff': _pending_diff_rows(),
         'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
         'remittance_choices': [
             {'value': r.pk, 'label': f'{r.remittance_number} ({r.date})'}
@@ -172,6 +201,23 @@ def settlement_allocate(request, pk):
     try:
         settlement_service.allocate_settlement(settlement, allocations, created_by=request.user)
         messages.success(request, 'Alokasi settlement tercatat.')
+    except FinanceError as e:
+        messages.error(request, str(e))
+
+    return redirect('settlement_list')
+
+
+@require_perm('remittance', 'edit')
+def remittance_close_diff(request, pk):
+    """Book the expected-vs-received difference (bank fee/FX) for a
+    remittance once its settlements are considered final."""
+    remittance = get_object_or_404(Remittance, pk=pk)
+    if request.method != 'POST':
+        return redirect('settlement_list')
+
+    try:
+        settlement_service.close_remittance_diff(remittance, created_by=request.user)
+        messages.success(request, f'Selisih {remittance.remittance_number} dibukukan.')
     except FinanceError as e:
         messages.error(request, str(e))
 

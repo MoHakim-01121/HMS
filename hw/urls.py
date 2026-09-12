@@ -106,6 +106,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('remittance/settlement/obligations/new/', views.obligation_new, name='obligation_new'),
     path('remittance/settlement/new/', views.settlement_new, name='settlement_new'),
     path('remittance/settlement/<int:pk>/allocate/', views.settlement_allocate, name='settlement_allocate'),
+    path('remittance/settlement/remittances/<int:pk>/close-diff/', views.remittance_close_diff, name='remittance_close_diff'),
 
     # User management (the 'users' module in hw/permissions.py)
     path('users/', views.user_list, name='user_list'),
@@ -191,6 +192,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/journal/<int:pk>/', views.journal_detail, name='journal_detail'),
     path('finance/trial-balance/', views.trial_balance, name='trial_balance'),
     path('finance/statements/', views.statements_list, name='statements_list'),
+    path('finance/bank-accounts/', views.bank_account_list, name='bank_account_list'),
     path('finance/penalties/', views.penalty_list, name='penalty_list'),
 
     # ── Receipts (Kwitansi) ──

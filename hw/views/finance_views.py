@@ -151,6 +151,22 @@ def statements_list(request):
 
 
 @require_perm('statements', 'view')
+def bank_account_list(request):
+    """Bank/cash balance overview (v2.0 §78). Read-only: accounts themselves
+    are business-managed data (Django admin), balance is a pure projection
+    from the journal (finance.queries.money_accounts_overview)."""
+    from ..models.branch import Branch
+
+    branch = request.GET.get('branch')
+    rows = finance_queries.money_accounts_overview(branch=branch or None)
+    return inertia_render(request, 'Finance/BankAccounts', props={
+        'accounts': rows,
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        'branch_filter': branch or '',
+    })
+
+
+@require_perm('statements', 'view')
 def client_finance_statement(request, pk):
     """Client finance statement from JournalEntries (unified query path).
 

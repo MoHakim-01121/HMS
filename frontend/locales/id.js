@@ -773,4 +773,19 @@ export const id = {
   "{n} SAR unallocated from {remittance}.": "{n} SAR belum teralokasi dari {remittance}.",
   "No open obligations to allocate to.": "Tidak ada kewajiban terbuka untuk dialokasikan.",
   "Save": "Simpan",
+  "Pending Reconciliation": "Rekonsiliasi Tertunda",
+  "Expected (SAR)": "Ekspektasi (SAR)",
+  "Difference (SAR)": "Selisih (SAR)",
+  "Close Difference": "Bukukan Selisih",
+  "Book the {n} SAR difference for {remittance} as a bank fee/FX gain? This cannot be edited afterwards — only reversed.": "Bukukan selisih {n} SAR untuk {remittance} sebagai biaya bank/laba kurs? Tidak bisa diedit setelah ini — hanya bisa di-reverse.",
+
+  // Bank balances page
+  "Bank Balances": "Saldo Bank",
+  "Book balance per account, derived from the journal — not a stored figure.": "Saldo buku per rekening, diturunkan dari jurnal — bukan angka tersimpan.",
+  "Type": "Jenis",
+  "Bank": "Bank",
+  "Cash": "Kas",
+  "Book Balance": "Saldo Buku",
+  "No accounts found": "Tidak ada rekening",
+  "No bank or cash accounts are set up yet.": "Belum ada rekening bank atau kas yang disiapkan.",
 };

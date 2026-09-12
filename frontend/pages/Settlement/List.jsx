@@ -16,6 +16,7 @@ import {
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 
@@ -29,10 +30,22 @@ const STATUS_TONE = {
 const EMPTY_OBLIGATION = { branch: "", amount_sar: "", due_date: "", note: "" };
 const EMPTY_SETTLEMENT = { remittance: "", received_amount_sar: "", received_date: new Date().toISOString().split("T")[0], reference: "", note: "" };
 
-export default function List({ obligations = [], settlements = [], branch_choices = [], remittance_choices = [] }) {
+export default function List({ obligations = [], settlements = [], pending_diff = [], branch_choices = [], remittance_choices = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("remittance", "edit");
+  const [confirm, confirmDialog] = useConfirm();
+
+  const closeDiff = (row) => {
+    confirm({
+      title: t("Close Difference"),
+      message: t("Book the {n} SAR difference for {remittance} as a bank fee/FX gain? This cannot be edited afterwards — only reversed.", {
+        n: Math.abs(row.diff_sar).toLocaleString(), remittance: row.remittance_number,
+      }),
+      danger: true,
+      onConfirm: () => router.post(`/remittance/settlement/remittances/${row.id}/close-diff/`),
+    });
+  };
 
   const [obDialog, setObDialog] = useState(false);
   const [obForm, setObForm] = useState({ ...EMPTY_OBLIGATION });
@@ -117,6 +130,37 @@ export default function List({ obligations = [], settlements = [], branch_choice
           ) : null
         }
       />
+
+      {pending_diff.length > 0 && (
+        <div className="hms-list-card" style={{ marginBottom: 24 }}>
+          <div style={{ padding: "16px 20px 0", fontWeight: 600, fontSize: 14 }}>{t("Pending Reconciliation")}</div>
+          <DetailTable
+            columns={[
+              { header: t("Remittance"), render: (r) => r.remittance_number },
+              { header: t("Expected (SAR)"), align: "right", render: (r) => r.expected_sar?.toLocaleString() },
+              { header: t("Received (SAR)"), align: "right", render: (r) => r.received_total_sar?.toLocaleString() },
+              {
+                header: t("Difference (SAR)"), align: "right",
+                render: (r) => (
+                  <span style={{ color: r.diff_sar > 0 ? "var(--yellow)" : "var(--green)" }}>
+                    {r.diff_sar > 0 ? "−" : "+"}{Math.abs(r.diff_sar).toLocaleString()}
+                  </span>
+                ),
+              },
+              {
+                header: "",
+                render: (r) => (
+                  canEdit ? (
+                    <RowActions actions={[{ icon: "check", label: t("Close Difference"), onClick: () => closeDiff(r) }]} />
+                  ) : null
+                ),
+              },
+            ]}
+            rows={pending_diff}
+            rowKey={(r) => r.id}
+          />
+        </div>
+      )}
 
       <div className="hms-list-card">
         <div style={{ padding: "16px 20px 0", fontWeight: 600, fontSize: 14 }}>{t("Obligations")}</div>
@@ -226,6 +270,8 @@ export default function List({ obligations = [], settlements = [], branch_choice
           </DialogContent>
         </Dialog>
       )}
+
+      {confirmDialog}
     </div>
   );
 }
