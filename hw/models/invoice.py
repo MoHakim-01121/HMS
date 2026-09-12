@@ -173,6 +173,22 @@ class Reservation(models.Model):
     class Meta:
         verbose_name        = 'Reservation'
         verbose_name_plural = 'Reservations'
+        constraints = [
+            # v2.0 §12: check_out > check_in. Verified data-safe against
+            # production before adding (2026-09-12): 0 of 84 existing
+            # reservations violate this, including 0 same-day (check_out ==
+            # check_in) rows -- so there is no known legitimate day-use
+            # booking pattern this would break. Only ConfirmationLetter's
+            # own dates were left unchecked (that query was blocked
+            # mid-audit) -- this constraint is NOT mirrored there.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(check_in__isnull=True) | models.Q(check_out__isnull=True)
+                    | models.Q(check_out__gt=models.F('check_in'))
+                ),
+                name='reservation_check_out_after_check_in',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.reservation_number} | {self.hotel}"
