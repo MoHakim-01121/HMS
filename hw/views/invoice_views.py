@@ -490,6 +490,7 @@ def invoice_duplicate(request, pk):
             for res in original.reservations.all():
                 Reservation.objects.create(
                     invoice=new_inv,
+                    client_id=original.client_id,
                     reservation_number=res.reservation_number,
                     hotel=res.hotel,
                     check_in=res.check_in,
@@ -515,19 +516,20 @@ def _save_reservations(invoice, request):
     except (ValueError, TypeError):
         rows = []
     with transaction.atomic():
+        if not invoice.client_id and _billing_client(invoice):
+            invoice.client = _billing_client(invoice)
+            invoice.save(update_fields=['client', 'customer_name'])
         for r in rows:
             total_sar = int(round(_to_float(r.get("reservation_total"))))
             Reservation.objects.create(
                 invoice=invoice,
+                client_id=invoice.client_id,
                 reservation_number=(r.get("reservation_number") or "-").strip() or "-",
                 hotel=(r.get("hotel") or "-").strip() or "-",
                 check_in=_parse_date(r.get("check_in")),
                 check_out=_parse_date(r.get("check_out")),
                 total_sar=total_sar,
             )
-        if not invoice.client_id and _billing_client(invoice):
-            invoice.client = _billing_client(invoice)
-            invoice.save(update_fields=['client', 'customer_name'])
         if invoice.client_id:
             post_invoice_charge(invoice, created_by=request.user)
     logger.info(

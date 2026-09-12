@@ -557,6 +557,8 @@ def invoice_from_cls(request):
             total_sar = round_half_up(cl.total_price) if cl.total_price else 0
             Reservation.objects.create(
                 invoice=invoice,
+                confirmation_letter=cl,
+                client_id=cl.client_id,
                 reservation_number=cl.confirmation_number,
                 hotel=cl.hotel_name or "-",
                 check_in=cl.check_in,
@@ -618,6 +620,8 @@ def _sync_invoice_reservation_from_cl(cl, user=None):
         reservation.check_out = cl.check_out
         reservation.total_sar = round_half_up(cl.total_price) if cl.total_price else 0
         reservation.hotel = cl.hotel_name or "-"
+        reservation.confirmation_letter = cl
+        reservation.client_id = cl.client_id
         reservation.save()
 
         invoice = cl.invoice

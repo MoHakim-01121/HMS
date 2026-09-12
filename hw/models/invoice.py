@@ -117,6 +117,14 @@ class Reservation(models.Model):
     # Cabang pemilik order. Nullable selama FASE A (di-backfill ke SBY); v2.0 §4
     # membedakan owner branch dari cabang penerima uang (nanti dari BankAccount).
     owner_branch       = models.ForeignKey('Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='reservations')
+    # v2.0 §12: Reservation harus tetap bisa ditelusuri ke Client dan CL.
+    # Sebelumnya keduanya cuma bisa ditemukan via invoice.client / pencocokan
+    # string reservation_number == cl.confirmation_number pada invoice yang
+    # sama (aturan implisit yang sudah dipakai _sync_invoice_reservation_from_cl).
+    # FK langsung ini menggantikan pencocokan string itu — data historis
+    # di-backfill sekali pakai aturan yang persis sama (lihat migrasi).
+    client              = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='reservations')
+    confirmation_letter = models.ForeignKey('ConfirmationLetter', null=True, blank=True, on_delete=models.SET_NULL, related_name='reservations')
     reservation_number = models.CharField(max_length=100)
     hotel              = models.CharField(max_length=200, blank=True)
     check_in           = models.DateField(null=True, blank=True)
