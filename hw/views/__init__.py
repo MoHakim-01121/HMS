@@ -57,6 +57,10 @@ from .settlement_views import (
     settlement_list, obligation_new, settlement_new, settlement_allocate,
     remittance_close_diff,
 )
+from .reconciliation_views import (
+    reconciliation_list, reconciliation_new, reconciliation_detail,
+    reconciliation_match, reconciliation_unmatch,
+)
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
     penalty_list,

@@ -193,6 +193,11 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/trial-balance/', views.trial_balance, name='trial_balance'),
     path('finance/statements/', views.statements_list, name='statements_list'),
     path('finance/bank-accounts/', views.bank_account_list, name='bank_account_list'),
+    path('finance/reconciliation/', views.reconciliation_list, name='reconciliation_list'),
+    path('finance/reconciliation/new/', views.reconciliation_new, name='reconciliation_new'),
+    path('finance/reconciliation/<int:pk>/', views.reconciliation_detail, name='reconciliation_detail'),
+    path('finance/reconciliation/lines/<int:pk>/match/', views.reconciliation_match, name='reconciliation_match'),
+    path('finance/reconciliation/lines/<int:pk>/unmatch/', views.reconciliation_unmatch, name='reconciliation_unmatch'),
     path('finance/penalties/', views.penalty_list, name='penalty_list'),
 
     # ── Receipts (Kwitansi) ──
