@@ -27,6 +27,25 @@ class Invoice(models.Model):
         (STATUS_VOID,    'Void'),
     ]
 
+    # v2.0 §15 — financial state, derived, NEVER persisted (unlike `status`
+    # above, which mixes it with lifecycle and IS persisted by sync_status()).
+    # Audit note (FASE G): STATUS_SENT/STATUS_VOID/STATUS_OVERDUE above are
+    # never actually assigned anywhere in the codebase today — sync_status()
+    # only ever produces draft/partial/paid, and there is no invoice-void
+    # workflow. So `status`'s "lifecycle" half is currently vestigial, not a
+    # real state machine to migrate off of. `financial_state` is additive:
+    # it does not replace `status`, and nothing existing reads it yet.
+    FINANCIAL_STATE_UNPAID   = 'unpaid'
+    FINANCIAL_STATE_PARTIAL  = 'partial'
+    FINANCIAL_STATE_PAID     = 'paid'
+    FINANCIAL_STATE_OVERDUE  = 'overdue'
+    FINANCIAL_STATE_CHOICES = [
+        (FINANCIAL_STATE_UNPAID,  'Unpaid'),
+        (FINANCIAL_STATE_PARTIAL, 'Partial'),
+        (FINANCIAL_STATE_PAID,    'Paid'),
+        (FINANCIAL_STATE_OVERDUE, 'Overdue'),
+    ]
+
     # ── Core fields ───────────────────────────────────────────
     company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
@@ -88,6 +107,26 @@ class Invoice(models.Model):
     @property
     def is_fully_paid(self):
         return self.total_paid_sar >= self.total_sar and self.total_sar > 0
+
+    @property
+    def financial_state(self):
+        """Derived financial state (v2.0 §15) — computed fresh every read,
+        never stored. Distinct vocabulary from `status`: 'unpaid' here maps
+        to whatever `status` happens to hold when nothing has been paid
+        (draft, sent, or an unpaid partial-lifecycle value alike)."""
+        from datetime import date
+        total, paid = self.total_sar, self.total_paid_sar
+        if total > 0 and paid >= total:
+            return self.FINANCIAL_STATE_PAID
+        if self.due_date and self.due_date < date.today() and paid < total:
+            return self.FINANCIAL_STATE_OVERDUE
+        if paid > 0:
+            return self.FINANCIAL_STATE_PARTIAL
+        return self.FINANCIAL_STATE_UNPAID
+
+    @property
+    def financial_state_display(self):
+        return dict(self.FINANCIAL_STATE_CHOICES)[self.financial_state]
 
     def sync_status(self):
         """Recompute & persist `status` from total_paid_sar/total_sar,
