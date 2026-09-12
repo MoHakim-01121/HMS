@@ -4,7 +4,7 @@ from django.shortcuts import render
 from .models import (
     ActivityLog, Attachment, BankAccount, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
-    HQObligation, Hotel, Invoice, Payment, Pricelist, Remittance, RemittanceAllocation,
+    HQObligation, Hotel, Invoice, MealPlan, Payment, Pricelist, Remittance, RemittanceAllocation,
     RemittanceLine, RemittanceSettlement,
     Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
 )
@@ -53,9 +53,15 @@ class HotelAdmin(admin.ModelAdmin):
 
 @admin.register(RoomType)
 class RoomTypeAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'hotel', 'capacity', 'is_active')
-    list_filter   = ('is_active', 'hotel__company')
+    list_display  = ('name', 'hotel', 'capacity', 'occupancy', 'view', 'is_active')
+    list_filter   = ('is_active', 'occupancy', 'view', 'hotel__company')
     search_fields = ('name', 'hotel__name')
+
+
+@admin.register(MealPlan)
+class MealPlanAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'is_active')
+    list_filter = ('is_active',)
 
 
 @admin.register(Payment)

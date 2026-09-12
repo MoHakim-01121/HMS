@@ -88,10 +88,33 @@ class Hotel(models.Model):
         return math.ceil(jamaah_count / float(self.avg_occupancy))
 
 
+class Occupancy(models.TextChoices):
+    """Master Architecture v2.0 §8.2 — controlled vocabulary. Optional: rooms
+    created before this field existed, or named freely, leave it blank."""
+    DOUBLE = 'double', 'Double'
+    TRIPLE = 'triple', 'Triple'
+    QUAD   = 'quad',   'Quad'
+    QUINT  = 'quint',  'Quint'
+
+
+class RoomView(models.TextChoices):
+    """v2.0 §8.3 — controlled vocabulary. Optional, same rationale as Occupancy."""
+    NON_VIEW = 'non_view', 'Non View'
+    CITY     = 'city',     'City View'
+    KAABA    = 'kaaba',    'Kaaba View'
+    HARAM    = 'haram',    'Haram View'
+    OTHER    = 'other',    'Other'
+
+
 class RoomType(models.Model):
     hotel      = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='room_types')
     name       = models.CharField(max_length=100)
     capacity   = models.PositiveSmallIntegerField(default=2, help_text='Guests per room')
+    # Structured dimensions (v2.0 §8.2-8.3), optional on top of the free-form
+    # `name` — existing catalogs keep working ("Quad Kaaba View" as one
+    # string) while new entries can also carry these for filtering/reporting.
+    occupancy  = models.CharField(max_length=10, choices=Occupancy.choices, blank=True)
+    view       = models.CharField(max_length=10, choices=RoomView.choices, blank=True)
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

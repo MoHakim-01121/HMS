@@ -794,4 +794,16 @@ export const id = {
   "+ Add this hotel": "+ Tambah hotel ini",
   "This hotel has no room types yet.": "Hotel ini belum punya tipe kamar.",
   "Add room types on the hotel's edit page": "Tambahkan tipe kamar di halaman edit hotel",
+
+  // RoomType occupancy/view controlled vocabulary
+  "— Optional —": "— Opsional —",
+  "Double": "Double",
+  "Triple": "Triple",
+  "Quad": "Quad",
+  "Quint": "Quint",
+  "Non View": "Non View",
+  "City View": "City View",
+  "Kaaba View": "Kaaba View",
+  "Haram View": "Haram View",
+  "Other": "Lainnya",
 };

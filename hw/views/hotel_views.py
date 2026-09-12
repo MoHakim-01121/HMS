@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Hotel, RoomType, log_activity
+from ..models import ActivityLog, Hotel, Occupancy, RoomType, RoomView, log_activity
 from ..permissions import require_perm
 from .helpers import _is_mobile, get_active_company, pagination_props, snapshot_fields, track_changes
 
@@ -54,6 +54,9 @@ def _save_hotel_room_types(h, data):
     except (ValueError, TypeError):
         room_types = []
 
+    valid_occupancy = {c for c, _ in Occupancy.choices}
+    valid_view = {c for c, _ in RoomView.choices}
+
     # Finding 2 fix: wrap in transaction.atomic() to prevent partial commits
     with transaction.atomic():
         kept_ids = set()
@@ -65,9 +68,17 @@ def _save_hotel_room_types(h, data):
                 capacity = max(1, int(rt_data.get('capacity') or 1))
             except (ValueError, TypeError):
                 capacity = 1
+            # Optional structured fields (v2.0 §8.2-8.3) — silently blanked if
+            # the client sends something outside the controlled vocabulary.
+            occupancy = rt_data.get('occupancy') or ''
+            occupancy = occupancy if occupancy in valid_occupancy else ''
+            view = rt_data.get('view') or ''
+            view = view if view in valid_view else ''
             rt_id = rt_data.get('id')
             if rt_id:
-                RoomType.objects.filter(pk=rt_id, hotel=h).update(name=name, capacity=capacity, is_active=True)
+                RoomType.objects.filter(pk=rt_id, hotel=h).update(
+                    name=name, capacity=capacity, occupancy=occupancy, view=view, is_active=True,
+                )
                 kept_ids.add(int(rt_id))
             else:
                 # Finding 2 fix: look up by name first (including soft-deleted) to avoid IntegrityError
@@ -75,12 +86,14 @@ def _save_hotel_room_types(h, data):
                     rt = RoomType.objects.get(hotel=h, name=name)
                     # Reactivate and update capacity
                     rt.capacity = capacity
+                    rt.occupancy = occupancy
+                    rt.view = view
                     rt.is_active = True
                     rt.save()
                     kept_ids.add(rt.pk)
                 except RoomType.DoesNotExist:
                     # Create new if name doesn't exist
-                    rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity)
+                    rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity, occupancy=occupancy, view=view)
                     kept_ids.add(rt.pk)
 
         h.room_types.exclude(pk__in=kept_ids).update(is_active=False)
@@ -162,7 +175,8 @@ def hotel_edit(request, pk):
             "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
             "lat": h.lat, "lng": h.lng, "route": h.route,
             "room_types": [
-                {"id": rt.id, "name": rt.name, "capacity": rt.capacity}
+                {"id": rt.id, "name": rt.name, "capacity": rt.capacity,
+                 "occupancy": rt.occupancy, "view": rt.view}
                 for rt in h.room_types.filter(is_active=True).order_by('name')
             ],
         },

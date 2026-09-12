@@ -56,7 +56,10 @@ class HotelRoomTypeSaveTest(TestCase):
         resp = self.client.get(f'/hotels/{hotel.pk}/edit/', HTTP_X_INERTIA='true')
         self.assertEqual(resp.status_code, 200)
         page = resp.json()
-        self.assertEqual(page['props']['hotel']['room_types'], [{'id': rt.id, 'name': 'Suite', 'capacity': 4}])
+        self.assertEqual(
+            page['props']['hotel']['room_types'],
+            [{'id': rt.id, 'name': 'Suite', 'capacity': 4, 'occupancy': '', 'view': ''}],
+        )
 
     def test_edit_hotel_omits_room_types_key_leaves_types_untouched(self):
         """Finding 1 fix: POST without room_types key should not touch existing room types."""

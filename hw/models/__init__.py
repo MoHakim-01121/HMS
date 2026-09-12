@@ -14,7 +14,8 @@ from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMove
 from .bank import BankAccount, CashAccount
 from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
 from .settlement import HQObligation, RemittanceAllocation, RemittanceSettlement
-from .hotel import Hotel, RoomType, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
+from .hotel import Hotel, RoomType, Occupancy, RoomView, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
+from .meal_plan import MealPlan
 from .penalty import CancellationPenalty
 from .reminder import WATarget, MessageTemplate
 from .visit import Visit, VisitPhoto
@@ -51,7 +52,8 @@ __all__ = [
     # Settlement (Master Architecture v2.0 FASE E)
     'HQObligation', 'RemittanceSettlement', 'RemittanceAllocation',
     # Hotel
-    'Hotel', 'RoomType', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
+    'Hotel', 'RoomType', 'Occupancy', 'RoomView', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
+    'MealPlan',
     # Penalty
     'CancellationPenalty',
     # Reminder

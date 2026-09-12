@@ -93,6 +93,7 @@ class Room(models.Model):
     room_type = models.CharField(max_length=50)
     room_type_ref = models.ForeignKey('RoomType', null=True, blank=True, on_delete=models.SET_NULL, related_name='bookings')
     meals     = models.CharField(max_length=100, blank=True)
+    meal_plan = models.ForeignKey('MealPlan', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     quantity  = models.PositiveIntegerField(default=1)
     price     = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
 
