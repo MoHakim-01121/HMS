@@ -13,6 +13,7 @@ from .remittance import Remittance, RemittanceLine
 from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .bank import BankAccount, CashAccount
 from .bank_transaction import BankTransaction
+from .reconciliation import BankStatement, BankStatementLine
 from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
 from .settlement import HQObligation, RemittanceAllocation, RemittanceSettlement
 from .hotel import Hotel, RoomType, Occupancy, RoomView, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
@@ -47,7 +48,7 @@ __all__ = [
     # Ledger (legacy — kept for backward compat during migration)
     'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
-    'BankAccount', 'CashAccount', 'BankTransaction',
+    'BankAccount', 'CashAccount', 'BankTransaction', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)
     'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment',
     # Settlement (Master Architecture v2.0 FASE E)

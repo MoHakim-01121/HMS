@@ -4,8 +4,8 @@ from django.shortcuts import render
 from .models import (
     ActivityLog, Attachment, BankAccount, BankTransaction, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
-    HQObligation, Hotel, Invoice, MealPlan, Payment, Pricelist, Remittance, RemittanceAllocation,
-    RemittanceLine, RemittanceSettlement,
+    BankStatement, BankStatementLine, HQObligation, Hotel, Invoice, MealPlan, Payment, Pricelist,
+    Remittance, RemittanceAllocation, RemittanceLine, RemittanceSettlement,
     Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
 )
 
@@ -138,6 +138,17 @@ class BankTransactionAdmin(admin.ModelAdmin):
     list_display = ('transaction_date', 'account', 'direction', 'amount_sar', 'source_type', 'source_id', 'status')
     list_filter = ('direction', 'status', 'source_type')
     date_hierarchy = 'transaction_date'
+
+
+class BankStatementLineInline(admin.TabularInline):
+    model = BankStatementLine
+    extra = 0
+
+
+@admin.register(BankStatement)
+class BankStatementAdmin(admin.ModelAdmin):
+    list_display = ('account', 'period_start', 'period_end', 'opening_balance_sar', 'closing_balance_sar')
+    inlines = [BankStatementLineInline]
 
 
 class ExpenseLineInline(admin.TabularInline):
