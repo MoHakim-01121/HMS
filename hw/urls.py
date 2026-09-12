@@ -102,6 +102,10 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('remittance/<int:pk>/mark-received/', views.remittance_mark_received, name='remittance_mark_received'),
     path('remittance/<int:pk>/upload-proof/', views.remittance_upload_proof, name='remittance_upload_proof'),
     path('remittance/<int:pk>/delete/', views.remittance_delete, name='remittance_delete'),
+    path('remittance/settlement/', views.settlement_list, name='settlement_list'),
+    path('remittance/settlement/obligations/new/', views.obligation_new, name='obligation_new'),
+    path('remittance/settlement/new/', views.settlement_new, name='settlement_new'),
+    path('remittance/settlement/<int:pk>/allocate/', views.settlement_allocate, name='settlement_allocate'),
 
     # User management (the 'users' module in hw/permissions.py)
     path('users/', views.user_list, name='user_list'),

@@ -47,6 +47,7 @@ const NAV_GROUPS = [
       { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "payments" },
       { key: "expenses", label: "Expenses", href: "/finance/expenses/", icon: "tag", perm: "expenses" },
       { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "wallet", perm: "remittance" },
+      { key: "settlement", label: "HQ Settlement", href: "/remittance/settlement/", icon: "wallet", perm: "remittance" },
       { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "clients", perm: "statements" },
       { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "tag", perm: "penalty" },
       { key: "journal", label: "Journal", href: "/finance/journal/", icon: "invoice", perm: "journal" },
@@ -80,6 +81,7 @@ const PAGE_TITLES = {
   visits: "Visits",
   clients: "Clients",
   remittance: "Remittance",
+  settlement: "HQ Settlement",
   payments: "Payments",
   expenses: "Expenses",
   periods: "Periods",
@@ -104,7 +106,8 @@ function pageKeyFromUrl(url) {
   if (url === "/" || url === "") return "home";
   const map = [
     ["/hotels", "hotels"], ["/invoice", "invoice"], ["/services", "services"],
-    ["/calendar", "calendar"], ["/clients", "clients"], ["/remittance", "remittance"],
+    ["/calendar", "calendar"], ["/clients", "clients"],
+    ["/remittance/settlement", "settlement"], ["/remittance", "remittance"],
     ["/visits", "visits"], ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
     ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],

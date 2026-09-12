@@ -53,6 +53,9 @@ from .remittance_views import (
     remittance_mark_received, remittance_recap, remittance_period_pdf,
     remittance_ledger_pdf, remittance_tracking,
 )
+from .settlement_views import (
+    settlement_list, obligation_new, settlement_new, settlement_allocate,
+)
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
     penalty_list,
