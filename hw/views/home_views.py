@@ -167,13 +167,13 @@ def _home_widgets(company, today):
 
 def _home_finance_summary(company, today):
     from ..models.payment import PaymentRecord
-    from ..models.journal import Account
+    from ..finance import accounts as coa
     from ..finance_helpers import kas_saldo
 
     return {
-        'kas_sby': kas_saldo(Account.CASH_SBY, company=company),
-        'kas_pusat': kas_saldo(Account.CASH_PUSAT, company=company),
-        'total_piutang': kas_saldo(Account.RECEIVABLE, company=company),
+        'kas_sby': kas_saldo(coa.CASH_SBY, company=company),
+        'kas_pusat': kas_saldo(coa.CASH_PUSAT, company=company),
+        'total_piutang': kas_saldo(coa.AR, company=company),
         'payments_pending': PaymentRecord.objects.filter(company=company, status=PaymentRecord.STATUS_PENDING).count(),
         'payments_this_month': PaymentRecord.objects.filter(
             company=company,

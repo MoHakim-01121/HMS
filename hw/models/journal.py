@@ -42,47 +42,6 @@ class AccountType(models.TextChoices):
     EQUITY    = 'equity',    'Equity'
 
 
-class Account(models.TextChoices):
-    """Chart of Accounts —irtual accounts untuk tracking arus kas.
-
-    SETIAP transaksi harus menyentuh minimal 2 account dengan
-    jumlah yang balance (debit + credit = 0).
-    """
-    # Kas / Asset
-    CASH_SBY   = 'cash_sby',   'Kas Surabaya'
-    CASH_JKT   = 'cash_jkt',   'Kas Jakarta'
-    CASH_PUSAT = 'cash_pusat', 'Kas Pusat (HQ)'
-    FX         = 'fx',         'Selisih Kurs'
-
-    # Piutang / Receivable
-    RECEIVABLE = 'receivable', 'Piutang Client'
-
-    # Pendapatan
-    INCOME_HOTEL   = 'income_hotel',   'Pendapatan Hotel'
-    INCOME_SERVICE = 'income_service', 'Pendapatan Visa/Services'
-    INCOME_PENALTY = 'income_penalty', 'Pendapatan Penalty'
-
-    # Biaya
-    EXPENSE_PENALTY = 'expense_penalty', 'Beban Penalty'
-
-    # Equity
-    EQUITY = 'equity', 'Modal'
-
-
-ACCOUNT_TYPE_MAP = {
-    Account.CASH_SBY:     AccountType.ASSET,
-    Account.CASH_JKT:     AccountType.ASSET,
-    Account.CASH_PUSAT:   AccountType.ASSET,
-    Account.FX:           AccountType.ASSET,
-    Account.RECEIVABLE:   AccountType.ASSET,
-    Account.INCOME_HOTEL: AccountType.INCOME,
-    Account.INCOME_SERVICE: AccountType.INCOME,
-    Account.INCOME_PENALTY: AccountType.INCOME,
-    Account.EXPENSE_PENALTY: AccountType.EXPENSE,
-    Account.EQUITY:       AccountType.EQUITY,
-}
-
-
 class LedgerAccount(models.Model):
     """Chart of Accounts sebagai tabel — sumber daftar akun untuk jurnal.
 

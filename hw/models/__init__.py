@@ -27,7 +27,7 @@ from .receipt import Receipt
 # ── Finance Redesign (new models) ──────────────────────────────
 from .period import FinancialPeriod
 from .payment import PaymentRecord, PaymentLog, PaymentAllocation
-from .journal import AccountType, Account, LedgerAccount, JournalEntry, JournalLine
+from .journal import AccountType, LedgerAccount, JournalEntry, JournalLine
 
 __all__ = [
     # Choices
@@ -69,5 +69,5 @@ __all__ = [
     # ── Finance Redesign ──
     'FinancialPeriod',
     'PaymentRecord', 'PaymentLog', 'PaymentAllocation',
-    'AccountType', 'Account', 'LedgerAccount', 'JournalEntry', 'JournalLine',
+    'AccountType', 'LedgerAccount', 'JournalEntry', 'JournalLine',
 ]

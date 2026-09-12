@@ -16,7 +16,7 @@ from django.test import TestCase
 
 from hw.finance_helpers import create_journal_entry
 from hw.models.choices import Company
-from hw.models.journal import Account, JournalEntry, JournalLine
+from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 
 
@@ -78,8 +78,8 @@ class FinancialPeriodCloseLockTest(TestCase):
             description='balanced entry',
             entry_date=date(2099, 1, 15),
             lines=[
-                {'account': Account.CASH_SBY, 'amount_sar': 100},
-                {'account': Account.EQUITY, 'amount_sar': -100},
+                {'account': 'cash_sby', 'amount_sar': 100},
+                {'account': 'equity', 'amount_sar': -100},
             ],
             created_by=self.user,
         )
