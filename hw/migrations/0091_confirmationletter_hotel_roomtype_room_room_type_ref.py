@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('hw', '0057_alter_invoice_add_client_status_paid'),
+        ('hw', '0090_seed_expenses_permission'),
     ]
 
     operations = [
