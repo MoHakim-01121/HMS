@@ -37,6 +37,16 @@ class ConfirmationLetter(models.Model):
                 fields=['company', 'confirmation_number'],
                 name='uniq_confirmation_number_per_company',
             ),
+            # v2.0 §11. Verified data-safe against production before adding
+            # (2026-09-14): 97 existing CLs, 0 violations, 0 same-day rows —
+            # same audit method as Reservation's mirror of this constraint.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(check_in__isnull=True) | models.Q(check_out__isnull=True)
+                    | models.Q(check_out__gt=models.F('check_in'))
+                ),
+                name='cl_check_out_after_check_in',
+            ),
         ]
         indexes = [
             models.Index(fields=['company', 'check_in'], name='hw_cl_company_checkin_idx'),

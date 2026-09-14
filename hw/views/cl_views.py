@@ -176,8 +176,11 @@ def _validate_cl(data, exclude_pk=None):
     errors = {}
     check_in = _parse_date(data.get("check_in"))
     check_out = _parse_date(data.get("check_out"))
-    if check_in and check_out and check_out < check_in:
-        errors["check_out"] = "Check-out cannot be before check-in."
+    if check_in and check_out and check_out <= check_in:
+        # <=, not <: mirrors the DB CheckConstraint (cl_check_out_after_check_in,
+        # v2.0 §11) so a same-day date surfaces as a clean form error instead
+        # of an IntegrityError from the save.
+        errors["check_out"] = "Check-out must be after check-in."
     number = data.get("confirmation_number", "")
     qs = ConfirmationLetter.objects.filter(confirmation_number=number)
     if exclude_pk:

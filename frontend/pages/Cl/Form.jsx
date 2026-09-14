@@ -137,8 +137,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   const submit = (e) => {
     e.preventDefault();
     const { check_in: ci, check_out: co } = form.data;
-    if (ci && co && co < ci) {
-      form.setError("check_out", t("Check-out cannot be before check-in."));
+    if (ci && co && co <= ci) {
+      form.setError("check_out", t("Check-out must be after check-in."));
       return;
     }
     postForm(form, edit ? `/cl/${c.id}/edit/` : "/cl/new/", { json: ["rooms"] });

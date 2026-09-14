@@ -211,7 +211,8 @@ class BuildGroupedReminderMessageTest(TestCase):
     def test_h1_says_n_hari_lagi_for_check_in_far_away(self):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT H3')
-        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=5))
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=5),
+                     check_out=date.today() + timedelta(days=7))
         msg = build_grouped_reminder_message([cl], 'H1_GUEST', recipient_name=client.name)
         self.assertIn('5 hari lagi', msg.lower())
         self.assertNotIn('besok', msg.lower())
@@ -453,7 +454,8 @@ class SendReminderGroupViewTest(TestCase):
 
     def test_builds_message_for_check_in_beyond_h1(self):
         client = self._make_client()
-        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=3), confirmation_number='CL-H3')
+        cl = _make_cl(client=client, check_in=date.today() + timedelta(days=3),
+                     check_out=date.today() + timedelta(days=5), confirmation_number='CL-H3')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl.pk]})
         data = resp.json()
         self.assertTrue(data['ok'])
@@ -563,7 +565,7 @@ class DueSoonNotificationsTest(TestCase):
 
     def test_excludes_past_check_in(self):
         _make_cl(check_in=date.today() - timedelta(days=1),
-                 check_out=date.today() - timedelta(days=1), confirmation_number='CL-PAST1')
+                 check_out=date.today(), confirmation_number='CL-PAST1')
         notifs = self._notifs()
         self.assertFalse(any(n['ref'] == 'CL-PAST1' for n in notifs))
 
@@ -574,7 +576,8 @@ class DueSoonNotificationsTest(TestCase):
         self.assertFalse(any(n['ref'] == 'CL-FAR1' for n in notifs))
 
     def test_sorted_by_days(self):
-        _make_cl(check_in=date.today() + timedelta(days=3), confirmation_number='CL-3DAY')
+        _make_cl(check_in=date.today() + timedelta(days=3),
+                 check_out=date.today() + timedelta(days=5), confirmation_number='CL-3DAY')
         _make_cl(check_in=date.today(), confirmation_number='CL-TODAY')
         days = [n['days'] for n in self._notifs()]
         self.assertEqual(days, sorted(days))
