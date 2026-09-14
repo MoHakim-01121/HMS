@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
@@ -75,7 +76,12 @@ export default function BankAccounts({ accounts = [], branch_choices = [], branc
 
       <div className="hms-list-card">
         {accounts.length > 0 ? (
-          <Table columns={columns} rows={accounts} rowKey={(a) => `${a.kind}-${a.id}`} />
+          <Table
+            columns={columns}
+            rows={accounts}
+            rowKey={(a) => `${a.kind}-${a.id}`}
+            onRowClick={(a) => router.visit(`/finance/bank-accounts/${a.kind}/${a.id}/`)}
+          />
         ) : (
           <EmptyState iconName="wallet" title={t("No accounts found")} sub={t("No bank or cash accounts are set up yet.")} />
         )}

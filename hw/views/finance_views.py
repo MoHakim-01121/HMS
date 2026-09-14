@@ -1,5 +1,6 @@
 from django.core.paginator import Paginator
 from django.db.models import Q, Sum
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from inertia import render as inertia_render
@@ -163,6 +164,30 @@ def bank_account_list(request):
         'accounts': rows,
         'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
         'branch_filter': branch or '',
+    })
+
+
+@require_perm('statements', 'view')
+def bank_account_transactions(request, kind, pk):
+    """Drill-down riwayat BankTransaction satu rekening (v2.0 §64 follow-up).
+    Saldo berjalan di sini murni kumulatif BankTransaction — beda dari
+    book_balance (proyeksi JournalLine) yang dipakai di bank_account_list."""
+    if kind not in ('bank', 'cash'):
+        raise Http404
+
+    date_from = _parse_date(request.GET.get('date_from'))
+    date_to = _parse_date(request.GET.get('date_to'))
+    data = finance_queries.account_transactions(kind, pk, date_from=date_from, date_to=date_to)
+    if data is None:
+        raise Http404
+
+    return inertia_render(request, 'Finance/BankAccountTransactions', props={
+        'account': data['account'],
+        'rows': data['rows'],
+        'filters': {
+            'date_from': date_from.isoformat() if date_from else '',
+            'date_to': date_to.isoformat() if date_to else '',
+        },
     })
 
 

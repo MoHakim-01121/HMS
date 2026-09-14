@@ -789,6 +789,20 @@ export const id = {
   "No accounts found": "Tidak ada rekening",
   "No bank or cash accounts are set up yet.": "Belum ada rekening bank atau kas yang disiapkan.",
 
+  // Bank account transaction drill-down
+  "Transaction history for this account — running balance is a cumulative sum of these records, not the journal-derived book balance.": "Riwayat transaksi rekening ini — saldo berjalan adalah kumulatif transaksi ini, bukan saldo buku hasil turunan jurnal.",
+  "Direction": "Arah",
+  "Money In": "Uang Masuk",
+  "Money Out": "Uang Keluar",
+  "Source": "Sumber",
+  "Reference": "Referensi",
+  "Reconciled": "Terekonsiliasi",
+  "Unmatched": "Belum Dicocokkan",
+  "Amount": "Nominal",
+  "Running Balance": "Saldo Berjalan",
+  "No transactions found": "Tidak ada transaksi",
+  "No bank transactions recorded for this account yet.": "Belum ada transaksi bank tercatat untuk rekening ini.",
+
   // Reconciliation
   "Reconciliation": "Rekonsiliasi",
   "Match bank statements against recorded bank transactions.": "Cocokkan rekening koran dengan transaksi bank yang tercatat.",

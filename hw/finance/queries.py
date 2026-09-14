@@ -641,6 +641,48 @@ def money_accounts_overview(branch=None):
     return rows
 
 
+def account_transactions(kind, account_id, *, date_from=None, date_to=None):
+    """Riwayat BankTransaction satu rekening (bank/kas), dengan saldo berjalan.
+
+    Saldo berjalan di sini murni jumlah kumulatif BankTransaction rekening
+    ini — BUKAN book_balance (proyeksi JournalLine); dua-duanya bisa berbeda
+    untuk event lama yang belum lewat titik `record_bank_transaction`
+    (mis. payment legacy `received_in`-only, lihat bank_transaction.py)."""
+    from ..models.bank import BankAccount, CashAccount
+    from ..models.bank_transaction import BankTransaction
+
+    account_model = BankAccount if kind == 'bank' else CashAccount
+    account = account_model.objects.filter(pk=account_id).first()
+    if account is None:
+        return None
+
+    field = 'bank_account' if kind == 'bank' else 'cash_account'
+    qs = BankTransaction.objects.filter(**{field: account_id}).prefetch_related('statement_lines').order_by('transaction_date', 'id')
+    if date_from:
+        qs = qs.filter(transaction_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(transaction_date__lte=date_to)
+
+    running = 0
+    rows = []
+    for tx in qs:
+        running += tx.amount_sar if tx.direction == BankTransaction.DIRECTION_IN else -tx.amount_sar
+        rows.append({
+            'id': tx.pk,
+            'transaction_date': tx.transaction_date.isoformat(),
+            'direction': tx.direction,
+            'amount_sar': tx.amount_sar,
+            'running_balance_sar': running,
+            'source_type': tx.source_type,
+            'source_id': tx.source_id,
+            'reference': tx.reference,
+            'status': tx.status,
+            'matched': tx.statement_lines.exists(),
+        })
+    rows.reverse()
+    return {'account': {'id': account.pk, 'kind': kind, 'name': str(account), 'currency': account.currency}, 'rows': rows}
+
+
 def ap_balance(company=None):
     """Saldo Utang Usaha (positif = KONOZ berutang ke vendor)."""
     return -account_balance(coa.AP, company=company)
