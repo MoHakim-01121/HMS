@@ -35,12 +35,11 @@ class RefundTransferViewTest(TestCase):
         s.save()
 
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-CR-001",
+ invoice_type="hotel", invoice_number="INV-CR-001",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2026, 1, 5),
         )
         self.res_a = Reservation.objects.create(
@@ -128,9 +127,9 @@ class RefundTransferViewTest(TestCase):
 
     def test_transfer_blocks_different_client_reservation(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
-        other_client = Client.objects.create(company="konoz", name="PT Lain")
+        other_client = Client.objects.create( name="PT Lain")
         other_invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-CR-002",
+ invoice_type="hotel", invoice_number="INV-CR-002",
             customer_name="PT Lain", client=other_client, issued_date=date(2026, 2, 1),
         )
         other_res = Reservation.objects.create(

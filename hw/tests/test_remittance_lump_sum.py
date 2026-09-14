@@ -37,16 +37,15 @@ class LumpSumRemittanceTest(TestCase):
         from django.contrib.auth.models import User
 
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
 
         # Superuser bypass role matrix (lihat hw/permissions.py)
         self.user = User.objects.create_user('fin', password='x', is_superuser=True)
 
-        self.client_user = Client.objects.create(name='PT Maju', company='konoz')
+        self.client_user = Client.objects.create(name='PT Maju',)
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-LS-001', customer_name='PT Maju',
             client=self.client_user,
         )

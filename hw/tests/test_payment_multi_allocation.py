@@ -30,9 +30,9 @@ class MultiAllocationSaveTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
 
-        c = Client.objects.create(company='konoz', name='PT Multi')
+        c = Client.objects.create( name='PT Multi')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', client=c,
+ invoice_type='hotel', client=c,
             invoice_number='INV-MULTI-001', customer_name='PT Multi',
         )
         self.r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R-1', total_sar=1000)

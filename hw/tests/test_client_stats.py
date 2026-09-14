@@ -19,12 +19,11 @@ class ClientStatsTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("cstats", password="pw12345")
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT Client Stats')
+        self.client_obj = Client.objects.create( name='PT Client Stats')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-CS-001', customer_name='PT Client Stats',
             client=self.client_obj, issued_date=date(2026, 1, 2),
         )

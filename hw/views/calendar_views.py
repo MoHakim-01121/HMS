@@ -10,7 +10,6 @@ from inertia import render as inertia_render
 from ..models import ConfirmationLetter
 from ..permissions import require_perm
 from ..i18n import tr, user_language
-from .helpers import get_active_company
 from .pdf import _render_checkin_pdf
 
 _MONTH_NAMES_EN = ['', 'January', 'February', 'March', 'April', 'May', 'June',
@@ -25,7 +24,7 @@ _CL_COLORS = {
 }
 
 
-def _get_upcoming_checkins(active_company):
+def _get_upcoming_checkins():
     today = date.today()
     week_end = today + timedelta(days=6)
     qs = (
@@ -36,8 +35,6 @@ def _get_upcoming_checkins(active_company):
         .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name')
     )
-    if active_company:
-        qs = qs.filter(company=active_company)
     result = []
     for cl in qs:
         rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
@@ -87,7 +84,6 @@ def calendar_view(request):
     elif month > 12:
         month, year = 1, year + 1
 
-    active_company = get_active_company(request)
     days_in_month = calendar.monthrange(year, month)[1]
     month_start = date(year, month, 1)
     month_end = date(year, month, days_in_month)
@@ -100,7 +96,6 @@ def calendar_view(request):
         .exclude(check_in=None).exclude(check_out=None)
         .select_related('invoice')
         .prefetch_related('invoice__reservations', 'invoice__service_items')
-        .filter(company=active_company)
     )
     cls_list = list(cl_qs)
 
@@ -172,7 +167,7 @@ def calendar_view(request):
         "checkouts_today": checkouts_today,
         "tentative_count": tentative_count,
         "active_today": active_today,
-        "upcoming_checkins": _get_upcoming_checkins(active_company),
+        "upcoming_checkins": _get_upcoming_checkins(),
     })
 
 
@@ -180,7 +175,7 @@ def calendar_view(request):
 def cl_estimasi_save(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
-    cl = get_object_or_404(ConfirmationLetter, pk=pk, company=get_active_company(request))
+    cl = get_object_or_404(ConfirmationLetter, pk=pk)
     estimasi_str = request.POST.get('estimasi_tiba', '').strip()
     cl.pic_name  = request.POST.get('pic_name', '').strip()
     cl.pic_phone = request.POST.get('pic_phone', '').strip()
@@ -199,7 +194,6 @@ def cl_estimasi_save(request, pk):
 @require_perm('calendar', 'export')
 def calendar_checkin_pdf(request):
     today = date.today()
-    active_company = get_active_company(request)
     date_str = request.GET.get('date', '').strip()
 
     if date_str:
@@ -227,8 +221,7 @@ def calendar_checkin_pdf(request):
         .exclude(reservation_status='CANCELLED')
         .prefetch_related('rooms')
         .order_by('check_in', 'hotel_name', 'guest_name')
-        .filter(company=active_company)
     )
 
-    return _render_checkin_pdf(list(qs), title, active_company, filename,
+    return _render_checkin_pdf(list(qs), title, filename,
                                date_start=date_start, date_end=date_end)

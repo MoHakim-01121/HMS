@@ -14,8 +14,7 @@ class BankTransactionBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('bt', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.sby = Branch.objects.get(code='sby')
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
@@ -23,7 +22,7 @@ class BankTransactionBase(TestCase):
 
 class PaymentBankTransactionTest(BankTransactionBase):
     def test_confirming_payment_with_receiving_account_records_transaction(self):
-        client_obj = Client.objects.create(company='konoz', name='PT BT')
+        client_obj = Client.objects.create( name='PT BT')
         inv = Invoice.objects.create(invoice_number='INV-BT-1', customer_name='PT BT', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
@@ -41,19 +40,19 @@ class PaymentBankTransactionTest(BankTransactionBase):
         # received_in) to simulate data from before FASE C existed.
         from hw.models.payment import PaymentRecord
         from hw.models.period import FinancialPeriod as FP
-        client_obj = Client.objects.create(company='konoz', name='PT BT2')
+        client_obj = Client.objects.create( name='PT BT2')
         inv = Invoice.objects.create(invoice_number='INV-BT-2', customer_name='PT BT2', client=client_obj)
         pr = PaymentRecord.objects.create(
             payment_number='PAY-BT-2', invoice=inv, client=client_obj,
             payment_date=date(2026, 7, 1), amount=5000, amount_sar=5000,
             method='Transfer', received_in='jkt', status=PaymentRecord.STATUS_PENDING,
-            company='konoz', created_by=self.user, period=FP.objects.first(),
+ created_by=self.user, period=FP.objects.first(),
         )
         confirm_payment(pr, self.user)
         self.assertFalse(BankTransaction.objects.filter(source_type='PaymentRecord', source_id=pr.pk).exists())
 
     def test_reconfirm_does_not_duplicate_transaction(self):
-        client_obj = Client.objects.create(company='konoz', name='PT BT3')
+        client_obj = Client.objects.create( name='PT BT3')
         inv = Invoice.objects.create(invoice_number='INV-BT-3', customer_name='PT BT3', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
@@ -83,7 +82,7 @@ class ExpensePaymentBankTransactionTest(BankTransactionBase):
 
 class SettlementBankTransactionTest(BankTransactionBase):
     def test_settlement_records_in_transaction_against_pusat_cash(self):
-        rmt = Remittance.objects.create(company='konoz', date=date(2026, 7, 4), remittance_number='RMT-BT-1')
+        rmt = Remittance.objects.create( date=date(2026, 7, 4), remittance_number='RMT-BT-1')
         settlement = settlement_service.add_settlement(
             rmt, received_amount_sar=20000, received_date=date(2026, 7, 5), created_by=self.user,
         )

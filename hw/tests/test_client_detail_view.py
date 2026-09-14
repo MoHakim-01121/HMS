@@ -19,14 +19,13 @@ class ClientDetailViewTest(TestCase):
         s.save()
 
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Detail View")
+        self.client_obj = Client.objects.create( name="PT Detail View")
         # invoice.client dipasang supaya charge (yang di-posting ke jurnal)
         # ter-atribusi ke client -- jurnal membaca client dari dimensi baris.
         invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-CDV-001", customer_name="PT Detail View",
             client=self.client_obj, issued_date=date(2026, 1, 2),
         )
@@ -70,7 +69,7 @@ class ClientDetailViewTest(TestCase):
         # vanishes from the client's totals/statement until its first entry
         # (charge/payment) lands.
         fk_only_invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-CDV-002", customer_name="PT Detail View",
             client=self.client_obj,
         )

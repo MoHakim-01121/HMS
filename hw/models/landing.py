@@ -1,6 +1,5 @@
 from django.db import models
 
-from .choices import Company
 
 
 def _pricelist_path(instance, filename):
@@ -14,7 +13,6 @@ def _team_photo_path(instance, filename):
 class TeamMember(models.Model):
     """One person shown in the public landing page's Our Team section."""
 
-    company  = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     name     = models.CharField(max_length=120)
     position = models.CharField(max_length=120, blank=True)
     wa       = models.CharField(max_length=30, blank=True,
@@ -38,7 +36,6 @@ class TeamMember(models.Model):
 class Pricelist(models.Model):
     """An uploaded pricelist file shown to agencies on the public site."""
 
-    company   = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     title     = models.CharField(max_length=120)
     file      = models.FileField(upload_to=_pricelist_path)
     is_active = models.BooleanField(default=True)

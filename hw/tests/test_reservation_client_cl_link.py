@@ -16,14 +16,13 @@ class InvoiceFromClsLinksReservationTest(TestCase):
         session['active_company'] = 'konoz'
         session.save()
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT Reservasi')
+        self.client_obj = Client.objects.create( name='PT Reservasi')
 
     def test_invoice_from_cls_links_confirmation_letter_and_client(self):
         cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-RES-1', guest_name='Ahmad',
+ confirmation_number='CL-RES-1', guest_name='Ahmad',
             client=self.client_obj, check_in=date(2026, 6, 1), check_out=date(2026, 6, 3),
         )
         Room.objects.create(cl=cl, room_type='Double', quantity=1, price=500)
@@ -45,9 +44,9 @@ class BackfillMatchesLiveSyncRuleTest(TestCase):
         from django.apps import apps as django_apps
 
         invoice = Invoice.objects.create(invoice_number='INV-BF-1', customer_name='X')
-        client_obj = Client.objects.create(company='konoz', name='PT Backfill')
+        client_obj = Client.objects.create( name='PT Backfill')
         cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-BF-1', guest_name='Ahmad',
+ confirmation_number='CL-BF-1', guest_name='Ahmad',
             client=client_obj, invoice=invoice,
         )
         # Simulate a pre-FASE-G row: created without the new FKs.

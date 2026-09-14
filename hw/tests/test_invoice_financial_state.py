@@ -13,10 +13,9 @@ class InvoiceFinancialStateTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('fs', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT FinState')
+        self.client_obj = Client.objects.create( name='PT FinState')
 
     def _invoice(self, **kw):
         inv = Invoice.objects.create(invoice_number=f'INV-FS-{Invoice.objects.count()}', customer_name='PT FinState',

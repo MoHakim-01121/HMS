@@ -14,7 +14,7 @@ from ..models import CancellationPenalty, ConfirmationLetter
 from ..finance.posting import resync_penalty
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
-from .helpers import _parse_date, _to_float, get_active_company
+from .helpers import _parse_date, _to_float
 from .pdf import _logo_file_url
 
 logger = logging.getLogger(__name__)
@@ -34,14 +34,13 @@ def _sync_penalty_ledger(penalty, user=None):
 
 
 def _get_cl(request, cl_pk):
-    """Fetch a CL scoped to the active company (consistent with cl/invoice views)."""
-    return get_object_or_404(ConfirmationLetter, pk=cl_pk, company=get_active_company(request))
+    """Fetch a CL by pk."""
+    return get_object_or_404(ConfirmationLetter, pk=cl_pk)
 
 
 def _get_penalty(request, pk, qs=None):
-    """Fetch a penalty scoped to the active company via its CL."""
+    """Fetch a penalty by pk."""
     qs = qs if qs is not None else CancellationPenalty.objects.all()
-    qs = qs.filter(cl__company=get_active_company(request))
     return get_object_or_404(qs, pk=pk)
 
 
@@ -176,7 +175,7 @@ def penalty_pdf(request, pk):
         'penalty': penalty,
         'cl': cl,
         'rooms': rooms,
-        'logo_rel_path': _logo_file_url(cl.company),
+        'logo_rel_path': _logo_file_url(),
         'now': datetime.now(),
     }
     html = render_to_string('hw/penalty/penalty_pdf.html', ctx)

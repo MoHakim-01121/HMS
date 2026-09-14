@@ -21,7 +21,6 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, Pricelist, TeamMember, log_activity
 from ..permissions import can, require_perm
-from .helpers import get_active_company
 
 
 def landing(request):
@@ -200,9 +199,8 @@ def _pricelist_payload(p):
 
 
 def _manage_props(request):
-    company = get_active_company(request)
-    members = TeamMember.objects.filter(company=company).order_by('order', 'id')
-    pricelist = Pricelist.objects.filter(company=company, is_active=True).order_by('-updated_at').first()
+    members = TeamMember.objects.order_by('order', 'id')
+    pricelist = Pricelist.objects.filter(is_active=True).order_by('-updated_at').first()
     return {
         'team_members': [_team_member_payload(m) for m in members],
         'pricelist': _pricelist_payload(pricelist) if pricelist else None,
@@ -216,7 +214,6 @@ def landing_manage(request):
 
 @require_perm('landing', 'create')
 def team_new(request):
-    company = get_active_company(request)
     if request.method == 'POST':
         errors = _validate_team(request.POST)
         if errors:
@@ -225,13 +222,13 @@ def team_new(request):
             })
         data = _team_echo(request.POST)
         m = TeamMember.objects.create(
-            company=company, name=data['name'], position=data['position'],
+            name=data['name'], position=data['position'],
             wa=data['wa'],
             photo=request.FILES.get('photo'),
             order=int(data['order']) if str(data['order']).isdigit() else 0,
             is_active=data['is_active'],
         )
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'TeamMember', m.name, m.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'TeamMember', m.name)
         messages.success(request, 'Anggota tim ditambahkan.')
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/TeamForm', props={
@@ -241,7 +238,7 @@ def team_new(request):
 
 @require_perm('landing', 'edit')
 def team_edit(request, pk):
-    m = get_object_or_404(TeamMember, pk=pk, company=get_active_company(request))
+    m = get_object_or_404(TeamMember, pk=pk)
     if request.method == 'POST':
         errors = _validate_team(request.POST)
         if errors:
@@ -257,7 +254,7 @@ def team_edit(request, pk):
         m.order = int(data['order']) if str(data['order']).isdigit() else m.order
         m.is_active = data['is_active']
         m.save()
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'TeamMember', m.name, m.company)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'TeamMember', m.name)
         messages.success(request, 'Anggota tim diperbarui.')
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/TeamForm', props={
@@ -268,16 +265,15 @@ def team_edit(request, pk):
 @require_perm('landing', 'delete')
 @require_POST
 def team_delete(request, pk):
-    m = get_object_or_404(TeamMember, pk=pk, company=get_active_company(request))
+    m = get_object_or_404(TeamMember, pk=pk)
     name = m.name
     m.delete()
-    log_activity(request.user, ActivityLog.ACTION_DELETE, 'TeamMember', name, m.company)
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'TeamMember', name)
     return redirect('landing_manage')
 
 
 @require_perm('landing', 'create')
 def pricelist_new(request):
-    company = get_active_company(request)
     if request.method == 'POST':
         errors = {}
         title = request.POST.get('title', '').strip()
@@ -292,13 +288,13 @@ def pricelist_new(request):
                 'edit': False, 'errors': errors,
             })
         p = Pricelist.objects.create(
-            company=company, title=title, file=file,
+            title=title, file=file,
             is_active=request.POST.get('is_active') == 'on',
         )
         # Only one pricelist may exist at a time — a new upload replaces any
         # previous one so the public page always serves the latest file.
-        Pricelist.objects.filter(company=company).exclude(pk=p.pk).delete()
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Pricelist', p.title, p.company)
+        Pricelist.objects.exclude(pk=p.pk).delete()
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Pricelist', p.title)
         messages.success(request, 'Pricelist diunggah.')
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/PricelistForm', props={
@@ -308,7 +304,7 @@ def pricelist_new(request):
 
 @require_perm('landing', 'edit')
 def pricelist_edit(request, pk):
-    p = get_object_or_404(Pricelist, pk=pk, company=get_active_company(request))
+    p = get_object_or_404(Pricelist, pk=pk)
     if request.method == 'POST':
         errors = {}
         title = request.POST.get('title', '').strip()
@@ -326,7 +322,7 @@ def pricelist_edit(request, pk):
             p.file = file
         p.is_active = request.POST.get('is_active') == 'on'
         p.save()
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Pricelist', p.title, p.company)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Pricelist', p.title)
         messages.success(request, 'Pricelist diperbarui.')
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/PricelistForm', props={
@@ -337,8 +333,8 @@ def pricelist_edit(request, pk):
 @require_perm('landing', 'delete')
 @require_POST
 def pricelist_delete(request, pk):
-    p = get_object_or_404(Pricelist, pk=pk, company=get_active_company(request))
+    p = get_object_or_404(Pricelist, pk=pk)
     title = p.title
     p.delete()
-    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Pricelist', title, p.company)
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Pricelist', title)
     return redirect('landing_manage')

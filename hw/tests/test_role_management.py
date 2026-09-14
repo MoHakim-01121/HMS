@@ -13,7 +13,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from hw.models import RoleDefinition, UserProfile
-from hw.models.user import CompanyAccess, Role
+from hw.models.user import Role
 from hw.permissions import ACTIONS, MODULES, can, perms_payload, role_matrix
 
 # Inertia only serialises props to JSON when the client announces itself;
@@ -29,7 +29,7 @@ def make_user(username, role=Role.STAFF.value, superuser=False):
         user.save()
     UserProfile.objects.update_or_create(
         user=user,
-        defaults={'role': role, 'company_access': CompanyAccess.ALL.value},
+        defaults={'role': role},
     )
     user.refresh_from_db()
     return user

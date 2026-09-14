@@ -9,7 +9,6 @@ Convention: all monetary amounts stored as IntegerField (minor units).
 """
 from django.db import models
 
-from .choices import Company
 from .invoice import Invoice
 
 
@@ -19,7 +18,6 @@ class Remittance(models.Model):
     STATUS_CHOICES  = [(STATUS_PENDING, 'Pending'), (STATUS_RECEIVED, 'Received')]
 
     remittance_number = models.CharField(max_length=20, unique=True, blank=True)
-    company           = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     date              = models.DateField()
     status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     receipt_reference = models.CharField(max_length=100, blank=True)

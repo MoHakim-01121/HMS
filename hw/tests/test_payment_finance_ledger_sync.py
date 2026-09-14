@@ -18,12 +18,11 @@ class FinancePagePaymentTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('ledger_sync', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT Ledger Sync')
+        self.client_obj = Client.objects.create( name='PT Ledger Sync')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-LS-001',
+ invoice_type='hotel', invoice_number='INV-LS-001',
             customer_name='PT Ledger Sync', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
         self.res = Reservation.objects.create(
@@ -58,8 +57,8 @@ class FinancePagePaymentTest(TestCase):
     def test_direct_method_hits_kas_pusat(self):
         from hw.finance import queries as fq
         self._pay(1000, method='direct')
-        self.assertEqual(fq.kas_pusat('konoz'), 1000)
-        self.assertEqual(fq.kas_surabaya('konoz'), 0)
+        self.assertEqual(fq.kas_pusat(), 1000)
+        self.assertEqual(fq.kas_surabaya(), 0)
 
     def test_payment_tied_to_reservation_shows_in_breakdown(self):
         self._pay(400, reservation=self.res)
@@ -78,15 +77,14 @@ class PaymentReverseTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
 
-        self.client_obj = Client.objects.create(company='konoz', name='PT Reverse')
+        self.client_obj = Client.objects.create( name='PT Reverse')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-REV-001',
+ invoice_type='hotel', invoice_number='INV-REV-001',
             customer_name='PT Reverse', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         self.payment = create_payment_record(

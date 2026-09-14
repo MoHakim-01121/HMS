@@ -16,12 +16,11 @@ class SettlementBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('stl', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.sby = Branch.objects.get(code='sby')
         self.rmt = Remittance.objects.create(
-            company='konoz', date=date(2026, 4, 1), remittance_number='RMT-STL1',
+ date=date(2026, 4, 1), remittance_number='RMT-STL1',
         )
 
 

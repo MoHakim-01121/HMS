@@ -16,13 +16,13 @@ from hw.utils import haversine_meters
 class VisitModelTest(TestCase):
     def setUp(self):
         self.client_obj = Client.objects.create(
-            company='konoz', name='Agen Barokah', lat=21.4225, lng=39.8262,
+ name='Agen Barokah', lat=21.4225, lng=39.8262,
         )
         self.user = User.objects.create_user('staff1', password='pw12345')
 
     def test_create_visit_defaults_to_planned(self):
         v = Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.user,
+ client=self.client_obj, staff=self.user,
             scheduled_date=date(2026, 8, 10), purpose='Follow up renewal kontrak',
         )
         self.assertEqual(v.status, Visit.PLANNED)
@@ -31,7 +31,7 @@ class VisitModelTest(TestCase):
 
     def test_visit_photo_upload_path_uses_visit_id(self):
         v = Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.user,
+ client=self.client_obj, staff=self.user,
             scheduled_date=date(2026, 8, 10), purpose='x',
         )
         photo = VisitPhoto.objects.create(visit=v)
@@ -69,7 +69,7 @@ class HaversineMetersTest(TestCase):
 
 class VisitViewsTest(TestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(company='konoz', name='Agen Barokah', lat=21.4225, lng=39.8262)
+        self.client_obj = Client.objects.create( name='Agen Barokah', lat=21.4225, lng=39.8262)
         self.staff = make_user('vviews_staff', role=Role.STAFF.value)
         self.other_staff = make_user('vviews_other', role=Role.STAFF.value)
         self.manager = make_user('vviews_manager', role=Role.MANAGER.value)
@@ -92,9 +92,9 @@ class VisitViewsTest(TestCase):
         self.assertEqual(Visit.objects.count(), 0)
 
     def test_staff_list_only_shows_own_visits(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                               scheduled_date=date(2026, 8, 10), purpose='mine')
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                               scheduled_date=date(2026, 8, 11), purpose='not mine')
         self.client.force_login(self.staff)
         resp = self.client.get('/visits/?date=2026-08-10', HTTP_X_INERTIA='true')
@@ -103,16 +103,16 @@ class VisitViewsTest(TestCase):
         self.assertEqual([v['day'] for v in props['month_visits']], [10])
 
     def test_manager_list_shows_all_visits(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                               scheduled_date=date(2026, 8, 10), purpose='a')
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                               scheduled_date=date(2026, 8, 11), purpose='b')
         self.client.force_login(self.manager)
         resp = self.client.get('/visits/?date=2026-08-10', HTTP_X_INERTIA='true')
         self.assertEqual(len(resp.json()['props']['month_visits']), 2)
 
     def test_staff_cannot_open_another_staffs_visit(self):
-        v = Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        v = Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                                   scheduled_date=date(2026, 8, 10), purpose='not mine')
         self.client.force_login(self.staff)
         resp = self.client.get(f'/visits/{v.pk}/')
@@ -188,7 +188,7 @@ class VisitViewsTest(TestCase):
 
     def test_edit_excludes_own_slot_from_overlap_check(self):
         v = Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.staff,
+ client=self.client_obj, staff=self.staff,
             scheduled_date=date(2026, 8, 10), purpose='x',
             start_time=dtime(9, 0), end_time=dtime(10, 0),
         )
@@ -204,12 +204,12 @@ class VisitViewsTest(TestCase):
 
     def test_edit_rejects_overlap_with_other_visit(self):
         v = Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.staff,
+ client=self.client_obj, staff=self.staff,
             scheduled_date=date(2026, 8, 10), purpose='x',
             start_time=dtime(9, 0), end_time=dtime(10, 0),
         )
         Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.staff,
+ client=self.client_obj, staff=self.staff,
             scheduled_date=date(2026, 8, 10), purpose='y',
             start_time=dtime(11, 0), end_time=dtime(12, 0),
         )
@@ -224,7 +224,7 @@ class VisitViewsTest(TestCase):
 
     def test_cancelled_visit_does_not_block(self):
         Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=self.staff,
+ client=self.client_obj, staff=self.staff,
             scheduled_date=date(2026, 8, 10), purpose='cancelled',
             status=Visit.CANCELLED, start_time=dtime(9, 0), end_time=dtime(10, 0),
         )
@@ -237,12 +237,12 @@ class VisitViewsTest(TestCase):
         self.assertEqual(Visit.objects.count(), 2)
 
     def test_list_serves_month_visits_for_schedule_board(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                              scheduled_date=date(2026, 8, 5), purpose='a',
                              start_time=dtime(9, 0), end_time=dtime(10, 0))
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                              scheduled_date=date(2026, 8, 20), purpose='b')
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                              scheduled_date=date(2026, 7, 3), purpose='other month')
         self.client.force_login(self.manager)
         resp = self.client.get('/visits/?date=2026-08-10', HTTP_X_INERTIA='true')
@@ -259,9 +259,9 @@ class VisitViewsTest(TestCase):
         self.assertEqual(v5['end_time'], '10:00')
 
     def test_list_scopes_staff_to_own_visits(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                              scheduled_date=date(2026, 8, 5), purpose='mine')
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                              scheduled_date=date(2026, 8, 6), purpose='not mine')
         self.client.force_login(self.staff)
         resp = self.client.get('/visits/?date=2026-08-10', HTTP_X_INERTIA='true')
@@ -271,7 +271,7 @@ class VisitViewsTest(TestCase):
         self.assertTrue(props['is_staff'])
 
     def test_list_staff_filter_for_manager(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.other_staff,
+        Visit.objects.create( client=self.client_obj, staff=self.other_staff,
                              scheduled_date=date(2026, 8, 5), purpose='a')
         self.client.force_login(self.manager)
         resp = self.client.get(
@@ -282,7 +282,7 @@ class VisitViewsTest(TestCase):
         self.assertEqual(resp.json()['props']['month_visits'], [])
 
     def test_list_history_tab_returns_table(self):
-        Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        Visit.objects.create( client=self.client_obj, staff=self.staff,
                              scheduled_date=date(2026, 8, 5), purpose='done',
                              status=Visit.COMPLETED)
         self.client.force_login(self.manager)
@@ -296,14 +296,14 @@ class VisitViewsTest(TestCase):
 
 class VisitCompleteTest(TestCase):
     def setUp(self):
-        self.client_with_geo = Client.objects.create(company='konoz', name='Agen Geo', lat=21.4225, lng=39.8262)
-        self.client_no_geo = Client.objects.create(company='konoz', name='Agen NoGeo')
+        self.client_with_geo = Client.objects.create( name='Agen Geo', lat=21.4225, lng=39.8262)
+        self.client_no_geo = Client.objects.create( name='Agen NoGeo')
         self.staff = make_user('vcc_staff', role=Role.STAFF.value)
         self.other_staff = make_user('vcc_other', role=Role.STAFF.value)
 
     def _visit(self, client_obj, staff=None):
         return Visit.objects.create(
-            company='konoz', client=client_obj, staff=staff or self.staff,
+ client=client_obj, staff=staff or self.staff,
             scheduled_date=date(2026, 8, 10), purpose='x',
         )
 
@@ -424,9 +424,9 @@ class VisitCompleteTest(TestCase):
 
 class VisitPhotoTest(TestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(company='konoz', name='Agen Foto', lat=21.4, lng=39.8)
+        self.client_obj = Client.objects.create( name='Agen Foto', lat=21.4, lng=39.8)
         self.staff = make_user('vphoto_staff', role=Role.STAFF.value)
-        self.visit = Visit.objects.create(company='konoz', client=self.client_obj, staff=self.staff,
+        self.visit = Visit.objects.create( client=self.client_obj, staff=self.staff,
                                            scheduled_date=date(2026, 8, 10), purpose='x')
 
     def _jpeg_bytes(self):
@@ -459,13 +459,13 @@ class VisitPhotoTest(TestCase):
 
 class VisitPdfTest(TestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(company='konoz', name='Agen Geo', lat=21.4225, lng=39.8262)
+        self.client_obj = Client.objects.create( name='Agen Geo', lat=21.4225, lng=39.8262)
         self.staff = make_user('vpdf_staff', role=Role.STAFF.value)
         self.other_staff = make_user('vpdf_other', role=Role.STAFF.value)
 
     def _visit(self, staff=None):
         return Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=staff or self.staff,
+ client=self.client_obj, staff=staff or self.staff,
             scheduled_date=date(2026, 8, 10), purpose='Follow up renewal kontrak',
             status=Visit.COMPLETED, outcome=Visit.OUTCOME_ORDER, estimated_value='1500',
             pic_name='Ustadz Ahmad', pic_phone='+966 55 123 4567',
@@ -495,14 +495,14 @@ class VisitPdfTest(TestCase):
 
 class VisitRecapTest(TestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(company='konoz', name='Agen Geo', lat=21.4, lng=39.8)
+        self.client_obj = Client.objects.create( name='Agen Geo', lat=21.4, lng=39.8)
         self.staff = make_user('vrec_staff', role=Role.STAFF.value)
         self.other_staff = make_user('vrec_other', role=Role.STAFF.value)
         self.manager = make_user('vrec_manager', role=Role.MANAGER.value)
 
     def _visit(self, d, staff, status=Visit.COMPLETED, outcome=Visit.OUTCOME_ORDER, value=None, distance=100):
         return Visit.objects.create(
-            company='konoz', client=self.client_obj, staff=staff,
+ client=self.client_obj, staff=staff,
             scheduled_date=d, purpose='x', status=status,
             outcome=outcome, estimated_value=value, distance_meters=distance,
         )

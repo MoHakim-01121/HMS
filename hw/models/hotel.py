@@ -3,7 +3,7 @@ import math
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company, HotelCity
+from .choices import HotelCity
 
 
 HARAM_LAT  = 21.420324; HARAM_LNG  = 39.826485
@@ -11,7 +11,6 @@ NABAWI_LAT = 24.4672;   NABAWI_LNG = 39.6112
 
 
 class Hotel(models.Model):
-    company       = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     name          = models.CharField(max_length=200, db_index=True)
     city          = models.CharField(max_length=20, choices=HotelCity.choices, default=HotelCity.MAKKAH)
     stars         = models.PositiveSmallIntegerField(default=3)

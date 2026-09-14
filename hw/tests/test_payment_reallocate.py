@@ -30,9 +30,9 @@ class PaymentReallocateTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
 
-        c = Client.objects.create(company='konoz', name='PT Realloc')
+        c = Client.objects.create( name='PT Realloc')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', client=c,
+ invoice_type='hotel', client=c,
             invoice_number='INV-REALLOC-001', customer_name='PT Realloc',
         )
         self.r1 = Reservation.objects.create(
@@ -54,7 +54,7 @@ class PaymentReallocateTest(TestCase):
                 {"account": coa.AR, "debit": 23000, "client": c.pk, "invoice": self.invoice.pk},
                 {"account": coa.INC_HOTEL, "credit": 23000, "client": c.pk, "invoice": self.invoice.pk},
             ],
-            company='konoz', source_type='Invoice', source_id=self.invoice.pk,
+            source_type='Invoice', source_id=self.invoice.pk,
             idempotency_key='charge:INV-REALLOC-001',
             created_by=u,
         )

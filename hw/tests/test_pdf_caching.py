@@ -10,7 +10,7 @@ class InvoicePdfCachingTest(TestCase):
     def setUp(self):
         cache.clear()
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-PDFCACHE-001', customer_name='Test Customer',
             issued_date=date.today(),
         )

@@ -2,15 +2,15 @@
 
 Setiap JournalEntry menyimpan `entry_hash` = sha256 dari isi kanoniknya
 (entry + lines) digabung `prev_hash` (entry_hash dari entry ber-seq
-sebelumnya di company yang sama). Mengubah baris mana pun secara retroaktif
-memutus rantai — `verify_chain()` mendeteksinya.
+sebelumnya). Mengubah baris mana pun secara retroaktif memutus rantai —
+`verify_chain()` mendeteksinya.
 """
 import hashlib
 import json
 
 
 _ENTRY_FIELDS = (
-    "entry_number", "entry_type", "entry_date", "company", "seq",
+    "entry_number", "entry_type", "entry_date", "seq",
     "is_reversal", "reverses_id", "reference_type", "reference_id", "description",
 )
 # `branch_id` sengaja TIDAK di sini: branch adalah dimensi analitik/pelaporan
@@ -61,14 +61,14 @@ def recompute_entry_hash(entry, prev_hash):
     )
 
 
-def verify_chain(company):
-    """Return daftar masalah (kosong = rantai utuh) untuk satu company."""
+def verify_chain():
+    """Return daftar masalah (kosong = rantai utuh)."""
     from hw.models.journal import JournalEntry
 
     problems = []
     prev_seq, prev_hash = 0, ""
     entries = (
-        JournalEntry.objects.filter(company=company, seq__isnull=False)
+        JournalEntry.objects.filter(seq__isnull=False)
         .order_by("seq").prefetch_related("lines")
     )
     for e in entries:

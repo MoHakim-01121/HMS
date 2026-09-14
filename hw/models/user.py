@@ -1,8 +1,6 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from .choices import Company
-
 
 class Role(models.TextChoices):
     """The four seeded roles.
@@ -18,14 +16,8 @@ class Role(models.TextChoices):
     VIEWER  = 'viewer',  'Viewer'
 
 
-class CompanyAccess(models.TextChoices):
-    ALL   = 'all',   'All companies'
-    KONOZ = 'konoz', 'Konoz United only'
-
-
 class BranchAccess(models.TextChoices):
-    """Sentinel untuk akses semua cabang. Nilai lain = satu Branch.code
-    (mis. 'sby'), sejajar pola CompanyAccess."""
+    """Sentinel untuk akses semua cabang. Nilai lain = satu Branch.code (mis. 'sby')."""
     ALL = 'all', 'All branches'
 
 
@@ -40,11 +32,7 @@ class UserProfile(models.Model):
     # No `choices`: custom roles are created at runtime, so the valid set lives
     # in RoleDefinition and is enforced by the views, not by the field.
     role   = models.CharField(max_length=32, default=Role.STAFF)
-    company_access = models.CharField(
-        max_length=10, choices=CompanyAccess.choices, default=CompanyAccess.ALL,
-    )
-    # 'all' = semua cabang; selain itu satu Branch.code. Co-exist dengan
-    # company_access selama transisi (FASE A).
+    # 'all' = semua cabang; selain itu satu Branch.code.
     branch_access = models.CharField(max_length=10, default=BranchAccess.ALL)
     language = models.CharField(max_length=5, choices=Language.choices, default=Language.EN)
 
@@ -54,13 +42,6 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.user.username
-
-    @property
-    def companies(self):
-        """Companies this profile may switch to, in menu order."""
-        if self.company_access == CompanyAccess.ALL:
-            return [Company.KONOZ.value]
-        return [self.company_access]
 
     @property
     def has_all_branches(self):

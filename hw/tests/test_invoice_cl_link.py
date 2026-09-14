@@ -21,12 +21,12 @@ class InvoiceEditClLinkTests(TestCase):
         s.save()
 
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-CL-001", customer_name="Test Customer",
             currency="SAR",
         )
         self.cl = ConfirmationLetter.objects.create(
-            company="konoz", hotel_name="Hotel A", guest_name="Guest A",
+ hotel_name="Hotel A", guest_name="Guest A",
             confirmation_number="CL-LINK-001", invoice=self.invoice,
         )
 
@@ -70,12 +70,11 @@ class InvoiceChargeClientResolutionTests(TestCase):
         s["active_company"] = "konoz"
         s.save()
         FinancialPeriod.objects.create(
-            name="2020-2030", company="konoz",
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name="2020-2030",            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.customer = Client.objects.create(company="konoz", name="PT Regression Client")
+        self.customer = Client.objects.create( name="PT Regression Client")
         self.cl = ConfirmationLetter.objects.create(
-            company="konoz", hotel_name="Hotel Regress", guest_name="Guest Regress",
+ hotel_name="Hotel Regress", guest_name="Guest Regress",
             confirmation_number="CL-REGRESS-001", client=self.customer,
         )
 
@@ -104,7 +103,7 @@ class InvoiceChargeClientResolutionTests(TestCase):
 
     def test_invoice_edit_relinking_cl_resolves_charge_client(self):
         invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-REGRESS-002", customer_name="Test Customer",
             currency="SAR",
         )

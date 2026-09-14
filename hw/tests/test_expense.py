@@ -18,8 +18,7 @@ class ExpenseBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('exp', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.sby = Branch.objects.get(code='sby')
         self.cash = CashAccount.objects.get(branch_id='sby')
@@ -40,7 +39,7 @@ class RecordExpenseTest(ExpenseBase):
         )
         self.assertEqual(exp.status, Expense.STATUS_POSTED)
         self.assertEqual(exp.outstanding_sar, 1500)
-        self.assertEqual(fq.ap_balance('konoz'), 1500)
+        self.assertEqual(fq.ap_balance(), 1500)
         je = JournalEntry.objects.get(reference_type='Expense', reference_id=exp.pk)
         self.assertTrue(je.is_balanced)
         self.assertTrue(all(l.branch_id == 'sby' for l in je.lines.all()))
@@ -54,9 +53,9 @@ class RecordExpenseTest(ExpenseBase):
         exp.refresh_from_db()
         self.assertEqual(exp.status, Expense.STATUS_PAID)
         self.assertEqual(exp.outstanding_sar, 0)
-        self.assertEqual(fq.ap_balance('konoz'), 0)
+        self.assertEqual(fq.ap_balance(), 0)
         self.assertEqual(fq.account_balance('1000-KAS-SBY'), -2000)
-        self.assertEqual(fq.branch_expense_sar('sby', company='konoz'), 2000)
+        self.assertEqual(fq.branch_expense_sar('sby'), 2000)
 
     def test_partial_payment_sets_partially_paid(self):
         exp = expense_service.record_expense(
@@ -93,9 +92,9 @@ class VoidExpenseTest(ExpenseBase):
         expense_service.void_expense(exp, created_by=self.user)
         exp.refresh_from_db()
         self.assertEqual(exp.status, Expense.STATUS_VOIDED)
-        self.assertEqual(fq.ap_balance('konoz'), 0)
+        self.assertEqual(fq.ap_balance(), 0)
         self.assertEqual(fq.account_balance('1000-KAS-SBY'), 0)
-        self.assertEqual(fq.branch_expense_sar('sby', company='konoz'), 0)
+        self.assertEqual(fq.branch_expense_sar('sby'), 0)
 
 
 class ExpensePaymentConstraintTest(ExpenseBase):

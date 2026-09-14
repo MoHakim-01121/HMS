@@ -4,7 +4,6 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
-from .choices import Company
 
 
 class Client(models.Model):
@@ -14,7 +13,6 @@ class Client(models.Model):
         ('BOTH', 'PIC & Group'),
     ]
 
-    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     name       = models.CharField(max_length=200, db_index=True)
     brand      = models.CharField(max_length=200, blank=True)
     city       = models.CharField(max_length=100, blank=True)

@@ -20,10 +20,9 @@ class DualWriteTestBase(TestCase):
         s["active_company"] = "konoz"
         s.save()
         FinancialPeriod.objects.create(
-            name="2020-2030", company="konoz",
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name="2020-2030",            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Dual Write")
+        self.client_obj = Client.objects.create( name="PT Dual Write")
 
 
 class InvoiceNewDualWriteTest(DualWriteTestBase):
@@ -62,7 +61,7 @@ class InvoiceNewDualWriteTest(DualWriteTestBase):
             ]),
         })
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(fq.kas_pusat("konoz"), 5000)
+        self.assertEqual(fq.kas_pusat(), 5000)
 
 
 class InvoiceEditDualWriteTest(DualWriteTestBase):
@@ -70,7 +69,7 @@ class InvoiceEditDualWriteTest(DualWriteTestBase):
         super().setUp()
         from hw.finance import posting
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-DW-EDIT",
+ invoice_type="hotel", invoice_number="INV-DW-EDIT",
             customer_name="PT Dual Write", client=self.client_obj, currency="SAR",
             issued_date=date(2026, 1, 1),
         )
@@ -134,7 +133,7 @@ class RemittanceDualWriteTest(DualWriteTestBase):
     def setUp(self):
         super().setUp()
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-RMT-DW", customer_name="PT Remit",
         )
         self.res = Reservation.objects.create(invoice=self.invoice, reservation_number="R1", total_sar=5000)
@@ -154,11 +153,11 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         self.assertEqual(RemittanceLine.objects.filter(linked_number="R1").count(), 1)
         # Journal: kirim 3000 dari Kas Surabaya ke Transit (per reservasi);
         # tidak ada lagi shadow CashMovement (Fase 7).
-        self.assertEqual(fq.transit("konoz"), 3000)
-        self.assertEqual(fq.kas_surabaya("konoz"), -3000)
+        self.assertEqual(fq.transit(), 3000)
+        self.assertEqual(fq.kas_surabaya(), -3000)
 
     def test_editing_remittance_amount_resyncs_journal_not_duplicates(self):
-        rem = Remittance.objects.create(company="konoz", date="2026-01-10", remittance_number="RMT-DW-01")
+        rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-01")
         from hw.models import RemittanceLine
         line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
 
@@ -169,11 +168,11 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         self.assertEqual(resp.status_code, 302)
 
         # Idempotent-by-content: jumlah di-resync, tidak ditumpuk.
-        self.assertEqual(fq.transit("konoz"), 4500)
-        self.assertEqual(fq.kas_surabaya("konoz"), -4500)
+        self.assertEqual(fq.transit(), 4500)
+        self.assertEqual(fq.kas_surabaya(), -4500)
 
     def test_deleting_remittance_line_reverses_its_journal_leg(self):
-        rem = Remittance.objects.create(company="konoz", date="2026-01-10", remittance_number="RMT-DW-02")
+        rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-02")
         from hw.models import RemittanceLine
         line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
 
@@ -183,4 +182,4 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(RemittanceLine.objects.filter(remittance=rem).count(), 0)
-        self.assertEqual(fq.transit("konoz"), 0)
+        self.assertEqual(fq.transit(), 0)

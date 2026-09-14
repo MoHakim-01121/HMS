@@ -17,17 +17,16 @@ class _Base(TestCase):
         s["active_company"] = "konoz"
         s.save()
         FinancialPeriod.objects.create(
-            name="2020-2030", company="konoz",
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name="2020-2030",            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT CL Ledger')
+        self.client_obj = Client.objects.create( name='PT CL Ledger')
 
 
 class InvoiceFromClsChargeTest(_Base):
     def setUp(self):
         super().setUp()
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-FROMCLS-001', guest_name='Budi',
+ confirmation_number='CL-FROMCLS-001', guest_name='Budi',
             client=self.client_obj,
             check_in=date.today(), check_out=date.today() + timedelta(days=2),
         )
@@ -46,12 +45,12 @@ class ClEditReservationSyncChargeTest(_Base):
     def setUp(self):
         super().setUp()
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-CLEDIT-001', customer_name='PT CL Ledger',
             client=self.client_obj, issued_date=date(2026, 1, 1),
         )
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-EDIT-001', guest_name='Ahmad',
+ confirmation_number='CL-EDIT-001', guest_name='Ahmad',
             client=self.client_obj,
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
             invoice=self.invoice,

@@ -15,8 +15,7 @@ class JournalImmutabilityTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fin", password="x")
         FinancialPeriod.objects.create(
-            name="2041-01", company=Company.KONOZ,
-            date_from=date(2041, 1, 1), date_to=date(2041, 1, 31),
+            name="2041-01",            date_from=date(2041, 1, 1), date_to=date(2041, 1, 31),
         )
         self.entry = post_entry(
             entry_type=JournalEntry.TYPE_ADJUSTMENT, description="t",

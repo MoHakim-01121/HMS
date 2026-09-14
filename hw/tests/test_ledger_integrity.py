@@ -43,16 +43,15 @@ class PenaltyLedgerSyncTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
         FinancialPeriod.objects.create(
-            name='2026', company='konoz',
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.cl_obj = Client.objects.create(company='konoz', name='Amanah')
+        self.cl_obj = Client.objects.create( name='Amanah')
         self.inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-PEN-1',
+ invoice_type='hotel', invoice_number='INV-PEN-1',
             customer_name='Amanah', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', client=self.cl_obj, hotel_name='Hotel A',
+ client=self.cl_obj, hotel_name='Hotel A',
             guest_name='Guest A', check_in=date(2026, 8, 10),
             check_out=date(2026, 8, 12), confirmation_number='CL-PEN-1',
             invoice=self.inv,
@@ -67,7 +66,7 @@ class PenaltyLedgerSyncTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         penalty = CancellationPenalty.objects.get(penalty_number='PNL-001')
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -1000)
-        self.assertEqual(fq.kas_surabaya('konoz'), 1000)
+        self.assertEqual(fq.kas_surabaya(), 1000)
         self.assertEqual(fq.client_receivable(self.cl_obj.id), 0)  # ditagih lalu dibayar
 
     def test_penalty_create_unpaid_posts_charge_only(self):
@@ -77,7 +76,7 @@ class PenaltyLedgerSyncTest(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(fq.client_receivable(self.cl_obj.id), 500)
-        self.assertEqual(fq.kas_surabaya('konoz'), 0)
+        self.assertEqual(fq.kas_surabaya(), 0)
 
     def test_penalty_edit_resyncs_journal_to_new_amount(self):
         penalty = CancellationPenalty.objects.create(
@@ -93,7 +92,7 @@ class PenaltyLedgerSyncTest(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -700)
-        self.assertEqual(fq.kas_pusat('konoz'), 700)  # method 'direct'
+        self.assertEqual(fq.kas_pusat(), 700)  # method 'direct'
 
 
 class PenaltyIndependentFromInvoicePaymentTest(TestCase):
@@ -102,19 +101,18 @@ class PenaltyIndependentFromInvoicePaymentTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('pay_ops', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2026', company='konoz',
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.cl_obj = Client.objects.create(company='konoz', name='Bina')
+        self.cl_obj = Client.objects.create( name='Bina')
         self.inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-PAY-1',
+ invoice_type='hotel', invoice_number='INV-PAY-1',
             customer_name='Bina', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         self.res = Reservation.objects.create(
             invoice=self.inv, reservation_number='R1', hotel='H', total_sar=5000,
         )
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', client=self.cl_obj, hotel_name='Hotel B',
+ client=self.cl_obj, hotel_name='Hotel B',
             guest_name='Guest B', check_in=date(2026, 8, 10),
             check_out=date(2026, 8, 12), confirmation_number='CL-PAY-1',
             invoice=self.inv,
@@ -151,15 +149,14 @@ class DeleteGuardTest(TestCase):
         s = self.client.session
         s['active_company'] = 'konoz'
         s.save()
-        self.cl_obj = Client.objects.create(company='konoz', name='Sinar')
+        self.cl_obj = Client.objects.create( name='Sinar')
         FinancialPeriod.objects.create(
-            name='2026', company='konoz',
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
 
     def _hotel_invoice_with_charge(self):
         inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-DEL-1',
+ invoice_type='hotel', invoice_number='INV-DEL-1',
             customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         Reservation.objects.create(
@@ -177,7 +174,7 @@ class DeleteGuardTest(TestCase):
 
     def test_invoice_delete_allowed_when_no_ledger(self):
         inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-DEL-2',
+ invoice_type='hotel', invoice_number='INV-DEL-2',
             customer_name='Sinar', issued_date=date(2026, 8, 1),
         )
         resp = self.client.post(f'/invoice/{inv.pk}/delete/')
@@ -186,7 +183,7 @@ class DeleteGuardTest(TestCase):
 
     def test_services_delete_blocked_when_charges_exist(self):
         inv = Invoice.objects.create(
-            company='konoz', invoice_type='visa', invoice_number='SVC-DEL-1',
+ invoice_type='visa', invoice_number='SVC-DEL-1',
             customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
         ServiceItem.objects.create(invoice=inv, name='Visa', qty=1, price=300)
@@ -197,7 +194,7 @@ class DeleteGuardTest(TestCase):
 
     def test_remittance_delete_blocked_when_lines_exist(self):
         rem = Remittance.objects.create(
-            company='konoz', remittance_number='RMT-001', date=date(2026, 8, 1),
+ remittance_number='RMT-001', date=date(2026, 8, 1),
         )
         RemittanceLine.objects.create(remittance=rem, linked_number='R1', amount_sar=500)
         resp = self.client.post(f'/remittance/{rem.pk}/delete/')
@@ -207,7 +204,7 @@ class DeleteGuardTest(TestCase):
 
     def test_remittance_delete_allowed_when_empty(self):
         rem = Remittance.objects.create(
-            company='konoz', remittance_number='RMT-002', date=date(2026, 8, 1),
+ remittance_number='RMT-002', date=date(2026, 8, 1),
         )
         resp = self.client.post(f'/remittance/{rem.pk}/delete/')
         self.assertEqual(resp.status_code, 302)
@@ -215,7 +212,7 @@ class DeleteGuardTest(TestCase):
 
     def test_penalty_delete_blocked_when_journaled(self):
         cl = ConfirmationLetter.objects.create(
-            company='konoz', client=self.cl_obj, hotel_name='H', guest_name='G',
+ client=self.cl_obj, hotel_name='H', guest_name='G',
             confirmation_number='CL-DEL-1',
         )
         penalty = CancellationPenalty.objects.create(
@@ -234,13 +231,12 @@ class ServiceInvoiceTotalTest(TestCase):
 
     def test_visa_invoice_total_sar_includes_service_items(self):
         FinancialPeriod.objects.create(
-            name='2026', company='konoz',
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        cl = Client.objects.create(company='konoz', name='Sinar')
+        cl = Client.objects.create( name='Sinar')
         user = User.objects.create_user('svc_tot', password='x')
         inv = Invoice.objects.create(
-            company='konoz', invoice_type='visa', invoice_number='SVC-TOT-1',
+ invoice_type='visa', invoice_number='SVC-TOT-1',
             customer_name='Sinar', client=cl, issued_date=date(2026, 8, 1),
         )
         ServiceItem.objects.create(invoice=inv, name='Visa', qty=2, price=150)
@@ -259,7 +255,7 @@ class ServiceInvoiceTotalTest(TestCase):
 
     def test_hotel_invoice_total_unaffected(self):
         inv = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-TOT-1',
+ invoice_type='hotel', invoice_number='INV-TOT-1',
             customer_name='Sinar', issued_date=date(2026, 8, 1),
         )
         Reservation.objects.create(invoice=inv, reservation_number='R1', total_sar=1000)

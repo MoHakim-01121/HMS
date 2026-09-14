@@ -27,12 +27,11 @@ class PostingTestBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fin", password="x")
         FinancialPeriod.objects.create(
-            name="2045", company=Company.KONOZ,
-            date_from=date(2045, 1, 1), date_to=date(2045, 12, 31),
+            name="2045",            date_from=date(2045, 1, 1), date_to=date(2045, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-P1",
+ invoice_type="hotel", invoice_number="INV-P1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2045, 1, 5),
         )
         self.res = Reservation.objects.create(
@@ -45,7 +44,7 @@ class InvoiceChargeTests(PostingTestBase):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 100000)
         self.assertEqual(_net(account_id=coa.INC_HOTEL, invoice=self.invoice), -100000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_charge_is_idempotent_by_content(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -61,7 +60,7 @@ class InvoiceChargeTests(PostingTestBase):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         # net AR for invoice reflects the new total, old charge reversed
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 120000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_void_reverses_all(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -72,7 +71,7 @@ class InvoiceChargeTests(PostingTestBase):
 
     def test_service_invoice_uses_service_income(self):
         inv = Invoice.objects.create(
-            company="konoz", invoice_type="visa", invoice_number="SVC-P1",
+ invoice_type="visa", invoice_number="SVC-P1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2045, 2, 1),
         )
         ServiceItem.objects.create(invoice=inv, name="Visa", qty=2, price=15000)
@@ -93,7 +92,7 @@ class PaymentPostingTests(PostingTestBase):
         posting.post_payment(p, created_by=self.user)
         self.assertEqual(_net(account_id=coa.CASH_SBY, invoice=self.invoice), 100000)
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 0)  # 100k charge - 100k paid
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_post_payment_idempotent(self):
         p = self._payment()
@@ -158,7 +157,7 @@ class KasMovementTests(PostingTestBase):
     def test_remittance_send_then_receive_with_fee(self):
         from hw.models import Remittance
         rmt = Remittance.objects.create(
-            company="konoz", date=date(2045, 5, 1), remittance_number="RMT-P1",
+ date=date(2045, 5, 1), remittance_number="RMT-P1",
         )
         posting.post_remittance_send(
             rmt, from_location="sby", amount_sar=50000, created_by=self.user,
@@ -171,13 +170,13 @@ class KasMovementTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 1000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
 
 class PenaltyChargeTests(PostingTestBase):
     def test_penalty_charge_posts(self):
         cl = ConfirmationLetter.objects.create(
-            company="konoz", client=self.client_obj, hotel_name="H", guest_name="G",
+ client=self.client_obj, hotel_name="H", guest_name="G",
             confirmation_number="CL-P1",
         )
         pen = CancellationPenalty.objects.create(
@@ -193,7 +192,7 @@ class RemittanceResyncTests(PostingTestBase):
     def _remittance(self):
         from hw.models import Remittance
         return Remittance.objects.create(
-            company="konoz", date=date(2045, 5, 1), remittance_number="RMT-R",
+ date=date(2045, 5, 1), remittance_number="RMT-R",
         )
 
     def test_send_per_reservation_then_receive(self):
@@ -217,7 +216,7 @@ class RemittanceResyncTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 1000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_resync_is_idempotent_by_content(self):
         rmt = self._remittance()
@@ -261,7 +260,7 @@ class RemittanceResyncTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 7000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_unreceived_revert_reverses_receive_without_repost(self):
         rmt = self._remittance()
@@ -279,4 +278,4 @@ class RemittanceResyncTests(PostingTestBase):
         )
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
         self.assertEqual(_net(account_id=coa.TRANSIT), 40000)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])

@@ -9,7 +9,6 @@ from django.urls import reverse
 from hw.finance import posting
 from hw.finance import queries as q
 from hw.finance_helpers import create_payment_record
-from hw.models.choices import Company
 from hw.models import (
     CancellationPenalty, Client, ConfirmationLetter, FinancialPeriod, Invoice,
     Reservation,
@@ -32,12 +31,11 @@ class FinanceViewsTest(TestCase):
         self.client.force_login(self.user)
 
         self.period = FinancialPeriod.objects.create(
-            name='2026-TEST', company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026-TEST', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.konoz_client = Client.objects.create(name='PT Uji', company='konoz')
+        self.konoz_client = Client.objects.create(name='PT Uji')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+            invoice_type='hotel',
             invoice_number='INV-FV-001', customer_name='PT Uji',
             client=self.konoz_client,
         )
@@ -45,14 +43,13 @@ class FinanceViewsTest(TestCase):
             invoice=self.invoice, reservation_number='R-FV-1', total_sar=100000,
         )
 
-    def _je(self, n, company='konoz', legs=(('cash_sby', 5000), ('receivable', -5000))):
+    def _je(self, n, legs=(('cash_sby', 5000), ('receivable', -5000))):
         je = JournalEntry.objects.create(
             entry_number=f'JE-T{n:06d}',
             entry_type=JournalEntry.TYPE_ADJUSTMENT,
             description=f'Test entry {n}',
             entry_date=date(2026, 3, 1),
             period=self.period,
-            company=company,
             created_by=self.user,
         )
         for i, (account, amount) in enumerate(legs, start=1):
@@ -66,14 +63,12 @@ class FinanceViewsTest(TestCase):
 
     # â”€â”€ Journal â”€â”€
 
-    def test_journal_list_scopes_by_company(self):
+    def test_journal_list_shows_entries(self):
         mine = self._je(1)
-        other = self._je(2, company='ijabah')
         r = self.client.get(reverse('journal_list'))
         self.assertEqual(r.status_code, 200)
         numbers = [e['entry_number'] for e in _props(r)['entries']]
         self.assertIn(mine.entry_number, numbers)
-        self.assertNotIn(other.entry_number, numbers)
 
     def test_journal_list_filters_by_type(self):
         je = self._je(3)
@@ -117,13 +112,6 @@ class FinanceViewsTest(TestCase):
         accounts = {g['account']: g for g in props['groups']}
         self.assertEqual(accounts[coa.CASH_SBY]['debit'], 5000)
         self.assertEqual(accounts[coa.INC_HOTEL]['credit'], 3000)
-
-    def test_trial_balance_excludes_other_company(self):
-        self._je(7, company='ijabah', legs=(('cash_sby', 99000), ('receivable', -99000)))
-        r = self.client.get(reverse('trial_balance'))
-        props = _props(r)
-        self.assertFalse(props['groups'])
-        self.assertEqual(props['total_debit'], 0)
 
     def test_trial_balance_date_filter(self):
         je = self._je(8)

@@ -41,13 +41,13 @@ class ClListMultiSearchTests(TestCase):
         s["active_company"] = "konoz"
         s.save()
         ConfirmationLetter.objects.create(
-            company="konoz", confirmation_number="HMS/241", guest_name="Ahmad", hotel_name="Hotel A"
+ confirmation_number="HMS/241", guest_name="Ahmad", hotel_name="Hotel A"
         )
         ConfirmationLetter.objects.create(
-            company="konoz", confirmation_number="HMS/142", guest_name="Budi", hotel_name="Hotel B"
+ confirmation_number="HMS/142", guest_name="Budi", hotel_name="Hotel B"
         )
         ConfirmationLetter.objects.create(
-            company="konoz", confirmation_number="HMS/999", guest_name="Citra", hotel_name="Hotel C"
+ confirmation_number="HMS/999", guest_name="Citra", hotel_name="Hotel C"
         )
 
     def _get_letters(self, q):

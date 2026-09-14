@@ -19,8 +19,7 @@ def make_user(username, role):
 class ExpenseViewsBase(TestCase):
     def setUp(self):
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.manager = make_user('exp_mgr', 'manager')
         self.staff = make_user('exp_staff', 'staff')

@@ -12,7 +12,7 @@ from django.utils import timezone
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..models.payment import PaymentRecord, PaymentLog
 from ..models.period import FinancialPeriod
-from ..models.choices import Company, InvoiceType
+from ..models.choices import InvoiceType
 from .errors import (
     FinanceError, JournalImbalanceError, PeriodLockedError,
 )
@@ -31,7 +31,7 @@ class MissingDimensionError(FinanceError):
 
 # ── Period helpers ─────────────────────────────────────────────
 
-def get_current_period(company=None):
+def get_current_period():
     """Return the current open period (with row lock). Raises PeriodLockedError if none open."""
     now = timezone.now().date()
     period = FinancialPeriod.objects.select_for_update().filter(
@@ -44,19 +44,12 @@ def get_current_period(company=None):
     return period
 
 
-def get_period_for_date(date, company=None):
-    """Return the period that contains the given date (with row lock).
-
-    When ``company`` is supplied the result is scoped to that company,
-    preventing cross-company period mixups in a multi-tenant deployment.
-    """
-    qs = FinancialPeriod.objects.select_for_update().filter(
+def get_period_for_date(date):
+    """Return the period that contains the given date (with row lock)."""
+    period = FinancialPeriod.objects.select_for_update().filter(
         date_from__lte=date,
         date_to__gte=date,
-    )
-    if company is not None:
-        qs = qs.filter(company=company)
-    period = qs.first()
+    ).first()
     if not period:
         raise PeriodLockedError(f"Tidak ada periode untuk tanggal {date}")
     return period
@@ -135,7 +128,6 @@ def post_entry(
     description,
     entry_date,
     lines,
-    company=Company.KONOZ,
     source_type="",
     source_id=None,
     idempotency_key=None,
@@ -178,17 +170,17 @@ def post_entry(
                 f"Baris {r['line_no']} ({r['account_id']}) wajib punya dimensi client"
             )
 
-    period = get_period_for_date(entry_date, company=company)
+    period = get_period_for_date(entry_date)
     check_period_postable(period)
 
-    # seq monoton per company + prev_hash dari entry terakhir.
+    # seq monoton global + prev_hash dari entry terakhir.
     # select_for_update() memastikan dua transaksi paralel tidak menghasilkan
     # seq yang sama. Untuk tabel kosong (entry pertama), kita menggunakan
-    # 0 + 1 = 1. IntegrityError (company, seq) ditangkap sebagai fallback
+    # 0 + 1 = 1. IntegrityError (seq) ditangkap sebagai fallback
     # untuk race condition extremely-narrow-window.
     last = (
         JournalEntry.objects.select_for_update()
-        .filter(company=company, seq__isnull=False)
+        .filter(seq__isnull=False)
         .order_by("-seq").first()
     )
     seq = (last.seq if last else 0) + 1
@@ -207,7 +199,6 @@ def post_entry(
         is_reversal=is_reversal,
         reverses=reverses,
         period=period,
-        company=company,
         created_by=created_by,
         proof=proof,
     )
@@ -216,11 +207,11 @@ def post_entry(
     try:
         entry.save()
     except IntegrityError as exc:
-        if 'journal_entry_company_seq' in str(exc) or 'unique' in str(exc).lower():
-            logger.warning("post_entry seq race detected for company=%s, retrying", company)
+        if 'journal_entry_seq' in str(exc) or 'unique' in str(exc).lower():
+            logger.warning("post_entry seq race detected, retrying")
             return post_entry(
                 entry_type=entry_type, description=description,
-                entry_date=entry_date, lines=lines, company=company,
+                entry_date=entry_date, lines=lines,
                 source_type=source_type, source_id=source_id,
                 idempotency_key=idempotency_key, created_by=created_by,
                 is_reversal=is_reversal, reverses=reverses, proof=proof,
@@ -282,7 +273,6 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
         description=f"Reversal: {original.description}",
         entry_date=reversal_date,
         lines=lines,
-        company=original.company,
         source_type="JournalEntry",
         source_id=original.pk,
         created_by=created_by,
@@ -365,7 +355,6 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None):
         description=f"Charge {invoice.invoice_number}",
         entry_date=entry_date,
         lines=lines,
-        company=invoice.company,
         source_type="Invoice",
         source_id=invoice.pk,
         created_by=created_by,
@@ -440,7 +429,6 @@ def post_penalty_charge(penalty, *, created_by, entry_date=None):
              "penalty": penalty.pk},
             {"account": coa.INC_PENALTY, "credit": amt, "penalty": penalty.pk},
         ],
-        company=penalty.cl.company if penalty.cl_id else Company.KONOZ,
         source_type="CancellationPenalty",
         source_id=penalty.pk,
         created_by=created_by,
@@ -587,7 +575,6 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         description=f"Payment {payment.payment_number} - {', '.join(_payment_targets(payment)) or 'unallocated'}",
         entry_date=payment.payment_date,
         lines=lines,
-        company=payment.company,
         source_type="PaymentRecord",
         source_id=payment.pk,
         idempotency_key=idempotency_key or f"payment:{payment.payment_number}:confirm",
@@ -605,13 +592,10 @@ def post_payment(payment, *, created_by, idempotency_key=None):
     return entry
 
 
-def client_credit_balance(client_id, company=None):
+def client_credit_balance(client_id):
     agg = JournalLine.objects.filter(
         client_id=client_id, account_id=coa.CUST_CREDIT,
-    )
-    if company is not None:
-        agg = agg.filter(journal_entry__company=company)
-    agg = agg.aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
+    ).aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
     return (agg["c"] or 0) - (agg["d"] or 0)
 
 
@@ -624,19 +608,18 @@ def post_payment_from_credit(payment, *, created_by):
     """Bayar invoice pakai saldo titipan: DR Titipan / CR Piutang.
 
     Mengunci baris titipan terkait (via client_credit_balance dengan select_
-    for_update pada company/jurnal) supaya dua pembayaran dari-titipan paralel
-    tidak double-spend saldo yang sama (lost update).
+    for_update) supaya dua pembayaran dari-titipan paralel tidak double-spend
+    saldo yang sama (lost update).
     """
     amt = int(payment.amount_sar)
     if not amt:
         raise FinanceError("Jumlah pembayaran harus > 0")
-    # Lock the client's titipan rows for this company inside the transaction
-    # so two concurrent from-credit payments serialize on the current balance.
+    # Lock the client's titipan rows inside the transaction so two concurrent
+    # from-credit payments serialize on the current balance.
     JournalLine.objects.select_for_update().filter(
         client_id=payment.client_id, account_id=coa.CUST_CREDIT,
-        journal_entry__company=payment.company,
     ).aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
-    balance = client_credit_balance(payment.client_id, company=payment.company)
+    balance = client_credit_balance(payment.client_id)
     if balance < amt:
         raise InsufficientCreditError(
             f"Saldo titipan {payment.client} tidak cukup untuk {amt:,}"
@@ -650,7 +633,6 @@ def post_payment_from_credit(payment, *, created_by):
             {"account": coa.CUST_CREDIT, "debit": amt, **dims},
             {"account": coa.AR, "credit": amt, **dims},
         ],
-        company=payment.company,
         source_type="PaymentRecord",
         source_id=payment.pk,
         idempotency_key=f"payment:{payment.payment_number}:from-credit",
@@ -675,7 +657,6 @@ def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=N
             {"account": cash_acc, "debit": amt, **dims},
             {"account": coa.AR, "credit": amt, **dims},
         ],
-        company=penalty.cl.company if penalty.cl_id else Company.KONOZ,
         source_type="CancellationPenalty",
         source_id=penalty.pk,
         created_by=created_by,
@@ -710,7 +691,6 @@ def post_remittance_send(remittance, *, from_location, amount_sar, created_by, e
             {"account": coa.TRANSIT, "debit": amount_sar, **dims},
             {"account": src, "credit": amount_sar, **dims},
         ],
-        company=remittance.company,
         source_type="Remittance",
         source_id=remittance.pk,
         created_by=created_by,
@@ -735,7 +715,6 @@ def post_remittance_receive(remittance, *, expected_sar, received_sar, created_b
         description=f"Remittance {remittance.remittance_number} diterima",
         entry_date=entry_date,
         lines=lines,
-        company=remittance.company,
         source_type="Remittance",
         source_id=remittance.pk,
         created_by=created_by,
@@ -850,7 +829,7 @@ def resync_remittance(remittance, *, created_by, send_segments=None,
 
 @transaction.atomic
 def post_refund(client, *, from_location, amount_sar, created_by, entry_date,
-                use_credit=True, company=Company.KONOZ, idempotency_key=None, proof=None):
+                use_credit=True, idempotency_key=None, proof=None):
     """Refund ke client: DR Titipan (atau Piutang) / CR Kas.
 
     `idempotency_key` opsional: kasus baris event tunggal (dua kaki REFUND
@@ -867,7 +846,6 @@ def post_refund(client, *, from_location, amount_sar, created_by, entry_date,
             {"account": debit_acc, "debit": amount_sar, "client": client.pk, "branch": from_location},
             {"account": src, "credit": amount_sar, "client": client.pk, "branch": from_location},
         ],
-        company=company,
         source_type="Client",
         source_id=client.pk,
         idempotency_key=idempotency_key,
@@ -878,7 +856,7 @@ def post_refund(client, *, from_location, amount_sar, created_by, entry_date,
 
 @transaction.atomic
 def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
-                       created_by, entry_date, company=Company.KONOZ, idempotency_key=None):
+                       created_by, entry_date, idempotency_key=None):
     """Pindah piutang antar reservasi (re-tag), total piutang klien tetap."""
     return post_entry(
         entry_type=JournalEntry.TYPE_TRANSFER,
@@ -890,7 +868,6 @@ def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
             {"account": coa.AR, "credit": amount_sar, "client": client.pk,
              "reservation": getattr(from_reservation, "pk", from_reservation)},
         ],
-        company=company,
         idempotency_key=idempotency_key,
         created_by=created_by,
     )
@@ -930,7 +907,7 @@ def allocate_payment(payment, allocations, *, created_by=None):
 
 @transaction.atomic
 def post_adjustment(*, lines, description, entry_date, created_by,
-                    company=Company.KONOZ, idempotency_key=None):
+                    idempotency_key=None):
     """Entry adjustment manual bebas — wajib balance + deskripsi."""
     if not description:
         raise FinanceError("Adjustment wajib punya deskripsi")
@@ -939,7 +916,6 @@ def post_adjustment(*, lines, description, entry_date, created_by,
         description=description,
         entry_date=entry_date,
         lines=lines,
-        company=company,
         idempotency_key=idempotency_key,
         created_by=created_by,
     )

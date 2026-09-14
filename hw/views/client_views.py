@@ -23,7 +23,6 @@ from .helpers import (
     _is_mobile,
     _parse_date,
     _to_float,
-    get_active_company,
     pagination_props,
     period_label as _period_label,
     snapshot_fields,
@@ -34,14 +33,9 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-def _company(request):
-    return get_active_company(request)
-
-
 @require_perm('clients', 'view')
 def client_list(request):
-    company = _company(request)
-    qs = Client.objects.filter(company=company)
+    qs = Client.objects.all()
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -192,16 +186,15 @@ def _client_echo(data):
 
 @require_perm('clients', 'create')
 def client_new(request):
-    company = _company(request)
     if request.method == 'POST':
         errors = _validate_client(request.POST)
         if errors:
             return inertia_render(request, "Client/Form", props={
                 "client": _client_echo(request.POST), "edit": False, "errors": errors,
             })
-        c = Client(company=company)
+        c = Client()
         _save_client(c, request.POST)
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name, c.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name)
         messages.success(request, f'Client "{c.name}" added successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={"client": None, "edit": False})
@@ -209,7 +202,7 @@ def client_new(request):
 
 @require_perm('clients', 'edit')
 def client_edit(request, pk):
-    c = get_object_or_404(Client, pk=pk, company=_company(request))
+    c = get_object_or_404(Client, pk=pk)
     if request.method == 'POST':
         errors = _validate_client(request.POST)
         if errors:
@@ -224,7 +217,7 @@ def client_edit(request, pk):
             _before, _after,
             labels={'name': 'Name', 'brand': 'Brand', 'city': 'City', 'province': 'Province', 'address': 'Address', 'pic': 'PIC', 'wa': 'WhatsApp', 'email': 'Email'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, c.company, changes)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, changes)
         messages.success(request, f'Client "{c.name}" updated successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
@@ -242,7 +235,7 @@ def client_edit(request, pk):
 @require_perm('clients', 'delete')
 @require_POST
 def client_delete(request, pk):
-    c = get_object_or_404(Client, pk=pk, company=_company(request))
+    c = get_object_or_404(Client, pk=pk)
     name = c.name
     try:
         c.delete()
@@ -258,15 +251,14 @@ def client_delete(request, pk):
             )
             return redirect('client_detail', pk=pk)
         raise
-    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name, c.company)
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name)
     messages.success(request, f'Client "{name}" deleted.')
     return redirect('client_list')
 
 
 @require_perm('clients', 'view')
 def client_detail(request, pk):
-    company = _company(request)
-    qs = Client.objects.filter(company=company).prefetch_related('cls__rooms')
+    qs = Client.objects.prefetch_related('cls__rooms')
     c = get_object_or_404(qs, pk=pk)
     # Invoice.client sendirian tidak cukup -- invoice lama sering kosong.
     # resolved_invoices (Fase 7) = union Invoice.client + invoice yang punya
@@ -331,17 +323,15 @@ def client_detail(request, pk):
 
 @require_perm('clients', 'view')
 def client_map(request):
-    company = _company(request)
-    qs = Client.objects.filter(company=company, lat__isnull=False, lng__isnull=False)
+    qs = Client.objects.filter(lat__isnull=False, lng__isnull=False)
     return inertia_render(request, "Client/Map", props={"clients_count": qs.count()})
 
 
 @require_perm('clients', 'view')
 def client_map_data(request):
-    company = _company(request)
     qs = (
         Client.objects
-        .filter(company=company, lat__isnull=False, lng__isnull=False)
+        .filter(lat__isnull=False, lng__isnull=False)
         .prefetch_related('invoices__payments', 'invoices__reservations')
     )
 
@@ -407,8 +397,7 @@ def _client_reservation_options(client_obj):
 
 @require_perm('clients', 'edit')
 def client_transfer(request, pk):
-    company = _company(request)
-    client_obj = get_object_or_404(Client, pk=pk, company=company)
+    client_obj = get_object_or_404(Client, pk=pk)
 
     if request.method == 'POST':
         try:
@@ -428,9 +417,9 @@ def client_transfer(request, pk):
             errors['amount_sar'] = 'Enter an amount greater than zero.'
 
         # Scoped to this client's own reservations (sumber sama dengan
-        # _client_reservation_options: dimensi jurnal client+reservation),
-        # bukan cuma active company -- supaya id reservasi tamper-an milik
-        # client lain di company yang sama tidak namanya di-tag ke client ini.
+        # _client_reservation_options: dimensi jurnal client+reservation)
+        # supaya id reservasi tamper-an milik client lain tidak ikut ter-tag
+        # ke client ini.
         client_reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
         from_res = Reservation.objects.filter(pk=from_id).first() if from_id in client_reservation_ids else None
         to_res = Reservation.objects.filter(pk=to_id).first() if to_id in client_reservation_ids else None
@@ -448,7 +437,6 @@ def client_transfer(request, pk):
                 posting.post_fund_transfer(
                     client_obj, from_reservation=from_res, to_reservation=to_res,
                     amount_sar=amount, created_by=request.user, entry_date=date.today(),
-                    company=company,
                 )
             except FinanceError as e:
                 errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
@@ -457,7 +445,7 @@ def client_transfer(request, pk):
                     "ledger: transfer %s SAR from reservation %s to %s (client %s)",
                     amount, from_res.reservation_number, to_res.reservation_number, client_obj.pk,
                 )
-                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name, company)
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name)
                 messages.success(request, f'Moved {amount} SAR from {from_res.reservation_number} to {to_res.reservation_number}.')
                 return redirect('client_detail', pk=pk)
 
@@ -490,8 +478,7 @@ REFUND_ACCOUNTS = [
 
 @require_perm('clients', 'edit')
 def client_refund(request, pk):
-    company = _company(request)
-    client_obj = get_object_or_404(Client, pk=pk, company=company)
+    client_obj = get_object_or_404(Client, pk=pk)
 
     if request.method == 'POST':
         from_account = request.POST.get('from_account') or REFUND_LOCATIONS[0]
@@ -518,7 +505,7 @@ def client_refund(request, pk):
                 posting.post_refund(
                     client_obj, from_location=from_account.lower(), amount_sar=amount,
                     created_by=request.user, entry_date=date.today(),
-                    company=company, proof=proof,
+                    proof=proof,
                 )
             except FinanceError as e:
                 errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
@@ -527,7 +514,7 @@ def client_refund(request, pk):
                     "ledger: refund %s SAR to client %s from %s",
                     amount, client_obj.pk, from_account,
                 )
-                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name, company)
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
                 messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
                 return redirect('client_detail', pk=pk)
 
@@ -560,8 +547,7 @@ def client_statement_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
 
-    company = _company(request)
-    c = get_object_or_404(Client, pk=pk, company=company)
+    c = get_object_or_404(Client, pk=pk)
 
     mode = request.GET.get('mode', 'balance')
     if mode not in ('balance', 'open', 'byres'):
@@ -575,7 +561,7 @@ def client_statement_pdf(request, pk):
     period_label = _period_label(date_from, date_to)
 
     if mode == 'open':
-        open_items = finance_queries.open_items(c.id, company=company, date_to=date_to, as_of=as_of)
+        open_items = finance_queries.open_items(c.id, date_to=date_to, as_of=as_of)
         return _render_list_pdf(
             request, Client.objects.none(),
             template='hw/client/client_open_items_pdf.html',
@@ -585,13 +571,13 @@ def client_statement_pdf(request, pk):
                 'open_items': open_items['rows'],
                 'total_open': open_items['total_remaining'],
                 'period_label': period_label,
-                'logo_url': _logo_file_url(company),
+                'logo_url': _logo_file_url(),
             },
         )
 
     if mode == 'byres':
         st = finance_queries.client_statement_by_reservation(
-            c.id, company=company, date_from=date_from, date_to=date_to, as_of=as_of,
+            c.id, date_from=date_from, date_to=date_to, as_of=as_of,
         )
         # This statement is client-facing and English-only, so it does not reuse
         # the Indonesian `_period_label` helper shared by the internal views.
@@ -627,7 +613,7 @@ def client_statement_pdf(request, pk):
                 'aging': st['aging']['buckets'],
                 'aging_total': st['aging']['total'],
                 'period_label': period_en,
-                'logo_url': _logo_file_url(company),
+                'logo_url': _logo_file_url(),
             },
         )
 
@@ -658,6 +644,6 @@ def client_statement_pdf(request, pk):
             'closing_balance': closing_balance,
             'total_debit': total_debit,
             'total_credit': total_credit,
-            'logo_url': _logo_file_url(company),
+            'logo_url': _logo_file_url(),
         },
     )

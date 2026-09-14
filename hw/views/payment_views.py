@@ -22,7 +22,7 @@ from ..finance_helpers import (
 from ..permissions import require_perm
 from ..finance import posting
 from .helpers import (
-    get_active_company, serialize_journal_entry, _parse_date, _to_float, _is_mobile,
+    serialize_journal_entry, _parse_date, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
 )
 
@@ -76,7 +76,6 @@ def _payment_props(p):
         'confirmed_by': p.confirmed_by.username if p.confirmed_by else None,
         'confirmed_at': p.confirmed_at.isoformat() if p.confirmed_at else None,
         'rejected_reason': p.rejected_reason,
-        'company': p.company,
         'created_by': p.created_by.username if p.created_by else None,
         'created_at': p.created_at.isoformat(),
     }
@@ -84,8 +83,7 @@ def _payment_props(p):
 
 @require_perm('payments', 'view')
 def payment_list(request):
-    company = get_active_company(request)
-    payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by')
+    payments = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by')
 
     # Filter by status
     status = request.GET.get('status')
@@ -112,10 +110,7 @@ def payment_list(request):
     page_payments = list(page_obj)
 
     # Invoice choices for the record dialog — include per-reservation breakdown.
-    # Scoped to the active company (a user restricted to company A must never
-    # see company B's invoice numbers in the dropdown).
     invoices = Invoice.objects.filter(
-        company=company,
         status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
     ).select_related('client').order_by('-created_at')[:50]
     from ..finance import queries as fq
@@ -141,7 +136,7 @@ def payment_list(request):
         })
 
     # Summary stats
-    all_payments = PaymentRecord.objects.filter(company=company)
+    all_payments = PaymentRecord.objects.all()
     stat_effective = all_payments.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
     unapplied_rows = [fq.payment_unallocated_sar(p.pk) for p in stat_effective]
     unapplied_total = sum(unapplied_rows)
@@ -171,10 +166,9 @@ def payment_list(request):
 
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
-    company = get_active_company(request)
     payment = get_object_or_404(
         PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'period'),
-        pk=pk, company=company,
+        pk=pk,
     )
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
 
@@ -221,7 +215,7 @@ def payment_detail(request, pk):
 
 @require_perm('payments', 'create')
 def payment_record_new(request, invoice_pk):
-    invoice = get_object_or_404(Invoice, pk=invoice_pk, company=get_active_company(request))
+    invoice = get_object_or_404(Invoice, pk=invoice_pk)
 
     if request.method == 'POST':
         try:
@@ -290,7 +284,7 @@ def payment_record(request):
         messages.error(request, 'Invoice harus dipilih.')
         return redirect('payment_list')
 
-    invoice = get_object_or_404(Invoice, pk=invoice_id, company=get_active_company(request))
+    invoice = get_object_or_404(Invoice, pk=invoice_id)
     payment_date = _parse_date(data.get('payment_date'))
     amount = _to_float(data.get('amount'))
     exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
@@ -499,8 +493,7 @@ def payment_record(request):
 
 @require_perm('payments', 'edit')
 def payment_confirm(request, pk):
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method == 'POST':
         try:
             note = ''
@@ -529,8 +522,7 @@ def payment_confirm(request, pk):
 
 @require_perm('payments', 'edit')
 def payment_reject(request, pk):
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method == 'POST':
         # Only a PENDING payment may be rejected. A confirmed/allocated payment
         # has already touched the ledger (DR Kas / CR Piutang); flipping it to
@@ -582,8 +574,7 @@ def payment_reallocate(request, pk):
     Body (JSON or form): allocations = [{"reservation_id": 1, "amount": 5000}, ...]
     Sisa yang tidak dialokasikan tetap mengambang (unallocated).
     """
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
 
@@ -639,8 +630,7 @@ def payment_reallocate(request, pk):
 
 @require_perm('payments', 'edit')
 def payment_reverse(request, pk):
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method == 'POST':
         try:
             # Resilai habis: sebuah payment efektif (confirmed/allocated) yang
@@ -703,8 +693,7 @@ def payment_apply(request, pk):
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
 
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
 
     # Only received / partially_applied payments can be (re-)applied.
     allocatable = (
@@ -802,8 +791,7 @@ def payment_void(request, pk):
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
 
-    company = get_active_company(request)
-    payment = get_object_or_404(PaymentRecord, pk=pk, company=company)
+    payment = get_object_or_404(PaymentRecord, pk=pk)
 
     voidable = PaymentRecord.EFFECTIVE_STATUSES
     if payment.status not in voidable:
@@ -855,8 +843,7 @@ def payment_void(request, pk):
 @require_perm('payments', 'export')
 def payment_export_csv(request):
     """Export payments as CSV."""
-    company = get_active_company(request)
-    payments = PaymentRecord.objects.filter(company=company).select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
+    payments = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by').order_by('-created_at')
 
     # Apply filters
     status = request.GET.get('status')

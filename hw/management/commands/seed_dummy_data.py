@@ -35,9 +35,9 @@ from hw.models import (
     CashMovement,
     ChargeReason,
     AllocationReason,
-    Company,
     InvoiceType,
 )
+from hw.models.choices import Company
 from hw.models.ledger import CashAccount
 from hw.utils import round_half_up
 
@@ -286,13 +286,12 @@ class Command(BaseCommand):
     def _create_cl(self, conf, guest, client, hotel, check_in, check_out,
                    status, rooms, rng, is_group):
         existing = ConfirmationLetter.objects.filter(
-            company=Company.KONOZ, confirmation_number=conf,
+            confirmation_number=conf,
         ).first()
         if existing:
             return existing, False
 
         cl = ConfirmationLetter.objects.create(
-            company=Company.KONOZ,
             client=client,
             hotel_name=hotel,
             guest_name=guest,
@@ -325,11 +324,10 @@ class Command(BaseCommand):
         number = f'INV-{issued:%Y%m}-{month_seq[key]:03d}'
 
         inv = Invoice.objects.filter(
-            company=Company.KONOZ, invoice_type=InvoiceType.HOTEL, invoice_number=number,
+            invoice_type=InvoiceType.HOTEL, invoice_number=number,
         ).first()
         if not inv:
             inv = Invoice.objects.create(
-                company=Company.KONOZ,
                 invoice_type=InvoiceType.HOTEL,
                 invoice_number=number,
                 client=first.client,
@@ -379,11 +377,10 @@ class Command(BaseCommand):
         number = f'SVC-{issued:%Y%m}-{month_seq[key]:03d}'
 
         inv = Invoice.objects.filter(
-            company=Company.KONOZ, invoice_type=InvoiceType.VISA, invoice_number=number,
+            invoice_type=InvoiceType.VISA, invoice_number=number,
         ).first()
         if not inv:
             inv = Invoice.objects.create(
-                company=Company.KONOZ,
                 invoice_type=InvoiceType.VISA,
                 invoice_number=number,
                 client=client,

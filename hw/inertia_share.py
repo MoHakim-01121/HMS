@@ -9,8 +9,7 @@ from django.contrib.messages import get_messages
 from inertia import share
 
 from .context_processors import due_soon
-from .permissions import allowed_companies, get_role, perms_payload, role_label
-from .views.helpers import get_active_company
+from .permissions import get_role, perms_payload, role_label
 
 
 def _flash(request):
@@ -59,10 +58,8 @@ class InertiaShareMiddleware:
                         "role": get_role(user),
                         "role_label": role_label(user),
                         "perms": perms_payload(user),
-                        "companies": allowed_companies(user),
                     }
                 },
-                active_company=get_active_company(request),
                 locale=_language(user),
                 flash=lambda: _flash(request),
                 **due_soon(request),

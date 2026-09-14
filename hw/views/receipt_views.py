@@ -17,15 +17,13 @@ from django.shortcuts import get_object_or_404, redirect
 
 from ..models import Receipt
 from ..permissions import require_perm
-from .helpers import get_active_company
 
 logger = logging.getLogger(__name__)
 
 
 @require_perm('invoice', 'delete')
 def receipt_void(request, pk):
-    active_company = get_active_company(request)
-    receipt = get_object_or_404(Receipt, pk=pk, company=active_company)
+    receipt = get_object_or_404(Receipt, pk=pk)
     if request.method == "POST":
         reason = request.POST.get("reason", "").strip()
         receipt.status = Receipt.STATUS_VOIDED
@@ -39,12 +37,11 @@ def receipt_void(request, pk):
 
 @require_perm('invoice', 'export')
 def receipt_pdf(request, pk):
-    active_company = get_active_company(request)
     receipt = get_object_or_404(
         Receipt.objects.select_related(
             'client', 'invoice', 'payment', 'confirmation_letter',
         ),
-        pk=pk, company=active_company,
+        pk=pk,
     )
     from .pdf import _logo_file_url
     from django.conf import settings
@@ -54,10 +51,9 @@ def receipt_pdf(request, pk):
 
     cl = receipt.confirmation_letter
     context = {
-        "logo_rel_path": _logo_file_url(receipt.company),
+        "logo_rel_path": _logo_file_url(),
         "receipt_number": receipt.receipt_number,
         "receipt_date": receipt.receipt_date,
-        "company": receipt.company,
         "payment_number": receipt.payment.payment_number if receipt.payment else None,
         "invoice_number": receipt.invoice.invoice_number if receipt.invoice else None,
         "client_name": receipt.client.name if receipt.client else None,

@@ -6,7 +6,7 @@ from hw.models import Hotel, RoomType
 
 class RoomTypeModelTest(TestCase):
     def setUp(self):
-        self.hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
+        self.hotel = Hotel.objects.create( name='Hotel Sawaaed', city='makkah')
 
     def test_str_includes_hotel_name(self):
         rt = RoomType.objects.create(hotel=self.hotel, name='Double View Kaaba', capacity=2)
@@ -26,7 +26,7 @@ class RoomTypeModelTest(TestCase):
             RoomType.objects.create(hotel=self.hotel, name='Suite', capacity=4)
 
     def test_same_name_different_hotel_is_allowed(self):
-        other_hotel = Hotel.objects.create(company='konoz', name='Hotel Zam Zam', city='makkah')
+        other_hotel = Hotel.objects.create( name='Hotel Zam Zam', city='makkah')
         RoomType.objects.create(hotel=self.hotel, name='Suite', capacity=2)
         # Must not raise — uniqueness is scoped per hotel, not global.
         RoomType.objects.create(hotel=other_hotel, name='Suite', capacity=2)

@@ -17,20 +17,20 @@ class ConfirmationLetterDateConstraintTest(TestCase):
 
     def test_check_out_after_check_in_is_allowed(self):
         ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-DC-1', guest_name='Ahmad',
+ confirmation_number='CL-DC-1', guest_name='Ahmad',
             check_in=date(2026, 6, 1), check_out=date(2026, 6, 3),
         )
 
     def test_null_dates_are_allowed(self):
         ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-DC-2', guest_name='Ahmad',
+ confirmation_number='CL-DC-2', guest_name='Ahmad',
         )
 
     def test_same_day_is_rejected(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 ConfirmationLetter.objects.create(
-                    company='konoz', confirmation_number='CL-DC-3', guest_name='Ahmad',
+ confirmation_number='CL-DC-3', guest_name='Ahmad',
                     check_in=date(2026, 6, 1), check_out=date(2026, 6, 1),
                 )
 
@@ -38,7 +38,7 @@ class ConfirmationLetterDateConstraintTest(TestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 ConfirmationLetter.objects.create(
-                    company='konoz', confirmation_number='CL-DC-4', guest_name='Ahmad',
+ confirmation_number='CL-DC-4', guest_name='Ahmad',
                     check_in=date(2026, 6, 3), check_out=date(2026, 6, 1),
                 )
 

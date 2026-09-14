@@ -6,9 +6,9 @@ ledger legacy untuk dibandingkan. Perintah ini memeriksa jurnal terhadap
 dirinya sendiri dan terhadap dokumen sumber (Invoice, PaymentRecord,
 RemittanceLine):
 
-  1. Rantai hash + nomor urut per company utuh (tamper-evidence).
+  1. Rantai hash + nomor urut utuh (tamper-evidence).
   2. Setiap JournalEntry balance per mata uang (Σdebit == Σcredit).
-  3. Trial balance per company balance.
+  3. Trial balance balance.
   4. Baris Piutang / Titipan selalu punya dimensi client.
   5. Total charge hidup per invoice == Invoice.total_sar (charge tak basi).
   6. Σ PaymentRecord (confirmed/allocated) per invoice == paid_sar jurnal.
@@ -25,7 +25,6 @@ from hw.finance import accounts as coa
 from hw.finance import hashing
 from hw.finance import queries as fq
 from hw.models import Invoice, Remittance, RemittanceLine
-from hw.models.choices import Company
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.payment import PaymentRecord
 
@@ -34,11 +33,9 @@ class Command(BaseCommand):
     help = __doc__
 
     def add_arguments(self, parser):
-        parser.add_argument('--company', help='Batasi ke satu company (default: semua).')
         parser.add_argument('--verbose', action='store_true', help='Cetak ringkasan tiap cek walau lolos.')
 
     def handle(self, *args, **options):
-        companies = [options['company']] if options['company'] else list(Company.values)
         problems = []
         ok = self.stdout.write
 
@@ -51,39 +48,37 @@ class Command(BaseCommand):
             elif options['verbose']:
                 self.stdout.write(self.style.SUCCESS(f'[  OK  ] {label}'))
 
-        # 1. Rantai hash + seq per company
-        for company in companies:
-            check(f'Rantai hash / seq ({company})', hashing.verify_chain(company))
+        # 1. Rantai hash + seq
+        check('Rantai hash / seq', hashing.verify_chain())
 
         # 2. Setiap entry balance per mata uang
-        check('Balance per entry', self._unbalanced_entries(companies))
+        check('Balance per entry', self._unbalanced_entries())
 
-        # 3. Trial balance per company
-        for company in companies:
-            tb = fq.trial_balance(company=company)
-            if not tb['balanced']:
-                problems.append(
-                    f'{company}: trial balance timpang (debit {tb["total_debit"]:,} '
-                    f'≠ kredit {tb["total_credit"]:,})'
-                )
-                self.stdout.write(self.style.ERROR(f'[GAGAL] Trial balance ({company})'))
-            elif options['verbose']:
-                self.stdout.write(self.style.SUCCESS(f'[  OK  ] Trial balance ({company})'))
+        # 3. Trial balance
+        tb = fq.trial_balance()
+        if not tb['balanced']:
+            problems.append(
+                f'Trial balance timpang (debit {tb["total_debit"]:,} '
+                f'≠ kredit {tb["total_credit"]:,})'
+            )
+            self.stdout.write(self.style.ERROR('[GAGAL] Trial balance'))
+        elif options['verbose']:
+            self.stdout.write(self.style.SUCCESS('[  OK  ] Trial balance'))
 
         # 4. Dimensi client pada baris Piutang / Titipan
-        check('Dimensi client (AR / Titipan)', self._lines_missing_client(companies))
+        check('Dimensi client (AR / Titipan)', self._lines_missing_client())
 
         # 5. Charge hidup == Invoice.total_sar
-        check('Charge jurnal vs total invoice', self._stale_charges(companies))
+        check('Charge jurnal vs total invoice', self._stale_charges())
 
         # 6. PaymentRecord vs paid_sar jurnal
-        check('PaymentRecord vs jurnal', self._payment_record_mismatch(companies))
+        check('PaymentRecord vs jurnal', self._payment_record_mismatch())
 
         # 7. RemittanceLine vs jurnal
-        check('RemittanceLine vs jurnal', self._remittance_line_mismatch(companies))
+        check('RemittanceLine vs jurnal', self._remittance_line_mismatch())
 
         # 8. Reversal menunjuk entry yang benar
-        check('Integritas reversal', self._bad_reversals(companies))
+        check('Integritas reversal', self._bad_reversals())
 
         self.stdout.write('')
         if problems:
@@ -93,12 +88,12 @@ class Command(BaseCommand):
 
     # ── cek individual ────────────────────────────────────────
 
-    def _entries(self, companies):
-        return JournalEntry.objects.filter(company__in=companies).prefetch_related('lines')
+    def _entries(self):
+        return JournalEntry.objects.all().prefetch_related('lines')
 
-    def _unbalanced_entries(self, companies):
+    def _unbalanced_entries(self):
         out = []
-        for e in self._entries(companies):
+        for e in self._entries():
             by_cur = defaultdict(lambda: [0, 0])
             for ln in e.lines.all():
                 by_cur[ln.currency][0] += ln.debit
@@ -108,9 +103,8 @@ class Command(BaseCommand):
                     out.append(f'{e.entry_number} ({cur}): debit {d:,} ≠ kredit {c:,}')
         return out
 
-    def _lines_missing_client(self, companies):
+    def _lines_missing_client(self):
         rows = JournalLine.objects.filter(
-            journal_entry__company__in=companies,
             account_id__in=[coa.AR, coa.CUST_CREDIT],
             client__isnull=True,
         ).select_related('journal_entry')
@@ -119,10 +113,9 @@ class Command(BaseCommand):
             for r in rows
         ]
 
-    def _stale_charges(self, companies):
+    def _stale_charges(self):
         charged_invoice_ids = set(
             JournalLine.objects.filter(
-                journal_entry__company__in=companies,
                 journal_entry__entry_type=JournalEntry.TYPE_CHARGE,
                 account_id=coa.AR,
             ).values_list('invoice_id', flat=True)
@@ -138,10 +131,10 @@ class Command(BaseCommand):
                 )
         return out
 
-    def _payment_record_mismatch(self, companies):
+    def _payment_record_mismatch(self):
         by_invoice = defaultdict(int)
         for pr in PaymentRecord.objects.filter(
-            company__in=companies, status__in=PaymentRecord.EFFECTIVE_STATUSES,
+            status__in=PaymentRecord.EFFECTIVE_STATUSES,
         ).values('invoice_id', 'amount_sar'):
             by_invoice[pr['invoice_id']] += pr['amount_sar']
         out = []
@@ -153,9 +146,9 @@ class Command(BaseCommand):
                 out.append(f'{num}: Σ PaymentRecord {pr_total:,} ≠ paid_sar jurnal {jl_paid:,}')
         return out
 
-    def _remittance_line_mismatch(self, companies):
+    def _remittance_line_mismatch(self):
         out = []
-        for rem in Remittance.objects.filter(company__in=companies):
+        for rem in Remittance.objects.all():
             if not fq.remittance_has_live_entries(rem.id):
                 continue
             line_total = sum(
@@ -169,13 +162,11 @@ class Command(BaseCommand):
                 )
         return out
 
-    def _bad_reversals(self, companies):
+    def _bad_reversals(self):
         out = []
         for e in JournalEntry.objects.filter(
-            company__in=companies, reverses__isnull=False,
+            reverses__isnull=False,
         ).select_related('reverses'):
             if not e.is_reversal:
                 out.append(f'{e.entry_number}: menunjuk reverses tapi is_reversal=False')
-            if e.reverses and e.reverses.company != e.company:
-                out.append(f'{e.entry_number}: me-reverse entry company lain')
         return out

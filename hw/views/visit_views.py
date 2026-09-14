@@ -2,7 +2,7 @@
 
 PLANNED -> COMPLETED/CANCELLED lifecycle mirroring ConfirmationLetter's status
 pattern. Staff see and manage only their own visits (row-level scoping enforced
-here in the view layer); Manager/Admin/Viewer see the whole company's.
+here in the view layer); Manager/Admin/Viewer see all of them.
 
 Validation is plain request.POST/JSON dict checking, like hw/views/cl_views.py
 -- no Django Forms, no DRF.
@@ -29,19 +29,17 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Role, Visit, VisitPhoto, log_activity
 from ..permissions import get_role, require_perm
 from ..utils import haversine_meters
-from .helpers import _client_options, _is_mobile, _parse_date, get_active_company, pagination_props
+from .helpers import _client_options, _is_mobile, _parse_date, pagination_props
 from .pdf import _logo_file_url
 
 _ALLOWED_PHOTO_MIME = {'image/jpeg', 'image/png', 'image/webp'}
 
 
 def _get_visit(request, pk, qs=None):
-    """Fetch a Visit by pk, scoped to the active company (same 404-on-scope-miss
-    pattern as company scoping elsewhere). Staff additionally only ever resolve
-    their own visits -- self-service ownership, enforced the same way company
-    scoping is: filter the queryset, let a miss 404 rather than 403."""
+    """Fetch a Visit by pk. Staff additionally only ever resolve their own
+    visits -- self-service ownership: filter the queryset, let a miss 404
+    rather than 403."""
     qs = qs if qs is not None else Visit.objects.all()
-    qs = qs.filter(company=get_active_company(request))
     if get_role(request.user) == Role.STAFF.value:
         qs = qs.filter(staff=request.user)
     return get_object_or_404(qs, pk=pk)
@@ -81,14 +79,13 @@ def _parse_time(val):
         return None
 
 
-def _overlap_visits(active_company, staff_id, scheduled_date, start_time, end_time, exclude_pk=None):
+def _overlap_visits(staff_id, scheduled_date, start_time, end_time, exclude_pk=None):
     """PLANNED visits of the same staff on the same date that overlap the given
     slot. Only visits with both times set take part in blocking; a visit without
     a slot never blocks and never is blocked."""
     if staff_id is None or not start_time or not end_time:
         return None
     qs = Visit.objects.filter(
-        company=active_company,
         staff_id=staff_id,
         status=Visit.PLANNED,
         scheduled_date=scheduled_date,
@@ -106,7 +103,7 @@ def _check_slot(request, data, exclude_pk=None):
     start = _parse_time(data.get('start_time'))
     end = _parse_time(data.get('end_time'))
     existing = _overlap_visits(
-        get_active_company(request), request.user.id,
+        request.user.id,
         _parse_date(data.get('scheduled_date')), start, end, exclude_pk,
     )
     if existing:
@@ -155,8 +152,7 @@ def _visit_cell(v):
 
 @require_perm('visits', 'view')
 def visit_list(request):
-    active_company = get_active_company(request)
-    qs = Visit.objects.filter(company=active_company).select_related('client', 'staff')
+    qs = Visit.objects.select_related('client', 'staff')
     if get_role(request.user) == Role.STAFF.value:
         qs = qs.filter(staff=request.user)
 
@@ -252,7 +248,7 @@ def visit_list(request):
         visits = None
         pagination = None
 
-    scoped = Visit.objects.filter(company=active_company)
+    scoped = Visit.objects.all()
     if is_staff:
         scoped = scoped.filter(staff=request.user)
     if status_filter:
@@ -268,7 +264,7 @@ def visit_list(request):
         'month': selected_date.month,
         'status_filter': status_filter,
         'client_filter': client_filter,
-        'clients': _client_options(active_company),
+        'clients': _client_options(),
         'staff_filter': staff_filter,
         'is_staff': is_staff,
         'staff_list': staff_list,
@@ -284,7 +280,6 @@ def visit_list(request):
 
 @require_perm('visits', 'create')
 def visit_new(request):
-    active_company = get_active_company(request)
     if request.method == 'POST':
         errors = _validate_visit(request.POST)
         slot_error = _check_slot(request, request.POST)
@@ -293,10 +288,9 @@ def visit_new(request):
         if errors:
             return inertia_render(request, 'Visit/Form', props={
                 'visit': _visit_echo(request.POST), 'edit': False, 'errors': errors,
-                'clients': _client_options(active_company),
+                'clients': _client_options(),
             })
         visit = Visit.objects.create(
-            company=active_company,
             client_id=request.POST.get('client_id') or None,
             staff=request.user,
             scheduled_date=_parse_date(request.POST.get('scheduled_date')),
@@ -304,7 +298,7 @@ def visit_new(request):
             end_time=_parse_time(request.POST.get('end_time')),
             purpose=request.POST.get('purpose', '').strip(),
         )
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Visit', str(visit.pk), visit.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Visit', str(visit.pk))
         messages.success(request, 'Visit appointment created.')
         return redirect('visit_detail', pk=visit.pk)
 
@@ -315,7 +309,7 @@ def visit_new(request):
             'client_id': '', 'scheduled_date': prefill_date.isoformat() if prefill_date else '',
             'start_time': '', 'end_time': '', 'purpose': '',
         },
-        'edit': False, 'clients': _client_options(active_company),
+        'edit': False, 'clients': _client_options(),
     })
 
 
@@ -326,7 +320,6 @@ def visit_edit(request, pk):
         messages.error(request, 'Only a planned visit can be edited.')
         return redirect('visit_detail', pk=visit.pk)
 
-    active_company = get_active_company(request)
     if request.method == 'POST':
         errors = _validate_visit(request.POST)
         slot_error = _check_slot(request, request.POST, exclude_pk=visit.pk)
@@ -335,7 +328,7 @@ def visit_edit(request, pk):
         if errors:
             return inertia_render(request, 'Visit/Form', props={
                 'visit': {**_visit_echo(request.POST), 'id': visit.pk}, 'edit': True, 'errors': errors,
-                'clients': _client_options(active_company),
+                'clients': _client_options(),
             })
         visit.client_id = request.POST.get('client_id') or None
         visit.scheduled_date = _parse_date(request.POST.get('scheduled_date'))
@@ -343,7 +336,7 @@ def visit_edit(request, pk):
         visit.end_time = _parse_time(request.POST.get('end_time'))
         visit.purpose = request.POST.get('purpose', '').strip()
         visit.save()
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk), visit.company)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk))
         messages.success(request, 'Visit appointment updated.')
         return redirect('visit_detail', pk=visit.pk)
 
@@ -355,7 +348,7 @@ def visit_edit(request, pk):
             'end_time': visit.end_time.strftime('%H:%M') if visit.end_time else '',
             'purpose': visit.purpose,
         },
-        'edit': True, 'clients': _client_options(active_company),
+        'edit': True, 'clients': _client_options(),
     })
 
 
@@ -443,7 +436,7 @@ def visit_complete(request, pk):
     visit.next_follow_up_date = next_follow_up_date
     visit.save()
 
-    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk), visit.company, ['completed'])
+    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk), ['completed'])
     return JsonResponse({'ok': True, 'distance_meters': distance_meters})
 
 
@@ -456,7 +449,7 @@ def visit_cancel(request, pk):
         return redirect('visit_detail', pk=visit.pk)
     visit.status = Visit.CANCELLED
     visit.save(update_fields=['status', 'updated_at'])
-    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk), visit.company, ['cancelled'])
+    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Visit', str(visit.pk), ['cancelled'])
     messages.success(request, 'Visit appointment cancelled.')
     return redirect('visit_detail', pk=visit.pk)
 
@@ -505,7 +498,7 @@ def visit_pdf(request, pk):
     ctx = {
         'visit': visit,
         'photos': photos,
-        'logo_rel_path': _logo_file_url(visit.company),
+        'logo_rel_path': _logo_file_url(),
         'now': datetime.now(),
     }
     html = render_to_string('hw/visit/visit_pdf.html', ctx)

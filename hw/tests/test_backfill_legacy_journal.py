@@ -18,9 +18,9 @@ def _net(**f):
 
 class BackfillLegacyJournalTest(TestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-BF-1",
+ invoice_type="hotel", invoice_number="INV-BF-1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2024, 3, 1),
         )
         Reservation.objects.create(
@@ -69,7 +69,7 @@ class BackfillLegacyJournalTest(TestCase):
         # B3: validasi yang menentukan skip (mis. tanggal tak resolve) jalan di
         # dry-run juga, jadi angka preview == angka commit.
         no_date_invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-BF-2",
+ invoice_type="hotel", invoice_number="INV-BF-2",
             customer_name="PT Uji", client=self.client_obj, issued_date=None,
         )
         Payment.objects.create(

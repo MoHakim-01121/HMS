@@ -7,7 +7,6 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance import queries as q
 from hw.models import Client, Invoice, Reservation
-from hw.models.choices import Company
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
 
@@ -16,12 +15,11 @@ class QueriesTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fin", password="x")
         FinancialPeriod.objects.create(
-            name="2046", company=Company.KONOZ,
-            date_from=date(2046, 1, 1), date_to=date(2046, 12, 31),
+            name="2046",            date_from=date(2046, 1, 1), date_to=date(2046, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.invoice = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-Q1",
+ invoice_type="hotel", invoice_number="INV-Q1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 5),
         )
         self.res = Reservation.objects.create(
@@ -57,9 +55,9 @@ class QueriesTests(TestCase):
 
     def test_kas_and_mengendap(self):
         self._pay(70000, received_in="sby")
-        self.assertEqual(q.kas_surabaya(Company.KONOZ), 70000)
+        self.assertEqual(q.kas_surabaya(), 70000)
         self.assertEqual(q.mengendap_per_reservation(self.res.id), 70000)
-        self.assertEqual(q.kewajiban_kirim_sby(Company.KONOZ), 70000)
+        self.assertEqual(q.kewajiban_kirim_sby(), 70000)
 
     def test_client_statement_running_balance(self):
         self._pay(40000)
@@ -103,7 +101,7 @@ class QueriesTests(TestCase):
 
     def test_open_items_partial(self):
         self._pay(40000)
-        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        oi = q.open_items(self.client_obj.id)
         self.assertEqual(oi["total_remaining"], 60000)
         self.assertEqual(len(oi["rows"]), 1)
         row = oi["rows"][0]
@@ -114,7 +112,7 @@ class QueriesTests(TestCase):
 
     def test_open_items_full_payment_omitted(self):
         self._pay(100000)
-        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        oi = q.open_items(self.client_obj.id)
         self.assertEqual(oi["total_remaining"], 0)
         self.assertEqual(oi["rows"], [])
 
@@ -122,13 +120,13 @@ class QueriesTests(TestCase):
         # due_date in the (real) past → flag overdue.
         self.invoice.due_date = date(2020, 2, 1)
         self.invoice.save()
-        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        oi = q.open_items(self.client_obj.id)
         self.assertEqual(len(oi["rows"]), 1)
         self.assertTrue(oi["rows"][0]["overdue"])
 
     def test_open_items_reconciles_with_statement(self):
         self._pay(75000)
-        oi = q.open_items(self.client_obj.id, company=Company.KONOZ)
+        oi = q.open_items(self.client_obj.id)
         st = q.client_statement(self.client_obj.id)
         self.assertEqual(oi["total_remaining"], 25000)
         self.assertEqual(st["closing_balance"], 25000)
@@ -155,7 +153,7 @@ class QueriesTests(TestCase):
 
     def test_statement_by_reservation_multi(self):
         inv2 = Invoice.objects.create(
-            company="konoz", invoice_type="hotel", invoice_number="INV-Q2",
+ invoice_type="hotel", invoice_number="INV-Q2",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 8),
         )
         res2 = Reservation.objects.create(
@@ -188,7 +186,7 @@ class QueriesTests(TestCase):
 
     def test_trial_balance_zero(self):
         self._pay(55000)
-        tb = q.trial_balance(company=Company.KONOZ)
+        tb = q.trial_balance()
         self.assertTrue(tb["balanced"])
         self.assertEqual(tb["total_debit"], tb["total_credit"])
 
@@ -205,7 +203,7 @@ class QueriesTests(TestCase):
     def test_remittance_sent_sar(self):
         from hw.models import Remittance
         rmt = Remittance.objects.create(
-            company="konoz", date=date(2046, 3, 1), remittance_number="RMT-Q1",
+ date=date(2046, 3, 1), remittance_number="RMT-Q1",
             received_amount_sar=50000,
         )
         self.assertEqual(q.remittance_sent_sar(rmt.id), 0)

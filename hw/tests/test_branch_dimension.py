@@ -21,10 +21,9 @@ class ReceivingAccountTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('fc', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT FaseC')
+        self.client_obj = Client.objects.create( name='PT FaseC')
         self.inv = Invoice.objects.create(invoice_number='INV-FC-1', customer_name='PT FaseC',
                                           client=self.client_obj)
         self.res = Reservation.objects.create(
@@ -44,7 +43,7 @@ class ReceivingAccountTest(TestCase):
                 payment_number='PAY-X', invoice=self.inv, client=self.client_obj,
                 payment_date=date(2026, 1, 1), amount=1, amount_sar=1,
                 method='Cash', status=PaymentRecord.STATUS_PENDING,
-                company='konoz', created_by=self.user,
+ created_by=self.user,
                 period=FinancialPeriod.objects.first(),
                 bank_account=bank, cash_account=cash,
             )
@@ -90,10 +89,9 @@ class PaymentRecordAccountPickerViewTest(TestCase):
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT Picker')
+        self.client_obj = Client.objects.create( name='PT Picker')
         self.inv = Invoice.objects.create(
             invoice_number='INV-PICK-1', customer_name='PT Picker', client=self.client_obj,
         )

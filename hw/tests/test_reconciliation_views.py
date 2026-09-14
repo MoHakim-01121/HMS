@@ -21,13 +21,12 @@ def make_user(username, role):
 class ReconciliationViewsBase(TestCase):
     def setUp(self):
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.manager = make_user('rv_mgr', 'manager')
         self.staff = make_user('rv_staff', 'staff')
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
-        self.client_obj = Client.objects.create(company='konoz', name='PT RV')
+        self.client_obj = Client.objects.create( name='PT RV')
         self.inv = Invoice.objects.create(invoice_number='INV-RV-1', customer_name='PT RV', client=self.client_obj)
 
 

@@ -56,14 +56,12 @@ def _user(prompt: str) -> list:
 _MONTHS_ID = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
               'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
-_SIGNATURES = {'konoz': 'Konoz United Surabaya', 'ijabah': 'Ijabah'}
+_SIGNATURE = 'Konoz United Surabaya'
 
 _PAYMENT_INFO = {
-    'konoz': {
-        'bank': 'Mandiri',
-        'account': '1400550111117',
-        'holder': 'Konoz Almotaheda Indonesia',
-    },
+    'bank': 'Mandiri',
+    'account': '1400550111117',
+    'holder': 'Konoz Almotaheda Indonesia',
 }
 
 
@@ -83,7 +81,7 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
 
     client = _billing_client(invoice)
     name = client.name if client else invoice.customer_name
-    signature = _SIGNATURES.get(invoice.company, invoice.get_company_display())
+    signature = _SIGNATURE
     lunas = invoice_type in ('invoice_lunas', 'services_lunas')
 
     if invoice_type in ('invoice', 'invoice_lunas'):
@@ -134,12 +132,11 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
             parts.append("Mohon lakukan pembayaran sebelum jatuh tempo.")
 
     if not lunas:
-        bank = _PAYMENT_INFO.get(invoice.company)
-        if bank:
-            parts += ["", "Informasi Pembayaran:",
-                      f"Nama Bank : {bank['bank']}",
-                      f"No. Rekening : {bank['account']}",
-                      f"Atas Nama : {bank['holder']}"]
+        bank = _PAYMENT_INFO
+        parts += ["", "Informasi Pembayaran:",
+                  f"Nama Bank : {bank['bank']}",
+                  f"No. Rekening : {bank['account']}",
+                  f"Atas Nama : {bank['holder']}"]
 
     parts += ["", "Terima kasih,", f"*{signature}*"]
     return "\n".join(parts)
@@ -147,7 +144,6 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
 
 def get_chat_reply(
     message: str,
-    company: str | None = None,
     history: list | None = None,
 ) -> str | None:
     today = timezone.now().date()
@@ -157,10 +153,6 @@ def get_chat_reply(
     inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations', 'payments')
     svc_qs = Invoice.objects.filter(invoice_type="visa").prefetch_related('service_items', 'payments')
     cl_qs  = ConfirmationLetter.objects.all().prefetch_related('rooms')
-    if company:
-        inv_qs = inv_qs.filter(company=company)
-        svc_qs = svc_qs.filter(company=company)
-        cl_qs  = cl_qs.filter(company=company)
 
     invoices = list(inv_qs.order_by("-created_at")[:20])
     services = list(svc_qs.order_by("-created_at")[:20])
@@ -187,14 +179,12 @@ def get_chat_reply(
     if not (needs_inv or needs_svc or needs_cl):
         needs_inv = needs_svc = needs_cl = True
 
-    company_label = {"konoz": "Konoz United", "ijabah": "Ijabah"}.get(company, company) if company else "semua perusahaan"
-
     system_parts = [
         f"Kamu adalah asisten HMS (Hotel Management System). Jawab berdasarkan data berikut.\n"
         f"Jawab dalam Bahasa Indonesia, singkat dan padat. "
         f"Gunakan bullet point (- item) untuk daftar biasa. "
         f"Untuk daftar invoice hotel gunakan: [inv: nomor | nama | total SAR | sisa SAR | Lunas/Belum lunas] satu per baris. "
-        f"Jangan ulangi info yang tidak perlu. Data milik: {company_label}. Hari ini: {today}.\n\n"
+        f"Jangan ulangi info yang tidak perlu. Data milik: Konoz United. Hari ini: {today}.\n\n"
         f"=== RINGKASAN ===\n"
         f"Invoice Hotel: {len(invoices)} total | {inv_total:,.0f} SAR | Sisa: {inv_remaining:,.0f} SAR | {inv_unpaid} belum lunas\n"
         f"Bulan ini: {len(inv_this_month)} invoice | {inv_month_total:,.0f} SAR\n"

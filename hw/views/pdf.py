@@ -17,8 +17,8 @@ from .context import (
 )
 
 
-def _logo_file_url(company):
-    filename = "ijabahlogo.png" if company == "ijabah" else "LOGOKONOZ-02.png"
+def _logo_file_url():
+    filename = "LOGOKONOZ-02.png"
     mime = "image/png"
     path = Path(__file__).resolve().parent.parent / "static" / "hw" / "img" / filename
     with open(path, "rb") as f:
@@ -49,7 +49,6 @@ def _render_cl_pdf(cl):
         })
 
     context = {
-        "company": cl.company,
         "hotel_name": cl.hotel_name,
         "guest_name": cl.guest_name,
         "guest_phone": cl.guest_phone,
@@ -63,11 +62,10 @@ def _render_cl_pdf(cl):
         "rooms": rooms,
         "total_rooms": cl.total_rooms,
         "total_price": cl.total_price,
-        "logo_rel_path": _logo_file_url(cl.company),
+        "logo_rel_path": _logo_file_url(),
     }
 
-    template = "hw/cl/cl_pdf_ijabah.html" if cl.company == "ijabah" else "hw/cl/cl_pdf_konoz.html"
-    html = render_to_string(template, context)
+    html = render_to_string("hw/cl/cl_pdf_konoz.html", context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     cache.set(cache_key, pdf, 3600)
     filename = f"{cl.confirmation_number}.pdf"
@@ -112,15 +110,14 @@ def _render_invoice_pdf(invoice):
     hash_input = f"{invoice.invoice_number}|{int(total_sar)}|{invoice.issued_date}"
     doc_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:8].upper()
 
-    company_name = "" if invoice.company == "konoz" else "iJabah Group"
     context = {
-        "company_name": company_name,
+        "company_name": "",
         "company_city": "",
-        "company_tagline": "" if invoice.company == "konoz" else "Travel & Hospitality Services",
+        "company_tagline": "",
         "customer_name": invoice.customer_name,
         "issued_date": datetime.combine(invoice.issued_date, datetime.min.time()) if invoice.issued_date else None,
         "due_date": datetime.combine(invoice.due_date, datetime.min.time()) if invoice.due_date else None,
-        "invoice_number": ('#' + invoice.invoice_number.split('-', 1)[1]) if invoice.company == 'ijabah' and '-' in invoice.invoice_number else invoice.invoice_number,
+        "invoice_number": invoice.invoice_number,
         "reservations": reservations,
         "payments": payments_ctx,
         "total_reservation_sar": format_currency(total_sar),
@@ -129,12 +126,11 @@ def _render_invoice_pdf(invoice):
         "remaining": format_currency(total_remaining),
         "remaining_int": total_remaining,
         "excess_sar": format_currency(-total_remaining) if total_remaining < 0 else "",
-        "logo_rel_path": _logo_file_url(invoice.company),
+        "logo_rel_path": _logo_file_url(),
         "doc_hash": doc_hash,
     }
 
-    template = "hw/invoice/invoice_pdf_ijabah_v2.html" if invoice.company == "ijabah" else "hw/invoice/invoice_pdf_v2.html"
-    html = render_to_string(template, context)
+    html = render_to_string("hw/invoice/invoice_pdf_v2.html", context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     cache.set(cache_key, pdf, 3600)
     filename = f"{invoice.invoice_number}.pdf"
@@ -167,7 +163,7 @@ def _render_services_pdf(invoice):
         "total_remaining": remaining_balance,
         "total_payments": total_payments,
         "remaining_balance": remaining_balance,
-        "logo_rel_path": _logo_file_url(invoice.company),
+        "logo_rel_path": _logo_file_url(),
     }
 
     html = render_to_string("hw/services/invoice_pdf_visa.html", context)
@@ -231,7 +227,7 @@ def _build_checkin_groups(qs):
     return groups
 
 
-def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf',
+def _render_checkin_pdf(cls, title, filename='checkin-rekap.pdf',
                         date_start=None, date_end=None):
     groups = _build_checkin_groups(cls)
     hotel_names = {hotel['name'] for group in groups for hotel in group['hotels']}
@@ -241,7 +237,7 @@ def _render_checkin_pdf(cls, title, company='konoz', filename='checkin-rekap.pdf
         'groups': groups,
         'total_guests': sum(g['total'] for g in groups),
         'total_hotels': len(hotel_names),
-        'logo_rel_path': _logo_file_url(company),
+        'logo_rel_path': _logo_file_url(),
         'now': datetime.now(),
     }
     with translation_override('en'):

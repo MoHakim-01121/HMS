@@ -14,7 +14,6 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import Remittance, RemittanceLine, Client
-from ..models.choices import Company
 from ..finance import posting
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
@@ -22,8 +21,6 @@ from .helpers import validate_proof_file, period_label as _period_label, csv_exp
 from .invoice_billing import _billing_client
 
 logger = logging.getLogger(__name__)
-
-KONOZ = Company.KONOZ
 
 
 def _parse_transfer_fields(request):
@@ -70,7 +67,6 @@ def _prev_sent_map(rem, linked_numbers):
         for row in RemittanceLine.objects.filter(
             earlier,
             linked_number__in=linked_numbers,
-            remittance__company=KONOZ,
         ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar'))
     }
 
@@ -84,7 +80,7 @@ def _sort_lines_by_payment_date(lines):
     from ..finance import queries as finance_queries
     linked_numbers = [l.linked_number for l in lines]
     first_payment = finance_queries.reservation_first_payment_date_map(
-        linked_numbers, company=KONOZ,
+        linked_numbers,
     )
     return sorted(
         lines,
@@ -97,24 +93,24 @@ def _sort_lines_by_payment_date(lines):
 
 
 def _compute_stats():
-    """Hitung stats remittance untuk company Konoz, lewat hw/finance/queries.py."""
+    """Hitung stats remittance lewat hw/finance/queries.py."""
     from ..finance import queries as finance_queries
-    total_tagihan = finance_queries.total_charged(KONOZ)
-    terkirim_ke_pusat = finance_queries.kas_pusat(KONOZ)
+    total_tagihan = finance_queries.total_charged()
+    terkirim_ke_pusat = finance_queries.kas_pusat()
     # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang pernah
     # diterima (kredit di pusat) -- lihat queries.kas_surabaya.
-    mengendap = finance_queries.kas_surabaya(KONOZ)
+    mengendap = finance_queries.kas_surabaya()
 
     # Sepasang KPI wajib berdampingan (lihat plan): kewajiban_kirim sendirian
     # bisa salah dibaca sebagai kredit Surabaya padahal bisa jadi surplus itu
     # milik klien (kelebihan bayar langsung ke pusat), bukan milik Surabaya.
     saldo_dana_klien = sum(
         finance_queries.client_credit_balance(c.id)
-        for c in Client.objects.filter(company=KONOZ)
+        for c in Client.objects.all()
     )
-    kewajiban_kirim = finance_queries.kewajiban_kirim_sby(KONOZ)
-    selisih_kurs = finance_queries.selisih_kurs(KONOZ)
-    rupiah_dari_klien = finance_queries.rupiah_mengendap_sby(KONOZ)
+    kewajiban_kirim = finance_queries.kewajiban_kirim_sby()
+    selisih_kurs = finance_queries.selisih_kurs()
+    rupiah_dari_klien = finance_queries.rupiah_mengendap_sby()
 
     return {
         'total_tagihan': total_tagihan,
@@ -136,13 +132,13 @@ def _build_reservasi_mengendap():
     """
     from ..models import ConfirmationLetter, Reservation
 
-    reservations = Reservation.objects.filter(invoice__company=KONOZ).select_related('invoice')
+    reservations = Reservation.objects.all().select_related('invoice')
     from ..finance import queries as finance_queries
-    breakdown = finance_queries.reservation_cash_breakdown(KONOZ)
+    breakdown = finance_queries.reservation_cash_breakdown()
 
     cancelled_numbers = set(
         ConfirmationLetter.objects.filter(
-            company=KONOZ, reservation_status__iexact='CANCELLED',
+            reservation_status__iexact='CANCELLED',
         ).values_list('confirmation_number', flat=True)
     )
 
@@ -197,7 +193,7 @@ def remittance_list(request):
     from django.db.models import Q
     status_filter = request.GET.get('status', '')
     q = request.GET.get('q', '').strip()
-    qs = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
+    qs = Remittance.objects.all().prefetch_related('lines').order_by('-date')
     if status_filter in ('pending', 'received'):
         qs = qs.filter(status=status_filter)
     if q:
@@ -220,7 +216,7 @@ def remittance_list(request):
         "stats": stats,
         "status_filter": status_filter,
         "q": q,
-        "total_count": Remittance.objects.filter(company=KONOZ).count(),
+        "total_count": Remittance.objects.all().count(),
         "tracking": dict(zip(("clients", "total_sisa_kirim"), _compute_tracking_data())),
         "monthly": _compute_recap_data(),
     })
@@ -277,7 +273,6 @@ def remittance_new(request):
 
         rem = Remittance.objects.create(
             remittance_number=Remittance.generate_number(),
-            company=KONOZ,
             date=remittance_date,
             receipt_reference=receipt_reference,
             amount_idr=amount_idr,
@@ -312,7 +307,7 @@ def remittance_new(request):
 @require_perm('remittance', 'view')
 def remittance_detail(request, pk):
     from ..models import Reservation
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice')))
 
     linked_numbers = [l.linked_number for l in lines]
@@ -367,7 +362,7 @@ def remittance_detail(request, pk):
 
 @require_perm('remittance', 'export')
 def remittance_export_csv(request):
-    remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines__invoice')
+    remittances = Remittance.objects.all().prefetch_related('lines__invoice')
     headers = ['Tanggal', 'Total SAR', 'Note', 'Res#', 'Invoice', 'Amount SAR']
     rows = []
     for rem in remittances:
@@ -390,7 +385,7 @@ def remittance_export_csv(request):
 @require_perm('remittance', 'edit')
 @require_POST
 def remittance_mark_received(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     if rem.status != Remittance.STATUS_RECEIVED:
         rem.status = Remittance.STATUS_RECEIVED
         rem.save(update_fields=['status'])
@@ -511,7 +506,7 @@ def _sync_remittance_lines(rem, raw_lines, user=None):
 def remittance_edit(request, pk):
     # remittance yang sudah Received tetap boleh diedit: koreksi kadang baru
     # ketahuan setelah HQ menandai diterima
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     if request.method == 'POST':
         rem.date = request.POST.get('date') or rem.date
         rem.status = request.POST.get('status', rem.status)
@@ -576,7 +571,7 @@ def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
     from ..models import Reservation
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     raw_lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
     linked_numbers = [l.linked_number for l in raw_lines]
 
@@ -594,14 +589,14 @@ def remittance_pdf(request, pk):
         request, rem.lines.none(),
         template='hw/remittance/remittance_pdf.html',
         filename=f'remittance_{rem.date}.pdf',
-        extra_ctx={'rem': rem, 'lines': lines, 'logo_url': _logo_file_url('konoz'), 'total_sar': sum(int(l.amount_sar or 0) for l in raw_lines)},
+        extra_ctx={'rem': rem, 'lines': lines, 'logo_url': _logo_file_url(), 'total_sar': sum(int(l.amount_sar or 0) for l in raw_lines)},
     )
 
 
 @require_perm('remittance', 'edit')
 @require_POST
 def remittance_upload_proof(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     proof = request.FILES.get('proof')
     if proof:
         proof_error = validate_proof_file(proof)
@@ -615,7 +610,7 @@ def remittance_upload_proof(request, pk):
 @require_perm('remittance', 'delete')
 @require_POST
 def remittance_delete(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk, company=KONOZ)
+    rem = get_object_or_404(Remittance, pk=pk)
     # System of record (Fase 7): jurnal REMITTANCE hidup merepresentasikan
     # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
     # langsung atau lewat baris -- tidak boleh hilang diam-diam.
@@ -637,7 +632,7 @@ def remittance_recap(request):
 def _compute_recap_data():
     """Rangkuman remittance per bulan (dipakai tab Recap pada halaman List
     dan view /remittance/recap/ mandiri)."""
-    remittances = Remittance.objects.filter(company=KONOZ).prefetch_related('lines').order_by('-date')
+    remittances = Remittance.objects.all().prefetch_related('lines').order_by('-date')
     monthly = {}
     for rem in remittances:
         key = rem.date.strftime('%Y-%m')
@@ -695,7 +690,7 @@ def _compute_tracking_data():
     rows = _build_reservasi_mengendap()
     from ..finance import queries as finance_queries
     rmt_map = finance_queries.reservation_remittance_map(
-        KONOZ, [r['linked_number'] for r in rows],
+        [r['linked_number'] for r in rows],
     )
 
     inv_ids = {r['invoice_id'] for r in rows if r['invoice_id']}
@@ -773,7 +768,7 @@ def _build_ledger_rows(date_from=None, date_to=None):
     direct_total = 0
 
     # semua reservasi Konoz ikut dilacak, bukan hanya yang sudah ada uangnya
-    res_rows = list(Reservation.objects.filter(invoice__company=KONOZ).values(
+    res_rows = list(Reservation.objects.all().values(
         'id', 'reservation_number', 'hotel', 'check_in', 'check_out', 'total_sar',
         'invoice__customer_name',
     ))
@@ -782,7 +777,7 @@ def _build_ledger_rows(date_from=None, date_to=None):
     # Debit = seluruh uang client yang sudah dibayar untuk reservasi (kas sby +
     # jkt + direct). Pembayaran 'direct' juga menambah kredit karena uangnya
     # langsung dianggap sampai di Pusat. Derivasi dari JournalLine.
-    breakdown = finance_queries.reservation_cash_breakdown(KONOZ)
+    breakdown = finance_queries.reservation_cash_breakdown()
     for r in res_rows:
         bd = breakdown.get(r['id'])
         if not bd:
@@ -793,14 +788,14 @@ def _build_ledger_rows(date_from=None, date_to=None):
         pool[num]['credit'] += bd['terbayar_direct']
         direct_total += bd['terbayar_direct']
 
-    for l in RemittanceLine.objects.filter(remittance__company=KONOZ).values(
+    for l in RemittanceLine.objects.all().values(
         'linked_number',
     ).annotate(total=Sum('amount_sar')):
         pool[l['linked_number']]['credit'] += int(l['total'] or 0)
     # CL ikut jadi basis baris supaya reservasi yang belum punya invoice tetap terlacak
     cl_map = {
         c.confirmation_number: c
-        for c in ConfirmationLetter.objects.filter(company=KONOZ).prefetch_related('rooms')
+        for c in ConfirmationLetter.objects.prefetch_related('rooms')
     }
 
     rows = []
@@ -866,7 +861,7 @@ def remittance_ledger_pdf(request):
         filename='remittance_ledger_surabaya_pusat.pdf',
         extra_ctx={
             'period_label': period,
-            'logo_url': _logo_file_url('konoz'),
+            'logo_url': _logo_file_url(),
             **ledger_rows,
         },
     )
@@ -886,7 +881,6 @@ def remittance_period_pdf(request):
         return redirect('remittance_recap')
 
     remittances = Remittance.objects.filter(
-        company=KONOZ,
         date__year=period_dt.year,
         date__month=period_dt.month,
     ).prefetch_related('lines').order_by('date')
@@ -906,6 +900,6 @@ def remittance_period_pdf(request):
             'total_sent': total_sent,
             'total_pending': total_pending,
             'total_received': total_received,
-            'logo_url': _logo_file_url('konoz'),
+            'logo_url': _logo_file_url(),
         },
     )

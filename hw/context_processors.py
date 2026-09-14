@@ -6,15 +6,13 @@ from django.urls import reverse
 from .models import ConfirmationLetter, Invoice
 
 
-def _cl_notifs(kind, field, today, threshold, active_company, limit):
+def _cl_notifs(kind, field, today, threshold, limit):
     qs = (
         ConfirmationLetter.objects
         .filter(**{f"{field}__lte": threshold, f"{field}__gte": today})
         .exclude(reservation_status='CANCELLED')
         .order_by(field)
     )
-    if active_company:
-        qs = qs.filter(company=active_company)
 
     notifs = []
     for cl in qs[:limit]:
@@ -30,10 +28,8 @@ def _cl_notifs(kind, field, today, threshold, active_company, limit):
     return notifs
 
 
-def _invoice_notifs(today, threshold, active_company, limit):
+def _invoice_notifs(today, threshold, limit):
     qs = Invoice.objects.filter(due_date__lte=threshold, due_date__gte=today)
-    if active_company:
-        qs = qs.filter(company=active_company)
 
     notifs = []
     for inv in qs.prefetch_related('reservations', 'payments').order_by("due_date")[:limit]:
@@ -54,8 +50,7 @@ def _invoice_notifs(today, threshold, active_company, limit):
 def due_soon(request):
     if not request.user.is_authenticated:
         return {}
-    active_company = request.session.get("active_company")
-    cache_key = f'due_soon_u{request.user.id}_{active_company}'
+    cache_key = f'due_soon_u{request.user.id}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
@@ -65,8 +60,8 @@ def due_soon(request):
     limit = 20
 
     notifs = []
-    notifs += _invoice_notifs(today, threshold, active_company, limit)
-    notifs += _cl_notifs('check_in', 'check_in', today, threshold, active_company, limit)
+    notifs += _invoice_notifs(today, threshold, limit)
+    notifs += _cl_notifs('check_in', 'check_in', today, threshold, limit)
     notifs.sort(key=lambda n: n["days"])
 
     result = {

@@ -53,7 +53,6 @@ class Expense(models.Model):
 
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
     period     = models.ForeignKey('FinancialPeriod', on_delete=models.PROTECT, related_name='expenses')
-    company    = models.CharField(max_length=20, default='konoz')
     note       = models.TextField(blank=True)
     proof      = models.FileField(upload_to='expenses/proof/', null=True, blank=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')

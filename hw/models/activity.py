@@ -20,7 +20,6 @@ class ActivityLog(models.Model):
     action     = models.CharField(max_length=20, choices=Action.choices)
     model_name = models.CharField(max_length=50, blank=True)
     object_ref = models.CharField(max_length=200, blank=True)
-    company    = models.CharField(max_length=20, blank=True)
     changes    = models.JSONField(default=list, blank=True)
     timestamp  = models.DateTimeField(auto_now_add=True)
 
@@ -33,8 +32,8 @@ class ActivityLog(models.Model):
         return f"{self.user.username} {self.action} {self.object_ref}"
 
 
-def log_activity(user, action, model_name='', object_ref='', company='', changes=None):
+def log_activity(user, action, model_name='', object_ref='', changes=None):
     ActivityLog.objects.create(
         user=user, action=action, model_name=model_name,
-        object_ref=object_ref, company=company, changes=changes or [],
+        object_ref=object_ref, changes=changes or [],
     )

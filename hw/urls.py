@@ -5,7 +5,6 @@ urlpatterns = [
     path('', views.landing, name='landing'),
     path('dashboard/', views.home, name='home'),
     path('properties/', views.public_hotels, name='public_hotels'),
-    path('company/set/', views.company_quick_set, name='company_quick_set'),
 
     # Confirmation Letter
     path('cl/', views.cl_list, name='cl_list'),

@@ -22,7 +22,7 @@ from ..finance import expense_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
 from .helpers import (
-    get_active_company, serialize_journal_entry, _parse_date, _to_float, _is_mobile,
+    serialize_journal_entry, _parse_date, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
 )
 
@@ -177,7 +177,7 @@ def expense_record(request):
             created_by=request.user, vendor=data.get('vendor', ''),
             description=data.get('description', ''), currency=currency,
             exchange_rate=exchange_rate, note=data.get('note', ''),
-            company=get_active_company(request), pay_now=pay_now,
+            pay_now=pay_now,
         )
     except FinanceError as e:
         messages.error(request, str(e))

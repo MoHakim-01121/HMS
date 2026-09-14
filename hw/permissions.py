@@ -1,21 +1,15 @@
 """Role-based access control for HMS.
 
-Two independent axes guard every request:
+A role maps to a matrix of module x action permissions. Roles are rows in
+``hw.models.role.RoleDefinition`` and are edited from /roles/;
+``DEFAULT_ROLE_MATRIX`` below only seeds that table and serves as the
+fallback if it cannot be read. Read the live matrix through ``role_matrix()``,
+never the constant.
 
-1. **What** a user may do — a role maps to a matrix of module x action
-   permissions. Roles are rows in ``hw.models.role.RoleDefinition`` and are
-   edited from /roles/; ``DEFAULT_ROLE_MATRIX`` below only seeds that table and
-   serves as the fallback if it cannot be read. Read the live matrix through
-   ``role_matrix()``, never the constant.
-2. **Whose data** a user may see — ``UserProfile.company_access`` limits which
-   companies the session may switch to. Company *scoping* of querysets still
-   happens through ``get_active_company()``; this layer only decides which
-   values that helper is allowed to return.
-
-Django superusers bypass the role matrix entirely and may use every company —
-they are the break-glass account and must never be lockable out of user
-management. For the same reason the ``admin`` role is force-granted every
-permission regardless of what the database says.
+Django superusers bypass the role matrix entirely — they are the break-glass
+account and must never be lockable out of user management. For the same
+reason the ``admin`` role is force-granted every permission regardless of
+what the database says.
 
 Backend views declare their requirement with ``@require_perm(module, action)``;
 the same matrix is serialised into Inertia props by ``perms_payload()`` so the
@@ -31,9 +25,8 @@ from django.db import DatabaseError
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 
-from .models.choices import Company
 from .models.role import ADMIN_SLUG, MATRIX_CACHE_KEY, RoleDefinition
-from .models.user import CompanyAccess, Role
+from .models.user import Role
 
 # Every guarded area of the app. Keep in sync with SIDEBAR_NAV keys in
 # frontend/layouts/AppLayout.jsx so nav gating and view gating agree.
@@ -264,30 +257,6 @@ def perms_payload(user):
         for module, actions in matrix.items()
         if actions
     }
-
-
-def allowed_companies(user):
-    """Companies this user may switch the workspace to."""
-    everything = [Company.KONOZ.value]
-    if not user or not user.is_authenticated:
-        return everything
-    if user.is_superuser:
-        return everything
-    profile = getattr(user, 'profile', None)
-    access = getattr(profile, 'company_access', None) or CompanyAccess.ALL.value
-    if access == CompanyAccess.ALL.value:
-        return everything
-    return [access]
-
-
-def default_company(user):
-    """The company a session falls back to when none is set or the stored one
-    is no longer permitted."""
-    return allowed_companies(user)[0]
-
-
-def can_use_company(user, company):
-    return company in allowed_companies(user)
 
 
 def _deny(request, message="Access denied."):

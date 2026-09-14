@@ -7,7 +7,7 @@ from hw.models import ConfirmationLetter
 
 def _make_cl(**kwargs):
     defaults = dict(
-        company='konoz', hotel_name='Hilton Makkah',
+        hotel_name='Hilton Makkah',
         guest_name='Ahmad', guest_phone='628123456789',
         check_in=date.today(), check_out=date.today() + timedelta(days=3),
         confirmation_number='KNZ-001', reservation_status='DEFINITE',

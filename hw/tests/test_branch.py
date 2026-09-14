@@ -53,10 +53,9 @@ class JournalBranchDimensionTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('t', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='PT Branch')
+        self.client_obj = Client.objects.create( name='PT Branch')
 
     def test_post_entry_persists_branch_dimension(self):
         entry = posting.post_entry(
@@ -82,4 +81,4 @@ class JournalBranchDimensionTest(TestCase):
             ],
             created_by=self.user,
         )
-        self.assertEqual(verify_chain('konoz'), [])
+        self.assertEqual(verify_chain(), [])

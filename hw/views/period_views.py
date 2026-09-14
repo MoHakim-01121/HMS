@@ -13,7 +13,7 @@ from inertia import render as inertia_render
 
 from ..models.period import FinancialPeriod
 from ..permissions import require_perm
-from .helpers import get_active_company, serialize_journal_entry
+from .helpers import serialize_journal_entry
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,6 @@ def period_create(request):
             return redirect('period_list')
 
         created = 0
-        company = get_active_company(request)
         try:
             for m in range(1, 13):
                 date_from = date(year, m, 1)
@@ -141,14 +140,13 @@ def period_create(request):
                 name = f'{year}-{m:02d}'
                 try:
                     _, was_created = FinancialPeriod.objects.get_or_create(
-                        company=company,
                         name=name,
                         defaults={'date_from': date_from, 'date_to': date_to},
                     )
                 except IntegrityError:
-                    # name ber-constraint unique global: jika dipakai oleh
-                    # company lain atau ada race, jangan 500 — anggap sudah ada.
-                    logger.warning('Periode %s untuk company %s ditandai sudah ada', name, company)
+                    # name ber-constraint unique: jika ada race, jangan 500 —
+                    # anggap sudah ada.
+                    logger.warning('Periode %s ditandai sudah ada', name)
                     was_created = False
                 if was_created:
                     created += 1

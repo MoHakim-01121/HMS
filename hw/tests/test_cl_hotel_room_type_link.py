@@ -12,7 +12,7 @@ class CLHotelRoomTypeLinkTest(TestCase):
         session = self.client.session
         session['active_company'] = 'konoz'
         session.save()
-        self.hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
+        self.hotel = Hotel.objects.create( name='Hotel Sawaaed', city='makkah')
         self.room_type = RoomType.objects.create(hotel=self.hotel, name='Double View Kaaba', capacity=2)
 
     def _cl_payload(self, **rooms_extra):
@@ -45,7 +45,7 @@ class CLHotelRoomTypeLinkTest(TestCase):
         self.assertEqual(room.room_type, 'Double View Kaaba')
 
     def test_room_type_id_from_a_different_hotel_is_ignored(self):
-        other_hotel = Hotel.objects.create(company='konoz', name='Other Hotel', city='makkah')
+        other_hotel = Hotel.objects.create( name='Other Hotel', city='makkah')
         other_room_type = RoomType.objects.create(hotel=other_hotel, name='Double View Kaaba', capacity=2)
         self.client.post('/cl/new/', self._cl_payload(room_type_id=other_room_type.pk))
         cl = ConfirmationLetter.objects.get(confirmation_number='CL-LINK-001')

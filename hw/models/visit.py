@@ -1,8 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-from .choices import Company
-
 
 class Visit(models.Model):
     PLANNED = 'PLANNED'
@@ -28,7 +26,6 @@ class Visit(models.Model):
         (OUTCOME_NOT_MET, 'Client not met'),
     ]
 
-    company = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     client  = models.ForeignKey('Client', on_delete=models.SET_NULL, null=True, blank=True, related_name='visits')
     staff   = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='visits')
 
@@ -58,8 +55,8 @@ class Visit(models.Model):
         verbose_name        = 'Visit'
         verbose_name_plural = 'Visits'
         indexes = [
-            models.Index(fields=['company', 'status'], name='hw_visit_company_status_idx'),
-            models.Index(fields=['company', 'scheduled_date'], name='hw_visit_company_date_idx'),
+            models.Index(fields=['status'], name='hw_visit_status_idx'),
+            models.Index(fields=['scheduled_date'], name='hw_visit_date_idx'),
         ]
 
     def __str__(self):

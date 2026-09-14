@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, Company, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity
 from ..models.choices import InvoiceType
 from ..permissions import require_perm
 from ..finance import queries as fq
@@ -24,7 +24,6 @@ from .helpers import (
     _to_float,
     csv_export_response,
     due_soon_alert,
-    get_active_company,
     pagination_props,
     snapshot_fields,
     track_changes,
@@ -35,12 +34,12 @@ from .pdf import _logo_file_url, _render_invoice_pdf
 logger = logging.getLogger(__name__)
 
 
-def _resolve_client_from_post(request, active_company):
+def _resolve_client_from_post(request):
     """Resolve Client from the submitted client_id, or from linked CLs as fallback."""
     client_id = request.POST.get("client_id")
     if client_id:
         try:
-            return Client.objects.get(pk=client_id, company=active_company, is_active=True)
+            return Client.objects.get(pk=client_id, is_active=True)
         except (Client.DoesNotExist, ValueError):
             pass
     # Fallback: resolve from linked CLs
@@ -109,9 +108,8 @@ def _filter_invoice_qs(base_qs, request, apply_status=True, order=True):
 
 @require_perm('invoice', 'view')
 def invoice_list(request):
-    active_company = get_active_company(request)
     base_qs = Invoice.objects.filter(
-        invoice_type=InvoiceType.HOTEL, company=active_company
+        invoice_type=InvoiceType.HOTEL,
     ).prefetch_related('reservations', 'service_items')
 
     qs, filters = _filter_invoice_qs(base_qs, request)
@@ -156,26 +154,25 @@ def invoice_list(request):
         "date_to": date_to,
         "pagination": pagination_props(page_obj),
     }
-    if active_company == Company.KONOZ:
-        props["remit_stats"] = _invoice_stats(base_qs, active_company)
+    props["remit_stats"] = _invoice_stats(base_qs)
 
     return inertia_render(request, "Invoice/List", props=props)
 
 
-def _invoice_stats(invoice_qs, company):
+def _invoice_stats(invoice_qs):
     from ..finance import accounts as coa
 
     invoice_ids = list(invoice_qs.values_list('id', flat=True))
-    total_tagihan = fq.total_charged(company, invoice_ids)
-    terbayar_surabaya = fq.paid_into(coa.CASH_SBY, company, invoice_ids)
-    terbayar_pusat = fq.paid_into(coa.CASH_PUSAT, company, invoice_ids)
+    total_tagihan = fq.total_charged(invoice_ids)
+    terbayar_surabaya = fq.paid_into(coa.CASH_SBY, invoice_ids)
+    terbayar_pusat = fq.paid_into(coa.CASH_PUSAT, invoice_ids)
 
     return {
         'total_tagihan': total_tagihan,
         'belum_terbayar': max(0, total_tagihan - terbayar_surabaya - terbayar_pusat),
         # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang pernah
         # diterima untuk invoice-invoice ini (kredit di pusat), lihat hw/ledger.py.
-        'mengendap': fq.mengendap(company, invoice_ids),
+        'mengendap': fq.mengendap(invoice_ids),
         'terbayar_surabaya': terbayar_surabaya,
         'terbayar_pusat': terbayar_pusat,
     }
@@ -184,7 +181,6 @@ def _invoice_stats(invoice_qs, company):
 @require_perm('invoice', 'create')
 def invoice_new(request):
     suggested_number = Invoice.generate_number(InvoiceType.HOTEL)
-    active_company = get_active_company(request)
 
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
@@ -194,8 +190,8 @@ def invoice_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": invoice_number or suggested_number,
-                "cl_data": _cl_data_for_form(active_company),
-                "clients": _client_options(active_company),
+                "cl_data": _cl_data_for_form(),
+                "clients": _client_options(),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -203,8 +199,8 @@ def invoice_new(request):
         if Invoice.objects.filter(invoice_number=invoice_number).exists():
             return _reject({"invoice_number": f"Invoice number '{invoice_number}' is already in use."})
 
-        cl_ids = _billable_cl_ids(request, active_company)
-        client = _resolve_client_from_post(request, active_company)
+        cl_ids = _billable_cl_ids(request)
+        client = _resolve_client_from_post(request)
         # Hotel invoice butuh isi: minimal harus ada CL yang bisa ditagih ATAU
         # baris reservasi manual ATAU client yang dipilih langsung di form.
         # (Kiriman kosong → reject, jangan bikin invoice yatim.)
@@ -213,15 +209,8 @@ def invoice_new(request):
 
         try:
             with transaction.atomic():
-                client = _resolve_client_from_post(request, active_company)
+                client = _resolve_client_from_post(request)
                 invoice = Invoice.objects.create(
-                    # Server-assigned, never read from the POST body. The form used to
-                    # submit a company of its own, unchecked against can_use_company —
-                    # so a user restricted to one company could file a record under the
-                    # other, and every read path here (list/detail/edit/delete/PDF/CSV)
-                    # filters by the active company, meaning the row simply vanished
-                    # from the list it was created in.
-                    company=active_company,
                     invoice_type=InvoiceType.HOTEL,
                     invoice_number=invoice_number,
                     client=client,
@@ -240,13 +229,13 @@ def invoice_new(request):
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
 
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number, invoice.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number)
         messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
 
     initial = None
     preselect_cl = ConfirmationLetter.objects.filter(
-        pk=request.GET.get("cl"), company=active_company, invoice__isnull=True,
+        pk=request.GET.get("cl"), invoice__isnull=True,
     ).first()
     if preselect_cl:
         initial = {"linked_cl_ids": [preselect_cl.pk]}
@@ -255,16 +244,15 @@ def invoice_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
-        "cl_data": _cl_data_for_form(active_company),
-        "clients": _client_options(active_company),
+        "cl_data": _cl_data_for_form(),
+        "clients": _client_options(),
         "initial": initial,
     })
 
 
 @require_perm('invoice', 'view')
 def invoice_detail(request, pk):
-    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
-    invoice = get_object_or_404(Invoice, **filters)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
         "id": r["id"],
@@ -316,8 +304,7 @@ def invoice_detail(request, pk):
 
 @require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
-    active_company = get_active_company(request)
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL, company=active_company)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
 
     if request.method == "POST":
         def _res_snapshot(inv):
@@ -327,7 +314,7 @@ def invoice_edit(request, pk):
             ]
             return ' | '.join(rows) if rows else '—'
 
-        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'company'])
+        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date'])
         _res_before = _res_snapshot(invoice)
         new_number = request.POST.get("invoice_number", "")
 
@@ -335,8 +322,8 @@ def invoice_edit(request, pk):
             return inertia_render(request, "Invoice/Form", props={
                 "edit": True,
                 "invoice": _serialize_hotel_invoice(invoice),
-                "cl_data": _cl_data_for_form(active_company),
-                "clients": _client_options(active_company),
+                "cl_data": _cl_data_for_form(),
+                "clients": _client_options(),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -344,18 +331,15 @@ def invoice_edit(request, pk):
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
             return _reject({"invoice_number": f"Invoice number '{new_number}' is already in use."})
 
-        cl_ids = _billable_cl_ids(request, active_company, invoice)
+        cl_ids = _billable_cl_ids(request, invoice)
         # Hotel invoice butuh isi: CL yang bisa ditagih ATAU baris reservasi
         # manual ATAU client pilihan form — kiriman kosong jangan disimpan.
-        if not cl_ids and not _resolve_client_from_post(request, active_company) and not _has_reservation_rows(request):
+        if not cl_ids and not _resolve_client_from_post(request) and not _has_reservation_rows(request):
             return _reject({"reservations": "Pick at least one confirmation letter that isn't already on an invoice."})
 
-        # invoice.company is deliberately left alone: the fetch above already
-        # constrains it to active_company, so any value arriving in the POST
-        # body could only ever move the record OUT of the caller's own scope.
         try:
             with transaction.atomic():
-                client = _resolve_client_from_post(request, active_company)
+                client = _resolve_client_from_post(request)
                 invoice.invoice_number = new_number
                 invoice.client = client
                 invoice.issued_date = _parse_date(request.POST.get("issued_date"))
@@ -376,29 +360,28 @@ def invoice_edit(request, pk):
             # closed period) must roll back cleanly and show the user a form error,
             # not a raw 500.
             return _reject({"finance": str(e)})
-        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'company'])
+        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date'])
         _res_after = _res_snapshot(invoice)
         changes = track_changes(
             {**_before, 'reservations': _res_before},
             {**_after, 'reservations': _res_after},
-            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'company': 'Company', 'reservations': 'Reservations'},
+            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'reservations': 'Reservations'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, invoice.company, changes)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, changes)
         messages.success(request, f"Invoice {invoice.invoice_number} updated successfully.")
         return redirect("invoice_detail", pk=invoice.pk)
 
     return inertia_render(request, "Invoice/Form", props={
         "edit": True,
         "invoice": _serialize_hotel_invoice(invoice),
-        "cl_data": _cl_data_for_form(active_company),
-        "clients": _client_options(active_company),
+        "cl_data": _cl_data_for_form(),
+        "clients": _client_options(),
     })
 
 
 @require_perm('invoice', 'delete')
 def invoice_delete(request, pk):
-    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
-    invoice = get_object_or_404(Invoice, **filters)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
     if request.method == "POST":
         num = invoice.invoice_number
         # System of record: invoice yang sudah menyentuh general ledger
@@ -421,7 +404,7 @@ def invoice_delete(request, pk):
                 )
                 return redirect('invoice_detail', pk=pk)
             raise
-        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num, invoice.company)
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num)
         messages.success(request, f"Invoice {num} deleted successfully.")
         return redirect("invoice_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
@@ -430,15 +413,13 @@ def invoice_delete(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
-    filters = {'pk': pk, 'invoice_type': InvoiceType.HOTEL, 'company': get_active_company(request)}
-    invoice = get_object_or_404(Invoice, **filters)
+    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
     return _render_invoice_pdf(invoice)
 
 
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
-    active_company = get_active_company(request)
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=active_company).prefetch_related('reservations', 'service_items')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).prefetch_related('reservations', 'service_items')
     qs, _ = _filter_invoice_qs(base_qs, request)
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
@@ -452,19 +433,18 @@ def invoice_list_pdf(request):
             "total_sar": total_sar,
             "total_paid": total_sar - total_remaining,
             "total_remaining": total_remaining,
-            "logo_rel_path": _logo_file_url(active_company),
-            "company_label": dict(Company.choices).get(active_company, active_company),
+            "logo_rel_path": _logo_file_url(),
         },
     )
 
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL, company=get_active_company(request)).prefetch_related('reservations', 'service_items')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).prefetch_related('reservations', 'service_items')
     qs, _ = _filter_invoice_qs(base_qs, request)
-    headers = ['Invoice #', 'Company', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR']
+    headers = ['Invoice #', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR']
     rows = ([
-        inv.invoice_number, inv.company, inv.customer_name,
+        inv.invoice_number, inv.customer_name,
         inv.issued_date or '', inv.due_date or '',
         inv.total_sar, inv.total_sar - inv.remaining_sar, inv.remaining_sar,
     ] for inv in qs)
@@ -473,13 +453,12 @@ def invoice_export_csv(request):
 
 @require_perm('invoice', 'create')
 def invoice_duplicate(request, pk):
-    original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL, company=get_active_company(request))
+    original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
     new_num = Invoice.generate_number(InvoiceType.HOTEL)
     today = date.today()
     try:
         with transaction.atomic():
             new_inv = Invoice.objects.create(
-                company=original.company,
                 invoice_type=InvoiceType.HOTEL,
                 invoice_number=new_num,
                 customer_name=original.customer_name,
@@ -563,7 +542,6 @@ def _serialize_hotel_invoice(invoice):
     """Invoice + reservations + payments serialized for the React form."""
     return {
         "pk": invoice.pk,
-        "company": invoice.company,
         "client_id": invoice.client_id or "",
         "customer_name": invoice.customer_name,
         "invoice_number": invoice.invoice_number,
@@ -614,14 +592,14 @@ def _has_reservation_rows(request):
     return any(_to_float(r.get("reservation_total")) for r in rows if isinstance(r, dict))
 
 
-def _billable_cl_ids(request, company, invoice=None):
-    """CL pks from the POST this invoice may bill: same company, and either not
-    yet on any invoice or already on this one (edit). A hotel invoice can only
-    be built from existing confirmation letters — there is no manual line."""
+def _billable_cl_ids(request, invoice=None):
+    """CL pks from the POST this invoice may bill: either not yet on any
+    invoice or already on this one (edit). A hotel invoice can only be built
+    from existing confirmation letters — there is no manual line."""
     ids = _parse_cl_ids(request)
     if not ids:
         return []
-    qs = ConfirmationLetter.objects.filter(pk__in=ids, company=company)
+    qs = ConfirmationLetter.objects.filter(pk__in=ids)
     if invoice is not None:
         qs = qs.filter(Q(invoice__isnull=True) | Q(invoice=invoice))
     else:
@@ -629,7 +607,7 @@ def _billable_cl_ids(request, company, invoice=None):
     return list(qs.values_list("pk", flat=True))
 
 
-def _cl_data_for_form(active_company):
+def _cl_data_for_form():
     # prefetch_related("rooms"): `total` below reads cl.total_price, which sums
     # cl.rooms.all() — one extra query per CL without this, i.e. up to 100 on
     # the [:100] slice. It made /invoice/new/ and /invoice/<pk>/edit/ issue 56
@@ -639,8 +617,7 @@ def _cl_data_for_form(active_company):
     # reference, so it stays free.
     cl_qs = (ConfirmationLetter.objects
              .select_related("invoice", "client")
-             .prefetch_related("rooms")
-             .filter(company=active_company))
+             .prefetch_related("rooms"))
     return [{
         "id": cl.pk,
         "ref": cl.confirmation_number,

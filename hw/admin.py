@@ -23,38 +23,38 @@ admin.site.__class__ = SuperuserOnlyAdminSite
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display  = ('invoice_number', 'customer_name', 'company', 'invoice_type', 'issued_date', 'due_date')
-    list_filter   = ('company', 'invoice_type')
+    list_display  = ('invoice_number', 'customer_name', 'invoice_type', 'issued_date', 'due_date')
+    list_filter   = ('invoice_type',)
     search_fields = ('invoice_number', 'customer_name')
     date_hierarchy = 'issued_date'
 
 
 @admin.register(ConfirmationLetter)
 class ConfirmationLetterAdmin(admin.ModelAdmin):
-    list_display  = ('confirmation_number', 'guest_name', 'hotel_name', 'company', 'check_in', 'check_out', 'reservation_status')
-    list_filter   = ('company', 'reservation_status')
+    list_display  = ('confirmation_number', 'guest_name', 'hotel_name', 'check_in', 'check_out', 'reservation_status')
+    list_filter   = ('reservation_status',)
     search_fields = ('confirmation_number', 'guest_name', 'hotel_name')
     date_hierarchy = 'check_in'
 
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'company', 'city', 'province', 'pic', 'is_active')
-    list_filter   = ('company', 'is_active')
+    list_display  = ('name', 'city', 'province', 'pic', 'is_active')
+    list_filter   = ('is_active',)
     search_fields = ('name', 'city', 'pic', 'email')
 
 
 @admin.register(Hotel)
 class HotelAdmin(admin.ModelAdmin):
-    list_display  = ('name', 'company', 'city', 'stars', 'area', 'is_active')
-    list_filter   = ('company', 'city', 'stars', 'is_active')
+    list_display  = ('name', 'city', 'stars', 'area', 'is_active')
+    list_filter   = ('city', 'stars', 'is_active')
     search_fields = ('name', 'area')
 
 
 @admin.register(RoomType)
 class RoomTypeAdmin(admin.ModelAdmin):
     list_display  = ('name', 'hotel', 'capacity', 'occupancy', 'view', 'is_active')
-    list_filter   = ('is_active', 'occupancy', 'view', 'hotel__company')
+    list_filter   = ('is_active', 'occupancy', 'view')
     search_fields = ('name', 'hotel__name')
 
 
@@ -74,11 +74,11 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(ActivityLog)
 class ActivityLogAdmin(admin.ModelAdmin):
-    list_display  = ('user', 'action', 'model_name', 'object_ref', 'company', 'timestamp')
-    list_filter   = ('action', 'company')
+    list_display  = ('user', 'action', 'model_name', 'object_ref', 'timestamp')
+    list_filter   = ('action',)
     search_fields = ('user__username', 'object_ref')
     date_hierarchy = 'timestamp'
-    readonly_fields = ('user', 'action', 'model_name', 'object_ref', 'company', 'changes', 'timestamp')
+    readonly_fields = ('user', 'action', 'model_name', 'object_ref', 'changes', 'timestamp')
 
 
 @admin.register(UserProfile)
@@ -95,8 +95,7 @@ class RemittanceLineInline(admin.TabularInline):
 
 @admin.register(Remittance)
 class RemittanceAdmin(admin.ModelAdmin):
-    list_display  = ('remittance_number', 'date', 'company', 'total_sar', 'note', 'has_proof')
-    list_filter   = ('company',)
+    list_display  = ('remittance_number', 'date', 'total_sar', 'note', 'has_proof')
     search_fields = ('note',)
     date_hierarchy = 'date'
     inlines       = [RemittanceLineInline]

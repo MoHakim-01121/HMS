@@ -9,12 +9,11 @@ from ..finance import queries as finance_queries
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..permissions import require_perm
-from .helpers import get_active_company, _parse_date, serialize_journal_entry, journal_line_dimension
+from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension
 
 
 @require_perm('journal', 'view')
 def journal_list(request):
-    company = get_active_company(request)
     # Subquery totals instead of a JOIN annotate: Sum over `lines` on the
     # parent queryset duplicates the entry once per line row, breaking both
     # the per-entry totals and Paginator.count (which counted line rows).
@@ -22,7 +21,7 @@ def journal_list(request):
     lines_d = JournalLine.objects.filter(journal_entry_id=OuterRef('pk'))
     debit_sub = lines_d.annotate(total=Sum('debit')).values('total')[:1]
     credit_sub = lines_d.annotate(total=Sum('credit')).values('total')[:1]
-    qs = JournalEntry.objects.filter(company=company).annotate(
+    qs = JournalEntry.objects.annotate(
         debit=Subquery(debit_sub),
         credit=Subquery(credit_sub),
     )
@@ -90,8 +89,7 @@ def journal_detail(request, pk):
 
 @require_perm('journal', 'view')
 def trial_balance(request):
-    company = get_active_company(request)
-    qs = JournalLine.objects.filter(journal_entry__company=company)
+    qs = JournalLine.objects.all()
 
     date_from = _parse_date(request.GET.get('date_from'))
     date_to = _parse_date(request.GET.get('date_to'))
@@ -199,10 +197,7 @@ def client_finance_statement(request, pk):
       - `balance` (default): Balance Forward — opening + running balance rows.
       - `open`: Open Item — daftar invoice yang belum lunas per client.
     """
-    from ..models.choices import Company
-
     client = get_object_or_404(Client, pk=pk)
-    company = get_active_company(request) or Company.KONOZ
 
     mode = request.GET.get('mode', 'balance')
     if mode not in ('balance', 'open'):
@@ -216,11 +211,11 @@ def client_finance_statement(request, pk):
     if date_to:
         date_to = _parse_date(date_to)
 
-    aging = finance_queries.client_aging(client.pk, company=company)
+    aging = finance_queries.client_aging(client.pk)
 
     if mode == 'open':
         open_items = finance_queries.open_items(
-            client.pk, company=company, date_to=date_to,
+            client.pk, date_to=date_to,
         )
         statement_payload = {
             "mode": "open",
@@ -234,7 +229,7 @@ def client_finance_statement(request, pk):
         }
     else:
         statement = finance_queries.client_statement_with_opening(
-            client.pk, company=company, date_from=date_from, date_to=date_to,
+            client.pk, date_from=date_from, date_to=date_to,
         )
         transactions = [{
             "date": r["date"].isoformat() if r["date"] else None,

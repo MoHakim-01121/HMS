@@ -6,7 +6,7 @@ minor units (fils for SAR, sen for IDR). Conversion via hw.utils.convert_to_sar(
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company, InvoiceType
+from .choices import InvoiceType
 from ..utils import convert_to_sar
 
 
@@ -47,7 +47,6 @@ class Invoice(models.Model):
     ]
 
     # ── Core fields ───────────────────────────────────────────
-    company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
     invoice_number = models.CharField(max_length=100, db_index=True)
     client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='invoices')
@@ -70,13 +69,9 @@ class Invoice(models.Model):
         verbose_name_plural = 'Invoices'
         constraints = [
             models.UniqueConstraint(
-                fields=['company', 'invoice_type', 'invoice_number'],
-                name='uniq_invoice_number_per_company_type',
+                fields=['invoice_type', 'invoice_number'],
+                name='uniq_invoice_number_per_type',
             ),
-        ]
-        indexes = [
-            models.Index(fields=['company', 'invoice_type'], name='hw_invoice_company_type_idx'),
-            models.Index(fields=['company', 'due_date'], name='hw_invoice_company_due_idx'),
         ]
 
     def __str__(self):

@@ -13,7 +13,6 @@ from django_ratelimit.decorators import ratelimit
 
 from ..ai import generate_draft_message, get_chat_reply
 from ..models import ActivityLog, Invoice, log_activity
-from .helpers import get_active_company
 
 
 @login_required
@@ -27,12 +26,12 @@ def ai_draft_message(request):
     except Exception:
         return JsonResponse({"error": "Invalid request."}, status=400)
 
-    invoice = Invoice.objects.filter(pk=pk, company=get_active_company(request)).first()
+    invoice = Invoice.objects.filter(pk=pk).first()
     if not invoice:
         return JsonResponse({"error": "Invoice not found."}, status=404)
 
     result = generate_draft_message(invoice_type, invoice)
-    log_activity(request.user, ActivityLog.ACTION_PDF, f'AI Draft: {invoice_type}', invoice.invoice_number, invoice.company)
+    log_activity(request.user, ActivityLog.ACTION_PDF, f'AI Draft: {invoice_type}', invoice.invoice_number)
     return JsonResponse({"message": result or "Failed to generate message."})
 
 
@@ -49,10 +48,9 @@ def ai_chat(request):
     if not message:
         return JsonResponse({"reply": "Question cannot be empty."})
 
-    active_company = get_active_company(request)
     history = request.session.get("ai_history", [])
 
-    reply = get_chat_reply(message, company=active_company, history=history)
+    reply = get_chat_reply(message, history=history)
 
     if reply:
         history = history + [
@@ -60,6 +58,6 @@ def ai_chat(request):
             {"role": "assistant", "content": reply},
         ]
         request.session["ai_history"] = history[-6:]  # keep last 3 exchanges
-        log_activity(request.user, ActivityLog.ACTION_PDF, 'AI Chat', message[:100], active_company)
+        log_activity(request.user, ActivityLog.ACTION_PDF, 'AI Chat', message[:100])
 
     return JsonResponse({"reply": reply or "Sorry, unable to process your question right now."})

@@ -17,16 +17,15 @@ class SyncRemittanceLinesTest(TestCase):
 
     def setUp(self):
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-EDIT-001', customer_name='Budi',
         )
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E01')
+        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E01')
         self.line = RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,
         )
@@ -67,7 +66,7 @@ class SyncRemittanceLinesTest(TestCase):
         self.assertEqual(self._lines(), {})
 
     def test_cannot_touch_line_of_another_remittance(self):
-        other = Remittance.objects.create(company='konoz', date=date(2026, 1, 11), remittance_number='RMT-E02')
+        other = Remittance.objects.create( date=date(2026, 1, 11), remittance_number='RMT-E02')
         foreign = RemittanceLine.objects.create(remittance=other, invoice=self.invoice, linked_number='R2', amount_sar=700)
         _sync_remittance_lines(self.rem, [{'line_id': foreign.pk, 'amount_sar': 9999}])
         foreign.refresh_from_db()
@@ -81,20 +80,19 @@ class AddableReservasiTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("adder", password="pw12345")
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-EDIT-002', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.r1 = Reservation.objects.create(
             invoice=self.invoice, reservation_number='R1', total_sar=10000,
             check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
         )
         self.r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E10')
+        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E10')
         self.rem_counter = 0
 
     def _pay(self, res, amount, received_in='sby'):
@@ -110,7 +108,7 @@ class AddableReservasiTest(TestCase):
         self._pay(res, amount)
         self.rem_counter += 1
         other = Remittance.objects.create(
-            company='konoz', date=date(2026, 1, 9),
+ date=date(2026, 1, 9),
             remittance_number=f'RMT-E{self.rem_counter:02d}-S',
         )
         RemittanceLine.objects.create(
@@ -160,14 +158,13 @@ class RemittanceEditViewTest(TestCase):
         session.save()
 
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-EDIT-003', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         # R2 dibayar lebih dulu (2 Jan) daripada R1 (5 Jan) — urutan jurnal ini
@@ -179,7 +176,7 @@ class RemittanceEditViewTest(TestCase):
                 created_by=self.user, received_in='sby', reservation=res,
             )
             posting.post_payment(rec, created_by=self.user)
-        self.rem = Remittance.objects.create(company='konoz', date=date(2026, 1, 10), remittance_number='RMT-E20')
+        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E20')
         self.line = RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,
         )

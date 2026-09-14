@@ -2,12 +2,10 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company
 from ..utils import round_half_up
 
 
 class ConfirmationLetter(models.Model):
-    company             = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ, db_index=True)
     client              = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cls')
     hotel_name          = models.CharField(max_length=200)
     hotel               = models.ForeignKey('Hotel', null=True, blank=True, on_delete=models.SET_NULL, related_name='confirmation_letters')
@@ -34,8 +32,8 @@ class ConfirmationLetter(models.Model):
         verbose_name_plural = 'Confirmation Letters'
         constraints = [
             models.UniqueConstraint(
-                fields=['company', 'confirmation_number'],
-                name='uniq_confirmation_number_per_company',
+                fields=['confirmation_number'],
+                name='uniq_confirmation_number',
             ),
             # v2.0 §11. Verified data-safe against production before adding
             # (2026-09-14): 97 existing CLs, 0 violations, 0 same-day rows —
@@ -49,8 +47,7 @@ class ConfirmationLetter(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=['company', 'check_in'], name='hw_cl_company_checkin_idx'),
-            models.Index(fields=['company', 'reservation_status'], name='hw_cl_company_status_idx'),
+            models.Index(fields=['reservation_status'], name='hw_cl_status_idx'),
         ]
 
     def __str__(self):

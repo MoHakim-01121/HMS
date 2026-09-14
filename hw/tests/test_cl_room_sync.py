@@ -9,7 +9,7 @@ from hw.finance import queries as fq
 class CLTotalPriceTest(TestCase):
     def setUp(self):
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-CALC-001', guest_name='Ahmad',
+ confirmation_number='CL-CALC-001', guest_name='Ahmad',
             check_in=date.today(), check_out=date.today() + timedelta(days=2),
         )
 
@@ -26,9 +26,9 @@ class CLTotalPriceTest(TestCase):
 
 class CLNumGuestsTest(TestCase):
     def setUp(self):
-        self.hotel = Hotel.objects.create(company='konoz', name='Hotel Sawaaed', city='makkah')
+        self.hotel = Hotel.objects.create( name='Hotel Sawaaed', city='makkah')
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-GUESTS-001', guest_name='Ahmad',
+ confirmation_number='CL-GUESTS-001', guest_name='Ahmad',
             hotel=self.hotel, check_in=date.today(), check_out=date.today() + timedelta(days=1),
         )
 
@@ -61,11 +61,11 @@ class RoomTotalChangedSignalTest(TestCase):
 
     def setUp(self):
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-SYNC-001', customer_name='Test Customer',
         )
         self.cl = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-SYNC-001', guest_name='Budi',
+ confirmation_number='CL-SYNC-001', guest_name='Budi',
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
             invoice=self.invoice,
         )
@@ -86,7 +86,7 @@ class RoomTotalChangedSignalTest(TestCase):
 
     def test_sync_is_noop_without_linked_invoice(self):
         cl_no_invoice = ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number='CL-SYNC-002', guest_name='Cici',
+ confirmation_number='CL-SYNC-002', guest_name='Cici',
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
         )
         # Should not raise even though there's no invoice/reservation to sync
@@ -95,10 +95,9 @@ class RoomTotalChangedSignalTest(TestCase):
     def _wire_client_and_period(self):
         User.objects.create_user('sync', password='x')
         FinancialPeriod.objects.get_or_create(
-            name='2020-2030', company='konoz',
-            defaults=dict(date_from=date(2020, 1, 1), date_to=date(2030, 12, 31)),
+            name='2020-2030',            defaults=dict(date_from=date(2020, 1, 1), date_to=date(2030, 12, 31)),
         )
-        c = Client.objects.create(company='konoz', name='PT Sync Client')
+        c = Client.objects.create( name='PT Sync Client')
         self.cl.client = c
         self.cl.save(update_fields=['client'])
         self.invoice.client = c

@@ -20,7 +20,7 @@ class FlashShareTests(TestCase):
         # messages.success — this exercises flash sharing WITHOUT depending on
         # any view migrated in a later task.
         from hw.models import Client
-        c = Client.objects.create(company="konoz", name="PT Uji Flash")
+        c = Client.objects.create( name="PT Uji Flash")
         # POST the delete — expect redirect, do NOT follow it
         resp = self.client.post(f"/clients/{c.pk}/delete/")
         self.assertEqual(resp.status_code, 302)
@@ -87,7 +87,7 @@ class ClientFormTests(TestCase):
 
     def test_edit_form_get_includes_wa_group_and_reminder_target(self):
         from hw.models import Client
-        c = Client.objects.create(company="konoz", name="PT Edit Target", wa_group="grp1", reminder_target="BOTH")
+        c = Client.objects.create( name="PT Edit Target", wa_group="grp1", reminder_target="BOTH")
         resp = self.client.get(f"/clients/{c.pk}/edit/", HTTP_X_INERTIA="true")
         props = resp.json()["props"]
         self.assertEqual(props["client"]["wa_group"], "grp1")
@@ -95,7 +95,7 @@ class ClientFormTests(TestCase):
 
     def test_list_includes_wa_group_and_reminder_target(self):
         from hw.models import Client
-        Client.objects.create(company="konoz", name="PT List Target", wa_group="", reminder_target="GROUP")
+        Client.objects.create( name="PT List Target", wa_group="", reminder_target="GROUP")
         resp = self.client.get("/clients/", HTTP_X_INERTIA="true")
         row = next(r for r in resp.json()["props"]["clients"] if r["name"] == "PT List Target")
         self.assertEqual(row["wa_group"], "")
@@ -109,7 +109,7 @@ class PenaltyViewTests(TestCase):
         self.client.force_login(self.user)
         s = self.client.session; s["active_company"] = "konoz"; s.save()
         self.cl = ConfirmationLetter.objects.create(
-            company="konoz", guest_name="Budi", confirmation_number="CL-1",
+ guest_name="Budi", confirmation_number="CL-1",
         )
 
     def _inertia_get(self, url):
@@ -238,7 +238,7 @@ class ClFormTests(TestCase):
 
     def test_duplicate_number_returns_error(self):
         from hw.models import ConfirmationLetter
-        ConfirmationLetter.objects.create(company="konoz", confirmation_number="CLX-DUP")
+        ConfirmationLetter.objects.create( confirmation_number="CLX-DUP")
         page = self._post("/cl/new/", {"confirmation_number": "CLX-DUP", "company": "konoz", "rooms": "[]"}).json()
         self.assertIn("confirmation_number", page["props"]["errors"])
 
@@ -272,7 +272,7 @@ class ProfileTests(TestCase):
 
     def test_profile_serializes_activity_with_changes(self):
         from hw.models import ActivityLog, log_activity
-        log_activity(self.user, ActivityLog.ACTION_EDIT, "Hotel", "Hilton", "konoz",
+        log_activity(self.user, ActivityLog.ACTION_EDIT, "Hotel", "Hilton",
                      [{"label": "Nama", "before": "A", "after": "B"}])
         page = self.client.get("/account/profile/", HTTP_X_INERTIA="true").json()
         acts = page["props"]["activities"]
@@ -390,7 +390,7 @@ class SessionExpiryInertiaTests(TestCase):
         self.client.force_login(user)
         s = self.client.session; s["active_company"] = "konoz"; s.save()
         from hw.models import Client
-        c = Client.objects.create(company="konoz", name="PT Sesi")
+        c = Client.objects.create( name="PT Sesi")
         resp = self.client.post(f"/clients/{c.pk}/delete/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 302)
         self.assertNotIn("/login/", resp["Location"])

@@ -17,10 +17,9 @@ from django_ratelimit.decorators import ratelimit
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, RoleDefinition, UserProfile
-from ..models.choices import Company
-from ..models.user import CompanyAccess, Role
+from ..models.user import Role
 from ..permissions import (
-    can_use_company, default_company, get_role, is_valid_role, require_perm,
+    get_role, is_valid_role, require_perm,
     role_choices, role_label, role_labels,
 )
 
@@ -30,14 +29,6 @@ class CompanyLoginView(LoginView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        company = self.request.POST.get('company', 'konoz')
-        if company not in Company.values:
-            company = 'konoz'
-        # A user restricted to one company must not land in the other one just
-        # because the login form offered the choice.
-        if not can_use_company(self.request.user, company):
-            company = default_company(self.request.user)
-        self.request.session['active_company'] = company
         # "Ingat perangkat ini" (login form): keep the session past browser
         # close, otherwise expire it when the browser is closed.
         self.request.session.set_expiry(None if self.request.POST.get('remember') else 0)
@@ -57,10 +48,6 @@ def _role_choices():
     return role_choices()
 
 
-def _company_choices():
-    return [{"value": v, "label": l} for v, l in CompanyAccess.choices]
-
-
 def _clean_role(value, fallback=Role.STAFF.value):
     return value if is_valid_role(value) else fallback
 
@@ -75,10 +62,6 @@ def _grants_django_staff(role_slug):
     if row is not None:
         return row.grants_django_staff
     return role_slug in (Role.ADMIN.value, Role.MANAGER.value)
-
-
-def _clean_company_access(value, fallback=CompanyAccess.ALL.value):
-    return value if value in CompanyAccess.values else fallback
 
 
 def _safe_redirect(request):
@@ -97,7 +80,6 @@ def _safe_redirect(request):
 def user_list(request):
     users = User.objects.select_related('profile').order_by('username')
     labels = role_labels()
-    access_labels = dict(CompanyAccess.choices)
     data = [{
         "id": u.pk, "username": u.username,
         "full_name": u.get_full_name() or u.username,
@@ -106,15 +88,10 @@ def user_list(request):
         "is_self": u.pk == request.user.pk,
         "role": get_role(u),
         "role_label": role_label(u),
-        "company_access": getattr(getattr(u, 'profile', None), 'company_access', CompanyAccess.ALL.value),
-        "company_access_label": access_labels.get(
-            getattr(getattr(u, 'profile', None), 'company_access', CompanyAccess.ALL.value), ''
-        ),
     } for u in users]
     return inertia_render(request, "User/List", props={
         "users": data,
         "role_choices": _role_choices(),
-        "company_choices": _company_choices(),
         "role_labels": labels,
     })
 
@@ -127,7 +104,6 @@ def user_new(request):
         password = request.POST.get('password', '')
         confirm  = request.POST.get('password_confirm', '')
         role = _clean_role(request.POST.get('role'))
-        company_access = _clean_company_access(request.POST.get('company_access'))
         # is_staff is kept in sync with the role so Django admin access lines up
         # with what HMS itself grants.
         is_staff = _grants_django_staff(role)
@@ -154,11 +130,10 @@ def user_new(request):
             return inertia_render(request, "User/Form", props={
                 "form_data": {
                     "username": username, "full_name": full_name,
-                    "role": role, "company_access": company_access,
+                    "role": role,
                 },
                 "errors": errors,
                 "role_choices": _role_choices(),
-                "company_choices": _company_choices(),
             })
 
         parts = full_name.split(None, 1)
@@ -169,7 +144,7 @@ def user_new(request):
             first_name=first_name, last_name=last_name,
         )
         UserProfile.objects.update_or_create(
-            user=user, defaults={'role': role, 'company_access': company_access},
+            user=user, defaults={'role': role},
         )
         messages.success(request, f"User '{user.username}' created successfully.")
         return redirect('user_list')
@@ -177,33 +152,18 @@ def user_new(request):
     return inertia_render(request, "User/Form", props={
         "form_data": None,
         "role_choices": _role_choices(),
-        "company_choices": _company_choices(),
     })
 
 
 @require_perm('users', 'edit')
 def user_edit(request, pk):
     edit_user = get_object_or_404(User, pk=pk)
-    target_access = getattr(getattr(edit_user, 'profile', None), 'company_access', CompanyAccess.ALL.value)
-    # Admin must have access to all companies the target can access
-    if target_access == CompanyAccess.ALL.value:
-        # Target can access all companies - admin must also have ALL access (or be superuser)
-        if not (request.user.is_superuser or 
-                getattr(getattr(request.user, 'profile', None), 'company_access', CompanyAccess.ALL.value) == CompanyAccess.ALL.value):
-            messages.error(request, "You cannot manage users with access to all companies.")
-            return redirect('user_list')
-    else:
-        # Target has restricted access - admin must have access to that company
-        if not can_use_company(request.user, target_access):
-            messages.error(request, "You cannot manage users outside your company access.")
-            return redirect('user_list')
 
     if request.method == 'POST':
         action = request.POST.get('action')
 
         if action == 'set_access':
             role = _clean_role(request.POST.get('role'), get_role(edit_user))
-            company_access = _clean_company_access(request.POST.get('company_access'))
             if edit_user == request.user:
                 # Demoting yourself would revoke the very permission needed to
                 # undo it — the only way back would be a shell.
@@ -213,7 +173,7 @@ def user_edit(request, pk):
             else:
                 UserProfile.objects.update_or_create(
                     user=edit_user,
-                    defaults={'role': role, 'company_access': company_access},
+                    defaults={'role': role},
                 )
                 edit_user.is_staff = _grants_django_staff(role)
                 edit_user.save(update_fields=['is_staff'])
@@ -256,17 +216,6 @@ def user_edit(request, pk):
 @require_perm('users', 'delete')
 def user_delete(request, pk):
     target = get_object_or_404(User, pk=pk)
-    target_access = getattr(getattr(target, 'profile', None), 'company_access', CompanyAccess.ALL.value)
-    # Admin must have access to all companies the target can access
-    if target_access == CompanyAccess.ALL.value:
-        if not (request.user.is_superuser or 
-                getattr(getattr(request.user, 'profile', None), 'company_access', CompanyAccess.ALL.value) == CompanyAccess.ALL.value):
-            messages.error(request, "You cannot delete users with access to all companies.")
-            return redirect('user_list')
-    else:
-        if not can_use_company(request.user, target_access):
-            messages.error(request, "You cannot delete users outside your company access.")
-            return redirect('user_list')
     if target == request.user:
         messages.error(request, "You cannot delete your own account.")
         return redirect('user_list')
@@ -296,15 +245,6 @@ def user_credential_card(request, pk):
     from weasyprint import HTML
 
     target = get_object_or_404(User, pk=pk)
-    # Same company-access guard as user_edit / user_delete: an admin must be
-    # able to reach every company the target can reach.
-    target_access = getattr(getattr(target, 'profile', None), 'company_access', CompanyAccess.ALL.value)
-    if target_access == CompanyAccess.ALL.value:
-        if not (request.user.is_superuser or
-                getattr(getattr(request.user, 'profile', None), 'company_access', CompanyAccess.ALL.value) == CompanyAccess.ALL.value):
-            return JsonResponse({"ok": False, "error": "You cannot manage users with access to all companies."}, status=403)
-    elif not can_use_company(request.user, target_access):
-        return JsonResponse({"ok": False, "error": "You cannot manage users outside your company access."}, status=403)
 
     password = request.POST.get('password', '').strip()
     confirm = request.POST.get('password_confirm', '').strip()
@@ -315,14 +255,11 @@ def user_credential_card(request, pk):
     if password != confirm:
         return JsonResponse({"ok": False, "error": "Passwords do not match."}, status=400)
 
-    company = request.session.get('active_company', 'konoz')
-    if company not in Company.values:
-        company = 'konoz'
     context = {
         "username": target.username,
         "password": password,
         "company_name": "KONOZ UNITED",
-        "logo_rel_path": _logo_file_url(company),
+        "logo_rel_path": _logo_file_url(),
     }
     html = render_to_string('hw/user/credential_card.html', context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
@@ -364,7 +301,6 @@ def _profile_props(request):
             "action":     a.action,
             "model_name": a.model_name,
             "object_ref": a.object_ref,
-            "company":    a.company,
             "changes":    a.changes or [],
         } for a in activities],
     }

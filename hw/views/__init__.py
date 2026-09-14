@@ -10,7 +10,6 @@ from .landing_views import (
     landing_manage, team_new, team_edit, team_delete,
     pricelist_new, pricelist_edit, pricelist_delete,
 )
-from .company_views import company_quick_set
 from .ai_views import ai_draft_message, ai_chat
 from .cl_views import (
     cl_delete, cl_detail, cl_duplicate, cl_edit, cl_export_csv, cl_list,

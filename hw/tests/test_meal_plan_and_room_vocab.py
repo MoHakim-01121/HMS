@@ -20,7 +20,7 @@ class RoomTypeOccupancyViewTest(TestCase):
         session = self.client.session
         session['active_company'] = 'konoz'
         session.save()
-        self.hotel = Hotel.objects.create(company='konoz', name='Hotel Vocab', city='makkah')
+        self.hotel = Hotel.objects.create( name='Hotel Vocab', city='makkah')
 
     def test_hotel_edit_saves_occupancy_and_view(self):
         self.client.post(f'/hotels/{self.hotel.pk}/edit/', {

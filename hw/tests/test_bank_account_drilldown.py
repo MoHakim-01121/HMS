@@ -14,8 +14,7 @@ class AccountTransactionsQueryTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('drilldown', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.sby = Branch.objects.get(code='sby')
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
@@ -24,7 +23,7 @@ class AccountTransactionsQueryTest(TestCase):
         self.assertIsNone(finance_queries.account_transactions('cash', 999999))
 
     def test_running_balance_accumulates_in_chronological_order(self):
-        client_obj = Client.objects.create(company='konoz', name='PT DD')
+        client_obj = Client.objects.create( name='PT DD')
         inv = Invoice.objects.create(invoice_number='INV-DD-1', customer_name='PT DD', client=client_obj)
         pr1 = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
@@ -52,8 +51,7 @@ class BankAccountTransactionsViewTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('viewdd', password='pw12345', is_staff=True, is_superuser=True)
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
         self.http = HttpClient()

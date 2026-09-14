@@ -22,7 +22,6 @@ from .helpers import (
     _to_float,
     csv_export_response,
     due_soon_alert,
-    get_active_company,
     pagination_props,
     snapshot_fields,
     track_changes,
@@ -33,27 +32,25 @@ from .pdf import _render_services_pdf
 logger = logging.getLogger(__name__)
 
 
-def _resolve_client_from_post(request, active_company):
+def _resolve_client_from_post(request):
     """Resolve Client from the submitted client_id."""
     client_id = request.POST.get("client_id")
     if client_id:
         try:
-            return Client.objects.get(pk=client_id, company=active_company, is_active=True)
+            return Client.objects.get(pk=client_id, is_active=True)
         except (Client.DoesNotExist, ValueError):
             pass
     return None
 
 
 def _get_service_invoice(request, pk):
-    """Fetch a visa invoice scoped to the active company (consistent with invoice/cl views)."""
-    return get_object_or_404(
-        Invoice, pk=pk, invoice_type='visa', company=get_active_company(request)
-    )
+    """Fetch a visa invoice."""
+    return get_object_or_404(Invoice, pk=pk, invoice_type='visa')
 
 
 @require_perm('services', 'view')
 def services_list(request):
-    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
+    qs = Invoice.objects.filter(invoice_type="visa")
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -79,7 +76,6 @@ def services_list(request):
 @require_perm('services', 'create')
 def services_new(request):
     suggested_number = Invoice.generate_number("visa")
-    active_company = get_active_company(request)
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=invoice_number).exists():
@@ -87,20 +83,14 @@ def services_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": suggested_number,
-                "clients": _client_options(active_company),
+                "clients": _client_options(),
                 "initial": _services_echo(request),
                 "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
             })
 
         with transaction.atomic():
-            client = _resolve_client_from_post(request, active_company)
+            client = _resolve_client_from_post(request)
             invoice = Invoice.objects.create(
-                # The form no longer posts a company: it used to submit one of its
-                # own, unchecked against can_use_company, so a user restricted to
-                # one company could file a record under the other — and every
-                # list/detail/edit view here filters by the active company, meaning
-                # the row simply vanished from the list it was created from.
-                company=active_company,
                 invoice_type="visa",
                 invoice_number=invoice_number,
                 client=client,
@@ -110,7 +100,7 @@ def services_new(request):
             )
             _save_service_items(invoice, request)
             _save_service_payments(invoice, request)
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number, invoice.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number)
         messages.success(request, f"Services Invoice {invoice.invoice_number} created successfully.")
         return redirect("services_detail", pk=invoice.pk)
 
@@ -118,7 +108,7 @@ def services_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
-        "clients": _client_options(active_company),
+        "clients": _client_options(),
     })
 
 
@@ -151,7 +141,6 @@ def services_detail(request, pk):
             "invoice_number": invoice.invoice_number,
             "customer_name": invoice.customer_name,
             "currency": invoice.currency,
-            "company": invoice.company,
             "issued_date": invoice.issued_date.strftime("%d %b %Y") if invoice.issued_date else None,
             "due_date": invoice.due_date.strftime("%d %b %Y") if invoice.due_date else None,
             "created_at": invoice.created_at.strftime("%d/%m/%Y %H:%M"),
@@ -166,11 +155,10 @@ def services_detail(request, pk):
 
 @require_perm('services', 'edit')
 def services_edit(request, pk):
-    active_company = get_active_company(request)
     invoice = _get_service_invoice(request, pk)
 
     if request.method == "POST":
-        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency', 'company'])
+        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency'])
         new_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
             echo = _services_echo(request)
@@ -178,16 +166,13 @@ def services_edit(request, pk):
             return inertia_render(request, "Services/Form", props={
                 "edit": True,
                 "invoice": _serialize_service_invoice(invoice),
-                "clients": _client_options(active_company),
+                "clients": _client_options(),
                 "initial": echo,
                 "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
             })
 
-        # invoice.company is deliberately left alone: _get_service_invoice
-        # already constrains it to the active company, so any value arriving in
-        # the POST could only move the record out from under the user.
         with transaction.atomic():
-            client = _resolve_client_from_post(request, active_company)
+            client = _resolve_client_from_post(request)
             invoice.invoice_number = new_number
             invoice.client = client
             invoice.issued_date = _parse_date(request.POST.get("issued_date"))
@@ -198,19 +183,19 @@ def services_edit(request, pk):
             invoice.service_items.all().delete()
             _save_service_items(invoice, request)
             _save_service_payments(invoice, request)
-        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency', 'company'])
+        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency'])
         changes = track_changes(
             _before, _after,
-            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'currency': 'Currency', 'company': 'Company'},
+            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'currency': 'Currency'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Services', invoice.invoice_number, invoice.company, changes)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Services', invoice.invoice_number, changes)
         messages.success(request, f"Services Invoice {invoice.invoice_number} updated successfully.")
         return redirect("services_detail", pk=invoice.pk)
 
     return inertia_render(request, "Services/Form", props={
         "edit": True,
         "invoice": _serialize_service_invoice(invoice),
-        "clients": _client_options(active_company),
+        "clients": _client_options(),
     })
 
 
@@ -226,7 +211,7 @@ def services_delete(request, pk):
             messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('services_detail', pk=pk)
         invoice.delete()
-        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num, invoice.company)
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num)
         messages.success(request, f"Services Invoice {num} deleted successfully.")
         return redirect("services_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
@@ -241,7 +226,7 @@ def services_pdf(request, pk):
 
 @require_perm('services', 'export')
 def services_list_pdf(request):
-    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
+    qs = Invoice.objects.filter(invoice_type="visa")
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -255,13 +240,13 @@ def services_list_pdf(request):
 
 @require_perm('services', 'export')
 def services_export_csv(request):
-    qs = Invoice.objects.filter(invoice_type="visa", company=get_active_company(request))
+    qs = Invoice.objects.filter(invoice_type="visa")
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
-    headers = ['Invoice #', 'Company', 'Customer', 'Currency', 'Issued Date', 'Due Date']
+    headers = ['Invoice #', 'Customer', 'Currency', 'Issued Date', 'Due Date']
     rows = ([
-        inv.invoice_number, inv.company, inv.customer_name,
+        inv.invoice_number, inv.customer_name,
         inv.currency, inv.issued_date or '', inv.due_date or '',
     ] for inv in qs)
     return csv_export_response('invoices_services.csv', headers, rows)
@@ -273,7 +258,6 @@ def services_duplicate(request, pk):
     new_num = Invoice.generate_number("visa")
     today = date.today()
     new_inv = Invoice.objects.create(
-        company=original.company,
         invoice_type="visa",
         invoice_number=new_num,
         customer_name=original.customer_name,
@@ -356,7 +340,6 @@ def _serialize_service_invoice(invoice):
     """Invoice + service items + payments serialized for the React form."""
     return {
         "pk": invoice.pk,
-        "company": invoice.company,
         "client_id": invoice.client_id or "",
         "customer_name": invoice.customer_name,
         "invoice_number": invoice.invoice_number,

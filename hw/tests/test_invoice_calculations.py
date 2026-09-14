@@ -14,12 +14,11 @@ class InvoiceTotalsTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('calc', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2026-01', company='konoz',
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name='2026-01',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='Test Customer')
+        self.client_obj = Client.objects.create( name='Test Customer')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-CALC-001', customer_name='Test Customer',
             client=self.client_obj, currency='SAR', issued_date=date(2026, 1, 1),
         )
@@ -80,7 +79,7 @@ class InvoiceTotalsTest(TestCase):
         self._pay(400)
 
         cl = ConfirmationLetter.objects.create(
-            company='konoz', client=self.client_obj, hotel_name='Hotel', guest_name='Guest',
+ client=self.client_obj, hotel_name='Hotel', guest_name='Guest',
             confirmation_number='CL-PEN-001', invoice=self.invoice,
         )
         penalty = CancellationPenalty.objects.create(
@@ -119,13 +118,12 @@ class InvoiceExportStatusFilterTest(TestCase):
         s["active_company"] = "konoz"
         s.save()
         FinancialPeriod.objects.create(
-            name="2026", company="konoz",
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        client_obj = Client.objects.create(company="konoz", name="Paid Co")
+        client_obj = Client.objects.create( name="Paid Co")
 
         self.paid = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-EXP-PAID", customer_name="Paid Co",
             client=client_obj, currency="SAR", issued_date=date(2026, 1, 1),
         )
@@ -138,7 +136,7 @@ class InvoiceExportStatusFilterTest(TestCase):
         confirm_payment(p, confirmed_by=self.user)
 
         self.unpaid = Invoice.objects.create(
-            company="konoz", invoice_type="hotel",
+ invoice_type="hotel",
             invoice_number="INV-EXP-UNPAID", customer_name="Unpaid Co", currency="SAR",
         )
         Reservation.objects.create(invoice=self.unpaid, reservation_number="R2", total_sar=500)

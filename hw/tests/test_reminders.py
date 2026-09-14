@@ -6,7 +6,7 @@ from hw.models import ConfirmationLetter
 
 def _make_cl(**kwargs):
     defaults = dict(
-        company='konoz', hotel_name='Hilton Makkah',
+        hotel_name='Hilton Makkah',
         guest_name='Ahmad', guest_phone='628123456789',
         check_in=date.today(), check_out=date.today() + timedelta(days=3),
         confirmation_number='CL-001', reservation_status='DEFINITE',
@@ -84,7 +84,7 @@ class RecapServiceTest(TestCase):
 class ResolveReminderTargetsTest(TestCase):
     def _make_client(self, **kwargs):
         from hw.models import Client
-        defaults = dict(company='konoz', name='PT Uji Target', wa='', wa_group='', reminder_target='PIC')
+        defaults = dict(name='PT Uji Target', wa='', wa_group='', reminder_target='PIC')
         defaults.update(kwargs)
         return Client.objects.create(**defaults)
 
@@ -141,7 +141,7 @@ class ResolveReminderTargetsTest(TestCase):
 class BuildGroupedReminderMessageTest(TestCase):
     def _make_client(self, **kwargs):
         from hw.models import Client
-        defaults = dict(company='konoz', name='PT Grup Uji')
+        defaults = dict(name='PT Grup Uji')
         defaults.update(kwargs)
         return Client.objects.create(**defaults)
 
@@ -354,7 +354,7 @@ class CalendarUpcomingCheckinsTest(TestCase):
 
     def test_includes_client_id_and_name_when_set(self):
         from hw.models import Client
-        client = Client.objects.create(company='konoz', name='PT Upcoming')
+        client = Client.objects.create( name='PT Upcoming')
         cl2 = _make_cl(client=client, check_in=date.today(), confirmation_number='CL-UPC1')
         resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
         entries = resp.json()['props']['upcoming_checkins']
@@ -435,7 +435,7 @@ class SendReminderGroupViewTest(TestCase):
 
     def _make_client(self, **kwargs):
         from hw.models import Client
-        defaults = dict(company='konoz', name='PT Grup View', wa='628111', reminder_target='PIC')
+        defaults = dict(name='PT Grup View', wa='628111', reminder_target='PIC')
         defaults.update(kwargs)
         return Client.objects.create(**defaults)
 
@@ -584,7 +584,7 @@ class DueSoonNotificationsTest(TestCase):
 
     def test_invoice_notifs_keep_remaining(self):
         from hw.models import Invoice, Reservation
-        inv = Invoice.objects.create(company='konoz', invoice_type='HOTEL',
+        inv = Invoice.objects.create( invoice_type='HOTEL',
                                      invoice_number='INV-001', customer_name='PT Uji',
                                      due_date=date.today())
         Reservation.objects.create(invoice=inv, reservation_number='RSV-1', total_sar=1000)

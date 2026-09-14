@@ -16,11 +16,10 @@ class ReconciliationBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('recon', password='pw12345')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
-        self.client_obj = Client.objects.create(company='konoz', name='PT Recon')
+        self.client_obj = Client.objects.create( name='PT Recon')
         self.inv = Invoice.objects.create(invoice_number='INV-RC-1', customer_name='PT Recon', client=self.client_obj)
 
 

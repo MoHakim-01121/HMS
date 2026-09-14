@@ -18,13 +18,13 @@ class PrevSentMapTest(TestCase):
 
     def setUp(self):
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-PREV-001', customer_name='Test Customer',
         )
         Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        self.rem1 = Remittance.objects.create(company='konoz', date=date(2026, 1, 1), remittance_number='RMT-001')
+        self.rem1 = Remittance.objects.create( date=date(2026, 1, 1), remittance_number='RMT-001')
         RemittanceLine.objects.create(remittance=self.rem1, invoice=self.invoice, linked_number='R1', amount_sar=2000)
-        self.rem2 = Remittance.objects.create(company='konoz', date=date(2026, 2, 1), remittance_number='RMT-002')
+        self.rem2 = Remittance.objects.create( date=date(2026, 2, 1), remittance_number='RMT-002')
         RemittanceLine.objects.create(remittance=self.rem2, invoice=self.invoice, linked_number='R1', amount_sar=2000)
 
     def test_first_remittance_has_no_prev_sent(self):
@@ -34,7 +34,7 @@ class PrevSentMapTest(TestCase):
         self.assertEqual(_prev_sent_map(self.rem2, ['R1']).get('R1', 0), 2000)
 
     def test_same_date_falls_back_to_creation_order(self):
-        rem3 = Remittance.objects.create(company='konoz', date=date(2026, 2, 1), remittance_number='RMT-003')
+        rem3 = Remittance.objects.create( date=date(2026, 2, 1), remittance_number='RMT-003')
         RemittanceLine.objects.create(remittance=rem3, invoice=self.invoice, linked_number='R1', amount_sar=1000)
         # rem2 tanggalnya sama tapi dibuat lebih dulu -> ikut terhitung
         self.assertEqual(_prev_sent_map(rem3, ['R1']).get('R1', 0), 4000)
@@ -50,13 +50,13 @@ class RemittancePdfOrderingTest(TestCase):
 
     def setUp(self):
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-ORD-001', customer_name='Test Customer',
         )
         Reservation.objects.create(invoice=self.invoice, reservation_number='900', total_sar=1000, check_in=date(2026, 6, 30))
         Reservation.objects.create(invoice=self.invoice, reservation_number='100', total_sar=1000, check_in=date(2026, 6, 11))
         Reservation.objects.create(invoice=self.invoice, reservation_number='500', total_sar=1000, check_in=date(2026, 6, 20))
-        self.rem = Remittance.objects.create(company='konoz', date=date(2026, 6, 10), remittance_number='RMT-010')
+        self.rem = Remittance.objects.create( date=date(2026, 6, 10), remittance_number='RMT-010')
         for num in ('100', '500', '900', 'NOCI'):
             RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number=num, amount_sar=100)
 
@@ -89,12 +89,11 @@ class LedgerTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("led", password="pw12345")
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="Budi")
+        self.client_obj = Client.objects.create( name="Budi")
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', client=self.client_obj,
+ invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-LED-001', customer_name='Budi',
         )
         self.res = {
@@ -111,7 +110,7 @@ class LedgerTest(TestCase):
 
     def _cl(self, number, status, **kw):
         return ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number=number, reservation_status=status,
+ confirmation_number=number, reservation_status=status,
             hotel_name=kw.get('hotel', 'Hotel CL'), guest_name=kw.get('guest', 'Guest CL'),
         )
 
@@ -128,7 +127,7 @@ class LedgerTest(TestCase):
         return rec
 
     def _remit(self, res, amount, day, number):
-        rem = Remittance.objects.create(company='konoz', date=date(2026, 1, day), remittance_number=number)
+        rem = Remittance.objects.create( date=date(2026, 1, day), remittance_number=number)
         RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number=res, amount_sar=amount)
         return rem
 

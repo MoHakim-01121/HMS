@@ -5,7 +5,6 @@ Convention: amount/amount_sar are IntegerField (minor units). See invoice.py doc
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company
 from ..utils import convert_to_sar
 
 
@@ -92,7 +91,6 @@ class PaymentRecord(models.Model):
 
     # Period & Audit
     period     = models.ForeignKey('FinancialPeriod', on_delete=models.PROTECT, related_name='payments')
-    company    = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
     created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -101,7 +99,7 @@ class PaymentRecord(models.Model):
         verbose_name        = 'Payment Record'
         verbose_name_plural = 'Payment Records'
         indexes = [
-            models.Index(fields=['company', 'status'], name='payrec_company_status_idx'),
+            models.Index(fields=['status'], name='payrec_status_idx'),
             models.Index(fields=['client', 'status'], name='payrec_client_status_idx'),
             models.Index(fields=['invoice', 'status'], name='payrec_invoice_status_idx'),
         ]

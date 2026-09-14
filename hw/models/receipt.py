@@ -6,8 +6,6 @@ Convention: all monetary amounts stored as IntegerField (minor units).
 from django.db import models
 from django.urls import reverse
 
-from .choices import Company
-
 
 class Receipt(models.Model):
     """Kwitansi pembayaran — dokumen bukti bahwa klien telah membayar."""
@@ -22,7 +20,6 @@ class Receipt(models.Model):
     # Identitas
     receipt_number = models.CharField(max_length=50, unique=True, db_index=True)
     receipt_date   = models.DateField()
-    company        = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
 
     # Relasi ke data existing
     payment        = models.ForeignKey(
@@ -57,7 +54,7 @@ class Receipt(models.Model):
         verbose_name        = 'Receipt'
         verbose_name_plural = 'Receipts'
         indexes = [
-            models.Index(fields=['company', 'status'], name='receipt_company_status_idx'),
+            models.Index(fields=['status'], name='receipt_status_idx'),
             models.Index(fields=['client', 'status'], name='receipt_client_status_idx'),
         ]
 

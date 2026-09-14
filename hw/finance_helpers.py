@@ -31,7 +31,6 @@ from .finance.posting import (
 )
 from .models.payment import PaymentRecord, PaymentLog
 from .models.journal import JournalEntry, JournalLine, LedgerAccount
-from .models.choices import Company
 from .finance.accounts import resolve_account_code, AR
 
 __all__ = [
@@ -67,7 +66,6 @@ def create_journal_entry(
     description,
     entry_date,
     lines,
-    company=Company.KONOZ,
     reference_type='',
     reference_id=None,
     created_by=None,
@@ -86,7 +84,6 @@ def create_journal_entry(
         description=description,
         entry_date=entry_date,
         lines=lines,
-        company=company,
         source_type=reference_type,
         source_id=reference_id,
         created_by=created_by,
@@ -174,7 +171,6 @@ def create_payment_record(
         note=note,
         proof=proof,
         status=PaymentRecord.STATUS_PENDING,
-        company=invoice.company,
         created_by=created_by,
         period=period,
     )
@@ -294,11 +290,9 @@ def invoice_paid_sar_jl(invoice_id):
     return -(agg['c'] or 0)
 
 
-def kas_saldo(account, company=None):
+def kas_saldo(account):
     """Saldo kas/akun (debit - credit) dari baris jurnal."""
     qs = JournalLine.objects.filter(account_id=resolve_account_code(str(account)))
-    if company:
-        qs = qs.filter(journal_entry__company=company)
     return _net(qs)
 
 
@@ -342,12 +336,10 @@ def client_statement(client, date_from=None, date_to=None):
     }
 
 
-def account_summary(company=None):
+def account_summary():
     """[DEPRECATED] Ringkasan semua akun dari jurnal. Prefer finance.queries
     (trial_balance / account_balance). Dipakai payment_views sementara."""
     qs = JournalLine.objects.all()
-    if company:
-        qs = qs.filter(journal_entry__company=company)
 
     totals = {
         row['account']: (row['d'] or 0) - (row['c'] or 0)

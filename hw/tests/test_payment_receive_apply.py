@@ -35,9 +35,9 @@ class ReceiveApplyFlowTest(TestCase):
         s['active_company'] = 'konoz'
         s.save()
 
-        self.client_obj = Client.objects.create(company='konoz', name='PT Apply')
+        self.client_obj = Client.objects.create( name='PT Apply')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', client=self.client_obj,
+ invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-APPLY-001', customer_name='PT Apply',
         )
         self.r1 = Reservation.objects.create(
@@ -58,7 +58,7 @@ class ReceiveApplyFlowTest(TestCase):
                 {"account": coa.AR, "debit": 23000, "client": self.client_obj.pk, "invoice": self.invoice.pk},
                 {"account": coa.INC_HOTEL, "credit": 23000, "client": self.client_obj.pk, "invoice": self.invoice.pk},
             ],
-            company='konoz', source_type='Invoice', source_id=self.invoice.pk,
+            source_type='Invoice', source_id=self.invoice.pk,
             idempotency_key='charge:INV-APPLY-001',
             created_by=u,
         )

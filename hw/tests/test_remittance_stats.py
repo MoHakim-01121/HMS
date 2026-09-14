@@ -14,12 +14,11 @@ class InvoiceStatsTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('stats', password='x')
         FinancialPeriod.objects.create(
-            name='2020-2030', company='konoz',
-            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+            name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
-        self.client_obj = Client.objects.create(company='konoz', name='Test Customer')
+        self.client_obj = Client.objects.create( name='Test Customer')
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel', invoice_number='INV-STAT-001',
+ invoice_type='hotel', invoice_number='INV-STAT-001',
             customer_name='Test Customer', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
         self.res = Reservation.objects.create(
@@ -36,7 +35,7 @@ class InvoiceStatsTest(TestCase):
         confirm_payment(p, confirmed_by=self.user)
 
     def _stats(self):
-        return _invoice_stats(Invoice.objects.filter(pk=self.invoice.pk), 'konoz')
+        return _invoice_stats(Invoice.objects.filter(pk=self.invoice.pk))
 
     def test_total_tagihan_from_journal_charge(self):
         self.assertEqual(self._stats()['total_tagihan'], 1000)

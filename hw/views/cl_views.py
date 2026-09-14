@@ -15,7 +15,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, RoomType, log_activity
 from ..permissions import require_perm
 from ..i18n import tr
-from .helpers import _is_mobile, _parse_date, _render_list_pdf, csv_export_response, get_active_company, pagination_props, snapshot_fields, track_changes
+from .helpers import _is_mobile, _parse_date, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
 
@@ -23,11 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 def _get_cl(request, pk, qs=None):
-    """Fetch a ConfirmationLetter by pk, scoped to the active company (consistent
-    with the list/invoice/client views) so a CL from another company cannot be
-    opened by URL while a company is selected."""
+    """Fetch a ConfirmationLetter by pk."""
     qs = qs if qs is not None else ConfirmationLetter.objects.all()
-    qs = qs.filter(company=get_active_company(request))
     return get_object_or_404(qs, pk=pk)
 
 
@@ -85,9 +82,8 @@ def _filter_cl_qs(qs, request):
 
 @require_perm('cl', 'view')
 def cl_list(request):
-    active_company = get_active_company(request)
     base_qs = (
-        ConfirmationLetter.objects.filter(company=active_company)
+        ConfirmationLetter.objects.all()
         .defer('note').select_related('invoice').prefetch_related('rooms')
     )
 
@@ -153,15 +149,15 @@ def cl_list(request):
 
 def _form_context_data():
     hotels = [{
-        "id": h.id, "name": h.name, "company": h.company, "city": h.city,
+        "id": h.id, "name": h.name, "city": h.city,
         "room_types": [
             {"id": rt.id, "name": rt.name, "capacity": rt.capacity}
             for rt in h.room_types.filter(is_active=True)
         ],
-    } for h in Hotel.objects.filter(is_active=True).prefetch_related('room_types').order_by('company', 'city', 'name')]
+    } for h in Hotel.objects.filter(is_active=True).prefetch_related('room_types').order_by('city', 'name')]
     return {
         "hotels": hotels,
-        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "brand", "company").order_by("company", "name")),
+        "clients": list(Client.objects.filter(is_active=True).values("id", "name", "brand").order_by("name")),
     }
 
 
@@ -196,7 +192,6 @@ def _cl_echo(data):
     except (ValueError, TypeError):
         rooms = []
     return {
-        "company": data.get("company", "konoz"),
         "client_id": data.get("client_id", ""),
         "hotel_name": data.get("hotel_name", ""),
         "hotel_id": data.get("hotel_id", ""),
@@ -214,14 +209,13 @@ def _cl_echo(data):
 @require_perm('cl', 'create')
 def cl_new(request):
     suggested_number = ConfirmationLetter.generate_number()
-    active_company = get_active_company(request)
     if request.method == "POST":
         errors = _validate_cl(request.POST)
         if errors:
             return inertia_render(request, "Cl/Form", props={
                 "cl": _cl_echo(request.POST), "edit": False, "errors": errors,
                 "suggested_number": request.POST.get("confirmation_number", suggested_number),
-                "default_company": active_company, **_form_context_data(),
+                **_form_context_data(),
             })
         client_id = request.POST.get("client_id") or None
         guest_name = request.POST.get("guest_name", "").strip()
@@ -229,10 +223,6 @@ def cl_new(request):
             picked = Client.objects.filter(pk=client_id).values("name", "brand").first()
             guest_name = (picked and (picked["brand"] or picked["name"])) or ""
         cl = ConfirmationLetter.objects.create(
-            # Scope the CL to the active company (same as the detail/list views
-            # filter by). Trusting the form's company field would let a CL be
-            # saved under a company the detail view then can't find -> 404.
-            company=active_company,
             client_id=client_id,
             hotel_id=_resolve_hotel_id(request),
             hotel_name=request.POST.get("hotel_name", ""),
@@ -245,13 +235,13 @@ def cl_new(request):
             note=request.POST.get("note", ""),
         )
         _save_cl_rooms(cl, request)
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number, cl.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} created successfully.")
         return redirect("cl_detail", pk=cl.pk)
 
     return inertia_render(request, "Cl/Form", props={
         "cl": None, "edit": False,
-        "suggested_number": suggested_number, "default_company": active_company,
+        "suggested_number": suggested_number,
         **_form_context_data(),
     })
 
@@ -291,7 +281,7 @@ def cl_detail(request, pk):
     } for a in cl.attachments.all()]
 
     log_qs = ActivityLog.objects.filter(
-        model_name='CL', object_ref=cl.confirmation_number, company=cl.company,
+        model_name='CL', object_ref=cl.confirmation_number,
     ).select_related('user').order_by('-timestamp')
     logs = [{
         "action": l.get_action_display(),
@@ -340,14 +330,12 @@ def cl_edit(request, pk):
             return inertia_render(request, "Cl/Form", props={
                 "cl": echo, "edit": True, "errors": errors,
                 "suggested_number": request.POST.get("confirmation_number", cl.confirmation_number),
-                "default_company": cl.company, **_form_context_data(),
+                **_form_context_data(),
             })
 
-        _before = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status', 'company'])
+        _before = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status'])
         _rooms_before = _room_snapshot(cl.rooms.all())
 
-        # Company is locked to the CL's existing (active-company) scope; the form
-        # no longer submits it, so we never reassign and risk a cross-company 404.
         cl.client_id = request.POST.get("client_id") or None
         cl.hotel_id = _resolve_hotel_id(request)
         cl.hotel_name = request.POST.get("hotel_name", "")
@@ -370,14 +358,14 @@ def cl_edit(request, pk):
         if cl.invoice_id:
             _sync_invoice_reservation_from_cl(cl, request.user)
 
-        _after = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status', 'company'])
+        _after = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status'])
         _rooms_after = _room_snapshot(cl.rooms.all())
         changes = track_changes(
             {**_before, 'Rooms': _rooms_before},
             {**_after, 'Rooms': _rooms_after},
-            labels={'hotel_name': 'Hotel', 'guest_name': 'Guest', 'guest_phone': 'Phone', 'check_in': 'Check-in', 'check_out': 'Check-out', 'reservation_status': 'Status', 'company': 'Company', 'Rooms': 'Rooms'},
+            labels={'hotel_name': 'Hotel', 'guest_name': 'Guest', 'guest_phone': 'Phone', 'check_in': 'Check-in', 'check_out': 'Check-out', 'reservation_status': 'Status', 'Rooms': 'Rooms'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, cl.company, changes)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, changes)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} updated successfully.")
         return redirect("cl_detail", pk=cl.pk)
 
@@ -387,7 +375,7 @@ def cl_edit(request, pk):
     } for r in cl.rooms.all()]
     return inertia_render(request, "Cl/Form", props={
         "cl": {
-            "id": cl.pk, "company": cl.company,
+            "id": cl.pk,
             "client_id": cl.client_id or "", "hotel_name": cl.hotel_name,
             "hotel_id": cl.hotel_id or "",
             "guest_name": cl.guest_name, "guest_phone": cl.guest_phone,
@@ -398,7 +386,7 @@ def cl_edit(request, pk):
             "rooms": rooms,
         },
         "edit": True, "suggested_number": cl.confirmation_number,
-        "default_company": cl.company, **_form_context_data(),
+        **_form_context_data(),
     })
 
 
@@ -408,7 +396,7 @@ def cl_delete(request, pk):
     if request.method == "POST":
         num = cl.confirmation_number
         cl.delete()
-        log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num, cl.company)
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num)
         messages.success(request, f"Confirmation Letter {num} deleted successfully.")
         return redirect("cl_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
@@ -423,8 +411,7 @@ def cl_pdf(request, pk):
 
 @require_perm('cl', 'export')
 def cl_list_pdf(request):
-    active_company = get_active_company(request)
-    qs = ConfirmationLetter.objects.filter(company=active_company)
+    qs = ConfirmationLetter.objects.all()
     qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
     letters = list(qs)
     # One bulk Payment query for all paid totals -- summing cl.paid_sar here
@@ -450,15 +437,14 @@ def cl_list_pdf(request):
             "total_sar":     total_sar,
             "total_paid":    total_paid,
             "total_remain":  total_remain,
-            "logo_rel_path": _logo_file_url(active_company),
+            "logo_rel_path": _logo_file_url(),
         },
     )
 
 
 @require_perm('cl', 'export')
 def cl_list_pdf_v2(request):
-    active_company = get_active_company(request)
-    qs = ConfirmationLetter.objects.filter(company=active_company)
+    qs = ConfirmationLetter.objects.all()
     qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
     letters = list(qs)
     for cl in letters:
@@ -480,19 +466,18 @@ def cl_list_pdf_v2(request):
             "letters":       letters,
             "total_rooms":   total_rooms,
             "total_sar":     total_sar,
-            "logo_rel_path": _logo_file_url(active_company),
+            "logo_rel_path": _logo_file_url(),
         },
     )
 
 
 @require_perm('cl', 'export')
 def cl_export_csv(request):
-    active_company = get_active_company(request)
-    qs = ConfirmationLetter.objects.filter(company=active_company)
+    qs = ConfirmationLetter.objects.all()
     qs = _filter_cl_qs(qs, request)
-    headers = ['No CL', 'Company', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note']
+    headers = ['No CL', 'Guest', 'Hotel', 'Check-in', 'Check-out', 'Total Room', 'Night', 'Total SAR', 'Status', 'Note']
     rows = ([
-        cl.confirmation_number, cl.company, cl.guest_name, cl.hotel_name,
+        cl.confirmation_number, cl.guest_name, cl.hotel_name,
         cl.check_in or '', cl.check_out or '',
         cl.total_rooms, cl.num_nights,
         cl.total_price or 0, cl.reservation_status, cl.note or '',
@@ -505,7 +490,6 @@ def cl_duplicate(request, pk):
     original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()
     new_cl = ConfirmationLetter.objects.create(
-        company=original.company,
         hotel_name=original.hotel_name,
         guest_name=original.guest_name,
         guest_phone=original.guest_phone,
@@ -535,7 +519,7 @@ def invoice_from_cls(request):
         messages.error(request, "Select at least one CL.")
         return redirect("cl_list")
 
-    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids, company=get_active_company(request))
+    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids)
     if not cls.exists():
         messages.error(request, "CL not found.")
         return redirect("cl_list")
@@ -543,7 +527,6 @@ def invoice_from_cls(request):
     first_cl = cls.order_by('created_at').first()
     with transaction.atomic():
         invoice = Invoice.objects.create(
-            company=first_cl.company,
             invoice_type="hotel",
             invoice_number=Invoice.generate_number("hotel"),
             customer_name=first_cl.guest_name,
@@ -576,8 +559,8 @@ def invoice_from_cls(request):
             post_invoice_charge(invoice, created_by=request.user)
 
     logger.info(
-        "ledger: invoice %s created from %d CL(s), company %s",
-        invoice.invoice_number, cls.count(), invoice.company,
+        "ledger: invoice %s created from %d CL(s)",
+        invoice.invoice_number, cls.count(),
     )
     messages.success(request, f"Invoice {invoice.invoice_number} created from {cls.count()} CL(s).")
     return redirect("invoice_edit", pk=invoice.pk)

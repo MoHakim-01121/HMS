@@ -1,31 +1,25 @@
-"""Role-based access control and company-access enforcement.
+"""Role-based access control enforcement.
 
-Covers the three things RBAC has to get right:
+Covers the two things RBAC has to get right:
   * the matrix itself (hw/permissions.py) resolves the role correctly,
-  * guarded views actually refuse the actions a role lacks,
-  * a user restricted to one company cannot reach the other one, even by
-    hand-crafting the session or POSTing the switcher directly.
+  * guarded views actually refuse the actions a role lacks.
 """
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import ConfirmationLetter, UserProfile
-from hw.models.user import CompanyAccess, Role
-from hw.permissions import (
-    allowed_companies, can, can_use_company, default_company,
-    get_role, perms_payload, role_matrix,
-)
+from hw.models.user import Role
+from hw.permissions import can, get_role, perms_payload, role_matrix
 
 
-def make_user(username, role=Role.STAFF.value, company_access=CompanyAccess.ALL.value,
-              superuser=False):
+def make_user(username, role=Role.STAFF.value, superuser=False):
     user = User.objects.create_user(username, password="pw12345")
     if superuser:
         user.is_superuser = True
         user.is_staff = True
         user.save()
     UserProfile.objects.update_or_create(
-        user=user, defaults={'role': role, 'company_access': company_access},
+        user=user, defaults={'role': role},
     )
     # hw/signals.py creates the profile on User post_save and, via get_or_create,
     # leaves it cached on this instance — so the update above is invisible to
@@ -97,7 +91,7 @@ class MatrixTests(TestCase):
 class ViewGuardTests(TestCase):
     def setUp(self):
         self.cl = ConfirmationLetter.objects.create(
-            company="konoz", confirmation_number="KU-CL-9001", guest_name="Guest",
+            confirmation_number="KU-CL-9001", guest_name="Guest",
         )
 
     def login(self, **kwargs):
@@ -160,45 +154,15 @@ class ViewGuardTests(TestCase):
         self.assertEqual(resp["Location"], "/dashboard/")
 
 
-class CompanyAccessTests(TestCase):
-    """Single-company deployment: ALL and KONOZ both resolve to the one
-    company. The old cross-company isolation scenarios (a user restricted to
-    a *different* company than the one holding the record) no longer exist
-    now that Ijabah has been retired."""
-
-    def setUp(self):
-        self.restricted = make_user("restricted", Role.MANAGER.value, CompanyAccess.KONOZ.value)
-        self.both = make_user("bothco", Role.MANAGER.value, CompanyAccess.ALL.value)
-
-    def test_allowed_companies_reflects_profile(self):
-        self.assertEqual(allowed_companies(self.restricted), ["konoz"])
-        self.assertEqual(allowed_companies(self.both), ["konoz"])
-        self.assertEqual(default_company(self.restricted), "konoz")
-
-    def test_superuser_may_use_every_company(self):
-        root = make_user("root2", Role.VIEWER.value, CompanyAccess.KONOZ.value, superuser=True)
-        self.assertEqual(allowed_companies(root), ["konoz"])
-
-    def test_quick_set_accepts_a_permitted_company(self):
-        self.client.force_login(self.both)
-        self.client.post("/company/set/", {"company": "konoz"})
-        self.assertEqual(self.client.session["active_company"], "konoz")
-
-    def test_can_use_company_helper(self):
-        self.assertTrue(can_use_company(self.restricted, "konoz"))
-        self.assertFalse(can_use_company(self.restricted, "ijabah"))
-
-
 class SharedPropsTests(TestCase):
     def test_inertia_props_carry_role_and_perms(self):
-        user = make_user("propuser", Role.STAFF.value, CompanyAccess.KONOZ.value)
+        user = make_user("propuser", Role.STAFF.value)
         self.client.force_login(user)
         resp = self.client.get("/dashboard/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 200)
         auth_user = resp.json()["props"]["auth"]["user"]
         self.assertEqual(auth_user["role"], Role.STAFF.value)
         self.assertEqual(auth_user["role_label"], "Staff")
-        self.assertEqual(auth_user["companies"], ["konoz"])
         self.assertNotIn("users", auth_user["perms"])
         self.assertIn("edit", auth_user["perms"]["cl"])
 
@@ -209,50 +173,46 @@ class UserManagementTests(TestCase):
         self.client.force_login(self.admin)
         self.target = make_user("target", Role.STAFF.value)
 
-    def test_set_access_updates_role_and_company(self):
+    def test_set_access_updates_role(self):
         self.client.post(f"/users/{self.target.pk}/edit/", {
             "action": "set_access", "role": Role.VIEWER.value,
-            "company_access": CompanyAccess.KONOZ.value,
         })
         profile = UserProfile.objects.get(user=self.target)
         self.assertEqual(profile.role, Role.VIEWER.value)
-        self.assertEqual(profile.company_access, CompanyAccess.KONOZ.value)
 
     def test_is_staff_follows_the_role(self):
         self.client.post(f"/users/{self.target.pk}/edit/", {
-            "action": "set_access", "role": Role.MANAGER.value, "company_access": "all",
+            "action": "set_access", "role": Role.MANAGER.value,
         })
         self.target.refresh_from_db()
         self.assertTrue(self.target.is_staff)
 
         self.client.post(f"/users/{self.target.pk}/edit/", {
-            "action": "set_access", "role": Role.VIEWER.value, "company_access": "all",
+            "action": "set_access", "role": Role.VIEWER.value,
         })
         self.target.refresh_from_db()
         self.assertFalse(self.target.is_staff)
 
     def test_cannot_change_own_role(self):
         self.client.post(f"/users/{self.admin.pk}/edit/", {
-            "action": "set_access", "role": Role.VIEWER.value, "company_access": "all",
+            "action": "set_access", "role": Role.VIEWER.value,
         })
         self.assertEqual(UserProfile.objects.get(user=self.admin).role, Role.ADMIN.value)
 
     def test_invalid_role_value_falls_back_instead_of_saving_garbage(self):
         self.client.post(f"/users/{self.target.pk}/edit/", {
-            "action": "set_access", "role": "superadmin", "company_access": "mars",
+            "action": "set_access", "role": "superadmin",
         })
         profile = UserProfile.objects.get(user=self.target)
         self.assertEqual(profile.role, Role.STAFF.value)
-        self.assertEqual(profile.company_access, CompanyAccess.ALL.value)
 
     def test_new_user_gets_the_requested_role(self):
         self.client.post("/users/new/", {
             "username": "freshuser", "password": "pw12345", "password_confirm": "pw12345",
-            "role": Role.VIEWER.value, "company_access": CompanyAccess.KONOZ.value,
+            "role": Role.VIEWER.value,
         })
         created = User.objects.get(username="freshuser")
         self.assertEqual(created.profile.role, Role.VIEWER.value)
-        self.assertEqual(created.profile.company_access, CompanyAccess.KONOZ.value)
         self.assertFalse(created.is_staff)
 
     def test_toggle_active(self):

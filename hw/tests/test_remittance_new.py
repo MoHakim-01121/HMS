@@ -21,14 +21,13 @@ class ReservasiMengendapTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("tester", password="pw12345")
         FinancialPeriod.objects.create(
-            name="2026", company=Company.KONOZ,
-            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
+            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.invoice = Invoice.objects.create(
-            company='konoz', invoice_type='hotel',
+ invoice_type='hotel',
             invoice_number='INV-NEW-001', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
         self.rem_counter = 0
 
     def _res(self, number, **kw):
@@ -38,7 +37,7 @@ class ReservasiMengendapTest(TestCase):
 
     def _cl(self, number, status):
         return ConfirmationLetter.objects.create(
-            company='konoz', confirmation_number=number, reservation_status=status,
+ confirmation_number=number, reservation_status=status,
             hotel_name='Hotel CL', guest_name='Guest CL',
         )
 
@@ -53,7 +52,7 @@ class ReservasiMengendapTest(TestCase):
     def _remit(self, res, amount):
         self.rem_counter += 1
         rmt = Remittance.objects.create(
-            company="konoz", date=date(2026, 1, 10),
+ date=date(2026, 1, 10),
             remittance_number=f"RMT-NEW-{self.rem_counter}",
         )
         posting.post_remittance_send(

@@ -1,7 +1,5 @@
 from django.db import models
 
-from .choices import Company
-
 
 class ImmutableLedgerError(Exception):
     """Percobaan UPDATE/DELETE pada baris ledger append-only."""
@@ -62,10 +60,6 @@ class LedgerAccount(models.Model):
     )
     is_postable = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
-    company = models.CharField(
-        max_length=20, choices=Company.choices, null=True, blank=True,
-        help_text="Kosong = berlaku untuk semua company",
-    )
 
     class Meta:
         ordering = ["code"]
@@ -120,7 +114,7 @@ class JournalEntry(AppendOnlyModel):
     description    = models.CharField(max_length=255)
     entry_date     = models.DateField(db_index=True)
 
-    # Nomor urut monoton tanpa gap per company (diisi post_entry()).
+    # Nomor urut monoton tanpa gap (diisi post_entry()).
     seq            = models.BigIntegerField(null=True, blank=True, db_index=True)
 
     # Referensi ke sumber data (polymorphic) + idempotency
@@ -139,7 +133,6 @@ class JournalEntry(AppendOnlyModel):
 
     # Scope
     period   = models.ForeignKey('FinancialPeriod', on_delete=models.PROTECT, related_name='journal_entries')
-    company  = models.CharField(max_length=20, choices=Company.choices, default=Company.KONOZ)
 
     # Audit
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
@@ -159,12 +152,11 @@ class JournalEntry(AppendOnlyModel):
                 name='journal_entry_ref_requires_id',
             ),
             models.UniqueConstraint(
-                fields=['company', 'seq'], name='journal_entry_company_seq_uniq',
+                fields=['seq'], name='journal_entry_seq_uniq',
                 condition=models.Q(seq__isnull=False),
             ),
         ]
         indexes = [
-            models.Index(fields=['company', 'entry_type'], name='journal_company_type_idx'),
             models.Index(fields=['entry_type', 'entry_date'], name='journal_type_date_idx'),
         ]
 

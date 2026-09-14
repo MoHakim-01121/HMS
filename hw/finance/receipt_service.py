@@ -11,7 +11,7 @@ def _resolve_confirmation(payment):
     """Resolve ConfirmationLetter dari reservation payment atau alokasinya.
 
     Reservation pada PaymentRecord ber-nomor `reservation_number` yang sama
-    dengan `confirmation_number` pada ConfirmationLetter (dalam company sama).
+    dengan `confirmation_number` pada ConfirmationLetter.
     """
     from ..models import ConfirmationLetter
 
@@ -26,9 +26,7 @@ def _resolve_confirmation(payment):
     if not cl_number:
         return None
 
-    return ConfirmationLetter.objects.filter(
-        company=payment.company, confirmation_number=cl_number,
-    ).first()
+    return ConfirmationLetter.objects.filter(confirmation_number=cl_number).first()
 
 
 def ensure_receipt(payment, created_by=None):
@@ -57,7 +55,6 @@ def ensure_receipt(payment, created_by=None):
     return Receipt.objects.create(
         receipt_number=Receipt.generate_number(),
         receipt_date=payment.payment_date or date.today(),
-        company=payment.company,
         payment=payment,
         invoice=invoice,
         client=client,

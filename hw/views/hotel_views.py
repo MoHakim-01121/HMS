@@ -12,7 +12,7 @@ from inertia import render as inertia_render
 
 from ..models import ActivityLog, Hotel, Occupancy, RoomType, RoomView, log_activity
 from ..permissions import require_perm
-from .helpers import _is_mobile, get_active_company, pagination_props, snapshot_fields, track_changes
+from .helpers import _is_mobile, pagination_props, snapshot_fields, track_changes
 
 
 def _save_hotel(h, data):
@@ -101,8 +101,7 @@ def _save_hotel_room_types(h, data):
 
 @require_perm('hotels', 'view')
 def hotel_list(request):
-    company = get_active_company(request)
-    qs = Hotel.objects.filter(company=company)
+    qs = Hotel.objects.all()
     q            = request.GET.get('q', '').strip()
     area_filter  = request.GET.get('area', '').strip()
     city_filter  = request.GET.get('city', '').strip()
@@ -143,19 +142,18 @@ def hotel_list(request):
 
 @require_perm('hotels', 'create')
 def hotel_new(request):
-    company = get_active_company(request)
     if request.method == 'POST':
-        h = Hotel(company=company)
+        h = Hotel()
         _save_hotel(h, request.POST)
         _save_hotel_room_types(h, request.POST)
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name, h.company)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})
 
 
 @require_perm('hotels', 'edit')
 def hotel_edit(request, pk):
-    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
+    h = get_object_or_404(Hotel, pk=pk)
     if request.method == 'POST':
         _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
@@ -165,7 +163,7 @@ def hotel_edit(request, pk):
             _before, _after,
             labels={'name': 'Nama', 'city': 'Kota', 'area': 'Area', 'stars': 'Bintang'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name, h.company, changes)
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name, changes)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={
         "edit": True,
@@ -186,16 +184,16 @@ def hotel_edit(request, pk):
 @require_perm('hotels', 'delete')
 @require_POST
 def hotel_delete(request, pk):
-    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
+    h = get_object_or_404(Hotel, pk=pk)
     name = h.name
     h.delete()
-    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name, h.company)
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name)
     return redirect('hotel_list')
 
 
 @require_perm('hotels', 'view')
 def hotel_detail(request, pk):
-    h = get_object_or_404(Hotel, pk=pk, company=get_active_company(request))
+    h = get_object_or_404(Hotel, pk=pk)
     return inertia_render(request, "Hotel/Detail", props={
         "hotel": {
             "id": h.id,
@@ -224,9 +222,8 @@ def hotel_map(request):
 
 @require_perm('hotels', 'view')
 def hotel_map_data(request):
-    company = get_active_company(request)
     hotels = []
-    for h in Hotel.objects.filter(company=company, is_active=True):
+    for h in Hotel.objects.filter(is_active=True):
         if h.lat is None or h.lng is None:
             continue
         d = h.distance_to_haram

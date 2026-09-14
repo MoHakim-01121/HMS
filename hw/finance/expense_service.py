@@ -33,7 +33,7 @@ def _live_entries(source_type, source_id):
 @transaction.atomic
 def record_expense(*, branch, expense_date, lines, created_by, vendor='',
                    description='', currency='SAR', exchange_rate=1, note='',
-                   proof=None, company='konoz', pay_now=None):
+                   proof=None, pay_now=None):
     """Buat Expense (POSTED) + baris + jurnal accrual. Optional bayar penuh langsung.
 
     lines: iterable {category, ledger_account?, description?, amount}
@@ -43,7 +43,7 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor='',
     if not lines:
         raise FinanceError('Expense butuh minimal satu baris')
 
-    period = get_period_for_date(expense_date, company=company)
+    period = get_period_for_date(expense_date)
     total = sum(int(l['amount']) for l in lines)
     total_sar = _sar(total, currency, exchange_rate)
 
@@ -52,7 +52,7 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor='',
         branch=branch, expense_date=expense_date, vendor=vendor,
         description=description, currency=currency,
         total_amount=total, total_amount_sar=total_sar,
-        status=Expense.STATUS_POSTED, period=period, company=company,
+        status=Expense.STATUS_POSTED, period=period,
         note=note, proof=proof, created_by=created_by,
     )
     for l in lines:
@@ -92,7 +92,6 @@ def _post_accrual(expense, created_by):
         description=f"Expense {expense.expense_number} — {expense.vendor or expense.description}",
         entry_date=expense.expense_date,
         lines=lines,
-        company=expense.company,
         source_type='Expense',
         source_id=expense.pk,
         idempotency_key=f"expense:{expense.expense_number}:accrual",
@@ -132,7 +131,6 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
             {'account': coa.AP, 'debit': amt_sar, 'branch': expense.branch_id},
             {'account': src.ledger_account_id, 'credit': amt_sar, 'branch': src.branch_id},
         ],
-        company=expense.company,
         source_type='ExpensePayment',
         source_id=ep.pk,
         idempotency_key=f"expensepayment:{ep.pk}:pay",

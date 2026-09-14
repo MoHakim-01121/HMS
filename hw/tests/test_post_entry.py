@@ -18,10 +18,9 @@ class PostEntryTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("fin", password="x")
         self.period = FinancialPeriod.objects.create(
-            name="2040-01", company=Company.KONOZ,
-            date_from=date(2040, 1, 1), date_to=date(2040, 1, 31),
+            name="2040-01",            date_from=date(2040, 1, 1), date_to=date(2040, 1, 31),
         )
-        self.client_obj = Client.objects.create(company="konoz", name="PT Uji")
+        self.client_obj = Client.objects.create( name="PT Uji")
 
     def _balanced(self, **kw):
         return post_entry(
@@ -69,13 +68,13 @@ class PostEntryTests(TestCase):
         b = self._balanced()
         self.assertEqual(a.prev_hash, "")
         self.assertEqual(b.prev_hash, a.entry_hash)
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
 
     def test_tamper_breaks_chain(self):
         self._balanced()
         e = self._balanced()
         JournalLine.objects.filter(journal_entry=e, debit__gt=0).update(debit=999, credit=0)
-        problems = verify_chain(Company.KONOZ)
+        problems = verify_chain()
         self.assertTrue(any("tampered" in p or "hash" in p for p in problems))
 
     def test_closed_period_rejected(self):
@@ -111,4 +110,4 @@ class PostEntryTests(TestCase):
         self.assertEqual(rev.reverses_id, orig.pk)
         ar_line = rev.lines.get(account_id=coa.AR)
         self.assertEqual((ar_line.debit, ar_line.credit), (0, 100))
-        self.assertEqual(verify_chain(Company.KONOZ), [])
+        self.assertEqual(verify_chain(), [])
