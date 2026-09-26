@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-export default function Transfer({ client, reservations, initial, errors: serverErrors }) {
+function TransferBody({ client, reservations, initial, errors: serverErrors }) {
   const { t } = useI18n();
   const i = initial || {};
   const form = useForm({
@@ -23,14 +24,14 @@ export default function Transfer({ client, reservations, initial, errors: server
 
   const submit = (e) => {
     e.preventDefault();
-    form.post(`/clients/${client.pk}/transfer/`);
+    form.post(`/finance/clients/${client.pk}/transfer/`);
   };
 
   const opt = (id) => reservations.find((r) => String(r.id) === String(id));
 
   return (
     <div className="form-page shadcn-root">
-      <PageBack href={`/clients/${client.pk}/`} label={t("Back to client")} />
+      <PageBack href={`/finance/clients/${client.pk}/statement/`} label={t("Back")} />
       <FormHeader
         kicker={t("Fund Transfer")}
         title={t("Move Allocation Between Reservations")}
@@ -82,7 +83,7 @@ export default function Transfer({ client, reservations, initial, errors: server
           </FormSection>
 
           <FormActions
-            cancelHref={`/clients/${client.pk}/`}
+            cancelHref={`/finance/clients/${client.pk}/statement/`}
             submitLabel={t("Move Funds")}
             processing={form.processing}
           />
@@ -91,3 +92,5 @@ export default function Transfer({ client, reservations, initial, errors: server
     </div>
   );
 }
+
+export default withStandaloneModal(TransferBody, (p) => `/finance/clients/${p.client.pk}/statement/`);

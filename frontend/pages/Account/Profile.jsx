@@ -5,7 +5,6 @@ import AvatarUploader from "../../components/shadcn/avatar-uploader.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Icon } from "../../components/icons.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmtDate } from "../../utils/format.js";
 
@@ -452,7 +451,7 @@ export default function Profile({ profile, account, activities, errors: serverEr
               <span className={account.is_active ? "badge badge-green" : "badge badge-gray"}>
                 {account.is_active ? t("Active") : t("Inactive")}
               </span>
-              {account.is_superuser ? <StatusPill small outline tone="gray" label={t("Superuser")} /> : null}
+              {account.is_superuser ? <span className="badge badge-gray">{t("Superuser")}</span> : null}
             </div>
           </SectionRow>
 

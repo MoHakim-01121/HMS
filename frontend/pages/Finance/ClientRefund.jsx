@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
@@ -12,7 +13,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-export default function Refund({ client, accounts, initial, errors: serverErrors }) {
+function RefundBody({ client, accounts, initial, errors: serverErrors }) {
   const { t } = useI18n();
   const i = initial || {};
   const accountOptions = accounts || [];
@@ -38,13 +39,13 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
       confirmLabel: t("Send Refund"),
       danger: true,
       icon: "wallet",
-      onConfirm: () => form.post(`/clients/${client.pk}/refund/`, { forceFormData: true }),
+      onConfirm: () => form.post(`/finance/clients/${client.pk}/refund/`, { forceFormData: true }),
     });
   };
 
   return (
     <div className="form-page shadcn-root">
-      <PageBack href={`/clients/${client.pk}/`} label={t("Back to client")} />
+      <PageBack href={`/finance/clients/${client.pk}/statement/`} label={t("Back")} />
       <FormHeader
         kicker={t("Refund")}
         title={t("Refund to Client")}
@@ -87,7 +88,7 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
           </FormSection>
 
           <FormActions
-            cancelHref={`/clients/${client.pk}/`}
+            cancelHref={`/finance/clients/${client.pk}/statement/`}
             submitLabel={t("Send Refund")}
             processing={form.processing}
           />
@@ -97,3 +98,5 @@ export default function Refund({ client, accounts, initial, errors: serverErrors
     </div>
   );
 }
+
+export default withStandaloneModal(RefundBody, (p) => `/finance/clients/${p.client.pk}/statement/`);

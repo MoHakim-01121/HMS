@@ -113,7 +113,7 @@ function pageKeyFromUrl(url) {
     ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "account"],
     ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
-    ["/finance/statements", "statements"], ["/finance/bank-accounts", "bank_accounts"],
+    ["/finance/statements", "statements"], ["/finance/clients", "statements"], ["/finance/bank-accounts", "bank_accounts"],
     ["/finance/reconciliation", "reconciliation"], ["/finance/penalties", "penalties"],
     ["/finance/", "finance_hub"],
     ["/penalty", "penalties"],

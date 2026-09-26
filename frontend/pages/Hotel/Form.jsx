@@ -1,7 +1,6 @@
 import { useContext, useEffect, useRef } from "react";
 import { useForm } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
-import { MAP } from "../../components/mapColors.js";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
@@ -79,14 +78,14 @@ function HotelFormBody({ hotel, edit }) {
         html: '<div style="width:' + size + "px;height:" + size + "px;border-radius:50%;background:" + color + ";border:2px solid #fff;box-shadow:0 0 " + (glow || 6) + "px " + color + '99;"></div>',
         iconSize: [size, size], iconAnchor: [size / 2, size / 2],
       });
-      L.marker(HARAM, { icon: dot(14, MAP.yellow, 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
-      L.marker([21.4225, 39.8262], { icon: dot(10, MAP.red) }).bindTooltip("Masjid Al-Haram").addTo(map);
-      L.marker(NABAWI, { icon: dot(10, MAP.red) }).bindTooltip("Masjid Nabawi").addTo(map);
+      L.marker(HARAM, { icon: dot(14, "#F5A623", 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
+      L.marker([21.4225, 39.8262], { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Al-Haram").addTo(map);
+      L.marker(NABAWI, { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Nabawi").addTo(map);
 
       let hotelMarker = null;
       function setHotelMarker(ll) {
         if (hotelMarker) { hotelMarker.setLatLng(ll); return; }
-        hotelMarker = L.marker(ll, { icon: dot(12, MAP.accent), draggable: true }).addTo(map);
+        hotelMarker = L.marker(ll, { icon: dot(12, "#1A1A1A"), draggable: true }).addTo(map);
         hotelMarker.on("dragend", () => {
           const p = hotelMarker.getLatLng();
           inpLat.value = p.lat.toFixed(6);
@@ -118,7 +117,7 @@ function HotelFormBody({ hotel, edit }) {
       function makeVertexIcon(idx, total) {
         const isEnd = idx === 0 || idx === total - 1;
         const s = isEnd ? 12 : 8;
-        const color = idx === 0 ? MAP.green : idx === total - 1 ? MAP.yellow : MAP.accent;
+        const color = idx === 0 ? "#2ECC71" : idx === total - 1 ? "#F5A623" : "#1A1A1A";
         const ring = isEnd ? '<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:' + color + '22;pointer-events:none;"></div>' : "";
         return L.divIcon({
           className: "",
@@ -137,7 +136,7 @@ function HotelFormBody({ hotel, edit }) {
         waypointMarkers.forEach((m) => map.removeLayer(m)); waypointMarkers = [];
         midpointMarkers.forEach((m) => map.removeLayer(m)); midpointMarkers = [];
         if (waypoints.length < 2) { updateRouteUI(); return; }
-        routeLayer = L.polyline(waypoints, { color: MAP.accent, weight: 3, opacity: 0.9, dashArray: "8,6", lineCap: "round", lineJoin: "round" }).addTo(map);
+        routeLayer = L.polyline(waypoints, { color: "#1A1A1A", weight: 3, opacity: 0.9, dashArray: "8,6", lineCap: "round", lineJoin: "round" }).addTo(map);
         if (routeMode) {
           for (let j = 0; j < waypoints.length - 1; j++) {
             ((si) => {
@@ -241,7 +240,7 @@ function HotelFormBody({ hotel, edit }) {
         if (waypoints.length > 0) {
           const pts = [waypoints[waypoints.length - 1], [e.latlng.lat, e.latlng.lng]];
           if (previewLine) previewLine.setLatLngs(pts);
-          else previewLine = L.polyline(pts, { color: MAP.accent, weight: 1.5, opacity: 0.38, dashArray: "5,5", interactive: false }).addTo(map);
+          else previewLine = L.polyline(pts, { color: "#1A1A1A", weight: 1.5, opacity: 0.38, dashArray: "5,5", interactive: false }).addTo(map);
         } else if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
       });
 

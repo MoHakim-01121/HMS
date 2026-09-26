@@ -90,7 +90,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         <>
           <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
           {cl.has_invoice && <span className="m-hide" style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>● INV</span>}
-          {cl.has_invoice && <span className="m-only" style={{ marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}><StatusPill small outline label="INV" /></span>}
+          {cl.has_invoice && <span className="badge badge-blue m-only" style={{ fontSize: 9, marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>INV</span>}
         </>
       ),
     },

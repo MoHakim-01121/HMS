@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 from . import views
 
 urlpatterns = [
@@ -74,9 +75,11 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('clients/<int:pk>/', views.client_detail, name='client_detail'),
     path('clients/<int:pk>/edit/', views.client_edit, name='client_edit'),
     path('clients/<int:pk>/delete/', views.client_delete, name='client_delete'),
-    path('clients/<int:pk>/transfer/', views.client_transfer, name='client_transfer'),
-    path('clients/<int:pk>/refund/', views.client_refund, name='client_refund'),
-    path('clients/<int:pk>/statement/pdf/', views.client_statement_pdf, name='client_statement_pdf'),
+    # Client money actions moved to Finance (Client is information only);
+    # the old URLs redirect so existing bookmarks and links keep working.
+    path('clients/<int:pk>/transfer/', RedirectView.as_view(pattern_name='client_transfer', query_string=True)),
+    path('clients/<int:pk>/refund/', RedirectView.as_view(pattern_name='client_refund', query_string=True)),
+    path('clients/<int:pk>/statement/pdf/', RedirectView.as_view(pattern_name='client_statement_pdf', query_string=True)),
 
     # Hotels
     path('hotels/', views.hotel_list, name='hotel_list'),
@@ -174,6 +177,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/expenses/<int:pk>/pay/', views.expense_pay, name='expense_pay'),
     path('finance/expenses/<int:pk>/void/', views.expense_void, name='expense_void'),
     path('finance/clients/<int:pk>/statement/', views.client_finance_statement, name='client_finance_statement'),
+    path('finance/clients/<int:pk>/statement/pdf/', views.client_statement_pdf, name='client_statement_pdf'),
+    path('finance/clients/<int:pk>/transfer/', views.client_transfer, name='client_transfer'),
+    path('finance/clients/<int:pk>/refund/', views.client_refund, name='client_refund'),
     path('finance/periods/', views.period_list, name='period_list'),
     path('finance/periods/create/', views.period_create, name='period_create'),
     path('finance/periods/<int:pk>/', views.period_detail, name='period_detail'),

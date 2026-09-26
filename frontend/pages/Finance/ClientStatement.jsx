@@ -5,9 +5,9 @@ import DetailCard from "../../components/shadcn/detail-card.jsx";
 import DetailTable from "../../components/shadcn/detail-table.jsx";
 import DetailAmount from "../../components/shadcn/detail-amount.jsx";
 import Section from "../../components/shadcn/section.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
+import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { fmt } from "../../utils/format.js";
 
 const TYPE_TONE = {
@@ -35,7 +35,10 @@ const AR_CONTACT = {
 
 export default function ClientStatement({ client = {}, statement = {}, aging = {}, mode = "balance", date_from, date_to }) {
   const { t } = useI18n();
-  const canExportPdf = usePerms().can("clients", "export");
+  const perms = usePerms();
+  const canExportPdf = perms.can("statements", "export");
+  const canMoveMoney = perms.can("payments", "edit");
+  const openForm = useFormModal();
   const {
     transactions = [],
     open_items = [],
@@ -121,7 +124,7 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
       render: (row) => (
         <span style={{ color: row.overdue ? "var(--red)" : undefined, fontWeight: row.overdue ? 600 : undefined }}>
           {row.due_date || "—"}
-          {row.overdue ? <span style={{ marginLeft: 6 }}><StatusPill small tone="red" label={t("Overdue")} /></span> : null}
+          {row.overdue ? <span style={{ marginLeft: 6, fontSize: 11 }} className="badge badge-red">Overdue</span> : null}
         </span>
       ),
     },
@@ -141,14 +144,13 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
 
   return (
     <div className="page dv-page hms-dv-page shadcn-root">
-      <PageBack href={client.id ? `/clients/${client.id}/` : "/clients/"} label={t("Back to client")} />
+      <PageBack href="/finance/statements/" label={t("Back")} />
 
       <DetailCard
         crumbs={[
-          { label: t("Clients"), href: "/clients/" },
+          { label: t("Client Ledger"), href: "/finance/statements/" },
           client.id ? { label: client.name, href: `/clients/${client.id}/` } : null,
         ].filter(Boolean)}
-        kicker={client.name}
         title={t("Client Statement")}
         sub={isOpen ? t("Open items") : date_from || date_to ? `${date_from || t("Start")} — ${date_to || t("Now")}` : t("All time")}
         pill={{
@@ -176,14 +178,14 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
               </>
             )}
             {canExportPdf && (
-              <a className="hms-dv-act" href={`/clients/${client.id}/statement/pdf/${isOpen ? "?mode=open" : qs()}`} target="_blank" rel="noreferrer">
+              <a className="hms-dv-act" href={`/finance/clients/${client.id}/statement/pdf/${isOpen ? "?mode=open" : qs()}`} target="_blank" rel="noreferrer">
                 PDF
               </a>
             )}
             {canExportPdf && (
               <a
                 className="hms-dv-act"
-                href={`/clients/${client.id}/statement/pdf/?mode=byres${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`}
+                href={`/finance/clients/${client.id}/statement/pdf/?mode=byres${from ? `&from=${from}` : ""}${to ? `&to=${to}` : ""}`}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -193,6 +195,22 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
           </>
         }
       >
+        <Section label={t("Client Summary")}>
+          <div style={{ margin: "0 20px 16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 28px", fontSize: 12.5 }}>
+            <span><span style={{ color: "var(--muted-foreground)" }}>{t("Total Billed")}</span> <span className="mono">{fmt(client.total_billed || 0)} SAR</span></span>
+            <span><span style={{ color: "var(--muted-foreground)" }}>{t("Fund Balance")}</span> <span className="mono">{fmt(client.saldo_dana || 0)} SAR</span></span>
+            {client.avg_days_to_pay != null && (
+              <span><span style={{ color: "var(--muted-foreground)" }}>{t("Avg Payment")}</span> <span className="mono">{t("{n} days", { n: client.avg_days_to_pay })}</span></span>
+            )}
+            <a href={`/invoice/?client=${client.id}`} style={{ color: "var(--foreground)" }}>{t("All invoices")}</a>
+            {canMoveMoney && (
+              <span style={{ display: "inline-flex", gap: 6, marginLeft: "auto" }}>
+                <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/transfer/`)}>{t("Move Funds")}</button>
+                <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/refund/`)}>{t("Refund")}</button>
+              </span>
+            )}
+          </div>
+        </Section>
         {!isOpen && (
           <Section label={t("Account Summary")}>
             <div
@@ -300,7 +318,7 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
             <DetailTable
               columns={balanceColumns}
               rows={transactions}
-              rowKey={(row) => row.entry_number}
+              rowKey={(row, i) => `${row.entry_number}-${i}`}
               empty={t("No transactions found for this client.")}
             />
           </Section>

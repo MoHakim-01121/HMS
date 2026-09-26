@@ -1660,7 +1660,7 @@ thead th.text-right { text-align: right; }
   overflow: hidden;
 }
 .hms-dv-strip {
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px;
   padding:9px 20px;
   background: color-mix(in oklab, var(--secondary) 50%, transparent);
   border-bottom:1px solid var(--border);
@@ -1668,7 +1668,9 @@ thead th.text-right { text-align: right; }
 .hms-dv-crumbs { display:flex; align-items:center; gap:7px; min-width:0; font-size:13px; color:var(--muted-foreground); }
 .hms-dv-crumbs a { color:inherit; text-decoration:none; }
 .hms-dv-crumbs a:hover { color:var(--foreground); }
-.hms-dv-strip-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+/* The strip wraps (above): a busy toolbar (statement filters + PDFs) drops
+   to its own row instead of running over the breadcrumb. */
+.hms-dv-strip-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; margin-left:auto; }
 /* The kebab lived on the gold inverted hero, so design.css paints its glyph
    #fff — invisible on this card surface. Repaint to currentColor. */
 .hms-dv-card .dv-kebab { background:transparent; color:var(--muted-foreground); border-radius:8px; }

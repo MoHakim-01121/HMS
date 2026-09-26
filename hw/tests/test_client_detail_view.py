@@ -40,25 +40,47 @@ class ClientDetailViewTest(TestCase):
         )
         posting.post_payment(p, created_by=self.user)
 
-    def test_detail_page_reports_balance_and_activity(self):
-        # Bayar 6000 utk tagihan 5000 → piutang client negatif (lebihan
-        # dana), aktivitas 2 baris (charge debit + payment credit).
+    # Client is information only; the client's money lives under Finance.
+    FINANCE_KEYS = {"total_billed", "outstanding", "saldo_dana", "avg_days_to_pay", "score", "risk_label"}
+
+    def test_detail_page_is_information_only(self):
         resp = self.client.get(f"/clients/{self.client_obj.pk}/", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 200)
         props = resp.json()["props"]
+        self.assertEqual(props["client"]["name"], "PT Detail View")
+        self.assertFalse(self.FINANCE_KEYS & set(props["client"]))
+        self.assertNotIn("invoices", props)
+        self.assertNotIn("activity", props)
 
-        self.assertEqual(props["client"]["saldo_dana"], 0)  # tidak ada titipan CUST_CREDIT
-        self.assertEqual(props["client"]["outstanding"], 0)  # lebihan bayar → piutang ≠ positif
-        self.assertEqual(len(props["activity"]), 2)
-        self.assertEqual(props["activity"][0]["type"], "debit")
-        self.assertEqual(props["activity"][1]["type"], "credit")
-        self.assertEqual(props["activity"][-1]["balance"], -1000)  # client punya kelebihan 1000
+    def test_list_and_map_carry_no_money(self):
+        self.client_obj.lat, self.client_obj.lng = -7.25, 112.75
+        self.client_obj.save(update_fields=["lat", "lng"])
+        rows = self.client.get("/clients/", HTTP_X_INERTIA="true").json()["props"]["clients"]
+        self.assertFalse(self.FINANCE_KEYS & set(rows[0]))
+        pins = self.client.get("/clients/map/data/").json()["clients"]
+        self.assertFalse(self.FINANCE_KEYS & set(pins[0]))
+        self.assertNotIn("total_billed", pins[0])
 
-    def test_detail_page_lists_invoice_linked_via_journal(self):
-        resp = self.client.get(f"/clients/{self.client_obj.pk}/", HTTP_X_INERTIA="true")
+    def test_finance_statement_carries_the_client_money(self):
+        # Bayar 6000 utk tagihan 5000 → lebihan 1000; mutasi 2 baris.
+        resp = self.client.get(f"/finance/clients/{self.client_obj.pk}/statement/", HTTP_X_INERTIA="true")
+        self.assertEqual(resp.status_code, 200)
         props = resp.json()["props"]
-        invoice_numbers = [inv["invoice_number"] for inv in props["invoices"]]
-        self.assertIn("INV-CDV-001", invoice_numbers)
+        self.assertEqual(props["client"]["total_billed"], 5000)
+        self.assertEqual(props["client"]["saldo_dana"], 0)  # tidak ada titipan CUST_CREDIT
+        self.assertEqual(len(props["statement"]["transactions"]), 2)
+        self.assertEqual(props["statement"]["closing_balance"], -1000)  # client punya kelebihan 1000
+
+    def test_old_client_money_urls_redirect_to_finance(self):
+        pk = self.client_obj.pk
+        for old, new in (
+            (f"/clients/{pk}/transfer/", f"/finance/clients/{pk}/transfer/"),
+            (f"/clients/{pk}/refund/", f"/finance/clients/{pk}/refund/"),
+            (f"/clients/{pk}/statement/pdf/?mode=open", f"/finance/clients/{pk}/statement/pdf/?mode=open"),
+        ):
+            resp = self.client.get(old)
+            self.assertEqual(resp.status_code, 302, old)
+            self.assertEqual(resp["Location"], new)
 
     def test_resolved_invoices_includes_invoice_with_client_fk_but_no_journal_yet(self):
         # Invoice.client (populated by the invoice/services forms) can be
