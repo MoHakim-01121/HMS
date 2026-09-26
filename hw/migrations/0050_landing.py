@@ -33,6 +33,7 @@ def unseed_landing(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
+        ('hw', '0048_visit_end_time_visit_start_time'),
         ('hw', '0049_client_address'),
     ]
 

@@ -9,8 +9,11 @@ from django.conf import settings
 from .models import ConfirmationLetter, Invoice
 
 _API_URL     = "https://api.groq.com/openai/v1/chat/completions"
-_MODEL_SMALL = "llama-3.1-8b-instant"
-_MODEL_CHAT  = "llama-3.1-8b-instant"
+# Groq pensiunkan seri Llama untuk akun ini (404 model_not_found) sejak 2026.
+# openai/gpt-oss-20b: kecil, cepat, masih tersedia. Lihat daftar aktif via
+# GET https://api.groq.com/openai/v1/models.
+_MODEL_SMALL = "openai/gpt-oss-20b"
+_MODEL_CHAT  = "openai/gpt-oss-20b"
 _logger      = logging.getLogger(__name__)
 
 
@@ -22,7 +25,10 @@ def _call_groq(messages: list, model: str = _MODEL_SMALL) -> str | None:
     payload = json.dumps({
         "model": model,
         "messages": messages,
-        "max_tokens": 150,
+        # gpt-oss memakai sebagian budget token untuk reasoning internal
+        # (tak ikut ke content), jadi beri ruang lebih longgar dari 150.
+        "max_tokens": 512,
+        "reasoning_effort": "low",
         "temperature": 0.3,
     }).encode()
 
@@ -57,13 +63,6 @@ _MONTHS_ID = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
               'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 
 _SIGNATURE = 'Konoz United Surabaya'
-
-_PAYMENT_INFO = {
-    'bank': 'Mandiri',
-    'account': '1400550111117',
-    'holder': 'Konoz Almotaheda Indonesia',
-}
-
 
 def _fmt_date_id(d):
     return f"{d.day:02d} {_MONTHS_ID[d.month]} {d.year}"
@@ -131,12 +130,17 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
         else:
             parts.append("Mohon lakukan pembayaran sebelum jatuh tempo.")
 
-    if not lunas:
-        bank = _PAYMENT_INFO
-        parts += ["", "Informasi Pembayaran:",
-                  f"Nama Bank : {bank['bank']}",
-                  f"No. Rekening : {bank['account']}",
-                  f"Atas Nama : {bank['holder']}"]
+    # Rekening dari "Pay to" cabang penerbit (Bank Balances), bukan hardcode:
+    # draft pesan dan detail invoice selalu menyebut rekening yang sama.
+    accounts = list(invoice.pay_to_accounts()) if not lunas else []
+    if accounts:
+        parts += ["", "Informasi Pembayaran:"]
+        for i, acc in enumerate(accounts):
+            if i:
+                parts.append("")
+            parts += [f"Nama Bank : {acc.bank_name} ({acc.currency})",
+                      f"No. Rekening : {acc.account_identifier}",
+                      f"Atas Nama : {acc.account_name}"]
 
     parts += ["", "Terima kasih,", f"*{signature}*"]
     return "\n".join(parts)

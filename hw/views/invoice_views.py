@@ -335,16 +335,13 @@ def invoice_detail(request, pk):
         model_name="Invoice Hotel", object_ref=invoice.invoice_number,
     ).select_related("user").order_by("-timestamp")]
     # "Pay to": the issuing branch's accounts flagged for invoices, one block each.
-    from ..models.bank import BankAccount
     pay_to = [{
         "id": b.pk,
         "bank_name": b.bank_name,
         "account_identifier": b.account_identifier,
         "account_name": b.account_name,
         "currency": b.currency,
-    } for b in BankAccount.objects.filter(
-        branch_id=invoice.branch_id, is_active=True, show_on_invoice=True,
-    ).order_by("currency", "bank_name")] if invoice.branch_id else []
+    } for b in invoice.pay_to_accounts()]
 
     last_payment = max((p["payment_iso"] for p in payments if p["payment_iso"]), default=None) \
         if invoice.remaining_sar == 0 else None

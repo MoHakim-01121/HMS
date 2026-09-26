@@ -108,6 +108,22 @@ class InvoicePayToTests(TestCase):
         self.assertEqual([a['account_identifier'] for a in props['pay_to']], ['1400550011119'])
         self.assertEqual(props['invoice']['branch']['code'], 'sby')
 
+    def test_draft_message_uses_the_same_pay_to_accounts(self):
+        from hw.ai import generate_draft_message
+        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-3', customer_name='X', currency='SAR', branch_id='sby')
+        Reservation.objects.create(invoice=inv, reservation_number='R3', hotel='H', total_sar=1000)
+        msg = generate_draft_message('invoice', inv)
+        self.assertIn('Informasi Pembayaran:', msg)
+        self.assertIn('No. Rekening : 1400550011119', msg)
+        self.assertNotIn('555', msg)   # not flagged for invoices
+        self.assertNotIn('999', msg)   # other branch
+        self.assertNotIn('Informasi Pembayaran', generate_draft_message('invoice_lunas', inv))
+
+    def test_draft_message_omits_payment_block_without_pay_to(self):
+        from hw.ai import generate_draft_message
+        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-4', customer_name='X', currency='SAR', branch_id='pusat')
+        self.assertNotIn('Informasi Pembayaran', generate_draft_message('invoice', inv))
+
 
 class BankAccountGuardTests(TestCase):
     """Regression coverage for the review findings on bank account management."""
