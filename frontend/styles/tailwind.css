@@ -371,6 +371,15 @@
 [data-slot="form-field"] textarea::placeholder { color: var(--muted-foreground); }
 [data-slot="form-field"] input[aria-invalid="true"],
 [data-slot="form-field"] textarea[aria-invalid="true"] { border-color: var(--destructive); }
+/* design.css's unlayered `* { padding: 0 }` beats the trigger's own
+   px-[14px] utility (utilities live in a layer), so every select outside a
+   form field (list filter bars) rendered its text flush against the border.
+   Restore the component's own inline padding here. */
+[data-slot="select-trigger"] { padding-inline: 14px; }
+/* Same story for design.css's `thead th { text-align: left }`: it beat the
+   text-right utility, so numeric columns had right-aligned cells under a
+   left-aligned header. */
+thead th.text-right { text-align: right; }
 /* Radix's SelectTrigger is a <button>, so the reset above never reaches it —
    match it to the native controls by hand or the two sit side by side in the
    same row at different heights. */
@@ -510,6 +519,13 @@
 [data-slot="popover-content"], [data-slot="select-content"] {
   z-index: var(--z-modal, 400);
 }
+
+/* design.css's unlayered `* { margin:0; padding:0 }` reset outranks the
+   layered p-1 / p-2 / my-1 utilities on the dropdown primitives, collapsing
+   every menu to a cramped strip. Restore the values those classes ask for. */
+[data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"] { padding: calc(var(--spacing) * 1); }
+[data-slot="dropdown-menu-item"] { padding: calc(var(--spacing) * 2); }
+[data-slot="dropdown-menu-separator"] { margin: calc(var(--spacing) * 1) calc(var(--spacing) * -1); }
 
 /* A form page's root wrapper carries full-page chrome — design.css gives both
    .page and .page-sm `max-width:1040px; padding:28px 20px 60px`, and .form-page
@@ -652,9 +668,9 @@
   bottom: -24px;
   margin: 8px -20px -24px;
   padding: 16px 20px;
-  /* --background, not --card: this strip is part of the dialog surface, and
-     --card is the (lighter) tone the fields themselves sit on. */
-  background: var(--background);
+  /* --card, not --background: this strip is part of the dialog surface, and
+     the dialog is pure white (--card) so the strip must match it. */
+  background: var(--card);
   border-top: 1px solid var(--border);
 }
 @media (max-width: 600px) {
@@ -1254,6 +1270,15 @@
     text-transform: uppercase;
     color: var(--muted-foreground);
   }
+  .hms-sidebar-subheading {
+    padding: 14px 10px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    opacity: 0.7;
+  }
 
   .hms-sidebar-nav {
     display: flex;
@@ -1299,6 +1324,7 @@
 
   /* Collapsed state: icon-only rail — hide every text label, center icons. */
   body.sidebar-collapsed .hms-sidebar-heading,
+  body.sidebar-collapsed .hms-sidebar-subheading,
   body.sidebar-collapsed .hms-sidebar-link span {
     display: none;
   }
@@ -1586,6 +1612,9 @@
 .hms-kpi-foot { font-size:11.5px; color:var(--muted-foreground); }
 @media (max-width:600px) {
   .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); }
+  /* An odd count leaves a blank half-cell in the 2-up grid; let the last
+     card take the full row instead. */
+  .hms-kpi-row > :last-child:nth-child(odd) { grid-column:1 / -1; }
   .hms-kpi-body { padding:13px 15px; }
   .hms-kpi-val { font-size:22px; }
 }
@@ -1864,6 +1893,8 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .hms-rv-backlink { display:inline-flex; align-items:center; gap:6px; height:26px; font-size:13px; font-weight:600; color:var(--foreground); text-decoration:none; }
 .hms-rv-backlink:hover { color:var(--muted-foreground); }
+.hms-page-back { margin-bottom:16px; }
+.hms-page-back:empty { display:none; }
 .hms-rv-stamp { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 
 /* Hero action buttons — exact mockup geometry: 42px pill, three tones.
@@ -1885,6 +1916,17 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-btn.danger:hover { background:color-mix(in oklab, var(--red) 7%, var(--card)); }
 .hms-rv-btn:disabled { opacity:.5; cursor:not-allowed; }
 .hms-rv-btn svg { flex-shrink:0; }
+
+/* Secondary hero actions are text-height links — record-view rule: one
+   primary (filled) action, the rest are links. Used e.g. for "Close
+   Difference" while "Record Receipt" is still the open primary path. */
+.hms-rv-linkbtn {
+  display:inline-flex; align-items:center; gap:6px; height:42px; padding:0 8px;
+  background:none; border:none; font-size:13px; font-weight:600;
+  color:var(--muted-foreground); cursor:pointer; white-space:nowrap;
+  text-decoration:none; border-radius:9999px; font-family:inherit;
+}
+.hms-rv-linkbtn:hover { color:var(--foreground); }
 
 /* Icon-only 42px circle (mockup `.ico`) — used for the hero kebab overflow. */
 .hms-rv-note-r .dv-kebab {
@@ -1918,13 +1960,16 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-bar span { display:block; }
 .hms-rv-fignote { margin-top:8px; font-size:12.5px; line-height:1.55; color:var(--muted-foreground); }
 
-/* Hero step tracker (Remittance / Visit) — inline under the facts row */
+/* Hero step tracker (Remittance) — inline under the facts row */
 .hms-rv-steps { margin-top:20px; display:flex; align-items:flex-start; max-width:560px; }
 .hms-rv-step { flex:1; min-width:0; display:flex; flex-direction:column; gap:7px; }
 .hms-rv-step-top { display:flex; align-items:center; gap:0; }
 .hms-rv-step-dot { flex:none; width:24px; height:24px; border-radius:999px; border:1px solid var(--border); background:var(--card); color:var(--muted-foreground); display:flex; align-items:center; justify-content:center; font-size:11.5px; font-weight:600; }
 .hms-rv-step.done .hms-rv-step-dot { border-color:var(--green); background:var(--green); color:#fff; }
 .hms-rv-step.now .hms-rv-step-dot { border-color:var(--green); color:var(--green); }
+  /* Halted: a stopped/failure step (rejected, reversed, voided) — red cross dot. */
+  .hms-rv-step.halted .hms-rv-step-dot { border-color:var(--red); color:var(--red); }
+  .hms-rv-step.halted .hms-rv-step-label { color:var(--red); font-weight:600; }
 .hms-rv-step-line { flex:1; height:2px; background:var(--border); }
 .hms-rv-step.done .hms-rv-step-line { background:var(--green); }
 .hms-rv-step-label { font-size:12px; font-weight:500; color:var(--muted-foreground); padding-right:10px; }
@@ -2006,7 +2051,323 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
   .hms-rv-notebar { flex-direction:column; align-items:stretch; }
   .hms-rv-note-r { width:100%; }
   .hms-rv-grid { grid-template-columns:1fr; gap:14px; }
-  .hms-rv-card, .hms-rv-railcard { border-radius:14px; }
+.hms-rv-card, .hms-rv-railcard { border-radius:14px; }
+}
+
+/* CL detail — Claude Design "CL Detail.dc.html". Hero: identity + actions on
+   one row, a facts grid, one status sentence closing the card. Below, a
+   flex-wrap pair (content card | 300px+ rail) that stacks on narrow screens. */
+.hms-cl { display:flex; flex-direction:column; gap:16px; }
+.hms-cl .hms-rv-top { height:28px; }
+.hms-cl-hero { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:26px 28px 0; }
+.hms-cl-hero-top { display:flex; align-items:flex-start; justify-content:space-between; gap:20px 32px; flex-wrap:wrap; }
+.hms-cl-hero-id { min-width:0; flex:1 1 360px; }
+.hms-dv-pill.hms-cl-badge { height:22px; padding:0 10px; font-size:11.5px; }
+.hms-cl-h1 { margin:10px 0 0; font-size:26px; font-weight:600; letter-spacing:-.022em; line-height:1.15; text-wrap:pretty; color:var(--foreground); }
+.hms-cl-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.hms-cl-actions .hms-rv-btn { height:40px; padding:0 16px; gap:7px; }
+.hms-cl-actions .hms-rv-btn.primary { padding:0 18px; }
+.hms-cl-actions .dv-kebab { width:40px; height:40px; border-radius:9999px; background:var(--card); border:1px solid var(--border); color:var(--muted-foreground); }
+.hms-cl-actions .dv-kebab:hover { border-color:var(--foreground); background:var(--card); color:var(--foreground); }
+.hms-cl-actions .dv-kebab svg { stroke:currentColor; width:16px; height:16px; }
+.hms-cl-actions .dv-kebab::after { content:none; }
+.hms-cl-facts { margin:22px 0 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px 28px; }
+.hms-cl-facts > div { min-width:0; }
+.hms-cl-facts .hms-rv-lbl { letter-spacing:.12em; }
+.hms-cl-facts dd { margin:5px 0 0; font-size:14px; font-weight:500; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-cl-facts dd.nowrap { white-space:nowrap; }
+.hms-cl-note { margin-top:22px; padding:16px 0 18px; border-top:1px solid var(--border); display:flex; align-items:flex-start; gap:11px; }
+.hms-cl-note-ico { flex:none; width:20px; height:20px; margin-top:1px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700; line-height:1; }
+.hms-cl-note-ico.tone-green { background:var(--green); }
+.hms-cl-note-ico.tone-yellow { background:var(--yellow); }
+.hms-cl-note-ico.tone-red { background:var(--red); }
+.hms-cl-note p { margin:0; font-size:13px; line-height:1.55; color:var(--muted-foreground); text-wrap:pretty; }
+.hms-cl-note strong { font-weight:600; color:var(--foreground); }
+
+.hms-cl-grid { display:flex; flex-wrap:wrap; gap:16px; align-items:stretch; }
+.hms-cl-main { flex:999 1 560px; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; }
+.hms-cl-sec + .hms-cl-sec { border-top:1px solid var(--border); }
+.hms-cl-sech { padding:22px 24px 12px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.hms-cl-sech.flush { padding:0; }
+.hms-cl-sech h2 { margin:0; font-size:15px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); }
+.hms-cl-sech .meta { font-size:12.5px; color:var(--muted-foreground); }
+.hms-cl-sech-acts { display:flex; gap:6px; }
+.hms-cl-sech-acts .hms-dv-act:hover { background:transparent; border-color:var(--foreground); }
+.hms-cl .hms-dv-table th { padding:9px 12px; }
+.hms-cl .hms-dv-table td { padding:14px 12px; }
+.hms-cl .hms-dv-table th:first-child, .hms-cl .hms-dv-table td:first-child { padding-left:24px; }
+.hms-cl .hms-dv-table th:last-child, .hms-cl .hms-dv-table td:last-child { padding-right:24px; }
+.hms-cl .hms-dv-table td.semi { font-weight:600; }
+.hms-cl .hms-dv-table td.dim { color:var(--muted-foreground); }
+.hms-cl .hms-dv-table td.tab { font-variant-numeric:tabular-nums; }
+.hms-cl .hms-dv-table a.mono { font-weight:500; font-size:12.5px; border-bottom-color:var(--input); }
+.hms-cl .hms-dv-table tfoot td { padding:16px 12px 20px; border-top:none; }
+.hms-cl .hms-dv-table tfoot td:last-child { padding-right:24px; }
+.hms-cl .hms-dv-table tfoot .lbl { font-size:13px; }
+.hms-cl .hms-dv-table tfoot tr.total .val { font-size:15px; font-weight:600; color:var(--foreground); }
+.hms-cl .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; }
+.hms-cl-dot { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; }
+.hms-cl-dot > span { width:7px; height:7px; border-radius:9px; }
+.hms-cl-nopen { padding:4px 24px 22px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted-foreground); }
+.hms-cl-smbtn { height:34px; padding:0 14px; border-radius:9999px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer; }
+.hms-cl-smbtn:hover { border-color:var(--foreground); }
+
+.hms-cl-history { padding:20px 24px 22px; }
+.hms-cl-histcount { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--muted-foreground); }
+.hms-cl-histrow { margin-top:12px; display:flex; align-items:baseline; justify-content:space-between; gap:6px 16px; flex-wrap:wrap; }
+.hms-cl-histrow .txt { font-size:13px; color:var(--foreground); }
+.hms-cl-histrow .when { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+/* History entries: action + when, then label | before → after rows. No box —
+   entries are separated by space only. */
+button.hms-cl-histcount { background:none; border:none; padding:0; cursor:pointer; font-family:inherit; }
+button.hms-cl-histcount:hover { color:var(--foreground); }
+.hms-cl-hentry + .hms-cl-hentry { margin-top:18px; }
+.hms-cl-hentry .hms-cl-histrow .txt { font-weight:600; }
+.hms-cl-chg { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+.hms-cl-chg-row { display:grid; grid-template-columns:minmax(90px, 180px) minmax(0,1fr); align-items:baseline; gap:4px 16px; font-size:13px; line-height:1.5; }
+.hms-cl-chg-row .k { color:var(--muted-foreground); font-size:12.5px; min-width:0; overflow-wrap:anywhere; }
+.hms-cl-chg-row .k.strong { color:var(--foreground); font-weight:500; font-size:13px; }
+.hms-cl-chg-row .v { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; font-variant-numeric:tabular-nums; min-width:0; }
+.hms-cl-chg-row .v .grp { white-space:nowrap; }
+.hms-cl-chg-row .v s { color:var(--muted-foreground); }
+.hms-cl-chg-row .v b { font-weight:600; color:var(--foreground); }
+.hms-cl-chg-row .v .arr { margin:0 6px; color:var(--muted-foreground); align-self:center; flex:none; vertical-align:-2px; }
+.hms-cl-chg-row .v .dim, .hms-cl-chg-row .v .none { color:var(--muted-foreground); }
+.hms-cl-chg-row .v .none { font-style:italic; }
+.hms-cl-chg-row .v .tag { font-size:12px; font-weight:600; }
+.hms-cl-chg-row .v .tag.add { color:var(--green); }
+.hms-cl-chg-row .v .tag.del { color:var(--red); }
+@media (max-width: 600px) {
+  .hms-cl-chg-row { grid-template-columns:1fr; }
+}
+
+.hms-cl-related { margin-top:auto; padding:14px 24px; border-top:1px solid var(--border); background:var(--muted); display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; }
+.hms-cl-related .hms-rv-lbl { letter-spacing:.12em; margin-right:4px; }
+.hms-cl-related .hms-rv-linkchip { background:var(--card); }
+
+.hms-cl-rail { flex:1 1 300px; min-width:0; box-sizing:border-box; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:8px 20px 18px; display:flex; flex-direction:column; }
+.hms-cl-raillist { margin:0; }
+.hms-cl-raillist > div { padding:13px 0; display:flex; align-items:baseline; justify-content:space-between; gap:14px; }
+.hms-cl-raillist > div + div { border-top:1px solid var(--border); }
+.hms-cl-raillist dt { font-size:12.5px; color:var(--muted-foreground); white-space:nowrap; }
+.hms-cl-raillist dd { margin:0; font-size:13px; font-weight:600; text-align:right; color:var(--foreground); }
+.hms-cl-raillist dd.tab { font-variant-numeric:tabular-nums; }
+/* Rail links: no underline — a trailing ↗ icon marks them as navigation. */
+.hms-cl-raillist dd a { display:inline-flex; align-items:center; gap:5px; color:var(--foreground); text-decoration:none; }
+.hms-cl-raillist dd a svg { flex:none; color:var(--muted-foreground); transition:color .15s, transform .15s; }
+.hms-cl-raillist dd a:hover svg { color:var(--foreground); transform:translate(1px,-1px); }
+.hms-cl-raillist dd a .mono { font-size:12.5px; }
+.hms-cl-raillist dd .none { color:var(--muted-foreground); font-weight:500; }
+.hms-cl-railblock { margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+.hms-cl-raillist + .hms-cl-railblock { margin-top:6px; }
+.hms-cl-railblock-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.hms-cl-railblock .hms-rv-lbl { letter-spacing:.12em; }
+.hms-cl-railblock-h .count { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.hms-cl-notes { margin:8px 0 0; font-size:12.5px; line-height:1.6; color:var(--muted-foreground); text-wrap:pretty; white-space:pre-line; }
+.hms-cl-rail .hms-rv-filerow { padding:7px 0; gap:10px; }
+.hms-cl-rail .hms-rv-filedel { width:24px; height:24px; }
+
+/* Dashed full-width upload button (Attachments dashedAdd) */
+.hms-rv-addfile { margin-top:8px; width:100%; height:36px; box-sizing:border-box; border-radius:10px; border:1px dashed var(--input); background:transparent; color:var(--muted-foreground); font-size:12.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; }
+.hms-rv-addfile:hover { border-color:var(--foreground); color:var(--foreground); }
+
+@media (max-width: 860px) {
+  .hms-cl-hero { padding:18px 18px 0; border-radius:16px; }
+  .hms-cl-h1 { font-size:21px; }
+  .hms-cl-main, .hms-cl-rail { border-radius:14px; }
+  .hms-cl-sech { padding:18px 18px 10px; }
+  .hms-cl-history, .hms-cl-related { padding-left:18px; padding-right:18px; }
+}
+/* Same breakpoint as the .hms-dv-table card collapse above. */
+@media (max-width: 600px) {
+  .hms-cl .hms-dv-table tbody tr, .hms-cl .hms-dv-table tfoot { padding-left:18px; padding-right:18px; }
+  .hms-cl .hms-dv-table tbody td, .hms-cl .hms-dv-table tbody td:first-child, .hms-cl .hms-dv-table tbody td:last-child,
+  .hms-cl .hms-dv-table tfoot td, .hms-cl .hms-dv-table tfoot td:last-child { padding:3px 0; }
+}
+
+/* Invoice detail — Claude Design "Invoice Detail.dc.html". Builds on the
+   .hms-cl-* record layout above: balance figure + progress ring in the hero,
+   the status sentence sharing a row with the actions, grid-row ledgers and a
+   full-width activity timeline. */
+.hms-iv-hero-top { align-items:center; }
+.hms-iv-sub { margin-top:8px; display:flex; align-items:center; gap:6px 10px; flex-wrap:wrap; font-size:12.5px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.hms-iv-sub .sep { width:1px; height:12px; background:var(--border); }
+.hms-iv-balance { display:flex; align-items:center; gap:16px; }
+.hms-iv-balance .fig { text-align:right; }
+.hms-iv-balance .hms-rv-lbl { letter-spacing:.12em; }
+.hms-iv-balance .amt { margin-top:6px; display:flex; align-items:baseline; justify-content:flex-end; gap:7px; }
+.hms-iv-balance .amt .n { font-size:34px; font-weight:600; letter-spacing:-.025em; line-height:1; font-variant-numeric:tabular-nums; color:var(--foreground); }
+.hms-iv-balance .amt .u { font-size:14px; font-weight:600; color:var(--muted-foreground); }
+.hms-iv-balance .line { margin-top:8px; font-size:13px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
+.hms-iv-balance .line strong { font-weight:600; color:var(--foreground); }
+.hms-iv-ring { flex:none; width:76px; height:76px; border-radius:999px; display:flex; align-items:center; justify-content:center; }
+.hms-iv-ring span { width:62px; height:62px; border-radius:999px; background:var(--card); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--foreground); }
+.hms-iv-note { padding:14px 0 16px; align-items:center; justify-content:space-between; gap:12px 24px; flex-wrap:wrap; }
+.hms-iv-note .l { display:flex; align-items:flex-start; gap:11px; min-width:0; flex:1 1 320px; }
+.hms-dv-pill.hms-iv-pill-sm { height:22px; padding:0 9px; font-size:11px; }
+.hms-iv .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:12.5px; }
+.hms-iv .strong { font-weight:600; }
+.hms-iv .tab { font-variant-numeric:tabular-nums; }
+.hms-iv .nowrap { white-space:nowrap; }
+.hms-iv .dim { color:var(--muted-foreground); }
+.hms-iv-link { color:var(--foreground); text-decoration:none; }
+.hms-iv-link:hover { text-decoration:underline; text-underline-offset:2px; }
+.hms-iv-chip { display:inline-flex; align-items:center; gap:3px; font-size:11.5px; font-weight:500; color:var(--muted-foreground); border:1px solid var(--border); border-radius:7px; padding:1px 6px; text-decoration:none; white-space:nowrap; }
+.hms-iv-chip:hover { border-color:var(--foreground); color:var(--foreground); }
+.hms-iv-chip.mono { font-size:11.5px; }
+.hms-iv-chip.warn { color:var(--yellow); border-color:color-mix(in oklab, var(--yellow) 45%, transparent); }
+
+/* Grid-row ledgers (reservations / payments) */
+.hms-iv-grid { font-size:13px; }
+.hms-iv-grid.res .hms-iv-gh, .hms-iv-grid.res .hms-iv-gr { grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 96px 92px 92px 100px; }
+.hms-iv-grid.pay .hms-iv-gh, .hms-iv-grid.pay .hms-iv-gr { grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.2fr) 100px; }
+.hms-iv-gh, .hms-iv-gr { display:grid; gap:12px; padding:13px 24px; border-bottom:1px solid var(--border); align-items:center; }
+.hms-iv-gh { padding-top:9px; padding-bottom:9px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
+.hms-iv-gh .r, .hms-iv-gr .r { text-align:right; }
+.hms-iv-gr > div { min-width:0; }
+.hms-iv-gr .top { display:flex; align-items:center; gap:8px; }
+.hms-iv-gr .sub { margin-top:3px; font-size:12.5px; color:var(--muted-foreground); }
+.hms-iv-gr .ell { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hms-iv-gr .c-st { display:flex; }
+.hms-iv-gr .c-method { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.hms-iv-gf { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px 24px 20px; align-items:baseline; }
+.hms-iv-gf > span:first-child { text-align:right; color:var(--muted-foreground); }
+.hms-iv-gf .v { text-align:right; font-variant-numeric:tabular-nums; font-size:15px; font-weight:600; white-space:nowrap; color:var(--foreground); }
+.hms-iv-gf .v.green { font-size:14px; color:var(--green); }
+.hms-iv-empty { padding:14px 24px; font-size:13px; color:var(--muted-foreground); border-bottom:1px solid var(--border); }
+.hms-iv-empty.pad { padding:4px 24px 24px; border-bottom:none; }
+
+.hms-iv-aside { flex:1 1 300px; min-width:0; display:flex; flex-direction:column; gap:16px; }
+.hms-iv-aside .hms-iv-rail { flex:none; padding-bottom:8px; }
+/* "Pay to" — the branch's invoice bank accounts, one block each */
+.hms-iv-payto-h { padding-top:12px; }
+.hms-iv-payto { padding:12px 0; }
+.hms-iv-payto + .hms-iv-payto { border-top:1px solid var(--border); }
+.hms-iv-payto .h { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.hms-iv-payto .bank { font-size:13px; font-weight:600; color:var(--foreground); }
+.hms-iv-payto .bank .cur { margin-left:4px; font-size:11.5px; font-weight:500; color:var(--muted-foreground); }
+.hms-iv-payto .no { margin-top:4px; font:600 13px ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; letter-spacing:.02em; color:var(--foreground); user-select:all; }
+.hms-iv-payto .holder { margin-top:4px; font-size:12.5px; color:var(--muted-foreground); }
+.hms-iv-copy { height:26px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font:500 12px inherit; font-family:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:5px; flex:none; }
+.hms-iv-copy:hover { border-color:var(--foreground); }
+
+/* Activity timeline */
+.hms-iv-activity { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:20px 24px 0; overflow:hidden; }
+.hms-iv-activity ol { margin:12px -24px 0; padding:0; list-style:none; }
+.hms-iv-activity li { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; padding:12px 24px; border-top:1px solid var(--border); font-size:13px; }
+.hms-iv-activity .when { flex:none; width:96px; font-size:12.5px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.hms-iv-activity .what { flex:1 1 260px; min-width:0; display:flex; align-items:center; gap:10px; }
+.hms-iv-activity .ico { flex:none; width:24px; height:24px; box-sizing:border-box; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; line-height:1; }
+.hms-iv-activity .ico.pay { background:var(--green); color:#fff; }
+.hms-iv-activity .ico.alert { background:var(--red); color:#fff; }
+.hms-iv-activity .ico.doc, .hms-iv-activity .ico.status { background:var(--card); border:1px solid var(--input); color:var(--muted-foreground); }
+.hms-iv-activity .ttl { min-width:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:500; color:var(--foreground); }
+.hms-iv-activity .chg { display:inline-flex; align-items:center; gap:6px; }
+.hms-iv-activity .chg s { color:var(--muted-foreground); font-weight:400; }
+.hms-iv-activity .chg b { font-weight:600; }
+.hms-iv-activity .chg .arr { flex:none; color:var(--muted-foreground); }
+.hms-iv-activity .chg .none { color:var(--muted-foreground); font-style:italic; font-weight:400; }
+.hms-iv-activity .detail { flex:1 1 200px; min-width:0; font-size:12.5px; color:var(--muted-foreground); }
+.hms-iv-activity .actor { flex:none; width:130px; margin-left:auto; text-align:right; font-size:12.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--foreground); }
+
+@media (max-width: 860px) {
+  .hms-iv-balance { width:100%; justify-content:space-between; flex-direction:row-reverse; }
+  .hms-iv-balance .fig { text-align:right; }
+  .hms-iv-activity { border-radius:14px; padding:18px 18px 0; }
+  .hms-iv-activity ol { margin:12px -18px 0; }
+  .hms-iv-activity li { padding:12px 18px; }
+}
+/* Phone: ledger rows stack; amounts pair with their column label. */
+@media (max-width: 600px) {
+  .hms-iv-gh { display:none; }
+  .hms-iv-grid.res .hms-iv-gr, .hms-iv-grid.pay .hms-iv-gr { grid-template-columns:1fr auto; gap:6px 12px; padding:12px 18px; }
+  .hms-iv-grid.res .c-id { grid-column:1; grid-row:1; } .hms-iv-grid.res .c-st { grid-column:2; grid-row:1; justify-content:flex-end; align-self:start; }
+  .hms-iv-grid.res .c-stay { grid-column:1 / -1; }
+  .hms-iv-gr [data-label] { grid-column:1 / -1; display:flex; justify-content:space-between; gap:12px; text-align:right; }
+  .hms-iv-gr [data-label]::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); text-align:left; }
+  .hms-iv-grid.pay .c-method { grid-column:1 / -1; }
+  .hms-iv-gf { padding:14px 18px 18px; }
+  .hms-iv-empty { padding-left:18px; padding-right:18px; }
+  .hms-iv-activity .when { width:auto; }
+  .hms-iv-activity .actor { width:auto; margin-left:0; text-align:left; }
+}
+
+/* Hotel detail — stacked cards: an identity/meta card, a pair of cards
+   (room types, wider | meal plans), and a full-width location card whose
+   "See full map" link jumps to the full map page. Room-type row actions
+   appear on hover only. Each fact appears exactly once (name = card title,
+   distance/reference/avg = meta row). */
+.hms-hm-main { max-width: 1020px; }
+.hms-hm-cards { margin-top:6px; display:flex; flex-direction:column; gap:14px; }
+.hms-hm-card { border:1px solid var(--border); border-radius:16px; background:var(--card); padding:16px 22px 18px; }
+
+.hms-hm-top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.hms-hm-topacts { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.hms-hm-top h1 { margin:0; font-size:23px; font-weight:640; letter-spacing:-.01em; line-height:1.15; }
+.hms-hm-sub { margin-top:2px; font-size:13.5px; color:var(--muted-foreground); }
+
+.hms-hm-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; padding:12px 0 10px; }
+.hms-hm-meta .k { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:600; color:var(--muted-foreground); }
+.hms-hm-meta .v { margin-top:3px; font-size:14.5px; font-weight:550; font-variant-numeric:tabular-nums; }
+.hms-hm-meta .v.sub { font-weight:500; color:var(--muted-foreground); }
+
+.hms-hm-notebox { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
+.hms-hm-notebox .hms-hm-note-text { padding-top:8px; }
+
+.hms-hm-pair { display:grid; grid-template-columns:minmax(0, 5fr) minmax(0, 3fr); gap:14px; align-items:stretch; }
+
+.hms-hm-sec-lbl { display:flex; align-items:baseline; gap:10px; }
+.hms-hm-sec-lbl h2 { margin:0; font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--foreground); }
+.hms-hm-sec-lbl .cnt { font-size:12px; color:var(--muted-foreground); }
+.hms-hm-sec-lbl .right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+
+.hms-hm-table { margin-top:22px; }
+.hms-hm-rtbl { width:100%; border-collapse:collapse; }
+.hms-hm-rtbl thead th { text-align:left; font-size:11px; font-weight:600; color:var(--muted-foreground); padding:8px 12px 7px 0; border-bottom:1px solid var(--border); white-space:nowrap; }
+.hms-hm-rtbl tbody td { padding:6px 12px 6px 0; font-size:13px; color:var(--foreground); vertical-align:middle; white-space:nowrap; overflow:hidden; }
+.hms-hm-rtbl tbody tr { transition:background .08s; }
+.hms-hm-rtbl tbody tr:hover { background:var(--secondary); }
+.hms-hm-rtbl .nm { font-weight:500; }
+.hms-hm-rtbl .mut { color:var(--muted-foreground); }
+.hms-hm-rtbl .ac-wrap { text-align:right; width:1%; padding-top:4px; padding-bottom:4px; }
+.hms-hm-rtbl .ac { margin-left:auto; visibility:hidden; }
+.hms-hm-rtbl tbody tr:hover .ac, .hms-hm-rtbl tbody tr:focus-within .ac { visibility:visible; }
+.hms-hm-empty { padding:8px 0 2px; font-size:13px; color:var(--muted-foreground); }
+
+.hms-hm-calc-sec { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+.hms-hm-calc { display:flex; flex-direction:column; margin-top:10px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--secondary); }
+.hms-hm-crow { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; color:var(--foreground); }
+.hms-hm-crow .lbl { color:var(--muted-foreground); }
+.hms-hm-stepper { display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--card); }
+.hms-hm-stepper .stp { all:unset; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted-foreground); cursor:pointer; font-size:15px; line-height:1; user-select:none; }
+.hms-hm-stepper .stp:hover { background:var(--secondary); color:var(--foreground); }
+.hms-hm-stepper .stp:active { background:var(--muted); }
+.hms-hm-crow .hms-hm-stepper .hms-hm-inp { width:46px; flex:none; text-align:center; height:28px; border:none; border-radius:0; background:transparent; padding:0; -moz-appearance:textfield; }
+.hms-hm-crow .hms-hm-stepper .hms-hm-inp::-webkit-outer-spin-button,
+.hms-hm-crow .hms-hm-stepper .hms-hm-inp::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.hms-hm-cresult { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.hms-hm-cresult .lbl { font-size:12.5px; color:var(--muted-foreground); }
+.hms-hm-cresult .val { font-size:24px; font-weight:650; letter-spacing:-.02em; line-height:1; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.hms-hm-cresult .u { margin-left:4px; font-size:11px; font-weight:600; color:var(--muted-foreground); }
+.hms-hm-cavg { margin-top:7px; font-size:11px; color:var(--muted-foreground); }
+
+.hms-hm-rows { display:flex; flex-direction:column; padding-top:8px; }
+.hms-hm-row { display:flex; align-items:baseline; gap:12px; padding:3px 0; font-size:13px; }
+.hms-hm-row .cd { flex:none; width:34px; font:600 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+.hms-hm-note-text { font-size:13px; color:var(--muted-foreground); line-height:1.5; }
+
+.hms-hm-loctop { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.hms-hm-maplink { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--foreground); text-decoration:none; border-radius:8px; padding:6px 10px; border:1px solid var(--border); }
+.hms-hm-maplink:hover { background:var(--secondary); }
+.hms-hm-maplink svg { stroke-width:2; color:var(--muted-foreground); }
+.hms-hm-map { margin-top:12px; width:100%; }
+.hms-hm-map > div { border:1px solid var(--border); border-radius:8px; }
+
+.hms-hm-note { padding:8px 0 0; font-size:13px; color:var(--muted-foreground); }
+
+@media (max-width: 980px) {
+  .hms-hm-card { border-radius:14px; padding:14px 15px 16px; }
+  .hms-hm-pair { grid-template-columns:1fr; }
 }
 
 /* ── Map mode ────────────────────────────────────────────────────────────
@@ -2398,6 +2759,15 @@ body.public-page {
     text-transform: uppercase;
     letter-spacing: 0.13em;
   }
+  .m-more-subheading {
+    padding: 10px 12px 3px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.7;
+  }
 
   /* v2.1 doc 1c: rows grouped in a card, 48px, plain icon + label + chevron. */
   .m-more-card {
@@ -2631,99 +3001,6 @@ body.public-page {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
-/* Tracking panel */
-.trk-summary {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 14px 18px;
-  margin-bottom: 14px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}
-.trk-summary-num {
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  color: var(--foreground);
-}
-.trk-summary-lbl {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-.trk-summary-sub {
-  margin-left: auto;
-  font-size: 13px;
-  color: var(--muted-foreground);
-}
-.trk-group {
-  margin-bottom: 18px;
-}
-.trk-group-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 2px 8px;
-}
-.trk-group-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-.trk-group-amt {
-  font-size: 12px;
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.trk-res {
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--foreground);
-  white-space: nowrap;
-}
-.trk-res-sub {
-  display: block;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--muted-foreground);
-  margin-top: 2px;
-  line-height: 1.4;
-}
-.trk-rmt-count {
-  display: inline-flex;
-  align-items: center;
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent-2);
-  border: 1px dashed color-mix(in oklab, var(--accent-2) 45%, transparent);
-  border-radius: 9999px;
-  padding: 1px 8px;
-  cursor: help;
-  white-space: nowrap;
-}
-.trk-sent {
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.trk-idle {
-  color: var(--yellow);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.trk-over {
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-.trk-zero {
-  color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
-
 /* Recap panel */
 .recap-list {
   display: flex;
@@ -2759,15 +3036,6 @@ body.public-page {
     padding: 9px 10px;
     font-size: 13px;
   }
-  .trk-summary {
-    flex-wrap: wrap;
-    gap: 4px 12px;
-  }
-  .trk-summary-sub {
-    margin-left: 0;
-    flex-basis: 100%;
-  }
-  .trk-group-head,
   .recap-group-head {
     flex-direction: column;
     align-items: flex-start;

@@ -70,7 +70,7 @@ class ReconciliationMatchViewTest(ReconciliationViewsBase):
         confirm_payment(pr, self.manager)
         self.tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
         self.client.force_login(self.manager)
-        resp = self.client.post('/finance/reconciliation/new/', {
+        self.client.post('/finance/reconciliation/new/', {
             'account': f'cash:{self.cash_sby.pk}',
             'period_start': '2026-08-01', 'period_end': '2026-08-31',
             'opening_balance_sar': '0', 'closing_balance_sar': '5000',

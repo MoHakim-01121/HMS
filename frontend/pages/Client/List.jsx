@@ -74,8 +74,16 @@ export default function List({ clients, total_count, q, status, pagination }) {
       className: "col-mobile-only col-m-meta",
       render: (c) => (
         <>
-          <span>{c.pic || ""}</span>
-          {c.avg_days_to_pay != null && <span>{c.avg_days_to_pay}d</span>}
+          <span>{(c.pic || "").trim().replace(/^-$/, "")}</span>
+          {c.avg_days_to_pay != null && (
+            <span>
+              {c.avg_days_to_pay < 0
+                ? t("Pays {n}d before invoice", { n: -c.avg_days_to_pay })
+                : c.avg_days_to_pay === 0
+                  ? t("Pays on invoice day")
+                  : t("Pays in {n}d", { n: c.avg_days_to_pay })}
+            </span>
+          )}
         </>
       ),
     },
@@ -137,7 +145,7 @@ export default function List({ clients, total_count, q, status, pagination }) {
             </Button>
             {perms.can("clients", "create") && (
               <Button type="button" size="lg" onClick={() => openForm("/clients/new/")} onPointerEnter={() => openForm.prefetch("/clients/new/")} onFocus={() => openForm.prefetch("/clients/new/")}>
-                + {t("New client")}
+                + {t("New Client")}
               </Button>
             )}
           </>

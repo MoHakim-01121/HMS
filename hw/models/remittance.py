@@ -66,29 +66,49 @@ class Remittance(models.Model):
 
     @property
     def unallocated_sar(self):
-        """Sisa transfer yang belum dialokasikan ke reservasi mana pun."""
-        if self.received_amount_sar is None:
+        """Sisa transfer yang belum dialokasikan ke reservasi mana pun.
+
+        Basis totalnya: received_amount_sar kalau remittance ini masih pakai
+        jalur lama (sudah ada nominal diterima manual -- angka itu final,
+        dipertahankan apa adanya untuk data lama). Remittance BARU tidak
+        pernah lagi mendapat received_amount_sar dari form (2026-09-14 --
+        penerimaan HQ sekarang selalu lewat RemittanceSettlement), jadi basis
+        totalnya jatuh ke expected_sar (dari amount_idr/exchange_rate) supaya
+        alur "declare lump sum dulu, pecah ke reservasi belakangan" tetap
+        bisa dilacak progresnya sebelum ada settlement sama sekali."""
+        total = self.received_amount_sar if self.received_amount_sar is not None else self.expected_sar
+        if total is None:
             return 0
-        return int(self.received_amount_sar) - self.allocated_sar
+        return int(total) - self.allocated_sar
+
+    @property
+    def settled_sar(self):
+        """Σ RemittanceSettlement — yang benar-benar sudah diterima pusat."""
+        return int(self.settlements.aggregate(t=models.Sum('received_amount_sar'))['t'] or 0)
+
+    @property
+    def settlement_basis_sar(self):
+        """Nominal yang harus diterima pusat supaya TRANSIT remittance ini nol:
+        total kirim yang terposting (total_sar = debit TRANSIT). Bukan
+        expected_sar (amount_idr/kurs) -- itu bisa beda dari Σ baris yang
+        benar-benar terposting, dan menutup selisih pakai angka itu membuat
+        TRANSIT tidak nol. expected_sar hanya jadi fallback kalau sisi kirim
+        belum terposting sama sekali. None kalau keduanya tak diketahui."""
+        return self.total_sar or self.expected_sar
 
     @property
     def settlement_status(self):
-        """Status 5-state v2.0 §90 (sent/partially_settled/fully_settled),
-        DITURUNKAN dari RemittanceSettlement (jalur baru — lihat
-        hw/models/settlement.py). None kalau remittance ini tak punya
-        amount_idr/exchange_rate (expected_sar tak terhitung): berarti masih
-        dikelola lewat `status` (pending/received) + jalur lump-sum lama.
-        Tidak mencakup draft/cancelled — belum ada sinyal untuk itu di data
-        yang ada."""
-        expected = self.expected_sar
-        if expected is None:
+        """Status v2.0 §90 (sent/partially_settled/fully_settled), DITURUNKAN
+        dari RemittanceSettlement terhadap settlement_basis_sar. None kalau
+        basisnya tak diketahui. Tidak mencakup draft/cancelled — belum ada
+        sinyal untuk itu di data yang ada."""
+        basis = self.settlement_basis_sar
+        if basis is None:
             return None
-        received = self.settlements.aggregate(
-            t=models.Sum('received_amount_sar'),
-        )['t'] or 0
+        received = self.settled_sar
         if received <= 0:
             return 'sent'
-        if received >= expected:
+        if received >= basis:
             return 'fully_settled'
         return 'partially_settled'
 
@@ -98,6 +118,12 @@ class RemittanceLine(models.Model):
     invoice       = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.SET_NULL, related_name='remittance_lines')
     linked_number = models.CharField(max_length=100)
     amount_sar    = models.PositiveIntegerField(default=0)
+    # Terisi = dialokasikan saat Pusat menerima (hw/finance/remittance_allocation.py).
+    # Kosong = jalur lama, dialokasikan saat kirim.
+    settlement    = models.ForeignKey(
+        'RemittanceSettlement', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='allocations',
+    )
 
     class Meta:
         verbose_name        = 'Remittance Line'

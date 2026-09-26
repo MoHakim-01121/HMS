@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, ConfirmationLetter, Invoice
+from hw.models import Client, ConfirmationLetter, Invoice, Room
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -77,6 +77,9 @@ class InvoiceChargeClientResolutionTests(TestCase):
  hotel_name="Hotel Regress", guest_name="Guest Regress",
             confirmation_number="CL-REGRESS-001", client=self.customer,
         )
+        # The linked CL is what the invoice bills (reservation_rules), not the
+        # reservation_total the form posts -- so the CL carries the price.
+        Room.objects.create(cl=self.cl, room_type="Quad", quantity=1, price=1000)
 
     def test_invoice_new_with_linked_cl_resolves_charge_client(self):
         resp = self.client.post("/invoice/new/", {
@@ -125,4 +128,5 @@ class InvoiceChargeClientResolutionTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         invoice.refresh_from_db()
         self.assertEqual(invoice.client_id, self.customer.pk)
-        self.assertEqual(fq.invoice_charged_sar(invoice.id), 500)
+        # Posted 500 is ignored: a linked CL bills its own total.
+        self.assertEqual(fq.invoice_charged_sar(invoice.id), 1000)

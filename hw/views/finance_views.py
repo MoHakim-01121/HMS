@@ -1,3 +1,6 @@
+from datetime import date
+
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q, Sum
 from django.http import Http404
@@ -8,8 +11,150 @@ from inertia import render as inertia_render
 from ..finance import queries as finance_queries
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
-from ..permissions import require_perm
+from ..permissions import can, require_perm, _deny
 from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension
+
+
+_FINANCE_MODULES = ('payments', 'statements', 'remittance', 'expenses', 'journal', 'periods', 'penalty')
+
+
+@login_required
+def finance_hub(request):
+    """Finance Hub — satu layar kontrol keuangan (Control Room).
+
+    Setiap blok data dihitung hanya jika user punya izin view modul terkait,
+    jadi dashboard tidak pernah membocorkan angka dari modul yang tak boleh
+    dilihat user (payments/statements/remittance/expenses/journal terpisah).
+    """
+    from ..models import PaymentRecord, Remittance
+    from ..models.expense import Expense, ExpensePayment
+
+    today = date.today()
+
+    def has(module):
+        return can(request.user, module, 'view')
+
+    if not any(has(m) for m in _FINANCE_MODULES):
+        return _deny(request)
+
+    data = {'can': {m: has(m) for m in _FINANCE_MODULES}}
+
+    # ── Kas & Payment ─────────────────────────────────────────────
+    if has('payments'):
+        # The KPI counts every pending payment; pending_prs is only the
+        # preview list. Deriving the count from the sliced list capped
+        # "menunggu review" at 6 and summed only those 6 amounts.
+        pending_qs = PaymentRecord.objects.filter(status=PaymentRecord.STATUS_PENDING)
+        pending_prs = list(
+            pending_qs.select_related('client').order_by('-created_at')[:6]
+        )
+        this_month = PaymentRecord.objects.filter(
+            payment_date__year=today.year, payment_date__month=today.month,
+            status__in=PaymentRecord.EFFECTIVE_STATUSES,
+        )
+        data['cash'] = {
+            'sby': finance_queries.kas_surabaya(),
+            'jkt': finance_queries.kas_jakarta(),
+            'pusat': finance_queries.kas_pusat(),
+            'transit': finance_queries.transit(),
+        }
+        data['payments'] = {
+            'pending_review': pending_qs.count(),
+            'pending_review_total': pending_qs.aggregate(t=Sum('amount_sar'))['t'] or 0,
+            'this_month_count': this_month.count(),
+            'this_month_sar': this_month.aggregate(t=Sum('amount_sar'))['t'] or 0,
+            'recent': [{
+                'id': p.pk,
+                'number': p.payment_number,
+                'client': p.client.name if p.client_id else p.reference or p.payment_number,
+                'date': p.payment_date.isoformat(),
+                'amount_sar': p.amount_sar,
+                'status': p.status,
+                'unallocated': finance_queries.payment_unallocated_sar(p.pk),
+            } for p in pending_prs],
+        }
+    else:
+        data['cash'], data['payments'] = None, None
+
+    # ── Piutang & Statement ───────────────────────────────────────
+    if has('statements'):
+        overview = finance_queries.clients_overview()
+        debtors = [r for r in overview if r['piutang'] > 0]
+        data['receivables'] = {
+            'total': sum(r['piutang'] for r in overview),
+            'count': len(debtors),
+            'top': debtors[:6],
+        }
+    else:
+        data['receivables'] = None
+
+    # ── Remittance ────────────────────────────────────────────────
+    if has('remittance'):
+        pending_remits = list(
+            Remittance.objects.filter(status=Remittance.STATUS_PENDING)
+            .order_by('-date', '-created_at')
+        )
+        sent_map = finance_queries.remittance_sent_map([r.id for r in pending_remits])
+        recent = list(Remittance.objects.order_by('-date', '-created_at')[:6])
+        recent_map = finance_queries.remittance_sent_map([r.id for r in recent])
+        data['remittance'] = {
+            'pending_count': len(pending_remits),
+            'pending_sar': sum(sent_map.get(r.id, 0) for r in pending_remits),
+            'kewajiban_kirim': finance_queries.kewajiban_kirim_sby(),
+            'recent': [{
+                'id': r.id,
+                'number': r.remittance_number,
+                'date': r.date.isoformat(),
+                'status': r.status,
+                'settled_sar': r.settled_sar,
+                'amount_sar': recent_map.get(r.id, 0),
+            } for r in recent],
+        }
+    else:
+        data['remittance'] = None
+
+    # ── Expenses ──────────────────────────────────────────────────
+    if has('expenses'):
+        open_statuses = (Expense.STATUS_POSTED, Expense.STATUS_PARTIALLY_PAID, Expense.STATUS_PAID)
+        month_exp = Expense.objects.filter(
+            expense_date__year=today.year, expense_date__month=today.month,
+            status__in=open_statuses,
+        )
+        month_total = month_exp.aggregate(t=Sum('total_amount_sar'))['t'] or 0
+        month_paid = ExpensePayment.objects.filter(
+            expense__in=month_exp, status=ExpensePayment.STATUS_PAID,
+        ).aggregate(t=Sum('amount_sar'))['t'] or 0
+        data['expenses'] = {
+            'month_total': month_total,
+            'month_outstanding': max(0, month_total - month_paid),
+            'recent': [{
+                'id': e.id,
+                'number': e.expense_number,
+                'vendor': e.vendor or e.description or f"EXP #{e.pk}",
+                'date': e.expense_date.isoformat(),
+                'amount_sar': e.total_amount_sar,
+                'status': e.status,
+            } for e in Expense.objects.select_related('branch').order_by('-expense_date')[:6]],
+        }
+    else:
+        data['expenses'] = None
+
+    # ── Journal (ledger review) ───────────────────────────────────
+    if has('journal'):
+        data['journal'] = {
+            'recent': [{
+                'id': e.id,
+                'number': e.entry_number,
+                'date': e.entry_date.isoformat(),
+                'entry_type': e.entry_type,
+                'entry_type_display': dict(JournalEntry.TYPE_CHOICES).get(e.entry_type, e.entry_type),
+                'description': e.description,
+            } for e in JournalEntry.objects.order_by('-entry_date', '-id')[:6]],
+        }
+    else:
+        data['journal'] = None
+
+    return inertia_render(request, 'Finance/Dashboard', props=data)
 
 
 @require_perm('journal', 'view')
@@ -137,16 +282,7 @@ def trial_balance(request):
 
 @require_perm('statements', 'view')
 def statements_list(request):
-    overview = finance_queries.clients_overview()
-    clients = Client.objects.in_bulk([r['client_id'] for r in overview])
-    rows = []
-    for r in overview:
-        client = clients.get(r['client_id'])
-        rows.append({
-            **r,
-            'name': client.name if client else f"Client #{r['client_id']}",
-        })
-    return inertia_render(request, 'Finance/Statements', props={'clients': rows})
+    return inertia_render(request, 'Finance/Statements', props={'clients': finance_queries.clients_overview()})
 
 
 @require_perm('statements', 'view')
@@ -157,12 +293,167 @@ def bank_account_list(request):
     from ..models.branch import Branch
 
     branch = request.GET.get('branch')
-    rows = finance_queries.money_accounts_overview(branch=branch or None)
+    rows = finance_queries.money_accounts_overview(branch=branch or None, include_inactive=True)
     return inertia_render(request, 'Finance/BankAccounts', props={
         'accounts': rows,
         'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        # Every branch, inactive included: an account can still belong to one.
+        'branch_names': dict(Branch.objects.values_list('code', 'name')),
         'branch_filter': branch or '',
     })
+
+
+BANK_CURRENCIES = ('IDR', 'SAR', 'USD')
+
+
+# Ledger accounts a bank account may post to: the cash/bank class (1000-*),
+# the same set the form's dropdown offers. Anything else (1100-AR, …) would
+# book received money onto a non-cash account.
+BANK_LEDGER_PREFIX = '1000-'
+
+
+def _bank_account_in_use(acc):
+    """A bank account that money or a reconciliation has touched keeps its
+    branch, currency and ledger mapping — changing any of them would re-home
+    or re-denominate what was already recorded against it."""
+    from ..models import PaymentRecord
+    return (
+        acc.transactions.exists()
+        or acc.statements.exists()
+        or PaymentRecord.objects.filter(bank_account=acc).exists()
+    )
+
+
+def _bank_form_props(acc=None, data=None, errors=None):
+    from ..models.branch import Branch
+    ledger_choices = [
+        {'value': a.code, 'label': f'{a.code} · {a.name}'}
+        for a in LedgerAccount.objects.filter(type='asset', is_postable=True, is_active=True, code__startswith=BANK_LEDGER_PREFIX)
+    ]
+    if acc is not None and data is None:
+        data = {
+            'branch': acc.branch_id, 'bank_name': acc.bank_name,
+            'account_identifier': acc.account_identifier, 'account_name': acc.account_name,
+            'currency': acc.currency, 'ledger_account': acc.ledger_account_id,
+            'show_on_invoice': acc.show_on_invoice, 'is_active': acc.is_active, 'note': acc.note,
+        }
+    return {
+        'account': {**(data or {}), 'id': acc.pk if acc else None},
+        'edit': acc is not None,
+        'locked': bool(acc and _bank_account_in_use(acc)),
+        'errors': errors or {},
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        'currency_choices': list(BANK_CURRENCIES),
+        'ledger_choices': ledger_choices,
+    }
+
+
+def _default_ledger_for_branch(branch_code):
+    """The branch's cash ledger (1000-KAS-<BRANCH>) — the same account its
+    CashAccount posts to — when the form leaves the mapping blank."""
+    from ..models.bank import CashAccount
+    code = (
+        CashAccount.objects.filter(branch_id=branch_code).values_list('ledger_account_id', flat=True).first()
+        or f'1000-KAS-{branch_code.upper()}'
+    )
+    return code if LedgerAccount.objects.filter(code=code).exists() else None
+
+
+def _save_bank_account(request, acc):
+    """Validate the POST and write it onto `acc` (new or existing). Returns an
+    errors dict; empty means saved."""
+    from ..models.bank import BankAccount
+    from ..models.branch import Branch
+    P = request.POST
+    data = {
+        'branch': (P.get('branch') or '').strip(),
+        'bank_name': (P.get('bank_name') or '').strip(),
+        'account_identifier': (P.get('account_identifier') or '').strip(),
+        'account_name': (P.get('account_name') or '').strip(),
+        'currency': (P.get('currency') or '').strip().upper(),
+        'ledger_account': (P.get('ledger_account') or '').strip(),
+        'show_on_invoice': P.get('show_on_invoice') == 'on',
+        'is_active': P.get('is_active') == 'on',
+        'note': (P.get('note') or '').strip(),
+    }
+    locked = acc.pk is not None and _bank_account_in_use(acc)
+    if locked:
+        data['branch'] = acc.branch_id
+        data['currency'] = acc.currency
+        data['ledger_account'] = acc.ledger_account_id
+
+    errors = {}
+    if not Branch.objects.filter(code=data['branch'], is_active=True).exists():
+        errors['branch'] = 'Pick a branch.'
+    if not data['bank_name']:
+        errors['bank_name'] = 'Bank name is required.'
+    if not data['account_identifier']:
+        errors['account_identifier'] = 'Account number is required.'
+    if data['currency'] not in BANK_CURRENCIES:
+        errors['currency'] = 'Pick a currency.'
+    if not data['ledger_account'] and not errors.get('branch'):
+        data['ledger_account'] = _default_ledger_for_branch(data['branch']) or ''
+    # Without a valid branch the automatic ledger can't be resolved — the
+    # branch error already says what to fix, so don't pile a second one on.
+    if not errors.get('branch') and not LedgerAccount.objects.filter(
+        code=data['ledger_account'], code__startswith=BANK_LEDGER_PREFIX,
+        type='asset', is_postable=True, is_active=True,
+    ).exists():
+        errors['ledger_account'] = 'Pick a ledger account.'
+    dup = BankAccount.objects.filter(
+        bank_name__iexact=data['bank_name'], account_identifier=data['account_identifier'], currency=data['currency'],
+    ).exclude(pk=acc.pk)
+    if data['bank_name'] and data['account_identifier'] and dup.exists():
+        errors['account_identifier'] = 'This account is already registered.'
+    if errors:
+        return errors, data
+
+    acc.branch_id = data['branch']
+    acc.bank_name = data['bank_name']
+    acc.account_identifier = data['account_identifier']
+    acc.account_name = data['account_name']
+    acc.currency = data['currency']
+    acc.ledger_account_id = data['ledger_account']
+    acc.show_on_invoice = data['show_on_invoice'] and data['is_active']
+    acc.is_active = data['is_active']
+    acc.note = data['note']
+    # name is the account's own label; str(acc) prefixes the bank and
+    # suffixes the currency, so storing those here doubled them everywhere.
+    acc.name = data['account_identifier']
+    acc.save()
+    return {}, data
+
+
+@require_perm('statements', 'edit')
+def bank_account_new(request):
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    from ..models.bank import BankAccount
+    if request.method == 'POST':
+        acc = BankAccount()
+        errors, data = _save_bank_account(request, acc)
+        if errors:
+            return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(None, data, errors))
+        messages.success(request, f'Bank account {acc} added.')
+        return redirect('bank_account_list')
+    return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(
+        None, {'branch': request.GET.get('branch', ''), 'currency': 'IDR', 'is_active': True},
+    ))
+
+
+@require_perm('statements', 'edit')
+def bank_account_edit(request, pk):
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    from ..models.bank import BankAccount
+    acc = get_object_or_404(BankAccount, pk=pk)
+    if request.method == 'POST':
+        errors, data = _save_bank_account(request, acc)
+        if errors:
+            return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc, data, errors))
+        messages.success(request, f'Bank account {acc} updated.')
+        return redirect('bank_account_list')
+    return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc))
 
 
 @require_perm('statements', 'view')

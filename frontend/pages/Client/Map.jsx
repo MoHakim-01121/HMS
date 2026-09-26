@@ -58,7 +58,7 @@ export default function ClientMap() {
       function makeIcon(color, size) {
         return L.divIcon({ className: "", html: '<div style="width:' + size + "px;height:" + size + "px;border-radius:50%;background:" + color + ';border:2px solid rgba(255,255,255,.4);box-shadow:0 0 8px ' + color + '66;"></div>', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
       }
-      const fmtNum = (n) => (n ? n.toLocaleString() + " SAR" : "—");
+      const fmtNum = (n) => (n ? n.toLocaleString("en-US") + " SAR" : "—");
 
       function renderMarkers(clients) {
         markers.forEach((m) => map.removeLayer(m));

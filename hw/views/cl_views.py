@@ -12,12 +12,13 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, Reservation, Room, RoomType, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, Reservation, Room, RoomType, log_activity
 from ..permissions import require_perm
 from ..i18n import tr
-from .helpers import _is_mobile, _parse_date, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
+from .helpers import _is_mobile, _parse_date, _parse_search_tokens, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
+from ..finance.reservation_rules import reservation_total_for_cl
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +27,6 @@ def _get_cl(request, pk, qs=None):
     """Fetch a ConfirmationLetter by pk."""
     qs = qs if qs is not None else ConfirmationLetter.objects.all()
     return get_object_or_404(qs, pk=pk)
-
-
-def _parse_search_tokens(q):
-    if ',' not in q:
-        return [q[:100]]
-    return [t.strip()[:100] for t in q.split(',') if t.strip()]
 
 
 _SORT_MAP = {
@@ -150,11 +145,18 @@ def cl_list(request):
 def _form_context_data():
     hotels = [{
         "id": h.id, "name": h.name, "city": h.city,
+        # Both lists filter in Python rather than with .filter(): a filter()
+        # on a prefetched relation re-queries per hotel, an N+1 across the
+        # whole catalog on every CL form open.
         "room_types": [
             {"id": rt.id, "name": rt.name, "capacity": rt.capacity}
-            for rt in h.room_types.filter(is_active=True)
+            for rt in h.room_types.all() if rt.is_active
         ],
-    } for h in Hotel.objects.filter(is_active=True).prefetch_related('room_types').order_by('city', 'name')]
+        "meal_plans": [
+            {"code": mp.code, "name": mp.name}
+            for mp in h.meal_plans.all() if mp.is_active
+        ],
+    } for h in Hotel.objects.filter(is_active=True).prefetch_related('room_types', 'meal_plans').order_by('city', 'name')]
     return {
         "hotels": hotels,
         "clients": list(Client.objects.filter(is_active=True).values("id", "name", "brand").order_by("name")),
@@ -371,7 +373,8 @@ def cl_edit(request, pk):
 
     rooms = [{
         "room_type": r.room_type, "room_type_id": r.room_type_ref_id or "",
-        "meals": r.meals, "quantity": r.quantity, "price": float(r.price),
+        "meals": r.meals, "meal_plan_code": r.meal_plan_id or "",
+        "quantity": r.quantity, "price": float(r.price),
     } for r in cl.rooms.all()]
     return inertia_render(request, "Cl/Form", props={
         "cl": {
@@ -489,7 +492,22 @@ def cl_export_csv(request):
 def cl_duplicate(request, pk):
     original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()
+    # A duplicate is a new booking, so each link is carried only while it is
+    # still valid for one: an inactive client or hotel is no longer offered
+    # on a new document, a removed room type or a board type the hotel stopped
+    # selling would recreate exactly the mismatch the catalog exists to stop.
+    # Whatever is stale falls back to the copied text, as every duplicate did
+    # before. Carrying the hotel matters most: without it the copy opens with
+    # its room-type dropdowns locked, and re-picking the hotel wipes the rooms.
+    client_id = original.client_id if Client.objects.filter(pk=original.client_id, is_active=True).exists() else None
+    hotel_id = original.hotel_id if Hotel.objects.filter(pk=original.hotel_id, is_active=True).exists() else None
+    live_room_types, sold_plans = set(), set()
+    if hotel_id:
+        live_room_types = set(RoomType.objects.filter(hotel_id=hotel_id, is_active=True).values_list('pk', flat=True))
+        sold_plans = set(MealPlan.objects.filter(hotels__pk=hotel_id, is_active=True).values_list('code', flat=True))
     new_cl = ConfirmationLetter.objects.create(
+        client_id=client_id,
+        hotel_id=hotel_id,
         hotel_name=original.hotel_name,
         guest_name=original.guest_name,
         guest_phone=original.guest_phone,
@@ -503,7 +521,9 @@ def cl_duplicate(request, pk):
         Room.objects.create(
             cl=new_cl,
             room_type=room.room_type,
+            room_type_ref_id=room.room_type_ref_id if room.room_type_ref_id in live_room_types else None,
             meals=room.meals,
+            meal_plan_id=room.meal_plan_id if room.meal_plan_id in sold_plans else None,
             quantity=room.quantity,
             price=room.price,
         )
@@ -540,7 +560,7 @@ def invoice_from_cls(request):
             invoice.save(update_fields=["client", "customer_name"])
 
         for cl in cls:
-            total_sar = round_half_up(cl.total_price) if cl.total_price else 0
+            total_sar = reservation_total_for_cl(cl)
             Reservation.objects.create(
                 invoice=invoice,
                 confirmation_letter=cl,
@@ -587,9 +607,24 @@ def _save_cl_rooms(cl, request):
         room_type_id = r.get("room_type_id")
         if room_type_id and cl.hotel_id:
             room_type_ref = RoomType.objects.filter(pk=room_type_id, hotel_id=cl.hotel_id).first()
+        # A code only counts if the hotel actually sells it; otherwise the row
+        # keeps the typed free text exactly as before. Legacy free text that is
+        # exactly a code ("BB") is tried as one too, so old CLs pick up the
+        # link the next time they are saved. Room.meals still gets the code,
+        # so the PDFs, exports and CL detail that read that string keep
+        # working without being touched.
+        meals = r.get("meals") or ""
+        meal_plan = None
+        meal_plan_code = (r.get("meal_plan_code") or "").strip() or meals.strip()
+        if meal_plan_code and cl.hotel_id:
+            meal_plan = MealPlan.objects.filter(
+                code=meal_plan_code, is_active=True, hotels__pk=cl.hotel_id,
+            ).first()
+            if meal_plan:
+                meals = meal_plan.code
         Room.objects.create(
             cl=cl, room_type=rt, room_type_ref=room_type_ref,
-            meals=(r.get("meals") or ""), quantity=qty, price=price,
+            meals=meals, meal_plan=meal_plan, quantity=qty, price=price,
         )
 
 
@@ -604,7 +639,7 @@ def _sync_invoice_reservation_from_cl(cl, user=None):
     with transaction.atomic():
         reservation.check_in = cl.check_in
         reservation.check_out = cl.check_out
-        reservation.total_sar = round_half_up(cl.total_price) if cl.total_price else 0
+        reservation.total_sar = reservation_total_for_cl(cl)
         reservation.hotel = cl.hotel_name or "-"
         reservation.confirmation_letter = cl
         reservation.client_id = cl.client_id

@@ -14,6 +14,7 @@ import {
 import FormField from "../../components/shadcn/form-field.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
 
 export default function Detail({ expense = {}, account_choices = [], journal_entries = [] }) {
@@ -64,7 +65,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
       icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
       iconBg: "var(--yellow)",
       title: t("Partially paid"),
-      text: t("{n} SAR still outstanding.", { n: expense.outstanding_sar?.toLocaleString() }),
+      text: t("{n} SAR still outstanding.", { n: expense.outstanding_sar?.toLocaleString("en-US") }),
     },
     paid: {
       icon: <Icon name="check" size={12} strokeWidth={2.4} />,
@@ -102,7 +103,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
           columns={[
             { header: t("Category"), render: (l) => l.category_name },
             { header: t("Description"), render: (l) => l.description || "—" },
-            { header: t("Amount (SAR)"), align: "right", render: (l) => l.amount_sar?.toLocaleString() },
+            { header: t("Amount (SAR)"), align: "right", render: (l) => l.amount_sar?.toLocaleString("en-US") },
           ]}
           rows={expense.lines || []}
           rowKey={(l) => l.id}
@@ -122,7 +123,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
           columns={[
             { header: t("Date"), render: (p) => p.payment_date },
             { header: t("Account"), render: (p) => p.account_name || "—" },
-            { header: t("Amount (SAR)"), align: "right", render: (p) => p.amount_sar?.toLocaleString() },
+            { header: t("Amount (SAR)"), align: "right", render: (p) => p.amount_sar?.toLocaleString("en-US") },
             { header: t("Reference"), render: (p) => p.reference || "—" },
             { header: t("Status"), render: (p) => p.status_display },
           ]}
@@ -143,8 +144,8 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
             { header: t("Type"), render: (e) => e.entry_type_display },
             { header: t("Description"), render: (e) => e.description },
             { header: t("Date"), render: (e) => e.entry_date },
-            { header: t("Debit"), align: "right", render: (e) => e.total_debit?.toLocaleString() },
-            { header: t("Credit"), align: "right", render: (e) => e.total_credit?.toLocaleString() },
+            { header: t("Debit"), align: "right", render: (e) => e.total_debit?.toLocaleString("en-US") },
+            { header: t("Credit"), align: "right", render: (e) => e.total_credit?.toLocaleString("en-US") },
           ]}
           rows={journal_entries}
           rowKey={(e) => e.id}
@@ -153,9 +154,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
     });
   }
 
-  const expenseDate = expense.expense_date
-    ? new Date(expense.expense_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-    : null;
+  const expenseDate = fmtDate(expense.expense_date) || null;
 
   return (
     <div className="page shadcn-root hms-rv-page">
@@ -168,7 +167,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
         facts={[
           { k: t("Branch"), v: expense.branch_name },
           ...(expenseDate ? [{ k: t("Date"), v: expenseDate }] : []),
-          { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString()} SAR` },
+          { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString("en-US")} SAR` },
         ]}
         note={note}
         actions={<>{primaryActions}<KebabMenu items={menuItems} /></>}
@@ -191,9 +190,9 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
             expense.vendor ? { k: t("Vendor"), v: expense.vendor } : null,
             expenseDate ? { k: t("Date"), v: expenseDate } : null,
             { k: t("Currency"), v: expense.currency },
-            { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString()} SAR` },
-            { k: t("Paid"), v: `${expense.paid_sar?.toLocaleString()} SAR` },
-            expense.outstanding_sar > 0 ? { k: t("Outstanding"), v: `${expense.outstanding_sar?.toLocaleString()} SAR` } : null,
+            { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString("en-US")} SAR` },
+            { k: t("Paid"), v: `${expense.paid_sar?.toLocaleString("en-US")} SAR` },
+            expense.outstanding_sar > 0 ? { k: t("Outstanding"), v: `${expense.outstanding_sar?.toLocaleString("en-US")} SAR` } : null,
             { k: t("Created by"), v: expense.created_by },
           ].filter(Boolean)}
         />
@@ -211,7 +210,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
               <FormField label={t("Amount")} name="amount" type="number" required
                 value={payForm.amount} placeholder={String(expense.outstanding_sar || "")}
                 onChange={(v) => setPayForm({ ...payForm, amount: v })}
-                hint={t("Outstanding: {n} SAR", { n: expense.outstanding_sar?.toLocaleString() })} />
+                hint={t("Outstanding: {n} SAR", { n: expense.outstanding_sar?.toLocaleString("en-US") })} />
               <FormField label={t("Date")} name="payment_date" type="date" required
                 value={payForm.payment_date} onChange={(v) => setPayForm({ ...payForm, payment_date: v })} />
               <FormField label={t("Paid from")} name="account" required>

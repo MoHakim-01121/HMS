@@ -24,6 +24,10 @@ class Hotel(models.Model):
     note          = models.TextField(blank=True)
     route         = models.JSONField(null=True, blank=True,
                                      help_text='Intermediate waypoints [[lat,lng],...] between mosque and hotel')
+    # Which board types this hotel actually sells (v2.0 §10). MealPlan itself
+    # is a global master — this only narrows it per hotel, and the CL form uses
+    # the narrowed set as its Meals dropdown.
+    meal_plans    = models.ManyToManyField('MealPlan', blank=True, related_name='hotels')
     is_active     = models.BooleanField(default=True, db_index=True)
     created_at    = models.DateTimeField(auto_now_add=True)
     updated_at    = models.DateTimeField(auto_now=True)
@@ -105,13 +109,40 @@ class RoomView(models.TextChoices):
     OTHER    = 'other',    'Other'
 
 
+# Occupancy is just the name for a guest count, so it is derived from
+# `capacity` rather than entered separately — two inputs for one fact let
+# "Quad, capacity 2" through. Counts outside this map have no word and stay blank.
+OCCUPANCY_BY_CAPACITY = {
+    2: Occupancy.DOUBLE,
+    3: Occupancy.TRIPLE,
+    4: Occupancy.QUAD,
+    5: Occupancy.QUINT,
+}
+
+
+def occupancy_for_capacity(capacity):
+    return OCCUPANCY_BY_CAPACITY.get(capacity, '')
+
+
+def room_type_name(capacity, view=''):
+    """The conventional catalog name for a guest count + view, e.g.
+    "Quad Kaaba View". "Other" says nothing about the room, so it is left out.
+    Mirrored by suggestRoomTypeName() in frontend/pages/Hotel/roomTypeName.js.
+    """
+    occupancy = occupancy_for_capacity(capacity)
+    parts = [Occupancy(occupancy).label if occupancy else f'{capacity} Pax']
+    if view and view != RoomView.OTHER:
+        parts.append(RoomView(view).label)
+    return ' '.join(parts)
+
+
 class RoomType(models.Model):
     hotel      = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='room_types')
     name       = models.CharField(max_length=100)
     capacity   = models.PositiveSmallIntegerField(default=2, help_text='Guests per room')
-    # Structured dimensions (v2.0 §8.2-8.3), optional on top of the free-form
-    # `name` — existing catalogs keep working ("Quad Kaaba View" as one
-    # string) while new entries can also carry these for filtering/reporting.
+    # Structured dimensions (v2.0 §8.2-8.3) on top of the free-form `name`,
+    # for filtering/reporting. Occupancy is never entered: save() derives it
+    # from capacity. View is optional input.
     occupancy  = models.CharField(max_length=10, choices=Occupancy.choices, blank=True)
     view       = models.CharField(max_length=10, choices=RoomView.choices, blank=True)
     is_active  = models.BooleanField(default=True)
@@ -128,3 +159,10 @@ class RoomType(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.hotel.name})'
+
+    def save(self, *args, **kwargs):
+        self.occupancy = occupancy_for_capacity(self.capacity)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'capacity' in update_fields:
+            kwargs['update_fields'] = {*update_fields, 'occupancy'}
+        super().save(*args, **kwargs)

@@ -36,7 +36,8 @@ def _sync_reservation_total(cl):
     if not reservation:
         return
     old_total = reservation.total_sar
-    new_total = int(round(cl.total_price))
+    from .finance.reservation_rules import reservation_total_for_cl
+    new_total = reservation_total_for_cl(cl)
     if new_total == old_total:
         return
     with transaction.atomic():

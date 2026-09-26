@@ -8,12 +8,19 @@ becomes effective (see payment confirm / record flows).
 Per best practice (Stripe/Xero), receipts are surfaced only from the Payment
 detail page (with a direct "View PDF" action); there is no standalone receipt
 list/detail module.
+
+The PDF is deliberately two zones. The upper zone prints what the Receipt row
+itself stores -- amount, method, date, note -- which ensure_receipt copies off
+the payment at issue time, so a reprint always shows the amount that was
+actually receipted. The lower zone ("Application of funds") prints live
+allocation state, which legitimately changes after issue when finance
+re-applies the money, so it carries an "as at" date and says so.
 """
 import logging
-from datetime import datetime
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 
 from ..models import Receipt
 from ..permissions import require_perm
@@ -35,6 +42,118 @@ def receipt_void(request, pk):
     return redirect("payment_list")
 
 
+def _number_in_words(n):
+    """Whole number to English words (e.g. 48750 -> 'forty-eight thousand...')."""
+    ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+            'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+            'sixteen', 'seventeen', 'eighteen', 'nineteen']
+    tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy',
+            'eighty', 'ninety']
+
+    def two(num):
+        if num == 0:
+            return ''
+        if num < 20:
+            return ones[num]
+        d, r = divmod(num, 10)
+        return tens[d] + ('-' + ones[r] if r else '')
+
+    def three(num):
+        h, r = divmod(num, 100)
+        parts = []
+        if h:
+            parts.append(ones[h] + ' hundred')
+        if r:
+            parts.append(two(r))
+        return ' '.join(parts)
+
+    if n == 0:
+        return 'zero'
+    scales = ['', ' thousand', ' million', ' billion']
+    out, i = [], 0
+    while n and i < len(scales):
+        n, rem = divmod(n, 1000)
+        if rem:
+            out.append(three(rem) + scales[i])
+        i += 1
+    return ' '.join(reversed([c for c in out if c]))
+
+
+def _stay_label(check_in, check_out):
+    """'05 – 12 Oct 2026' for one stay, collapsing a repeated year."""
+    if not check_in and not check_out:
+        return ''
+    full = '%d %b %Y'
+    if check_in and check_out:
+        if check_in.year == check_out.year:
+            return f"{check_in.strftime('%d %b')} – {check_out.strftime(full)}"
+        return f"{check_in.strftime(full)} – {check_out.strftime(full)}"
+    return (check_in or check_out).strftime(full)
+
+
+def _allocation_rows(payment):
+    """Rows for the 'Application of funds' block.
+
+    Two allocation shapes exist, matching finance.queries.payment_unallocated_sar:
+    explicit PaymentAllocation rows, or -- for a payment bound directly to a
+    single reservation with no allocation rows -- that one target, treated as
+    fully allocated.
+    """
+    if payment is None:
+        return []
+
+    rows = []
+    for a in payment.allocations.select_related(
+        'reservation', 'service_item', 'penalty',
+    ).order_by('pk'):
+        if a.reservation_id and a.reservation:
+            rows.append({
+                'label': a.reservation.reservation_number,
+                'sublabel': a.reservation.hotel,
+                'stay': _stay_label(a.reservation.check_in, a.reservation.check_out),
+                'amount_sar': a.amount_sar,
+            })
+        elif a.service_item_id and a.service_item:
+            rows.append({
+                'label': a.service_item.name,
+                'sublabel': f'Service item x{a.service_item.qty}',
+                'stay': '',
+                'amount_sar': a.amount_sar,
+            })
+        elif a.penalty_id and a.penalty:
+            rows.append({
+                'label': a.penalty.penalty_number,
+                'sublabel': 'Cancellation penalty',
+                'stay': '',
+                'amount_sar': a.amount_sar,
+            })
+        else:
+            # Every allocation target is SET_NULL, so a deleted reservation
+            # leaves the row pointing nowhere. The money still belongs on the
+            # receipt: keep the row so the column still sums to the total,
+            # rather than letting it silently vanish.
+            rows.append({
+                'label': '—',
+                'sublabel': 'Allocation target no longer available',
+                'stay': '',
+                'amount_sar': a.amount_sar,
+            })
+
+    for row in rows:
+        row['amount_fmt'] = f"{row['amount_sar']:,}"
+
+    if not rows and payment.reservation_id and payment.reservation:
+        r = payment.reservation
+        rows.append({
+            'label': r.reservation_number,
+            'sublabel': r.hotel,
+            'stay': _stay_label(r.check_in, r.check_out),
+            'amount_sar': payment.amount_sar,
+            'amount_fmt': f"{payment.amount_sar:,}",
+        })
+    return rows
+
+
 @require_perm('invoice', 'export')
 def receipt_pdf(request, pk):
     receipt = get_object_or_404(
@@ -50,26 +169,65 @@ def receipt_pdf(request, pk):
     from django.http import HttpResponse
 
     cl = receipt.confirmation_letter
+    payment = receipt.payment
+    currency = payment.currency if payment else None
+    rate = float(payment.exchange_rate) if payment else None
+    if currency == 'SAR':
+        exchange_label = None
+    elif currency == 'IDR':
+        exchange_label = f"1 SAR = {rate:,.2f} IDR"
+    elif currency is not None and rate is not None:
+        exchange_label = f"1 {currency} = {rate:,.2f} SAR"
+    else:
+        exchange_label = None
+
+    allocation_rows = _allocation_rows(payment)
+    allocated_sar = sum(r['amount_sar'] for r in allocation_rows)
+    # The printed column has to reconcile against the receipt's own total, so
+    # the remainder is derived from the rows. fq.payment_unallocated_sar is the
+    # same figure the payment detail page shows; the two can only diverge if a
+    # receipt's amount stops matching its payment, which ensure_receipt (it
+    # copies payment.amount_sar) prevents. Log it rather than print a document
+    # whose numbers disagree with the app.
+    unapplied_sar = max(receipt.amount_sar - allocated_sar, 0)
+    if payment is not None:
+        from ..finance import queries as fq
+        helper_unapplied = fq.payment_unallocated_sar(payment.pk)
+        if helper_unapplied != unapplied_sar:
+            logger.warning(
+                "receipt %s: unapplied mismatch (receipt-derived %s, helper %s)",
+                receipt.receipt_number, unapplied_sar, helper_unapplied,
+            )
+
     context = {
         "logo_rel_path": _logo_file_url(),
         "receipt_number": receipt.receipt_number,
         "receipt_date": receipt.receipt_date,
-        "payment_number": receipt.payment.payment_number if receipt.payment else None,
+        "payment_date": payment.payment_date if payment else None,
+        "payment_number": payment.payment_number if payment else None,
         "invoice_number": receipt.invoice.invoice_number if receipt.invoice else None,
         "client_name": receipt.client.name if receipt.client else None,
         "confirmation_number": cl.confirmation_number if cl else None,
         "hotel_name": cl.hotel_name if cl else None,
         "guest_name": cl.guest_name if cl else None,
-        "guest_phone": cl.guest_phone if cl else None,
         "check_in": cl.check_in if cl else None,
         "check_out": cl.check_out if cl else None,
-        "amount_sar": receipt.amount_sar,
         "amount_sar_fmt": f"{receipt.amount_sar:,}",
+        "amount_in_words": _number_in_words(receipt.amount_sar).capitalize(),
+        "original_amount": payment.amount if payment else None,
+        "original_amount_fmt": f"{payment.amount:,}" if payment else None,
+        "currency": currency,
+        "exchange_label": exchange_label,
         "payment_method": receipt.payment_method,
+        "bank_reference": payment.reference if payment else None,
         "payment_note": receipt.payment_note,
         "status": receipt.status,
-        "status_display": receipt.get_status_display(),
-        "now": datetime.now(),
+        "voided_reason": receipt.voided_reason,
+        "received_by": receipt.created_by.get_full_name() or receipt.created_by.username,
+        "allocation_rows": allocation_rows,
+        "allocated_sar_fmt": f"{allocated_sar:,}" if allocation_rows and allocated_sar else None,
+        "unapplied_sar_fmt": f"{unapplied_sar:,}" if unapplied_sar else None,
+        "printed_at_ts": timezone.localtime(timezone.now()),
     }
 
     html = render_to_string("hw/receipt/receipt_pdf.html", context)

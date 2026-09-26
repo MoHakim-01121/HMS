@@ -2,8 +2,8 @@ import { useContext } from "react";
 import { useForm } from "@inertiajs/react";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
+import FormActions from "../../components/shadcn/form-actions.jsx";
 import Combobox from "../../components/shadcn/combobox.jsx";
-import { Icon } from "../../components/icons.jsx";
 import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
@@ -25,27 +25,24 @@ function nightsBetween(ci, co) {
 }
 
 const CAPACITY = { Double: 2, Triple: 3, Quad: 4, Quint: 5 };
-const fmtRange = (ci, co) => {
-  const f = (s) => { const d = new Date(s); return Number.isNaN(+d) ? s : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }); };
-  return ci && co ? `${f(ci)} → ${f(co)}` : "—";
-};
 
 export default function Form({ cl, edit, errors: serverErrors, suggested_number, hotels, clients }) {
   const c = cl || {};
   const { t } = useI18n();
   const form = useForm({
-    // Company is set server-side from the active company; not a form field.
     client_id: c.client_id || "",
     hotel_name: c.hotel_name || "",
     hotel_id: c.hotel_id || "",
     guest_name: c.guest_name || "",
+    // No input for it any more, but it still has to round-trip: the edit view
+    // overwrites guest_phone from POST, so dropping it would wipe old CLs' PIC.
     guest_phone: c.guest_phone || "",
     check_in: c.check_in || "",
     check_out: c.check_out || "",
     confirmation_number: c.confirmation_number || suggested_number || "",
     reservation_status: c.reservation_status || "DEFINITE",
     note: c.note || "",
-    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", room_type_id: "", meals: "", quantity: 1, price: "" }],
+    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", room_type_id: "", meals: "", meal_plan_code: "", quantity: 1, price: "" }],
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
@@ -67,13 +64,24 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   // Hotel = optional link to the catalog (RoomType-scoped rooms). Typed text
   // that doesn't match a cataloged hotel keeps hotel_id empty — rooms then
   // fall back to free text (see RoomRows). Switching hotels always clears
-  // any room_type selections made against the previous catalog.
+  // room_type selections — room types belong to one hotel. Meals survive
+  // when they still make sense: a code the new hotel also sells is kept, and
+  // free text is kept when the new hotel has no meal list to pick from
+  // (uncataloged, or none configured). Only a code the new hotel does not
+  // sell is cleared, so the user has to choose one that it does.
   const hotelList = hotels || [];
   const selectedHotel = hotelList.find((h) => String(h.id) === String(form.data.hotel_id));
   const resetRoomTypesIfHotelChanged = (newHotelId) => {
-    if (String(newHotelId || "") !== String(form.data.hotel_id || "")) {
-      form.setData("rooms", form.data.rooms.map((r) => ({ ...r, room_type_id: "", room_type: "" })));
-    }
+    if (String(newHotelId || "") === String(form.data.hotel_id || "")) return;
+    const next = hotelList.find((h) => String(h.id) === String(newHotelId));
+    const sold = new Set((next?.meal_plans || []).map((mp) => mp.code));
+    form.setData("rooms", form.data.rooms.map((r) => {
+      const code = (r.meal_plan_code || r.meals || "").trim();
+      const meal = sold.has(code) ? { meal_plan_code: code, meals: code }
+        : sold.size === 0 ? { meal_plan_code: "", meals: r.meals }
+        : { meal_plan_code: "", meals: "" };
+      return { ...r, room_type_id: "", room_type: "", ...meal };
+    }));
   };
   const onHotelText = (text) => {
     const q = text.trim().toLowerCase();
@@ -108,25 +116,6 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   };
   const capacity = rooms.reduce((s, r) => s + roomTypeCapacity(r) * (Number(r.quantity) || 0), 0);
 
-  // Room-type mix for the summary rail — one bar segment + one legend line per
-  // distinct room type that carries a subtotal.
-  const mix = [];
-  for (const r of rooms) {
-    const sub = nights * (Number(r.quantity) || 0) * (Number(r.price) || 0);
-    if (!r.room_type || sub <= 0) continue;
-    const hit = mix.find((m) => m.type === r.room_type);
-    if (hit) { hit.qty += Number(r.quantity) || 0; hit.sub += sub; }
-    else mix.push({ type: r.room_type, qty: Number(r.quantity) || 0, sub });
-  }
-
-  const datesValid = form.data.check_in && form.data.check_out && form.data.check_out > form.data.check_in;
-  const checklist = [
-    { ok: !!form.data.guest_name.trim(), label: t("Group / client name filled") },
-    { ok: !!form.data.hotel_name.trim(), label: t("Hotel selected") },
-    { ok: !!datesValid, label: t("Check-in / check-out valid") },
-    { ok: total > 0, label: t("At least one priced room") },
-  ];
-
   // Mirrors the server's _validate_cl check so a bad range is caught before the
   // round trip. The check-out field also carries min=check_in.
   const setDate = (k, v) => {
@@ -158,17 +147,15 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
       />
 
       <form method="post" onSubmit={submit}>
-       <div className="rd-card">
-        <div className="rd-body">
-          <div className="rd-main">
-
-            {/* ── Group & client ── */}
-            <section className="rd-sec">
-              <div className="rd-sec-h">
-                <span className="rd-sec-title">{t("Group & client")}</span>
-                <span className="rd-sec-desc">{t("The group name shows on every document and message to the client.")}</span>
-              </div>
-              <div className="rd-sec-b">
+        <div className="rd-card">
+          {/* ── Group & client ── */}
+          <section className="rd-sec">
+            <div className="rd-sec-h">
+              <span className="rd-sec-title">{t("Group & client")}</span>
+              <span className="rd-sec-desc">{t("The group name shows on every document and message to the client.")}</span>
+            </div>
+            <div className="rd-sec-b">
+              <div className="rd-row2">
                 <FormField label={t("Group / client name")} name="guest_name" error={errors.guest_name} required>
                   <Combobox
                     name="guest_name"
@@ -181,147 +168,95 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                     error={errors.guest_name}
                   />
                 </FormField>
-                <div className="rd-row2">
-                  <FormField label={t("Phone (PIC)")} name="guest_phone" value={form.data.guest_phone} onChange={set("guest_phone")} inputMode="tel" placeholder="+62…" />
-                  <FormField label={t("CL number")} name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
+                <FormField label={t("CL number")} name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
+              </div>
+              <FormField label={t("Status")} name="reservation_status">
+                <div className="rd-seg" role="radiogroup" aria-label={t("Status")}>
+                  {STATUS.map(([v, l, dot]) => (
+                    <button
+                      type="button" key={v} role="radio"
+                      aria-checked={form.data.reservation_status === v}
+                      className={"rd-seg-opt" + (form.data.reservation_status === v ? " is-on" : "")}
+                      onClick={() => form.setData("reservation_status", v)}
+                    >
+                      <span className="rd-seg-dot" style={{ background: dot }} />{t(l)}
+                    </button>
+                  ))}
                 </div>
-                <FormField label={t("Status")} name="reservation_status">
-                  <div className="rd-seg" role="radiogroup" aria-label={t("Status")}>
-                    {STATUS.map(([v, l, dot]) => (
-                      <button
-                        type="button" key={v} role="radio"
-                        aria-checked={form.data.reservation_status === v}
-                        className={"rd-seg-opt" + (form.data.reservation_status === v ? " is-on" : "")}
-                        onClick={() => form.setData("reservation_status", v)}
-                      >
-                        <span className="rd-seg-dot" style={{ background: dot }} />{t(l)}
-                      </button>
-                    ))}
-                  </div>
-                </FormField>
-              </div>
-            </section>
+              </FormField>
+            </div>
+          </section>
 
-            {/* ── Hotel & stay ── */}
-            <section className="rd-sec">
-              <div className="rd-sec-h">
-                <span className="rd-sec-title">{t("Hotel & stay")}</span>
-                <span className="rd-sec-desc">{t("Nights are computed automatically from the dates.")}</span>
-              </div>
-              <div className="rd-sec-b">
-                <FormField label={t("Hotel")} name="hotel_name" error={errors.hotel_name}>
-                  <Combobox
-                    name="hotel_name"
-                    value={form.data.hotel_name}
-                    onTextChange={onHotelText}
-                    onSelect={onHotelSelect}
-                    options={hotelList}
-                    getLabel={(o) => o.name}
-                    getSub={(o) => o.city || ""}
-                    placeholder={t("Search hotel or type name…")}
-                    emptyLabel={t("New hotel — typed manually")}
-                    error={errors.hotel_name}
-                  />
-                </FormField>
-                <div className="rd-row3">
-                  <FormField label={t("Check-in")} name="check_in" error={errors.check_in}>
-                    <Input id="check_in" name="check_in" type="date" value={form.data.check_in} onChange={(e) => setDate("check_in", e.target.value)} />
-                  </FormField>
-                  <FormField label={t("Check-out")} name="check_out" error={errors.check_out}>
-                    <Input id="check_out" name="check_out" type="date" min={form.data.check_in || undefined} value={form.data.check_out} onChange={(e) => setDate("check_out", e.target.value)} />
-                  </FormField>
-                  <FormField label={t("Nights")} name="nights">
-                    <div className="rd-static">{nights}</div>
-                  </FormField>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Rooms & pricing ── */}
-            <section className="rd-sec">
-              <div className="rd-sec-h">
-                <span className="rd-sec-title">{t("Rooms & pricing")}</span>
-                <span className="rd-sec-desc">{t("Subtotal = qty × rate × nights, filled automatically.")}</span>
-              </div>
-              <div className="rd-sec-b">
-                <RoomRows
-                  rooms={rooms} onChange={(next) => form.setData("rooms", next)} nights={nights}
-                  roomTypes={selectedHotel ? selectedHotel.room_types : null}
-                  addHotelHref={`/hotels/new/?name=${encodeURIComponent(form.data.hotel_name || "")}`}
-                  editHotelHref={selectedHotel ? `/hotels/${selectedHotel.id}/edit/` : null}
+          {/* ── Hotel & stay ── */}
+          <section className="rd-sec">
+            <div className="rd-sec-h">
+              <span className="rd-sec-title">{t("Hotel & stay")}</span>
+              <span className="rd-sec-desc">{t("Nights are computed automatically from the dates.")}</span>
+            </div>
+            <div className="rd-sec-b">
+              <FormField label={t("Hotel")} name="hotel_name" error={errors.hotel_name}>
+                <Combobox
+                  name="hotel_name"
+                  value={form.data.hotel_name}
+                  onTextChange={onHotelText}
+                  onSelect={onHotelSelect}
+                  options={hotelList}
+                  getLabel={(o) => o.name}
+                  getSub={(o) => o.city || ""}
+                  placeholder={t("Search hotel or type name…")}
+                  emptyLabel={t("New hotel — typed manually")}
+                  error={errors.hotel_name}
                 />
-                <div className="rd-rooms-foot">
-                  <span>{totalRooms} {t(totalRooms === 1 ? "room" : "rooms")} · {t("capacity")} {capacity} {t("pax")}</span>
-                  <span className="rd-rooms-foot-total">{t("Total")} {fmt(total)} <span className="cur">SAR</span></span>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Notes ── */}
-            <section className="rd-sec rd-sec-last">
-              <div className="rd-sec-h">
-                <span className="rd-sec-title">{t("Notes")}</span>
-                <span className="rd-sec-desc">{t("Shown on the PDF sent to the hotel.")}</span>
-              </div>
-              <div className="rd-sec-b">
-                <FormField name="note">
-                  <Textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Internal notes…")} />
+              </FormField>
+              <div className="rd-row3">
+                <FormField label={t("Check-in")} name="check_in" error={errors.check_in}>
+                  <Input id="check_in" name="check_in" type="date" value={form.data.check_in} onChange={(e) => setDate("check_in", e.target.value)} />
                 </FormField>
-              </div>
-            </section>
-          </div>
-
-          {/* ── Summary rail ── */}
-          <aside className="rd-rail">
-            <div className="rd-summary">
-              <div className="rd-rail-block">
-                <span className="rd-rail-lbl">{t("Total price")}</span>
-                <div className="rd-rail-total"><span>{fmt(total)}</span><span className="rd-rail-cur">SAR</span></div>
-                <span className="rd-rail-meta">{fmtRange(form.data.check_in, form.data.check_out)} · {nights} {t(nights === 1 ? "night" : "nights")}</span>
-              </div>
-
-              {mix.length > 0 && (
-                <div className="rd-rail-block">
-                  <div className="rd-bar">
-                    {mix.map((m, i) => (
-                      <span key={m.type} style={{ flex: m.sub, background: `color-mix(in oklch, var(--primary) ${100 - i * 32}%, var(--card))` }} />
-                    ))}
-                  </div>
-                  <div className="rd-mix">
-                    {mix.map((m, i) => (
-                      <div className="rd-mix-row" key={m.type}>
-                        <span><span className="rd-mix-dot" style={{ background: `color-mix(in oklch, var(--primary) ${100 - i * 32}%, var(--card))` }} />{m.type} · {m.qty}</span>
-                        <span className="rd-num">{fmt(m.sub)}</span>
-                      </div>
-                    ))}
-                    {capacity > 0 && (
-                      <div className="rd-mix-row rd-mix-total">
-                        <span>{t("Capacity")}</span><span className="rd-num">{capacity} {t("pax")}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="rd-rail-sep" />
-
-              <div className="rd-rail-block">
-                <span className="rd-rail-lbl">{t("Before confirming")}</span>
-                {checklist.map((it) => (
-                  <div className={"rd-check" + (it.ok ? " is-ok" : "")} key={it.label}>
-                    <Icon name={it.ok ? "check" : "clock"} size={15} />{it.label}
-                  </div>
-                ))}
+                <FormField label={t("Check-out")} name="check_out" error={errors.check_out}>
+                  <Input id="check_out" name="check_out" type="date" min={form.data.check_in || undefined} value={form.data.check_out} onChange={(e) => setDate("check_out", e.target.value)} />
+                </FormField>
+                <FormField label={t("Nights")} name="nights">
+                  <div className="rd-static">{nights}</div>
+                </FormField>
               </div>
             </div>
+          </section>
 
-            <div className="rd-rail-spacer" />
-            <button type="submit" className="rd-cta" disabled={form.processing}>
-              <Icon name="check" size={15} />{form.processing ? t("Saving…") : submitLabel}
-            </button>
-          </aside>
+          {/* ── Rooms & pricing ── */}
+          <section className="rd-sec">
+            <div className="rd-sec-h">
+              <span className="rd-sec-title">{t("Rooms & pricing")}</span>
+              <span className="rd-sec-desc">{t("Subtotal = qty × rate × nights, filled automatically.")}</span>
+            </div>
+            <div className="rd-sec-b">
+              <RoomRows
+                rooms={rooms} onChange={(next) => form.setData("rooms", next)} nights={nights}
+                roomTypes={selectedHotel ? selectedHotel.room_types : null}
+                mealPlans={selectedHotel ? selectedHotel.meal_plans : null}
+                addHotelHref={`/hotels/new/?name=${encodeURIComponent(form.data.hotel_name || "")}`}
+                editHotelHref={selectedHotel ? `/hotels/${selectedHotel.id}/edit/` : null}
+              />
+              <div className="rd-rooms-foot">
+                <span>{totalRooms} {t(totalRooms === 1 ? "room" : "rooms")} · {t("capacity")} {capacity} {t("pax")}</span>
+                <span className="rd-rooms-foot-total">{t("Total")} {fmt(total)} <span className="cur">SAR</span></span>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Notes ── */}
+          <section className="rd-sec rd-sec-last">
+            <div className="rd-sec-h">
+              <span className="rd-sec-title">{t("Notes")}</span>
+              <span className="rd-sec-desc">{t("Shown on the PDF sent to the hotel.")}</span>
+            </div>
+            <div className="rd-sec-b">
+              <FormField name="note">
+                <Textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Internal notes…")} />
+              </FormField>
+            </div>
+          </section>
         </div>
-       </div>
+        <FormActions cancelHref={closeHref} submitLabel={submitLabel} processing={form.processing} />
       </form>
     </div>
   );
@@ -330,19 +265,19 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 }
 
 /* ── Layout ───────────────────────────────────────────────────────────────
-   Two-pane redesign (Claude Design "HOMLU HMS Redesign" §5a/5b): a main
-   column of label-left / field-right sections and a 300px summary rail that
-   carries the running total, room mix, a readiness checklist and the submit
-   CTA. Above 1100px viewport the form-modal widens to fit both panes (see the
-   :has() rule below); under that the rail drops beneath the main column and
+   Single column of label-left / field-right sections (Claude Design "HOMLU
+   HMS Redesign" §5a/5b, minus its summary rail — the running total already
+   sits under the Rooms table), with the standard sticky FormActions bar.
+   Above 960px viewport the form-modal widens a little so the Rooms table
+   fits beside the section labels (see the :has() rule below); under that
    every section collapses to a single stack.
 
    The editable Rooms table keeps the treatment from RoomRows.jsx — a real
    <table> in one bordered frame, muted header, chromeless cells. */
 const CSS = `
-/* Widen the form-modal to fit both panes once the viewport can spare it. */
-@media (min-width: 1100px) {
-  .form-modal-content:has(.cl-form) { max-width: 1180px; }
+/* Widen the form-modal so the Rooms table (min 560px) clears the label column. */
+@media (min-width: 960px) {
+  .form-modal-content:has(.cl-form) { max-width: 920px; }
 }
 
 .cl-form form { margin-top: 22px; }
@@ -355,27 +290,15 @@ const CSS = `
   overflow: visible;
   box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 40px -12px color-mix(in oklch, var(--primary) 16%, transparent);
 }
+/* Bleeds to the dialog edges; no bottom bleed, the FormActions bar owns that. */
 .hms-modal-body .cl-form .rd-card {
   border: none; border-radius: 0; box-shadow: none;
-  margin: -24px -20px;
+  margin: -24px -20px 0;
 }
 @media (max-width: 600px) {
-  .hms-modal-body .cl-form .rd-card { margin: -20px -16px; }
+  .hms-modal-body .cl-form .rd-card { margin: -20px -16px 0; }
 }
-
-.cl-form .rd-body { display: flex; align-items: stretch; }
-.cl-form .rd-main { flex: 1; min-width: 0; }
-.cl-form .rd-rail {
-  width: 300px; flex: none;
-  border-left: 1px solid var(--border);
-  background: color-mix(in oklch, var(--muted) 38%, var(--card));
-  display: flex; flex-direction: column;
-}
-.cl-form .rd-summary {
-  position: sticky; top: 0;
-  display: flex; flex-direction: column; gap: 22px;
-  padding: 28px 24px;
-}
+.hms-modal-body .cl-form .hms-form-actions { margin-top: 0; }
 
 .cl-form .rd-sec {
   display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 28px;
@@ -431,67 +354,9 @@ const CSS = `
 .cl-form .rd-rooms-foot-total { font-weight: 600; color: var(--foreground); }
 .cl-form .rd-rooms-foot .cur { font-weight: 400; color: var(--muted-foreground); }
 
-/* ── Rail internals ── */
-.cl-form .rd-rail-block { display: flex; flex-direction: column; gap: 10px; }
-.cl-form .rd-rail-lbl {
-  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-.cl-form .rd-rail-total {
-  display: flex; align-items: baseline; gap: 8px;
-  font-size: 34px; font-weight: 600; letter-spacing: -.025em;
-  font-variant-numeric: tabular-nums; color: var(--foreground);
-}
-.cl-form .rd-rail-cur { font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
-.cl-form .rd-rail-meta { font-size: 11.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-
-.cl-form .rd-bar { display: flex; gap: 3px; height: 8px; }
-.cl-form .rd-bar > span { border-radius: 999px; min-width: 4px; }
-
-.cl-form .rd-mix { display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
-.cl-form .rd-mix-row { display: flex; align-items: center; justify-content: space-between; color: var(--muted-foreground); }
-.cl-form .rd-mix-row > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
-.cl-form .rd-mix-dot { width: 8px; height: 8px; border-radius: 3px; flex: none; }
-.cl-form .rd-num { font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
-.cl-form .rd-mix-total {
-  padding-top: 9px; border-top: 1px solid var(--border);
-  font-weight: 500; color: var(--foreground);
-}
-
-.cl-form .rd-rail-sep { height: 1px; background: var(--border); }
-.cl-form .rd-rail-spacer { flex: 1; min-height: 8px; }
-
-.cl-form .rd-check {
-  display: flex; align-items: center; gap: 9px;
-  font-size: 12.5px; color: var(--muted-foreground);
-}
-.cl-form .rd-check svg { flex: none; color: var(--muted-foreground); }
-.cl-form .rd-check.is-ok { color: var(--foreground); }
-.cl-form .rd-check.is-ok svg { color: var(--green); }
-
-.cl-form .rd-cta {
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  width: auto; margin: 0 24px 24px; height: 42px; border: none; border-radius: 12px;
-  background: var(--primary); color: var(--primary-foreground);
-  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: background .12s;
-  position: sticky; bottom: 0;
-}
-.cl-form .rd-cta:hover { background: var(--primary-hover); }
-.cl-form .rd-cta:disabled { opacity: .6; cursor: default; }
-
-/* ── Narrow: rail below, sections stacked ── */
-@media (max-width: 1099px) {
-  .cl-form .rd-body { flex-direction: column; }
-  .cl-form .rd-main { width: 100%; }
+/* ── Narrow: sections stacked ── */
+@media (max-width: 959px) {
   .cl-form .rd-sec { grid-template-columns: 1fr; gap: 12px; padding: 22px 22px; }
-  .cl-form .rd-rail {
-    width: auto; border-left: none; border-top: 1px solid var(--border);
-    background: color-mix(in oklch, var(--muted) 38%, var(--card));
-  }
-  .cl-form .rd-summary { position: static; padding: 22px; }
-  .cl-form .rd-rail-spacer { display: none; }
-  .cl-form .rd-cta { position: static; margin: 0 22px 22px; width: auto; }
 }
 @media (max-width: 600px) {
   .cl-form .rd-row2, .cl-form .rd-row3 { grid-template-columns: 1fr; }

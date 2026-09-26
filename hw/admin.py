@@ -4,8 +4,8 @@ from django.shortcuts import render
 from .models import (
     ActivityLog, Attachment, BankAccount, BankTransaction, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
-    BankStatement, BankStatementLine, HQObligation, Hotel, Invoice, MealPlan, Payment, Pricelist,
-    Remittance, RemittanceAllocation, RemittanceLine, RemittanceSettlement,
+    BankStatement, BankStatementLine, Hotel, Invoice, MealPlan, Payment, Pricelist,
+    Remittance, RemittanceLine, RemittanceSettlement,
     Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
 )
 
@@ -56,6 +56,7 @@ class RoomTypeAdmin(admin.ModelAdmin):
     list_display  = ('name', 'hotel', 'capacity', 'occupancy', 'view', 'is_active')
     list_filter   = ('is_active', 'occupancy', 'view')
     search_fields = ('name', 'hotel__name')
+    readonly_fields = ('occupancy',)  # derived from capacity in RoomType.save()
 
 
 @admin.register(MealPlan)
@@ -175,21 +176,9 @@ class ExpenseCategoryAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
 
 
-@admin.register(HQObligation)
-class HQObligationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'branch', 'amount_sar', 'status', 'due_date')
-    list_filter = ('branch', 'status')
-
-
-class RemittanceAllocationInline(admin.TabularInline):
-    model = RemittanceAllocation
-    extra = 0
-
-
 @admin.register(RemittanceSettlement)
 class RemittanceSettlementAdmin(admin.ModelAdmin):
     list_display = ('remittance', 'received_amount_sar', 'received_date')
-    inlines = [RemittanceAllocationInline]
 
 
 admin.site.register(Reservation)

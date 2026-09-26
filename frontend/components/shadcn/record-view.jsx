@@ -105,7 +105,9 @@ export function RvSteps({ steps }) {
       {steps.map((s, i) => (
         <div key={i} className={`hms-rv-step ${s.state}`}>
           <div className="hms-rv-step-top">
-            <span className="hms-rv-step-dot">{s.state === "done" ? "✓" : i + 1}</span>
+            <span className="hms-rv-step-dot">
+              {s.state === "done" ? "✓" : s.state === "halted" ? "✕" : i + 1}
+            </span>
             {i < steps.length - 1 ? <span className="hms-rv-step-line" /> : null}
           </div>
           <span className="hms-rv-step-label">{s.label}</span>

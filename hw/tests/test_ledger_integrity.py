@@ -16,8 +16,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import (
-    Client, Invoice, Reservation, ConfirmationLetter, Room,
-    CancellationPenalty, Remittance, RemittanceLine, ServiceItem,
+    Client, Invoice, Reservation, ConfirmationLetter, CancellationPenalty, Remittance, RemittanceLine, ServiceItem,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
@@ -64,7 +63,7 @@ class PenaltyLedgerSyncTest(TestCase):
             'exchange_rate': '1', 'is_paid': 'on', 'payment_method': 'transfer',
         })
         self.assertEqual(resp.status_code, 302)
-        penalty = CancellationPenalty.objects.get(penalty_number='PNL-001')
+        CancellationPenalty.objects.get(penalty_number='PNL-001')
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -1000)
         self.assertEqual(fq.kas_surabaya(), 1000)
         self.assertEqual(fq.client_receivable(self.cl_obj.id), 0)  # ditagih lalu dibayar

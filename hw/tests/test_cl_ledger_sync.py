@@ -75,3 +75,48 @@ class ClEditReservationSyncChargeTest(_Base):
         self.reservation.refresh_from_db()
         self.assertEqual(self.reservation.total_sar, 2400)  # 800 * 1 * 3 nights
         self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 2400)
+
+
+class CancelledClBillsZeroOnEveryPathTest(ClEditReservationSyncChargeTest):
+    """reservation_rules: a cancelled CL bills 0 on every path that writes the
+    Reservation, so no later edit can bring its full price back."""
+
+    def _edit(self, status, price=800):
+        return self.client.post(f"/cl/{self.cl.pk}/edit/", {
+            "hotel_name": self.cl.hotel_name or "Hotel",
+            "guest_name": self.cl.guest_name,
+            "check_in": self.cl.check_in.isoformat(),
+            "check_out": self.cl.check_out.isoformat(),
+            "confirmation_number": self.cl.confirmation_number,
+            "reservation_status": status,
+            "rooms": json.dumps([{"room_type": "Deluxe", "quantity": 1, "price": price}]),
+        })
+
+    def test_cl_edit_to_cancelled_bills_zero(self):
+        self.assertEqual(self._edit("CANCELLED").status_code, 302)
+        self.reservation.refresh_from_db()
+        self.assertEqual(self.reservation.total_sar, 0)
+        self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 0)
+
+    def test_room_change_on_cancelled_cl_stays_zero(self):
+        self._edit("CANCELLED")
+        self.cl.refresh_from_db()
+        room = self.cl.rooms.first()
+        room.price = 1500
+        room.save()  # post_save signal path (_sync_reservation_total)
+        self.reservation.refresh_from_db()
+        self.assertEqual(self.reservation.total_sar, 0)
+        self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 0)
+
+
+class InvoiceFromCancelledClTest(_Base):
+    def test_cancelled_cl_converted_to_invoice_bills_zero(self):
+        cl = ConfirmationLetter.objects.create(
+            confirmation_number='CL-FROMCLS-CXL', guest_name='Budi',
+            client=self.client_obj, reservation_status='CANCELLED',
+            check_in=date.today(), check_out=date.today() + timedelta(days=2),
+        )
+        Room.objects.create(cl=cl, room_type='Deluxe', quantity=1, price=1000)
+        self.client.post("/cl/invoice-from-cls/", {"cl_ids": [cl.pk]})
+        reservation = Reservation.objects.get(reservation_number='CL-FROMCLS-CXL')
+        self.assertEqual(reservation.total_sar, 0)

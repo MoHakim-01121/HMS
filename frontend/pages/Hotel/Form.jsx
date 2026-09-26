@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { useForm } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
+import { MAP } from "../../components/mapColors.js";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
+import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import RoomTypeRows from "./RoomTypeRows.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
 
@@ -21,12 +22,23 @@ const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "
 // listbox has no underlying native control for either of those to see.
 const SELECT_CLASS = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm";
 
-export default function HotelForm({ hotel, edit }) {
+// A direct visit (/hotels/new/?name=… from the CL form's "+ Add this hotel"
+// link, or a server re-render after a validation error) gets the same dialog
+// as openForm from the Hotels list. The body is its own component so the
+// Leaflet effect below mounts together with the dialog's portal content —
+// it looks its elements up by id, which don't exist until the portal renders.
+export default function HotelForm(props) {
+  const inModal = useContext(FormModalContext)?.inModal;
+  if (inModal) return <HotelFormBody {...props} />;
+  const closeHref = props.edit && props.hotel ? `/hotels/${props.hotel.id}/` : "/hotels/";
+  return <StandaloneFormModal closeHref={closeHref}><HotelFormBody {...props} /></StandaloneFormModal>;
+}
+
+function HotelFormBody({ hotel, edit }) {
   const { t } = useI18n();
   const h = hotel || {};
   const formRef = useRef(null);
   const api = useRef({});
-  const [roomTypes, setRoomTypes] = useState(h.room_types || []);
   const form = useForm({});
 
   const submit = (e) => {
@@ -34,7 +46,6 @@ export default function HotelForm({ hotel, edit }) {
     const fd = new FormData(formRef.current);
     const data = {};
     fd.forEach((v, k) => { data[k] = v; });
-    data.room_types = JSON.stringify(roomTypes);
     form.transform(() => data);
     form.post(edit ? `/hotels/${h.id}/edit/` : "/hotels/new/", { forceFormData: true });
   };
@@ -68,14 +79,14 @@ export default function HotelForm({ hotel, edit }) {
         html: '<div style="width:' + size + "px;height:" + size + "px;border-radius:50%;background:" + color + ";border:2px solid #fff;box-shadow:0 0 " + (glow || 6) + "px " + color + '99;"></div>',
         iconSize: [size, size], iconAnchor: [size / 2, size / 2],
       });
-      L.marker(HARAM, { icon: dot(14, "#F5A623", 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
-      L.marker([21.4225, 39.8262], { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Al-Haram").addTo(map);
-      L.marker(NABAWI, { icon: dot(10, "#FF453A") }).bindTooltip("Masjid Nabawi").addTo(map);
+      L.marker(HARAM, { icon: dot(14, MAP.yellow, 10) }).bindTooltip("Al-Haram Plaza").addTo(map);
+      L.marker([21.4225, 39.8262], { icon: dot(10, MAP.red) }).bindTooltip("Masjid Al-Haram").addTo(map);
+      L.marker(NABAWI, { icon: dot(10, MAP.red) }).bindTooltip("Masjid Nabawi").addTo(map);
 
       let hotelMarker = null;
       function setHotelMarker(ll) {
         if (hotelMarker) { hotelMarker.setLatLng(ll); return; }
-        hotelMarker = L.marker(ll, { icon: dot(12, "#1A1A1A"), draggable: true }).addTo(map);
+        hotelMarker = L.marker(ll, { icon: dot(12, MAP.accent), draggable: true }).addTo(map);
         hotelMarker.on("dragend", () => {
           const p = hotelMarker.getLatLng();
           inpLat.value = p.lat.toFixed(6);
@@ -107,7 +118,7 @@ export default function HotelForm({ hotel, edit }) {
       function makeVertexIcon(idx, total) {
         const isEnd = idx === 0 || idx === total - 1;
         const s = isEnd ? 12 : 8;
-        const color = idx === 0 ? "#2ECC71" : idx === total - 1 ? "#F5A623" : "#1A1A1A";
+        const color = idx === 0 ? MAP.green : idx === total - 1 ? MAP.yellow : MAP.accent;
         const ring = isEnd ? '<div style="position:absolute;width:20px;height:20px;border-radius:50%;background:' + color + '22;pointer-events:none;"></div>' : "";
         return L.divIcon({
           className: "",
@@ -126,7 +137,7 @@ export default function HotelForm({ hotel, edit }) {
         waypointMarkers.forEach((m) => map.removeLayer(m)); waypointMarkers = [];
         midpointMarkers.forEach((m) => map.removeLayer(m)); midpointMarkers = [];
         if (waypoints.length < 2) { updateRouteUI(); return; }
-        routeLayer = L.polyline(waypoints, { color: "#1A1A1A", weight: 3, opacity: 0.9, dashArray: "8,6", lineCap: "round", lineJoin: "round" }).addTo(map);
+        routeLayer = L.polyline(waypoints, { color: MAP.accent, weight: 3, opacity: 0.9, dashArray: "8,6", lineCap: "round", lineJoin: "round" }).addTo(map);
         if (routeMode) {
           for (let j = 0; j < waypoints.length - 1; j++) {
             ((si) => {
@@ -230,7 +241,7 @@ export default function HotelForm({ hotel, edit }) {
         if (waypoints.length > 0) {
           const pts = [waypoints[waypoints.length - 1], [e.latlng.lat, e.latlng.lng]];
           if (previewLine) previewLine.setLatLngs(pts);
-          else previewLine = L.polyline(pts, { color: "#1A1A1A", weight: 1.5, opacity: 0.38, dashArray: "5,5", interactive: false }).addTo(map);
+          else previewLine = L.polyline(pts, { color: MAP.accent, weight: 1.5, opacity: 0.38, dashArray: "5,5", interactive: false }).addTo(map);
         } else if (previewLine) { map.removeLayer(previewLine); previewLine = null; }
       });
 
@@ -379,15 +390,6 @@ export default function HotelForm({ hotel, edit }) {
               <FormField name="note">
                 <Textarea id="note" name="note" rows={3} defaultValue={h.note || ""} placeholder={t("Additional info…")} />
               </FormField>
-            </FormSection>
-          </FormPanel>
-        </div>
-
-        {/* ── Room Types ── */}
-        <div style={{ marginBottom: 16 }}>
-          <FormPanel>
-            <FormSection label={t("Room Types")}>
-              <RoomTypeRows roomTypes={roomTypes} onChange={setRoomTypes} />
             </FormSection>
           </FormPanel>
         </div>

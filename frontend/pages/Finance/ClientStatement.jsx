@@ -5,6 +5,7 @@ import DetailCard from "../../components/shadcn/detail-card.jsx";
 import DetailTable from "../../components/shadcn/detail-table.jsx";
 import DetailAmount from "../../components/shadcn/detail-amount.jsx";
 import Section from "../../components/shadcn/section.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { fmt } from "../../utils/format.js";
@@ -120,7 +121,7 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
       render: (row) => (
         <span style={{ color: row.overdue ? "var(--red)" : undefined, fontWeight: row.overdue ? 600 : undefined }}>
           {row.due_date || "—"}
-          {row.overdue ? <span style={{ marginLeft: 6, fontSize: 11 }} className="badge badge-red">Overdue</span> : null}
+          {row.overdue ? <span style={{ marginLeft: 6 }}><StatusPill small tone="red" label={t("Overdue")} /></span> : null}
         </span>
       ),
     },
@@ -148,7 +149,7 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
           client.id ? { label: client.name, href: `/clients/${client.id}/` } : null,
         ].filter(Boolean)}
         kicker={client.name}
-        title={t("Finance Statement")}
+        title={t("Client Statement")}
         sub={isOpen ? t("Open items") : date_from || date_to ? `${date_from || t("Start")} — ${date_to || t("Now")}` : t("All time")}
         pill={{
           label: activeBalance > 0 ? t("Amount due") : activeBalance < 0 ? t("Credit") : t("Settled"),

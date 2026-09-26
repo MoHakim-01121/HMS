@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
@@ -12,7 +13,7 @@ import { useI18n } from "../../utils/i18n.jsx";
 
 const CURRENCIES = ["SAR", "IDR", "USD"];
 
-export default function Form({ penalty, cl, suggested_number, today, edit, errors: serverErrors }) {
+function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverErrors }) {
   const { t } = useI18n();
   const p = penalty || {};
   const form = useForm({
@@ -107,3 +108,5 @@ export default function Form({ penalty, cl, suggested_number, today, edit, error
     </div>
   );
 }
+
+export default withStandaloneModal(FormBody, (p) => (p.edit ? `/penalty/${p.penalty.id}/` : `/cl/${p.cl.id}/`));

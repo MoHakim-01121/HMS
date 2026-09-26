@@ -6,7 +6,6 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import Client, Invoice, Reservation
-from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 
 

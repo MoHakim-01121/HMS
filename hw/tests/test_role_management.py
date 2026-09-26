@@ -243,7 +243,7 @@ class UserAssignmentTests(TestCase):
         target = make_user("aud2", Role.STAFF.value)
 
         self.client.post(reverse('user_edit', args=[target.pk]), {
-            'action': 'set_access', 'role': 'auditor', 'company_access': 'all',
+            'action': 'set_access', 'role': 'auditor',
         })
         target.refresh_from_db()
         self.assertEqual(target.profile.role, 'auditor')
@@ -252,7 +252,7 @@ class UserAssignmentTests(TestCase):
     def test_an_unknown_role_falls_back_instead_of_being_stored(self):
         target = make_user("u3", Role.VIEWER.value)
         self.client.post(reverse('user_edit', args=[target.pk]), {
-            'action': 'set_access', 'role': 'wizard', 'company_access': 'all',
+            'action': 'set_access', 'role': 'wizard',
         })
         target.refresh_from_db()
         self.assertNotEqual(target.profile.role, 'wizard')

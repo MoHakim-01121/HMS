@@ -12,7 +12,7 @@ RemittanceLine):
   4. Baris Piutang / Titipan selalu punya dimensi client.
   5. Total charge hidup per invoice == Invoice.total_sar (charge tak basi).
   6. Σ PaymentRecord (confirmed/allocated) per invoice == paid_sar jurnal.
-  7. Σ RemittanceLine per remittance == total terkirim di jurnal.
+  7. RemittanceLine vs jurnal kirim + jurnal alokasi penerimaan.
   8. Setiap entry reversal menunjuk entry yang benar dan ber-flag is_reversal.
 
 Exit 1 kalau ada temuan. Tidak pernah menulis apa pun.
@@ -20,6 +20,7 @@ Exit 1 kalau ada temuan. Tidak pernah menulis apa pun.
 from collections import defaultdict
 
 from django.core.management.base import BaseCommand
+from django.db.models import Sum
 
 from hw.finance import accounts as coa
 from hw.finance import hashing
@@ -147,18 +148,41 @@ class Command(BaseCommand):
         return out
 
     def _remittance_line_mismatch(self):
+        """Transfer lama (tanpa IDR/kurs): Σ baris == terkirim jurnal.
+        Transfer lump-sum: Σ baris <= terkirim (sisanya belum dialokasikan, sah),
+        dan Σ baris alokasi penerimaan == Σ kredit reklasifikasi Kas SBY hidup."""
+        from hw.finance.remittance_allocation import ALLOCATION_SOURCE
+        reversed_ids = JournalEntry.objects.filter(
+            reverses__isnull=False,
+        ).values_list('reverses_id', flat=True)
         out = []
         for rem in Remittance.objects.all():
             if not fq.remittance_has_live_entries(rem.id):
                 continue
-            line_total = sum(
-                int(l.amount_sar or 0)
-                for l in RemittanceLine.objects.filter(remittance=rem)
-            )
+            lines = RemittanceLine.objects.filter(remittance=rem)
+            line_total = sum(int(l.amount_sar or 0) for l in lines)
+            alloc_total = sum(int(l.amount_sar or 0) for l in lines if l.settlement_id)
             sent = int(fq.remittance_sent_sar(rem.id))
-            if line_total != sent:
+            if rem.amount_idr is None and line_total != sent:
                 out.append(
                     f'{rem.remittance_number}: Σ RemittanceLine {line_total:,} ≠ terkirim jurnal {sent:,}'
+                )
+            if rem.amount_idr is not None and line_total > sent:
+                out.append(
+                    f'{rem.remittance_number}: Σ RemittanceLine {line_total:,} > terkirim jurnal {sent:,}'
+                )
+            journal_alloc = int(
+                JournalLine.objects.filter(
+                    journal_entry__reference_type=ALLOCATION_SOURCE,
+                    journal_entry__is_reversal=False,
+                    remittance_id=rem.id, account_id=coa.CASH_SBY,
+                    reservation_id__isnull=False,
+                ).exclude(journal_entry_id__in=reversed_ids)
+                .aggregate(c=Sum('credit'))['c'] or 0
+            )
+            if alloc_total != journal_alloc:
+                out.append(
+                    f'{rem.remittance_number}: Σ alokasi penerimaan {alloc_total:,} ≠ jurnal alokasi {journal_alloc:,}'
                 )
         return out
 

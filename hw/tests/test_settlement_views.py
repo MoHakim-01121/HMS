@@ -1,11 +1,10 @@
-"""FASE E UI — settlement_views wiring (list/obligation/settlement/allocate + RBAC)."""
-import json
+"""FASE E UI — settlement_views wiring (list/settlement + RBAC)."""
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Branch, HQObligation, Remittance
+from hw.models import Branch, Remittance
 from hw.models.period import FinancialPeriod
 
 
@@ -29,98 +28,137 @@ class SettlementViewsBase(TestCase):
         )
 
 
-class SettlementListViewTest(SettlementViewsBase):
-    def test_manager_can_view_list(self):
+class RecordReceiptViewTest(SettlementViewsBase):
+    def _url(self):
+        return f'/remittance/{self.rmt.pk}/receipt/'
+
+    def test_settlement_list_page_is_gone(self):
         self.client.force_login(self.manager)
         resp = self.client.get('/remittance/settlement/')
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 404)
 
-    def test_anonymous_redirected(self):
-        resp = self.client.get('/remittance/settlement/')
-        self.assertEqual(resp.status_code, 302)
-
-
-class ObligationNewViewTest(SettlementViewsBase):
-    def test_manager_can_create_obligation(self):
+    def test_manager_can_record_receipt(self):
         self.client.force_login(self.manager)
-        resp = self.client.post('/remittance/settlement/obligations/new/', {
-            'branch': 'sby', 'amount_sar': '15000',
+        resp = self.client.post(self._url(), {
+            'received_amount_sar': '10000', 'received_date': '2026-06-05',
         })
-        self.assertEqual(resp.status_code, 302)
-        self.assertTrue(HQObligation.objects.filter(branch_id='sby', amount_sar=15000).exists())
-
-    def test_staff_cannot_create_obligation_remittance_readonly(self):
-        self.client.force_login(self.staff)
-        resp = self.client.post('/remittance/settlement/obligations/new/', {
-            'branch': 'sby', 'amount_sar': '5000',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertFalse(HQObligation.objects.filter(amount_sar=5000).exists())
-
-
-class SettlementNewAndAllocateViewTest(SettlementViewsBase):
-    def setUp(self):
-        super().setUp()
-        self.ob = HQObligation.objects.create(branch=self.sby, amount_sar=10000)
-
-    def test_manager_can_add_settlement_and_allocate(self):
-        self.client.force_login(self.manager)
-        resp = self.client.post('/remittance/settlement/new/', {
-            'remittance': str(self.rmt.pk), 'received_amount_sar': '10000',
-            'received_date': '2026-06-05',
-        })
-        self.assertEqual(resp.status_code, 302)
+        self.assertRedirects(resp, f'/remittance/{self.rmt.pk}/', fetch_redirect_response=False)
         settlement = self.rmt.settlements.get()
         self.assertEqual(settlement.received_amount_sar, 10000)
 
-        resp = self.client.post(f'/remittance/settlement/{settlement.pk}/allocate/', {
-            'allocations': json.dumps([{'obligation_id': self.ob.pk, 'amount_sar': 10000}]),
+    def test_json_next_is_honoured(self):
+        # Inertia router.post mengirim JSON -- `next` harus dibaca dari body,
+        # bukan request.POST (yang kosong untuk JSON).
+        self.client.force_login(self.manager)
+        resp = self.client.post(
+            self._url(),
+            data='{"received_amount_sar": "10000", "received_date": "2026-06-05", "next": "/remittance/"}',
+            content_type='application/json',
+        )
+        self.assertRedirects(resp, '/remittance/', fetch_redirect_response=False)
+
+    def test_staff_cannot_record_receipt_remittance_readonly(self):
+        self.client.force_login(self.staff)
+        resp = self.client.post(self._url(), {
+            'received_amount_sar': '10000', 'received_date': '2026-06-05',
         })
         self.assertEqual(resp.status_code, 302)
-        self.ob.refresh_from_db()
-        self.assertEqual(self.ob.status, HQObligation.STATUS_SETTLED)
+        self.assertFalse(self.rmt.settlements.exists())
+
+    def test_record_receipt_rejected_when_legacy_received_amount_set(self):
+        self.rmt.received_amount_sar = 10000
+        self.rmt.save(update_fields=['received_amount_sar'])
+        self.client.force_login(self.manager)
+        resp = self.client.post(self._url(), {
+            'received_amount_sar': '10000', 'received_date': '2026-06-05',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.rmt.settlements.exists())
+
+
+class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
+    """remittance_detail harus mengekspos status settlement bertahap --
+    lihat frontend/pages/Remittance/Detail.jsx (kartu 'Received at HQ' salah
+    kalau hanya baca received_amount_sar legacy untuk remittance yang
+    memakai jalur RemittanceSettlement)."""
+
+    def setUp(self):
+        super().setUp()
+        self.rmt.amount_idr = 240_000_000
+        self.rmt.exchange_rate = 4800  # expected_sar = 50000
+        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+
+    def test_props_reflect_partial_settlement(self):
+        from hw.finance import settlement_service as svc
+        svc.add_settlement(self.rmt, received_amount_sar=40000, received_date=date(2026, 6, 5),
+                            created_by=self.manager)
+
+        self.client.force_login(self.manager)
+        resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
+        rem_props = resp.json()['props']['rem']
+        self.assertEqual(rem_props['settlement_status'], 'partially_settled')
+        self.assertEqual(rem_props['settled_total_sar'], 40000)
+        self.assertEqual(len(rem_props['settlements']), 1)
+        self.assertIsNone(rem_props['received_amount_sar'])
+
+    def test_props_empty_settlements_for_legacy_remittance(self):
+        self.rmt.received_amount_sar = 50000
+        self.rmt.save(update_fields=['received_amount_sar'])
+
+        self.client.force_login(self.manager)
+        resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
+        rem_props = resp.json()['props']['rem']
+        self.assertEqual(rem_props['settlements'], [])
+        self.assertEqual(rem_props['received_amount_sar'], 50000)
 
 
 class RemittanceCloseDiffViewTest(SettlementViewsBase):
     def setUp(self):
         super().setUp()
-        self.rmt.amount_idr = 48_000_000
-        self.rmt.exchange_rate = 4800  # expected_sar = 10000
-        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
         from hw.finance import posting
         posting.post_remittance_send(self.rmt, from_location='sby', amount_sar=10000, created_by=self.manager)
-
-    def test_list_props_expose_pending_diff(self):
         self.client.force_login(self.manager)
-        self.client.post('/remittance/settlement/new/', {
-            'remittance': str(self.rmt.pk), 'received_amount_sar': '9500',
-            'received_date': '2026-06-10',
+        self.client.post(f'/remittance/{self.rmt.pk}/receipt/', {
+            'received_amount_sar': '9500', 'received_date': '2026-06-10',
         })
-        resp = self.client.get('/remittance/settlement/', HTTP_X_INERTIA='true')
-        pending = resp.json()['props']['pending_diff']
-        self.assertEqual(len(pending), 1)
-        self.assertEqual(pending[0]['diff_sar'], 500)
+
+    def _props(self):
+        self.client.force_login(self.manager)
+        resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
+        return resp.json()['props']['rem']
+
+    def test_detail_props_expose_open_diff(self):
+        rem = self._props()
+        self.assertEqual(rem['diff_sar'], 500)
+        self.assertTrue(rem['can_close_diff'])
+        self.assertTrue(rem['can_record_receipt'])
+        self.assertEqual(rem['status'], 'pending')
 
     def test_manager_can_close_diff(self):
-        self.client.force_login(self.manager)
-        self.client.post('/remittance/settlement/new/', {
-            'remittance': str(self.rmt.pk), 'received_amount_sar': '9500',
-            'received_date': '2026-06-10',
-        })
-        resp = self.client.post(f'/remittance/settlement/remittances/{self.rmt.pk}/close-diff/')
-        self.assertEqual(resp.status_code, 302)
-        resp = self.client.get('/remittance/settlement/', HTTP_X_INERTIA='true')
-        self.assertEqual(resp.json()['props']['pending_diff'], [])
+        resp = self.client.post(f'/remittance/{self.rmt.pk}/close-diff/')
+        self.assertRedirects(resp, f'/remittance/{self.rmt.pk}/', fetch_redirect_response=False)
+        rem = self._props()
+        self.assertTrue(rem['diff_closed'])
+        self.assertFalse(rem['can_close_diff'])
+        self.assertFalse(rem['can_record_receipt'])
+        self.assertEqual(rem['status'], 'received')
 
     def test_staff_cannot_close_diff(self):
-        self.client.force_login(self.manager)
-        self.client.post('/remittance/settlement/new/', {
-            'remittance': str(self.rmt.pk), 'received_amount_sar': '9500',
-            'received_date': '2026-06-10',
-        })
         self.client.force_login(self.staff)
-        resp = self.client.post(f'/remittance/settlement/remittances/{self.rmt.pk}/close-diff/')
+        resp = self.client.post(f'/remittance/{self.rmt.pk}/close-diff/')
         self.assertEqual(resp.status_code, 302)
-        self.client.force_login(self.manager)
-        resp = self.client.get('/remittance/settlement/', HTTP_X_INERTIA='true')
-        self.assertEqual(len(resp.json()['props']['pending_diff']), 1)
+        self.assertTrue(self._props()['can_close_diff'])
+
+    def test_list_props_expose_partial_receipt(self):
+        resp = self.client.get('/remittance/', HTTP_X_INERTIA='true')
+        row = next(r for r in resp.json()['props']['remittances'] if r['id'] == self.rmt.pk)
+        self.assertEqual(row['settled_sar'], 9500)
+        self.assertEqual(row['status'], 'pending')
+        self.assertTrue(row['can_record_receipt'])
+
+    def test_edit_cannot_override_status_once_receipts_exist(self):
+        self.client.post(f'/remittance/{self.rmt.pk}/edit/', {
+            'date': '2026-06-01', 'status': 'received', 'receipt_reference': '', 'note': '',
+        })
+        self.rmt.refresh_from_db()
+        self.assertEqual(self.rmt.status, 'pending')

@@ -43,17 +43,17 @@ const NAV_GROUPS = [
   {
     heading: "Finance",
     items: [
-      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "payments" },
+      { key: "finance_hub", label: "Dashboard", href: "/finance/", icon: "dashboard", perm: "payments" },
+      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "payments", subheading: "Cash Flow" },
       { key: "expenses", label: "Expenses", href: "/finance/expenses/", icon: "tag", perm: "expenses" },
-      { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "wallet", perm: "remittance" },
-      { key: "settlement", label: "HQ Settlement", href: "/remittance/settlement/", icon: "wallet", perm: "remittance" },
-      { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "clients", perm: "statements" },
-      { key: "bank_accounts", label: "Bank Balances", href: "/finance/bank-accounts/", icon: "wallet", perm: "statements" },
+      { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "arrow-up-right", perm: "remittance" },
+      { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "wallet", perm: "statements", subheading: "Accounts" },
+      { key: "bank_accounts", label: "Bank Balances", href: "/finance/bank-accounts/", icon: "building", perm: "statements" },
       { key: "reconciliation", label: "Reconciliation", href: "/finance/reconciliation/", icon: "swap", perm: "statements" },
-      { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "tag", perm: "penalty" },
-      { key: "journal", label: "Journal", href: "/finance/journal/", icon: "invoice", perm: "journal" },
+      { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "alert-circle", perm: "penalty", subheading: "Reports" },
+      { key: "journal", label: "Journal", href: "/finance/journal/", icon: "file-text", perm: "journal" },
       { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", icon: "sort", perm: "journal" },
-      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "calendar", perm: "periods" },
+      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "clock", perm: "periods" },
     ],
   },
   {
@@ -73,6 +73,7 @@ const NAV_GROUPS = [
 
 const PAGE_TITLES = {
   home: "Home",
+  finance_hub: "Finance Dashboard",
   cl: "CL",
   invoice: "Invoice",
   hotels: "Hotels",
@@ -80,7 +81,6 @@ const PAGE_TITLES = {
   calendar: "Calendar",
   clients: "Clients",
   remittance: "Remittance",
-  settlement: "HQ Settlement",
   payments: "Payments",
   expenses: "Expenses",
   periods: "Periods",
@@ -92,6 +92,7 @@ const PAGE_TITLES = {
   trial_balance: "Trial Balance",
   users: "Users",
   roles: "Role",
+  account: "Account Settings",
 };
 
 // Bottom nav: 5 core tabs — Home center, most-used operations flanking, More on right
@@ -114,6 +115,7 @@ function pageKeyFromUrl(url) {
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
     ["/finance/statements", "statements"], ["/finance/bank-accounts", "bank_accounts"],
     ["/finance/reconciliation", "reconciliation"], ["/finance/penalties", "penalties"],
+    ["/finance/", "finance_hub"],
     ["/penalty", "penalties"],
   ];
   for (const [pre, key] of map) if (url.startsWith(pre)) return key;
@@ -182,16 +184,20 @@ function MobileMore({ page, perms, onClose }) {
             <div className="m-more-heading">{t(g.heading)}</div>
             <div className="m-more-card">
               {g.items.map((item) => (
-                <a
-                  key={item.key}
-                  href={item.href}
-                  className={"m-more-item" + (page === item.key ? " active" : "")}
-                  onClick={onClose}
-                >
-                  <Icon name={item.icon} size={18} strokeWidth={page === item.key ? 2 : 1.6} />
-                  <span className="m-more-label">{t(item.label)}</span>
-                  <Icon name="chevron" size={15} strokeWidth={1.8} className="m-more-chev" />
-                </a>
+                <div key={item.key}>
+                  {item.subheading && (
+                    <div className="m-more-subheading">{t(item.subheading)}</div>
+                  )}
+                  <a
+                    href={item.href}
+                    className={"m-more-item" + (page === item.key ? " active" : "")}
+                    onClick={onClose}
+                  >
+                    <Icon name={item.icon} size={18} strokeWidth={page === item.key ? 2 : 1.6} />
+                    <span className="m-more-label">{t(item.label)}</span>
+                    <Icon name="chevron" size={15} strokeWidth={1.8} className="m-more-chev" />
+                  </a>
+                </div>
               ))}
             </div>
           </div>
@@ -338,12 +344,17 @@ export default function AppLayout({ children }) {
                     {items.map((item) => {
                       const active = page === item.key;
                       return (
-                        <a key={item.key} href={item.href}
-                          className={"hms-sidebar-link" + (active ? " active" : "")}
-                          title={t(item.label)}>
-                          <Icon name={item.icon} size={17} strokeWidth={active ? 2 : 1.6} />
-                          <span>{t(item.label)}</span>
-                        </a>
+                        <div key={item.key}>
+                          {item.subheading && (
+                            <div className="hms-sidebar-subheading">{t(item.subheading)}</div>
+                          )}
+                          <a href={item.href}
+                            className={"hms-sidebar-link" + (active ? " active" : "")}
+                            title={t(item.label)}>
+                            <Icon name={item.icon} size={17} strokeWidth={active ? 2 : 1.6} />
+                            <span>{t(item.label)}</span>
+                          </a>
+                        </div>
                       );
                     })}
                   </div>

@@ -5,7 +5,6 @@ Convention: amount/amount_sar are IntegerField (minor units). See invoice.py doc
 from django.db import models
 from django.urls import reverse
 
-from ..utils import convert_to_sar
 
 
 class PaymentRecord(models.Model):
@@ -46,7 +45,7 @@ class PaymentRecord(models.Model):
 
     # Identitas
     payment_number = models.CharField(max_length=50, unique=True, db_index=True)
-    invoice        = models.ForeignKey('Invoice', on_delete=models.PROTECT, related_name='payment_records')
+    invoice        = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='payment_records')
     client         = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='payment_records')
 
     # Target alokasi (opsional: salah satu atau none)

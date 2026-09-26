@@ -48,12 +48,12 @@ export default function Journal({
     {
       header: t("Debit"),
       className: "text-right",
-      render: (e) => <span className="font-mono tabular-nums">{e.debit.toLocaleString()}</span>,
+      render: (e) => <span className="font-mono tabular-nums">{e.debit.toLocaleString("en-US")}</span>,
     },
     {
       header: t("Credit"),
       className: "text-right",
-      render: (e) => <span className="font-mono tabular-nums">{e.credit.toLocaleString()}</span>,
+      render: (e) => <span className="font-mono tabular-nums">{e.credit.toLocaleString("en-US")}</span>,
     },
   ];
 

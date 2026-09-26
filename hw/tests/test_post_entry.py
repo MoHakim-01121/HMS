@@ -9,7 +9,6 @@ from hw.finance.hashing import verify_chain
 from hw.finance.posting import MissingDimensionError, post_entry, reverse_entry
 from hw.finance_helpers import JournalImbalanceError, PeriodLockedError
 from hw.models import Client
-from hw.models.choices import Company
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 

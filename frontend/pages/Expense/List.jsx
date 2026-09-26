@@ -23,6 +23,7 @@ import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDMY } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
 
 const CSS = `
@@ -138,7 +139,7 @@ export default function List({
     {
       header: t("Date"),
       className: "col-m-meta col-nowrap",
-      render: (e) => e.expense_date || "—",
+      render: (e) => fmtDMY(e.expense_date) || "—",
     },
     {
       header: t("Total"),
@@ -146,10 +147,10 @@ export default function List({
       style: { textAlign: "right" },
       render: (e) => (
         <>
-          <span className="col-nowrap">{e.total_amount_sar?.toLocaleString()} SAR</span>
+          <span className="col-nowrap">{e.total_amount_sar?.toLocaleString("en-US")} SAR</span>
           {e.outstanding_sar > 0 && (
             <span style={{ display: "block", marginTop: 2, fontSize: 11, fontWeight: 600, color: "var(--yellow)", whiteSpace: "nowrap" }}>
-              {e.outstanding_sar?.toLocaleString()} {t("outstanding")}
+              {e.outstanding_sar?.toLocaleString("en-US")} {t("outstanding")}
             </span>
           )}
         </>
@@ -181,7 +182,7 @@ export default function List({
               </Button>
             )}
             {canCreate && (
-              <Button size="lg" onClick={() => setNewOpen(true)}>{t("New Expense")}</Button>
+              <Button size="lg" onClick={() => setNewOpen(true)}>+ {t("New Expense")}</Button>
             )}
           </>
         }
@@ -189,8 +190,8 @@ export default function List({
 
       <div className="hms-kpi-row">
         <KpiCard label={t("Total Expenses")} value={stats.total || 0} icon="invoice" />
-        <KpiCard label={t("Total Amount")} value={(stats.total_sar || 0).toLocaleString()} icon="wallet" />
-        <KpiCard label={t("Outstanding")} value={(stats.outstanding_sar || 0).toLocaleString()} icon="alert" tone={(stats.outstanding_sar || 0) > 0 ? "yellow" : undefined} />
+        <KpiCard label={t("Total Amount")} value={(stats.total_sar || 0).toLocaleString("en-US")} icon="wallet" />
+        <KpiCard label={t("Outstanding")} value={(stats.outstanding_sar || 0).toLocaleString("en-US")} icon="alert" tone={(stats.outstanding_sar || 0) > 0 ? "yellow" : undefined} />
         <KpiCard label={t("Unpaid")} value={stats.unpaid_count || 0} icon="clock" />
       </div>
 
@@ -305,7 +306,7 @@ export default function List({
                     <button type="button" className="exp-add-row" onClick={addLine}>{t("+ Add line")}</button>
                   </div>
                   <div style={{ textAlign: "right", marginTop: 8, fontSize: 13, fontWeight: 600 }}>
-                    {t("Total")}: {total.toLocaleString()} {form.currency}
+                    {t("Total")}: {total.toLocaleString("en-US")} {form.currency}
                   </div>
                 </FormSection>
 

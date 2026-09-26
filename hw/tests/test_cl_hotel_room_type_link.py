@@ -2,7 +2,7 @@ import json
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import ConfirmationLetter, Hotel, Room, RoomType
+from hw.models import ConfirmationLetter, Hotel, RoomType
 
 
 class CLHotelRoomTypeLinkTest(TestCase):

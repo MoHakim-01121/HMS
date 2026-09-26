@@ -3,7 +3,7 @@ import { usePage } from "@inertiajs/react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt as fmtNum, fmtDate } from "../../utils/format.js";
+import { fmt as fmtNum, fmtDateShort } from "../../utils/format.js";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { Icon } from "../../components/icons.jsx";
@@ -402,7 +402,7 @@ function CashTile({ label, value, meta, plain }) {
 function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, financeSummary, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
   const { t } = useI18n();
   const [period, setPeriod] = useState("6M");
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-GB", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const remittance = kpis?.remittance_pending != null;
   const monthly = clTrend || [];
   const daily = clDaily || [];
@@ -549,7 +549,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
                         <tr key={cl.id}>
                           <td data-label={t("No.")}><a className="strong" href={`/cl/${cl.id}/`}>{cl.confirmation_number}</a></td>
                           <td className="strong" data-label={t("Guest")}>{cl.guest_name}<span className="sub">{cl.hotel_name}</span></td>
-                          <td data-label={t("Check-in")}>{fmtDate(cl.check_in)}</td>
+                          <td data-label={t("Check-in")}>{fmtDateShort(cl.check_in)}</td>
                           <td data-label={t("Status")}><StatusPill small label={t(pill.label)} tone={pill.tone} /></td>
                         </tr>
                       );

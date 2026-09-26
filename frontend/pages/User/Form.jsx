@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
@@ -8,7 +9,7 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-export default function Form({ form_data, errors: serverErrors, role_choices = [], company_choices = [] }) {
+function FormBody({ form_data, errors: serverErrors, role_choices = [] }) {
   const { t } = useI18n();
   // The hint under the picker is the role's own description, edited at /roles/,
   // so a custom role explains itself here without a second copy in the client.
@@ -18,7 +19,6 @@ export default function Form({ form_data, errors: serverErrors, role_choices = [
     username: fd.username || "", full_name: fd.full_name || "",
     password: "", password_confirm: "",
     role: fd.role || "staff",
-    company_access: fd.company_access || "all",
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
@@ -54,24 +54,6 @@ export default function Form({ form_data, errors: serverErrors, role_choices = [
                 </SelectContent>
               </Select>
             </FormField>
-
-            <div style={{ marginTop: 12 }}>
-              <FormField
-                label={t("Company access")}
-                name="company_access"
-                hint={t("Which workspace this account may switch to.")}
-                error={errors.company_access}
-              >
-                <Select name="company_access" value={form.data.company_access} onValueChange={set("company_access")}>
-                  <SelectTrigger id="company_access" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {company_choices.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </FormField>
-            </div>
           </FormSection>
 
           <FormActions cancelHref="/users/" submitLabel={t("Create User")} processing={form.processing} />
@@ -80,3 +62,5 @@ export default function Form({ form_data, errors: serverErrors, role_choices = [
     </div>
   );
 }
+
+export default withStandaloneModal(FormBody, "/users/");

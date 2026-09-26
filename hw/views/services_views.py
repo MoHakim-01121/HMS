@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, ServiceItem, log_activity
+from ..models import ActivityLog, Client, Invoice, ServiceItem, log_activity
 from ..permissions import require_perm
 from ..finance import queries as fq
 from .context import _build_visa_payments_context, _build_visa_services_context
@@ -26,7 +26,7 @@ from .helpers import (
     snapshot_fields,
     track_changes,
 )
-from .invoice_billing import _billing_client, _billing_props, _save_service_payments
+from .invoice_billing import _billing_props, _save_service_payments
 from .pdf import _render_services_pdf
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def _get_service_invoice(request, pk):
 
 @require_perm('services', 'view')
 def services_list(request):
-    qs = Invoice.objects.filter(invoice_type="visa")
+    qs = Invoice.objects.filter(invoice_type="visa").prefetch_related("service_items")
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
@@ -62,6 +62,8 @@ def services_list(request):
         "invoice_number": inv.invoice_number,
         "customer_name": inv.customer_name,
         "currency": inv.currency,
+        # Same figure as the detail page: sum of the items, in the invoice currency.
+        "total": sum(s.total for s in inv.service_items.all()),
         "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
         "created_at": inv.created_at.strftime("%d/%m/%Y"),
     } for inv in page_obj]

@@ -146,7 +146,7 @@ export default function List({ hotels, total_count, q, city_filter, stars_filter
             </Button>
             {perms.can("hotels", "create") && (
               <Button type="button" size="lg" onClick={() => openForm("/hotels/new/")} onPointerEnter={() => openForm.prefetch("/hotels/new/")} onFocus={() => openForm.prefetch("/hotels/new/")}>
-                + {t("New hotel")}
+                + {t("New Hotel")}
               </Button>
             )}
           </>

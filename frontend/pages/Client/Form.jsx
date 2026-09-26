@@ -1,4 +1,5 @@
 import { useForm } from "@inertiajs/react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-export default function Form({ client, edit, errors: serverErrors }) {
+function FormBody({ client, edit, errors: serverErrors }) {
   const { t } = useI18n();
   const c = client || {};
   const form = useForm({
@@ -110,3 +111,5 @@ export default function Form({ client, edit, errors: serverErrors }) {
     </div>
   );
 }
+
+export default withStandaloneModal(FormBody, (p) => (p.edit ? `/clients/${p.client.id}/` : "/clients/"));

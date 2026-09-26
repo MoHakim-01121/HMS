@@ -10,7 +10,6 @@ cash-movement sensitivity class already used for Settlement, and the one
 """
 import json
 
-from datetime import date
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect

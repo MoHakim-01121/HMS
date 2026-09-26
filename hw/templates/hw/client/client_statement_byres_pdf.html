@@ -43,25 +43,55 @@
     .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
     .meta-row .mv { color: #111; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 11.5px;
+    }
+    col.c-no      { width: 4%; }
+    col.c-rsv     { width: 15%; }
+    col.c-hotel   { width: 27%; }
+    col.c-date    { width: 12%; }
+    col.c-amt     { width: 14%; }
+
     thead th {
       text-align: left;
-      font-size: 11px;
-      font-weight: 400;
-      color: #333;
-      padding: 0 0 10px;
-      border-bottom: 1px solid #111;
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: #555;
+      padding: 0 10px 6px 0;
+      background: #f4f4f5;
+      border-bottom: 1.5px solid #111;
       white-space: nowrap;
+      vertical-align: bottom;
     }
     thead th.r { text-align: right; }
-    tbody td { padding: 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
+    thead th.c { text-align: center; }
+    thead th:last-child { padding-right: 0; }
+
+    tbody td {
+      padding: 7px 10px 7px 0;
+      vertical-align: middle;
+      color: #111;
+      border-bottom: 1px solid #ededed;
+    }
     tbody td.r { text-align: right; }
+    tbody td.c { text-align: center; }
+    tbody td + td { padding-left: 10px; }
+    tbody tr:nth-child(even) td { background: #fafafa; }
+
     .mono { font-family: 'Courier New', monospace; font-size: 11px; }
     .nowrap { white-space: nowrap; }
     .muted { color: #bbb; }
     .sub { font-size: 10px; color: #888; }
+    .idx { color: #9ca3af; font-size: 10.5px; }
 
     .amt { color: #111; }
+    .amt-debit  { color: #b45309; font-weight: 700; }
+    .amt-credit { color: #15803d; font-weight: 700; }
     .bal-pos { font-weight: 700; }
     .bal-zero { color: #15803d; font-weight: 700; }
     .bal-neg { color: #dc2626; font-weight: 700; }
@@ -71,9 +101,24 @@
       font-weight: 700;
       font-size: 10.5px;
       color: #444;
+      background: #fff;
+      padding-top: 9px;
+      padding-bottom: 9px;
     }
+    tr.line-row td.lbl { text-align: right; }
+    tr.line-row td.val { color: #111; font-size: 11.5px; }
+    tr.total-row td {
+      border-top: 1.5px solid #111;
+      border-bottom: 2px solid #111;
+      background: #fff;
+      font-weight: 700;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+    tr.total-row td.lbl { text-align: right; }
     tr.settled td { color: #777; }
     tr.settled td .sub { color: #999; }
+
 
     .summary {
       margin-top: 16px;
@@ -187,29 +232,30 @@
 <table>
   <thead>
     <tr>
-      <th>Reservation</th>
-      <th class="nowrap">Check-in</th>
-      <th class="r">Invoiced (SAR)</th>
-      <th class="r">Received (SAR)</th>
+      <th class="r">No</th>
+      <th>RSV</th>
+      <th>Hotel</th>
+      <th class="nowrap">Check in</th>
+      <th class="r">Debit (SAR)</th>
+      <th class="r">Credit (SAR)</th>
       <th class="r">Balance (SAR)</th>
     </tr>
   </thead>
   <tbody>
     {% if opening_balance %}
     <tr class="line-row">
-      <td colspan="4">Balance brought forward</td>
+      <td colspan="6">Balance brought forward</td>
       <td class="r mono">{{ opening_balance|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
     {% for row in reservations %}
     <tr class="{% if row.settled %}settled{% endif %}">
-      <td>
-        <span class="mono">{{ row.reservation_number|default:"—" }}</span>
-        {% if row.hotel %}<div class="sub">{{ row.hotel }}</div>{% endif %}
-      </td>
+      <td class="r muted">{{ row.no }}</td>
+      <td class="mono nowrap">{{ row.reservation_number|default:"—" }}</td>
+      <td>{% if row.hotel %}{{ row.hotel }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="nowrap">{{ row.check_in }}</td>
-      <td class="r mono amt">{% if row.billed %}{{ row.billed|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
-      <td class="r mono amt">{% if row.paid %}{{ row.paid|floatformat:0|intcomma }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.debit %}<span class="amt-debit">{{ row.debit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.credit %}<span class="amt-credit">{{ row.credit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="r mono">
         {% if row.balance > 0 %}
           <span class="bal-pos">{{ row.balance|floatformat:0|intcomma }}</span>
@@ -221,11 +267,19 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="5" style="text-align:center;color:#999;padding:24px;">No reservations in this period</td></tr>
+    <tr><td colspan="7" style="text-align:center;color:#999;padding:24px;">No reservations in this period</td></tr>
     {% endfor %}
+    {% if reservations %}
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">Total</td>
+      <td class="r mono">{{ subtotal_debit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ subtotal_credit|floatformat:0|intcomma }}</td>
+      <td class="r mono">{{ subtotal_balance|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
     {% if unallocated %}
     <tr class="line-row">
-      <td colspan="4">Unapplied payments on account</td>
+      <td colspan="6">Unapplied payments on account</td>
       <td class="r mono">{{ unallocated|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
@@ -264,11 +318,13 @@
 {% endif %}
 
 <div class="note">
-  <b>Notes:</b> each line is one reservation. A positive balance is an amount still receivable on
-  that reservation; a negative balance is an overpayment held on account against it. Settled
-  reservations remain listed (shown in grey). "Unapplied payments on account" are amounts received
-  but not yet applied to a specific reservation. This statement is rendered as at the statement date
-  shown above; entries posted subsequently are not reflected in these figures.
+  <b>Notes:</b> each line is one reservation. <b>Debit</b> is everything invoiced to that reservation
+  and <b>Credit</b> is everything received against it, so <b>Balance</b> = Debit − Credit. A positive
+  balance is an amount still receivable on that reservation; a negative balance is an overpayment held
+  on account against it. Settled reservations remain listed (shown in grey). "Unapplied payments on
+  account" are amounts received but not yet applied to a specific reservation. This statement is
+  rendered as at the statement date shown above; entries posted subsequently are not reflected in
+  these figures.
 </div>
 
 <div class="contact">

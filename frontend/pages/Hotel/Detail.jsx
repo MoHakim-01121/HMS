@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
-import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
-import { Icon } from "../../components/icons.jsx";
+import { RvBack } from "../../components/shadcn/record-view.jsx";
+import RowActions from "../../components/shadcn/row-actions.jsx";
+import KebabMenu from "../../components/shadcn/kebab-menu.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDist } from "../../utils/format.js";
+import { Icon } from "../../components/icons.jsx";
 
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
@@ -14,10 +19,9 @@ function haversine(lat1, lng1, lat2, lng2) {
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-const fmtDist = (m) => (m < 1000 ? Math.round(m) + " m" : (m / 1000).toFixed(2) + " km");
 
-// Leaflet mini-map ported from hotel_detail.html.
-function HotelMiniMap({ hotel }) {
+// Leaflet map ported from hotel_detail.html. Height is set through the wrapper.
+function HotelMiniMap({ hotel, height = 320 }) {
   const { t } = useI18n();
   const ref = useRef(null);
   useEffect(() => {
@@ -45,7 +49,7 @@ function HotelMiniMap({ hotel }) {
       if (hotel.city !== "madinah") {
         L.marker([21.4225, 39.8262], { icon: dot(MAP.red, 10) }).bindTooltip(t("Masjid Al-Haram")).addTo(map);
       }
-      L.marker(hotelLL, { icon: dot(color, 12) }).bindTooltip(hotel.name, { permanent: true, direction: "top", offset: [0, -8] }).addTo(map);
+      L.marker(hotelLL, { icon: dot(color, 12) }).bindTooltip(hotel.name, { direction: "top", offset: [0, -8] }).addTo(map);
 
       const coords = hotel.route && hotel.route.length >= 2 ? hotel.route : [refLL, hotelLL];
       map.fitBounds(coords.map((c) => L.latLng(c[0], c[1])), { padding: [40, 40] });
@@ -60,7 +64,7 @@ function HotelMiniMap({ hotel }) {
     };
   }, [hotel]);
 
-  return <div ref={ref} id="mini-map" style={{ height: 380 }} />;
+  return <div ref={ref} style={{ height }} />;
 }
 
 function RoomCalculator({ avg }) {
@@ -68,23 +72,31 @@ function RoomCalculator({ avg }) {
   const [jamaah, setJamaah] = useState(35);
   const rooms = jamaah > 0 ? Math.ceil(jamaah / avg) : null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 260 }}>
-        <label htmlFor="pilgrims" className="hms-dv-mlabel">{t("Number of Pilgrims")}</label>
-        <Input
-          id="pilgrims"
-          type="number"
-          min="1"
-          value={jamaah}
-          onChange={(e) => setJamaah(parseInt(e.target.value) || 0)}
-        />
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 14, background: "var(--secondary)" }}>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>{t("Rooms needed")}</div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t("avg {avg} pax/room", { avg })}</div>
+    <div className="hms-hm-calc">
+      <div className="hms-hm-crow">
+        <span className="lbl">{t("Pilgrims")}</span>
+        <div className="hms-hm-stepper">
+          <button type="button" className="stp" aria-label={t("Decrease")} onClick={() => setJamaah((v) => Math.max(1, v - 1))}>−</button>
+          <Input
+            aria-label={t("Pilgrims")}
+            className="hms-hm-inp"
+            type="number"
+            min="1"
+            value={jamaah}
+            onChange={(e) => setJamaah(parseInt(e.target.value) || 0)}
+          />
+          <button type="button" className="stp" aria-label={t("Increase")} onClick={() => setJamaah((v) => v + 1)}>+</button>
         </div>
-        <div style={{ fontSize: 30, fontWeight: 600, letterSpacing: "-.02em", fontVariantNumeric: "tabular-nums" }}>{rooms}</div>
+      </div>
+      <div className="hms-hm-cresult">
+        <span className="lbl">{t("Rooms needed")}</span>
+        <span className="val">
+          {rooms ?? "—"}
+          <span className="u">{t("Rooms")}</span>
+        </span>
+      </div>
+      <div className="hms-hm-cavg">
+        {t("Avg {avg} pax/room", { avg })}
       </div>
     </div>
   );
@@ -100,78 +112,209 @@ export default function Detail({ hotel }) {
     hotel.distance < 500 ? "var(--green)" :
     hotel.distance < 1500 ? "var(--yellow)" : "var(--red)";
 
-  const sections = [];
-  sections.push({
-    title: t("Room Calculator"),
-    body: hotel.avg_occupancy
-      ? <RoomCalculator avg={hotel.avg_occupancy} />
-      : <div className="hms-dv-empty">{t("This hotel has no average set")}</div>,
+  const canEdit = perms.can("hotels", "edit");
+  const [confirm, confirmDialog] = useConfirm();
+  const delHotel = () => confirm({
+    title: t("Delete hotel"),
+    message: t("Delete hotel {name}?", { name: hotel.name }),
+    onConfirm: () => router.post(`/hotels/${hotel.id}/delete/`),
   });
-  sections.push({
-    title: t("Location"),
-    meta: hasCoords ? <a className="hms-dv-act" href="/hotels/map/">{t("Full map")}</a> : undefined,
-    body: hasCoords ? (
-      <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid var(--border)" }}>
-        <HotelMiniMap hotel={hotel} />
-      </div>
-    ) : (
-      <div className="hms-dv-empty">{t("Coordinates not set yet. Add coordinates on the edit page.")}</div>
-    ),
+
+  const roomTypes = [...(hotel.room_types || [])].sort(
+    (a, b) => (a.capacity || 0) - (b.capacity || 0) || String(a.name).localeCompare(String(b.name))
+  );
+  const mealPlans = hotel.meal_plans || [];
+  const locationText = `${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}`;
+
+  const removeRoomType = (rt) => confirm({
+    title: t("Remove room type"),
+    message: t("Remove {name} from this hotel?", { name: rt.name }),
+    detail: t("CLs that already use it keep their rooms unchanged."),
+    confirmLabel: "Remove",
+    danger: true,
+    onConfirm: () => router.post(`/hotels/${hotel.id}/room-types/${rt.id}/delete/`),
   });
-  if (hotel.note) {
-    sections.push({ title: t("Notes"), body: <div className="hms-rv-railtext">{hotel.note}</div> });
-  }
 
   return (
-    <div className="page shadcn-root hms-rv-page">
+    <div className="page shadcn-root hms-rv-page hms-hm-main">
       <RvBack href="/hotels/" label={t("Back")} />
+      <div className="hms-hm-cards">
+        <section className="hms-hm-card hms-hm-info">
+          <div className="hms-hm-top">
+            <h1>{hotel.name}</h1>
+            <div className="hms-hm-topacts">
+              <span className={`hms-dv-pill hms-rv-badge tone-${hotel.is_active ? "green" : "gray"}`}>
+                {hotel.is_active ? t("Active") : t("Inactive")}
+              </span>
+              {canEdit ? (
+                <button
+                  type="button" className="hms-rv-btn"
+                  onClick={() => openForm(`/hotels/${hotel.id}/edit/`)}
+                  onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/edit/`)}
+                >
+                  {t("Edit")}
+                </button>
+              ) : null}
+              <KebabMenu items={[perms.can("hotels", "delete") && { label: t("Delete"), onClick: delHotel, danger: true }]} />
+            </div>
+          </div>
 
-      <RvHero
-        badge={hotel.is_active ? { label: t("Active"), tone: "green" } : { label: t("Inactive"), tone: "gray" }}
-        title={hotel.name}
-        side={
-          hotel.distance_label ? (
-            <RvFigure label={t("Distance")} value={hotel.distance_label} color={distTone} />
-          ) : null
-        }
-        note={
-          !hasCoords
-            ? {
-                icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
-                iconBg: "var(--yellow)",
-                title: t("Location not set"),
-                text: t("Add coordinates on the edit page to show this hotel on the map."),
-              }
-            : undefined
-        }
-        actions={
-          perms.can("hotels", "edit") ? (
-            <button type="button" className="hms-rv-btn primary" onClick={() => openForm(`/hotels/${hotel.id}/edit/`)}>
-              {t("Edit")}
-            </button>
-          ) : null
-        }
-      />
+          <div className="hms-hm-sub">{locationText}</div>
 
-      <div className="hms-rv-grid">
-        <div className="hms-rv-col">
-          <RvCard>
-            {sections.map((s, i) => (
-              <RvSection key={s.title} title={s.title} meta={s.meta} first={i === 0}>
-                {s.body}
-              </RvSection>
-            ))}
-          </RvCard>
+          <div className="hms-hm-meta">
+            <div>
+              <div className="k">{t("Stars")}</div>
+              <div className="v">{hotel.stars ? `${hotel.stars}★` : "—"}</div>
+            </div>
+            <div>
+              <div className="k">{t("Distance to Masjid Al-Haram")}</div>
+              <div className="v" style={{ color: distTone }}>{hasCoords && hotel.distance_label ? hotel.distance_label : "—"}</div>
+            </div>
+            <div>
+              <div className="k">{t("Average occupancy")}</div>
+              <div className="v">{hotel.avg_occupancy ? `${hotel.avg_occupancy} pax/room` : "—"}</div>
+            </div>
+            <div>
+              <div className="k">{t("Reference")}</div>
+              <div className="v sub">{hasCoords ? hotel.ref_label : "—"}</div>
+            </div>
+          </div>
+
+          {hotel.note ? (
+            <div className="hms-hm-notebox">
+              <div className="hms-hm-sec-lbl">
+                <h2>{t("Notes")}</h2>
+              </div>
+              <div className="hms-hm-note-text">{hotel.note}</div>
+            </div>
+          ) : null}
+        </section>
+
+        <div className="hms-hm-pair">
+          <section className="hms-hm-card hms-hm-rt">
+            <div className="hms-hm-sec-lbl">
+              <h2>{t("Room types")}</h2>
+              {canEdit ? (
+                <span className="right">
+                  <button
+                    type="button" className="hms-dv-act"
+                    onClick={() => openForm(`/hotels/${hotel.id}/room-types/bulk/`)}
+                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/room-types/bulk/`)}
+                  >
+                    <Icon name="plus" size={13} />
+                    {t("Bulk Add Room Types")}
+                  </button>
+                  <button
+                    type="button" className="hms-dv-act"
+                    onClick={() => openForm(`/hotels/${hotel.id}/room-types/new/`)}
+                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/room-types/new/`)}
+                  >
+                    {t("+ Add Room Type")}
+                  </button>
+                </span>
+              ) : null}
+            </div>
+            {roomTypes.length ? (
+              <div className="hms-hm-table">
+              <table className="hms-hm-rtbl">
+                <thead>
+                  <tr>
+                    <th>{t("Room type")}</th>
+                    {/* "View" alone translates as the Lihat action; the noun
+                        key is "Room View". Order follows the form. */}
+                    <th>{t("Room View")}</th>
+                    <th>{t("Capacity")}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {roomTypes.map((rt) => (
+                    <tr key={rt.id}>
+                      <td className="nm">{rt.name}</td>
+                      <td className="mut">{rt.view ? t(rt.view) : "—"}</td>
+                      <td className="mut">{rt.capacity} {t("pax")}</td>
+                      {canEdit ? (
+                        <td className="ac-wrap">
+                          <span className="ac">
+                            <RowActions
+                              actions={[
+                                { icon: "edit", label: t("Edit"), onClick: () => openForm(`/hotels/${hotel.id}/room-types/${rt.id}/edit/`) },
+                                { icon: "trash", label: t("Remove"), variant: "red", onClick: () => removeRoomType(rt) },
+                              ]}
+                            />
+                          </span>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            ) : (
+              <div className="hms-hm-empty">{t("This hotel has no room types yet.")}</div>
+            )}
+          </section>
+
+          <section className="hms-hm-card hms-hm-meal">
+            <div className="hms-hm-sec-lbl">
+              <h2>{t("Meal plans")}</h2>
+              {canEdit ? (
+                <span className="right">
+                  <button
+                    type="button" className="hms-dv-act"
+                    onClick={() => openForm(`/hotels/${hotel.id}/meal-plans/`)}
+                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/meal-plans/`)}
+                  >
+                    {t("Manage")}
+                  </button>
+                </span>
+              ) : null}
+            </div>
+            {mealPlans.length ? (
+              <div className="hms-hm-rows">
+                {mealPlans.map((mp) => (
+                  <div key={mp.code} className="hms-hm-row">
+                    <span className="cd">{mp.code}</span>
+                    <span>{t(mp.name)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="hms-hm-empty">{t("No meal plans set — the CL form falls back to free-text Meals for this hotel.")}</div>
+            )}
+
+            {hotel.avg_occupancy ? (
+              <div className="hms-hm-calc-sec">
+                <div className="hms-hm-sec-lbl">
+                  <h2>{t("Room calculator")}</h2>
+                </div>
+                <RoomCalculator avg={hotel.avg_occupancy} />
+              </div>
+            ) : null}
+          </section>
         </div>
 
-        <RvRail
-          rows={[
-            { k: t("Location"), v: `${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}` },
-            hotel.stars ? { k: t("Stars"), v: `${hotel.stars}★` } : null,
-            hotel.avg_occupancy ? { k: t("Avg Occupancy"), v: `${hotel.avg_occupancy} pax/room` } : null,
-          ].filter(Boolean)}
-        />
+        <section className="hms-hm-card hms-hm-loccard">
+          <div className="hms-hm-loctop">
+            <div className="hms-hm-sec-lbl">
+              <h2>{t("Location")}</h2>
+            </div>
+            <a className="hms-hm-maplink" href="/hotels/map/">
+              <Icon name="map-pin" size={13} />
+              {t("See full map")}
+            </a>
+          </div>
+          {hasCoords ? (
+            <div className="hms-hm-map">
+              <HotelMiniMap hotel={hotel} height={260} />
+            </div>
+          ) : (
+            <div className="hms-hm-note">{t("Location not set — add coordinates on the edit page to show this hotel on the map.")}</div>
+          )}
+        </section>
       </div>
+
+      {confirmDialog}
     </div>
   );
 }

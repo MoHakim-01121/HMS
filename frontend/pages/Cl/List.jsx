@@ -16,6 +16,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDateShort } from "../../utils/format.js";
 
 const STATUS_OPTS = [
   { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
@@ -31,11 +32,7 @@ function statusBadge(s) {
 
 // Mobile card only: "12/08/2026" -> "12 Aug" so the stay line stays short
 // enough to leave room for the hotel name above it.
-function shortDate(dmy) {
-  const [d, m, y] = (dmy || "").split("/");
-  if (!d || !m || !y) return dmy || "?";
-  return new Date(+y, +m - 1, +d).toLocaleDateString("en-US", { day: "numeric", month: "short" });
-}
+const shortDate = (dmy) => fmtDateShort(dmy) || "?";
 
 // Django reads ?status=a&status=b (repeated), so build the query string by hand.
 function buildQuery({ q, status, date_from, date_to, sort, page }) {
@@ -93,7 +90,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         <>
           <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
           {cl.has_invoice && <span className="m-hide" style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>● INV</span>}
-          {cl.has_invoice && <span className="badge badge-blue m-only" style={{ fontSize: 9, marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>INV</span>}
+          {cl.has_invoice && <span className="m-only" style={{ marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}><StatusPill small outline label="INV" /></span>}
         </>
       ),
     },
@@ -105,7 +102,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         return <StatusPill tone={tone} label={t(blabel)} />;
       },
     },
-    { header: t("Client/Travel"), className: "col-m-secondary col-ellipsis", render: (cl) => cl.guest_name },
+    { header: t("Client/Travel"), className: "col-m-secondary col-ellipsis", render: (cl) => (cl.guest_name || "").trim().replace(/^-$/, "") || <span className="col-dim">—</span> },
     {
       header: t("Hotel"),
       className: "col-ellipsis-sm col-muted col-m-meta",
@@ -136,7 +133,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
       render: (cl) => (
         <>
           <span className="m-hide">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : <span className="col-dim">—</span>}</span>
-          {!!cl.total_rooms && <span className="m-only m-card-rooms">{cl.total_rooms} {t("rooms")}</span>}
+          {!!cl.total_rooms && <span className="m-only m-card-rooms">{cl.total_rooms} {t(cl.total_rooms === 1 ? "room" : "rooms")}</span>}
           <span className="m-only m-card-total-group">
             <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
             <span>{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>

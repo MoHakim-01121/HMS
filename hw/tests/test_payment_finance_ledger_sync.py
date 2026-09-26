@@ -6,7 +6,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, ServiceItem
+from hw.models import Client, Invoice, Reservation
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import posting

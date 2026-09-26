@@ -8,7 +8,6 @@ Expense BUKAN HQ remittance dan BUKAN obligation pusat.
 """
 from django.db import models
 
-from ..utils import convert_to_sar
 
 
 class ExpenseCategory(models.Model):

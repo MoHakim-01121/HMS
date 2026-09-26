@@ -3,6 +3,7 @@ import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js"
 import { fetchJson } from "../../utils/fetchJson.js";
 import { distColor } from "../../components/mapColors.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDist } from "../../utils/format.js";
 
 // Hotel map — full imperative Leaflet app ported from the original hotel_map
 // template. The DOM below mirrors the original (same ids/classes); the script
@@ -57,8 +58,6 @@ export default function HotelMap() {
       let routesVisible = !isMobile(), avgOnly = false, activeMarker = null, markerMap = {}, activeCardPk = null;
 
       const haversine = (lat1, lng1, lat2, lng2) => { const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); };
-      const fmtDist = (m) => (m < 1000 ? Math.round(m) + " M" : (m / 1000).toFixed(1) + " KM");
-      const fmtDistLabel = (lbl) => (lbl ? lbl.replace(/\s*km/i, " KM").replace(/\s*m\b/i, " M") : "—");
       const distClass = (d) => (d === null ? "dim" : d < 500 ? "green" : d < 1500 ? "yellow" : "red");
       const starsHtml = (n) => "★".repeat(n);
       const starSize = (s) => (s >= 5 ? 14 : s >= 4 ? 12 : 10);
@@ -84,7 +83,7 @@ export default function HotelMap() {
       }
 
       function buildPopup(h) {
-        const dist = fmtDistLabel(h.distance_label);
+        const dist = h.distance_label || "—";
         const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">' + t("Avg") + '</span><span class="pop-val">' + _esc(h.avg) + " pax/room</span></div>" : "";
         return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">' + t("Distance") + '</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
       }
@@ -144,7 +143,7 @@ export default function HotelMap() {
 
       function buildCardHtml(h, idx) {
         const color = distColor(h.distance), dc = distClass(h.distance);
-        const dist = fmtDistLabel(h.distance_label);
+        const dist = h.distance_label || "—";
         const delay = typeof idx === "number" ? idx * 22 + "ms" : "0ms";
         return '<div class="hp-card" data-pk="' + h.pk + '" style="animation-delay:' + delay + '" onclick="selectCard(' + h.pk + ')" onmouseenter="hoverCard(' + h.pk + ')" onmouseleave="hoverCard(null)">' +
           '<div class="hp-card-top">' +

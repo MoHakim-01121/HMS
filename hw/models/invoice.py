@@ -10,6 +10,10 @@ from .choices import InvoiceType
 from ..utils import convert_to_sar
 
 
+# Cabang penerbit bila reservasi tidak menyebut owner_branch.
+DEFAULT_INVOICE_BRANCH = 'sby'
+
+
 class Invoice(models.Model):
     # ── Status lifecycle ──────────────────────────────────────
     STATUS_DRAFT    = 'draft'
@@ -51,6 +55,10 @@ class Invoice(models.Model):
     invoice_number = models.CharField(max_length=100, db_index=True)
     client         = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='invoices')
     customer_name  = models.CharField(max_length=200)
+    # Cabang penerbit — menentukan rekening "Pay to" di detail invoice
+    # (BankAccount.show_on_invoice milik cabang ini). Diisi dari form, atau
+    # otomatis dari owner_branch reservasinya (fallback: DEFAULT_INVOICE_BRANCH).
+    branch         = models.ForeignKey('Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='invoices')
     issued_date    = models.DateField(null=True, blank=True)
     due_date       = models.DateField(null=True, blank=True, db_index=True)
     currency       = models.CharField(max_length=10, default='SAR')
@@ -85,6 +93,15 @@ class Invoice(models.Model):
         if self.client_id:
             self.customer_name = self.client.name
         super().save(*args, **kwargs)
+
+    def infer_branch_id(self):
+        """Cabang yang wajar untuk invoice ini bila belum dipilih: owner_branch
+        reservasi pertama yang punya, selain itu DEFAULT_INVOICE_BRANCH."""
+        owner = (
+            self.reservations.exclude(owner_branch__isnull=True)
+            .order_by('pk').values_list('owner_branch_id', flat=True).first()
+        ) if self.pk else None
+        return owner or DEFAULT_INVOICE_BRANCH
 
     @property
     def total_sar(self):

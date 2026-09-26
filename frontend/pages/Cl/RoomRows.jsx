@@ -2,12 +2,19 @@ import { Icon } from "../../components/icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-const EMPTY_ROOM = { room_type: "", room_type_id: "", meals: "", quantity: 1, price: "" };
+const EMPTY_ROOM = { room_type: "", room_type_id: "", meals: "", meal_plan_code: "", quantity: 1, price: "" };
+
+// Placeholder <option> value for Meals text that predates the dropdown and
+// matches no code the hotel sells ("BB + late checkout"). Picking it changes
+// nothing, so re-saving an old CL never silently drops what was typed.
+const LEGACY = "__legacy__";
 
 // `roomTypes`: null = hotel not linked to the catalog (free text upstream —
 // rooms can't be added until it is); [] = linked but the hotel has no
 // room types yet; a populated array = the dropdown's actual options.
-export default function RoomRows({ rooms, onChange, nights, roomTypes, addHotelHref, editHotelHref }) {
+// `mealPlans` follows the same null / [] / populated convention as
+// `roomTypes`; anything but a populated array keeps Meals as free text.
+export default function RoomRows({ rooms, onChange, nights, roomTypes, mealPlans, addHotelHref, editHotelHref }) {
   const { t } = useI18n();
   const hasRoomTypes = Array.isArray(roomTypes) && roomTypes.length > 0;
   const roomTypeOptions = roomTypes || [];
@@ -29,6 +36,30 @@ export default function RoomRows({ rooms, onChange, nights, roomTypes, addHotelH
     const next = rooms.map((r, idx) => (idx === i ? { ...r, room_type_id: roomTypeId, room_type: rt ? rt.name : "" } : r));
     onChange(next);
   };
+
+  const mealCodes = Array.isArray(mealPlans) ? mealPlans.map((mp) => mp.code) : [];
+  const hasMealPlans = mealCodes.length > 0;
+  const mealValue = (r) => {
+    if (r.meal_plan_code && mealCodes.includes(r.meal_plan_code)) return r.meal_plan_code;
+    if (mealCodes.includes(r.meals)) return r.meals;
+    return r.meals ? LEGACY : "";
+  };
+  // Same read-at-call-time closure as onRoomTypeSelect: code and label land
+  // in one onChange, so neither can be dropped by a racing re-render.
+  const onMealSelect = (i, code) => {
+    if (code === LEGACY) return;
+    onChange(rooms.map((r, idx) => (idx === i ? { ...r, meal_plan_code: code, meals: code } : r)));
+  };
+  const mealSelect = (r, i, className, ariaLabel) => (
+    <select className={className} value={mealValue(r)} onChange={(e) => onMealSelect(i, e.target.value)} aria-label={ariaLabel}>
+      <option value="">{t("— Select —")}</option>
+      {/* Code only: the Meals column is narrow and "BB — Bed & Breakfast"
+          truncated to "BB — Be". The code is also what operators always
+          typed here and what the PDF prints; the name rides on the tooltip. */}
+      {mealPlans.map((mp) => <option key={mp.code} value={mp.code} title={t(mp.name)}>{mp.code}</option>)}
+      {mealValue(r) === LEGACY && <option value={LEGACY}>{r.meals} ({t("old entry")})</option>}
+    </select>
+  );
 
   const hintStyle = {
     padding: "10px 14px", marginBottom: 12, borderRadius: "var(--radius-control, 12px)",
@@ -93,7 +124,13 @@ export default function RoomRows({ rooms, onChange, nights, roomTypes, addHotelH
                               </select>
                             </span>
                           </td>
-                          <td><input className="c-in" type="text" value={r.meals} onChange={(e) => update(i, "meals", e.target.value)} placeholder="BB, HB…" aria-label={t("Meals")} /></td>
+                          <td>
+                            {hasMealPlans ? (
+                              <span className="c-sel">{mealSelect(r, i, "c-in", t("Meals"))}</span>
+                            ) : (
+                              <input className="c-in" type="text" value={r.meals} onChange={(e) => update(i, "meals", e.target.value)} placeholder="BB, HB…" aria-label={t("Meals")} />
+                            )}
+                          </td>
                           <td><input className="c-in c-num" type="number" min="1" value={r.quantity} onChange={(e) => update(i, "quantity", e.target.value)} aria-label={t("Quantity")} /></td>
                           <td><input className="c-in c-num" type="number" min="0" step="0.01" value={r.price} onChange={(e) => update(i, "price", e.target.value)} placeholder="0.00" aria-label={t("Price per night")} /></td>
                           {/* Computed from nights × qty × price — never typed. */}
@@ -131,10 +168,14 @@ export default function RoomRows({ rooms, onChange, nights, roomTypes, addHotelH
                       <Icon name="trash" size={13} />
                     </button>
                   </div>
-                  <input
-                    className="cl-room-card-meals" type="text" value={r.meals}
-                    onChange={(e) => update(i, "meals", e.target.value)} placeholder={t("Meal plan (BB, HB…)")}
-                  />
+                  {hasMealPlans ? (
+                    mealSelect(r, i, "cl-room-card-meals", t("Meals"))
+                  ) : (
+                    <input
+                      className="cl-room-card-meals" type="text" value={r.meals}
+                      onChange={(e) => update(i, "meals", e.target.value)} placeholder={t("Meal plan (BB, HB…)")}
+                    />
+                  )}
                   <div className="cl-room-card-calc">
                     <input type="number" min="1" value={r.quantity} onChange={(e) => update(i, "quantity", e.target.value)} />
                     <span>{t("rooms")} ×</span>

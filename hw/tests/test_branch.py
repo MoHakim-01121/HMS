@@ -5,7 +5,6 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import Branch, Client, Invoice, Reservation
-from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance.hashing import verify_chain

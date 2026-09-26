@@ -40,6 +40,8 @@ class BankAccount(MoneyAccount):
     bank_name = models.CharField(max_length=120)
     account_name = models.CharField(max_length=120, blank=True)       # nama pemilik rekening
     account_identifier = models.CharField(max_length=64, blank=True)  # nomor rekening / IBAN
+    # Tampil sebagai rekening tujuan ("Pay to") di detail invoice cabang ini.
+    show_on_invoice = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['bank_name', 'name']

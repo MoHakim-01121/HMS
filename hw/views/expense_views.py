@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect
 from inertia import render as inertia_render
 
 from ..models.branch import Branch
-from ..models.expense import Expense, ExpenseCategory, ExpensePayment
+from ..models.expense import Expense, ExpenseCategory
 from ..models.journal import JournalEntry
 from ..finance import expense_service
 from ..finance.errors import FinanceError

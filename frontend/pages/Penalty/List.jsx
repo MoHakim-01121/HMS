@@ -55,9 +55,9 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
       className: "mono col-nowrap col-m-amount",
       render: (p) => (
         <>
-          <span className="m-hide">{p.amount_sar.toLocaleString()} SAR</span>
+          <span className="m-hide">{p.amount_sar.toLocaleString("en-US")} SAR</span>
           <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Amount")}</span>
-          <span className="m-only">{p.amount_sar.toLocaleString()} SAR</span>
+          <span className="m-only">{p.amount_sar.toLocaleString("en-US")} SAR</span>
         </>
       ),
     },

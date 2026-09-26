@@ -9,7 +9,7 @@ import logging
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
-from ..models.journal import JournalEntry, JournalLine, LedgerAccount
+from ..models.journal import JournalEntry, JournalLine
 from ..models.payment import PaymentRecord, PaymentLog
 from ..models.period import FinancialPeriod
 from ..models.choices import InvoiceType
@@ -245,7 +245,7 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
     try:
         original = _JE.objects.select_for_update().get(pk=original.pk)
     except _JE.DoesNotExist:
-        raise FinanceError(f"Entry {getattr(original, 'entry_number', original.pk)} tidak ditemukan")
+        raise FinanceError(f"Entry {getattr(original, 'entry_number', original.pk)} tidak ditemukan") from None
 
     if original.is_reversal:
         raise FinanceError("Tidak bisa me-reverse entry yang sudah reversal")
@@ -362,6 +362,30 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None):
 
 
 @transaction.atomic
+def clear_payment_allocations(payment):
+    """Drop a dead payment's analytic allocations. Returns what was removed.
+
+    Allocations are analytic rows, not accounting (see PaymentAllocation). Once
+    a payment is rejected, voided or reversed its money is gone, but surviving
+    rows still report allocated_sar and make invoice_views._reservation_has_money
+    refuse to delete those reservations. Callers log the returned rows in the
+    PaymentLog they write, so no audit trail is lost.
+    """
+    rows = [
+        {
+            "reservation_id": a.reservation_id,
+            "service_item_id": a.service_item_id,
+            "penalty_id": a.penalty_id,
+            "amount_sar": a.amount_sar,
+        }
+        for a in payment.allocations.all()
+    ]
+    if rows:
+        payment.allocations.all().delete()
+    return rows
+
+
+@transaction.atomic
 def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
     """Reverse journal entry payment dari PaymentRecord ber-reference
     'invoice-form' milik invoice ini, DAN tandai PaymentRecord-nya REVERSED.
@@ -387,10 +411,11 @@ def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
     for pr in old_prs:
         pr.status = PaymentRecord.STATUS_REVERSED
         pr.save(update_fields=["status"])
+        dropped = clear_payment_allocations(pr)
         PaymentLog.objects.create(
             payment=pr,
             action=PaymentLog.ACTION_REVERSED,
-            before_state={"status": PaymentRecord.STATUS_ALLOCATED},
+            before_state={"status": PaymentRecord.STATUS_ALLOCATED, "allocations": dropped},
             after_state={"status": PaymentRecord.STATUS_REVERSED},
             performed_by=created_by,
             note="Superseded by invoice-form payment re-sync",
@@ -724,8 +749,13 @@ def post_remittance_receive(remittance, *, expected_sar, received_sar, created_b
 def _normalize_send_segments(remittance, send_segments):
     """→ list tuple (reservation_id, invoice_id, client_id, from_location, amount).
 
-    `send_segments` kosong → lump-sum: satu segmen tanpa dimensi reservasi,
-    nominal = received_amount_sar (atau total kirim yang sudah tercatat)."""
+    `send_segments` kosong → lump-sum: satu segmen tanpa dimensi reservasi.
+    Nominal, urut prioritas: expected_sar (dari amount_idr/exchange_rate --
+    fakta SISI KIRIM, uang yang keluar dari bank cabang; 2026-09-14: ini jadi
+    basis utama karena received_amount_sar tidak pernah diisi lagi untuk
+    remittance baru) -> received_amount_sar (jalur lama, dipertahankan utuh
+    untuk remittance lama yang tak punya amount_idr) -> total kirim yang
+    sudah tercatat di jurnal."""
     if send_segments:
         out = []
         for seg in send_segments:
@@ -736,8 +766,19 @@ def _normalize_send_segments(remittance, send_segments):
                 _pk(seg.get("reservation")), _pk(seg.get("invoice")),
                 _pk(seg.get("client")), seg.get("from_location", "sby"), amt,
             ))
+        # Segmen yang belum menutup seluruh transfer: sisanya tetap tercatat
+        # sebagai lump-sum. Tanpa ini, alokasi sebagian membuat sisa yang masih
+        # di jalan seolah kembali ke Kas SBY dan basis status RMT ikut mengecil.
+        expected = remittance.expected_sar
+        remainder = (expected or 0) - sum(seg[-1] for seg in out)
+        if expected is not None and remainder > 0:
+            out.append((None, None, None, "sby", remainder))
         return out
-    total = int((remittance.received_amount_sar or 0) or remittance.total_sar or 0)
+    total = int(
+        (remittance.expected_sar or 0)
+        or (remittance.received_amount_sar or 0)
+        or remittance.total_sar or 0
+    )
     return [(None, None, None, "sby", total)] if total else []
 
 

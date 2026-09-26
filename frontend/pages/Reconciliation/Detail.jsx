@@ -39,7 +39,7 @@ export default function Detail({ statement = {} }) {
       header: t("Amount (SAR)"), align: "right",
       render: (l) => (
         <span style={{ color: l.direction === "in" ? "var(--green)" : "var(--red)" }}>
-          {l.direction === "in" ? "+" : "-"}{l.amount_sar?.toLocaleString()}
+          {l.direction === "in" ? "+" : "-"}{l.amount_sar?.toLocaleString("en-US")}
         </span>
       ),
     },
@@ -71,7 +71,7 @@ export default function Detail({ statement = {} }) {
                   <div style={{ padding: "6px 12px", fontSize: 12, color: "var(--muted-foreground)" }}>{t("No candidates")}</div>
                 ) : l.candidates.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
-                    {c.source_type} #{c.source_id} — {c.direction === "in" ? "+" : "-"}{c.amount_sar?.toLocaleString()} ({c.transaction_date})
+                    {c.source_type} #{c.source_id} — {c.direction === "in" ? "+" : "-"}{c.amount_sar?.toLocaleString("en-US")} ({c.transaction_date})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -97,9 +97,9 @@ export default function Detail({ statement = {} }) {
       />
 
       <div className="hms-kpi-row">
-        <KpiCard label={t("Book Balance")} value={statement.book_balance_sar?.toLocaleString()} />
-        <KpiCard label={t("Statement Closing")} value={statement.closing_balance_sar?.toLocaleString()} />
-        <KpiCard label={t("Difference")} value={statement.difference_sar?.toLocaleString()} tone={statement.difference_sar !== 0 ? "yellow" : "green"} />
+        <KpiCard label={t("Book Balance")} value={statement.book_balance_sar?.toLocaleString("en-US")} />
+        <KpiCard label={t("Statement Closing")} value={statement.closing_balance_sar?.toLocaleString("en-US")} />
+        <KpiCard label={t("Difference")} value={statement.difference_sar?.toLocaleString("en-US")} tone={statement.difference_sar !== 0 ? "yellow" : "green"} />
         <KpiCard label={t("Matched Lines")} value={`${statement.lines_matched}/${statement.lines_total}`} />
       </div>
 

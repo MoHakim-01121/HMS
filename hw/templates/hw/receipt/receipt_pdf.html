@@ -1,4 +1,3 @@
-{% load humanize %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,161 +6,178 @@
   <style>
     @page {
       size: A4;
-      margin: 56px 64px 48px;
+      margin: 60px 64px 100px;
       @bottom-left {
-        content: string(doc-date);
-        font-size: 10px; color: #111;
+        content: "Receipt {{ receipt_number }}, issued {{ receipt_date|date:'d M Y' }}";
+        font-size: 10px; color: #666;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        padding-top: 6px;
+        vertical-align: bottom;
       }
       @bottom-right {
         content: "Page " counter(page) "/" counter(pages);
-        font-size: 10px; color: #111;
+        font-size: 10px; color: #666;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        padding-top: 6px;
+        vertical-align: bottom;
       }
     }
-    .doc-date-anchor { string-set: doc-date content(); display: none; }
     .page-footer-rule {
       position: fixed;
-      left: 0; right: 0; bottom: 0;
+      left: 0; right: 0; bottom: -78px;
       border-top: 1px solid #ccc;
     }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       background: #fff;
       color: #111;
-      font-size: 12px;
+      font-size: 11.5px;
       line-height: 1.6;
     }
 
+    /* ── Masthead ─────────────────────────────────────────────────────── */
     .top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 20px;
+      gap: 24px;
     }
-    .doc-title { font-size: 28px; font-weight: 700; color: #111; }
-    .logo { max-height: 68px; width: auto; }
+    .doc-title { font-size: 26px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; }
+    .doc-sub { margin-top: 4px; font-size: 11px; color: #666; }
+    .logo { max-height: 58px; width: auto; }
 
-    .meta { margin-bottom: 28px; font-size: 12px; }
-    .meta-row { display: flex; gap: 8px; }
-    .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
-    .meta-row .mv { color: #111; }
+    .meta { margin-top: 22px; }
+    .meta-row { display: flex; gap: 10px; padding: 1px 0; }
+    .meta-row .mk { min-width: 140px; font-weight: 700; color: #111; }
+    .meta-row .mv { font-variant-numeric: tabular-nums; }
 
-    .two-col { display: flex; gap: 40px; padding-bottom: 28px; border-bottom: 1px solid #ddd; }
-    .two-col > div { flex: 1; }
-    .col-title { font-weight: 700; font-size: 12px; color: #111; margin-bottom: 4px; }
-    .col-body { font-size: 12px; color: #444; line-height: 1.7; }
-
-    .amount-headline {
+    .two-col {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      font-size: 22px;
-      font-weight: 700;
-      color: #111;
-      margin-top: 40px;
-      margin-bottom: 56px;
+      gap: 40px;
+      margin-top: 22px;
+      padding: 14px 0 22px;
+      border-bottom: 1px solid #ddd;
     }
-    .amount-headline .ah-key { font-size: 13px; font-weight: 400; color: #444; }
-    .amount-headline .ah-value { font-weight: 700; }
+    .two-col > div { flex: 1; }
+    .col-title { margin-bottom: 6px; font-weight: 700; color: #111; }
+    .col-body { font-size: 11.5px; color: #444; line-height: 1.7; }
+    .col-name { font-size: 14px; font-weight: 700; color: #111; }
+
+    /* ── Zone 1: what this receipt attests to ─────────────────────────── */
+    .amount-block {
+      margin-top: 26px;
+      padding: 18px 0 4px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .amount-block .ab-key { color: #444; }
+    .amount-block .ab-value {
+      display: block;
+      margin-top: 6px;
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+    }
+    .amount-block .ab-cur { font-size: 15px; font-weight: 400; color: #444; }
+    .amount-block .ab-words { display: block; font-size: 10.5px; color: #666; margin-top: 6px; }
     .badge-status {
       font-size: 10px;
       font-weight: 700;
-      padding: 2px 8px;
+      padding: 4px 11px;
       border-radius: 4px;
       letter-spacing: 0.05em;
     }
-    .badge-active { background: #d1fae5; color: #065f46; }
     .badge-voided { background: #fee2e2; color: #991b1b; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .void-notice {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border: 1px solid #fca5a5;
+      background: #fef2f2;
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: #991b1b;
+    }
+    .void-notice strong { font-weight: 700; }
+
+    .facts { margin-top: 24px; display: flex; gap: 48px; }
+    .facts > div { flex: 1; }
+    .facts-col { display: grid; row-gap: 12px; }
+    .fact-key { font-size: 10.5px; color: #666; }
+    .fact-val { font-size: 12.5px; color: #111; font-variant-numeric: tabular-nums; }
+    .fact-sub { font-size: 10.5px; color: #666; margin-top: 2px; }
+
+    .section { margin-top: 28px; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      break-after: avoid;
+    }
+    .section-title { font-size: 12.5px; font-weight: 700; color: #111; }
+    .section-asat { font-size: 10.5px; color: #666; }
+
+    /* ── Zone 2: live allocation state ────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
     thead th {
       text-align: left;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 400;
-      color: #333;
-      padding-top: 0;
-      padding-bottom: 10px;
+      color: #555;
+      padding: 0 0 9px;
       border-bottom: 1px solid #111;
     }
     thead th.r { text-align: right; }
-    tbody td { padding: 8px 0; vertical-align: top; color: #111; }
-    tbody td.r { text-align: right; }
-    .td-name { font-weight: 400; }
-    .td-sub { font-size: 11px; color: #666; margin-top: 2px; }
-
-    .totals {
-      margin-top: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-    .total-row {
-      display: flex;
-      gap: 0;
-      padding: 1px 0;
+    tbody td { padding: 9px 0; vertical-align: top; color: #111; }
+    tbody td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    tbody tr.subtotal td { border-top: 1px solid #ddd; font-weight: 600; }
+    tbody tr.unapplied td { color: #666; }
+    .td-sub { font-size: 10px; color: #888; margin-top: 2px; }
+    tfoot td {
+      padding-top: 10px;
+      border-top: 1px solid #111;
       font-size: 12px;
-      width: 300px;
+      font-weight: 700;
+      color: #111;
     }
-    .total-row:first-child { border-top: 1px solid #ddd; padding-top: 3px; }
-    .total-row .tkey { flex: 1; color: #555; text-align: left; }
-    .total-row .tval { width: 130px; text-align: right; color: #111; }
-    .total-row.bold .tkey,
-    .total-row.bold .tval { font-weight: 700; color: #111; }
+    tfoot td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    .alloc-empty { font-size: 11.5px; color: #444; }
 
-    .section { margin-top: 36px; }
-    .section-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 12px; }
-
-    .terms { page-break-before: always; padding-top: 20px; }
-    .terms-title { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 20px; }
-    .terms-section { margin-bottom: 18px; }
-    .terms-section h4 { font-size: 14px; font-weight: 700; color: #333; margin-bottom: 6px; }
-    .terms-section ul { padding-left: 18px; margin: 0; }
-    .terms-section ul li { font-size: 13px; color: #555; line-height: 1.8; }
-    .terms-section ul ul { margin-top: 3px; }
-    .terms-section p { font-size: 13px; color: #555; line-height: 1.8; margin: 0; }
+    .note-body { font-size: 11.5px; color: #444; line-height: 1.7; }
 
     .sign-block {
-      margin-top: 72px;
+      position: fixed;
+      right: 0;
+      bottom: -64px;
       display: flex;
-      justify-content: space-between;
-      gap: 60px;
+      justify-content: flex-end;
     }
-    .sign {
-      text-align: center;
-      font-size: 12px;
-      color: #111;
-      flex: 1;
-    }
-    .sign .line {
-      margin-top: 72px;
-      border-top: 1px solid #111;
-      padding-top: 6px;
-      font-weight: 700;
-    }
+    .sign-block > div { text-align: right; }
+    .sign-name { font-size: 11.5px; color: #111; }
+    .sign-meta { font-size: 10px; color: #666; margin-top: 2px; font-variant-numeric: tabular-nums; }
 
-    .note { margin-top: 24px; font-size: 11px; color: #555; }
-
-    .watermark {
+    .watermark-void {
       position: fixed;
       top: 45%; left: 50%;
       transform: translate(-50%, -50%) rotate(-40deg);
-      font-size: 90px; font-weight: 900;
-      color: rgba(0,0,0,0.04);
+      font-size: 110px; font-weight: 900;
+      color: rgba(185, 28, 28, 0.10);
       white-space: nowrap;
-      letter-spacing: 8px;
+      letter-spacing: 10px;
     }
   </style>
 </head>
 <body>
 
 <div class="page-footer-rule"></div>
-<span class="doc-date-anchor">{{ receipt_date|date:"d M Y" }}</span>
-<div class="watermark">{% if status == 'voided' %}VOID{% else %}RECEIPT{% endif %}</div>
+
+{% if status == 'voided' %}<div class="watermark-void">VOID</div>{% endif %}
 
 <div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
   <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
@@ -180,146 +196,161 @@
 </div>
 
 <div class="top">
-  <div class="doc-title">Kwitansi</div>
+  <div>
+    <div class="doc-title">Receipt</div>
+    <div class="doc-sub">Official payment receipt</div>
+  </div>
   <img src="{{ logo_rel_path }}" class="logo">
 </div>
 
 <div class="meta">
   <div class="meta-row"><span class="mk">Receipt number</span><span class="mv">{{ receipt_number }}</span></div>
-  <div class="meta-row"><span class="mk">Payment date</span><span class="mv">{{ receipt_date|date:"d M Y" }}</span></div>
-  {% if payment_number %}<div class="meta-row"><span class="mk">Payment ref</span><span class="mv">{{ payment_number }}</span></div>{% endif %}
-  {% if invoice_number %}<div class="meta-row"><span class="mk">Invoice ref</span><span class="mv">{{ invoice_number }}</span></div>{% endif %}
-  {% if status == 'voided' %}<div class="meta-row"><span class="mk">Status</span><span class="mv">VOID</span></div>{% endif %}
+  <div class="meta-row"><span class="mk">Receipt date</span><span class="mv">{{ receipt_date|date:"d M Y" }}</span></div>
+  {% if payment_number %}<div class="meta-row"><span class="mk">Payment reference</span><span class="mv">{{ payment_number }}</span></div>{% endif %}
 </div>
 
 <div class="two-col">
   <div>
-    <div class="col-title">Konoz United Surabaya</div>
-    <div class="col-body">Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>Kec. Krembangan, Surabaya, Jawa Timur 60177<br>konozsurabaya@gmail.com</div>
+    <div class="col-title">Issued by</div>
+    <div class="col-body">
+      <span class="col-name">Konoz United Surabaya</span><br>
+      Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>
+      Kec. Krembangan, Surabaya, Jawa Timur 60177<br>
+      konozsurabaya@gmail.com
+    </div>
   </div>
   <div>
     <div class="col-title">Received from</div>
-    <div class="col-body">{{ client_name|default:"—" }}</div>
+    <div class="col-body"><span class="col-name">{{ client_name|default:"—" }}</span></div>
   </div>
 </div>
 
-<div class="amount-headline">
+<div class="amount-block">
   <span>
-    <span class="ah-key">Amount received</span><br>
-    <span class="ah-value">{{ amount_sar_fmt }} SAR</span>
+    <span class="ab-key">Amount received</span>
+    <span class="ab-value">{{ amount_sar_fmt }} <span class="ab-cur">SAR</span></span>
+    <span class="ab-words">({{ amount_in_words }} Saudi Riyal)</span>
   </span>
-  <span class="badge-status {% if status == 'voided' %}badge-voided{% else %}badge-active{% endif %}">
-    {% if status == 'voided' %}VOID{% else %}ACTIVE{% endif %}
-  </span>
+  {% if status == 'voided' %}
+  <span class="badge-status badge-voided">VOID</span>
+  {% endif %}
 </div>
 
-{% if confirmation_number %}
-<table>
-  <thead>
-    <tr>
-      <th>Res No</th>
-      <th>Hotel</th>
-      <th>Guest</th>
-      <th class="r">Check-in</th>
-      <th class="r">Check-out</th>
-      <th class="r">Method</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><div class="td-name">{{ confirmation_number }}</div></td>
-      <td>{{ hotel_name|default:"—" }}</td>
-      <td>{{ guest_name|default:"—" }}</td>
-      <td class="r">{% if check_in %}{{ check_in|date:"d M Y" }}{% else %}—{% endif %}</td>
-      <td class="r">{% if check_out %}{{ check_out|date:"d M Y" }}{% else %}—{% endif %}</td>
-      <td class="r">{{ payment_method|default:"—" }}</td>
-    </tr>
-  </tbody>
-</table>
+{% if status == 'voided' %}
+<div class="void-notice">
+  <strong>This receipt has been voided</strong> and no longer evidences a payment received.
+  {% if voided_reason %}Reason: {{ voided_reason }}{% endif %}
+</div>
 {% endif %}
 
-<div class="totals">
-  <div class="total-row">
-    <span class="tkey">Payment method</span>
-    <span class="tval">{{ payment_method|default:"—" }}</span>
+<div class="facts">
+  <div>
+    <div class="facts-col">
+      <div>
+        <div class="fact-key">Paid on</div>
+        <div class="fact-val">{% if payment_date %}{{ payment_date|date:"d M Y" }}{% else %}—{% endif %}</div>
+      </div>
+      <div>
+        <div class="fact-key">Method</div>
+        <div class="fact-val">{{ payment_method|default:"—" }}</div>
+      </div>
+      {% if bank_reference %}
+      <div>
+        <div class="fact-key">Bank reference</div>
+        <div class="fact-val">{{ bank_reference }}</div>
+      </div>
+      {% endif %}
+    </div>
   </div>
-  <div class="total-row bold">
-    <span class="tkey">Amount received</span>
-    <span class="tval">{{ amount_sar_fmt }} SAR</span>
+  <div>
+    <div class="facts-col">
+      {% if invoice_number %}
+      <div>
+        <div class="fact-key">Paid for</div>
+        <div class="fact-val">{{ invoice_number }}</div>
+      </div>
+      {% else %}
+      <div>
+        <div class="fact-key">Paid for</div>
+        <div class="fact-val">Deposit (no invoice yet)</div>
+      </div>
+      {% endif %}
+      {% if original_amount and currency != 'SAR' %}
+      <div>
+        <div class="fact-key">Amount as paid</div>
+        <div class="fact-val">{{ original_amount_fmt }} {{ currency }}</div>
+        {% if exchange_label %}<div class="fact-sub">converted at {{ exchange_label }}</div>{% endif %}
+      </div>
+      {% endif %}
+    </div>
   </div>
+</div>
+
+<div class="section">
+  <div class="section-head">
+    <span class="section-title">Application of funds</span>
+    <span class="section-asat">as at {{ printed_at_ts|date:"d M Y" }}</span>
+  </div>
+  {% if allocation_rows or unapplied_sar_fmt %}
+  <table>
+    <thead>
+      <tr>
+        <th>#RSV</th>
+        <th>Hotel</th>
+        <th>Stay</th>
+        <th class="r">Amount (Saudi Riyal)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in allocation_rows %}
+      <tr>
+        <td>{{ row.label }}</td>
+        <td>{{ row.sublabel|default:"—" }}</td>
+        <td>{{ row.stay|default:"—" }}</td>
+        <td class="r">{{ row.amount_fmt }}</td>
+      </tr>
+      {% endfor %}
+      {% if allocation_rows and allocated_sar_fmt %}
+      <tr class="subtotal">
+        <td colspan="3">Subtotal applied</td>
+        <td class="r">{{ allocated_sar_fmt }}</td>
+      </tr>
+      {% endif %}
+      {% if unapplied_sar_fmt %}
+      <tr class="unapplied">
+        <td>
+          Unapplied
+          <div class="td-sub">Received but not yet applied to a reservation.</div>
+        </td>
+        <td></td>
+        <td></td>
+        <td class="r">{{ unapplied_sar_fmt }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Total received</td>
+        <td class="r">{{ amount_sar_fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {% else %}
+  <div class="alloc-empty">Not yet applied — held as an unapplied receipt.</div>
+  {% endif %}
 </div>
 
 {% if payment_note %}
 <div class="section">
-  <div class="section-title">Note</div>
-  <div class="col-body">{{ payment_note }}</div>
+  <div class="section-head"><span class="section-title">Note</span></div>
+  <div class="note-body">{{ payment_note }}</div>
 </div>
 {% endif %}
 
 <div class="sign-block">
-  <div class="sign">
-    <div class="line">Received by</div>
-  </div>
-  <div class="sign">
-    <div class="line">Administration</div>
-  </div>
-</div>
-
-<div class="terms">
-  <div class="terms-title">Syarat dan Ketentuan</div>
-  <div class="terms-section">
-    <h4>Tarif</h4>
-    <ul>
-      <li>Tarif di atas adalah per kamar per malam, dalam mata uang Riyal Saudi, bersih, dan tidak dapat dikomisikan.</li>
-      <li>Tarif sudah termasuk Biaya Kota (Municipality Fee) 5% dan Pajak Pertambahan Nilai (PPN) 15%.</li>
-      <li>Hari kerja (Weekdays/WD) adalah Sabtu–Rabu, akhir pekan (Weekend/WE) adalah Kamis–Jumat.</li>
-    </ul>
-  </div>
-  <div class="terms-section">
-    <h4>Kebijakan Pembatalan (Cancellation Policy)</h4>
-    <ul>
-      <li><strong>Pemesanan Individu (&lt;5 kamar)</strong>
-        <ul>
-          <li>Kurang dari 15 hari sebelum check-in: biaya 1 malam termasuk makan.</li>
-          <li>Kurang dari 7 hari sebelum check-in: biaya seluruh masa inap termasuk makan.</li>
-        </ul>
-      </li>
-      <li><strong>Pemesanan Grup (≥5 kamar)</strong>
-        <ul>
-          <li>Pembatalan &gt;30 hari sebelum check-in: 20% dari total biaya.</li>
-          <li>Pembatalan &gt;21 hari sebelum check-in: 50% dari total biaya.</li>
-          <li>Pembatalan &gt;14 hari sebelum check-in: 80% dari total biaya.</li>
-          <li>Pembatalan &gt;7 hari sebelum check-in: 100% dari total biaya.</li>
-        </ul>
-      </li>
-    </ul>
-  </div>
-  <div class="terms-section">
-    <h4>Kebijakan Perubahan (Amendment Policy)</h4>
-    <ul>
-      <li>Lebih dari 30 hari sebelum check-in: maksimal 80% jumlah kamar dapat dikurangi/diubah.</li>
-      <li>Lebih dari 21 hari sebelum check-in: maksimal 50% jumlah kamar dapat dikurangi/diubah.</li>
-      <li>Lebih dari 14 hari sebelum check-in: maksimal 20% jumlah kamar dapat dikurangi/diubah.</li>
-      <li>Lebih dari 6 hari sebelum check-in: maksimal 5% jumlah kamar dapat dikurangi/diubah.</li>
-      <li>Kurang dari 6 hari sebelum check-in: perubahan tidak dapat diterima.</li>
-    </ul>
-  </div>
-  <div class="terms-section">
-    <h4>Kebijakan Pembayaran (Payment Policy)</h4>
-    <ul>
-      <li><strong>Pemesanan lebih dari 30 hari sebelum check-in:</strong>
-        <ul>
-          <li>30% saat Confirmation Letter (CL) terbit.</li>
-          <li>100% selambat-lambatnya 27 hari sebelum check-in atau pada saat pengajuan agreement Nusuk.</li>
-        </ul>
-      </li>
-      <li><strong>Pemesanan 30 hari atau kurang sebelum check-in:</strong> pembayaran penuh (100%) saat Confirmation Letter (CL) terbit.</li>
-      <li>Apabila jadwal pembayaran tidak terpenuhi, pemesanan akan dibatalkan dan biaya pembatalan berlaku.</li>
-    </ul>
-  </div>
-  <div class="terms-section">
-    <h4>Kebijakan Ketidakhadiran (No Show Policy)</h4>
-    <p>Apabila tamu tidak hadir tanpa pemberitahuan sebelumnya, biaya penuh seluruh masa inap termasuk makan akan dikenakan.</p>
+  <div>
+    <div class="sign-name">{{ received_by|default:"—" }}</div>
+    <div class="sign-meta">Printed {{ printed_at_ts|date:"d M Y" }} at {{ printed_at_ts|time:"H:i" }}</div>
   </div>
 </div>
 

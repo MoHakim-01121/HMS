@@ -15,7 +15,6 @@ from django.urls import reverse
 from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.models import Client, Invoice, Reservation
-from hw.models.choices import Company
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 

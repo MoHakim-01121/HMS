@@ -2,7 +2,6 @@ import logging
 from datetime import date, datetime
 
 from django.contrib import messages
-from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect

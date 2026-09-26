@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import { router } from "@inertiajs/react";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
@@ -28,7 +29,7 @@ function Cell({ checked, onChange, label }) {
   );
 }
 
-export default function Form({ role, modules = [], actions = [], errors = {} }) {
+function FormBody({ role, modules = [], actions = [], errors = {} }) {
   const { t } = useI18n();
   const editing = Boolean(role?.slug);
   const [label, setLabel] = useState(role?.label ?? "");
@@ -179,7 +180,7 @@ export default function Form({ role, modules = [], actions = [], errors = {} }) 
 
           <FormActions
             cancelHref="/roles/"
-            submitLabel={editing ? t("Save role") : t("Create role")}
+            submitLabel={editing ? t("Save Role") : t("Create Role")}
             processing={processing}
           />
         </FormPanel>
@@ -187,3 +188,5 @@ export default function Form({ role, modules = [], actions = [], errors = {} }) 
     </div>
   );
 }
+
+export default withStandaloneModal(FormBody, "/roles/");

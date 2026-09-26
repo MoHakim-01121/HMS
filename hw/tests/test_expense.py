@@ -8,7 +8,7 @@ from django.test import TestCase
 from hw.models import (
     BankAccount, Branch, CashAccount, Expense, ExpenseCategory, ExpensePayment,
 )
-from hw.models.journal import JournalEntry, JournalLine, LedgerAccount
+from hw.models.journal import JournalEntry, LedgerAccount
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, queries as fq
 from hw.finance.errors import FinanceError

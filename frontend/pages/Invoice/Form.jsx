@@ -8,9 +8,10 @@ import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/f
 import Combobox from "../../components/shadcn/combobox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { Dialog, DialogContent } from "../../components/shadcn/ui/dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt } from "../../utils/format.js";
+import { fmt, fmtDateShort } from "../../utils/format.js";
 
 const TERMS = [["", "On receipt"], [7, "Net 7"], [14, "Net 14"], [30, "Net 30"]];
 const addDays = (iso, days) => {
@@ -20,16 +21,13 @@ const addDays = (iso, days) => {
   return d.toISOString().slice(0, 10);
 };
 
-const dShort = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(+d) ? "—" : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-};
+const dShort = (iso) => fmtDateShort(iso) || "—";
 const nightsOf = (a, b) => {
   const n = (new Date(b) - new Date(a)) / 86400000;
   return n > 0 ? n : 0;
 };
 
-export default function Form({ invoice, edit, suggested_number, cl_data = [], clients = [], initial, errors = {} }) {
+export default function Form({ invoice, edit, suggested_number, cl_data = [], clients = [], branch_choices = [], initial, errors = {} }) {
   const { t } = useI18n();
   const src = initial || invoice;
   const initialClient = clients.find((c) => String(c.id) === String(src?.client_id)) || null;
@@ -39,6 +37,9 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
   const [invoiceNumber, setInvoiceNumber] = useState(src?.invoice_number || (edit ? "" : suggested_number) || "");
   const [issuedDate, setIssuedDate] = useState(src?.issued_date || "");
   const [dueDate, setDueDate] = useState(src?.due_date || "");
+  // Issuing branch — picks the "Pay to" bank accounts. "auto" lets the server
+  // take it from the CLs' reservations (fallback: the default branch).
+  const [branch, setBranch] = useState(src?.branch || "auto");
   const [term, setTerm] = useState(null);
 
   // ── Reservations: an invoice bills confirmation letters. It can only be built
@@ -145,6 +146,7 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
     form.transform(() => ({
       client_id: clientId, customer_name: customerName, invoice_number: invoiceNumber,
       issued_date: issuedDate, due_date: dueDate,
+      branch: branch === "auto" ? "" : branch,
       reservations: JSON.stringify(clRows),
       linked_cl_ids: JSON.stringify(selectedClIds),
     }));
@@ -198,6 +200,18 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
                     placeholder={t("Search client…")}
                   />
                 </FormField>
+                {branch_choices.length ? (
+                  <FormField label={t("Branch")} name="branch"
+                    hint={t("Decides which bank accounts appear under “Pay to”.")}>
+                    <Select value={branch} onValueChange={setBranch}>
+                      <SelectTrigger id="branch" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">{t("Automatic (from the confirmation letters)")}</SelectItem>
+                        {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                ) : null}
                 <div className="rd-row3">
                   <FormField label={t("Invoice Number")} name="invoice_number" required
                     value={invoiceNumber} onChange={setInvoiceNumber} placeholder="INV-001"

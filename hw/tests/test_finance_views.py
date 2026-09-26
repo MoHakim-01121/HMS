@@ -114,7 +114,7 @@ class FinanceViewsTest(TestCase):
         self.assertEqual(accounts[coa.INC_HOTEL]['credit'], 3000)
 
     def test_trial_balance_date_filter(self):
-        je = self._je(8)
+        self._je(8)
         r = self.client.get(reverse('trial_balance'), {
             'date_from': '2026-04-01', 'date_to': '2026-12-31',
         })

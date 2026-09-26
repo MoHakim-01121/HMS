@@ -1,4 +1,4 @@
-from django_vite.core.asset_loader import DjangoViteAppClient, DjangoViteConfig
+from django_vite.core.asset_loader import DjangoViteAppClient
 from urllib.parse import urljoin
 from django.conf import settings
 

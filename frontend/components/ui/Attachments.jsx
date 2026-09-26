@@ -6,15 +6,10 @@ import Section from "../shadcn/section.jsx";
 import { Icon } from "../icons.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtSize } from "../../utils/format.js";
 
 // Port of _attachments.html + the upload/delete helpers from _base.html.
 // Reusable for both invoice and CL: <Attachments targetType="cl" targetId={pk} initial={[...]} />
-function fmtSize(b) {
-  if (b < 1024) return b + " B";
-  if (b < 1048576) return (b / 1024).toFixed(1) + " KB";
-  return (b / 1048576).toFixed(1) + " MB";
-}
-
 function AttIcon({ icon }) {
   if (icon === "pdf")
     return <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
@@ -23,9 +18,16 @@ function AttIcon({ icon }) {
   return <svg viewBox="0 0 24 24"><path d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>;
 }
 
-export default function Attachments({ targetType, targetId, initial = [], bare = false, compact = false }) {
+export default function Attachments({ targetType, targetId, initial = [], bare = false, compact = false, dashedAdd = false, onCountChange }) {
   const { t } = useI18n();
-  const [items, setItems] = useState(initial);
+  const [items, setItemsRaw] = useState(initial);
+  // onCountChange lets a parent label (e.g. the rail's count) follow uploads/deletes.
+  const setItems = (fn) =>
+    setItemsRaw((prev) => {
+      const next = fn(prev);
+      if (onCountChange && next.length !== prev.length) queueMicrotask(() => onCountChange(next.length));
+      return next;
+    });
   const [confirm, confirmDialog] = useConfirm();
   // Both endpoints (/attachments/upload/, /attachments/<pk>/delete/) are
   // guarded server-side by invoice.edit; read-only roles get the list only.
@@ -88,8 +90,9 @@ export default function Attachments({ targetType, targetId, initial = [], bare =
         <div className="hms-dv-empty">{t("No attachments yet")}</div>
       )}
       {canEdit && (
-        <label className="hms-rv-raillink" style={{ marginTop: 8, cursor: "pointer" }}>
-          {items.length ? t("Add file") : t("Add the first file")}
+        <label className={dashedAdd ? "hms-rv-addfile" : "hms-rv-raillink"} style={dashedAdd ? undefined : { marginTop: 8, cursor: "pointer" }}>
+          {dashedAdd ? <Icon name="plus" size={13} strokeWidth={1.8} /> : null}
+          {dashedAdd ? t("Upload file") : items.length ? t("Add file") : t("Add the first file")}
           <input type="file" style={{ display: "none" }} multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={upload} />
         </label>
       )}

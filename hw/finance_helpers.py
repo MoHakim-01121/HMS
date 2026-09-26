@@ -16,9 +16,8 @@ Yang MASIH di sini (logika asli):
 KERAS DIRENCANAKAN: kode baru panggil langsung dari hw/finance/*. Fungsi di
 file ini dipertahankan agar import lama (view + test) tidak pecah.
 """
-from decimal import Decimal
 
-from django.db import transaction, models
+from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -196,6 +195,12 @@ def confirm_payment(payment, confirmed_by, note=''):
     """
     from .finance.posting import post_payment
 
+    # Lock the row and re-read its status: two confirms racing (double
+    # click) must not both pass the pending check and post twice.
+    payment.status = (
+        PaymentRecord.objects.select_for_update()
+        .values_list('status', flat=True).get(pk=payment.pk)
+    )
     if payment.status != PaymentRecord.STATUS_PENDING:
         raise PaymentAlreadyProcessedError(
             f"Payment {payment.payment_number} sudah {payment.get_status_display()}"

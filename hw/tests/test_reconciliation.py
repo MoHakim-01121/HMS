@@ -8,7 +8,6 @@ from hw.models import CashAccount, Client, Invoice
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
 from hw.finance import reconciliation_service as rs
-from hw.finance.errors import FinanceError
 from hw.finance_helpers import create_payment_record, confirm_payment
 
 

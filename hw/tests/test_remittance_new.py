@@ -6,7 +6,6 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import Client, ConfirmationLetter, Invoice, Remittance, Reservation
-from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_reservasi_mengendap
 
@@ -68,7 +67,7 @@ class ReservasiMengendapTest(TestCase):
         self.assertEqual(rows[0]['mengendap'], 0)
 
     def test_paid_reservation_still_listed_alongside_unpaid(self):
-        r1 = self._res('R1', check_in=date(2026, 3, 1))
+        self._res('R1', check_in=date(2026, 3, 1))
         r2 = self._res('R2', check_in=date(2026, 2, 1))
         self._pay(r2, 5000)
         rows = _build_reservasi_mengendap()

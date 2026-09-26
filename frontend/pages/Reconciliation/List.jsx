@@ -70,7 +70,7 @@ export default function List({ statements = [], account_choices = [] }) {
       header: t("Difference (SAR)"), align: "right",
       render: (s) => (
         <span style={{ color: s.difference_sar !== 0 ? "var(--yellow)" : "var(--green)" }}>
-          {s.difference_sar?.toLocaleString()}
+          {s.difference_sar?.toLocaleString("en-US")}
         </span>
       ),
     },
@@ -83,7 +83,7 @@ export default function List({ statements = [], account_choices = [] }) {
       <PageHeader
         title={t("Reconciliation")}
         sub={t("Match bank statements against recorded bank transactions.")}
-        actions={canEdit ? <Button size="lg" onClick={() => setNewOpen(true)}>{t("New Statement")}</Button> : null}
+        actions={canEdit ? <Button size="lg" onClick={() => setNewOpen(true)}>+ {t("New Statement")}</Button> : null}
       />
 
       <div className="hms-list-card">

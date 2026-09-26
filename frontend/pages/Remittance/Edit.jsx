@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import { useForm } from "@inertiajs/react";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
@@ -14,7 +15,7 @@ import { fmtDec } from "../../utils/format.js";
 
 const fmt = (n) => fmtDec(n, 0);
 
-export default function Edit({ rem, lines = [], reservasi = [] }) {
+function EditBody({ rem, lines = [], reservasi = [], lines_editable = true }) {
   const { t } = useI18n();
   const [amounts, setAmounts] = useState(
     Object.fromEntries(lines.map((l) => [l.line_id, String(Math.round(l.amount_sar || 0))]))
@@ -56,11 +57,12 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
         }))
         .filter((l) => l.amount_sar > 0),
     ];
-    form.transform((d) => ({
-      ...d,
-      remove_proof: removeProof ? "1" : "",
-      lines: JSON.stringify(payload),
-    }));
+    form.transform((d) => {
+      const data = { ...d, remove_proof: removeProof ? "1" : "" };
+      if (lines_editable) data.lines = JSON.stringify(payload);
+      else delete data.lines;
+      return data;
+    });
     form.post(`/remittance/${rem.id}/edit/`, { forceFormData: true });
   };
 
@@ -89,17 +91,21 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
                 value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
                 placeholder={t("Receipt code from HQ")}
               />
-              <FormField label={t("Status")} name="status">
-                <Select value={form.data.status} onValueChange={(v) => form.setData("status", v)}>
-                  <SelectTrigger id="status" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">{t("Pending")}</SelectItem>
-                    <SelectItem value="received">{t("Received")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
+              {/* Begitu ada penerimaan tercatat, status diatur otomatis dari
+                  penerimaan itu (backend mengabaikan override manual). */}
+              {!rem.has_receipts && (
+                <FormField label={t("Status")} name="status">
+                  <Select value={form.data.status} onValueChange={(v) => form.setData("status", v)}>
+                    <SelectTrigger id="status" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">{t("Pending")}</SelectItem>
+                      <SelectItem value="received">{t("Received")}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              )}
               <FormField
                 label={t("Note")} name="note"
                 value={form.data.note} onChange={(v) => form.setData("note", v)}
@@ -125,6 +131,13 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
             )}
           </FormSection>
 
+          {!lines_editable ? (
+            <FormSection label={t("Reservations")}>
+              <p className="rem-received-note" style={{ margin: 0 }}>
+                {t("Allocation to reservations is managed per receipt on the remittance detail (Change allocation).")}
+              </p>
+            </FormSection>
+          ) : (<>
           <FormSection label={t("Reservations")}>
             {lines.length > 0 ? (
               <>
@@ -228,6 +241,7 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
             <span className="rem-total-label">{t("Total transfer")}</span>
             <span className="rem-total-val">{fmt(total)} SAR</span>
           </div>
+          </>)}
 
           <FormActions
             cancelHref={`/remittance/${rem.id}/`}
@@ -239,3 +253,5 @@ export default function Edit({ rem, lines = [], reservasi = [] }) {
     </div>
   );
 }
+
+export default withStandaloneModal(EditBody, (p) => `/remittance/${p.rem.id}/`);

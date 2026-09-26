@@ -7,7 +7,6 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import Client, Invoice, Remittance, RemittanceLine, Reservation
-from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
 
@@ -255,6 +254,32 @@ class RemittanceEditViewTest(TestCase):
         self.assertEqual(self.rem.receipt_reference, 'REF-KOREKSI')
         self.assertEqual(self.rem.status, 'received')   # status tidak ikut ter-reset
         self.assertEqual(int(self.rem.lines.get().amount_sar), 2500)
+
+    def test_cannot_set_received_amount_for_the_first_time(self):
+        """Remittance baru (belum pernah punya received_amount_sar) tidak
+        boleh 'dibukakan' ke jalur lama lewat edit -- satu-satunya cara
+        mencatat penerimaan sekarang adalah Settlement (2026-09-14)."""
+        self.assertIsNone(self.rem.received_amount_sar)
+        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
+            'date': '2026-01-12', 'status': 'pending', 'receipt_reference': '', 'note': '',
+            'received_amount_sar': '5000',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.rem.refresh_from_db()
+        self.assertIsNone(self.rem.received_amount_sar)
+
+    def test_can_correct_an_already_legacy_received_amount(self):
+        """Remittance LAMA yang sudah punya received_amount_sar tetap boleh
+        dikoreksi -- hanya pengisian PERTAMA kali yang diblok."""
+        self.rem.received_amount_sar = 2000
+        self.rem.save(update_fields=['received_amount_sar'])
+        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
+            'date': '2026-01-12', 'status': 'pending', 'receipt_reference': '', 'note': '',
+            'received_amount_sar': '2500',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.rem.refresh_from_db()
+        self.assertEqual(self.rem.received_amount_sar, 2500)
 
     def test_received_remittance_can_be_reverted_to_pending(self):
         self.rem.status = 'received'

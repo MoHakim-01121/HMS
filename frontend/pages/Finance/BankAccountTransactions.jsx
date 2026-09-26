@@ -45,7 +45,7 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
       style: { textAlign: "right" },
       render: (r) => (
         <span className="col-nowrap font-mono tabular-nums" style={{ color: r.direction === "in" ? "var(--green)" : "var(--red)" }}>
-          {r.direction === "in" ? "+" : "-"}{r.amount_sar.toLocaleString()}
+          {r.direction === "in" ? "+" : "-"}{r.amount_sar.toLocaleString("en-US")}
         </span>
       ),
     },
@@ -55,7 +55,7 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
       style: { textAlign: "right" },
       render: (r) => (
         <span className="col-nowrap font-mono tabular-nums" style={r.running_balance_sar < 0 ? { color: "var(--red)" } : undefined}>
-          {r.running_balance_sar.toLocaleString()}
+          {r.running_balance_sar.toLocaleString("en-US")}
         </span>
       ),
     },

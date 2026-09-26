@@ -14,6 +14,7 @@ import FilterPanel, { FilterSection } from "../../components/shadcn/filter-panel
 import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
 import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
+import TrackingPanel from "./TrackingPanel.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
@@ -30,9 +31,8 @@ const STATUS_OPTS = [
 
 const visit = (params) => listVisit("/remittance/", params);
 
-export default function List({ remittances, stats, status_filter, q, total_count, tracking, monthly }) {
+export default function List({ tab = "transfers", remittances, stats, status_filter, q, total_count, tracking, monthly }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState("transfers");
   const [panelOpen, setPanelOpen] = useState(false);
   const [sel, setSel] = useState(status_filter || "");
   const { query, setQuery } = useDebouncedSearch(q, (qq) => visit({ q: qq, status: status_filter || "" }));
@@ -50,6 +50,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
   const del = (e, pk, label) => { e.stopPropagation(); confirm({ title: t("Delete remittance"), message: t("Delete remittance {label}?", { label }), onConfirm: () => router.post(`/remittance/${pk}/delete/`) }); };
   const openForm = useFormModal();
   const perms = usePerms();
+  const receiptUrl = (rem) => `/remittance/${rem.id}/receipt/?next=/remittance/`;
 
   const TABS = [
     { key: "transfers", label: t("Transfers") },
@@ -62,7 +63,9 @@ export default function List({ remittances, stats, status_filter, q, total_count
     {
       header: t("Status"),
       className: "col-m-badge",
-      render: (rem) => rem.status === "received" ? <StatusPill tone="green" label={t("Received")} /> : <StatusPill tone="yellow" label={t("Pending")} />,
+      render: (rem) => rem.status === "received" ? <StatusPill tone="green" label={t("Received")} />
+        : rem.settled_sar > 0 ? <StatusPill tone="blue" label={t("Partially received")} />
+          : <StatusPill tone="yellow" label={t("Pending")} />,
     },
     { header: t("Date"), className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
     {
@@ -78,6 +81,16 @@ export default function List({ remittances, stats, status_filter, q, total_count
           {rem.proof_url && <a href={rem.proof_url} target="_blank" rel="noreferrer" className="dv-link m-only" onClick={(e) => e.stopPropagation()}>{t("Proof")}</a>}
         </>
       ),
+    },
+    {
+      header: t("Received"),
+      className: "mono col-m-hide col-nowrap",
+      render: (rem) => (rem.settled_sar ? fmt(rem.settled_sar) : "—"),
+    },
+    {
+      header: t("Allocated"),
+      className: "mono col-m-hide col-nowrap",
+      render: (rem) => (rem.expected_sar != null ? fmt(rem.allocated_sar) : "—"),
     },
     {
       header: t("Total SAR"),
@@ -96,10 +109,11 @@ export default function List({ remittances, stats, status_filter, q, total_count
       className: "col-m-actions",
       render: (rem) => (
         <RowActions actions={[
-          rem.status === "pending" && perms.can("remittance", "edit") && { icon: "check", label: t("Mark as Received"), variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
+          rem.can_record_receipt && perms.can("remittance", "edit") && { icon: "check", label: t("Record Receipt"), variant: "green", strokeWidth: 2.5, onClick: () => openForm(receiptUrl(rem)) },
+          rem.can_mark_received && perms.can("remittance", "edit") && { icon: "check", label: t("Mark as Received"), variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
           { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
           perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
-          rem.status === "pending" && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
+          rem.status === "pending" && !rem.settled_sar && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
         ]} />
       ),
     },
@@ -107,14 +121,15 @@ export default function List({ remittances, stats, status_filter, q, total_count
 
   return (
     <div className="page shadcn-root">
+      <style>{LIST_CSS}</style>
       <PageBack />
       <PageHeader
         title={t("Remittance")}
         sub={tab === "transfers"
           ? t("{count} remittances saved", { count: total_count })
           : tab === "tracking"
-            ? t("Per reservation: sent to HQ, remaining idle funds, which RMT covered them")
-            : t("Remittance summary per month")}
+            ? t("Client money in Surabaya not yet allocated to what HQ received")
+            : t("Per transfer month — received is what actually reached HQ")}
         actions={
           <>
             <ExportMenu
@@ -138,7 +153,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
             role="tab"
             aria-selected={tab === key}
             className={`rmt-tab${tab === key ? " active" : ""}`}
-            onClick={() => setTab(key)}
+            onClick={() => key !== tab && visit({ tab: key === "transfers" ? "" : key })}
           >
             {label}
           </button>
@@ -147,61 +162,44 @@ export default function List({ remittances, stats, status_filter, q, total_count
 
       {tab === "transfers" && (
         <>
-          <div className="hms-kpi-row cols-5">
-            <KpiCard label={t("Total Billed")} value={fmt(stats.total_tagihan)} unit="SAR" icon="invoice" foot={t("all remittances")} />
-            <KpiCard label={t("Sent to HQ")} value={fmt(stats.terkirim_ke_pusat)} unit="SAR" icon="remittance" tone="blue" foot={t("transferred to HQ")} />
+          <div className="hms-kpi-row">
+            <KpiCard label={t("Sent")} value={fmt(stats.sent)} unit="SAR" foot={t("all transfers")} />
+            <KpiCard label={t("Received at HQ")} value={fmt(stats.received)} unit="SAR" foot={t("actually reached HQ")} />
+            <KpiCard label={t("In transit")} value={fmt(stats.in_transit)} unit="SAR" foot={t("sent, not received yet")} />
             <KpiCard
-              label={stats.mengendap < 0 ? t("Credit at HQ") : t("Idle Funds")}
-              value={fmt(Math.abs(stats.mengendap))}
+              label={t("Received, not allocated")}
+              value={fmt(stats.received_unallocated)}
               unit="SAR"
-              icon="clock"
-              tone={stats.mengendap > 0 ? "yellow" : stats.mengendap < 0 ? "blue" : "green"}
-              foot={stats.mengendap < 0 ? t("HQ sent more than received") : t("pending transfer")}
-            />
-            {/* Kewajiban kirim & saldo dana klien wajib berdampingan: kewajiban
-                kirim negatif tanpa konteks saldo klien bisa salah dibaca sebagai
-                kredit murni Surabaya, padahal bisa jadi kelebihan bayar klien. */}
-            <KpiCard
-              label={stats.kewajiban_kirim < 0 ? t("Credit Owed by HQ") : t("Owed to HQ")}
-              value={fmt(Math.abs(stats.kewajiban_kirim))}
-              unit="SAR"
-              icon="remittance"
-              tone={stats.kewajiban_kirim > 0 ? "yellow" : stats.kewajiban_kirim < 0 ? "blue" : "green"}
-              foot={t("what Surabaya still owes HQ")}
-            />
-            <KpiCard
-              label={t("Client Fund Balance")}
-              value={fmt(stats.saldo_dana_klien)}
-              unit="SAR"
-              icon="invoice"
-              tone={stats.saldo_dana_klien > 0 ? "yellow" : "green"}
-              foot={t("client cash not yet allocated")}
+              warn={stats.received_unallocated > 0}
+              foot={stats.received_unallocated > 0 ? (
+                <button type="button" className="rmt-kpi-link" onClick={() => visit({ tab: "tracking" })}>
+                  {t("Allocate in Tracking")} →
+                </button>
+              ) : t("nothing waiting")}
             />
           </div>
-          {(stats.rupiah_dari_klien > 0 || stats.selisih_kurs !== 0) && (
-            <div className="hms-kpi-row cols-3">
-              {stats.rupiah_dari_klien > 0 && (
-                <KpiCard
-                  label={t("Rupiah Idle in Surabaya")}
-                  value={fmt(stats.rupiah_dari_klien)}
-                  unit="IDR"
-                  icon="clock"
-                  tone="yellow"
-                  foot={t("client rupiah received but not yet sent to HQ")}
-                />
-              )}
-              {stats.selisih_kurs !== 0 && (
-                <KpiCard
-                  label={stats.selisih_kurs > 0 ? t("Exchange Gain") : t("Exchange Loss")}
-                  value={fmt(Math.abs(stats.selisih_kurs))}
-                  unit="SAR"
-                  icon="invoice"
-                  tone={stats.selisih_kurs > 0 ? "green" : "red"}
-                  foot={t("this period's FX difference")}
-                />
-              )}
+
+          {/* Posisi kas: angka yang tidak ada di tab lain. Kewajiban ke Pusat dan
+              saldo dana klien sengaja berdampingan -- kewajiban negatif tanpa
+              konteks saldo klien bisa salah dibaca sebagai kredit murni Surabaya. */}
+          <dl className="rmt-cash" aria-label={t("Cash position")}>
+            <div>
+              <dt>{stats.kewajiban_kirim < 0 ? t("Credit Owed by HQ") : t("Owed to HQ")}</dt>
+              <dd>{fmt(Math.abs(stats.kewajiban_kirim))} SAR</dd>
             </div>
-          )}
+            <div>
+              <dt>{t("Client Fund Balance")}</dt>
+              <dd>{fmt(stats.saldo_dana_klien)} SAR</dd>
+            </div>
+            <div>
+              <dt>{t("Rupiah not yet sent")}</dt>
+              <dd>{fmt(stats.rupiah_dari_klien)} IDR</dd>
+            </div>
+            <div>
+              <dt>{stats.selisih_kurs < 0 ? t("Exchange Loss") : t("Exchange Gain")}</dt>
+              <dd>{fmt(Math.abs(stats.selisih_kurs))} SAR</dd>
+            </div>
+          </dl>
 
           <div className="filter-bar">
             <SearchBox value={query} onChange={setQuery} placeholder="Search remittance number or reference…" />
@@ -240,7 +238,7 @@ export default function List({ remittances, stats, status_filter, q, total_count
         </>
       )}
 
-      {tab === "tracking" && <TrackingPanel tracking={tracking} t={t} />}
+      {tab === "tracking" && <TrackingPanel tracking={tracking} />}
       {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
 
       {confirmDialog}
@@ -248,78 +246,11 @@ export default function List({ remittances, stats, status_filter, q, total_count
   );
 }
 
-function TrackingPanel({ tracking, t }) {
-  const clients = tracking?.clients || [];
-  const totalSisa = tracking?.total_sisa_kirim ?? 0;
-  return (
-    <>
-      {clients.length ? (
-        <div className="trk-summary">
-          <div className="trk-summary-num">{fmt(totalSisa)}</div>
-          <div className="trk-summary-lbl">{t("SAR still idle in Surabaya")}</div>
-          <div className="trk-summary-sub">{t("{n} clients, {r} reservations", { n: clients.length, r: clients.reduce((a, c) => a + c.reservations.length, 0) })}</div>
-        </div>
-      ) : (
-        <EmptyState iconName="clock" title={t("Nothing pending transfer")} sub={t("No reservations with idle funds right now")} />
-      )}
-      {clients.map((c) => (
-        <div key={c.client_name} className="trk-group">
-          <div className="trk-group-head">
-            <span className="trk-group-name">{c.client_name}</span>
-            <span className="trk-group-amt">{t("{n} reservations", { n: c.reservations.length })}</span>
-          </div>
-          <div className="hms-list-card">
-            <Table
-              columns={[
-                {
-                  header: t("Reservation"),
-                  className: "col-m-primary col-nowrap",
-                  render: (x) => (
-                    <>
-                      <span className="trk-res">{x.linked_number}</span>
-                      {x.invoice_number && <span className="trk-res-sub">{x.invoice_number}</span>}
-                      {x.rmts.length > 0 && (
-                        <span className="trk-rmt-count" title={x.rmts.map((r) => `${r.number} · ${r.date} · ${fmt(r.amount_sar)} SAR`).join("\n")}>{x.rmts.length} RMT</span>
-                      )}
-                    </>
-                  ),
-                },
-                {
-                  header: t("Hotel / Check-in"),
-                  className: "col-m-secondary",
-                  render: (x) => (
-                    <>
-                      <span>{x.hotel}</span>
-                      {x.check_in && <span className="trk-res-sub">{t("in")} {x.check_in}</span>}
-                    </>
-                  ),
-                },
-                {
-                  header: t("Sent to HQ"),
-                  className: "mono col-m-amount",
-                  render: (x) => <span className="trk-sent">{fmt(x.sudah_dikirim)}</span>,
-                },
-                {
-                  header: t("Idle"),
-                  className: "mono col-m-amount",
-                  style: { fontWeight: 600 },
-                  render: (x) =>
-                    x.sisa_kirim > 0
-                      ? <span className="trk-idle">{fmt(x.sisa_kirim)}</span>
-                      : x.mengendap < 0
-                        ? <span className="trk-over" title={t("HQ sent more than received for this reservation")}>{fmt(x.mengendap)}</span>
-                        : <span className="trk-zero">0</span>,
-                },
-              ]}
-              rows={c.reservations}
-              rowKey={(x) => x.linked_number}
-            />
-          </div>
-        </div>
-      ))}
-    </>
-  );
-}
+const RECAP_PILL = {
+  received: { tone: "green", label: "Received" },
+  partial: { tone: "blue", label: "Partially received" },
+  pending: { tone: "yellow", label: "Pending" },
+};
 
 function RecapPanel({ monthly, t }) {
   if (!monthly || !monthly.length) {
@@ -332,7 +263,10 @@ function RecapPanel({ monthly, t }) {
           <div className="recap-group-head">
             <span className="recap-group-label">{m.label}</span>
             <span className="recap-group-stats">
-              {t("Sent")}: {fmt(m.total_sent)} SAR · {t("Received")}: {fmt(m.total_received)} SAR
+              {t("Sent")} {fmt(m.total_sent)} · {t("Received")} {fmt(m.total_received)}
+              {m.total_outstanding ? ` · ${t("In transit")} ${fmt(m.total_outstanding)}` : ""}
+              {m.total_difference ? ` · ${t("Difference")} ${fmt(m.total_difference)}` : ""} SAR
+              <a className="recap-pdf" href={`/remittance/export/pdf/?month=${m.period}`} target="_blank" rel="noreferrer">PDF</a>
             </span>
           </div>
           <div className="hms-list-card">
@@ -342,11 +276,22 @@ function RecapPanel({ monthly, t }) {
                 {
                   header: t("Status"),
                   className: "col-m-badge",
-                  render: (x) => x.status === "received" ? <StatusPill tone="green" label={t("Received")} /> : <StatusPill tone="yellow" label={t("Pending")} />,
+                  render: (x) => <StatusPill tone={RECAP_PILL[x.state].tone} label={t(RECAP_PILL[x.state].label)} />,
                 },
                 { header: t("Date"), className: "col-m-hide col-nowrap", render: (x) => x.date },
                 { header: t("Lines"), className: "col-m-hide", render: (x) => x.lines_count },
-                { header: t("Total SAR"), className: "mono col-m-amount", render: (x) => `${fmt(x.total_sar)} SAR` },
+                { header: t("Sent"), className: "mono col-m-hide col-nowrap", render: (x) => fmt(x.sent) },
+                {
+                  header: t("Received"),
+                  className: "mono col-m-amount",
+                  render: (x) => (
+                    <>
+                      <span className="m-only recap-m-label">{t("Received")}</span>
+                      {x.received ? `${fmt(x.received)} SAR` : "—"}
+                      {x.difference ? <span className="recap-diff">{t("difference")} {fmt(x.difference)}</span> : null}
+                    </>
+                  ),
+                },
                 {
                   header: "",
                   className: "col-m-actions",
@@ -370,3 +315,17 @@ function RecapPanel({ monthly, t }) {
     </div>
   );
 }
+
+// Posisi kas + link KPI (tab Transfer) dan detail Recap.
+const LIST_CSS = `
+.recap-pdf { margin-left: 10px; font-weight: 600; color: var(--foreground); text-decoration: none; }
+.recap-pdf:hover { text-decoration: underline; }
+.recap-m-label { margin-right: 6px; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); }
+.recap-diff { display: block; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
+.rmt-kpi-link { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--foreground); cursor: pointer; }
+.rmt-kpi-link:hover { text-decoration: underline; }
+.rmt-cash { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: -4px 2px 16px; font-size: 12.5px; }
+.rmt-cash > div { display: flex; gap: 6px; }
+.rmt-cash dt { color: var(--muted-foreground); }
+.rmt-cash dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+`;

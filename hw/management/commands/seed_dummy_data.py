@@ -188,7 +188,6 @@ class Command(BaseCommand):
 
         for wi in range(NUM_WAVES):
             check_in = START_DATE + timedelta(weeks=wi)
-            rng = random.Random(f'{check_in.isoformat()}')
             # 3 agensi aktif per gelombang, rotasi deterministik.
             active = [(wi + k) % len(AGENCIES) for k in range(3)]
 

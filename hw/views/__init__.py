@@ -45,6 +45,7 @@ from .client_views import (
 from .hotel_views import (
     hotel_list, hotel_new, hotel_edit, hotel_delete,
     hotel_detail, hotel_map, hotel_map_data,
+    room_type_new, room_type_edit, room_type_bulk, room_type_delete, hotel_meal_plans,
 )
 from .remittance_views import (
     remittance_list, remittance_new, remittance_detail, remittance_edit,
@@ -53,8 +54,8 @@ from .remittance_views import (
     remittance_ledger_pdf, remittance_tracking,
 )
 from .settlement_views import (
-    settlement_list, obligation_new, settlement_new, settlement_allocate,
-    remittance_close_diff,
+    remittance_record_receipt, remittance_receipt_allocation, remittance_receipt_delete,
+    remittance_close_diff, remittance_reopen_diff,
 )
 from .reconciliation_views import (
     reconciliation_list, reconciliation_new, reconciliation_detail,
@@ -65,8 +66,9 @@ from .penalty_views import (
     penalty_list,
 )
 from .finance_views import (
-    journal_list, journal_detail, trial_balance, statements_list,
+    finance_hub, journal_list, journal_detail, trial_balance, statements_list,
     client_finance_statement, bank_account_list, bank_account_transactions,
+    bank_account_new, bank_account_edit,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
@@ -75,7 +77,7 @@ from .receipt_views import (
     receipt_void, receipt_pdf,
 )
 from .payment_views import (
-    payment_list, payment_detail, payment_record_new, payment_record,
+    payment_list, payment_detail, payment_record,
     payment_confirm, payment_reject, payment_reverse, payment_reallocate,
     payment_apply, payment_void, payment_export_csv,
 )

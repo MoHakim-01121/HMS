@@ -226,6 +226,20 @@ export function StandaloneFormModal({ closeHref = "/", children }) {
   );
 }
 
+// A form page opened by URL (refresh, shared link) has no dialog around it.
+// Wrap its default export with this so it still renders as the one modal
+// presentation every form uses, instead of falling back to a full page.
+// `closeHref` is where dismissing goes — a string or props => string.
+export function withStandaloneModal(Body, closeHref) {
+  function StandaloneWhenDirect(props) {
+    if (useContext(FormModalContext)?.inModal) return <Body {...props} />;
+    const href = typeof closeHref === "function" ? closeHref(props) : closeHref;
+    return <StandaloneFormModal closeHref={href}><Body {...props} /></StandaloneFormModal>;
+  }
+  StandaloneWhenDirect.displayName = `withStandaloneModal(${Body.name || "Form"})`;
+  return StandaloneWhenDirect;
+}
+
 // Splitting head/body out here is what lets the height of the dialog be driven
 // by its content rather than snapped to it.
 //

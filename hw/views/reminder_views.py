@@ -22,12 +22,6 @@ from ..i18n import tr
 from ..services.recap import (
     build_recap_message,
     build_grouped_reminder_message, resolve_reminder_targets, resolve_guest_target, group_guests,
-)
-
-
-from ..services.recap import (
-    build_recap_message,
-    build_grouped_reminder_message, resolve_reminder_targets, resolve_guest_target, group_guests,
     TEMPLATE_H0_CLIENT, TEMPLATE_H1_CLIENT, TEMPLATE_RECAP,
 )
 

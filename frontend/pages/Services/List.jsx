@@ -12,6 +12,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmt } from "../../utils/format.js";
 import { listVisit } from "../../utils/listVisit.js";
 
 const visit = (params) => listVisit("/services/", params);
@@ -36,11 +37,15 @@ export default function List({ invoices, total_count, q, pagination }) {
         <>
           <span className="m-hide">{inv.issued_date || "—"}</span>
           {inv.issued_date && <span className="m-only">{t("issued")} {inv.issued_date}</span>}
-          <span className="m-only" style={{ color: "var(--text-3)" }}>{inv.created_at}</span>
         </>
       ),
     },
     { header: t("Created"), className: "col-dim col-nowrap col-m-hide", render: (inv) => inv.created_at },
+    {
+      header: t("Total"),
+      className: "col-num col-nowrap col-m-amount",
+      render: (inv) => <span className="col-bold">{fmt(inv.total)} {inv.currency}</span>,
+    },
     {
       header: "",
       className: "col-m-actions",

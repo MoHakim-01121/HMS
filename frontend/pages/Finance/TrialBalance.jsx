@@ -70,10 +70,10 @@ export default function TrialBalance({
                 ) : (
                   <TableRow key={s.key}>
                     <TableCell className="font-medium whitespace-nowrap">{s.account_display}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{s.debit.toLocaleString()}</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{s.credit.toLocaleString()}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{s.debit.toLocaleString("en-US")}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">{s.credit.toLocaleString("en-US")}</TableCell>
                     <TableCell className="text-right font-mono tabular-nums font-medium" style={s.net < 0 ? { color: "var(--red)" } : undefined}>
-                      {s.net.toLocaleString()}
+                      {s.net.toLocaleString("en-US")}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -82,9 +82,9 @@ export default function TrialBalance({
             <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border)] text-sm font-semibold">
               <span>{t("Total")}</span>
               <span className="flex gap-6 font-mono tabular-nums">
-                <span>{total_debit.toLocaleString()}</span>
-                <span>{total_credit.toLocaleString()}</span>
-                <span>{(total_debit - total_credit).toLocaleString()}</span>
+                <span>{total_debit.toLocaleString("en-US")}</span>
+                <span>{total_credit.toLocaleString("en-US")}</span>
+                <span>{(total_debit - total_credit).toLocaleString("en-US")}</span>
               </span>
             </div>
           </div>

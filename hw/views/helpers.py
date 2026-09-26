@@ -1,5 +1,4 @@
 import csv
-import re
 from datetime import date, datetime
 
 import magic
@@ -64,6 +63,13 @@ def _render_list_pdf(request, qs, template, filename, extra_ctx=None):
     return response
 
 
+def _parse_search_tokens(q):
+    """Split a list-page search box value into OR-ed tokens ("a, b" = a OR b)."""
+    if ',' not in q:
+        return [q[:100]]
+    return [t.strip()[:100] for t in q.split(',') if t.strip()]
+
+
 def _parse_date(date_str):
     if not date_str or not date_str.strip():
         return None
@@ -124,20 +130,24 @@ def money_account_choices(branch=None):
     for a in cash_qs:
         choices.append({'value': f'cash:{a.pk}', 'label': f'{a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
     for a in bank_qs:
-        choices.append({'value': f'bank:{a.pk}', 'label': f'{a.bank_name} {a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
+        choices.append({'value': f'bank:{a.pk}', 'label': str(a), 'branch': a.branch_id, 'currency': a.currency})
     return choices
 
 
 def resolve_money_account(value):
-    """"cash:<id>" / "bank:<id>" -> (bank_account, cash_account)."""
+    """"cash:<id>" / "bank:<id>" -> (bank_account, cash_account).
+
+    Only active accounts resolve — the same set money_account_choices offers,
+    so a hand-crafted value can't book money into a deactivated account.
+    Every caller is a create path (record payment/expense, new statement)."""
     from ..models.bank import BankAccount, CashAccount
     if not value or ':' not in value:
         return None, None
     kind, _, pk = value.partition(':')
     if kind == 'cash':
-        return None, CashAccount.objects.filter(pk=pk).first()
+        return None, CashAccount.objects.filter(pk=pk, is_active=True).first()
     if kind == 'bank':
-        return BankAccount.objects.filter(pk=pk).first(), None
+        return BankAccount.objects.filter(pk=pk, is_active=True).first(), None
     return None, None
 
 

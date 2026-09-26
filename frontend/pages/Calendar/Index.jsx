@@ -119,6 +119,8 @@ function gridCss(days) {
 }
 @media (max-width:600px){
   .cal-page { padding:0 0 80px; }
+  /* The page runs edge-to-edge here; keep Back on the content gutter. */
+  .cal-back { padding:8px 14px 0; }
   .cal-card { border-radius:0; border-left:none; border-right:none; border-top:none; }
   .cal-card-head { display:none; }
   .cal-legend { gap:10px; }
@@ -492,7 +494,7 @@ export default function Calendar(props) {
     <div className="page shadcn-root cal-page">
       <style dangerouslySetInnerHTML={{ __html: gridCss(days.length) }} />
 
-      <PageBack />
+      <div className="cal-back"><PageBack /></div>
 
       {isMobile ? (
         /* ═══ MOBILE LAYOUT ═══

@@ -17,24 +17,24 @@ export default function Statements({ clients = [] }) {
     {
       header: t("Billed"),
       className: "text-right",
-      render: (c) => <span className="font-mono tabular-nums">{c.tagihan.toLocaleString()}</span>,
+      render: (c) => <span className="font-mono tabular-nums">{c.tagihan.toLocaleString("en-US")}</span>,
     },
     {
       header: t("Paid"),
       className: "text-right",
-      render: (c) => <span className="font-mono tabular-nums">{c.terbayar.toLocaleString()}</span>,
+      render: (c) => <span className="font-mono tabular-nums">{c.terbayar.toLocaleString("en-US")}</span>,
     },
     {
       header: t("Allocated"),
       className: "text-right",
-      render: (c) => <span className="font-mono tabular-nums">{c.allocated.toLocaleString()}</span>,
+      render: (c) => <span className="font-mono tabular-nums">{c.allocated.toLocaleString("en-US")}</span>,
     },
     {
       header: t("Receivable"),
       className: "text-right",
       render: (c) => (
         <span className="font-mono tabular-nums font-medium" style={c.piutang > 0 ? { color: "var(--red)" } : undefined}>
-          {c.piutang.toLocaleString()}
+          {c.piutang.toLocaleString("en-US")}
         </span>
       ),
     },
@@ -42,7 +42,7 @@ export default function Statements({ clients = [] }) {
       header: t("Wallet Balance"),
       className: "text-right",
       render: (c) => (
-        <span className="font-mono tabular-nums">{c.saldo_dana.toLocaleString()}</span>
+        <span className="font-mono tabular-nums">{c.saldo_dana.toLocaleString("en-US")}</span>
       ),
     },
   ];

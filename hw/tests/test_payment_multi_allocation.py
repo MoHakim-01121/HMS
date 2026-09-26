@@ -72,7 +72,8 @@ class MultiAllocationSaveTest(TestCase):
         p = payments[0]
         self.assertEqual(p.amount, 1500)
         self.assertEqual(p.amount_sar, 1500)
-        self.assertEqual(p.status, PaymentRecord.STATUS_APPLIED)
+        # Menunggu konfirmasi finance/admin — bukan langsung efektif.
+        self.assertEqual(p.status, PaymentRecord.STATUS_PENDING)
 
         allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
         self.assertEqual(

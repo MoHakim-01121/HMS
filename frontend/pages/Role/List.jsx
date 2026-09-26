@@ -80,7 +80,7 @@ export default function List({ roles = [], modules = [], current_role }) {
         actions={
           <Button asChild size="lg">
             <Link href="/roles/new/">
-              + {t("New role")}
+              + {t("New Role")}
             </Link>
           </Button>
         }

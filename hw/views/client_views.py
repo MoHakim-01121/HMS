@@ -1,5 +1,4 @@
-﻿import json
-import logging
+﻿import logging
 from datetime import date, datetime, time as dt_time
 
 from django.contrib import messages
@@ -590,14 +589,20 @@ def client_statement_pdf(request, pk):
         else:
             period_en = "All transactions to date"
         reservations = [{
+            'no': i,
             'reservation_number': g['reservation_number'],
             'hotel': g['hotel'],
             'check_in': g['check_in'].strftime('%d/%m/%Y') if g['check_in'] else '—',
-            'billed': g['billed'],
-            'paid': g['paid'],
+            'debit': g['billed'],
+            'credit': g['paid'],
             'balance': g['balance'],
             'settled': g['settled'],
-        } for g in st['reservations']]
+        } for i, g in enumerate(st['reservations'], start=1)]
+        # Subtotal of the per-reservation columns only. `total_debit`/`total_credit`
+        # from the query also sweep in `unallocated` lines, so they would not tie
+        # out to the sum of what is printed in these columns.
+        subtotal_debit = sum(r['debit'] for r in reservations)
+        subtotal_credit = sum(r['credit'] for r in reservations)
         return _render_list_pdf(
             request, Client.objects.none(),
             template='hw/client/client_statement_byres_pdf.html',
@@ -605,6 +610,9 @@ def client_statement_pdf(request, pk):
             extra_ctx={
                 'client': c,
                 'reservations': reservations,
+                'subtotal_debit': subtotal_debit,
+                'subtotal_credit': subtotal_credit,
+                'subtotal_balance': subtotal_debit - subtotal_credit,
                 'unallocated': st['unallocated'],
                 'opening_balance': st['opening_balance'],
                 'closing_balance': st['closing_balance'],

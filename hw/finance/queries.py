@@ -94,6 +94,39 @@ def payment_unallocated_sar(payment_id):
     return int(pr.amount_sar)
 
 
+def payment_unallocated_map(payment_ids):
+    """{payment_id: unallocated_sar} — bentuk bulk dari payment_unallocated_sar.
+
+    Dua query untuk N payment, bukan dua query PER payment. Aturannya persis
+    sama dengan versi satuan: baris PaymentAllocation menang; tanpa baris tapi
+    terikat langsung ke satu reservasi = teralokasi penuh; selain itu seluruh
+    nilainya belum teralokasi.
+    """
+    from ..models.payment import PaymentRecord, PaymentAllocation
+
+    ids = list(payment_ids)
+    if not ids:
+        return {}
+
+    alloc = {
+        r["payment_id"]: int(r["t"] or 0)
+        for r in PaymentAllocation.objects.filter(payment_id__in=ids)
+        .values("payment_id").annotate(t=Sum("amount_sar"))
+    }
+    out = {}
+    for pk, amount_sar, reservation_id in PaymentRecord.objects.filter(
+        pk__in=ids,
+    ).values_list("pk", "amount_sar", "reservation_id"):
+        allocated = alloc.get(pk, 0)
+        if allocated:
+            out[pk] = max(0, int(amount_sar) - allocated)
+        elif reservation_id:
+            out[pk] = 0
+        else:
+            out[pk] = int(amount_sar)
+    return out
+
+
 def invoice_paid_map(invoice_ids):
     """{invoice_id: paid_sar} — charged - outstanding, dua query."""
     charged = {
@@ -296,6 +329,14 @@ def client_credit_balance(client_id):
     """Saldo titipan / dana client (positif = kita berutang ke client)."""
     a = JournalLine.objects.filter(
         client_id=client_id, account_id=coa.CUST_CREDIT,
+    ).aggregate(d=Sum("debit"), c=Sum("credit"))
+    return (a["c"] or 0) - (a["d"] or 0)
+
+
+def total_client_credit_balance():
+    """Σ client_credit_balance untuk semua client, satu aggregate query."""
+    a = JournalLine.objects.filter(
+        client_id__isnull=False, account_id=coa.CUST_CREDIT,
     ).aggregate(d=Sum("debit"), c=Sum("credit"))
     return (a["c"] or 0) - (a["d"] or 0)
 
@@ -600,23 +641,40 @@ def transit():
     return account_balance(coa.TRANSIT)
 
 
-def money_accounts_overview(branch=None):
+def money_accounts_overview(branch=None, include_inactive=False):
     """Daftar rekening bank + kas dengan book_balance masing-masing.
-    Data-layer untuk halaman saldo bank (v2.0 §78) — belum ada UI-nya."""
+    Data-layer untuk halaman saldo bank (v2.0 §78). `include_inactive`
+    ikut menampilkan rekening bank nonaktif (halaman kelola rekening)."""
     from ..models.bank import BankAccount, CashAccount
 
-    bank_qs = BankAccount.objects.filter(is_active=True).select_related('branch')
+    bank_qs = BankAccount.objects.all() if include_inactive else BankAccount.objects.filter(is_active=True)
+    bank_qs = bank_qs.select_related('branch')
     cash_qs = CashAccount.objects.filter(is_active=True).select_related('branch')
     if branch:
         bank_qs = bank_qs.filter(branch_id=branch)
         cash_qs = cash_qs.filter(branch_id=branch)
+    # book_balance is the ledger's balance (journal is SAR-only). Several money
+    # accounts may post to one ledger (e.g. a bank account on the branch cash
+    # ledger); flag those so the page doesn't pass a shared figure off as one
+    # account's own.
+    from collections import Counter
+    ledger_use = Counter(
+        list(BankAccount.objects.values_list('ledger_account_id', flat=True))
+        + list(CashAccount.objects.values_list('ledger_account_id', flat=True))
+    )
     rows = []
     for kind, qs in (('bank', bank_qs), ('cash', cash_qs)):
         for acc in qs:
             rows.append({
-                'id': acc.pk, 'kind': kind, 'name': str(acc),
+                'id': acc.pk, 'kind': kind,
+                'name': f'{acc.bank_name} ({acc.currency})' if kind == 'bank' else str(acc),
+                'ledger_account': acc.ledger_account_id,
+                'ledger_shared': ledger_use[acc.ledger_account_id] > 1,
                 'branch': acc.branch_id, 'currency': acc.currency,
                 'book_balance': acc.book_balance,
+                'is_active': acc.is_active,
+                'show_on_invoice': getattr(acc, 'show_on_invoice', False),
+                'account_identifier': getattr(acc, 'account_identifier', ''),
             })
     return rows
 
@@ -761,13 +819,37 @@ def kewajiban_kirim_sby():
 def remittance_sent_sar(remittance_id):
     """Total SAR yang dikirim utk remittance ini = debit TRANSIT dari entry
     send yang masih hidup. Entry receive meng-credit TRANSIT (bukan debit),
-    jadi Sum(debit) hanya mengunci sisi kirim."""
+    jadi Sum(debit) hanya mengunci sisi kirim -- setelah dua debit non-kirim
+    disingkirkan (_sent_lines)."""
     return (
-        JournalLine.objects.filter(
-            remittance_id=remittance_id, account_id=coa.TRANSIT,
-        ).exclude(journal_entry_id__in=_reversed_entry_ids())
+        _sent_lines(remittance_id=remittance_id)
         .aggregate(d=Sum("debit"))["d"] or 0
     )
+
+
+def _sent_lines(**f):
+    """Baris TRANSIT sisi kirim yang masih hidup. Dikecualikan:
+    - entry reversal: membalik terima/settlement/selisih biaya menghasilkan
+      debit TRANSIT, padahal itu bukan uang yang dikirim;
+    - RemittanceDiff: laba kurs dibukukan Dr TRANSIT / Cr pendapatan."""
+    return (
+        JournalLine.objects.filter(account_id=coa.TRANSIT, **f)
+        .exclude(journal_entry_id__in=_reversed_entry_ids())
+        .exclude(journal_entry__is_reversal=True)
+        .exclude(journal_entry__reference_type="RemittanceDiff")
+    )
+
+
+def remittance_sent_map(remittance_ids):
+    """{remittance_id: total SAR terkirim} — versi bulk remittance_sent_sar()
+    untuk daftar (dashboard/rekap), satu aggregate query, bukan N+1."""
+    if not remittance_ids:
+        return {}
+    rows = (
+        _sent_lines(remittance_id__in=remittance_ids)
+        .values("remittance_id").annotate(d=Sum("debit"))
+    )
+    return {r["remittance_id"]: r["d"] or 0 for r in rows}
 
 
 def remittance_has_live_entries(remittance_id):
@@ -859,11 +941,13 @@ def reservation_first_payment_date_map(reservation_numbers):
 
 def reservation_remittance_map(linked_numbers=None):
     """Riwayat remittance per reservasi (baca RemittanceLine, bukan jurnal):
-    {reservation_number: [{rmt_id, rmt_number, date, status, amount_sar}]}."""
+    {reservation_number: [{rmt_id, rmt_number, date, status, amount_sar,
+    received_date}]}. `received_date` terisi untuk alokasi penerimaan
+    (RemittanceLine.settlement), None untuk baris yang dialokasikan saat kirim."""
     from collections import defaultdict
     from ..models.remittance import RemittanceLine
-    qs = RemittanceLine.objects.select_related("remittance").order_by(
-        "remittance__date", "remittance__created_at",
+    qs = RemittanceLine.objects.select_related("remittance", "settlement").order_by(
+        "remittance__date", "remittance__created_at", "settlement__received_date", "pk",
     )
     if linked_numbers is not None:
         qs = qs.filter(linked_number__in=linked_numbers)
@@ -873,6 +957,7 @@ def reservation_remittance_map(linked_numbers=None):
             "rmt_id": l.remittance_id, "rmt_number": l.remittance.remittance_number,
             "date": l.remittance.date, "status": l.remittance.status,
             "amount_sar": int(l.amount_sar or 0),
+            "received_date": l.settlement.received_date if l.settlement_id else None,
         })
     return result
 
@@ -917,6 +1002,7 @@ def clients_overview():
 
     overview = [{
         "client_id": cid,
+        "name": clients[cid].name,
         "tagihan": billed.get(cid, 0),
         "terbayar": paid.get(cid, 0),
         "allocated": billed.get(cid, 0) - receivable.get(cid, 0),

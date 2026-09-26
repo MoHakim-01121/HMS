@@ -25,8 +25,10 @@ class Receipt(models.Model):
     payment        = models.ForeignKey(
         'PaymentRecord', on_delete=models.PROTECT, related_name='receipts',
     )
+    # Nullable: pembayaran tanpa invoice (deposit) tetap dapat kwitansi —
+    # PDF menampilkan tanpa blok invoice ("Paid for") dan tanpa rincian alokasi.
     invoice        = models.ForeignKey(
-        'Invoice', on_delete=models.PROTECT, related_name='receipts',
+        'Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='receipts',
     )
     client         = models.ForeignKey(
         'Client', on_delete=models.PROTECT, related_name='receipts',

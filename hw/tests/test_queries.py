@@ -83,7 +83,7 @@ class QueriesTests(TestCase):
         self.assertEqual(st["rows"][0]["balance"], 80000)
 
     def test_client_aging_buckets(self):
-        from datetime import datetime, time as dt_time
+        from datetime import datetime
         from django.utils import timezone as dj_tz
         as_of = dj_tz.make_aware(datetime(2046, 6, 1))
         st = q.client_aging(self.client_obj.id, as_of=as_of)
@@ -156,7 +156,7 @@ class QueriesTests(TestCase):
  invoice_type="hotel", invoice_number="INV-Q2",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 8),
         )
-        res2 = Reservation.objects.create(
+        Reservation.objects.create(
             invoice=inv2, reservation_number="R-Q2", total_sar=30000,
         )
         posting.post_invoice_charge(inv2, created_by=self.user)

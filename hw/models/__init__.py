@@ -15,8 +15,8 @@ from .bank import BankAccount, CashAccount
 from .bank_transaction import BankTransaction
 from .reconciliation import BankStatement, BankStatementLine
 from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
-from .settlement import HQObligation, RemittanceAllocation, RemittanceSettlement
-from .hotel import Hotel, RoomType, Occupancy, RoomView, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
+from .settlement import RemittanceSettlement
+from .hotel import Hotel, RoomType, Occupancy, RoomView, room_type_name, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .meal_plan import MealPlan
 from .penalty import CancellationPenalty
 from .reminder import WATarget, MessageTemplate
@@ -52,9 +52,9 @@ __all__ = [
     # Expense (Master Architecture v2.0 FASE D)
     'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment',
     # Settlement (Master Architecture v2.0 FASE E)
-    'HQObligation', 'RemittanceSettlement', 'RemittanceAllocation',
+    'RemittanceSettlement',
     # Hotel
-    'Hotel', 'RoomType', 'Occupancy', 'RoomView', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
+    'Hotel', 'RoomType', 'Occupancy', 'RoomView', 'room_type_name', 'HARAM_LAT', 'HARAM_LNG', 'NABAWI_LAT', 'NABAWI_LNG',
     'MealPlan',
     # Penalty
     'CancellationPenalty',

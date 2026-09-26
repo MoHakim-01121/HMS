@@ -10,10 +10,9 @@ from hw.finance import posting
 from hw.finance.hashing import verify_chain
 from hw.models import (
     CancellationPenalty, Client, ConfirmationLetter, Invoice, PaymentAllocation,
-    PaymentRecord, Reservation, ServiceItem,
+    Reservation, ServiceItem,
 )
 from hw.finance_helpers import create_payment_record, FinanceError
-from hw.models.choices import Company
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 

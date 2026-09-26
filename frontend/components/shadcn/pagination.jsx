@@ -71,7 +71,7 @@ export default function Pagination({ pagination, onPage, unit = "results", page,
   return (
     <nav className="hms-pag" aria-label={t("Pagination")}>
       <div className="hms-pag-count">
-        {total != null && `${total.toLocaleString()} ${t(unit)}`}
+        {total != null && `${total.toLocaleString("en-US")} ${t(unit)}`}
       </div>
       {hasNav && (
         <div className="hms-pag-nav">

@@ -13,6 +13,8 @@ import { Toaster as Sonner } from "sonner";
 // theme prop is dropped entirely; its CSS variables are mapped directly to
 // this project's --background/--foreground/etc tokens instead, so toasts
 // follow [data-theme] the same way every other shadcn component does.
+// Toast elevation is --card (pure white) like every other floating surface —
+// see dialog.jsx.
 
 const CustomToast = ({ children, ...props }) => (
   <div style={{ maxHeight: "200px", overflowY: "auto" }} {...props}>
@@ -38,13 +40,13 @@ const Toaster = ({
       }}
       style={
         {
-          "--normal-bg": "var(--background)",
+          "--normal-bg": "var(--card)",
           "--normal-text": "var(--foreground)",
           "--normal-border": "var(--border)",
-          "--success-bg": "var(--background)",
+          "--success-bg": "var(--card)",
           "--success-text": "var(--foreground)",
           "--success-border": "var(--primary)",
-          "--error-bg": "var(--background)",
+          "--error-bg": "var(--card)",
           "--error-text": "var(--destructive)",
           "--error-border": "var(--destructive)",
           "--border-radius": "var(--radius)",

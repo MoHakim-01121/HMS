@@ -8,7 +8,6 @@ from hw.finance_helpers import create_payment_record
 from hw.models import (
     Client, ConfirmationLetter, Invoice, Remittance, RemittanceLine, Reservation,
 )
-from hw.models.choices import Company
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_ledger_rows, _prev_sent_map
 

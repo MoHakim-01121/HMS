@@ -6,8 +6,7 @@ from django.test import TestCase
 
 from hw.finance import accounts as coa
 from hw.finance.posting import post_entry
-from hw.models.choices import Company
-from hw.models.journal import ImmutableLedgerError, JournalEntry, JournalLine
+from hw.models.journal import ImmutableLedgerError, JournalEntry
 from hw.models.period import FinancialPeriod
 
 

@@ -153,7 +153,7 @@ class PaymentReallocateTest(TestCase):
 
     def test_reallocate_over_payment_is_rejected(self):
         pr = self._record_unallocated(20000)
-        resp = self.client.post(f'/finance/payments/{pr.pk}/reallocate/', {
+        self.client.post(f'/finance/payments/{pr.pk}/reallocate/', {
             'allocations': json.dumps([{'reservation_id': self.r1.pk, 'amount': 25000}]),
         }, follow=True)
         pr.refresh_from_db()

@@ -1,5 +1,5 @@
 from datetime import date, time, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from django.test import TestCase
 from django.contrib.auth.models import User
 from hw.models import ConfirmationLetter
@@ -20,9 +20,9 @@ class CheckinPdfGroupingTest(TestCase):
     def test_groups_by_date_then_hotel(self):
         today = date.today()
         tomorrow = today + timedelta(days=1)
-        cl1 = _make_cl(guest_name='Ahmad', hotel_name='Hotel A', check_in=today, confirmation_number='K-001')
-        cl2 = _make_cl(guest_name='Budi', hotel_name='Hotel B', check_in=today, confirmation_number='K-002')
-        cl3 = _make_cl(guest_name='Candra', hotel_name='Hotel A', check_in=tomorrow, confirmation_number='K-003')
+        _make_cl(guest_name='Ahmad', hotel_name='Hotel A', check_in=today, confirmation_number='K-001')
+        _make_cl(guest_name='Budi', hotel_name='Hotel B', check_in=today, confirmation_number='K-002')
+        _make_cl(guest_name='Candra', hotel_name='Hotel A', check_in=tomorrow, confirmation_number='K-003')
 
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(
@@ -40,7 +40,7 @@ class CheckinPdfGroupingTest(TestCase):
 
     def test_guest_fields_in_group(self):
         today = date.today()
-        cl = _make_cl(
+        _make_cl(
             guest_name='Zaid', hotel_name='Hilton', check_in=today,
             check_out=today + timedelta(days=5),
             confirmation_number='K-010',
@@ -61,7 +61,6 @@ class CheckinPdfGroupingTest(TestCase):
         self.assertEqual(guest['no'], 1)
 
     def test_eta_dash_when_none(self):
-        today = date.today()
         _make_cl(estimasi_tiba=None)
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(

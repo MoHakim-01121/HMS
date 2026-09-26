@@ -30,12 +30,11 @@ const ROLE_TONE = {
   viewer: "yellow",
 };
 
-// Role + company access live in one dialog: they are the two halves of "what
-// this account can reach", and the server applies them in a single action.
-function AccessDialog({ user, roleChoices, companyChoices, onClose }) {
+// The role decides what this account can reach; the server applies it in the
+// 'set_access' action.
+function AccessDialog({ user, roleChoices, onClose }) {
   const { t } = useI18n();
   const [role, setRole] = useState(user?.role ?? "staff");
-  const [companyAccess, setCompanyAccess] = useState(user?.company_access ?? "all");
   if (!user) return null;
 
   // The hint under the role picker is the role's own description, so a custom
@@ -43,7 +42,7 @@ function AccessDialog({ user, roleChoices, companyChoices, onClose }) {
   const roleHint = roleChoices.find((c) => c.value === role)?.description || "";
 
   const save = () => {
-    action(user.id, { action: "set_access", role, company_access: companyAccess });
+    action(user.id, { action: "set_access", role });
     onClose();
   };
 
@@ -65,23 +64,6 @@ function AccessDialog({ user, roleChoices, companyChoices, onClose }) {
               </SelectTrigger>
               <SelectContent>
                 {roleChoices.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-
-          <FormField
-            label={t("Company access")}
-            name="company_access"
-            hint={t("Which workspace this account may switch to.")}
-          >
-            <Select name="company_access" value={companyAccess} onValueChange={setCompanyAccess}>
-              <SelectTrigger id="company_access" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {companyChoices.map((c) => (
                   <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -257,7 +239,7 @@ function CredentialCardDialog({ user, onClose }) {
   );
 }
 
-export default function List({ users, role_choices = [], company_choices = [] }) {
+export default function List({ users, role_choices = [] }) {
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
   const del = (u) => confirm({ title: t("Delete user"), message: t("Delete user {name}?", { name: u.username }), onConfirm: () => router.post(`/users/${u.id}/delete/`) });
@@ -274,7 +256,7 @@ export default function List({ users, role_choices = [], company_choices = [] })
         sub={t("{count} accounts registered", { count: users.length })}
         actions={
           <Button type="button" size="lg" onClick={() => openForm("/users/new/")} onPointerEnter={() => openForm.prefetch("/users/new/")} onFocus={() => openForm.prefetch("/users/new/")}>
-            + {t("New user")}
+            + {t("New User")}
           </Button>
         }
       />
@@ -310,13 +292,6 @@ export default function List({ users, role_choices = [], company_choices = [] })
               ),
             },
             {
-              header: t("Company"),
-              className: "col-m-meta",
-              render: (u) => (
-                <span className="col-dim">{u.company_access_label}</span>
-              ),
-            },
-            {
               header: "",
               className: "col-m-actions",
               render: (u) => (
@@ -339,7 +314,6 @@ export default function List({ users, role_choices = [], company_choices = [] })
       <AccessDialog
         user={accessUser}
         roleChoices={role_choices}
-        companyChoices={company_choices}
         onClose={() => setAccessUser(null)}
       />
       <ResetPasswordDialog user={resetUser} onClose={() => setResetUser(null)} />

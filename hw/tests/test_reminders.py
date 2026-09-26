@@ -330,7 +330,6 @@ class GroupGuestsTest(TestCase):
         self.assertEqual(len(list(groups.values())[0]), 2)
 
 
-import json
 from datetime import time
 from django.contrib.auth.models import User
 

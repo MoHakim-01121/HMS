@@ -27,6 +27,17 @@ def _save_payments(invoice, request, default_currency):
     remittance sends, refunds, transfers, and penalty entries are never touched
     by a payment-list save.
     """
+    # A missing `payments` key is not an empty payment list. Invoice/Form.jsx
+    # and Services/Form.jsx render payments read-only -- they are recorded
+    # through the Payment module, so those forms never submit the field.
+    # Reading the absent key as '[]' made every unrelated save (fixing a due
+    # date, say) run the full resync below: reverse_invoice_payments reversed
+    # this invoice's live payment entries and flipped the PaymentRecords to
+    # REVERSED, with nothing re-posted. Only an explicitly submitted list --
+    # empty or not -- is a resync instruction.
+    if 'payments' not in request.POST:
+        return
+
     try:
         rows = json.loads(request.POST.get('payments', '[]'))
     except (ValueError, TypeError):

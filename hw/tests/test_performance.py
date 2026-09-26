@@ -1,4 +1,3 @@
-from datetime import date, timedelta
 from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
@@ -63,7 +62,6 @@ class CalendarCacheTest(TestCase):
         cache.clear()
 
     def test_get_message_templates_cached_on_second_call(self):
-        from django.core.cache import cache
         from hw.views.reminder_views import _get_message_templates
         with patch('hw.views.reminder_views.MessageTemplate') as MockModel:
             MockModel.objects.all.return_value = []

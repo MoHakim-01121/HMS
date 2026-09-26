@@ -7,6 +7,7 @@ import { Icon } from "../../components/icons.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDateShort } from "../../utils/format.js";
 
 // Local-timezone YYYY-MM-DD; toISOString() is UTC and would mislabel
 // "Today"/"Tomorrow" between 00:00 and 07:00 WIB.
@@ -14,13 +15,6 @@ const localYMD  = (d) => d.toLocaleDateString('en-CA');
 const TODAY    = localYMD(new Date());
 const TOMORROW = localYMD(new Date(Date.now() + 86400000));
 
-// Compact "27 Aug" rendering for stay dates (input arrives as YYYY-MM-DD).
-const fmtDate = (ymd) => {
-  if (!ymd) return '';
-  const d = new Date(ymd + 'T00:00:00');
-  if (Number.isNaN(d.getTime())) return ymd;
-  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }).replace('.', '');
-};
 
 // Normalise a time value (may arrive as "14:00", "14:00:00", or blank) to HH:MM.
 const fmtTime = (s) => (s && s.length >= 5 ? s.slice(0, 5) : (s || ''));
@@ -367,8 +361,8 @@ export function BookingCard({ cl, clientGroup }) {
     const label = <span className="uc-bb-label">{labelFor(k)}</span>;
 
     if (!editable) {
-      const v = k === 'checkin' ? fmtDate(cl.check_in)
-        : k === 'checkout' ? fmtDate(cl.check_out)
+      const v = k === 'checkin' ? fmtDateShort(cl.check_in)
+        : k === 'checkout' ? fmtDateShort(cl.check_out)
         : k === 'hotel' ? cl.hotel_name
         : cl.rooms;
       if (!v) return null;
@@ -469,7 +463,7 @@ export function BookingCard({ cl, clientGroup }) {
               <>
                 <div className="bs-grid">
                   {bsField(t("Hotel"), cl.hotel_name)}
-                  {bsField(t("Check-in"), fmtDate(cl.check_in))}
+                  {bsField(t("Check-in"), fmtDateShort(cl.check_in))}
                   {bsField(t("Rooms"), cl.rooms)}
                   {bsField(t("ETA"), fmtTime(saved.estimasi))}
                   {bsField(t("PIC"), saved.picName)}

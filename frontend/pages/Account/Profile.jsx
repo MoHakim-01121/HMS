@@ -5,7 +5,9 @@ import AvatarUploader from "../../components/shadcn/avatar-uploader.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Icon } from "../../components/icons.jsx";
+import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDate } from "../../utils/format.js";
 
 function relTime(iso, t) {
   if (!iso) return "";
@@ -15,7 +17,7 @@ function relTime(iso, t) {
   if (diff < 3600) return t("{m} min ago", { m: Math.floor(diff / 60) });
   if (diff < 86400) return t("{h} hours ago", { h: Math.floor(diff / 3600) });
   if (diff < 2592000) return t("{d} days ago", { d: Math.floor(diff / 86400) });
-  return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(dt);
 }
 
 const clockTime = (iso) =>
@@ -97,7 +99,6 @@ function ActivityRow({ a, open, onToggle, t }) {
         <p className="min-w-0 flex-1 truncate text-muted-foreground">
           {[a.model_name, a.object_ref].filter(Boolean).join(" ") || t("No details")}
         </p>
-        <span className="col-bold shrink-0 truncate" style={{ maxWidth: 160 }}>{a.company}</span>
         <time className="shrink-0 text-xs tabular-nums text-muted-foreground" title={clockTime(a.timestamp)}>
           {relTime(a.timestamp, t)}
         </time>
@@ -158,31 +159,27 @@ function ActivityLog({ activities }) {
   const [expandedId, setExpandedId] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   const [actionFilter, setActionFilter] = useState([]);
-  const [companyFilter, setCompanyFilter] = useState([]);
   const [range, setRange] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
   const actionOptions = useMemo(() => Array.from(new Set(withId.map((a) => a.action).filter(Boolean))), [withId]);
-  const companyOptions = useMemo(() => Array.from(new Set(withId.map((a) => a.company).filter(Boolean))), [withId]);
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
     return withId.filter((a) => {
-      const hay = `${a.model_name || ""} ${a.object_ref || ""} ${a.company || ""}`.toLowerCase();
+      const hay = `${a.model_name || ""} ${a.object_ref || ""}`.toLowerCase();
       const matchQ = !query || hay.includes(query);
       const matchAction = actionFilter.length === 0 || actionFilter.includes(a.action);
-      const matchCo = companyFilter.length === 0 || companyFilter.includes(a.company);
       const matchDate = inTimeRange(a.timestamp, range, dateFrom, dateTo);
-      return matchQ && matchAction && matchCo && matchDate;
+      return matchQ && matchAction && matchDate;
     });
-  }, [withId, q, actionFilter, companyFilter, range, dateFrom, dateTo]);
+  }, [withId, q, actionFilter, range, dateFrom, dateTo]);
 
   const toggle = (list, setList, value) => setList(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  const activeFilters = actionFilter.length + companyFilter.length + (range !== "all" ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
+  const activeFilters = actionFilter.length + (range !== "all" ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
   const clearFilters = () => {
     setActionFilter([]);
-    setCompanyFilter([]);
     setRange("all");
     setDateFrom("");
     setDateTo("");
@@ -255,7 +252,6 @@ function ActivityLog({ activities }) {
                 <Input type="date" aria-label={t("To date")} value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ width: 150, flex: "none", height: 36, fontSize: 13 }} />
               </div>
 <FilterChips title={t("Action")} options={actionOptions} selected={actionFilter} onToggle={(v) => toggle(actionFilter, setActionFilter, v)} format={actionLabel} t={t} />
-<FilterChips title={t("Company")} options={companyOptions} selected={companyFilter} onToggle={(v) => toggle(companyFilter, setCompanyFilter, v)} t={t} />
               {activeFilters > 0 ? (
                 <Button type="button" variant="ghost" size="sm" onClick={clearFilters} className="self-start text-xs">
                   {t("Clear filters")}
@@ -456,7 +452,7 @@ export default function Profile({ profile, account, activities, errors: serverEr
               <span className={account.is_active ? "badge badge-green" : "badge badge-gray"}>
                 {account.is_active ? t("Active") : t("Inactive")}
               </span>
-              {account.is_superuser ? <span className="badge badge-gray">{t("Superuser")}</span> : null}
+              {account.is_superuser ? <StatusPill small outline tone="gray" label={t("Superuser")} /> : null}
             </div>
           </SectionRow>
 

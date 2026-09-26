@@ -6,6 +6,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { RvBack, RvHero, RvFigure, RvPairs, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
 
 const STATUS_TONE = {
@@ -26,12 +27,6 @@ const ENTRY_TYPE_TONE = {
   reversal: "gray",
 };
 
-const fmtDay = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-};
 
 export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0 }) {
   const { t } = useI18n();
@@ -71,15 +66,15 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
     { header: t("Type"), render: (e) => <StatusPill small tone={ENTRY_TYPE_TONE[e.entry_type] || "gray"} label={e.entry_type_display} /> },
     { header: t("Description"), render: (e) => e.description },
     { header: t("Date"), render: (e) => e.entry_date },
-    { header: t("Debit"), align: "right", render: (e) => <span className="font-mono">{e.total_debit?.toLocaleString()}</span> },
-    { header: t("Credit"), align: "right", render: (e) => <span className="font-mono">{e.total_credit?.toLocaleString()}</span> },
+    { header: t("Debit"), align: "right", render: (e) => <span className="font-mono">{e.total_debit?.toLocaleString("en-US")}</span> },
+    { header: t("Credit"), align: "right", render: (e) => <span className="font-mono">{e.total_credit?.toLocaleString("en-US")}</span> },
     { header: t("Balanced"), align: "center", render: (e) => (e.is_balanced ? <span style={{ color: "var(--green)" }}>✓</span> : <span style={{ color: "var(--red)" }}>✗</span>) },
   ];
 
   const paymentColumns = [
     { header: t("Payment #"), render: (p) => <DvLink href={`/finance/payments/${p.id}/`}>{p.payment_number}</DvLink> },
     { header: t("Client"), render: (p) => p.client_name },
-    { header: t("Amount"), align: "right", render: (p) => <span className="font-mono">{p.amount_sar?.toLocaleString()} SAR</span> },
+    { header: t("Amount"), align: "right", render: (p) => <span className="font-mono">{p.amount_sar?.toLocaleString("en-US")} SAR</span> },
     { header: t("Status"), render: (p) => <StatusPill small tone={STATUS_TONE[p.status] || "gray"} label={p.status_display} /> },
     { header: t("Date"), render: (p) => p.payment_date },
   ];
@@ -93,8 +88,8 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
         badge={pill}
         title={t("Financial Period")}
         facts={[
-          { k: t("From"), v: fmtDay(period.date_from) || t("Not set") },
-          { k: t("To"), v: fmtDay(period.date_to) || t("Not set") },
+          { k: t("From"), v: fmtDate(period.date_from) || t("Not set") },
+          { k: t("To"), v: fmtDate(period.date_to) || t("Not set") },
         ]}
         side={
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -106,8 +101,8 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
             />
             <RvPairs
               pairs={[
-                { k: t("Total debit"), v: (total_debit || 0).toLocaleString() },
-                { k: t("Total credit"), v: (total_credit || 0).toLocaleString() },
+                { k: t("Total debit"), v: (total_debit || 0).toLocaleString("en-US") },
+                { k: t("Total credit"), v: (total_credit || 0).toLocaleString("en-US") },
               ]}
             />
           </div>
@@ -149,7 +144,7 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
                     <div key={ab.account} style={{ padding: "12px 16px", flex: "1 1 160px", minWidth: 160, border: "1px solid var(--border)", borderRadius: 12, background: "var(--secondary)" }}>
                       <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{ab.label}</div>
                       <div className="font-mono font-bold" style={{ fontSize: 20, marginTop: 4, color: ab.balance > 0 ? "var(--green)" : "var(--red)" }}>
-                        {ab.balance?.toLocaleString()} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
+                        {ab.balance?.toLocaleString("en-US")} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
                       </div>
                     </div>
                   ))}

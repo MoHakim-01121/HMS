@@ -1,5 +1,6 @@
 ﻿import json as _json
 
+from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
@@ -10,7 +11,8 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Hotel, Occupancy, RoomType, RoomView, log_activity
+from ..models import ActivityLog, Hotel, MealPlan, RoomType, RoomView, log_activity, room_type_name
+from ..models.hotel import OCCUPANCY_BY_CAPACITY
 from ..permissions import require_perm
 from .helpers import _is_mobile, pagination_props, snapshot_fields, track_changes
 
@@ -44,59 +46,51 @@ def _save_hotel(h, data):
     h.save()
 
 
-def _save_hotel_room_types(h, data):
-    # Finding 1 fix: only reconcile if room_types key is actually present in POST data
-    if 'room_types' not in data:
-        return
+def _clean_room_type_fields(data):
+    """Normalise one room type's POSTed fields.
 
+    View is optional (v2.0 §8.3), so a value outside the controlled vocabulary
+    is blanked rather than rejected — a stale client cannot wedge the form
+    that way. Occupancy is not taken from the client at all: RoomType.save()
+    derives it from capacity.
+    """
     try:
-        room_types = _json.loads(data.get('room_types', '[]') or '[]')
+        capacity = max(1, int(data.get('capacity') or 1))
     except (ValueError, TypeError):
-        room_types = []
+        capacity = 1
+    view = data.get('view') or ''
+    return {
+        'name': (data.get('name') or '').strip(),
+        'capacity': capacity,
+        'view': view if view in {c for c, _ in RoomView.choices} else '',
+    }
 
-    valid_occupancy = {c for c, _ in Occupancy.choices}
-    valid_view = {c for c, _ in RoomView.choices}
 
-    # Finding 2 fix: wrap in transaction.atomic() to prevent partial commits
-    with transaction.atomic():
-        kept_ids = set()
-        for rt_data in room_types:
-            name = (rt_data.get('name') or '').strip()
-            if not name:
-                continue
-            try:
-                capacity = max(1, int(rt_data.get('capacity') or 1))
-            except (ValueError, TypeError):
-                capacity = 1
-            # Optional structured fields (v2.0 §8.2-8.3) — silently blanked if
-            # the client sends something outside the controlled vocabulary.
-            occupancy = rt_data.get('occupancy') or ''
-            occupancy = occupancy if occupancy in valid_occupancy else ''
-            view = rt_data.get('view') or ''
-            view = view if view in valid_view else ''
-            rt_id = rt_data.get('id')
-            if rt_id:
-                RoomType.objects.filter(pk=rt_id, hotel=h).update(
-                    name=name, capacity=capacity, occupancy=occupancy, view=view, is_active=True,
-                )
-                kept_ids.add(int(rt_id))
-            else:
-                # Finding 2 fix: look up by name first (including soft-deleted) to avoid IntegrityError
-                try:
-                    rt = RoomType.objects.get(hotel=h, name=name)
-                    # Reactivate and update capacity
-                    rt.capacity = capacity
-                    rt.occupancy = occupancy
-                    rt.view = view
-                    rt.is_active = True
-                    rt.save()
-                    kept_ids.add(rt.pk)
-                except RoomType.DoesNotExist:
-                    # Create new if name doesn't exist
-                    rt = RoomType.objects.create(hotel=h, name=name, capacity=capacity, occupancy=occupancy, view=view)
-                    kept_ids.add(rt.pk)
+def _room_type_name_error(name, clashing):
+    if not name:
+        return 'Nama tipe kamar wajib diisi.'
+    if clashing.exists():
+        return 'Tipe kamar dengan nama ini sudah ada di hotel ini.'
+    return None
 
-        h.room_types.exclude(pk__in=kept_ids).update(is_active=False)
+
+def _room_type_form_props(h, rt=None, form_data=None, errors=None):
+    return {
+        "hotel": {"id": h.id, "name": h.name},
+        "room_type": form_data if form_data is not None else ({
+            "name": rt.name, "capacity": rt.capacity, "view": rt.view,
+        } if rt else None),
+        # Feeds the live name suggestion (roomTypeName.js), so the form and
+        # room_type_name() read the same words.
+        "occupancy_labels": {str(c): o.label for c, o in OCCUPANCY_BY_CAPACITY.items()},
+        "view_choices": [{"value": v, "label": l} for v, l in RoomView.choices],
+        "edit": rt is not None,
+        "action": (
+            reverse('room_type_edit', args=[h.pk, rt.pk]) if rt
+            else reverse('room_type_new', args=[h.pk])
+        ),
+        "errors": errors or {},
+    }
 
 
 @require_perm('hotels', 'view')
@@ -145,7 +139,10 @@ def hotel_new(request):
     if request.method == 'POST':
         h = Hotel()
         _save_hotel(h, request.POST)
-        _save_hotel_room_types(h, request.POST)
+        # Same starting point migration 0104 gave every existing hotel: allow
+        # the whole active master, then narrow it from the detail page.
+        # Starting empty would leave only new hotels on free-text Meals.
+        h.meal_plans.set(MealPlan.objects.filter(is_active=True))
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})
@@ -157,7 +154,6 @@ def hotel_edit(request, pk):
     if request.method == 'POST':
         _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
-        _save_hotel_room_types(h, request.POST)
         _after = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         changes = track_changes(
             _before, _after,
@@ -172,11 +168,6 @@ def hotel_edit(request, pk):
             "area": h.area, "note": h.note, "is_active": h.is_active,
             "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
             "lat": h.lat, "lng": h.lng, "route": h.route,
-            "room_types": [
-                {"id": rt.id, "name": rt.name, "capacity": rt.capacity,
-                 "occupancy": rt.occupancy, "view": rt.view}
-                for rt in h.room_types.filter(is_active=True).order_by('name')
-            ],
         },
     })
 
@@ -211,7 +202,189 @@ def hotel_detail(request, pk):
             "lng": h.lng,
             "ref_label": h.ref_label,
             "route": h.route,
+            "room_types": [
+                {
+                    "id": rt.id,
+                    "name": rt.name,
+                    "capacity": rt.capacity,
+                    "view": rt.get_view_display(),
+                }
+                for rt in h.room_types.filter(is_active=True).order_by('name')
+            ],
+            "meal_plans": [
+                {"code": mp.code, "name": mp.name}
+                for mp in h.meal_plans.filter(is_active=True).order_by('code')
+            ],
         },
+    })
+
+
+@require_perm('hotels', 'edit')
+def room_type_new(request, hotel_pk):
+    h = get_object_or_404(Hotel, pk=hotel_pk)
+    if request.method == 'POST':
+        fields = _clean_room_type_fields(request.POST)
+        # Only an *active* row blocks the name. One that was soft-removed is
+        # reused below instead, so a type can be brought back without leaving
+        # a second row behind the unique constraint.
+        error = _room_type_name_error(
+            fields['name'], h.room_types.filter(name=fields['name'], is_active=True),
+        )
+        if error:
+            return inertia_render(request, "Hotel/RoomTypeForm", props=_room_type_form_props(
+                h, form_data=fields, errors={"name": error},
+            ))
+        rt, created = RoomType.objects.update_or_create(
+            hotel=h, name=fields['name'], defaults={**fields, 'is_active': True},
+        )
+        log_activity(
+            request.user,
+            ActivityLog.ACTION_CREATE if created else ActivityLog.ACTION_EDIT,
+            'Room Type', f'{rt.name} — {h.name}',
+        )
+        return redirect('hotel_detail', pk=h.pk)
+    return inertia_render(request, "Hotel/RoomTypeForm", props=_room_type_form_props(h))
+
+
+@require_perm('hotels', 'edit')
+def room_type_edit(request, hotel_pk, pk):
+    h = get_object_or_404(Hotel, pk=hotel_pk)
+    rt = get_object_or_404(RoomType, pk=pk, hotel=h)
+    if request.method == 'POST':
+        fields = _clean_room_type_fields(request.POST)
+        # Renaming is stricter than creating: a soft-removed row holding the
+        # target name still occupies it, and silently deleting that row would
+        # blank Room.room_type_ref on every CL that used it.
+        error = _room_type_name_error(
+            fields['name'], h.room_types.filter(name=fields['name']).exclude(pk=rt.pk),
+        )
+        if error:
+            return inertia_render(request, "Hotel/RoomTypeForm", props=_room_type_form_props(
+                h, rt=rt, form_data=fields, errors={"name": error},
+            ))
+        for field, value in fields.items():
+            setattr(rt, field, value)
+        rt.is_active = True
+        rt.save()
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Room Type', f'{rt.name} — {h.name}')
+        return redirect('hotel_detail', pk=h.pk)
+    return inertia_render(request, "Hotel/RoomTypeForm", props=_room_type_form_props(h, rt=rt))
+
+
+def _json_list(raw):
+    try:
+        value = _json.loads(raw or '[]')
+    except (ValueError, TypeError):
+        return []
+    return value if isinstance(value, list) else []
+
+
+# "Other" names nothing, so a generated "Double Other" would be useless.
+_BULK_VIEWS = [(v, l) for v, l in RoomView.choices if v != RoomView.OTHER]
+
+
+@require_perm('hotels', 'edit')
+def room_type_bulk(request, hotel_pk):
+    """Create the usual occupancy × view grid in one go.
+
+    A combination whose name is already an active type is skipped, never
+    overwritten — the operator may have tuned it. A soft-removed one is
+    brought back, same as room_type_new does.
+    """
+    h = get_object_or_404(Hotel, pk=hotel_pk)
+    if request.method == 'POST':
+        capacities = [c for c in OCCUPANCY_BY_CAPACITY if c in {
+            int(x) for x in _json_list(request.POST.get('capacities')) if str(x).isdigit()
+        }]
+        picked = {str(v) for v in _json_list(request.POST.get('views'))}
+        views = [v for v, _ in _BULK_VIEWS if v in picked] or ['']
+        if not capacities:
+            return inertia_render(request, "Hotel/RoomTypeBulkForm", props={
+                **_room_type_bulk_props(h),
+                "errors": {"capacities": "Pilih minimal satu kapasitas."},
+            })
+        created = skipped = 0
+        with transaction.atomic():
+            for view in views:
+                for capacity in capacities:
+                    name = room_type_name(capacity, view)
+                    rt = h.room_types.filter(name=name).first()
+                    if rt and rt.is_active:
+                        skipped += 1
+                        continue
+                    RoomType.objects.update_or_create(
+                        hotel=h, name=name,
+                        defaults={'capacity': capacity, 'view': view, 'is_active': True},
+                    )
+                    created += 1
+        if created:
+            log_activity(request.user, ActivityLog.ACTION_CREATE, 'Room Type',
+                         f'{created} tipe kamar (sekaligus) — {h.name}')
+        msg = f'{created} tipe kamar ditambahkan.'
+        if skipped:
+            msg += f' {skipped} dilewati karena sudah ada.'
+        messages.success(request, msg)
+        return redirect('hotel_detail', pk=h.pk)
+    return inertia_render(request, "Hotel/RoomTypeBulkForm", props=_room_type_bulk_props(h))
+
+
+def _room_type_bulk_props(h):
+    return {
+        "hotel": {"id": h.id, "name": h.name},
+        "capacity_choices": [{"value": c, "label": o.label} for c, o in OCCUPANCY_BY_CAPACITY.items()],
+        "view_choices": [{"value": v, "label": l} for v, l in _BULK_VIEWS],
+        # Lets the preview mark what will be skipped before anything is sent.
+        "existing_names": list(h.room_types.filter(is_active=True).values_list('name', flat=True)),
+        # Structured so the form can pre-check the capacity/view pairs the
+        # hotel already sells — nothing already present is created again.
+        "existing_pairs": [
+            {"capacity": r.capacity, "view": r.view}
+            for r in h.room_types.filter(is_active=True).order_by('capacity', 'name')
+        ],
+        "errors": {},
+    }
+
+
+@require_perm('hotels', 'edit')
+@require_POST
+def room_type_delete(request, hotel_pk, pk):
+    h = get_object_or_404(Hotel, pk=hotel_pk)
+    rt = get_object_or_404(RoomType, pk=pk, hotel=h)
+    # Soft delete — CLs point at this row through Room.room_type_ref, and a
+    # hard delete would blank that link on every past booking.
+    rt.is_active = False
+    rt.save(update_fields=['is_active', 'updated_at'])
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Room Type', f'{rt.name} — {h.name}')
+    return redirect('hotel_detail', pk=h.pk)
+
+
+@require_perm('hotels', 'edit')
+def hotel_meal_plans(request, hotel_pk):
+    """Narrow the global MealPlan master down to what this hotel sells.
+
+    Nothing is created here — the codes are a fixed master (v2.0 §10), so this
+    is a set selection, which is why it is one checkbox form rather than the
+    add/edit/remove rows the room-type catalog gets.
+    """
+    h = get_object_or_404(Hotel, pk=hotel_pk)
+    available = MealPlan.objects.filter(is_active=True).order_by('code')
+    if request.method == 'POST':
+        try:
+            codes = _json.loads(request.POST.get('meal_plans', '[]') or '[]')
+        except (ValueError, TypeError):
+            codes = None
+        # A garbled payload leaves the selection alone: wiping it would be a
+        # silent, surprising loss, and the real form always sends a list.
+        if isinstance(codes, list):
+            # Codes outside the active master are dropped silently, same as
+            # the occupancy/view vocabulary.
+            h.meal_plans.set(available.filter(code__in=[str(c) for c in codes]))
+            log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', f'{h.name} — Meal Plans')
+        return redirect('hotel_detail', pk=h.pk)
+    return inertia_render(request, "Hotel/MealPlanForm", props={
+        "hotel": {"id": h.id, "name": h.name},
+        "available": [{"code": mp.code, "name": mp.name} for mp in available],
+        "selected": list(h.meal_plans.filter(is_active=True).values_list('code', flat=True)),
     })
 
 

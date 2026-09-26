@@ -172,7 +172,9 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
                 <TableHead
                   key={i}
                   className={[staticColClassName, col.headerClassName, col.header ? null : "hms-th-blank"].filter(Boolean).join(" ") || undefined}
-                  style={col.headerStyle}
+                  // A column that aligns its cells (style.textAlign) aligns its
+                  // header the same way unless it says otherwise.
+                  style={col.headerStyle ?? (col.style?.textAlign ? { textAlign: col.style.textAlign } : undefined)}
                 >
                   {col.header}
                 </TableHead>

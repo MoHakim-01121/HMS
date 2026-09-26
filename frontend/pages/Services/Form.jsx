@@ -116,11 +116,6 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
         <FormPanel>
           {/* ── Info ── */}
           <FormSection label={t("Invoice Info")}>
-            {/* No Company picker: the server files every services invoice under
-                the session's active company, and list/detail/edit all filter by
-                it too — so choosing the other one here only ever produced a
-                record that vanished from the very list you created it from.
-                Switch companies with the topbar switcher instead. */}
             <div className="svc-info-row" style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 140px 140px", gap: 12 }}>
               <FormField label={t("Customer")} name="client_id">
                 <Combobox

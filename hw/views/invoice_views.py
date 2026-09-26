@@ -57,6 +57,24 @@ def _resolve_client_from_post(request):
     return None
 
 
+def _branch_choices():
+    from ..models.branch import Branch
+    return [{"value": b.code, "label": b.name} for b in Branch.objects.filter(is_active=True).order_by("name")]
+
+
+def _apply_invoice_branch(invoice, request):
+    """Set invoice.branch from the form's pick; left blank ("Automatic") it is
+    inferred from the reservations' owner_branch. Run after reservations are
+    saved so the inference can see them."""
+    from ..models.branch import Branch
+    code = (request.POST.get("branch") or "").strip()
+    if code and Branch.objects.filter(code=code, is_active=True).exists():
+        invoice.branch_id = code
+    elif not code or not invoice.branch_id:
+        invoice.branch_id = invoice.infer_branch_id()
+    invoice.save(update_fields=["branch"])
+
+
 def _filter_by_status(qs, status):
     """Filter a hotel Invoice queryset by payment status (lunas/belum/partial).
 
@@ -192,6 +210,7 @@ def invoice_new(request):
                 "suggested_number": invoice_number or suggested_number,
                 "cl_data": _cl_data_for_form(),
                 "clients": _client_options(),
+                "branch_choices": _branch_choices(),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -226,6 +245,7 @@ def invoice_new(request):
 
                 _save_reservations(invoice, request)
                 _save_hotel_payments(invoice, request)
+                _apply_invoice_branch(invoice, request)
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
 
@@ -246,6 +266,7 @@ def invoice_new(request):
         "suggested_number": suggested_number,
         "cl_data": _cl_data_for_form(),
         "clients": _client_options(),
+        "branch_choices": _branch_choices(),
         "initial": initial,
     })
 
@@ -273,6 +294,9 @@ def invoice_detail(request, pk):
         "unallocated_sar": p["unallocated_sar"],
         "linked_number": p["ref"],
         "payment_date": p["payment_date"].strftime("%d/%m/%Y") if p["payment_date"] else None,
+        "payment_label": p["payment_date"].strftime("%d %b %Y") if p["payment_date"] else None,
+        "payment_iso": p["payment_date"].isoformat() if p["payment_date"] else None,
+        "payment_number": p["payment_number"],
         "method": p["method"],
         "amount_int": int(round(p["amount"])),
         "currency": p["currency"],
@@ -285,12 +309,64 @@ def invoice_detail(request, pk):
 
     due_alert = due_soon_alert(invoice.due_date, invoice.remaining_sar)
 
+    # Who confirmed each payment — for the activity timeline.
+    from ..models.payment import PaymentRecord
+    confirmers = {
+        pr.pk: (pr.confirmed_by.get_full_name() or pr.confirmed_by.username) if pr.confirmed_by else None
+        for pr in PaymentRecord.objects.filter(pk__in=[p["id"] for p in payments]).select_related("confirmed_by")
+    }
+    for p in payments:
+        p["confirmed_by"] = confirmers.get(p["id"])
+
+    from ..models import Receipt
+    receipt = (
+        Receipt.objects.filter(invoice=invoice).exclude(status=Receipt.STATUS_VOIDED)
+        .order_by("-pk").values("pk", "receipt_number").first()
+    )
+    client = _billing_client(invoice) or invoice.client
+    logs = [{
+        "action": l.action,
+        "action_label": l.get_action_display(),
+        "by": (l.user.get_full_name() or l.user.username) if l.user else None,
+        "changes": l.changes,
+        "timestamp": l.timestamp.strftime("%d %b %Y %H:%M"),
+        "date": l.timestamp.date().isoformat(),
+    } for l in ActivityLog.objects.filter(
+        model_name="Invoice Hotel", object_ref=invoice.invoice_number,
+    ).select_related("user").order_by("-timestamp")]
+    # "Pay to": the issuing branch's accounts flagged for invoices, one block each.
+    from ..models.bank import BankAccount
+    pay_to = [{
+        "id": b.pk,
+        "bank_name": b.bank_name,
+        "account_identifier": b.account_identifier,
+        "account_name": b.account_name,
+        "currency": b.currency,
+    } for b in BankAccount.objects.filter(
+        branch_id=invoice.branch_id, is_active=True, show_on_invoice=True,
+    ).order_by("currency", "bank_name")] if invoice.branch_id else []
+
+    last_payment = max((p["payment_iso"] for p in payments if p["payment_iso"]), default=None) \
+        if invoice.remaining_sar == 0 else None
+
     return inertia_render(request, "Invoice/Detail", props={
         "invoice": {
             "pk": invoice.pk,
             "invoice_number": invoice.invoice_number,
             "customer_name": invoice.customer_name,
             "issued_date": invoice.issued_date.strftime("%d %b %Y") if invoice.issued_date else None,
+            "due_date": invoice.due_date.strftime("%d %b %Y") if invoice.due_date else None,
+            "due_iso": invoice.due_date.isoformat() if invoice.due_date else None,
+            "terms_days": (invoice.due_date - invoice.issued_date).days
+            if invoice.due_date and invoice.issued_date else None,
+            "settled_date": date.fromisoformat(last_payment).strftime("%d %b %Y") if last_payment else None,
+            "created_at": invoice.created_at.strftime("%d %b %Y") if invoice.created_at else None,
+            "created_iso": invoice.created_at.date().isoformat() if invoice.created_at else None,
+            "prepared_by": (invoice.created_by.get_full_name() or invoice.created_by.username)
+            if invoice.created_by_id else None,
+            "client": {"pk": client.pk, "name": client.name, "phone": client.wa} if client else None,
+            "receipt": receipt,
+            "branch": {"code": invoice.branch_id, "name": invoice.branch.name} if invoice.branch_id else None,
             "total_sar": invoice.total_sar,
             "total_paid_sar": invoice.total_paid_sar,
             "remaining_sar": invoice.remaining_sar,
@@ -298,6 +374,8 @@ def invoice_detail(request, pk):
         "reservations": reservations,
         "payments": payments,
         "due_alert": due_alert,
+        "logs": logs,
+        "pay_to": pay_to,
         **_billing_props(invoice),
     })
 
@@ -324,6 +402,7 @@ def invoice_edit(request, pk):
                 "invoice": _serialize_hotel_invoice(invoice),
                 "cl_data": _cl_data_for_form(),
                 "clients": _client_options(),
+                "branch_choices": _branch_choices(),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -346,15 +425,17 @@ def invoice_edit(request, pk):
                 invoice.due_date = _parse_date(request.POST.get("due_date"))
                 invoice.save()
 
-                invoice.reservations.all().delete()
-
-                # Relink CL selection before recreating reservations/payments -- see
+                # Relink CL selection before syncing reservations/payments -- see
                 # the matching comment in invoice_new for why the order matters.
+                # Reservation rows themselves are upserted by _save_reservations,
+                # never wiped: their pk is the dimension the ledger, the payment
+                # allocations and the CL paid totals all hang off.
                 ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
                 ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
 
                 _save_reservations(invoice, request)
                 _save_hotel_payments(invoice, request)
+                _apply_invoice_branch(invoice, request)
         except (FinanceError, ValueError) as e:
             # A finance failure (e.g. PeriodLockedError when a payment falls in a
             # closed period) must roll back cleanly and show the user a form error,
@@ -376,6 +457,7 @@ def invoice_edit(request, pk):
         "invoice": _serialize_hotel_invoice(invoice),
         "cl_data": _cl_data_for_form(),
         "clients": _client_options(),
+        "branch_choices": _branch_choices(),
     })
 
 
@@ -462,6 +544,7 @@ def invoice_duplicate(request, pk):
                 invoice_type=InvoiceType.HOTEL,
                 invoice_number=new_num,
                 customer_name=original.customer_name,
+                branch_id=original.branch_id,
                 issued_date=today,
                 due_date=today + timedelta(days=30),
                 currency=original.currency,
@@ -484,11 +567,39 @@ def invoice_duplicate(request, pk):
     return redirect("invoice_edit", pk=new_inv.pk)
 
 
+def _reservation_has_money(reservation):
+    """Apakah baris reservasi ini sudah dipakai uang di mana pun.
+
+    Dipakai sebelum menghapus baris: Reservation adalah dimensi yang dipegang
+    jurnal, alokasi payment, dan PaymentRecord -- ketiganya SET_NULL, jadi
+    menghapus baris diam-diam melepas uang dari barisnya (dan pada alokasi
+    malah melanggar CHECK constraint exactly-one-target).
+    """
+    from ..models.journal import JournalLine
+    from ..models.payment import PaymentAllocation, PaymentRecord
+    return (
+        PaymentAllocation.objects.filter(reservation=reservation).exists()
+        or PaymentRecord.objects.filter(reservation=reservation).exists()
+        or JournalLine.objects.filter(reservation=reservation).exists()
+    )
+
+
 def _save_reservations(invoice, request):
-    """Full delete-then-recreate reservations, lalu posting.post_invoice_charge
+    """Upsert baris reservasi dari form, lalu posting.post_invoice_charge
     (idempotent-by-content: reverse charge lama + repost) supaya jurnal
-    (DR Piutang / CR Pendapatan) selalu cocok dengan total reservasi."""
+    (DR Piutang / CR Pendapatan) selalu cocok dengan total reservasi.
+
+    Upsert, bukan delete-recreate: baris yang nomornya sama diperbarui di
+    tempat supaya pk-nya lestari -- lihat _reservation_has_money. Baris yang
+    benar-benar dikeluarkan dari invoice hanya boleh hilang kalau belum
+    tersentuh uang; kalau sudah, simpan ditolak dengan pesan yang jelas.
+
+    Nilai baris yang bertaut CL dihitung server dari CL-nya
+    (finance.reservation_rules), bukan dari angka kiriman form: form tidak tahu
+    aturan CL yang dibatalkan bernilai 0.
+    """
     from ..finance.posting import post_invoice_charge
+    from ..finance.reservation_rules import reservation_total_for_cl
 
     try:
         rows = json.loads(request.POST.get("reservations", "[]"))
@@ -498,17 +609,44 @@ def _save_reservations(invoice, request):
         if not invoice.client_id and _billing_client(invoice):
             invoice.client = _billing_client(invoice)
             invoice.save(update_fields=['client', 'customer_name'])
+
+        cl_by_number = {
+            cl.confirmation_number: cl
+            for cl in invoice.confirmation_letters.prefetch_related('rooms')
+        }
+        existing = {}
+        for res in invoice.reservations.all():
+            existing.setdefault(res.reservation_number, []).append(res)
+
+        kept_ids = []
         for r in rows:
-            total_sar = int(round(_to_float(r.get("reservation_total"))))
-            Reservation.objects.create(
-                invoice=invoice,
-                client_id=invoice.client_id,
-                reservation_number=(r.get("reservation_number") or "-").strip() or "-",
-                hotel=(r.get("hotel") or "-").strip() or "-",
-                check_in=_parse_date(r.get("check_in")),
-                check_out=_parse_date(r.get("check_out")),
-                total_sar=total_sar,
+            number = (r.get("reservation_number") or "-").strip() or "-"
+            cl = cl_by_number.get(number)
+            total_sar = (
+                reservation_total_for_cl(cl) if cl is not None
+                else int(round(_to_float(r.get("reservation_total"))))
             )
+            pool = existing.get(number) or []
+            res = pool.pop(0) if pool else Reservation(invoice=invoice, reservation_number=number)
+            res.hotel = (r.get("hotel") or "-").strip() or "-"
+            res.check_in = _parse_date(r.get("check_in"))
+            res.check_out = _parse_date(r.get("check_out"))
+            res.total_sar = total_sar
+            res.confirmation_letter = cl
+            res.client_id = cl.client_id if cl is not None else invoice.client_id
+            res.save()
+            kept_ids.append(res.pk)
+
+        for leftovers in existing.values():
+            for res in leftovers:
+                if _reservation_has_money(res):
+                    raise ValueError(
+                        f"Reservasi {res.reservation_number} sudah tersentuh pembayaran, "
+                        "jadi tidak bisa dikeluarkan dari invoice. Realokasi atau balikkan "
+                        "pembayarannya dulu lewat modul Payment."
+                    )
+                res.delete()
+
         if invoice.client_id:
             post_invoice_charge(invoice, created_by=request.user)
     logger.info(
@@ -532,6 +670,7 @@ def _invoice_echo(request):
         "invoice_number": request.POST.get("invoice_number", ""),
         "issued_date": request.POST.get("issued_date", ""),
         "due_date": request.POST.get("due_date", ""),
+        "branch": request.POST.get("branch", ""),
         "reservations": _loads("reservations"),
         "payments": _loads("payments"),
         "linked_cl_ids": _loads("linked_cl_ids"),
@@ -547,6 +686,7 @@ def _serialize_hotel_invoice(invoice):
         "invoice_number": invoice.invoice_number,
         "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",
         "due_date": invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "",
+        "branch": invoice.branch_id or "",
         # Read-only figures for the form's summary rail — payments themselves are
         # recorded through the Payment module, not this form.
         "total_sar": invoice.total_sar,

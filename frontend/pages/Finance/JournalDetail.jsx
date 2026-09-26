@@ -6,6 +6,7 @@ import {
   Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter,
 } from "../../components/shadcn/ui/table.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { fmtDate } from "../../utils/format.js";
 
 export default function JournalDetail({ entry = {}, created_by = "", reverses_number = null, lines = [] }) {
   const { t } = useI18n();
@@ -13,7 +14,7 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
 
   return (
     <div className="page shadcn-root">
-      <PageBack label={t("Back")} fallbackHref="/finance/journal/" />
+      <PageBack href="/finance/journal/" label={t("Back")} />
 
       <PageHeader
         title={
@@ -28,16 +29,14 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
       {/* Meta */}
       <div className="hms-kpi-row" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
         <KpiCard label={t("Type")} value={t(entry.entry_type_display)} />
-        <KpiCard label={t("Date")} value={entry.entry_date} />
+        <KpiCard label={t("Date")} value={fmtDate(entry.entry_date) || "—"} />
         <KpiCard label={t("Created By")} value={created_by || "—"} />
-        <div className="card p-4">
-          <div className="text-xs text-muted-foreground">{t("Reverses")}</div>
-          <div className="font-medium mt-1">
-            {reverses_number
-              ? <a href={`/finance/journal/?q=${reverses_number}`} className="hms-dv-link">{reverses_number}</a>
-              : "—"}
-          </div>
-        </div>
+        <KpiCard
+          label={t("Reverses")}
+          value={reverses_number
+            ? <a href={`/finance/journal/?q=${reverses_number}`} className="hms-dv-link">{reverses_number}</a>
+            : "—"}
+        />
       </div>
 
       {/* Lines */}
@@ -60,10 +59,10 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
                   <TableCell className="text-muted-foreground">{l.dim || "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{l.note || "—"}</TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
-                    {l.amount_sar > 0 ? l.amount_sar.toLocaleString() : ""}
+                    {l.amount_sar > 0 ? l.amount_sar.toLocaleString("en-US") : ""}
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
-                    {l.amount_sar < 0 ? Math.abs(l.amount_sar).toLocaleString() : ""}
+                    {l.amount_sar < 0 ? Math.abs(l.amount_sar).toLocaleString("en-US") : ""}
                   </TableCell>
                 </TableRow>
               ))}
@@ -71,8 +70,8 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
             <TableFooter>
               <TableRow>
                 <TableCell colSpan={3}>{t("Total")}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString()}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString()}</TableCell>
+                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString("en-US")}</TableCell>
+                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString("en-US")}</TableCell>
               </TableRow>
             </TableFooter>
           </ShadcnTable>

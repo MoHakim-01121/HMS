@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Reservation, ServiceItem, Client, Remittance
+from hw.models import Invoice, Reservation, Client, Remittance
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
@@ -138,11 +138,15 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         )
         self.res = Reservation.objects.create(invoice=self.invoice, reservation_number="R1", total_sar=5000)
 
-    def test_new_remittance_writes_line_and_journal_send_leg(self):
+    def test_new_remittance_is_lump_sum_send_leg(self):
+        # Transfer baru tidak memilih reservasi (alokasi saat Pusat menerima,
+        # lihat test_remittance_allocation): baris kiriman diabaikan.
         resp = self.client.post("/remittance/new/", {
             "date": "2026-01-10",
             "receipt_reference": "REF-1",
             "note": "",
+            "amount_idr": "14400000",
+            "exchange_rate": "4800",
             "lines": json.dumps([
                 {"linked_number": "R1", "invoice_id": self.invoice.pk, "amount_sar": "3000"},
             ]),
@@ -150,11 +154,16 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         self.assertEqual(resp.status_code, 302)
 
         from hw.models import RemittanceLine
-        self.assertEqual(RemittanceLine.objects.filter(linked_number="R1").count(), 1)
-        # Journal: kirim 3000 dari Kas Surabaya ke Transit (per reservasi);
+        self.assertFalse(RemittanceLine.objects.exists())
+        # Journal: kirim 3000 dari Kas Surabaya ke Transit, lump-sum;
         # tidak ada lagi shadow CashMovement (Fase 7).
         self.assertEqual(fq.transit(), 3000)
         self.assertEqual(fq.kas_surabaya(), -3000)
+
+    def test_new_remittance_requires_idr_and_rate(self):
+        resp = self.client.post("/remittance/new/", {"date": "2026-01-10", "amount_idr": "14400000"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Remittance.objects.exists())
 
     def test_editing_remittance_amount_resyncs_journal_not_duplicates(self):
         rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-01")
@@ -174,7 +183,7 @@ class RemittanceDualWriteTest(DualWriteTestBase):
     def test_deleting_remittance_line_reverses_its_journal_leg(self):
         rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-02")
         from hw.models import RemittanceLine
-        line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
+        RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
 
         resp = self.client.post(f"/remittance/{rem.pk}/edit/", {
             "date": "2026-01-10", "status": "pending", "receipt_reference": "", "note": "",
