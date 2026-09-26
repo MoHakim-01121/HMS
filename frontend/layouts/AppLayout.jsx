@@ -18,7 +18,6 @@ const NAV = {
   calendar: "/calendar/",
   services: "/services/",
   clients: "/clients/",
-  visits: "/visits/",
   remittance: "/remittance/",
   users: "/users/",
   roles: "/roles/",
@@ -61,7 +60,6 @@ const NAV_GROUPS = [
     heading: "Schedule",
     items: [
       { key: "calendar", label: "Calendar", href: NAV.calendar, icon: "calendar", perm: "calendar" },
-      { key: "visits", label: "Visits", href: NAV.visits, icon: "visits", perm: "visits" },
     ],
   },
   {
@@ -80,7 +78,6 @@ const PAGE_TITLES = {
   hotels: "Hotels",
   services: "Services",
   calendar: "Calendar",
-  visits: "Visits",
   clients: "Clients",
   remittance: "Remittance",
   settlement: "HQ Settlement",
@@ -111,8 +108,8 @@ function pageKeyFromUrl(url) {
   const map = [
     ["/hotels", "hotels"], ["/invoice", "invoice"], ["/services", "services"],
     ["/calendar", "calendar"], ["/clients", "clients"],
-    ["/remittance/settlement", "settlement"], ["/remittance", "remittance"],
-    ["/visits", "visits"], ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "users"],
+    ["/remittance", "remittance"],
+    ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "account"],
     ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
     ["/finance/statements", "statements"], ["/finance/bank-accounts", "bank_accounts"],

@@ -138,18 +138,6 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     # Dev / design system preview (superuser only)
     path('dev/style-guide/', views.style_guide, name='style_guide'),
 
-    # Visits
-    path('visits/', views.visit_list, name='visit_list'),
-    path('visits/new/', views.visit_new, name='visit_new'),
-    path('visits/recap/', views.visit_recap, name='visit_recap'),
-    path('visits/<int:pk>/', views.visit_detail, name='visit_detail'),
-    path('visits/<int:pk>/edit/', views.visit_edit, name='visit_edit'),
-    path('visits/<int:pk>/complete/', views.visit_complete, name='visit_complete'),
-    path('visits/<int:pk>/cancel/', views.visit_cancel, name='visit_cancel'),
-    path('visits/<int:pk>/pdf/', views.visit_pdf, name='visit_pdf'),
-    path('visits/<int:pk>/photos/upload/', views.visit_photo_upload, name='visit_photo_upload'),
-    path('visits/<int:pk>/photos/<int:photo_pk>/delete/', views.visit_photo_delete, name='visit_photo_delete'),
-
     # Landing page management (team members + pricelist)
     path('manage-landing/', views.landing_manage, name='landing_manage'),
     path('manage-landing/team/new/', views.team_new, name='team_new'),

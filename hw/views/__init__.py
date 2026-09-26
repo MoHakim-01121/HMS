@@ -84,7 +84,3 @@ from .expense_views import (
     expense_export_csv,
 )
 from .dev_views import style_guide, health_check
-from .visit_views import (
-    visit_cancel, visit_complete, visit_detail, visit_edit, visit_list,
-    visit_new, visit_pdf, visit_photo_delete, visit_photo_upload, visit_recap,
-)

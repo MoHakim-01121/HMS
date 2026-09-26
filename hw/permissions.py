@@ -32,7 +32,7 @@ from .models.user import Role
 # frontend/layouts/AppLayout.jsx so nav gating and view gating agree.
 MODULES = (
     'cl', 'invoice', 'services', 'hotels', 'clients',
-    'remittance', 'calendar', 'penalty', 'users', 'dev', 'visits',
+    'remittance', 'calendar', 'penalty', 'users', 'dev',
     'landing',
     # Finance areas, each its own module so money operations can be granted
     # independently (least privilege / segregation of duties).
@@ -76,7 +76,6 @@ DEFAULT_ROLE_MATRIX = {
         'clients':  set(_NO_DELETE),
         'calendar': set(_NO_DELETE),
         'penalty':  set(_NO_DELETE),
-        'visits':   set(_NO_DELETE),
         'landing':  set(_NO_DELETE),
         'remittance': set(_READ),
         # Staff record and amend payments, but financial reporting and
@@ -98,7 +97,6 @@ DEFAULT_ROLE_MATRIX = {
         'clients':    set(_READ),
         'calendar':   set(_READ),
         'penalty':    set(_READ),
-        'visits':     set(_READ),
         'landing':    set(_READ),
         'remittance': set(_READ),
         'payments':   set(_READ),
