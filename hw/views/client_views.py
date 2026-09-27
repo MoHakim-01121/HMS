@@ -599,7 +599,7 @@ def client_statement_pdf(request, pk):
             'settled': g['settled'],
         } for i, g in enumerate(st['reservations'], start=1)]
         # Subtotal of the per-reservation columns only. `total_debit`/`total_credit`
-        # from the query also sweep in `unallocated` lines, so they would not tie
+        # from the query sweep in `unallocated` lines too, so they would not tie
         # out to the sum of what is printed in these columns.
         subtotal_debit = sum(r['debit'] for r in reservations)
         subtotal_credit = sum(r['credit'] for r in reservations)
@@ -613,13 +613,10 @@ def client_statement_pdf(request, pk):
                 'subtotal_debit': subtotal_debit,
                 'subtotal_credit': subtotal_credit,
                 'subtotal_balance': subtotal_debit - subtotal_credit,
-                'unallocated': st['unallocated'],
+                'unallocated_debits': st['unallocated_debits'],
+                'unallocated_credits': st['unallocated_credits'],
                 'opening_balance': st['opening_balance'],
                 'closing_balance': st['closing_balance'],
-                'total_debit': st['total_debit'],
-                'total_credit': st['total_credit'],
-                'aging': st['aging']['buckets'],
-                'aging_total': st['aging']['total'],
                 'period_label': period_en,
                 'logo_url': _logo_file_url(),
             },

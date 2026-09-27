@@ -371,6 +371,7 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
         qs = qs.filter(journal_entry__entry_date__lte=date_to)
 
     rows, balance = [], 0
+    reversed_ids = set(_reversed_entry_ids())
     for ln in qs:
         e = ln.journal_entry
         balance += ln.debit - ln.credit
@@ -390,6 +391,10 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
             "debit": ln.debit,
             "credit": ln.credit,
             "balance": balance,
+            # Pasangan batal: entry yang sudah di-reverse DAN entry reversal-nya.
+            # Keduanya tetap tampil di ledger ini (riwayat tidak boleh dihapus),
+            # tapi rollup harus bisa membuang pasangan itu karena net-nya nol.
+            "is_voided": e.is_reversal or e.pk in reversed_ids,
         })
     return {
         "rows": rows,
@@ -431,8 +436,21 @@ def client_statement_by_reservation(
     """Statement open-item: baris jurnal client di-rollup jadi satu baris per
     reservasi (Tagihan / Terbayar / Sisa), bukan satu baris per transaksi.
 
-    Baris tanpa dimensi reservasi (titipan dana level-client di CUST_CREDIT,
-    payment yang belum dipecah alokasinya) masuk bucket `unallocated`.
+    Baris tanpa dimensi reservasi dipisah dua arah, karena arahnya artinya
+    berlawanan dan tidak boleh dijumlah diam-diam:
+      - `unallocated_credits` — uang MASUK yang tidak melekat reservasi
+        (payment yang belum dipecah alokasinya, refund keluar dari titipan).
+        Ini saldo client's di tangan kita.
+      - `unallocated_debits` — tagihan yang TIDAK punya reservasi (service item
+        pada invoice servis, penalty pembatalan, adjustment). Ini piutang, bukan
+        setoran, dan tidak pernah jadi titipan client.
+    Pasangan reversal (entry yang dibatalkan + entry reversal-nya) dibuang dari
+    semua bucket. Net-nya nol, jadi `unallocated` dan tiap `balance` reservasi
+    tetap sama; yang bersih cuma `billed`/`paid` — tanpa itu "Total Invoiced"
+    di PDF ikut menghitung charge/payment yang sudah dibatalkan, dan tiap
+    pembatalan payment menambah 2x lipatnya ke salah satu sisi.
+    `unallocated` tetap disediakan sebagai net-nya (debits - credits) supaya
+    invarian dan pemanggil lama tidak berubah.
 
     Invarian: opening_balance + Σ(reservasi.balance) + unallocated ==
     closing_balance — sama persis dengan versi balance-forward. Di-assert.
@@ -444,11 +462,19 @@ def client_statement_by_reservation(
     )
 
     groups = {}
-    unallocated = 0
+    unallocated_debits = 0
+    unallocated_credits = 0
     for r in st["rows"]:
+        if r["is_voided"]:
+            # Pasangan batal: dibuang dari SEMUA bucket. Net-nya nol, jadi
+            # `unallocated` dan tiap `reservasi.balance` tidak berubah —
+            # yang berubah hanya `billed`/`paid`, supaya angka "Total Invoiced"
+            # di PDF tidak ikut menghitung charge/payment yang sudah dibatalkan.
+            continue
         rid = r["reservation_id"]
         if rid is None:
-            unallocated += r["debit"] - r["credit"]
+            unallocated_debits += r["debit"]
+            unallocated_credits += r["credit"]
             continue
         g = groups.get(rid)
         if g is None:
@@ -462,6 +488,8 @@ def client_statement_by_reservation(
             }
         g["billed"] += r["debit"]
         g["paid"] += r["credit"]
+
+    unallocated = unallocated_debits - unallocated_credits
 
     reservations = []
     for g in groups.values():
@@ -487,6 +515,8 @@ def client_statement_by_reservation(
         "total_debit": st["total_debit"],
         "total_credit": st["total_credit"],
         "unallocated": unallocated,
+        "unallocated_debits": unallocated_debits,
+        "unallocated_credits": unallocated_credits,
         "reservations": reservations,
         "aging": client_aging(client_id, as_of=as_of),
     }

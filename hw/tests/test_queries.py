@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance import queries as q
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client, Invoice, Reservation, ServiceItem
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
 
@@ -183,6 +183,91 @@ class QueriesTests(TestCase):
         # Charge 01/05 → opening; payment 02/01 → in-period.
         self.assertEqual(st["opening_balance"], 100000)
         self.assertEqual(st["closing_balance"], 80000)
+
+    def test_byres_summary_figures_walk_down_to_closing_balance(self):
+        """Angka-angka yang dicetak PDF (baris tabel + Account Summary) harus
+        bisa dijumlah ulang persis ke `closing_balance` versi balance-forward."""
+        svc = Invoice.objects.create(
+            invoice_type="service", invoice_number="INV-Q-SVC2",
+            customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
+        )
+        ServiceItem.objects.create(invoice=svc, name="Visa", qty=1, price=16250)
+        posting.post_invoice_charge(svc, created_by=self.user)
+        self._pay(40000)
+        dep = create_payment_record(
+            None, self.client_obj, date(2046, 2, 1), 100000,
+            method="transfer", created_by=self.user, received_in="sby",
+        )
+        posting.post_payment(dep, created_by=self.user)
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        sub_debit = sum(g["billed"] for g in st["reservations"])
+        sub_credit = sum(g["paid"] for g in st["reservations"])
+        self.assertEqual(
+            st["opening_balance"] + sub_debit - sub_credit
+            + st["unallocated_debits"] - st["unallocated_credits"],
+            st["closing_balance"],
+        )
+        # Total baris tabel = kolom summary, bukan total_debit mentah yang
+        # ikut menyapu baris unallocated.
+        self.assertNotEqual(sub_debit, st["total_debit"])
+
+    def test_unallocated_splits_credits_from_debits(self):
+        """Deposit 100rb tak teralokasi harus TIDAK dijumlah diam-diam dengan
+        charge service-item 16.250 yang juga tanpa reservasi (regresi: bucket
+        `unallocated` dulu melaporkan -83.750, bukan -100.000)."""
+        # Charge tanpa dimensi reservasi: service item di invoice servis.
+        svc = Invoice.objects.create(
+            invoice_type="service", invoice_number="INV-Q-SVC",
+            customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
+        )
+        ServiceItem.objects.create(
+            invoice=svc, name="Visa", qty=1, price=16250,
+        )
+        posting.post_invoice_charge(svc, created_by=self.user)
+        # Deposit 100rb, tanpa invoice/reservasi.
+        dep = create_payment_record(
+            None, self.client_obj, date(2046, 2, 1), 100000,
+            method="transfer", created_by=self.user, received_in="sby",
+        )
+        posting.post_payment(dep, created_by=self.user)
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(st["unallocated_credits"], 100000)
+        self.assertEqual(st["unallocated_debits"], 16250)
+        self.assertEqual(st["unallocated"], 16250 - 100000)
+        # Rekonsiliasi tetap utuh dan reservasi tidak tersentuh.
+        self.assertEqual(
+            st["opening_balance"]
+            + sum(g["balance"] for g in st["reservations"])
+            + st["unallocated"],
+            st["closing_balance"],
+        )
+
+    def test_unallocated_ignores_reversed_payment_pairs(self):
+        """Payment yang dibatalkan (entry + reversal-nya) tidak boleh menambah
+        deposit yg fiktif; pair-nya net nol dan harus hilang dari kedua sisi."""
+        def deposit(amount):
+            p = create_payment_record(
+                None, self.client_obj, date(2046, 2, 1), amount,
+                method="transfer", created_by=self.user, received_in="sby",
+            )
+            return posting.post_payment(p, created_by=self.user)
+
+        voided = deposit(50000)
+        live = deposit(100000)
+        posting.reverse_entry(voided, reversal_date=date(2046, 2, 2), created_by=self.user)
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(st["unallocated_credits"], 100000)
+        self.assertEqual(st["unallocated_debits"], 0)
+        self.assertEqual(st["unallocated"], -100000)
+        self.assertEqual(
+            st["opening_balance"]
+            + sum(g["balance"] for g in st["reservations"])
+            + st["unallocated"],
+            st["closing_balance"],
+        )
 
     def test_trial_balance_zero(self):
         self._pay(55000)

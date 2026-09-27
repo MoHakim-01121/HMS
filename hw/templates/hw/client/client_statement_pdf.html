@@ -56,16 +56,22 @@
     thead th.r { text-align: right; }
     tbody td { padding: 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
     tbody td.r { text-align: right; }
-    .mono { font-family: 'Courier New', monospace; font-size: 11px; }
+    /* 11.5px = sama dengan `table`, bukan 11px. Courier New punya x-height
+       lebih kecil dari Helvetica, jadi 11px di sini terlihat lebih pucat
+       dibanding teks lain walau warnanya sama. */
+    .mono { font-family: 'Courier New', monospace; font-size: 11.5px; }
     .nowrap { white-space: nowrap; }
     .muted { color: #bbb; }
     .sub { font-size: 10px; color: #888; }
 
-    .amt-debit  { color: #b45309; font-weight: 700; }
-    .amt-credit { color: #15803d; font-weight: 700; }
-    .bal-pos { font-weight: 700; }
+    /* Debit = tagihan (hitam, netral), Credit = uang masuk. Kuningnya gelap
+       (#854d0e) karena kuning murni di atas putih tidak terbaca. */
+    .amt-debit  { color: #111; font-weight: 700; }
+    .amt-credit { color: #854d0e; font-weight: 700; }
+    /* Saldo: merah = masih naleh, hijau = lunas ATAU kelebihan bayar. */
+    .bal-pos { color: #dc2626; font-weight: 700; }
     .bal-zero { color: #15803d; font-weight: 700; }
-    .bal-neg { color: #dc2626; font-weight: 700; }
+    .bal-neg { color: #15803d; font-weight: 700; }
 
     tbody tr { break-inside: avoid; page-break-inside: avoid; }
     tr.opening-row td {
@@ -107,9 +113,10 @@
     }
     .sum-row.main .lbl,
     .sum-row.main .val { font-weight: 700; color: #111; }
+    /* Sama dengan tabel: merah = masih naleh, hijau = lunas / kelebihan. */
     .v-due  { color: #dc2626; }
     .v-cred { color: #15803d; }
-    .v-zero { color: #111; }
+    .v-zero { color: #15803d; }
 
     .note {
       margin-top: 24px;
@@ -120,24 +127,6 @@
       padding-top: 10px;
     }
     .note b { color: #333; }
-
-    .contact {
-      margin-top: 24px;
-      font-size: 9.5px;
-      color: #444;
-      line-height: 1.7;
-      border-top: 1px solid #ddd;
-      padding-top: 10px;
-    }
-    .contact .ck {
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-      color: #666;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-    .contact b { color: #333; }
 
     .watermark {
       position: fixed;
@@ -156,7 +145,7 @@
 <div class="watermark">STATEMENT</div>
 
 <div class="top">
-  <div class="doc-title">Customer Statement</div>
+  <div class="doc-title">Client Statement</div>
   <img src="{{ logo_url }}" class="logo">
 </div>
 
@@ -237,13 +226,6 @@
   memindahkan dana antar reservasi tanpa mengubah saldo total. Statement ini dikunci per tanggal
   cetak — koreksi yang dicatat setelah tanggal generate di atas tidak memengaruhi angka pada
   cetakan ini.
-</div>
-
-<div class="contact">
-  <div class="ck">Pembayaran &amp; Kontak</div>
-  Konoz United Surabaya — Jl. Ikan Mungsing VII No.51, Perak Bar., Kec. Krembangan, Surabaya 60177
-  <br><b>Pembayaran / pertanyaan:</b> konozsurabaya@gmail.com
-  {% if client.pic %}<br><b>PIC:</b> {{ client.pic }}{% endif %}
 </div>
 
 </body>

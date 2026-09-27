@@ -43,81 +43,63 @@
     .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
     .meta-row .mv { color: #111; }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      font-size: 11.5px;
-    }
-    col.c-no      { width: 4%; }
-    col.c-rsv     { width: 15%; }
-    col.c-hotel   { width: 27%; }
-    col.c-date    { width: 12%; }
-    col.c-amt     { width: 14%; }
-
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
     thead th {
       text-align: left;
-      font-size: 9.5px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .4px;
-      color: #555;
-      padding: 0 10px 6px 0;
-      background: #f4f4f5;
-      border-bottom: 1.5px solid #111;
+      font-size: 11px;
+      font-weight: 400;
+      color: #333;
+      padding: 0 0 10px;
+      border-bottom: 1px solid #111;
       white-space: nowrap;
-      vertical-align: bottom;
     }
     thead th.r { text-align: right; }
-    thead th.c { text-align: center; }
-    thead th:last-child { padding-right: 0; }
-
-    tbody td {
-      padding: 7px 10px 7px 0;
-      vertical-align: middle;
-      color: #111;
-      border-bottom: 1px solid #ededed;
-    }
+    tbody td { padding: 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
     tbody td.r { text-align: right; }
     tbody td.c { text-align: center; }
-    tbody td + td { padding-left: 10px; }
-    tbody tr:nth-child(even) td { background: #fafafa; }
-
-    .mono { font-family: 'Courier New', monospace; font-size: 11px; }
+    /* 11.5px = sama dengan `table`, bukan 11px. Courier New punya x-height
+       lebih kecil dari Helvetica, jadi 11px di sini terlihat lebih pucat
+       dibanding teks lain walau warnanya sama. */
+    .mono { font-family: 'Courier New', monospace; font-size: 11.5px; }
     .nowrap { white-space: nowrap; }
-    .muted { color: #bbb; }
+    /* #767676 = abu pertama yang tetap lolos WCAG AA (4.54:1) di atas putih.
+       #bbb hanya 1.92:1 — angka nol jadi nyaris tak terlihat. */
+    .muted { color: #767676; }
     .sub { font-size: 10px; color: #888; }
-    .idx { color: #9ca3af; font-size: 10.5px; }
+    .idx { font-size: 10.5px; padding-right: 12px; }
 
     .amt { color: #111; }
-    .amt-debit  { color: #b45309; font-weight: 700; }
-    .amt-credit { color: #15803d; font-weight: 700; }
-    .bal-pos { font-weight: 700; }
+    /* Debit = tagihan (hitam, netral), Credit = uang masuk. Kuningnya gelap
+       (#854d0e) karena kuning murni di atas putih tidak terbaca. */
+    .amt-debit  { color: #111; font-weight: 700; }
+    .amt-credit { color: #854d0e; font-weight: 700; }
+    /* Saldo: merah = masih naleh, hijau = lunas ATAU kelebihan bayar. */
+    .bal-pos { color: #dc2626; font-weight: 700; }
     .bal-zero { color: #15803d; font-weight: 700; }
-    .bal-neg { color: #dc2626; font-weight: 700; }
+    .bal-neg { color: #15803d; font-weight: 700; }
 
     tbody tr { break-inside: avoid; page-break-inside: avoid; }
     tr.line-row td {
       font-weight: 700;
       font-size: 10.5px;
       color: #444;
-      background: #fff;
-      padding-top: 9px;
-      padding-bottom: 9px;
     }
-    tr.line-row td.lbl { text-align: right; }
-    tr.line-row td.val { color: #111; font-size: 11.5px; }
     tr.total-row td {
-      border-top: 1.5px solid #111;
+      border-top: 1px solid #111;
       border-bottom: 2px solid #111;
-      background: #fff;
       font-weight: 700;
-      padding-top: 8px;
-      padding-bottom: 8px;
+      padding-top: 5px;
     }
-    tr.total-row td.lbl { text-align: right; }
-    tr.settled td { color: #777; }
-    tr.settled td .sub { color: #999; }
+    /* Baris lunas ditandai dengan isian abu muda, bukan dengan=redupkan
+       teksnya: meredupkan ke #777 hanya menyisakan kontras 4.48:1 pada
+       11.5px (bawah ambang WCAG AA 4.5:1) dan jadi tak terbaca saat
+       photocopy. Dengan isian, semua angka tetap hitam penuh (18.9:1) dan
+       barisnya tetap ordered saat dibaca. */
+    tr.settled td { background: #f7f7f8; }
+    /* Nomor reservasi bukan angka keuangan: pakai font & ukuran yang sama
+       dengan kolom Hotel (bukan Courier New, yang x-height-nya 0.508 em vs
+       0.573 em sehingga selalu terlihat lebih pucat). */
+    .rsv { white-space: nowrap; }
 
 
     .summary {
@@ -138,12 +120,14 @@
       gap: 0;
       padding: 2px 0;
       font-size: 12px;
-      width: 320px;
+      width: 380px;
     }
-    .sum-row:first-of-type { border-top: 1px solid #ddd; padding-top: 3px; margin-top: 2px; }
+    /* Garis tepat di atas baris mutasi pertama, bukan di atas "Balance brought
+       forward" — supaya saldo awal dan perubahan saldo terbaca dua bagian. */
+    .sum-row:nth-of-type(2) { border-top: 1px solid #ddd; padding-top: 4px; margin-top: 3px; }
     .sum-row .lbl { flex: 1; color: #555; text-align: left; }
-    .sum-row .lbl .sub { font-size: 10px; color: #999; font-weight: 400; }
-    .sum-row .val { width: 120px; text-align: right; color: #111; white-space: nowrap; }
+    .sum-row .lbl .sub { font-size: 10px; color: #767676; font-weight: 400; }
+    .sum-row .val { width: 130px; text-align: right; color: #111; white-space: nowrap; }
     .sum-row.main {
       border-top: 1px solid #ddd;
       border-bottom: 2px solid #111;
@@ -153,24 +137,10 @@
     }
     .sum-row.main .lbl,
     .sum-row.main .val { font-weight: 700; color: #111; }
+    /* Sama dengan tabel: merah = masih naleh, hijau = lunas / kelebihan. */
     .v-due  { color: #dc2626; }
     .v-cred { color: #15803d; }
-    .v-zero { color: #111; }
-
-    .aging {
-      margin-top: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-    .aging-title {
-      font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
-      color: #666; font-weight: 700; margin-bottom: 3px; align-self: flex-end;
-    }
-    .aging-row { display: flex; width: 320px; font-size: 11px; padding: 1px 0; }
-    .aging-row .lbl { flex: 1; color: #666; }
-    .aging-row .val { width: 110px; text-align: right; font-family: 'Courier New', monospace; }
-    .aging-row.tot { border-top: 1px solid #ddd; margin-top: 2px; padding-top: 3px; font-weight: 700; color: #111; }
+    .v-zero { color: #15803d; }
 
     .note {
       margin-top: 24px;
@@ -181,24 +151,6 @@
       padding-top: 10px;
     }
     .note b { color: #333; }
-
-    .contact {
-      margin-top: 24px;
-      font-size: 9.5px;
-      color: #444;
-      line-height: 1.7;
-      border-top: 1px solid #ddd;
-      padding-top: 10px;
-    }
-    .contact .ck {
-      font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: .5px;
-      color: #666;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-    .contact b { color: #333; }
 
     .watermark {
       position: fixed;
@@ -217,7 +169,7 @@
 <div class="watermark">STATEMENT</div>
 
 <div class="top">
-  <div class="doc-title">Customer Statement</div>
+  <div class="doc-title">Client Statement</div>
   <img src="{{ logo_url }}" class="logo">
 </div>
 
@@ -232,7 +184,7 @@
 <table>
   <thead>
     <tr>
-      <th class="r">No</th>
+      <th class="r" style="padding-right:12px;">No</th>
       <th>RSV</th>
       <th>Hotel</th>
       <th class="nowrap">Check in</th>
@@ -250,12 +202,12 @@
     {% endif %}
     {% for row in reservations %}
     <tr class="{% if row.settled %}settled{% endif %}">
-      <td class="r muted">{{ row.no }}</td>
-      <td class="mono nowrap">{{ row.reservation_number|default:"—" }}</td>
+      <td class="r idx">{{ row.no }}</td>
+      <td class="rsv">{{ row.reservation_number|default:"—" }}</td>
       <td>{% if row.hotel %}{{ row.hotel }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="nowrap">{{ row.check_in }}</td>
-      <td class="r mono">{% if row.debit %}<span class="amt-debit">{{ row.debit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-      <td class="r mono">{% if row.credit %}<span class="amt-credit">{{ row.credit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r mono">{% if row.debit %}<span class="amt-debit">{{ row.debit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+      <td class="r mono">{% if row.credit %}<span class="amt-credit">{{ row.credit|floatformat:0|intcomma }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
       <td class="r mono">
         {% if row.balance > 0 %}
           <span class="bal-pos">{{ row.balance|floatformat:0|intcomma }}</span>
@@ -267,7 +219,7 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="7" style="text-align:center;color:#999;padding:24px;">No reservations in this period</td></tr>
+    <tr><td colspan="7" style="text-align:center;color:#767676;padding:24px;">No reservations in this period</td></tr>
     {% endfor %}
     {% if reservations %}
     <tr class="total-row">
@@ -277,10 +229,16 @@
       <td class="r mono">{{ subtotal_balance|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
-    {% if unallocated %}
+    {% if unallocated_debits %}
     <tr class="line-row">
-      <td colspan="6">Unapplied payments on account</td>
-      <td class="r mono">{{ unallocated|floatformat:0|intcomma }}</td>
+      <td colspan="6">Charges not linked to a reservation</td>
+      <td class="r mono">{{ unallocated_debits|floatformat:0|intcomma }}</td>
+    </tr>
+    {% endif %}
+    {% if unallocated_credits %}
+    <tr class="line-row">
+      <td colspan="6">Payments received not yet applied</td>
+      <td class="r mono">−{{ unallocated_credits|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
   </tbody>
@@ -289,16 +247,24 @@
 <div class="summary">
   <div class="summary-title">Account Summary (SAR)</div>
   <div class="sum-row">
-    <span class="lbl">Opening Balance</span>
+    <span class="lbl">Balance brought forward</span>
     <span class="val">{{ opening_balance|floatformat:0|intcomma }}</span>
   </div>
   <div class="sum-row">
-    <span class="lbl">Total Invoiced</span>
-    <span class="val">{{ total_debit|floatformat:0|intcomma }}</span>
+    <span class="lbl">Invoiced — reservations</span>
+    <span class="val">{{ subtotal_debit|floatformat:0|intcomma }}</span>
   </div>
   <div class="sum-row">
-    <span class="lbl">Total Received</span>
-    <span class="val">−{{ total_credit|floatformat:0|intcomma }}</span>
+    <span class="lbl">Received — reservations</span>
+    <span class="val">−{{ subtotal_credit|floatformat:0|intcomma }}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Charges not linked to a reservation</span>
+    <span class="val">{% if unallocated_debits %}{{ unallocated_debits|floatformat:0|intcomma }}{% else %}—{% endif %}</span>
+  </div>
+  <div class="sum-row">
+    <span class="lbl">Payments received not yet applied</span>
+    <span class="val">{% if unallocated_credits %}−{{ unallocated_credits|floatformat:0|intcomma }}{% else %}—{% endif %}</span>
   </div>
   <div class="sum-row main">
     <span class="lbl">Amount Due</span>
@@ -306,32 +272,17 @@
   </div>
 </div>
 
-{% if aging_total %}
-<div class="aging">
-  <div class="aging-title">Aged Receivables (SAR)</div>
-  <div class="aging-row"><span class="lbl">Current &amp; 1–30 days</span><span class="val">{{ aging.0_30|floatformat:0|intcomma }}</span></div>
-  <div class="aging-row"><span class="lbl">31–60 days</span><span class="val">{{ aging.31_60|floatformat:0|intcomma }}</span></div>
-  <div class="aging-row"><span class="lbl">61–90 days</span><span class="val">{{ aging.61_90|floatformat:0|intcomma }}</span></div>
-  <div class="aging-row"><span class="lbl">90+ days</span><span class="val">{{ aging.90_plus|floatformat:0|intcomma }}</span></div>
-  <div class="aging-row tot"><span class="lbl">Total Outstanding</span><span class="val">{{ aging_total|floatformat:0|intcomma }}</span></div>
-</div>
-{% endif %}
-
 <div class="note">
   <b>Notes:</b> each line is one reservation. <b>Debit</b> is everything invoiced to that reservation
   and <b>Credit</b> is everything received against it, so <b>Balance</b> = Debit − Credit. A positive
   balance is an amount still receivable on that reservation; a negative balance is an overpayment held
-  on account against it. Settled reservations remain listed (shown in grey). "Unapplied payments on
-  account" are amounts received but not yet applied to a specific reservation. This statement is
-  rendered as at the statement date shown above; entries posted subsequently are not reflected in
-  these figures.
-</div>
-
-<div class="contact">
-  <div class="ck">Payment Instructions</div>
-  Konoz United Surabaya — Jl. Ikan Mungsing VII No.51, Perak Bar., Kec. Krembangan, Surabaya 60177
-  <br><b>Remittances &amp; enquiries:</b> konozsurabaya@gmail.com
-  {% if client.pic %}<br><b>Attn.:</b> {{ client.pic }}{% endif %}
+  on account against it. Settled reservations remain listed (shown in grey). Two lines below the
+  reservation table carry items that are not tied to any single reservation and therefore sit outside
+  the per-reservation rows: <b>Payments received not yet applied</b> is money held on your account that
+  we have not yet matched to a reservation, and <b>Charges not linked to a reservation</b> is invoiced
+  to you on items such as service fees or cancellation penalties that carry no reservation number.
+  This statement is rendered as at the statement date shown above; entries posted subsequently are not
+  reflected in these figures.
 </div>
 
 </body>
