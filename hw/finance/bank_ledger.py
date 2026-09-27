@@ -99,3 +99,27 @@ def sync_opening_balance(account):
         source_type=source_type, source_id=account.pk,
         transaction_date=account.opening_date, reference='Opening balance',
     )
+
+
+def default_account(branch_id, currency):
+    """The account a branch receives `currency` into when the caller did not
+    name one: its cash account in that currency, else its first bank account
+    in that currency. (None, None) when the branch holds no such account —
+    never an account in another currency, which would book rupiah into a
+    riyal till."""
+    from ..models.bank import CashAccount
+    cash = CashAccount.objects.filter(branch_id=branch_id, currency=currency, is_active=True).order_by('id').first()
+    if cash:
+        return None, cash
+    bank = BankAccount.objects.filter(branch_id=branch_id, currency=currency, is_active=True).order_by('id').first()
+    return bank, None
+
+
+def ensure_account_currency(account, currency):
+    """Money moves into/out of an account in that account's own currency."""
+    from .errors import FinanceError
+    if account is not None and account.currency != currency:
+        raise FinanceError(
+            f'Rekening {account} memakai {account.currency}, bukan {currency} — '
+            f'pilih rekening {currency}.'
+        )

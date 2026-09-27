@@ -20,6 +20,12 @@ def round_half_up(value):
     return int(Decimal(str(value)).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
 
+# Currencies money can be recorded in. convert_to_sar treats anything that is
+# not SAR/IDR as a multiply-rate currency, so an unknown code must be refused
+# at the boundary instead of silently converted like USD.
+CURRENCIES = ('SAR', 'IDR', 'USD')
+
+
 def convert_to_sar(amount, currency, exchange_rate):
     if currency == "SAR":
         return amount

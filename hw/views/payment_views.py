@@ -25,6 +25,7 @@ from ..finance_helpers import (
 from ..permissions import require_perm
 from ..i18n import tr
 from ..finance import posting
+from ..utils import CURRENCIES
 from .helpers import (
     serialize_journal_entry, _parse_date, _parse_search_tokens, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
@@ -491,6 +492,9 @@ def payment_record(request):
         return redirect('payment_list')
     if exchange_rate <= 0:
         messages.error(request, 'Kurs harus lebih besar dari nol.')
+        return redirect('payment_list')
+    if currency not in CURRENCIES:
+        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
         return redirect('payment_list')
 
     # Handle proof file upload — same size/type guard as every other proof

@@ -108,6 +108,13 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
         raise FinanceError('Expense sudah void')
     if (bank_account is None) == (cash_account is None):
         raise FinanceError('Tepat satu dari bank_account / cash_account harus diisi')
+    from .bank_ledger import ensure_account_currency
+    account = bank_account or cash_account
+    ensure_account_currency(account, currency)
+    if account.branch_id != expense.branch_id:
+        raise FinanceError(
+            f'Rekening {account} milik cabang lain — expense ini dibayar dari rekening cabangnya sendiri.'
+        )
 
     amt_sar = _sar(amount, currency, exchange_rate)
     if amt_sar > expense.outstanding_sar:

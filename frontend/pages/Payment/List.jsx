@@ -101,7 +101,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
     currency: "SAR",
     exchange_rate: "1",
     method: "",
-    account: account_choices[0]?.value || "",
+    account: account_choices.find((a) => a.currency === "SAR")?.value || "",
     bank_name: "",
     reference: "",
     note: "",
@@ -201,7 +201,12 @@ export default function List({ payments = [], invoice_choices = [], client_choic
   // Back to SAR means the rate is definitionally 1 — don't leave a stale
   // foreign rate behind for the next non-SAR payment to inherit.
   const onCurrencyChange = (v) => {
-    setRecordForm({ ...recordForm, currency: v, exchange_rate: v === "SAR" ? "1" : recordForm.exchange_rate });
+    // Money lands in an account of its own currency: re-pick when it changes.
+    const still = account_choices.find((a) => a.value === recordForm.account && a.currency === v);
+    setRecordForm({
+      ...recordForm, currency: v, exchange_rate: v === "SAR" ? "1" : recordForm.exchange_rate,
+      account: still ? still.value : (account_choices.find((a) => a.currency === v)?.value || ""),
+    });
   };
 
   // Live SAR equivalent, mirroring the backend's convert_to_sar
@@ -564,10 +569,12 @@ export default function List({ payments = [], invoice_choices = [], client_choic
                         hint={sarEquiv ? `≈ ${sarEquiv} SAR` : undefined} />
                     )}
                     <FormField label={t("Received Into")} name="account" required>
-                      <Select value={recordForm.account} onValueChange={(v) => setRecordForm({ ...recordForm, account: v })}>
+                      {/* Radix fires onValueChange("") when the filtered options drop the
+                          current value; ignore it so the auto-picked account sticks. */}
+                      <Select value={recordForm.account} onValueChange={(v) => v && setRecordForm((prev) => ({ ...prev, account: v }))}>
                         <SelectTrigger className="w-full"><SelectValue placeholder={t("Select account...")} /></SelectTrigger>
                         <SelectContent>
-                          {account_choices.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                          {account_choices.filter((a) => a.currency === recordForm.currency).map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </FormField>

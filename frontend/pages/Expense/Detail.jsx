@@ -217,7 +217,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
                 <Select value={payForm.account} onValueChange={(v) => setPayForm({ ...payForm, account: v })}>
                   <SelectTrigger className="w-full"><SelectValue placeholder={t("Select account...")} /></SelectTrigger>
                   <SelectContent>
-                    {account_choices.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                    {account_choices.filter((a) => a.currency === expense.currency).map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </FormField>

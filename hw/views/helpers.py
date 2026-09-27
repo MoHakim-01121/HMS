@@ -144,6 +144,8 @@ def resolve_money_account(value):
     if not value or ':' not in value:
         return None, None
     kind, _, pk = value.partition(':')
+    if not pk.isdigit():
+        return None, None
     if kind == 'cash':
         return None, CashAccount.objects.filter(pk=pk, is_active=True).first()
     if kind == 'bank':

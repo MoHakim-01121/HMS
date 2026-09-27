@@ -108,6 +108,23 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         self.exp.refresh_from_db()
         self.assertEqual(self.exp.status, Expense.STATUS_PAID)
 
+    def test_pay_with_unknown_currency_is_rejected(self):
+        self.client.force_login(self.manager)
+        resp = self.client.post(f'/finance/expenses/{self.exp.pk}/pay/', {
+            'amount': '2000', 'payment_date': '2026-05-06', 'currency': 'XYZ',
+            'account': f'cash:{self.cash.pk}',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.exp.payments.exists())
+
+    def test_pay_with_malformed_account_is_not_a_server_error(self):
+        self.client.force_login(self.manager)
+        resp = self.client.post(f'/finance/expenses/{self.exp.pk}/pay/', {
+            'amount': '2000', 'payment_date': '2026-05-06', 'account': 'cash:abc',
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(self.exp.payments.exists())
+
     def test_staff_cannot_void(self):
         self.client.force_login(self.staff)
         resp = self.client.post(f'/finance/expenses/{self.exp.pk}/void/')

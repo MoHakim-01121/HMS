@@ -163,6 +163,16 @@ class PaymentAmountGuardTest(PaymentGuardBase):
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(PaymentRecord.objects.filter(invoice=invoice).exists())
 
+    def test_unknown_currency_is_rejected(self):
+        # convert_to_sar would treat 'XYZ' as a multiply-rate currency (like USD).
+        invoice, resp = self._record(currency='XYZ', exchange_rate='3.75', invoice_number='INV-AMT-004')
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(PaymentRecord.objects.filter(invoice=invoice).exists())
+
+    def test_malformed_account_value_is_not_a_server_error(self):
+        invoice, resp = self._record(account='cash:abc', invoice_number='INV-AMT-005')
+        self.assertEqual(resp.status_code, 302)
+
 
 class PaymentApplyBodyGuardTest(PaymentGuardBase):
     def test_multipart_apply_without_allocations_is_not_a_server_error(self):

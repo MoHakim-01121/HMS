@@ -21,6 +21,7 @@ from ..models.journal import JournalEntry
 from ..finance import expense_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
+from ..utils import CURRENCIES
 from .helpers import (
     serialize_journal_entry, _parse_date, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
@@ -141,6 +142,9 @@ def expense_record(request):
 
     expense_date_val = _parse_date(data.get('expense_date')) or date.today()
     currency = (data.get('currency') or 'SAR').upper()
+    if currency not in CURRENCIES:
+        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
+        return redirect('expense_list')
     exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
 
     raw_lines = data.get('lines', '')
@@ -207,12 +211,16 @@ def expense_pay(request, pk):
     if not bank_account and not cash_account:
         messages.error(request, 'Rekening pembayar harus dipilih.')
         return redirect('expense_detail', pk=pk)
+    currency = (data.get('currency') or expense.currency).upper()
+    if currency not in CURRENCIES:
+        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
+        return redirect('expense_detail', pk=pk)
 
     try:
         expense_service.add_expense_payment(
             expense, amount=amount, payment_date=_parse_date(data.get('payment_date')) or date.today(),
             bank_account=bank_account, cash_account=cash_account,
-            currency=(data.get('currency') or expense.currency).upper(),
+            currency=currency,
             exchange_rate=_to_float(data.get('exchange_rate'), 1) or 1,
             reference=data.get('reference', ''), note=data.get('note', ''),
             created_by=request.user,

@@ -142,11 +142,10 @@ def create_payment_record(
     received_in = received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby'
     # Kalau pemanggil tidak memberi rekening konkret, turunkan CashAccount
     # cabang dari received_in (v2.0 FASE C). Rekening bank riil harus eksplisit.
+    from .finance.bank_ledger import default_account, ensure_account_currency
     if bank_account is None and cash_account is None:
-        from .models import CashAccount
-        cash_account = CashAccount.objects.filter(
-            branch_id=received_in, is_active=True,
-        ).order_by('id').first()
+        bank_account, cash_account = default_account(received_in, currency)
+    ensure_account_currency(bank_account or cash_account, currency)
 
     # Create PaymentRecord
     payment = PaymentRecord.objects.create(

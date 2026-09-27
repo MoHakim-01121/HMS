@@ -787,60 +787,6 @@ def surplus_pusat():
     return kas_pusat() + selisih_kurs() - total_allocated()
 
 
-def _client_idr_payments_qs():
-    from ..models.payment import PaymentRecord
-    return PaymentRecord.objects.filter(
-        currency='IDR',
-        received_in__in=('sby', 'jkt'),
-        status__in=PaymentRecord.EFFECTIVE_STATUSES,
-    )
-
-
-def rupiah_diterima_dari_klien():
-    """Total rupiah (IDR asli) pembayaran klien yang masuk ke kas lokal
-    (Surabaya/Jakarta). Angka analitik dari PaymentRecord.amount."""
-    return int(_client_idr_payments_qs().aggregate(s=Sum('amount'))['s'] or 0)
-
-
-def _kurs_rata_rata_klien():
-    """Kurs IDR/SAR rata-rata tertimbang dari pembayaran klien (ΣIDR / ΣSAR).
-    Dipakai untuk menaksir nilai rupiah remittance lama yang tidak menyimpan
-    amount_idr/exchange_rate."""
-    from decimal import Decimal
-    agg = _client_idr_payments_qs().aggregate(idr=Sum('amount'), sar=Sum('amount_sar'))
-    if not agg['idr'] or not agg['sar']:
-        return None
-    return Decimal(agg['idr']) / Decimal(agg['sar'])
-
-
-def rupiah_mengendap_sby():
-    """Rupiah dari klien yang masih mengendap di Surabaya — belum dikirim ke
-    pusat. = Σ(pembayaran klien IDR) − Σ(rupiah yang sudah keluar via remittance).
-
-    Rupiah keluar per remittance memakai amount_idr bila ada, lalu
-    total_sar × exchange_rate, dan terakhir total_sar × kurs rata-rata klien
-    untuk RMT lama yang tak menyimpan data transfer bank."""
-    from decimal import Decimal
-    from ..models.remittance import Remittance
-
-    diterima = rupiah_diterima_dari_klien()
-    avg_rate = _kurs_rata_rata_klien()
-
-    dikirim = Decimal(0)
-    for rem in Remittance.objects.all():
-        if rem.amount_idr:
-            dikirim += Decimal(rem.amount_idr)
-            continue
-        sent_sar = remittance_sent_sar(rem.id)
-        if not sent_sar:
-            continue
-        rate = rem.exchange_rate or avg_rate
-        if rate:
-            dikirim += Decimal(sent_sar) * rate
-
-    return int(Decimal(diterima) - dikirim)
-
-
 def kewajiban_kirim_sby():
     """Semua kas Surabaya idle wajib diremit ke pusat. Pertahankan makna
     legacy: -surplus_pusat (bukan sekadar kas_surabaya), supaya dashboard
