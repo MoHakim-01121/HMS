@@ -91,6 +91,17 @@ def _sort_lines_by_payment_date(lines):
     )
 
 
+def _fx_stats():
+    from ..finance import fund_flow
+    fx = fund_flow.fx_profit(branch='sby')
+    held = fx['client_money_held']
+    return {
+        'fx_profit_idr': fx['total_profit_idr'],
+        'client_idr_held': held.get('IDR', {}).get('amount', 0),
+        'client_usd_held': held.get('USD', {}).get('amount', 0),
+    }
+
+
 def _compute_stats():
     """KPI tab Transfer.
 
@@ -109,8 +120,9 @@ def _compute_stats():
     stats.update({
         'kewajiban_kirim': finance_queries.kewajiban_kirim_sby(),
         'saldo_dana_klien': finance_queries.total_client_credit_balance(),
-        'selisih_kurs': finance_queries.selisih_kurs(),
-        'rupiah_dari_klien': finance_queries.rupiah_mengendap_sby(),
+        # The branch's income is the exchange spread: realized profit on what
+        # was sent, and the client money still held (at cost) not yet sent.
+        **_fx_stats(),
     })
     return stats
 
@@ -187,11 +199,22 @@ def remittance_new(request):
     tertentu. Tidak memilih reservasi -- alokasi ke reservasi dilakukan saat
     Pusat mencatat penerimaan (hw/finance/remittance_allocation.py), karena
     baru saat itu jelas uang siapa yang didahulukan."""
+    from ..models.bank import BankAccount
+    # Transfers leave a branch's IDR bank account (never HQ's own).
+    from_accounts = list(
+        BankAccount.objects.filter(is_active=True, currency='IDR')
+        .exclude(branch_id='pusat').select_related('branch').order_by('bank_name', 'account_identifier')
+    )
+
     def form_page(error=None):
         return inertia_render(request, "Remittance/Form", props={
             'open_transfers': remittance_allocation.open_transfers(),
             'error': error,
             'today': str(date.today()),
+            'from_accounts': [{
+                'value': str(a.pk),
+                'label': f"{a.bank_name} {a.account_identifier} · {a.branch.name}".strip(),
+            } for a in from_accounts],
         })
 
     if request.method != 'POST':
@@ -217,6 +240,10 @@ def remittance_new(request):
     amount_idr, exchange_rate, _legacy_received_sar_ignored = _parse_transfer_fields(request)
     if not amount_idr or not exchange_rate:
         return form_page('Enter the IDR amount and exchange rate.')
+    from_account = next((a for a in from_accounts if str(a.pk) == request.POST.get('from_bank_account')), None)
+    if from_account is None:
+        return form_page('Choose the IDR bank account the money left from.'
+                         if from_accounts else 'Add an IDR bank account in Bank Balances first.')
 
     rem = Remittance.objects.create(
         remittance_number=Remittance.generate_number(),
@@ -224,7 +251,15 @@ def remittance_new(request):
         receipt_reference=receipt_reference,
         amount_idr=amount_idr,
         exchange_rate=exchange_rate,
+        from_bank_account=from_account,
         note=note,
+    )
+    # Cash book: the rupiah that left the branch account (fund-flow report).
+    from ..finance.bank_ledger import record_bank_transaction
+    record_bank_transaction(
+        account=from_account, direction='out', amount_sar=rem.expected_sar,
+        currency='IDR', amount=amount_idr, source_type='Remittance', source_id=rem.pk,
+        transaction_date=rem.date, reference=receipt_reference,
     )
     if proof:
         rem.proof = proof
@@ -302,7 +337,12 @@ def remittance_detail(request, pk):
     # negatif = lebih (laba kurs). Hanya bermakna setelah ada penerimaan.
     diff_sar = basis_sar - settled_total_sar if settlements and basis_sar is not None else None
 
+    from ..finance import fund_flow
+    sender = rem.from_bank_account.branch_id if rem.from_bank_account_id else 'sby'
+    fx_row = next((r for r in fund_flow.fx_profit(branch=sender, date_to=rem.date)['transfers'] if r['id'] == rem.pk), None)
+
     return inertia_render(request, "Remittance/Detail", props={
+        "fx": fx_row,
         "rem": {
             "id": rem.id,
             "remittance_number": rem.remittance_number,
@@ -310,6 +350,10 @@ def remittance_detail(request, pk):
             "status": rem.status,
             "proof_url": rem.proof.url if rem.proof else None,
             "receipt_reference": rem.receipt_reference,
+            "from_account": (
+                f"{rem.from_bank_account.bank_name} {rem.from_bank_account.account_identifier}".strip()
+                if rem.from_bank_account_id else None
+            ),
             "note": rem.note,
             "total_sar": rem.total_sar,
             # Transfer bank fisik + progres alokasi ke reservasi
@@ -627,7 +671,15 @@ def remittance_delete(request, pk):
     if rem.lines.exists() or finance_queries.remittance_has_live_entries(rem.pk):
         messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
         return redirect('remittance_detail', pk=pk)
-    rem.delete()
+    from ..finance.bank_ledger import void_bank_transactions
+    try:
+        with transaction.atomic():
+            # The transfer never happened: its cash-book row stops counting.
+            void_bank_transactions('Remittance', rem.pk)
+            rem.delete()
+    except FinanceError as e:
+        messages.error(request, str(e))
+        return redirect('remittance_detail', pk=pk)
     return redirect('remittance_list')
 
 

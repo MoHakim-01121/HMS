@@ -24,9 +24,13 @@ class BankTransaction(models.Model):
 
     STATUS_POSTED     = 'posted'
     STATUS_RECONCILED = 'reconciled'
+    # The source document was reversed/voided: the money never really moved
+    # (a correction). Kept, not deleted, so the log keeps its audit trail.
+    STATUS_VOIDED     = 'voided'
     STATUS_CHOICES = [
         (STATUS_POSTED,     'Posted'),
         (STATUS_RECONCILED, 'Reconciled'),
+        (STATUS_VOIDED,     'Voided'),
     ]
 
     bank_account = models.ForeignKey('BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='transactions')
@@ -35,6 +39,11 @@ class BankTransaction(models.Model):
     direction    = models.CharField(max_length=3, choices=DIRECTION_CHOICES)
     amount_sar   = models.PositiveIntegerField()
     currency     = models.CharField(max_length=3, default='SAR')
+    # Nominal asli dalam `currency` — uang yang benar-benar bergerak di
+    # rekening (rupiah/dolar), dasar laporan Arus Dana. `amount_sar` tetap
+    # nilai setara jurnal. Null hanya untuk baris lama yang sumbernya tak
+    # menyimpan nominal asli.
+    amount       = models.BigIntegerField(null=True, blank=True)
     # Sumber asal (PaymentRecord/ExpensePayment/RemittanceSettlement/...) —
     # sama pola reference_type/reference_id yang sudah dipakai JournalEntry.
     source_type  = models.CharField(max_length=40, db_index=True)

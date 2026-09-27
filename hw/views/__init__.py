@@ -53,6 +53,7 @@ from .remittance_views import (
     remittance_mark_received, remittance_recap, remittance_period_pdf,
     remittance_ledger_pdf, remittance_tracking,
 )
+from .exchange_views import exchange_list, exchange_new, exchange_void
 from .settlement_views import (
     remittance_record_receipt, remittance_receipt_allocation, remittance_receipt_delete,
     remittance_close_diff, remittance_reopen_diff,
@@ -69,6 +70,7 @@ from .finance_views import (
     finance_hub, journal_list, journal_detail, trial_balance, statements_list,
     client_finance_statement, bank_account_list, bank_account_transactions,
     bank_account_new, bank_account_edit,
+    fund_flow_report, fund_flow_csv,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,

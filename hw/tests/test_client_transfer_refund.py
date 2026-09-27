@@ -48,6 +48,49 @@ class RefundTransferViewTest(TestCase):
             invoice=self.invoice, reservation_number="R-B", total_sar=40000,
         )
 
+    def _pusat_cash(self):
+        from hw.models import CashAccount
+        return f"cash:{CashAccount.objects.get(branch_id='pusat').pk}"
+
+    def _fund(self, amount=20000):
+        posting.post_adjustment(
+            lines=[
+                {"account": coa.CASH_PUSAT, "debit": amount},
+                {"account": coa.CUST_CREDIT, "credit": amount, "client": self.client_obj.pk},
+            ],
+            description="setoran titipan", entry_date=date(2026, 1, 3), created_by=self.user,
+        )
+
+    def _idr_account(self):
+        from hw.models import BankAccount, LedgerAccount
+        return BankAccount.objects.create(
+            branch_id="sby", name="IDR", currency="IDR", bank_name="Mandiri", account_identifier="555",
+            ledger_account=LedgerAccount.objects.get(code="1000-KAS-SBY"),
+        )
+
+    def test_idr_refund_records_rupiah_in_cash_book(self):
+        from hw.models import BankTransaction
+        self._fund()
+        acc = self._idr_account()
+        resp = self.client.post(reverse("client_refund", args=[self.client_obj.pk]), {
+            "from_account": f"bank:{acc.pk}", "amount_sar": "10000", "amount_paid": "47500000", "note": "refund idr",
+        })
+        self.assertEqual(resp.status_code, 302)
+        entry = JournalEntry.objects.get(entry_type=JournalEntry.TYPE_REFUND)
+        tx = BankTransaction.objects.get(source_type="Refund", source_id=entry.pk)
+        self.assertEqual((tx.bank_account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
+                         (acc.pk, "out", "IDR", 47_500_000, 10_000))
+        self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 10_000)
+
+    def test_idr_refund_needs_the_rupiah_amount(self):
+        self._fund()
+        acc = self._idr_account()
+        resp = self.client.post(reverse("client_refund", args=[self.client_obj.pk]), {
+            "from_account": f"bank:{acc.pk}", "amount_sar": "10000",
+        }, HTTP_X_INERTIA="true")
+        self.assertIn("amount_paid", resp.json()["props"]["errors"])
+        self.assertFalse(JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).exists())
+
     def test_refund_posts_journal(self):
         # Beri client titipan (CUST_CREDIT) via adjustment dulu.
         posting.post_adjustment(
@@ -60,7 +103,7 @@ class RefundTransferViewTest(TestCase):
 
         resp = self.client.post(
             reverse("client_refund", args=[self.client_obj.pk]),
-            {"from_account": "pusat", "amount_sar": "20000", "note": "refund uji"},
+            {"from_account": self._pusat_cash(), "amount_sar": "20000", "note": "refund uji"},
         )
         self.assertEqual(resp.status_code, 302)
 
@@ -84,7 +127,7 @@ class RefundTransferViewTest(TestCase):
         proof = SimpleUploadedFile("refund.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         resp = self.client.post(
             reverse("client_refund", args=[self.client_obj.pk]),
-            {"from_account": "pusat", "amount_sar": "20000", "note": "refund uji", "proof": proof},
+            {"from_account": self._pusat_cash(), "amount_sar": "20000", "note": "refund uji", "proof": proof},
         )
         self.assertEqual(resp.status_code, 302)
         entry = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).first()

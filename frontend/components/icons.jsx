@@ -221,6 +221,9 @@ const PATHS = {
       <path strokeLinecap="round" strokeLinejoin="round" d="M17 9.5l-2.5 2.5 2.5 2.5" />
     </>
   ),
+  flow: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 20V6m0 0L3 10m4-4l4 4M17 4v14m0 0l4-4m-4 4l-4-4" />
+  ),
   dashboard: (
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h4a1 1 0 011 1v5a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v2a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zm10-3a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z" />
   ),

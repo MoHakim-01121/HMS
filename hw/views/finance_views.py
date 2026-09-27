@@ -2,6 +2,7 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -318,7 +319,7 @@ def _bank_account_in_use(acc):
     or re-denominate what was already recorded against it."""
     from ..models import PaymentRecord
     return (
-        acc.transactions.exists()
+        acc.transactions.exclude(status='voided').exclude(source_type__startswith='OpeningBalance').exists()
         or acc.statements.exists()
         or PaymentRecord.objects.filter(bank_account=acc).exists()
     )
@@ -336,6 +337,8 @@ def _bank_form_props(acc=None, data=None, errors=None):
             'account_identifier': acc.account_identifier, 'account_name': acc.account_name,
             'currency': acc.currency, 'ledger_account': acc.ledger_account_id,
             'show_on_invoice': acc.show_on_invoice, 'is_active': acc.is_active, 'note': acc.note,
+            'opening_balance': acc.opening_balance or '',
+            'opening_date': acc.opening_date.isoformat() if acc.opening_date else '',
         }
     return {
         'account': {**(data or {}), 'id': acc.pk if acc else None},
@@ -375,6 +378,8 @@ def _save_bank_account(request, acc):
         'show_on_invoice': P.get('show_on_invoice') == 'on',
         'is_active': P.get('is_active') == 'on',
         'note': (P.get('note') or '').strip(),
+        'opening_balance': (P.get('opening_balance') or '').strip().replace(',', ''),
+        'opening_date': (P.get('opening_date') or '').strip(),
     }
     locked = acc.pk is not None and _bank_account_in_use(acc)
     if locked:
@@ -405,6 +410,14 @@ def _save_bank_account(request, acc):
     ).exclude(pk=acc.pk)
     if data['bank_name'] and data['account_identifier'] and dup.exists():
         errors['account_identifier'] = 'This account is already registered.'
+    try:
+        opening_balance = int(data['opening_balance'] or 0)
+    except ValueError:
+        opening_balance = None
+        errors['opening_balance'] = 'Enter a whole number.'
+    opening_date = _parse_date(data['opening_date']) if data['opening_date'] else None
+    if opening_balance and opening_date is None:
+        errors['opening_date'] = 'Pick the date of this balance.'
     if errors:
         return errors, data
 
@@ -420,7 +433,16 @@ def _save_bank_account(request, acc):
     # name is the account's own label; str(acc) prefixes the bank and
     # suffixes the currency, so storing those here doubled them everywhere.
     acc.name = data['account_identifier']
-    acc.save()
+    acc.opening_balance = opening_balance
+    acc.opening_date = opening_date
+    from ..finance.bank_ledger import sync_opening_balance
+    from ..finance.errors import FinanceError
+    try:
+        with transaction.atomic():
+            acc.save()
+            sync_opening_balance(acc)
+    except FinanceError as e:
+        return {'opening_balance': str(e)}, data
     return {}, data
 
 
@@ -561,3 +583,50 @@ def client_finance_statement(request, pk):
         'date_to': date_to.isoformat() if date_to else None,
     })
 
+
+
+def _fund_flow_params(request):
+    from ..models.branch import Branch
+    today = date.today()
+    date_from = _parse_date(request.GET.get('from')) or today.replace(day=1)
+    date_to = _parse_date(request.GET.get('to')) or today
+    branch = request.GET.get('branch') or 'sby'
+    if not Branch.objects.filter(code=branch).exists():
+        branch = 'sby'
+    return branch, date_from, date_to
+
+
+@require_perm('statements', 'view')
+def fund_flow_report(request):
+    """Arus Dana: per-currency money in/out of a branch + realized FX profit."""
+    from ..finance import fund_flow
+    from ..models.branch import Branch
+    branch, date_from, date_to = _fund_flow_params(request)
+    flow = fund_flow.fund_flow(branch=branch, date_from=date_from, date_to=date_to)
+    fx = fund_flow.fx_profit(branch=branch, date_from=date_from, date_to=date_to)
+    return inertia_render(request, 'Finance/FundFlow', props={
+        'branch': branch,
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.order_by('code')],
+        'date_from': date_from.isoformat(),
+        'date_to': date_to.isoformat(),
+        'flow': flow,
+        'fx': fx,
+    })
+
+
+@require_perm('statements', 'export')
+def fund_flow_csv(request):
+    from ..finance import fund_flow
+    from .helpers import csv_export_response
+    branch, date_from, date_to = _fund_flow_params(request)
+    flow = fund_flow.fund_flow(branch=branch, date_from=date_from, date_to=date_to)
+    fx = fund_flow.fx_profit(branch=branch, date_from=date_from, date_to=date_to)
+    rows = [['Fund flow', branch, date_from.isoformat(), date_to.isoformat()], ['Line', *flow['currencies']]]
+    rows += [[l['label'], *[l['values'][c] for c in flow['currencies']]] for l in flow['lines']]
+    rows += [[], ['Transfer', 'Date', 'SAR', 'IDR sent', 'Average rate', 'Send rate', 'FX profit (IDR)']]
+    rows += [[t['remittance_number'], t['date'], t['sar'], t['idr_sent'], t['avg_rate'], t['send_rate'], t['profit_idr']]
+             for t in fx['transfers']]
+    rows += [['Total FX profit', '', '', '', '', '', fx['total_profit_idr']]]
+    rows += [[], ['Date', 'Line', 'Account', 'Currency', 'Amount', 'Reference']]
+    rows += [[t['date'], t['line'], t['account'], t['currency'], t['amount'], t['reference']] for t in flow['transactions']]
+    return csv_export_response(f'fund-flow-{branch}-{date_from}-{date_to}.csv', rows[0], rows[1:])

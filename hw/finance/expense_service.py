@@ -143,7 +143,7 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
     record_bank_transaction(
         account=src, direction='out', amount_sar=amt_sar,
         source_type='ExpensePayment', source_id=ep.pk,
-        transaction_date=payment_date, currency=currency, reference=reference,
+        transaction_date=payment_date, currency=currency, amount=amount, reference=reference,
     )
     return ep
 
@@ -153,11 +153,13 @@ def void_expense(expense, *, created_by, date=None):
     """Batalkan Expense: reverse semua jurnal accrual + pembayaran yang hidup,
     set status VOIDED. Baris/pembayaran tidak dihapus (audit)."""
     date = date or timezone.now().date()
+    from .bank_ledger import void_bank_transactions
     for ep in expense.payments.filter(status=ExpensePayment.STATUS_PAID):
         for e in _live_entries('ExpensePayment', ep.pk):
             reverse_entry(e, reversal_date=date, created_by=created_by)
         ep.status = ExpensePayment.STATUS_VOID
         ep.save(update_fields=['status'])
+        void_bank_transactions('ExpensePayment', ep.pk)
     for e in _live_entries('Expense', expense.pk):
         reverse_entry(e, reversal_date=date, created_by=created_by)
     expense.status = Expense.STATUS_VOIDED

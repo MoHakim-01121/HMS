@@ -90,3 +90,110 @@ class SettlementBankTransactionTest(BankTransactionBase):
         self.assertEqual(tx.cash_account.branch_id, 'pusat')
         self.assertEqual(tx.direction, 'in')
         self.assertEqual(tx.amount_sar, 20000)
+
+
+class OriginalAmountTest(BankTransactionBase):
+    """The cash log keeps the money that actually moved (rupiah/dollars), not
+    only its SAR value — the fund-flow report reads it from here."""
+
+    def test_idr_payment_keeps_rupiah_amount(self):
+        client_obj = Client.objects.create(name='PT BT IDR')
+        inv = Invoice.objects.create(invoice_number='INV-BT-IDR', customer_name='PT BT IDR', client=client_obj)
+        pr = create_payment_record(
+            inv, client_obj, date(2026, 7, 1), 49_000_000, currency='IDR', exchange_rate=4900,
+            method='Transfer', cash_account=self.cash_sby, created_by=self.user,
+        )
+        confirm_payment(pr, self.user)
+        tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
+        self.assertEqual((tx.currency, tx.amount, tx.amount_sar), ('IDR', 49_000_000, 10_000))
+
+    def test_idr_expense_payment_keeps_rupiah_amount(self):
+        from hw.models import ExpenseCategory
+        exp = expense_service.record_expense(
+            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
+            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 100}],
+        )
+        ep = expense_service.add_expense_payment(
+            exp, amount=475_000, currency='IDR', exchange_rate=4750, payment_date=date(2026, 7, 3),
+            cash_account=self.cash_sby, created_by=self.user,
+        )
+        tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
+        self.assertEqual((tx.direction, tx.currency, tx.amount, tx.amount_sar), ('out', 'IDR', 475_000, 100))
+
+    def test_sar_settlement_amount_equals_sar_value(self):
+        rmt = Remittance.objects.create(date=date(2026, 7, 4), remittance_number='RMT-BT-2')
+        s = settlement_service.add_settlement(
+            rmt, received_amount_sar=20000, received_date=date(2026, 7, 5), created_by=self.user,
+        )
+        tx = BankTransaction.objects.get(source_type='RemittanceSettlement', source_id=s.pk)
+        self.assertEqual((tx.currency, tx.amount), ('SAR', 20000))
+
+    def test_non_sar_movement_without_amount_is_refused(self):
+        from hw.finance.bank_ledger import record_bank_transaction
+        with self.assertRaises(ValueError):
+            record_bank_transaction(
+                account=self.cash_sby, direction='in', amount_sar=10, currency='IDR',
+                source_type='Test', source_id=1, transaction_date=date(2026, 7, 1),
+            )
+
+
+class VoidedCashRowTest(BankTransactionBase):
+    """A reversed/voided document's cash row stops counting as money that
+    moved, unless it was already matched to a bank statement line."""
+
+    def _paid(self, number):
+        client_obj = Client.objects.create(name=f'PT {number}')
+        inv = Invoice.objects.create(invoice_number=number, customer_name='X', client=client_obj)
+        pr = create_payment_record(
+            inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
+            cash_account=self.cash_sby, created_by=self.user,
+        )
+        confirm_payment(pr, self.user)
+        return pr
+
+    def _retire(self, pr):
+        from hw.models.payment import PaymentLog, PaymentRecord
+        from hw.views.payment_views import _retire_payment
+        _retire_payment(
+            pr, status=PaymentRecord.STATUS_REVERSED, action=PaymentLog.ACTION_REVERSED,
+            reversal_date=date(2026, 7, 2), journal_note='test', user=self.user,
+        )
+
+    def test_reversed_payment_voids_its_cash_row(self):
+        from hw.finance import queries
+        pr = self._paid('INV-BT-V1')
+        self._retire(pr)
+        tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
+        self.assertEqual(tx.status, BankTransaction.STATUS_VOIDED)
+        ids = [r['id'] for r in queries.account_transactions('cash', self.cash_sby.pk)['rows']]
+        self.assertNotIn(tx.pk, ids)
+
+    def test_reconciled_payment_cannot_be_reversed(self):
+        from hw.finance import reconciliation_service as rs
+        from hw.finance.errors import FinanceError
+        from hw.models.payment import PaymentRecord
+        pr = self._paid('INV-BT-V2')
+        tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
+        st = rs.create_statement(
+            account=self.cash_sby, period_start=date(2026, 7, 1), period_end=date(2026, 7, 31),
+            opening_balance_sar=0, closing_balance_sar=5000,
+            lines=[{'line_date': date(2026, 7, 1), 'description': 'in', 'direction': 'in', 'amount_sar': 5000}],
+        )
+        rs.match_line(st.lines.first(), tx)
+        with self.assertRaises(FinanceError):
+            self._retire(pr)
+        pr.refresh_from_db()
+        self.assertNotEqual(pr.status, PaymentRecord.STATUS_REVERSED)  # rolled back
+
+    def test_voided_expense_voids_its_cash_row(self):
+        from hw.models import ExpenseCategory
+        exp = expense_service.record_expense(
+            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
+            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 700}],
+        )
+        ep = expense_service.add_expense_payment(
+            exp, amount=700, payment_date=date(2026, 7, 3), cash_account=self.cash_sby, created_by=self.user,
+        )
+        expense_service.void_expense(exp, created_by=self.user, date=date(2026, 7, 4))
+        tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
+        self.assertEqual(tx.status, BankTransaction.STATUS_VOIDED)

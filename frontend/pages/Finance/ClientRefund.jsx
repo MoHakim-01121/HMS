@@ -19,22 +19,28 @@ function RefundBody({ client, accounts, initial, errors: serverErrors }) {
   const accountOptions = accounts || [];
   const [confirm, confirmDialog] = useConfirm();
   const form = useForm({
-    from_account: i.from_account || accountOptions[0]?.value || "sby",
+    from_account: i.from_account || "",
     amount_sar: i.amount_sar || "",
+    amount_paid: i.amount_paid || "",
     note: i.note || "",
     proof: null,
   });
   const errors = { ...serverErrors, ...form.errors };
 
-  const accountLabel = accountOptions.find((a) => a.value === form.data.from_account)?.label || form.data.from_account;
+  const account = accountOptions.find((a) => a.value === form.data.from_account);
+  const accountLabel = account?.label || form.data.from_account;
+  // A SAR account pays exactly the SAR taken from the fund; any other
+  // currency needs the real amount that left the account.
+  const foreign = account && account.currency !== "SAR";
 
   const submit = (e) => {
     e.preventDefault();
     const amount = Number(form.data.amount_sar) || 0;
+    const paid = foreign ? `${fmt(Number(form.data.amount_paid) || 0)} ${account.currency}` : `${fmt(amount)} SAR`;
     confirm({
       title: t("Send this refund?"),
-      message: t("{amount} SAR will be paid out to {name} from {account}. This posts a journal entry.", {
-        amount: fmt(amount), name: client.name, account: accountLabel,
+      message: t("{paid} will be paid out to {name} from {account}, taking {amount} SAR from their fund. This posts a journal entry.", {
+        paid, amount: fmt(amount), name: client.name, account: accountLabel,
       }),
       confirmLabel: t("Send Refund"),
       danger: true,
@@ -59,7 +65,7 @@ function RefundBody({ client, accounts, initial, errors: serverErrors }) {
               <FormField label={t("Paid from")} name="from_account" error={errors.from_account}>
                 <Select name="from_account" value={form.data.from_account} onValueChange={(v) => form.setData("from_account", v)}>
                   <SelectTrigger id="from_account" className="w-full">
-                    <SelectValue />
+                    <SelectValue placeholder={t("Choose account")} />
                   </SelectTrigger>
                   <SelectContent>
                     {accountOptions.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
@@ -67,7 +73,7 @@ function RefundBody({ client, accounts, initial, errors: serverErrors }) {
                 </Select>
               </FormField>
               <FormField
-                label={t("Amount (SAR)")}
+                label={t("From client fund (SAR)")}
                 name="amount_sar"
                 type="number"
                 step="1"
@@ -75,6 +81,15 @@ function RefundBody({ client, accounts, initial, errors: serverErrors }) {
                 onChange={(v) => form.setData("amount_sar", v)}
                 error={errors.amount_sar}
               />
+              {foreign && (
+                <FormField
+                  label={t("Amount paid ({currency})", { currency: account.currency })}
+                  name="amount_paid" type="number" step="1"
+                  value={form.data.amount_paid} onChange={(v) => form.setData("amount_paid", v)}
+                  error={errors.amount_paid}
+                  hint={t("Exactly what left the account.")}
+                />
+              )}
             </div>
             <FormField label={t("Note")} name="note" span={2}>
               <Textarea name="note" rows={2} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Reason for refund…")} />

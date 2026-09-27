@@ -22,6 +22,11 @@ class MoneyAccount(models.Model):
     ledger_account = models.ForeignKey('LedgerAccount', on_delete=models.PROTECT, related_name='+')
     is_active = models.BooleanField(default=True, db_index=True)
     note = models.TextField(blank=True)
+    # Real balance (in `currency`) on `opening_date`, before the first movement
+    # this system recorded — so the cash book (BankTransaction) starts from
+    # what the bank actually held. Mirrored as one "opening balance" row.
+    opening_balance = models.BigIntegerField(default=0)
+    opening_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

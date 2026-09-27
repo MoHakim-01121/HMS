@@ -26,6 +26,11 @@ class Remittance(models.Model):
     # dan nominal SAR yang benar-benar diterima pusat (bisa beda karena biaya
     # transfer/pembulatan). Semuanya opsional -- RMT lama hanya punya baris.
     amount_idr         = models.BigIntegerField(null=True, blank=True)
+    # Rekening IDR cabang yang mengirim — baris kas keluar di buku rekening
+    # (BankTransaction). Kosong untuk transfer lama sebelum field ini ada.
+    from_bank_account  = models.ForeignKey(
+        'BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='remittances_sent',
+    )
     exchange_rate      = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
     received_amount_sar = models.IntegerField(null=True, blank=True)
 

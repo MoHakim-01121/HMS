@@ -86,7 +86,7 @@ class TransferKpiTest(AllocationBase):
             (stats['sent'], stats['received'], stats['in_transit'], stats['received_unallocated']),
             (50000, 40000, 10000, 8000),
         )
-        for key in ('kewajiban_kirim', 'saldo_dana_klien', 'selisih_kurs', 'rupiah_dari_klien'):
+        for key in ('kewajiban_kirim', 'saldo_dana_klien', 'fx_profit_idr', 'client_idr_held'):
             self.assertIn(key, stats)
 
 

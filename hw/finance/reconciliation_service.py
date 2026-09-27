@@ -48,7 +48,9 @@ def unmatched_transaction_candidates(statement_line):
     statement line, as candidates for `match_line`. Caller narrows/sorts
     by date/amount proximity in the UI — this just scopes to the account."""
     account = statement_line.statement.account
-    qs = BankTransaction.objects.filter(statement_lines__isnull=True)
+    qs = BankTransaction.objects.filter(statement_lines__isnull=True).exclude(
+        status=BankTransaction.STATUS_VOIDED,
+    )
     if statement_line.statement.bank_account_id:
         qs = qs.filter(bank_account=account)
     else:

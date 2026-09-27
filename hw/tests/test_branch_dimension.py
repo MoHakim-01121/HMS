@@ -69,14 +69,17 @@ class ReceivingAccountTest(TestCase):
         self.assertTrue(lines.exists())
         self.assertTrue(all(l.branch_id == 'jkt' for l in lines))
 
-    def test_charge_journal_lines_carry_owner_branch(self):
+    def test_charge_receivable_is_branch_revenue_is_hq(self):
+        # The owning branch holds the receivable; hotel revenue is HQ's — the
+        # branch sells as an agent and remits the full SAR value.
         posting.post_invoice_charge(self.inv, created_by=self.user, entry_date=date(2026, 1, 1))
         lines = JournalLine.objects.filter(
             journal_entry__entry_type=JournalEntry.TYPE_CHARGE,
             journal_entry__reference_id=self.inv.pk,
         )
         self.assertTrue(lines.exists())
-        self.assertTrue(all(l.branch_id == 'sby' for l in lines))
+        by_account = {(l.account_id, l.branch_id) for l in lines}
+        self.assertEqual(by_account, {('1100-AR', 'sby'), ('4100-INC-HOTEL', 'pusat')})
 
 
 class PaymentRecordAccountPickerViewTest(TestCase):

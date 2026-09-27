@@ -192,12 +192,18 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
               <dd>{fmt(stats.saldo_dana_klien)} SAR</dd>
             </div>
             <div>
-              <dt>{t("Rupiah not yet sent")}</dt>
-              <dd>{fmt(stats.rupiah_dari_klien)} IDR</dd>
+              <dt>{t("Client rupiah not yet sent")}</dt>
+              <dd>{fmt(stats.client_idr_held)} IDR</dd>
             </div>
+            {stats.client_usd_held ? (
+              <div>
+                <dt>{t("Client USD not yet exchanged")}</dt>
+                <dd>{fmt(stats.client_usd_held)} USD</dd>
+              </div>
+            ) : null}
             <div>
-              <dt>{stats.selisih_kurs < 0 ? t("Exchange Loss") : t("Exchange Gain")}</dt>
-              <dd>{fmt(Math.abs(stats.selisih_kurs))} SAR</dd>
+              <dt>{stats.fx_profit_idr < 0 ? t("Branch FX loss") : t("Branch FX profit")}</dt>
+              <dd><a href="/finance/fund-flow/" style={{ color: "inherit" }}>{fmt(Math.abs(stats.fx_profit_idr))} IDR</a></dd>
             </div>
           </dl>
 

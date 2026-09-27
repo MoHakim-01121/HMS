@@ -54,6 +54,12 @@ class LumpSumRemittanceTest(TestCase):
         self.res2 = Reservation.objects.create(
             invoice=self.invoice, reservation_number='R-LS-2', total_sar=40000,
         )
+        from hw.models import BankAccount, LedgerAccount
+        # New transfers must name the IDR account the money left from.
+        self.idr_account = BankAccount.objects.create(
+            branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri', account_identifier='777',
+            ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
+        )
 
     def _login(self):
         self.client.force_login(self.user)
@@ -66,6 +72,7 @@ class LumpSumRemittanceTest(TestCase):
         # lagi punya field itu -- penerimaan HQ dicatat lewat Settlement,
         # bukan di sini).
         response = self.client.post(reverse('remittance_new'), {
+            'from_bank_account': str(self.idr_account.pk),
             'date': '2026-02-10',
             'amount_idr': '480000000',
             'exchange_rate': '4800',
@@ -137,6 +144,7 @@ class LumpSumRemittanceTest(TestCase):
         satu-satunya jalur mencatat penerimaan sekarang Settlement."""
         self._login()
         response = self.client.post(reverse('remittance_new'), {
+            'from_bank_account': str(self.idr_account.pk),
             'date': '2026-02-10',
             'amount_idr': '480000000',
             'exchange_rate': '4800',

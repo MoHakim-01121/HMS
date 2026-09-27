@@ -318,8 +318,10 @@ def _invoice_charge_lines(invoice):
         br = r.owner_branch_id
         lines.append({"account": coa.AR, "debit": amt, "client": client_id,
                       "invoice": invoice.pk, "reservation": r.pk, "branch": br})
+        # Receivable stays with the owning branch; hotel revenue is HQ's.
         lines.append({"account": income, "credit": amt,
-                      "invoice": invoice.pk, "reservation": r.pk, "branch": br})
+                      "invoice": invoice.pk, "reservation": r.pk,
+                      "branch": coa.HQ_BRANCH if income == coa.INC_HOTEL else br})
     for s in invoice.service_items.all():
         amt = int(s.total or 0)
         if not amt:
@@ -408,9 +410,11 @@ def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
     ).exclude(pk__in=reversed_ids):
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
 
+    from .bank_ledger import void_bank_transactions
     for pr in old_prs:
         pr.status = PaymentRecord.STATUS_REVERSED
         pr.save(update_fields=["status"])
+        void_bank_transactions("PaymentRecord", pr.pk)
         dropped = clear_payment_allocations(pr)
         PaymentLog.objects.create(
             payment=pr,
@@ -612,7 +616,7 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         account=acc, direction="in", amount_sar=amt,
         source_type="PaymentRecord", source_id=payment.pk,
         transaction_date=payment.payment_date, currency=payment.currency,
-        reference=payment.reference,
+        amount=payment.amount, reference=payment.reference,
     )
     return entry
 

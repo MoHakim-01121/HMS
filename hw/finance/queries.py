@@ -725,7 +725,11 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
         return None
 
     field = 'bank_account' if kind == 'bank' else 'cash_account'
-    qs = BankTransaction.objects.filter(**{field: account_id}).prefetch_related('statement_lines').order_by('transaction_date', 'id')
+    qs = (
+        BankTransaction.objects.filter(**{field: account_id})
+        .exclude(status=BankTransaction.STATUS_VOIDED)
+        .prefetch_related('statement_lines').order_by('transaction_date', 'id')
+    )
     if date_from:
         qs = qs.filter(transaction_date__gte=date_from)
     if date_to:

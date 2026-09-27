@@ -33,6 +33,8 @@ export default function BankAccountForm({
     show_on_invoice: !!a.show_on_invoice,
     is_active: edit ? !!a.is_active : a.is_active !== false,
     note: a.note || "",
+    opening_balance: a.opening_balance ?? "",
+    opening_date: a.opening_date || "",
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
@@ -96,6 +98,20 @@ export default function BankAccountForm({
               <Checkbox checked={form.data.is_active} onCheckedChange={(v) => form.setData("is_active", !!v)} />
               <span>{t("Active")} <span style={{ color: "var(--muted-foreground)" }}>— {t("inactive accounts are hidden from invoices and payment pickers")}</span></span>
             </label>
+          </FormSection>
+
+          <FormSection label={t("Opening Balance")} sub={t("optional")}>
+            <div className="fg-2">
+              <FormField
+                label={t("Balance ({currency})", { currency: form.data.currency || "" })} name="opening_balance" type="number"
+                value={form.data.opening_balance} onChange={set("opening_balance")} error={errors.opening_balance}
+                hint={t("What the bank actually held before the first transaction recorded here.")}
+              />
+              <FormField
+                label={t("As of")} name="opening_date" type="date"
+                value={form.data.opening_date} onChange={set("opening_date")} error={errors.opening_date}
+              />
+            </div>
           </FormSection>
 
           <FormSection label={t("Accounting")} sub={t("advanced")}>

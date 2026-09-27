@@ -182,3 +182,43 @@ class InvoiceFormBranchTests(TestCase):
     def test_automatic_branch_falls_back_to_default(self):
         self.client.post('/invoice/new/', {**self.base, 'invoice_number': 'INV-FB-2', 'branch': ''})
         self.assertEqual(Invoice.objects.get(invoice_number='INV-FB-2').branch_id, 'sby')
+
+
+class OpeningBalanceTests(TestCase):
+    """The account's real opening balance anchors the cash book as one row."""
+
+    def setUp(self):
+        FinancialPeriod.objects.create(name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31))
+        self.client.force_login(make_user('ob_admin', 'admin'))
+
+    def _row(self, acc):
+        from hw.models import BankTransaction
+        return BankTransaction.objects.filter(source_type='OpeningBalanceBank', source_id=acc.pk).first()
+
+    def test_opening_balance_becomes_one_cash_row_that_follows_edits(self):
+        self.client.post('/finance/bank-accounts/new/', post_data(opening_balance='25000000', opening_date='2026-09-01'))
+        acc = BankAccount.objects.get()
+        row = self._row(acc)
+        self.assertEqual((row.direction, row.currency, row.amount, row.transaction_date, row.status),
+                         ('in', 'IDR', 25_000_000, date(2026, 9, 1), 'posted'))
+
+        self.client.post(f'/finance/bank-accounts/{acc.pk}/edit/', post_data(opening_balance='30000000', opening_date='2026-09-02'))
+        row.refresh_from_db()
+        self.assertEqual((row.amount, row.transaction_date), (30_000_000, date(2026, 9, 2)))
+        from hw.models import BankTransaction
+        self.assertEqual(BankTransaction.objects.filter(source_type='OpeningBalanceBank').count(), 1)
+
+        self.client.post(f'/finance/bank-accounts/{acc.pk}/edit/', post_data(opening_balance='', opening_date=''))
+        row.refresh_from_db()
+        self.assertEqual(row.status, 'voided')
+
+    def test_balance_without_date_is_refused(self):
+        resp = self.client.post('/finance/bank-accounts/new/', post_data(opening_balance='100'), HTTP_X_INERTIA='true')
+        self.assertIn('opening_date', resp.json()['props']['errors'])
+        self.assertFalse(BankAccount.objects.exists())
+
+    def test_opening_balance_alone_does_not_lock_the_currency(self):
+        self.client.post('/finance/bank-accounts/new/', post_data(opening_balance='100', opening_date='2026-09-01'))
+        acc = BankAccount.objects.get()
+        props = self.client.get(f'/finance/bank-accounts/{acc.pk}/edit/', HTTP_X_INERTIA='true').json()['props']
+        self.assertFalse(props['locked'])

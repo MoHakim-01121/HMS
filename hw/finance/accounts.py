@@ -43,6 +43,11 @@ EXP_MISC          = "5490-EXP-MISC"
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
 
+# HQ owns hotel revenue: a branch books the sale and collects the money as an
+# agent, then must remit the full SAR value (IFRS 15 principal vs agent). Its
+# own income is the exchange spread, not the booking.
+HQ_BRANCH = "pusat"
+
 ACCOUNTS = [
     {"code": CASH_SBY, "name": "Kas Surabaya", "type": AccountType.ASSET},
     {"code": CASH_JKT, "name": "Kas Jakarta", "type": AccountType.ASSET},

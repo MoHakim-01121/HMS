@@ -138,10 +138,19 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         )
         self.res = Reservation.objects.create(invoice=self.invoice, reservation_number="R1", total_sar=5000)
 
+    def _idr_account(self):
+        from hw.models import BankAccount, LedgerAccount
+        return BankAccount.objects.create(
+            branch_id="sby", name="Ops IDR", currency="IDR", bank_name="Mandiri",
+            account_identifier="1400", ledger_account=LedgerAccount.objects.get(code="1000-KAS-SBY"),
+        )
+
     def test_new_remittance_is_lump_sum_send_leg(self):
         # Transfer baru tidak memilih reservasi (alokasi saat Pusat menerima,
         # lihat test_remittance_allocation): baris kiriman diabaikan.
+        acc = self._idr_account()
         resp = self.client.post("/remittance/new/", {
+            "from_bank_account": str(acc.pk),
             "date": "2026-01-10",
             "receipt_reference": "REF-1",
             "note": "",
@@ -159,6 +168,22 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         # tidak ada lagi shadow CashMovement (Fase 7).
         self.assertEqual(fq.transit(), 3000)
         self.assertEqual(fq.kas_surabaya(), -3000)
+        # Cash book: the rupiah left the chosen IDR account.
+        from hw.models import BankTransaction, Remittance
+        rem = Remittance.objects.get()
+        self.assertEqual(rem.from_bank_account_id, acc.pk)
+        tx = BankTransaction.objects.get(source_type="Remittance", source_id=rem.pk)
+        self.assertEqual((tx.bank_account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
+                         (acc.pk, "out", "IDR", 14_400_000, 3000))
+
+    def test_new_remittance_requires_from_account(self):
+        self._idr_account()
+        resp = self.client.post("/remittance/new/", {
+            "date": "2026-01-10", "amount_idr": "14400000", "exchange_rate": "4800",
+        }, HTTP_X_INERTIA="true")
+        from hw.models import Remittance
+        self.assertFalse(Remittance.objects.exists())
+        self.assertIn("IDR bank account", resp.json()["props"]["error"])
 
     def test_new_remittance_requires_idr_and_rate(self):
         resp = self.client.post("/remittance/new/", {"date": "2026-01-10", "amount_idr": "14400000"})

@@ -3,6 +3,7 @@ from datetime import date, datetime, time as dt_time
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -22,7 +23,9 @@ from .helpers import (
     _is_mobile,
     _parse_date,
     _to_float,
+    money_account_choices,
     pagination_props,
+    resolve_money_account,
     period_label as _period_label,
     snapshot_fields,
     track_changes,
@@ -350,72 +353,77 @@ def client_transfer(request, pk):
     })
 
 
-# Lokasi kas tempat refund dibayar. Value = lokasi string yang sama dengan
-# `_CASH_BY_LOCATION` di finance/posting.py ('sby'/'pusat'), bukan kode akun —
-# post_refund(from_location=...) mengurai value ini ke kode kas via chart of
-# accounts. (Sebelumnya pakai hw.models.ledger.CashAccount yang kini deprecated.)
-REFUND_LOCATIONS = ['sby', 'pusat']
-# Where a refund can be paid from. The view hands the frontend the {value,
-# label} pairs so the picker never drifts from the choices the POST handler
-# actually validates against.
-REFUND_ACCOUNTS = [
-    {'value': loc, 'label': 'Surabaya' if loc == 'sby' else 'Pusat'}
-    for loc in REFUND_LOCATIONS
-]
-
-
 @require_perm('payments', 'edit')
 def client_refund(request, pk):
+    """Pay a client's fund back out of a concrete account.
+
+    Two amounts: the SAR taken from the client's fund (journal) and what the
+    account actually paid in its own currency (cash book). They are the same
+    number for a SAR account; for an IDR/USD account both are entered."""
     client_obj = get_object_or_404(Client, pk=pk)
+    accounts = money_account_choices()
 
-    if request.method == 'POST':
-        from_account = request.POST.get('from_account') or REFUND_LOCATIONS[0]
-        amount = int(round(_to_float(request.POST.get('amount_sar'))))
-        note = (request.POST.get('note') or '').strip()
-        proof = request.FILES.get('proof')
-
-        errors = {}
-        if from_account not in REFUND_LOCATIONS:
-            errors['from_account'] = 'Choose where the refund is paid from.'
-        if amount <= 0:
-            errors['amount_sar'] = 'Enter an amount greater than zero.'
-        if proof:
-            proof_error = validate_proof_file(proof)
-            if proof_error:
-                errors['proof'] = proof_error
-
-        if not errors:
-            # Journal (Fase 5+): DR Titipan / CR Kas. Bukti transfer dibawa
-            # entry refund (bukan shadow CashMovement yang pensiun Fase 7).
-            # Refund berulang bisa sah → tanpa idempotency_key; PRG + tombol
-            # disable melindungi dari double-submit.
-            try:
-                posting.post_refund(
-                    client_obj, from_location=from_account.lower(), amount_sar=amount,
-                    created_by=request.user, entry_date=date.today(),
-                    proof=proof,
-                )
-            except FinanceError as e:
-                errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
-            else:
-                logger.info(
-                    "ledger: refund %s SAR to client %s from %s",
-                    amount, client_obj.pk, from_account,
-                )
-                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
-                messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
-                return redirect('client_finance_statement', pk=pk)
-
+    def page(errors=None, initial=None):
         return inertia_render(request, 'Finance/ClientRefund', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-            'accounts': REFUND_ACCOUNTS,
-            'errors': errors,
-            'initial': {'from_account': from_account, 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
+            'accounts': accounts,
+            'errors': errors or {},
+            'initial': initial or {},
         })
 
-    return inertia_render(request, 'Finance/ClientRefund', props={
-        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-        'accounts': REFUND_ACCOUNTS,
+    if request.method != 'POST':
+        return page()
+
+    P = request.POST
+    bank, cash = resolve_money_account(P.get('from_account'))
+    account = bank or cash
+    amount = int(round(_to_float(P.get('amount_sar'))))
+    note = (P.get('note') or '').strip()
+    proof = request.FILES.get('proof')
+
+    errors = {}
+    if account is None:
+        errors['from_account'] = 'Choose the account the refund is paid from.'
+    if amount <= 0:
+        errors['amount_sar'] = 'Enter an amount greater than zero.'
+    paid = amount
+    if account is not None and account.currency != 'SAR':
+        paid = int(round(_to_float(P.get('amount_paid'))))
+        if paid <= 0:
+            errors['amount_paid'] = f'Enter the amount paid in {account.currency}.'
+    if proof:
+        proof_error = validate_proof_file(proof)
+        if proof_error:
+            errors['proof'] = proof_error
+
+    if not errors:
+        # Journal: DR Titipan / CR Kas cabang rekening. Cash book: the real
+        # amount out of that account. Refund berulang bisa sah → tanpa
+        # idempotency_key; PRG + tombol disable melindungi dari double-submit.
+        from ..finance.bank_ledger import record_bank_transaction
+        try:
+            with transaction.atomic():
+                entry = posting.post_refund(
+                    client_obj, from_location=account.branch_id, amount_sar=amount,
+                    created_by=request.user, entry_date=date.today(), proof=proof,
+                )
+                record_bank_transaction(
+                    account=account, direction='out', amount_sar=amount,
+                    currency=account.currency, amount=paid, source_type='Refund', source_id=entry.pk,
+                    transaction_date=entry.entry_date, reference=note[:200],
+                )
+        except FinanceError as e:
+            errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
+        else:
+            logger.info("ledger: refund %s SAR (%s %s) to client %s from %s",
+                        amount, paid, account.currency, client_obj.pk, account)
+            log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
+            messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
+            return redirect('client_finance_statement', pk=pk)
+
+    return page(errors, {
+        'from_account': P.get('from_account', ''), 'amount_sar': P.get('amount_sar', ''),
+        'amount_paid': P.get('amount_paid', ''), 'note': note,
     })
 
 

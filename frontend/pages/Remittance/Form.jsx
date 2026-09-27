@@ -7,6 +7,7 @@ import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -14,10 +15,12 @@ import { fmt } from "../../utils/format.js";
 // Transfer ke Pusat = lump-sum (IDR + kurs). Reservasi tidak dipilih di sini:
 // alokasi dilakukan saat Pusat mencatat penerimaan (Receipt.jsx), karena baru
 // saat itu jelas uang reservasi mana yang didahulukan.
-function FormBody({ open_transfers = [], today, error }) {
+function FormBody({ open_transfers = [], today, error, from_accounts = [] }) {
   const { t } = useI18n();
   const form = useForm({
     date: today || "",
+    // One IDR account → nothing to choose.
+    from_bank_account: from_accounts.length === 1 ? from_accounts[0].value : "",
     amount_idr: "",
     exchange_rate: "",
     receipt_reference: "",
@@ -71,6 +74,14 @@ function FormBody({ open_transfers = [], today, error }) {
                 label={t("Bank Reference")} name="receipt_reference"
                 value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
               />
+              <FormField label={t("From Account")} name="from_bank_account" required span={2}>
+                <Select value={form.data.from_bank_account} onValueChange={(v) => form.setData("from_bank_account", v)}>
+                  <SelectTrigger id="from_bank_account" className="w-full"><SelectValue placeholder={t("Choose IDR account")} /></SelectTrigger>
+                  <SelectContent>
+                    {from_accounts.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
               <FormField
                 label={t("Amount IDR")} name="amount_idr" type="number" min="1" required
                 value={form.data.amount_idr} onChange={(v) => form.setData("amount_idr", v)}

@@ -849,6 +849,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
     FinanceError (rolled back) for the caller to report.
     """
     from django.db import transaction
+    from ..finance.bank_ledger import void_bank_transactions
     from ..finance.receipt_service import void_receipts_for_payment
 
     with transaction.atomic():
@@ -875,6 +876,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
 
         payment.status = status
         payment.save(update_fields=['status'])
+        void_bank_transactions('PaymentRecord', payment.pk)
         void_receipts_for_payment(
             payment, reason=f'Payment {payment.payment_number} {status}',
         )

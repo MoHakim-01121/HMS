@@ -114,7 +114,7 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
     from .bank_ledger import record_bank_transaction
     record_bank_transaction(
         account=CashAccount.objects.filter(branch_id='pusat', is_active=True).first(),
-        direction='in', amount_sar=received_amount_sar,
+        direction='in', amount_sar=received_amount_sar, currency='SAR', amount=received_amount_sar,
         source_type='RemittanceSettlement', source_id=settlement.pk,
         transaction_date=received_date, reference=reference,
     )
