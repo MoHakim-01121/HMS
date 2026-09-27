@@ -94,6 +94,17 @@ class Invoice(models.Model):
             self.customer_name = self.client.name
         super().save(*args, **kwargs)
 
+    def pay_to_accounts(self):
+        """Rekening tujuan bayar ("Pay to") invoice ini: rekening aktif cabang
+        penerbit yang ditandai show_on_invoice. Satu sumber untuk kartu Pay to
+        di detail invoice dan blok Informasi Pembayaran di draft pesan."""
+        from .bank import BankAccount
+        if not self.branch_id:
+            return BankAccount.objects.none()
+        return BankAccount.objects.filter(
+            branch_id=self.branch_id, is_active=True, show_on_invoice=True,
+        ).order_by('currency', 'bank_name')
+
     def infer_branch_id(self):
         """Cabang yang wajar untuk invoice ini bila belum dipilih: owner_branch
         reservasi pertama yang punya, selain itu DEFAULT_INVOICE_BRANCH."""

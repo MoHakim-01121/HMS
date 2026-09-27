@@ -24,12 +24,6 @@ const STATUS_OPTS = [
   { val: "inactive", label: "Inactive", cls: "c-ina" },
 ];
 
-function riskBadge(risk) {
-  if (risk === "high") return ["red", "Risk"];
-  if (risk === "medium") return ["yellow", "Overdue"];
-  if (risk === "dormant") return ["gray", "Dormant"];
-  return null;
-}
 const needsWaGroup = (c) => c.reminder_target !== "PIC" && !c.wa_group;
 
 const visit = (params) => listVisit("/clients/", params);
@@ -57,35 +51,14 @@ export default function List({ clients, total_count, q, status, pagination }) {
     {
       header: t("Company Name"),
       className: "col-m-primary",
-      render: (c) => {
-        const rb = riskBadge(c.risk_label);
-        return (
-          <>
-            <span style={{ fontWeight: 600 }}>{c.name}</span>
-            {rb && <span style={{ marginLeft: 6, display: "inline-flex" }}><StatusPill tone={rb[0]} label={t(rb[1])} /></span>}
-          </>
-        );
-      },
+      render: (c) => <span style={{ fontWeight: 600 }}>{c.name}</span>,
     },
     { header: t("Brand"), className: "col-muted col-m-hide col-ellipsis-sm", render: (c) => c.brand || <span className="col-dim">—</span> },
     { header: t("City"), className: "col-muted col-m-secondary col-ellipsis", render: (c) => <>{c.city}{c.province ? `, ${c.province}` : ""}</> },
     {
-      header: t("PIC / Avg Payment"),
+      header: t("PIC"),
       className: "col-mobile-only col-m-meta",
-      render: (c) => (
-        <>
-          <span>{(c.pic || "").trim().replace(/^-$/, "")}</span>
-          {c.avg_days_to_pay != null && (
-            <span>
-              {c.avg_days_to_pay < 0
-                ? t("Pays {n}d before invoice", { n: -c.avg_days_to_pay })
-                : c.avg_days_to_pay === 0
-                  ? t("Pays on invoice day")
-                  : t("Pays in {n}d", { n: c.avg_days_to_pay })}
-            </span>
-          )}
-        </>
-      ),
+      render: (c) => <span>{(c.pic || "").trim().replace(/^-$/, "")}</span>,
     },
     {
       header: t("PIC / WA"),
@@ -102,21 +75,15 @@ export default function List({ clients, total_count, q, status, pagination }) {
       header: t("Last Order"),
       className: "col-m-amount",
       render: (c) => {
-        const dormant = c.days_since_last_order != null && c.days_since_last_order > 45;
         const val = c.days_since_last_order != null ? t("{n} days ago", { n: c.days_since_last_order }) : "—";
         return (
           <>
-            <span className="m-hide" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+            <span className="m-hide">{val}</span>
             <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Last Order")}</span>
-            <span className="m-only" style={{ color: dormant ? "var(--red)" : undefined }}>{val}</span>
+            <span className="m-only">{val}</span>
           </>
         );
       },
-    },
-    {
-      header: t("Avg Payment"),
-      className: "col-m-hide col-num",
-      render: (c) => c.avg_days_to_pay != null ? <span className="mono">{c.avg_days_to_pay}d</span> : <span className="col-dim">—</span>,
     },
     { header: t("Status"), className: "col-m-badge", render: (c) => c.is_active ? <StatusPill tone="green" label={t("Active")} /> : <StatusPill tone="gray" label={t("Inactive")} /> },
     {

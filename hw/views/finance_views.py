@@ -549,6 +549,10 @@ def client_finance_statement(request, pk):
         'client': {
             'id': client.pk,
             'name': client.name,
+            # Moved here from Client detail: Client is information only.
+            'total_billed': client.total_billed,
+            'saldo_dana': finance_queries.client_credit_balance(client.pk),
+            'avg_days_to_pay': client.avg_days_to_pay,
         },
         'statement': statement_payload,
         'aging': aging,

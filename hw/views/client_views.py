@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import (
-    ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity,
+    ActivityLog, Client, ConfirmationLetter, Reservation, log_activity,
 )
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
@@ -50,96 +50,22 @@ def client_list(request):
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
 
-    # ── Batch metrics (menghindari N+1 dari property Client.avg_days_to_pay /
-    # risk_label / days_since_last_order yang masing-masing memicu query berlapis
-    # per baris: resolved_invoices → remaining per invoice → PaymentRecord).
+    # Client is information only (no money figures): the one activity fact
+    # shown is when this client last booked, taken from its latest CL.
+    from django.db.models import Max
     from django.utils import timezone
-    from django.db.models import Count
-    from ..models.journal import JournalLine
-    from ..models.payment import PaymentRecord
-
-    cl_ids = [c.pk for c in page_obj]
-
-    # 1. Piutang kantong per client — max(0, client_receivable(...)).
-    net_wallets = finance_queries.client_wallet_map(cl_ids)
-
-    # 2. Invoice relevan per client: FK Invoice.client ATAU dimensi JournalLine.
-    journal_invoice_ids = (
-        JournalLine.objects.filter(client_id__in=cl_ids, invoice__isnull=False)
-        .values_list('invoice_id', flat=True).distinct()
-    )
-    inv_rows = list(
-        Invoice.objects.filter(Q(client_id__in=cl_ids) | Q(pk__in=journal_invoice_ids))
-        .prefetch_related('reservations', 'service_items')
-        .distinct()
-    )
-    paid_map = finance_queries.invoice_paid_map([i.pk for i in inv_rows])
-
-    invs_by_client = {cid: [] for cid in cl_ids}
-    for inv_obj in inv_rows:
-        if inv_obj.client_id in invs_by_client:
-            invs_by_client[inv_obj.client_id].append(inv_obj)
-
-    # 3. Payment terakhir yang efektif per invoice — satu query, dedupe by invoice.
-    last_pay = {}
-    for pr in PaymentRecord.objects.filter(
-        invoice_id__in=[i.pk for i in inv_rows],
-        status__in=PaymentRecord.EFFECTIVE_STATUSES,
-    ).order_by('invoice_id', '-payment_date', '-pk'):
-        last_pay.setdefault(pr.invoice_id, pr.payment_date)
-
-    # 4. Jumlah ConfirmationLetter per client — satu query.
-    cl_counts = dict(
-        ConfirmationLetter.objects.filter(client_id__in=cl_ids)
-        .values('client_id').annotate(n=Count('id'))
-        .values_list('client_id', 'n')
+    last_cl = dict(
+        ConfirmationLetter.objects.filter(client_id__in=[c.pk for c in page_obj])
+        .values('client_id').annotate(t=Max('created_at'))
+        .values_list('client_id', 't')
     )
 
-    def _total_sar(inv_obj):
-        return (
-            sum(r.total_sar for r in inv_obj.reservations.all())
-            + sum(s.qty * s.price for s in inv_obj.service_items.all())
-        )
-
-    def _avg_days_to_pay(invs):
-        days_list = []
-        for inv_obj in invs:
-            remaining = _total_sar(inv_obj) - paid_map.get(inv_obj.pk, 0)
-            if remaining <= 0 and inv_obj.issued_date:
-                last = last_pay.get(inv_obj.pk)
-                if last:
-                    days_list.append((last - inv_obj.issued_date).days)
-        return round(sum(days_list) / len(days_list)) if days_list else None
-
-    def _days_since_order(invs):
-        if not invs:
-            return None
-        lt = max(inv_obj.created_at for inv_obj in invs)
-        if lt.tzinfo is None:
-            lt = timezone.make_aware(lt)
-        return (timezone.now() - lt).days
-
-    def _risk_label(c, invs, outstanding, days_since):
-        if outstanding > 0:
-            due_invs = sorted(
-                [i for i in invs if i.due_date is not None],
-                key=lambda i: i.due_date,
-            )
-            if due_invs:
-                overdue = (date.today() - due_invs[0].due_date).days
-                if overdue > 60:
-                    return 'high'
-                if overdue > 0:
-                    return 'medium'
-        if days_since and days_since > 45 and (len(invs) + cl_counts.get(c.pk, 0)) > 0:
-            return 'dormant'
-        return 'ok'
+    def _days_since_booking(client_id):
+        last = last_cl.get(client_id)
+        return (timezone.now() - last).days if last else None
 
     rows = []
     for c in page_obj:
-        invs = invs_by_client.get(c.pk, [])
-        outstanding = max(0, net_wallets.get(c.pk, 0))
-        days_since = _days_since_order(invs)
         rows.append({
             "id": c.pk,
             "name": c.name,
@@ -150,9 +76,7 @@ def client_list(request):
             "wa": c.wa,
             "wa_group": c.wa_group,
             "reminder_target": c.reminder_target,
-            "avg_days_to_pay": _avg_days_to_pay(invs),
-            "days_since_last_order": days_since,
-            "risk_label": _risk_label(c, invs, outstanding, days_since),
+            "days_since_last_order": _days_since_booking(c.pk),
             "is_active": c.is_active,
         })
     return inertia_render(request, "Client/List", props={
@@ -257,22 +181,11 @@ def client_delete(request, pk):
 
 @require_perm('clients', 'view')
 def client_detail(request, pk):
-    qs = Client.objects.prefetch_related('cls__rooms')
-    c = get_object_or_404(qs, pk=pk)
-    # Invoice.client sendirian tidak cukup -- invoice lama sering kosong.
-    # resolved_invoices (Fase 7) = union Invoice.client + invoice yang punya
-    # baris jurnal berdimensi client (pengganti Charge.client yang pensiun).
-    invoices = c.resolved_invoices.prefetch_related('reservations')
-    cls = c.cls.order_by('-created_at')
-    inv_data = [{
-        "pk": inv.pk,
-        "invoice_number": inv.invoice_number,
-        "invoice_type": inv.invoice_type,
-        "invoice_type_display": inv.get_invoice_type_display(),
-        "total_sar": inv.total_sar,
-        "remaining_sar": inv.remaining_sar,
-        "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
-    } for inv in invoices]
+    """Client information only. Money (invoices, balances, fund activity,
+    transfer/refund, statement) lives under Finance → Client Ledger."""
+    from django.utils import timezone
+    c = get_object_or_404(Client, pk=pk)
+    cls = list(c.cls.order_by('-created_at'))
     cls_data = [{
         "pk": cl.pk,
         "confirmation_number": cl.confirmation_number,
@@ -280,16 +193,7 @@ def client_detail(request, pk):
         "hotel_name": cl.hotel_name,
         "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
     } for cl in cls]
-
-    statement_rows = finance_queries.client_statement(c.id)["rows"]
-    activity = [{
-        "date": r["date"].strftime("%d/%m/%Y") if r["date"] else None,
-        "type": r["type"],
-        "description": r["description"],
-        "debit": r["debit"],
-        "credit": r["credit"],
-        "balance": r["balance"],
-    } for r in statement_rows[-15:]]
+    days_since_last_booking = (timezone.now() - cls[0].created_at).days if cls else None
 
     return inertia_render(request, "Client/Detail", props={
         "client": {
@@ -306,17 +210,9 @@ def client_detail(request, pk):
             "email": c.email,
             "note": c.note,
             "is_active": c.is_active,
-            "total_billed": c.total_billed,
-            "outstanding": c.outstanding,
-            "saldo_dana": finance_queries.client_credit_balance(c.id),
-            "avg_days_to_pay": c.avg_days_to_pay,
-            "score": c.score,
-            "risk_label": c.risk_label,
-            "days_since_last_order": c.days_since_last_order,
+            "days_since_last_order": days_since_last_booking,
         },
-        "invoices": inv_data,
         "cls": cls_data,
-        "activity": activity,
     })
 
 
@@ -328,11 +224,7 @@ def client_map(request):
 
 @require_perm('clients', 'view')
 def client_map_data(request):
-    qs = (
-        Client.objects
-        .filter(lat__isnull=False, lng__isnull=False)
-        .prefetch_related('invoices__payments', 'invoices__reservations')
-    )
+    qs = Client.objects.filter(lat__isnull=False, lng__isnull=False)
 
     data = [
         {
@@ -343,10 +235,7 @@ def client_map_data(request):
             'province': c.province,
             'lat': c.lat,
             'lng': c.lng,
-            'outstanding': c.outstanding,
-            'total_billed': c.total_billed,
-            'score': c.score,
-            'risk': c.risk_label,
+            'is_active': c.is_active,
             'url': reverse('client_detail', args=[c.pk]),
             'wa': c.wa,
             'pic': c.pic,
@@ -394,7 +283,7 @@ def _client_reservation_options(client_obj):
     } for r in reservations]
 
 
-@require_perm('clients', 'edit')
+@require_perm('payments', 'edit')
 def client_transfer(request, pk):
     client_obj = get_object_or_404(Client, pk=pk)
 
@@ -446,16 +335,16 @@ def client_transfer(request, pk):
                 )
                 log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name)
                 messages.success(request, f'Moved {amount} SAR from {from_res.reservation_number} to {to_res.reservation_number}.')
-                return redirect('client_detail', pk=pk)
+                return redirect('client_finance_statement', pk=pk)
 
-        return inertia_render(request, 'Client/Transfer', props={
+        return inertia_render(request, 'Finance/ClientTransfer', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
             'reservations': _client_reservation_options(client_obj),
             'errors': errors,
             'initial': {'from_reservation': from_id or '', 'to_reservation': to_id or '', 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
         })
 
-    return inertia_render(request, 'Client/Transfer', props={
+    return inertia_render(request, 'Finance/ClientTransfer', props={
         'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
         'reservations': _client_reservation_options(client_obj),
     })
@@ -475,7 +364,7 @@ REFUND_ACCOUNTS = [
 ]
 
 
-@require_perm('clients', 'edit')
+@require_perm('payments', 'edit')
 def client_refund(request, pk):
     client_obj = get_object_or_404(Client, pk=pk)
 
@@ -515,22 +404,22 @@ def client_refund(request, pk):
                 )
                 log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
                 messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
-                return redirect('client_detail', pk=pk)
+                return redirect('client_finance_statement', pk=pk)
 
-        return inertia_render(request, 'Client/Refund', props={
+        return inertia_render(request, 'Finance/ClientRefund', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
             'accounts': REFUND_ACCOUNTS,
             'errors': errors,
             'initial': {'from_account': from_account, 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
         })
 
-    return inertia_render(request, 'Client/Refund', props={
+    return inertia_render(request, 'Finance/ClientRefund', props={
         'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
         'accounts': REFUND_ACCOUNTS,
     })
 
 
-@require_perm('clients', 'export')
+@require_perm('statements', 'export')
 def client_statement_pdf(request, pk):
     """Full customer statement (rekening koran), bitemporal via `as_of`.
 
