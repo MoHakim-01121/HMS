@@ -672,6 +672,8 @@ def post_payment_from_credit(payment, *, created_by):
 @transaction.atomic
 def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=None):
     """DR Kas / CR Piutang untuk pelunasan penalty."""
+    from .bank_ledger import ensure_hq_receives_sar
+    ensure_hq_receives_sar(received_in, getattr(penalty, "penalty_currency", "SAR") or "SAR")
     amt = _penalty_amount(penalty)
     if not amt:
         return None

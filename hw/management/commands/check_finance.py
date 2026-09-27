@@ -80,6 +80,8 @@ class Command(BaseCommand):
 
         # 8. Reversal menunjuk entry yang benar
         check('Integritas reversal', self._bad_reversals())
+        # 9. Pusat hanya menerima SAR (IDR/USD diterima & ditukar di cabang)
+        check('Penerimaan non-SAR di Pusat', self._non_sar_received_at_hq())
 
         self.stdout.write('')
         if problems:
@@ -88,6 +90,16 @@ class Command(BaseCommand):
         ok(self.style.SUCCESS('Semua cek lolos. Jurnal konsisten.'))
 
     # ── cek individual ────────────────────────────────────────
+
+    def _non_sar_received_at_hq(self):
+        from hw.finance.accounts import HQ_BRANCH
+        from hw.models.payment import PaymentRecord
+        return [
+            f'{p.payment_number}: {p.amount:,} {p.currency} diterima di Pusat'
+            for p in PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
+            .exclude(currency='SAR').select_related('bank_account', 'cash_account')
+            if p.receiving_branch_code == HQ_BRANCH
+        ]
 
     def _entries(self):
         return JournalEntry.objects.all().prefetch_related('lines')

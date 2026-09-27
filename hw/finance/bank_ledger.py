@@ -115,6 +115,15 @@ def default_account(branch_id, currency):
     return bank, None
 
 
+def ensure_hq_receives_sar(branch_id, currency):
+    """HQ (Pusat) only ever receives SAR — rupiah and dollars are collected by
+    the branches, exchanged there, and reach HQ as SAR through remittances."""
+    from .accounts import HQ_BRANCH
+    from .errors import FinanceError
+    if branch_id == HQ_BRANCH and currency != 'SAR':
+        raise FinanceError(f'Pusat hanya menerima SAR — {currency} diterima dan dicatat di cabang.')
+
+
 def ensure_account_currency(account, currency):
     """Money moves into/out of an account in that account's own currency."""
     from .errors import FinanceError

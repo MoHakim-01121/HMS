@@ -259,3 +259,35 @@ class AccountCurrencyTest(BankTransactionBase):
             expense_service.add_expense_payment(exp, amount=100, payment_date=date(2026, 7, 3),
                                                 cash_account=CashAccount.objects.get(branch_id='jkt'),
                                                 created_by=self.user)
+
+
+class HqReceivesSarOnlyTest(BankTransactionBase):
+    """Pusat only ever receives SAR; rupiah/dollars are collected and
+    exchanged at a branch and reach HQ as SAR through remittances."""
+
+    def test_idr_payment_received_at_hq_is_refused(self):
+        from hw.finance.errors import FinanceError
+        client_obj = Client.objects.create(name='PT HQ')
+        inv = Invoice.objects.create(invoice_number='INV-HQ-1', customer_name='X', client=client_obj)
+        with self.assertRaises(FinanceError):
+            create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
+                                  method='Transfer', received_in='pusat', created_by=self.user)
+        pr = create_payment_record(inv, client_obj, date(2026, 7, 1), 1000, method='Transfer',
+                                   received_in='pusat', created_by=self.user)
+        self.assertEqual(pr.cash_account.branch_id, 'pusat')
+
+    def test_non_sar_penalty_paid_at_hq_is_refused(self):
+        from types import SimpleNamespace
+        from hw.finance.errors import FinanceError
+        with self.assertRaises(FinanceError):
+            posting.post_penalty_payment(SimpleNamespace(penalty_currency='IDR', pk=1), created_by=self.user,
+                                         received_in='pusat')
+
+    def test_hq_cannot_hold_a_rupiah_account(self):
+        u = User.objects.create_superuser('hqadm', password='pw12345')
+        self.client.force_login(u)
+        resp = self.client.post('/finance/bank-accounts/new/', {
+            'branch': 'pusat', 'bank_name': 'Mandiri', 'account_identifier': '123', 'currency': 'IDR',
+            'is_active': 'on',
+        }, HTTP_X_INERTIA='true')
+        self.assertIn('currency', resp.json()['props']['errors'])

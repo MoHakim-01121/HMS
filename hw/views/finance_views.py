@@ -396,6 +396,8 @@ def _save_bank_account(request, acc):
         errors['account_identifier'] = 'Account number is required.'
     if data['currency'] not in BANK_CURRENCIES:
         errors['currency'] = 'Pick a currency.'
+    elif data['branch'] == 'pusat' and data['currency'] != 'SAR':
+        errors['currency'] = 'HQ only receives SAR — rupiah and dollar accounts belong to a branch.'
     if not data['ledger_account'] and not errors.get('branch'):
         data['ledger_account'] = _default_ledger_for_branch(data['branch']) or ''
     # Without a valid branch the automatic ledger can't be resolved — the
