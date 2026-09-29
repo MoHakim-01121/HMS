@@ -225,7 +225,7 @@ export default function FinanceDashboard(props) {
             <div className="hms-dv-body">
               <div className="hms-dv-sech">
                 <span className="hms-dv-sec-title">{t("Client Receivables")} <span className="hms-dv-count">{receivables.count}</span></span>
-                <span className="hms-dv-sec-actions"><Link className="hms-dv-act" href="/finance/statements/">{t("Statements")}</Link></span>
+                <span className="hms-dv-sec-actions"><Link className="hms-dv-act" href="/finance/ar-aging/">{t("AR Aging")}</Link></span>
               </div>
               {receivables.top.length === 0 ? (
                 <div className="fh-empty">{t("No outstanding receivables.")}</div>

@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
+from ..finance import period_checklist
 from ..models.period import FinancialPeriod
 from ..permissions import require_perm
 from .helpers import serialize_journal_entry
@@ -84,6 +85,8 @@ def period_detail(request, pk):
         'account_balances': account_balances,
         'total_debit': total_debit,
         'total_credit': total_credit,
+        # A locked period is sealed; the checklist is for getting there.
+        'checklist': None if period.status == FinancialPeriod.STATUS_LOCKED else period_checklist.checklist(period),
     })
 
 
@@ -104,6 +107,12 @@ def period_close(request, pk):
 def period_lock(request, pk):
     period = get_object_or_404(FinancialPeriod, pk=pk)
     if request.method == 'POST':
+        fails = [i for i in period_checklist.checklist(period)['items'] if i['status'] == period_checklist.FAIL]
+        if fails:
+            why = {'pending_payments': 'pembayaran pending', 'integrity': 'temuan integritas jurnal'}
+            messages.error(request, 'Periode belum bisa di-lock — selesaikan dulu: ' + ', '.join(
+                f"{i['params']['n']} {why.get(i['key'], i['label'])}" for i in fails))
+            return redirect('period_detail', pk=pk)
         try:
             period.lock(request.user)
             messages.success(request, f'Periode {period.name} berhasil di-lock.')

@@ -96,6 +96,7 @@ class JournalEntry(AppendOnlyModel):
     TYPE_EXPENSE    = 'expense'
     TYPE_REVERSAL   = 'reversal'
     TYPE_ADJUSTMENT = 'adjustment'
+    TYPE_CREDIT_NOTE = 'credit_note'
     TYPE_CHOICES = [
         (TYPE_CHARGE,     'Charge'),
         (TYPE_PAYMENT,    'Payment'),
@@ -107,6 +108,7 @@ class JournalEntry(AppendOnlyModel):
         (TYPE_EXPENSE,    'Expense'),
         (TYPE_REVERSAL,   'Reversal'),
         (TYPE_ADJUSTMENT, 'Adjustment'),
+        (TYPE_CREDIT_NOTE, 'Credit note'),
     ]
 
     entry_number   = models.CharField(max_length=50, unique=True, db_index=True)

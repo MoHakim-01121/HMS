@@ -133,6 +133,9 @@ def create_payment_record(
     """
     from .utils import convert_to_sar
 
+    if invoice is not None and invoice.status == invoice.STATUS_VOID:
+        raise FinanceError(f'Invoice {invoice.invoice_number} sudah void, tidak bisa menerima pembayaran.')
+
     # Calculate SAR
     amount_sar = int(round(convert_to_sar(amount, currency, float(exchange_rate))))
 

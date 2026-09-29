@@ -308,3 +308,16 @@ def due_soon_alert(due_date, remaining=0):
     if days <= 7:
         return {'type': 'yellow', 'msg': f'Due in {days} day(s).'}
     return None
+
+
+def request_data(request):
+    """POST body as a dict-like, whether the client sent form data or JSON
+    (Inertia's useForm posts JSON unless forceFormData is set)."""
+    import json
+    if request.content_type == 'application/json':
+        try:
+            data = json.loads(request.body or b'{}')
+        except (ValueError, UnicodeDecodeError):
+            return {}
+        return data if isinstance(data, dict) else {}
+    return request.POST

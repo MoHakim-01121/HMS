@@ -54,13 +54,16 @@ from .remittance_views import (
     remittance_ledger_pdf, remittance_tracking,
 )
 from .exchange_views import exchange_list, exchange_new, exchange_void
+from .credit_note_views import (
+    invoice_void, credit_note_new, credit_note_list, credit_note_void, credit_note_pdf,
+)
 from .settlement_views import (
     remittance_record_receipt, remittance_receipt_allocation, remittance_receipt_delete,
     remittance_close_diff, remittance_reopen_diff,
 )
 from .reconciliation_views import (
     reconciliation_list, reconciliation_new, reconciliation_detail,
-    reconciliation_match, reconciliation_unmatch,
+    reconciliation_match, reconciliation_unmatch, reconciliation_import, reconciliation_match_suggested,
 )
 from .penalty_views import (
     penalty_new, penalty_detail, penalty_edit, penalty_delete, penalty_pdf,
@@ -70,7 +73,7 @@ from .finance_views import (
     finance_hub, journal_list, journal_detail, trial_balance, statements_list,
     client_finance_statement, bank_account_list, bank_account_transactions,
     bank_account_new, bank_account_edit,
-    fund_flow_report, fund_flow_csv,
+    fund_flow_report, fund_flow_csv, ar_aging_report, ar_aging_csv,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,

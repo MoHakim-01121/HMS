@@ -29,6 +29,7 @@ from .helpers import (
     track_changes,
 )
 from .invoice_billing import _billing_client, _billing_props, _save_hotel_payments
+from .credit_note_views import invoice_credit_props
 from .pdf import _logo_file_url, _render_invoice_pdf
 
 logger = logging.getLogger(__name__)
@@ -83,18 +84,24 @@ def _filter_by_status(qs, status):
     come from one bulk ledger query -- reading the total_paid_sar property
     here used to cost one ledger query per invoice.
     """
+    if status == 'void':
+        return qs.filter(status=Invoice.STATUS_VOID)
     if status not in ('lunas', 'belum', 'partial'):
         return qs
-    invoices = list(qs)
-    paid_map = fq.invoice_paid_map([inv.pk for inv in invoices])
+    invoices = [inv for inv in qs if not inv.is_void]
+    ids = [inv.pk for inv in invoices]
+    paid_map = fq.invoice_paid_map(ids)
+    credited_map = fq.invoice_credited_map(ids)
     filtered_ids = []
     for inv in invoices:
-        paid = paid_map.get(inv.pk, 0)
-        if status == 'lunas' and paid >= inv.total_sar:
+        credited, deposited = credited_map.get(inv.pk, (0, 0))
+        paid = paid_map.get(inv.pk, 0) - deposited
+        due = inv.total_sar - credited
+        if status == 'lunas' and paid >= due:
             filtered_ids.append(inv.pk)
-        elif status == 'belum' and paid < 1:
+        elif status == 'belum' and paid < 1 and due > 0:
             filtered_ids.append(inv.pk)
-        elif status == 'partial' and paid >= 1 and paid < inv.total_sar:
+        elif status == 'partial' and paid >= 1 and paid < due:
             filtered_ids.append(inv.pk)
     return qs.filter(pk__in=filtered_ids)
 
@@ -142,10 +149,13 @@ def invoice_list(request):
     page_obj = paginator.get_page(request.GET.get('page'))
     page_invoices = list(page_obj)
     paid_map = fq.invoice_paid_map([inv.pk for inv in page_invoices])
+    credited_map = fq.invoice_credited_map([inv.pk for inv in page_invoices])
 
     invoices = []
     for inv in page_invoices:
-        remaining = inv.total_sar - paid_map.get(inv.pk, 0)
+        credited, deposited = credited_map.get(inv.pk, (0, 0))
+        due = 0 if inv.is_void else inv.total_sar - credited
+        remaining = due - (paid_map.get(inv.pk, 0) - deposited)
         invoices.append({
             "id": inv.id,
             "invoice_number": inv.invoice_number,
@@ -156,9 +166,10 @@ def invoice_list(request):
             "total_sar": inv.total_sar,
             "remaining_sar": remaining,
             "status": (
-                "overpaid" if remaining < 0
+                "void" if inv.is_void
+                else "overpaid" if remaining < 0
                 else "paid" if remaining == 0
-                else "partial" if remaining < inv.total_sar
+                else "partial" if remaining < due
                 else "unpaid"
             ),
         })
@@ -285,6 +296,7 @@ def invoice_detail(request, pk):
         "paid_int": r["paid_int"],
         "remaining_int": r["remaining_int"],
         "remaining_class": r["remaining_class"],
+        "credited_int": r["credited_int"],
         "cl_pk": r["cl_pk"],
     } for r in res_ctx]
 
@@ -367,6 +379,7 @@ def invoice_detail(request, pk):
             "total_sar": invoice.total_sar,
             "total_paid_sar": invoice.total_paid_sar,
             "remaining_sar": invoice.remaining_sar,
+            "status": invoice.status,
         },
         "reservations": reservations,
         "payments": payments,
@@ -374,12 +387,16 @@ def invoice_detail(request, pk):
         "logs": logs,
         "pay_to": pay_to,
         **_billing_props(invoice),
+        **invoice_credit_props(invoice),
     })
 
 
 @require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
+    if invoice.is_void:
+        messages.error(request, f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.')
+        return redirect('invoice_detail', pk=pk)
 
     if request.method == "POST":
         def _res_snapshot(inv):

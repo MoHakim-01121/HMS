@@ -14,6 +14,7 @@ from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMove
 from .bank import BankAccount, CashAccount
 from .bank_transaction import BankTransaction
 from .currency_exchange import CurrencyExchange
+from .credit_note import CreditNote, CreditNoteLine
 from .reconciliation import BankStatement, BankStatementLine
 from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
 from .settlement import RemittanceSettlement

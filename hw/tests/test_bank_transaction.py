@@ -181,8 +181,8 @@ class VoidedCashRowTest(BankTransactionBase):
         tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
         st = rs.create_statement(
             account=self.cash_sby, period_start=date(2026, 7, 1), period_end=date(2026, 7, 31),
-            opening_balance_sar=0, closing_balance_sar=5000,
-            lines=[{'line_date': date(2026, 7, 1), 'description': 'in', 'direction': 'in', 'amount_sar': 5000}],
+            opening_balance=0, closing_balance=5000,
+            lines=[{'line_date': date(2026, 7, 1), 'description': 'in', 'direction': 'in', 'amount': 5000}],
         )
         rs.match_line(st.lines.first(), tx)
         with self.assertRaises(FinanceError):

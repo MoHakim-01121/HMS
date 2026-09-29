@@ -28,15 +28,48 @@ const ENTRY_TYPE_TONE = {
 };
 
 
-export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0 }) {
+const CHECK_ICON = { ok: "check", warn: "alert-circle", fail: "close" };
+
+// Month-end checklist: every item must be settled or knowingly accepted
+// before the period is closed; a failed item blocks the (irreversible) lock.
+function Checklist({ t, checklist }) {
+  return (
+    <RvSection title={t("Month-end checklist")} meta={
+      checklist.fails ? t("{n} blocking", { n: checklist.fails }) : checklist.warns ? t("{n} to review", { n: checklist.warns }) : t("All clear")
+    } first>
+      <ul className="pc-list">
+        {checklist.items.map((i) => (
+          <li key={i.key} className={`pc-item ${i.status}`}>
+            <span className={`pc-ico ${i.status}`}><Icon name={CHECK_ICON[i.status]} size={12} strokeWidth={2.4} /></span>
+            <div className="pc-body">
+              <div className="pc-head">
+                <span className="pc-label">{t(i.label)}</span>
+                {i.link && i.status !== "ok" ? <a className="pc-link" href={i.link}>{t("Open")}</a> : null}
+              </div>
+              <div className="pc-detail">{t(i.detail, i.params)}</div>
+              {i.status !== "ok" && i.rows.length ? (
+                <ul className="pc-rows">{i.rows.map((r) => <li key={r}>{r}</li>)}</ul>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </RvSection>
+  );
+}
+
+export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0, checklist = null }) {
   const { t } = useI18n();
   const canManage = usePerms().can("periods", "edit");
   const [confirm, confirmDialog] = useConfirm();
 
+  const openItems = checklist ? checklist.fails + checklist.warns : 0;
   const closePeriod = () => {
     confirm({
       title: t("Close Period"),
-      message: t("Close this period? No more journal entries will be allowed."),
+      message: openItems
+        ? t("{n} checklist item(s) are still open. Close this period anyway? No more journal entries will be allowed.", { n: openItems })
+        : t("Close this period? No more journal entries will be allowed."),
       onConfirm: () => router.post(`/finance/periods/${period.id}/close/`),
     });
   };
@@ -128,7 +161,10 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
               <button key="close" className="hms-rv-btn primary" onClick={closePeriod}>{t("Close Period")}</button>
             )}
             {canManage && period.status === "closed" && (
-              <button key="lock" className="hms-rv-btn danger" onClick={lockPeriod}>{t("Lock Period")}</button>
+              <button key="lock" className="hms-rv-btn danger" onClick={lockPeriod} disabled={checklist && !checklist.can_lock}
+                title={checklist && !checklist.can_lock ? t("Resolve the blocking checklist items first.") : undefined}>
+                {t("Lock Period")}
+              </button>
             )}
           </>
         }
@@ -137,8 +173,9 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
       <div className="hms-rv-grid">
         <div className="hms-rv-col">
           <RvCard>
+            {checklist ? <Checklist t={t} checklist={checklist} /> : null}
             {account_balances.length > 0 && (
-              <RvSection title={t("Account Balances")} meta={`${account_balances.length}`} first>
+              <RvSection title={t("Account Balances")} meta={`${account_balances.length}`} first={!checklist}>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {account_balances.map((ab) => (
                     <div key={ab.account} style={{ padding: "12px 16px", flex: "1 1 160px", minWidth: 160, border: "1px solid var(--border)", borderRadius: 12, background: "var(--secondary)" }}>
@@ -175,9 +212,26 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
       </div>
 
       {confirmDialog}
+      <style>{CSS}</style>
     </div>
   );
 }
+
+const CSS = `
+.pc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pc-item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.pc-item:first-child { border-top: none; padding-top: 4px; }
+.pc-ico { flex: none; width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; margin-top: 1px; }
+.pc-ico.ok { background: var(--green); }
+.pc-ico.warn { background: var(--yellow); }
+.pc-ico.fail { background: var(--red); }
+.pc-body { flex: 1; min-width: 0; }
+.pc-head { display: flex; align-items: center; gap: 10px; }
+.pc-label { font-size: 13.5px; font-weight: 600; }
+.pc-link { margin-left: auto; font-size: 12.5px; }
+.pc-detail { margin-top: 2px; font-size: 12.5px; color: var(--muted-foreground); }
+.pc-rows { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+`;
 
 function fmtDiff(n) {
   return (Math.abs(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });

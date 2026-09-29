@@ -1,10 +1,10 @@
 """Bank reconciliation (Master Architecture v2.0 §52).
 
 BankStatement/BankStatementLine hold what the BANK says happened (external
-truth — typed in from a paper/PDF statement; no file-parsing here, that's a
-separate concern). Reconciliation compares that against BankTransaction (what
-KONOZ's books say happened, itself a log over the JournalEntry projection —
-see hw/models/bank_transaction.py). Differences are surfaced, never silently
+truth — typed in, or imported from the bank's CSV export). Amounts are in the
+account's own currency, exactly as the bank prints them: a Mandiri IDR
+statement is compared in rupiah against the cash book (BankTransaction.amount),
+never through a SAR conversion. Differences are surfaced, never silently
 overwritten (v2.0 §52: "Jangan otomatis menimpa fakta internal dengan data
 statement").
 """
@@ -14,11 +14,14 @@ from django.db import models
 class BankStatement(models.Model):
     bank_account = models.ForeignKey('BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='statements')
     cash_account = models.ForeignKey('CashAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='statements')
+    currency     = models.CharField(max_length=3, default='SAR')
     period_start = models.DateField()
     period_end   = models.DateField()
-    opening_balance_sar = models.IntegerField()
-    closing_balance_sar = models.IntegerField()
+    opening_balance = models.BigIntegerField()
+    closing_balance = models.BigIntegerField()
     note       = models.TextField(blank=True)
+    # Set when the lines came from an uploaded bank export.
+    source_filename = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -53,7 +56,7 @@ class BankStatementLine(models.Model):
     line_date   = models.DateField()
     description = models.CharField(max_length=255, blank=True)
     direction   = models.CharField(max_length=3, choices=[('in', 'Money In'), ('out', 'Money Out')])
-    amount_sar  = models.PositiveIntegerField()
+    amount      = models.PositiveBigIntegerField()   # in the statement's currency
     reference   = models.CharField(max_length=200, blank=True)
     # Set once matched to a BankTransaction — the whole point of this table.
     # Null means still unreconciled.
@@ -68,4 +71,4 @@ class BankStatementLine(models.Model):
 
     def __str__(self):
         sign = '+' if self.direction == 'in' else '-'
-        return f'{sign}{self.amount_sar:,} SAR — {self.description or self.reference}'
+        return f'{sign}{self.amount:,} {self.statement.currency} — {self.description or self.reference}'

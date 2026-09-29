@@ -14,6 +14,7 @@ from ..models import ActivityLog, Client, Invoice, ServiceItem, log_activity
 from ..permissions import require_perm
 from ..finance import queries as fq
 from .context import _build_visa_payments_context, _build_visa_services_context
+from .credit_note_views import invoice_credit_props
 from .helpers import (
     _client_options,
     _is_mobile,
@@ -146,18 +147,23 @@ def services_detail(request, pk):
             "issued_date": invoice.issued_date.strftime("%d %b %Y") if invoice.issued_date else None,
             "due_date": invoice.due_date.strftime("%d %b %Y") if invoice.due_date else None,
             "created_at": invoice.created_at.strftime("%d/%m/%Y %H:%M"),
+            "status": invoice.status,
         },
         "visa_services": visa_services,
         "payments_history": payments_history,
         "services_remaining": services_remaining,
         "due_alert": due_alert,
         **_billing_props(invoice),
+        **invoice_credit_props(invoice),
     })
 
 
 @require_perm('services', 'edit')
 def services_edit(request, pk):
     invoice = _get_service_invoice(request, pk)
+    if invoice.is_void:
+        messages.error(request, f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.')
+        return redirect('services_detail', pk=pk)
 
     if request.method == "POST":
         _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency'])

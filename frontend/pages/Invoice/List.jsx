@@ -25,6 +25,7 @@ const STATUS_OPTS = [
   { val: "lunas", label: "Paid", cls: "c-lun" },
   { val: "partial", label: "Partial", cls: "c-par" },
   { val: "belum", label: "Unpaid", cls: "c-bel" },
+  { val: "void", label: "Void", cls: "c-can" },
 ];
 
 const visit = (params) => listVisit("/invoice/", params);
@@ -98,8 +99,10 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
       <StatusPill tone={
         inv.status === "overpaid" ? "green" :
         inv.status === "paid" ? "green" :
-        inv.status === "partial" ? "yellow" : "red"
+        inv.status === "partial" ? "yellow" :
+        inv.status === "void" ? "gray" : "red"
       } label={t({
+        void: "Void",
         overpaid: "Overpaid",
         paid: "Paid",
         partial: "Partial",

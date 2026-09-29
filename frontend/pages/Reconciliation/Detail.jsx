@@ -12,34 +12,42 @@ import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
+import { fmt } from "../../utils/format.js";
 
+// One bank statement against the account's cash book, in the account's own
+// currency. The system suggests a partner for a line (same amount and
+// direction, a few days apart) but a person always does the matching.
 export default function Detail({ statement = {} }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("remittance", "edit");
   const [picks, setPicks] = useState({});
   const [forceLine, setForceLine] = useState({});
+  const cur = statement.currency;
 
-  const doMatch = (line) => {
-    const txId = picks[line.id];
+  const txLabel = (c) => `${c.transaction_date} · ${c.reference || `${c.source_type} #${c.source_id}`} · ${c.direction === "in" ? "+" : "−"}${fmt(c.amount)}`;
+  const post = (url, data = {}) => router.post(url, data, { preserveScroll: true });
+  const doMatch = (line, txId) => {
     if (!txId) return;
-    router.post(`/finance/reconciliation/lines/${line.id}/match/`, {
-      transaction_id: txId, force: forceLine[line.id] ? '1' : '',
-    });
-  };
-
-  const doUnmatch = (line) => {
-    router.post(`/finance/reconciliation/lines/${line.id}/unmatch/`);
+    post(`/finance/reconciliation/lines/${line.id}/match/`, { transaction_id: txId, force: forceLine[line.id] ? "1" : "" });
   };
 
   const columns = [
-    { header: t("Date"), render: (l) => l.line_date },
-    { header: t("Description"), render: (l) => l.description || l.reference || "—" },
+    { header: t("Date"), render: (l) => <span className="col-nowrap">{l.line_date}</span> },
     {
-      header: t("Amount (SAR)"), align: "right",
+      header: t("Description"),
       render: (l) => (
-        <span style={{ color: l.direction === "in" ? "var(--green)" : "var(--red)" }}>
-          {l.direction === "in" ? "+" : "-"}{l.amount_sar?.toLocaleString("en-US")}
+        <>
+          <div>{l.description || l.reference || "—"}</div>
+          {l.description && l.reference ? <div style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{l.reference}</div> : null}
+        </>
+      ),
+    },
+    {
+      header: t("Amount ({cur})", { cur }), align: "right",
+      render: (l) => (
+        <span className="col-nowrap" style={{ color: l.direction === "in" ? "var(--green)" : "var(--red)" }}>
+          {l.direction === "in" ? "+" : "−"}{fmt(l.amount)}
         </span>
       ),
     },
@@ -47,40 +55,49 @@ export default function Detail({ statement = {} }) {
       header: t("Match"),
       render: (l) => {
         if (l.matched_transaction) {
+          const m = l.matched_transaction;
           return (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <StatusPill tone="green" label={t("Matched")} />
-              <span className="text-xs text-muted-foreground">
-                {l.matched_transaction.source_type} #{l.matched_transaction.source_id}
-              </span>
+            <div className="rd-match">
+              <StatusPill small tone="green" label={t("Matched")} />
+              {m.link ? <a href={m.link} className="rd-ref">{m.reference || `${m.source_type} #${m.source_id}`}</a>
+                : <span className="rd-ref">{m.reference || `${m.source_type} #${m.source_id}`}</span>}
               {canEdit && (
-                <button className="hms-dv-act" style={{ color: "var(--red)" }} onClick={() => doUnmatch(l)}>
+                <button type="button" className="hms-dv-act" style={{ color: "var(--red)" }} onClick={() => post(`/finance/reconciliation/lines/${l.id}/unmatch/`)}>
                   {t("Unmatch")}
                 </button>
               )}
             </div>
           );
         }
-        if (!canEdit) return <StatusPill tone="yellow" label={t("Unmatched")} />;
+        if (!canEdit) return <StatusPill small tone="yellow" label={t("Unmatched")} />;
+        if (l.suggested && !picks[l.id]) {
+          return (
+            <div className="rd-match">
+              <StatusPill small tone="blue" label={t("Suggested")} />
+              <span className="rd-ref">{txLabel(l.suggested)}</span>
+              <Button size="sm" onClick={() => doMatch(l, l.suggested.id)}>{t("Match")}</Button>
+              <button type="button" className="hms-dv-act" onClick={() => setPicks({ ...picks, [l.id]: "other" })}>{t("Other…")}</button>
+            </div>
+          );
+        }
+        const pick = picks[l.id] === "other" ? "" : picks[l.id] || "";
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <Select value={picks[l.id] || ""} onValueChange={(v) => setPicks({ ...picks, [l.id]: v })}>
-              <SelectTrigger className="w-56"><SelectValue placeholder={t("Select transaction...")} /></SelectTrigger>
+          <div className="rd-match">
+            <Select value={pick} onValueChange={(v) => v && setPicks({ ...picks, [l.id]: v })}>
+              <SelectTrigger className="w-72"><SelectValue placeholder={t("Select transaction...")} /></SelectTrigger>
               <SelectContent>
                 {l.candidates.length === 0 ? (
                   <div style={{ padding: "6px 12px", fontSize: 12, color: "var(--muted-foreground)" }}>{t("No candidates")}</div>
                 ) : l.candidates.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.source_type} #{c.source_id} — {c.direction === "in" ? "+" : "-"}{c.amount_sar?.toLocaleString("en-US")} ({c.transaction_date})
-                  </SelectItem>
+                  <SelectItem key={c.id} value={String(c.id)}>{txLabel(c)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
+            <label className="rd-force">
               <Checkbox checked={!!forceLine[l.id]} onCheckedChange={(v) => setForceLine({ ...forceLine, [l.id]: !!v })} />
               {t("Force match")}
             </label>
-            <Button size="sm" disabled={!picks[l.id]} onClick={() => doMatch(l)}>{t("Match")}</Button>
+            <Button size="sm" disabled={!pick} onClick={() => doMatch(l, pick)}>{t("Match")}</Button>
           </div>
         );
       },
@@ -89,19 +106,36 @@ export default function Detail({ statement = {} }) {
 
   return (
     <div className="page shadcn-root">
+      <style>{CSS}</style>
       <PageBack href="/finance/reconciliation/" label={t("Back")} />
 
       <PageHeader
         title={statement.account_label}
-        sub={t("{start} to {end}", { start: statement.period_start, end: statement.period_end })}
+        sub={[
+          t("{start} to {end}", { start: statement.period_start, end: statement.period_end }),
+          statement.source_filename ? t("imported from {file}", { file: statement.source_filename }) : null,
+        ].filter(Boolean).join(" · ")}
+        actions={canEdit && statement.suggested_count > 0 ? (
+          <Button size="lg" onClick={() => post(`/finance/reconciliation/${statement.id}/match-suggested/`)}>
+            {t("Match {n} suggested", { n: statement.suggested_count })}
+          </Button>
+        ) : null}
       />
 
       <div className="hms-kpi-row">
-        <KpiCard label={t("Book Balance")} value={statement.book_balance_sar?.toLocaleString("en-US")} />
-        <KpiCard label={t("Statement Closing")} value={statement.closing_balance_sar?.toLocaleString("en-US")} />
-        <KpiCard label={t("Difference")} value={statement.difference_sar?.toLocaleString("en-US")} tone={statement.difference_sar !== 0 ? "yellow" : "green"} />
+        <KpiCard label={t("Book Balance")} value={fmt(statement.book_balance)} unit={cur} foot={t("cash book on {date}", { date: statement.period_end })} />
+        <KpiCard label={t("Statement Closing")} value={fmt(statement.closing_balance)} unit={cur} />
+        <KpiCard label={t("Difference")} value={fmt(statement.difference)} unit={cur} tone={statement.difference !== 0 ? "yellow" : "green"}
+          foot={statement.difference !== 0 ? t("bank vs books — find the missing entry") : t("bank and books agree")} />
         <KpiCard label={t("Matched Lines")} value={`${statement.lines_matched}/${statement.lines_total}`} />
       </div>
+
+      {statement.statement_gap !== 0 ? (
+        <div className="alert alert-warning rd-gap" role="status">
+          {t("Opening balance plus the lines doesn't reach the closing balance ({gap} {cur} apart). A line is missing or a balance was mistyped.", { gap: fmt(statement.statement_gap), cur })}
+        </div>
+      ) : null}
+      {statement.note ? <p className="rd-note">{statement.note}</p> : null}
 
       <div className="hms-list-card">
         <DetailTable columns={columns} rows={statement.lines || []} rowKey={(l) => l.id} />
@@ -109,3 +143,11 @@ export default function Detail({ statement = {} }) {
     </div>
   );
 }
+
+const CSS = `
+.rd-match { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rd-ref { font-size: 12px; color: var(--muted-foreground); }
+.rd-force { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.rd-gap { margin: 0 0 14px; }
+.rd-note { margin: 0 0 14px; font-size: 12.5px; color: var(--muted-foreground); white-space: pre-line; }
+`;

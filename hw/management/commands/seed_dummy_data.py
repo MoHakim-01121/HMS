@@ -153,6 +153,7 @@ class Command(BaseCommand):
         self._cash_flow(trips)
         self._services()
         self._expenses()
+        self._controls()
 
     def _trips(self):
         """Umrah trips: each client ~4 departures spread over the timeline."""
@@ -438,6 +439,73 @@ class Command(BaseCommand):
                     bank_account=self.idr, created_by=self.user, reference=f'OUT{day:%y%m%d}',
                 )
             month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    # ── controls: credit note, void invoice, bank statement ───────────
+    def _controls(self):
+        from hw.finance import credit_note_service as cns
+        from hw.models import Invoice
+
+        # A room cancelled after part-payment: credit that share of one stay.
+        partial = [i for i in Invoice.objects.filter(invoice_type='hotel', status=Invoice.STATUS_PARTIAL)
+                   if i.reservations.count() >= 2]
+        if partial:
+            inv = self.rng.choice(partial)
+            res = max(inv.reservations.all(), key=lambda r: r.total_sar)
+            amount = int(res.total_sar * 0.2) // 100 * 100
+            cns.issue_credit_note(
+                inv, lines=[{'kind': 'reservation', 'id': res.pk, 'amount_sar': amount}],
+                reason='1 kamar Quad batal (jamaah tidak berangkat) — tagihan dikurangi',
+                issued_date=self.today - timedelta(days=self.rng.randint(1, 6)), created_by=self.user,
+            )
+
+        # A group invoiced when booked, then cancelled before any payment:
+        # the invoice is voided (number kept) and its CLs released.
+        from hw.models import ConfirmationLetter
+        trip = {'client': self.rng.choice(self.clients), 'check_in': self.today + timedelta(days=40),
+                'booked': self.today - timedelta(days=12), 'pax_groups': 3}
+        self._book(trip)
+        ids = [cl.pk for cl in trip['cls']]
+        ConfirmationLetter.objects.filter(pk__in=ids).update(reservation_status='DEFINITE')
+        for cl in trip['cls']:
+            cl.reservation_status = 'DEFINITE'
+        inv = trip['invoice'] or self._invoice(trip)
+        cns.void_invoice(inv, reason='Grup batal sebelum DP — seluruh CL dibatalkan', created_by=self.user,
+                         void_date=self.today - timedelta(days=8))
+        ConfirmationLetter.objects.filter(pk__in=ids).update(reservation_status='CANCELLED')
+
+        self._bank_statement()
+
+    def _bank_statement(self):
+        """Mandiri IDR statement for last month, as the bank would show it:
+        every cash-book movement (some a day later on the bank side) plus the
+        monthly admin fee nobody has booked yet. Suggested matches are
+        accepted, so the fee is the one difference left to resolve."""
+        from hw.finance import reconciliation_service as rs
+        from hw.models.bank_transaction import BankTransaction
+        first = (self.today.replace(day=1) - timedelta(days=1)).replace(day=1)
+        last = self.today.replace(day=1) - timedelta(days=1)
+        if first < self.start:
+            return
+        rows = BankTransaction.objects.filter(
+            bank_account=self.idr, transaction_date__gte=first, transaction_date__lte=last,
+        ).exclude(status=BankTransaction.STATUS_VOIDED).exclude(source_type='OpeningBalanceBank').order_by('transaction_date', 'pk')
+        labels = {'PaymentRecord': 'TRSF MASUK', 'Remittance': 'TRSF KELUAR SWIFT', 'ExpensePayment': 'PEMBAYARAN',
+                  'CurrencyExchangeIn': 'JUAL VALAS USD', 'Refund': 'TRSF KELUAR'}
+        lines = []
+        for tx in rows:
+            day = min(tx.transaction_date + timedelta(days=self.rng.choice([0, 0, 0, 1])), last)
+            lines.append({'line_date': day, 'direction': tx.direction, 'amount': tx.amount,
+                          'description': f"{labels.get(tx.source_type, 'MUTASI')} {tx.reference}".strip(),
+                          'reference': tx.reference})
+        fee = 15_000
+        lines.append({'line_date': last, 'direction': 'out', 'amount': fee, 'description': 'BIAYA ADM BULANAN', 'reference': ''})
+        opening = rs.book_balance(self.idr, first - timedelta(days=1))
+        closing = rs.book_balance(self.idr, last) - fee
+        st = rs.create_statement(
+            account=self.idr, period_start=first, period_end=last, opening_balance=opening, closing_balance=closing,
+            lines=lines, created_by=self.user, source_filename=f'mandiri-{first:%Y%m}.csv',
+        )
+        rs.match_suggested(st)
 
     def _report(self):
         from hw.finance import fund_flow

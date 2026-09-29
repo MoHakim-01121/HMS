@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Credit Note — {{ cn.credit_note_number }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 60px 64px 100px;
+      @bottom-left {
+        content: "Credit note {{ cn.credit_note_number }}, issued {{ cn.issued_date|date:'d M Y' }}";
+        font-size: 10px; color: #666;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        vertical-align: bottom;
+      }
+      @bottom-right {
+        content: "Page " counter(page) "/" counter(pages);
+        font-size: 10px; color: #666;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        vertical-align: bottom;
+      }
+    }
+    .page-footer-rule {
+      position: fixed;
+      left: 0; right: 0; bottom: -78px;
+      border-top: 1px solid #ccc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      font-size: 11.5px;
+      line-height: 1.6;
+    }
+
+    /* ── Masthead ─────────────────────────────────────────────────────── */
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+    }
+    .doc-title { font-size: 26px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.1; }
+    .doc-sub { margin-top: 4px; font-size: 11px; color: #666; }
+    .logo { max-height: 58px; width: auto; }
+
+    .meta { margin-top: 22px; }
+    .meta-row { display: flex; gap: 10px; padding: 1px 0; }
+    .meta-row .mk { min-width: 140px; font-weight: 700; color: #111; }
+    .meta-row .mv { font-variant-numeric: tabular-nums; }
+
+    .two-col {
+      display: flex;
+      gap: 40px;
+      margin-top: 22px;
+      padding: 14px 0 22px;
+      border-bottom: 1px solid #ddd;
+    }
+    .two-col > div { flex: 1; }
+    .col-title { margin-bottom: 6px; font-weight: 700; color: #111; }
+    .col-body { font-size: 11.5px; color: #444; line-height: 1.7; }
+    .col-name { font-size: 14px; font-weight: 700; color: #111; }
+
+    /* ── Zone 1: what this receipt attests to ─────────────────────────── */
+    .amount-block {
+      margin-top: 26px;
+      padding: 18px 0 4px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .amount-block .ab-key { color: #444; }
+    .amount-block .ab-value {
+      display: block;
+      margin-top: 6px;
+      font-size: 27px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      font-variant-numeric: tabular-nums;
+    }
+    .amount-block .ab-cur { font-size: 15px; font-weight: 400; color: #444; }
+    .amount-block .ab-words { display: block; font-size: 10.5px; color: #666; margin-top: 6px; }
+    .badge-status {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 4px 11px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+    }
+    .badge-voided { background: #fee2e2; color: #991b1b; }
+
+    .void-notice {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border: 1px solid #fca5a5;
+      background: #fef2f2;
+      font-size: 10.5px;
+      line-height: 1.6;
+      color: #991b1b;
+    }
+    .void-notice strong { font-weight: 700; }
+
+    .facts { margin-top: 24px; display: flex; gap: 48px; }
+    .facts > div { flex: 1; }
+    .facts-col { display: grid; row-gap: 12px; }
+    .fact-key { font-size: 10.5px; color: #666; }
+    .fact-val { font-size: 12.5px; color: #111; font-variant-numeric: tabular-nums; }
+    .fact-sub { font-size: 10.5px; color: #666; margin-top: 2px; }
+
+    .section { margin-top: 28px; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      break-after: avoid;
+    }
+    .section-title { font-size: 12.5px; font-weight: 700; color: #111; }
+    .section-asat { font-size: 10.5px; color: #666; }
+
+    /* ── Zone 2: live allocation state ────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    thead th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 400;
+      color: #555;
+      padding: 0 0 9px;
+      border-bottom: 1px solid #111;
+    }
+    thead th.r { text-align: right; }
+    tbody td { padding: 9px 0; vertical-align: top; color: #111; }
+    tbody td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    tbody tr.subtotal td { border-top: 1px solid #ddd; font-weight: 600; }
+    tbody tr.unapplied td { color: #666; }
+    .td-sub { font-size: 10px; color: #888; margin-top: 2px; }
+    tfoot td {
+      padding-top: 10px;
+      border-top: 1px solid #111;
+      font-size: 12px;
+      font-weight: 700;
+      color: #111;
+    }
+    tfoot td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    .alloc-empty { font-size: 11.5px; color: #444; }
+
+    .note-body { font-size: 11.5px; color: #444; line-height: 1.7; }
+
+    .sign-block {
+      position: fixed;
+      right: 0;
+      bottom: -64px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .sign-block > div { text-align: right; }
+    .sign-name { font-size: 11.5px; color: #111; }
+    .sign-meta { font-size: 10px; color: #666; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+    .watermark-void {
+      position: fixed;
+      top: 45%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-40deg);
+      font-size: 110px; font-weight: 900;
+      color: rgba(185, 28, 28, 0.10);
+      white-space: nowrap;
+      letter-spacing: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-footer-rule"></div>
+
+{% if cn.status == 'voided' %}<div class="watermark-void">VOID</div>{% endif %}
+
+<div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
+    <g transform="rotate(-35, 300, 420)" fill="#111" opacity="0.025" font-size="13" font-family="Arial">
+      <text x="-300" y="-140">KONOZ UNITED</text><text x="-100" y="-140">KONOZ UNITED</text><text x="100" y="-140">KONOZ UNITED</text><text x="300" y="-140">KONOZ UNITED</text><text x="500" y="-140">KONOZ UNITED</text><text x="700" y="-140">KONOZ UNITED</text>
+      <text x="-300" y="0">KONOZ UNITED</text><text x="-100" y="0">KONOZ UNITED</text><text x="100" y="0">KONOZ UNITED</text><text x="300" y="0">KONOZ UNITED</text><text x="500" y="0">KONOZ UNITED</text><text x="700" y="0">KONOZ UNITED</text>
+      <text x="-300" y="140">KONOZ UNITED</text><text x="-100" y="140">KONOZ UNITED</text><text x="100" y="140">KONOZ UNITED</text><text x="300" y="140">KONOZ UNITED</text><text x="500" y="140">KONOZ UNITED</text><text x="700" y="140">KONOZ UNITED</text>
+      <text x="-300" y="280">KONOZ UNITED</text><text x="-100" y="280">KONOZ UNITED</text><text x="100" y="280">KONOZ UNITED</text><text x="300" y="280">KONOZ UNITED</text><text x="500" y="280">KONOZ UNITED</text><text x="700" y="280">KONOZ UNITED</text>
+      <text x="-300" y="420">KONOZ UNITED</text><text x="-100" y="420">KONOZ UNITED</text><text x="100" y="420">KONOZ UNITED</text><text x="300" y="420">KONOZ UNITED</text><text x="500" y="420">KONOZ UNITED</text><text x="700" y="420">KONOZ UNITED</text>
+      <text x="-300" y="560">KONOZ UNITED</text><text x="-100" y="560">KONOZ UNITED</text><text x="100" y="560">KONOZ UNITED</text><text x="300" y="560">KONOZ UNITED</text><text x="500" y="560">KONOZ UNITED</text><text x="700" y="560">KONOZ UNITED</text>
+      <text x="-300" y="700">KONOZ UNITED</text><text x="-100" y="700">KONOZ UNITED</text><text x="100" y="700">KONOZ UNITED</text><text x="300" y="700">KONOZ UNITED</text><text x="500" y="700">KONOZ UNITED</text><text x="700" y="700">KONOZ UNITED</text>
+      <text x="-300" y="840">KONOZ UNITED</text><text x="-100" y="840">KONOZ UNITED</text><text x="100" y="840">KONOZ UNITED</text><text x="300" y="840">KONOZ UNITED</text><text x="500" y="840">KONOZ UNITED</text><text x="700" y="840">KONOZ UNITED</text>
+      <text x="-300" y="980">KONOZ UNITED</text><text x="-100" y="980">KONOZ UNITED</text><text x="100" y="980">KONOZ UNITED</text><text x="300" y="980">KONOZ UNITED</text><text x="500" y="980">KONOZ UNITED</text><text x="700" y="980">KONOZ UNITED</text>
+    </g>
+  </svg>
+</div>
+
+<div class="top">
+  <div>
+    <div class="doc-title">Credit Note</div>
+    <div class="doc-sub">Reduces the amount billed on invoice {{ invoice.invoice_number }}</div>
+  </div>
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Credit note number</span><span class="mv">{{ cn.credit_note_number }}</span></div>
+  <div class="meta-row"><span class="mk">Date</span><span class="mv">{{ cn.issued_date|date:"d M Y" }}</span></div>
+  <div class="meta-row"><span class="mk">Original invoice</span><span class="mv">{{ invoice.invoice_number }}{% if invoice.issued_date %}, {{ invoice.issued_date|date:"d M Y" }}{% endif %}</span></div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="col-title">Issued by</div>
+    <div class="col-body">
+      <span class="col-name">Konoz United Surabaya</span><br>
+      Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>
+      Kec. Krembangan, Surabaya, Jawa Timur 60177<br>
+      konozsurabaya@gmail.com
+    </div>
+  </div>
+  <div>
+    <div class="col-title">Issued to</div>
+    <div class="col-body"><span class="col-name">{{ client_name|default:"—" }}</span></div>
+  </div>
+</div>
+
+<div class="amount-block">
+  <span>
+    <span class="ab-key">Amount credited</span>
+    <span class="ab-value">{{ amount_fmt }} <span class="ab-cur">SAR</span></span>
+    <span class="ab-words">({{ amount_in_words }} Saudi Riyal)</span>
+  </span>
+  {% if cn.status == 'voided' %}
+  <span class="badge-status badge-voided">VOID</span>
+  {% endif %}
+</div>
+
+{% if cn.status == 'voided' %}
+<div class="void-notice">
+  <strong>This credit note has been voided</strong> and no longer reduces the invoice.
+  {% if cn.voided_reason %}Reason: {{ cn.voided_reason }}{% endif %}
+</div>
+{% endif %}
+
+<div class="section">
+  <div class="section-head"><span class="section-title">Credited lines</span></div>
+  <table>
+    <thead>
+      <tr>
+        <th>Line</th>
+        <th class="r">Amount (Saudi Riyal)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.description }}</td>
+        <td class="r">{{ line.amount_fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>Total credited</td>
+        <td class="r">{{ amount_fmt }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="section-title">Invoice after this credit</span></div>
+  <table>
+    <tbody>
+      <tr><td>Invoice total</td><td class="r">{{ invoice_total_fmt }}</td></tr>
+      <tr><td>Credit notes</td><td class="r">− {{ credited_fmt }}</td></tr>
+      <tr class="subtotal"><td>Amount due</td><td class="r">{{ due_fmt }}</td></tr>
+      {% if to_deposit_fmt %}
+      <tr class="unapplied">
+        <td>
+          Held as client deposit
+          <div class="td-sub">Already paid; available for a refund or for another booking.</div>
+        </td>
+        <td class="r">{{ to_deposit_fmt }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="section-title">Reason</span></div>
+  <div class="note-body">{{ cn.reason }}</div>
+</div>
+
+<div class="sign-block">
+  <div>
+    <div class="sign-name">{{ issued_by|default:"—" }}</div>
+    <div class="sign-meta">Printed {{ printed_at_ts|date:"d M Y" }} at {{ printed_at_ts|time:"H:i" }}</div>
+  </div>
+</div>
+
+</body>
+</html>

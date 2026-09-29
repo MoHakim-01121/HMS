@@ -342,6 +342,8 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None):
     lama lalu post ulang; kalau invoice tak punya baris → None.
     """
     entry_date = entry_date or invoice.issued_date or timezone.now().date()
+    if invoice.status == invoice.STATUS_VOID:
+        return None  # a void invoice bills nothing; its charge was reversed
     lines = _invoice_charge_lines(invoice)
     expected = sum(l["debit"] for l in lines if l["account"] == coa.AR)
 

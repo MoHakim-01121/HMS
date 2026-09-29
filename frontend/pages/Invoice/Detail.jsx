@@ -5,6 +5,7 @@ import { RvBack } from "../../components/shadcn/record-view.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import CreditNotesSection from "../../components/shadcn/credit-notes-section.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtStay, toDate } from "../../utils/format.js";
@@ -19,6 +20,7 @@ import { fmt, fmtStay, toDate } from "../../utils/format.js";
 
 
 function resStatus(r) {
+  if (r.remaining_int <= 0 && r.paid_int <= 0 && r.credited_int > 0) return { label: "Credited", tone: "gray" };
   if (r.remaining_int <= 0) return { label: "Settled", tone: "green" };
   if (r.paid_int > 0) return { label: "Partial", tone: "yellow" };
   return { label: "Unpaid", tone: "red" };
@@ -67,17 +69,23 @@ function PayToAccount({ t, acc }) {
   );
 }
 
-export default function Detail({ invoice, reservations, payments, due_alert, wa_send, logs = [], pay_to = [] }) {
+export default function Detail({
+  invoice, reservations, payments, due_alert, wa_send, logs = [], pay_to = [],
+  void: voidInfo = null, credit_notes = [], credited_sar = 0, can_void = false,
+}) {
   const openForm = useFormModal();
   const perms = usePerms();
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
   const [showAll, setShowAll] = useState(false);
 
-  const paid = invoice.remaining_sar <= 0;
+  const isVoid = !!voidInfo;
+  const dueSar = isVoid ? 0 : invoice.total_sar - credited_sar;
+  const paid = !isVoid && invoice.remaining_sar <= 0;
   const partial = !paid && invoice.total_paid_sar > 0;
-  const badge = paid ? { label: "Paid", tone: "green" } : partial ? { label: "Partial", tone: "yellow" } : { label: "Unpaid", tone: "red" };
-  const pct = invoice.total_sar > 0 ? Math.min(100, Math.round((invoice.total_paid_sar / invoice.total_sar) * 100)) : 0;
+  const badge = isVoid ? { label: "Void", tone: "gray" }
+    : paid ? { label: "Paid", tone: "green" } : partial ? { label: "Partial", tone: "yellow" } : { label: "Unpaid", tone: "red" };
+  const pct = dueSar > 0 ? Math.min(100, Math.round((invoice.total_paid_sar / dueSar) * 100)) : isVoid ? 0 : 100;
 
   const ins = reservations.map((r) => toDate(r.check_in)).filter(Boolean);
   const outs = reservations.map((r) => toDate(r.check_out)).filter(Boolean);
@@ -85,7 +93,13 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
     ? fmtStay(new Date(Math.min(...ins)), new Date(Math.max(...outs)))
     : null;
 
-  const note = paid
+  const note = isVoid
+    ? {
+        tone: "gray",
+        title: t("This invoice is void."),
+        text: [voidInfo.reason && !/[.!?]$/.test(voidInfo.reason) ? `${voidInfo.reason}.` : voidInfo.reason, voidInfo.by && voidInfo.at ? t("Voided by {name} on {date}.", { name: voidInfo.by, date: voidInfo.at }) : null].filter(Boolean).join(" "),
+      }
+    : paid
     ? {
         tone: "green",
         title: t("Paid in full."),
@@ -101,13 +115,16 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
           text: invoice.due_date ? "" : t("No due date is set on this invoice."),
         };
 
-  const dueLine = paid
+  const dueLine = isVoid ? null : paid
     ? invoice.settled_date ? { k: t("Settled"), v: invoice.settled_date } : null
     : invoice.due_date ? { k: t("Due"), v: invoice.due_date } : null;
 
-  const canEdit = perms.can("invoice", "edit");
+  const canEdit = perms.can("invoice", "edit") && !isVoid;
+  const canCredit = perms.can("invoice", "delete");
   const menuItems = [
     canEdit && { label: t("Edit"), icon: "edit", onClick: () => openForm(`/invoice/${invoice.pk}/edit/`) },
+    canCredit && !isVoid && { label: t("Credit note…"), icon: "file-text", onClick: () => openForm(`/finance/invoices/${invoice.pk}/credit-notes/new/`) },
+    canCredit && can_void && { label: t("Void invoice…"), icon: "close", danger: true, separator: true, onClick: () => openForm(`/finance/invoices/${invoice.pk}/void/`) },
     perms.can("invoice", "delete") && {
       label: t("Delete invoice…"),
       icon: "trash",
@@ -142,6 +159,17 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
         actor: l.by,
       };
     }),
+    ...credit_notes.map((cn) => ({
+      key: `cn-${cn.id}`,
+      iso: cn.date,
+      kind: "status",
+      title: cn.status === "voided" ? t("Credit note voided") : t("Credit note issued"),
+      ref: cn.number,
+      refHref: `/finance/credit-notes/${cn.id}/pdf/`,
+      detail: `${cn.reason} · −${fmt(cn.amount_sar)} SAR`,
+      when: cn.date,
+      actor: t("Finance"),
+    })),
     ...payments.map((p) => ({
       key: `pay-${p.id}`,
       iso: p.payment_iso,
@@ -153,7 +181,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
       when: p.payment_label,
       actor: p.confirmed_by || t("Finance"),
     })),
-    ...(!paid && due_alert?.type === "red" && invoice.due_iso && invoice.due_iso < new Date().toISOString().slice(0, 10)
+    ...(!paid && !isVoid && due_alert?.type === "red" && invoice.due_iso && invoice.due_iso < new Date().toISOString().slice(0, 10)
       ? [{ key: "due", iso: invoice.due_iso, kind: "alert", title: t("Due date passed"), detail: t("Payment is still owed."), when: invoice.due_date, actor: t("System") }]
       : []),
   ].sort((a, b) => (b.iso || "").localeCompare(a.iso || ""));
@@ -192,7 +220,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
             </div>
             <div
               className="hms-iv-ring"
-              style={{ background: `conic-gradient(${paid ? "var(--green)" : "var(--foreground)"} 0 ${pct}%, var(--secondary) ${pct}% 100%)` }}
+              style={{ background: `conic-gradient(${paid ? "var(--green)" : "var(--foreground)"} 0 ${pct}%, var(--secondary) ${pct}% 100%)`, opacity: isVoid ? 0.4 : 1 }}
               role="img"
               aria-label={t("{pct}% paid", { pct })}
             >
@@ -211,7 +239,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
             </p>
           </div>
           <div className="hms-cl-actions">
-            {!paid && (
+            {!paid && !isVoid && (
               <a className="hms-rv-btn primary" href={`/finance/payments/?invoice=${invoice.pk}`}>{t("Record payment")}</a>
             )}
             {canEdit && (
@@ -248,7 +276,7 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
                 <span className="r">{t("Total")}</span><span className="r">{t("Paid")}</span><span className="r">{t("Remaining")}</span>
               </div>
               {reservations.length ? reservations.map((r) => {
-                const st = resStatus(r);
+                const st = isVoid ? { label: "Void", tone: "gray" } : resStatus(r);
                 const a = toDate(r.check_in);
                 const b = toDate(r.check_out);
                 const nights = a && b ? Math.round((b - a) / 86400000) : null;
@@ -268,14 +296,34 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
                     <div className="c-st"><Pill small tone={st.tone}>{t(st.label)}</Pill></div>
                     <span className="r tab" data-label={t("Total")}>{fmt(r.total_int)}</span>
                     <span className="r tab dim" data-label={t("Paid")}>{fmt(r.paid_int)}</span>
-                    <span className="r tab strong" data-label={t("Remaining")}>{fmt(Math.max(0, r.remaining_int || 0))}</span>
+                    <span className="r tab strong" data-label={t("Remaining")}>
+                      {fmt(Math.max(0, r.remaining_int || 0))}
+                      {r.credited_int > 0 && !isVoid ? <div className="sub tab">{t("−{n} credited", { n: fmt(r.credited_int) })}</div> : null}
+                    </span>
                   </div>
                 );
               }) : <div className="hms-iv-empty">{t("No reservations")}</div>}
-              <div className="hms-iv-gf">
-                <span>{t("Invoice total")}</span>
-                <span className="v">{fmt(invoice.total_sar)} SAR</span>
-              </div>
+              {credited_sar > 0 ? (
+                <>
+                  <div className="hms-iv-gf sub-row">
+                    <span>{t("Invoice total")}</span>
+                    <span className="v dim">{fmt(invoice.total_sar)} SAR</span>
+                  </div>
+                  <div className="hms-iv-gf sub-row">
+                    <span>{t("Credit notes")}</span>
+                    <span className="v dim">−{fmt(credited_sar)} SAR</span>
+                  </div>
+                  <div className="hms-iv-gf">
+                    <span>{t("Amount due")}</span>
+                    <span className="v">{fmt(dueSar)} SAR</span>
+                  </div>
+                </>
+              ) : (
+                <div className="hms-iv-gf">
+                  <span>{isVoid ? t("Invoice total (void)") : t("Invoice total")}</span>
+                  <span className="v">{isVoid ? <s>{fmt(invoice.total_sar)}</s> : fmt(invoice.total_sar)} SAR</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -320,6 +368,8 @@ export default function Detail({ invoice, reservations, payments, due_alert, wa_
               <div className="hms-iv-empty pad">{t("No payments recorded yet.")}</div>
             )}
           </section>
+
+          <CreditNotesSection creditNotes={credit_notes} canVoid={canCredit} openForm={openForm} />
         </main>
 
         <aside className="hms-iv-aside">

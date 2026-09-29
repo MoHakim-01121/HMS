@@ -147,7 +147,7 @@ class BankStatementLineInline(admin.TabularInline):
 
 @admin.register(BankStatement)
 class BankStatementAdmin(admin.ModelAdmin):
-    list_display = ('account', 'period_start', 'period_end', 'opening_balance_sar', 'closing_balance_sar')
+    list_display = ('account', 'currency', 'period_start', 'period_end', 'opening_balance', 'closing_balance')
     inlines = [BankStatementLineInline]
 
 

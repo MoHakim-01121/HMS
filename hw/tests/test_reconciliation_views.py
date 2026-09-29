@@ -43,8 +43,8 @@ class ReconciliationNewViewTest(ReconciliationViewsBase):
         resp = self.client.post('/finance/reconciliation/new/', {
             'account': f'cash:{self.cash_sby.pk}',
             'period_start': '2026-08-01', 'period_end': '2026-08-31',
-            'opening_balance_sar': '0', 'closing_balance_sar': '5000',
-            'lines': json.dumps([{'line_date': '2026-08-05', 'direction': 'in', 'amount_sar': 5000, 'description': 'x'}]),
+            'opening_balance': '0', 'closing_balance': '5000',
+            'lines': json.dumps([{'line_date': '2026-08-05', 'direction': 'in', 'amount': 5000, 'description': 'x'}]),
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(BankStatement.objects.count(), 1)
@@ -54,7 +54,7 @@ class ReconciliationNewViewTest(ReconciliationViewsBase):
         resp = self.client.post('/finance/reconciliation/new/', {
             'account': f'cash:{self.cash_sby.pk}',
             'period_start': '2026-08-01', 'period_end': '2026-08-31',
-            'closing_balance_sar': '5000',
+            'closing_balance': '5000',
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(BankStatement.objects.count(), 0)
@@ -73,8 +73,8 @@ class ReconciliationMatchViewTest(ReconciliationViewsBase):
         self.client.post('/finance/reconciliation/new/', {
             'account': f'cash:{self.cash_sby.pk}',
             'period_start': '2026-08-01', 'period_end': '2026-08-31',
-            'opening_balance_sar': '0', 'closing_balance_sar': '5000',
-            'lines': json.dumps([{'line_date': '2026-08-05', 'direction': 'in', 'amount_sar': 5000, 'description': 'x'}]),
+            'opening_balance': '0', 'closing_balance': '5000',
+            'lines': json.dumps([{'line_date': '2026-08-05', 'direction': 'in', 'amount': 5000, 'description': 'x'}]),
         })
         self.statement = BankStatement.objects.get()
         self.line = self.statement.lines.get()

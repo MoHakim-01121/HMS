@@ -36,11 +36,36 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--verbose', action='store_true', help='Cetak ringkasan tiap cek walau lolos.')
 
+    def run_checks(self):
+        """[(label, [findings])] for every check, in order. Also used by the
+        month-end checklist (hw/finance/period_checklist.py)."""
+        tb = fq.trial_balance()
+        return [
+            # 1. Rantai hash + seq
+            ('Rantai hash / seq', hashing.verify_chain()),
+            # 2. Setiap entry balance per mata uang
+            ('Balance per entry', self._unbalanced_entries()),
+            # 3. Trial balance
+            ('Trial balance', [] if tb['balanced'] else [
+                f'Trial balance timpang (debit {tb["total_debit"]:,} ≠ kredit {tb["total_credit"]:,})'
+            ]),
+            # 4. Dimensi client pada baris Piutang / Titipan
+            ('Dimensi client (AR / Titipan)', self._lines_missing_client()),
+            # 5. Charge hidup == Invoice.total_sar
+            ('Charge jurnal vs total invoice', self._stale_charges()),
+            # 6. PaymentRecord vs paid_sar jurnal
+            ('PaymentRecord vs jurnal', self._payment_record_mismatch()),
+            # 7. RemittanceLine vs jurnal
+            ('RemittanceLine vs jurnal', self._remittance_line_mismatch()),
+            # 8. Reversal menunjuk entry yang benar
+            ('Integritas reversal', self._bad_reversals()),
+            # 9. Pusat hanya menerima SAR (IDR/USD diterima & ditukar di cabang)
+            ('Penerimaan non-SAR di Pusat', self._non_sar_received_at_hq()),
+        ]
+
     def handle(self, *args, **options):
         problems = []
-        ok = self.stdout.write
-
-        def check(label, found):
+        for label, found in self.run_checks():
             if found:
                 problems.extend(found)
                 self.stdout.write(self.style.ERROR(f'[GAGAL] {label} — {len(found)} temuan'))
@@ -49,45 +74,11 @@ class Command(BaseCommand):
             elif options['verbose']:
                 self.stdout.write(self.style.SUCCESS(f'[  OK  ] {label}'))
 
-        # 1. Rantai hash + seq
-        check('Rantai hash / seq', hashing.verify_chain())
-
-        # 2. Setiap entry balance per mata uang
-        check('Balance per entry', self._unbalanced_entries())
-
-        # 3. Trial balance
-        tb = fq.trial_balance()
-        if not tb['balanced']:
-            problems.append(
-                f'Trial balance timpang (debit {tb["total_debit"]:,} '
-                f'≠ kredit {tb["total_credit"]:,})'
-            )
-            self.stdout.write(self.style.ERROR('[GAGAL] Trial balance'))
-        elif options['verbose']:
-            self.stdout.write(self.style.SUCCESS('[  OK  ] Trial balance'))
-
-        # 4. Dimensi client pada baris Piutang / Titipan
-        check('Dimensi client (AR / Titipan)', self._lines_missing_client())
-
-        # 5. Charge hidup == Invoice.total_sar
-        check('Charge jurnal vs total invoice', self._stale_charges())
-
-        # 6. PaymentRecord vs paid_sar jurnal
-        check('PaymentRecord vs jurnal', self._payment_record_mismatch())
-
-        # 7. RemittanceLine vs jurnal
-        check('RemittanceLine vs jurnal', self._remittance_line_mismatch())
-
-        # 8. Reversal menunjuk entry yang benar
-        check('Integritas reversal', self._bad_reversals())
-        # 9. Pusat hanya menerima SAR (IDR/USD diterima & ditukar di cabang)
-        check('Penerimaan non-SAR di Pusat', self._non_sar_received_at_hq())
-
         self.stdout.write('')
         if problems:
             self.stdout.write(self.style.ERROR(f'{len(problems)} temuan total. Jurnal BELUM siap cutover.'))
             raise SystemExit(1)
-        ok(self.style.SUCCESS('Semua cek lolos. Jurnal konsisten.'))
+        self.stdout.write(self.style.SUCCESS('Semua cek lolos. Jurnal konsisten.'))
 
     # ── cek individual ────────────────────────────────────────
 
@@ -135,7 +126,7 @@ class Command(BaseCommand):
         )
         charged_invoice_ids.discard(None)
         out = []
-        for inv in Invoice.objects.filter(pk__in=charged_invoice_ids):
+        for inv in Invoice.objects.filter(pk__in=charged_invoice_ids).exclude(status=Invoice.STATUS_VOID):
             charged = fq.invoice_charged_sar(inv.id)
             if charged != inv.total_sar:
                 out.append(

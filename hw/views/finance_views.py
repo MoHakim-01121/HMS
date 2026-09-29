@@ -632,3 +632,31 @@ def fund_flow_csv(request):
     rows += [[], ['Date', 'Line', 'Account', 'Currency', 'Amount', 'Reference']]
     rows += [[t['date'], t['line'], t['account'], t['currency'], t['amount'], t['reference']] for t in flow['transactions']]
     return csv_export_response(f'fund-flow-{branch}-{date_from}-{date_to}.csv', rows[0], rows[1:])
+
+
+def _aging_as_of(request):
+    return _parse_date(request.GET.get('as_of')) or date.today()
+
+
+@require_perm('statements', 'view')
+def ar_aging_report(request):
+    """Aging piutang semua client, per tanggal."""
+    return inertia_render(request, 'Finance/ArAging', props={
+        'aging': finance_queries.ar_aging(as_of=_aging_as_of(request)),
+    })
+
+
+@require_perm('statements', 'export')
+def ar_aging_csv(request):
+    from .helpers import csv_export_response
+    aging = finance_queries.ar_aging(as_of=_aging_as_of(request))
+    buckets = finance_queries.AGING_BUCKETS
+    header = ['Client', 'Invoice', 'Due date', 'Days overdue', 'Not yet due', '1-30', '31-60', '61-90', '>90', 'Total (SAR)']
+    rows = []
+    for c in aging['clients']:
+        rows.append([c['name'], '', '', '', *[c['buckets'][b] for b in buckets], c['total']])
+        for i in c['invoices']:
+            rows.append(['', i['invoice_number'], i['due_date'] or '', i['days_overdue'],
+                         *[i['amount'] if i['bucket'] == b else '' for b in buckets], i['amount']])
+    rows.append(['Total', '', '', '', *[aging['buckets'][b] for b in buckets], aging['total']])
+    return csv_export_response(f'ar-aging-{aging["as_of"]}.csv', header, rows)

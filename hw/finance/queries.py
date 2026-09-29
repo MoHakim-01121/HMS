@@ -3,7 +3,7 @@
 Pengganti hw/ledger.py. Views memanggil fungsi di sini, tidak pernah
 Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
 """
-from django.db.models import Min, Sum
+from django.db.models import Min, Q, Sum
 
 from ..models.client import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
@@ -31,6 +31,26 @@ def _reversed_entry_ids():
     return JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
 
 
+# Billing = what the client is asked to pay: charges and credit notes, plus
+# the reversals of either (an invoice re-post or void, a voided credit note).
+# Everything else that touches Piutang settles it (payments, allocations,
+# transfers, their reversals). Paid = settled, never "billed − open", so a
+# credit note is not mistaken for money received.
+BILLING_TYPES = (JournalEntry.TYPE_CHARGE, JournalEntry.TYPE_CREDIT_NOTE)
+_BILLING_Q = (
+    Q(journal_entry__entry_type__in=BILLING_TYPES)
+    | Q(journal_entry__reverses__entry_type__in=BILLING_TYPES)
+)
+
+
+def _billing(**f):
+    return _ar_qs(**f).filter(_BILLING_Q)
+
+
+def _settling(**f):
+    return _ar_qs(**f).exclude(_BILLING_Q)
+
+
 def _live_charges(**f):
     """Baris DR Piutang dari charge entry yang BELUM di-reverse."""
     return _ar_qs(
@@ -43,6 +63,37 @@ def invoice_charged_sar(invoice_id):
     return _live_charges(invoice_id=invoice_id).aggregate(d=Sum("debit"))["d"] or 0
 
 
+def invoice_credited_sar(invoice_id):
+    """Dikurangi nota kredit yang masih berlaku (ke Piutang maupun titipan)."""
+    from ..models.credit_note import CreditNote
+    return CreditNote.objects.filter(
+        invoice_id=invoice_id, status=CreditNote.STATUS_ACTIVE,
+    ).aggregate(t=Sum("lines__amount_sar"))["t"] or 0
+
+
+def invoice_credit_deposited_sar(invoice_id):
+    """Bagian nota kredit hidup yang masuk titipan client: uang yang sudah
+    dibayar ke invoice ini lalu dipindah keluar karena tagihannya turun."""
+    from ..models.credit_note import CreditNote
+    return CreditNote.objects.filter(
+        invoice_id=invoice_id, status=CreditNote.STATUS_ACTIVE,
+    ).aggregate(t=Sum("to_deposit_sar"))["t"] or 0
+
+
+def invoice_credited_map(invoice_ids):
+    """{invoice_id: (credited_sar, deposited_sar)} untuk nota kredit hidup."""
+    from ..models.credit_note import CreditNote
+    live = CreditNote.objects.filter(invoice_id__in=invoice_ids, status=CreditNote.STATUS_ACTIVE)
+    credited = {r["invoice_id"]: r["t"] or 0 for r in live.values("invoice_id").annotate(t=Sum("lines__amount_sar"))}
+    deposited = {r["invoice_id"]: r["t"] or 0 for r in live.values("invoice_id").annotate(t=Sum("to_deposit_sar"))}
+    return {i: (credited[i], deposited.get(i, 0)) for i in credited}
+
+
+def invoice_billed_sar(invoice_id):
+    """Tagihan bersih di Piutang: charge hidup − nota kredit hidup."""
+    return _net(_billing(invoice_id=invoice_id))
+
+
 def invoice_outstanding_sar(invoice_id):
     """Sisa piutang invoice = net semua baris Piutang (charge - payment +
     reversal). Positif = masih berutang."""
@@ -50,8 +101,9 @@ def invoice_outstanding_sar(invoice_id):
 
 
 def invoice_paid_sar(invoice_id):
-    """Dibayar = ditagih - sisa. Kebal terhadap reversal (net-based)."""
-    return invoice_charged_sar(invoice_id) - invoice_outstanding_sar(invoice_id)
+    """Dibayar = kredit bersih Piutang di luar tagihan (payment − reversal).
+    Kebal terhadap reversal dan nota kredit."""
+    return -_net(_settling(invoice_id=invoice_id))
 
 
 def invoice_unallocated_sar(invoice_id):
@@ -128,20 +180,11 @@ def payment_unallocated_map(payment_ids):
 
 
 def invoice_paid_map(invoice_ids):
-    """{invoice_id: paid_sar} — charged - outstanding, dua query."""
-    charged = {
-        r["invoice_id"]: r["d"] or 0
-        for r in _live_charges(invoice_id__in=invoice_ids)
-        .values("invoice_id").annotate(d=Sum("debit"))
-    }
-    net = {
-        r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
-        for r in _ar_qs(invoice_id__in=invoice_ids)
-        .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
-    }
+    """{invoice_id: paid_sar} — bentuk bulk invoice_paid_sar, satu query."""
     return {
-        i: charged.get(i, 0) - net.get(i, 0)
-        for i in set(charged) | set(net)
+        r["invoice_id"]: (r["c"] or 0) - (r["d"] or 0)
+        for r in _settling(invoice_id__in=invoice_ids)
+        .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
     }
 
 
@@ -149,21 +192,11 @@ def invoice_paid_map_before(invoice_ids, before_date):
     """{invoice_id: paid_sar} dihitung hanya dari baris jurnal dengan
     `entry_date < before_date` — untuk "outstanding per akhir bulan" pada
     dashboard (pengganti sum legacy `Payment.amount_sar`)."""
-    charged = {
-        r["invoice_id"]: r["d"] or 0
-        for r in _live_charges(invoice_id__in=invoice_ids)
-        .filter(journal_entry__entry_date__lt=before_date)
-        .values("invoice_id").annotate(d=Sum("debit"))
-    }
-    net = {
-        r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
-        for r in _ar_qs(invoice_id__in=invoice_ids)
+    return {
+        r["invoice_id"]: (r["c"] or 0) - (r["d"] or 0)
+        for r in _settling(invoice_id__in=invoice_ids)
         .filter(journal_entry__entry_date__lt=before_date)
         .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
-    }
-    return {
-        i: charged.get(i, 0) - net.get(i, 0)
-        for i in set(charged) | set(net)
     }
 
 
@@ -229,10 +262,9 @@ def _invoice_scoped(invoice_ids):
 
 
 def total_charged(invoice_ids=None):
-    """Total ditagih (debit Piutang) untuk sekumpulan invoice."""
-    return _invoice_scoped(invoice_ids).filter(
-        account_id=coa.AR,
-    ).aggregate(d=Sum("debit"))["d"] or 0
+    """Total tagihan bersih (charge − nota kredit, tanpa yang sudah di-void)
+    untuk sekumpulan invoice."""
+    return _net(_invoice_scoped(invoice_ids).filter(account_id=coa.AR).filter(_BILLING_Q))
 
 
 def paid_into(account_code, invoice_ids=None):
@@ -254,8 +286,7 @@ def reservation_paid_map(invoice_id):
     """{reservation_id: paid_sar} — kredit bersih Piutang per reservasi
     (payment credit - reversal debit) utk invoice."""
     rows = (
-        _ar_qs(invoice_id=invoice_id, reservation_id__isnull=False)
-        .exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        _settling(invoice_id=invoice_id, reservation_id__isnull=False)
         .values("reservation_id").annotate(d=Sum("debit"), c=Sum("credit"))
     )
     return {r["reservation_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
@@ -272,8 +303,7 @@ def cl_paid_sar_map(letters):
         return {}
     numbers = {cl.confirmation_number for cl in letters}
     rows = (
-        _ar_qs(reservation__reservation_number__in=numbers)
-        .exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        _settling(reservation__reservation_number__in=numbers)
         .values("reservation__reservation_number")
         .annotate(d=Sum("debit"), c=Sum("credit"))
     )
@@ -302,13 +332,8 @@ def client_wallet_map(client_ids):
 
 
 def client_billed_sar(client_id):
-    """Total ditagih ke client = debit Piutang dari charge yang masih hidup."""
-    return (
-        _ar_qs(client_id=client_id)
-        .filter(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
-        .exclude(journal_entry_id__in=_reversed_entry_ids())
-        .aggregate(d=Sum("debit"))["d"] or 0
-    )
+    """Total ditagih ke client = tagihan bersih (charge − nota kredit)."""
+    return _net(_billing(client_id=client_id))
 
 
 def client_paid_sar(client_id):
@@ -586,6 +611,80 @@ def client_aging(client_id, *, as_of=None):
     return {"buckets": buckets, "total": total, "invoices": invoices}
 
 
+AGING_BUCKETS = ("current", "1_30", "31_60", "61_90", "90_plus")
+
+
+def _aging_bucket(days_overdue):
+    if days_overdue <= 0:
+        return "current"
+    if days_overdue <= 30:
+        return "1_30"
+    if days_overdue <= 60:
+        return "31_60"
+    if days_overdue <= 90:
+        return "61_90"
+    return "90_plus"
+
+
+def ar_aging(*, as_of=None):
+    """Aging piutang semua client per tanggal `as_of` (date; default hari ini).
+
+    Sisa per invoice = net baris Piutang dengan entry_date <= as_of (charge −
+    pembayaran − nota kredit ± reversal), dikelompokkan menurut hari lewat
+    jatuh tempo (due_date, atau issued_date bila kosong). Invoice yang sudah
+    lunas/lebih bayar tidak ikut. Baris Piutang tanpa invoice dijumlahkan ke
+    'current' klien tersebut.
+
+    Returns {as_of, buckets: {...}, total, clients: [{client_id, name, buckets,
+    total, oldest_days, invoices: [...]}]} — clients diurutkan dari total
+    terbesar."""
+    from datetime import date as _date
+    from ..models.invoice import Invoice
+
+    as_of = as_of or _date.today()
+    nets = (
+        _ar_qs(journal_entry__entry_date__lte=as_of, client_id__isnull=False)
+        .values("client_id", "invoice_id")
+        .annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+    rows = [(r["client_id"], r["invoice_id"], (r["d"] or 0) - (r["c"] or 0)) for r in nets]
+    inv_map = {
+        i["id"]: i for i in Invoice.objects.filter(
+            id__in={inv for _c, inv, _n in rows if inv},
+        ).values("id", "invoice_number", "issued_date", "due_date")
+    }
+    names = dict(Client.objects.filter(id__in={c for c, _i, _n in rows}).values_list("id", "name"))
+
+    clients = {}
+    for client_id, invoice_id, net in rows:
+        if net == 0 or (invoice_id and net < 0):
+            continue
+        entry = clients.setdefault(client_id, {
+            "client_id": client_id, "name": names.get(client_id, "—"),
+            "buckets": dict.fromkeys(AGING_BUCKETS, 0), "total": 0, "oldest_days": 0, "invoices": [],
+        })
+        inv = inv_map.get(invoice_id)
+        due = inv and (inv["due_date"] or inv["issued_date"])
+        days = (as_of - due).days if due else 0
+        bucket = _aging_bucket(days)
+        entry["buckets"][bucket] += net
+        entry["total"] += net
+        if inv:
+            entry["oldest_days"] = max(entry["oldest_days"], days)
+            entry["invoices"].append({
+                "id": inv["id"], "invoice_number": inv["invoice_number"],
+                "due_date": inv["due_date"].isoformat() if inv["due_date"] else None,
+                "days_overdue": max(days, 0), "bucket": bucket, "amount": net,
+            })
+
+    out = [c for c in clients.values() if c["total"] > 0]
+    for c in out:
+        c["invoices"].sort(key=lambda i: -i["days_overdue"])
+    out.sort(key=lambda c: (-c["total"], c["name"]))
+    buckets = {b: sum(c["buckets"][b] for c in out) for b in AGING_BUCKETS}
+    return {"as_of": as_of.isoformat(), "buckets": buckets, "total": sum(buckets.values()), "clients": out}
+
+
 def open_items(client_id, *, date_to=None, as_of=None):
     """Open Item mode — daftar invoice yang belum lunas per client.
 
@@ -601,15 +700,15 @@ def open_items(client_id, *, date_to=None, as_of=None):
         "invoice_id",
     ).annotate(d=Sum("debit"), c=Sum("credit"))
 
-    charged = _scoped(_live_charges(client_id=client_id), as_of=as_of).values(
+    charged = _scoped(_billing(client_id=client_id), as_of=as_of).values(
         "invoice_id",
-    ).annotate(d=Sum("debit"))
+    ).annotate(d=Sum("debit"), c=Sum("credit"))
 
     net_map = {
         r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0)
         for r in ar_net if r["invoice_id"]
     }
-    charged_map = {r["invoice_id"]: r["d"] or 0 for r in charged if r["invoice_id"]}
+    charged_map = {r["invoice_id"]: (r["d"] or 0) - (r["c"] or 0) for r in charged if r["invoice_id"]}
 
     inv_ids = set(net_map) | set(charged_map)
     from ..models.invoice import Invoice
@@ -780,7 +879,7 @@ def mengendap_per_reservation(reservation_id):
 def total_allocated():
     """Total kas yang sudah 'dipakai' mengurangi piutang (credit bersih Piutang,
     selain charge) — analog total Allocation legacy. = ditagih - sisa AR net."""
-    return total_charged() - _net(_ar_qs())
+    return -_net(_settling())
 
 
 def surplus_pusat():
@@ -911,8 +1010,7 @@ def reservation_first_payment_date_map(reservation_numbers):
     if not reservation_numbers:
         return {}
     rows = (
-        _ar_qs(reservation__reservation_number__in=list(reservation_numbers))
-        .exclude(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
+        _settling(reservation__reservation_number__in=list(reservation_numbers))
         .values("reservation__reservation_number")
         .annotate(first=Min("journal_entry__entry_date"))
     )
@@ -962,11 +1060,9 @@ def clients_overview():
     cids = list(clients)
 
     billed = {
-        r["client_id"]: r["d"] or 0
-        for r in _ar_qs(client_id__in=cids)
-        .filter(journal_entry__entry_type=JournalEntry.TYPE_CHARGE)
-        .exclude(journal_entry_id__in=_reversed_entry_ids())
-        .values("client_id").annotate(d=Sum("debit"))
+        r["client_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in _billing(client_id__in=cids)
+        .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
     }
     paid = client_paid_map(cids)
     receivable = {

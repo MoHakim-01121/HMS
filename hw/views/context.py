@@ -4,12 +4,24 @@ from ..finance import queries as fq
 from ..utils import format_currency
 
 
+def _credited_by_line(invoice):
+    """{('r'|'s', pk): SAR no longer billed} — active credit notes per line;
+    a void invoice bills nothing, so every line counts as fully credited."""
+    if invoice.is_void:
+        out = {('r', r.pk): int(r.total_sar or 0) for r in invoice.reservations.all()}
+        out.update({('s', s.pk): int(s.total or 0) for s in invoice.service_items.all()})
+        return out
+    from ..finance.credit_note_service import _credited_by_line as active
+    return active(invoice)
+
+
 def _build_reservation_context(invoice):
 
     # Kredit Piutang per reservasi dari general ledger — payment lewat jalur
     # mana pun (Finance page / form invoice) menempel dimensi reservation di
     # baris CR Piutang-nya.
     paid_by_reservation_id = fq.reservation_paid_map(invoice.id)
+    credited = _credited_by_line(invoice)
 
     cl_by_number = {
         cl.confirmation_number: cl.pk
@@ -19,7 +31,8 @@ def _build_reservation_context(invoice):
     result = []
     for res in invoice.reservations.all():
         paid = paid_by_reservation_id.get(res.pk, 0)
-        remaining = res.total_sar - paid
+        credited_int = credited.get(('r', res.pk), 0)
+        remaining = res.total_sar - credited_int - paid
         if remaining == 0:
             cls = "remaining-paid"
         elif remaining > res.total_sar * 0.5:
@@ -36,6 +49,7 @@ def _build_reservation_context(invoice):
             "total": format_currency(res.total_sar),
             "total_int": res.total_sar,
             "paid_int": paid,
+            "credited_int": credited_int,
             "remaining": format_currency(remaining),
             "remaining_int": remaining,
             "remaining_class": cls,
@@ -71,11 +85,13 @@ def _build_visa_services_context(invoice):
                 continue
             payments_by_svc[svc_no] = payments_by_svc.get(svc_no, 0) + amt_main
 
+    credited = _credited_by_line(invoice)
     result = []
     for item in invoice.service_items.all():
         total = int(item.qty * float(item.price))
         paid = int(payments_by_svc.get(item.service_number, 0))
-        remaining = total - paid
+        credited_int = credited.get(('s', item.pk), 0)
+        remaining = total - credited_int - paid
         if remaining == 0:
             cls = "remaining-paid"
         elif 0 < remaining < total:
@@ -89,6 +105,7 @@ def _build_visa_services_context(invoice):
             "price": math.floor(float(item.price)),
             "total": total,
             "paid_int": paid,
+            "credited_int": credited_int,
             "remaining": remaining,
             "remaining_class": cls,
         })

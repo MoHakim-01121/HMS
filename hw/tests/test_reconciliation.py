@@ -26,8 +26,8 @@ class CreateStatementTest(ReconciliationBase):
     def test_create_statement_with_lines(self):
         statement = rs.create_statement(
             account=self.cash_sby, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
-            opening_balance_sar=0, closing_balance_sar=5000, created_by=self.user,
-            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount_sar': 5000, 'description': 'Transfer masuk'}],
+            opening_balance=0, closing_balance=5000, created_by=self.user,
+            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount': 5000, 'description': 'Transfer masuk'}],
         )
         self.assertEqual(statement.lines.count(), 1)
         self.assertFalse(statement.is_fully_matched)
@@ -44,8 +44,8 @@ class MatchLineTest(ReconciliationBase):
         self.tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
         self.statement = rs.create_statement(
             account=self.cash_sby, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
-            opening_balance_sar=0, closing_balance_sar=5000,
-            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount_sar': 5000, 'description': 'Transfer masuk'}],
+            opening_balance=0, closing_balance=5000,
+            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount': 5000, 'description': 'Transfer masuk'}],
         )
         self.line = self.statement.lines.get()
 
@@ -58,14 +58,14 @@ class MatchLineTest(ReconciliationBase):
         self.assertTrue(self.statement.is_fully_matched)
 
     def test_mismatched_amount_rejected_without_force(self):
-        self.line.amount_sar = 4000
-        self.line.save(update_fields=['amount_sar'])
+        self.line.amount = 4000
+        self.line.save(update_fields=['amount'])
         with self.assertRaises(rs.MatchMismatchError):
             rs.match_line(self.line, self.tx)
 
     def test_mismatch_allowed_with_force(self):
-        self.line.amount_sar = 4000
-        self.line.save(update_fields=['amount_sar'])
+        self.line.amount = 4000
+        self.line.save(update_fields=['amount'])
         rs.match_line(self.line, self.tx, force=True)
         self.line.refresh_from_db()
         self.assertEqual(self.line.matched_transaction_id, self.tx.pk)
@@ -94,10 +94,10 @@ class StatementSummaryTest(ReconciliationBase):
         confirm_payment(pr, self.user)
         statement = rs.create_statement(
             account=self.cash_sby, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
-            opening_balance_sar=0, closing_balance_sar=5000,
-            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount_sar': 4500, 'description': 'x'}],
+            opening_balance=0, closing_balance=5000,
+            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount': 4500, 'description': 'x'}],
         )
         summary = rs.statement_summary(statement)
-        self.assertEqual(summary['book_balance_sar'], 4500)
-        self.assertEqual(summary['difference_sar'], 500)
+        self.assertEqual(summary['book_balance'], 4500)
+        self.assertEqual(summary['difference'], 500)
         self.assertEqual(summary['lines_matched'], 0)

@@ -2083,6 +2083,7 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-cl-note-ico.tone-green { background:var(--green); }
 .hms-cl-note-ico.tone-yellow { background:var(--yellow); }
 .hms-cl-note-ico.tone-red { background:var(--red); }
+.hms-cl-note-ico.tone-gray { background:var(--muted-foreground); }
 .hms-cl-note p { margin:0; font-size:13px; line-height:1.55; color:var(--muted-foreground); text-wrap:pretty; }
 .hms-cl-note strong { font-weight:600; color:var(--foreground); }
 
@@ -2223,6 +2224,13 @@ button.hms-cl-histcount:hover { color:var(--foreground); }
 .hms-iv-grid { font-size:13px; }
 .hms-iv-grid.res .hms-iv-gh, .hms-iv-grid.res .hms-iv-gr { grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 96px 92px 92px 100px; }
 .hms-iv-grid.pay .hms-iv-gh, .hms-iv-grid.pay .hms-iv-gr { grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.2fr) 100px; }
+.hms-iv-grid.cn .hms-iv-gh, .hms-iv-grid.cn .hms-iv-gr { grid-template-columns:minmax(0,1.1fr) minmax(0,2.2fr) 100px 76px; }
+.hms-iv-grid.cn .c-method { flex-direction:column; align-items:stretch; gap:2px; }
+.hms-iv-grid.cn .cn-reason { overflow-wrap:anywhere; }
+.hms-iv-grid.cn .c-method .sub { margin-top:0; }
+.hms-iv-gf.sub-row { padding-top:0; padding-bottom:6px; }
+.hms-iv-gf.sub-row + .hms-iv-gf { padding-top:6px; }
+.hms-iv-void { margin-top:6px; font-size:12.5px; color:var(--muted-foreground); }
 .hms-iv-gh, .hms-iv-gr { display:grid; gap:12px; padding:13px 24px; border-bottom:1px solid var(--border); align-items:center; }
 .hms-iv-gh { padding-top:9px; padding-bottom:9px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
 .hms-iv-gh .r, .hms-iv-gr .r { text-align:right; }
@@ -2236,6 +2244,7 @@ button.hms-cl-histcount:hover { color:var(--foreground); }
 .hms-iv-gf > span:first-child { text-align:right; color:var(--muted-foreground); }
 .hms-iv-gf .v { text-align:right; font-variant-numeric:tabular-nums; font-size:15px; font-weight:600; white-space:nowrap; color:var(--foreground); }
 .hms-iv-gf .v.green { font-size:14px; color:var(--green); }
+.hms-iv-gf .v.dim { font-size:13px; font-weight:500; color:var(--muted-foreground); }
 .hms-iv-empty { padding:14px 24px; font-size:13px; color:var(--muted-foreground); border-bottom:1px solid var(--border); }
 .hms-iv-empty.pad { padding:4px 24px 24px; border-bottom:none; }
 
@@ -2288,6 +2297,8 @@ button.hms-cl-histcount:hover { color:var(--foreground); }
   .hms-iv-gr [data-label] { grid-column:1 / -1; display:flex; justify-content:space-between; gap:12px; text-align:right; }
   .hms-iv-gr [data-label]::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); text-align:left; }
   .hms-iv-grid.pay .c-method { grid-column:1 / -1; }
+  .hms-iv-grid.cn .hms-iv-gr { grid-template-columns:1fr auto; gap:6px 12px; padding:12px 18px; }
+  .hms-iv-grid.cn .c-method { grid-column:1 / -1; }
   .hms-iv-gf { padding:14px 18px 18px; }
   .hms-iv-empty { padding-left:18px; padding-right:18px; }
   .hms-iv-activity .when { width:auto; }
@@ -3044,3 +3055,10 @@ body.public-page {
     gap: 2px;
   }
 }
+
+/* Inline notice boxes on forms/pages: a server error or a warning. */
+.shadcn-root .alert { padding:10px 14px; border-radius:10px; border:1px solid var(--border); font-size:13px; line-height:1.5; }
+.shadcn-root .alert-error { border-color:color-mix(in oklab, var(--red) 40%, transparent); background:color-mix(in oklab, var(--red) 8%, transparent); color:var(--red); }
+.shadcn-root .alert-warning { border-color:color-mix(in oklab, var(--yellow) 45%, transparent); background:color-mix(in oklab, var(--yellow) 9%, transparent); color:var(--foreground); }
+button.hms-iv-chip { background:transparent; font:inherit; font-size:11.5px; cursor:pointer; }
+button.hms-iv-chip:hover { color:var(--red); border-color:color-mix(in oklab, var(--red) 45%, transparent); }

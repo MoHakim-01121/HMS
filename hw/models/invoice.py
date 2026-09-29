@@ -33,12 +33,10 @@ class Invoice(models.Model):
 
     # v2.0 §15 — financial state, derived, NEVER persisted (unlike `status`
     # above, which mixes it with lifecycle and IS persisted by sync_status()).
-    # Audit note (FASE G): STATUS_SENT/STATUS_VOID/STATUS_OVERDUE above are
-    # never actually assigned anywhere in the codebase today — sync_status()
-    # only ever produces draft/partial/paid, and there is no invoice-void
-    # workflow. So `status`'s "lifecycle" half is currently vestigial, not a
-    # real state machine to migrate off of. `financial_state` is additive:
-    # it does not replace `status`, and nothing existing reads it yet.
+    # Audit note (FASE G): STATUS_SENT/STATUS_OVERDUE above are never
+    # assigned — sync_status() produces draft/partial/paid, and STATUS_VOID
+    # is set only by credit_note_service.void_invoice (and then sticks).
+    # `financial_state` is additive: it does not replace `status`.
     FINANCIAL_STATE_UNPAID   = 'unpaid'
     FINANCIAL_STATE_PARTIAL  = 'partial'
     FINANCIAL_STATE_PAID     = 'paid'
@@ -65,6 +63,9 @@ class Invoice(models.Model):
 
     # ── Status ─────────────────────────────────────────────────
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    void_reason = models.TextField(blank=True)
+    voided_at   = models.DateTimeField(null=True, blank=True)
+    voided_by   = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
 
     # ── Audit ─────────────────────────────────────────────────
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
@@ -124,12 +125,38 @@ class Invoice(models.Model):
         return queries.invoice_paid_sar(self.id)
 
     @property
+    def credited_sar(self):
+        """Reduced by active credit notes."""
+        from ..finance import queries
+        return queries.invoice_credited_sar(self.id)
+
+    @property
+    def is_void(self):
+        return self.status == self.STATUS_VOID
+
+    @property
+    def due_sar(self):
+        """What the client owes in total: 0 when void, else total − credit notes."""
+        return 0 if self.is_void else self.total_sar - self.credited_sar
+
+    @property
+    def credit_deposited_sar(self):
+        """Paid money moved to client deposit by credit notes (no longer on this invoice)."""
+        from ..finance import queries
+        return queries.invoice_credit_deposited_sar(self.id)
+
+    @property
+    def applied_paid_sar(self):
+        """Payments still standing against this invoice."""
+        return self.total_paid_sar - self.credit_deposited_sar
+
+    @property
     def remaining_sar(self):
-        return self.total_sar - self.total_paid_sar
+        return self.due_sar - self.applied_paid_sar
 
     @property
     def is_fully_paid(self):
-        return self.total_paid_sar >= self.total_sar and self.total_sar > 0
+        return self.applied_paid_sar >= self.due_sar and self.due_sar > 0
 
     @property
     def financial_state(self):
@@ -138,7 +165,7 @@ class Invoice(models.Model):
         to whatever `status` happens to hold when nothing has been paid
         (draft, sent, or an unpaid partial-lifecycle value alike)."""
         from datetime import date
-        total, paid = self.total_sar, self.total_paid_sar
+        total, paid = self.due_sar, self.applied_paid_sar
         if total > 0 and paid >= total:
             return self.FINANCIAL_STATE_PAID
         if self.due_date and self.due_date < date.today() and paid < total:
@@ -154,9 +181,13 @@ class Invoice(models.Model):
     def sync_status(self):
         """Recompute & persist `status` from total_paid_sar/total_sar,
         keduanya diturunkan dari JournalLine (hw.finance.queries). Panggil
-        setelah setiap posting payment/charge untuk invoice ini."""
-        paid = self.total_paid_sar
-        if paid >= self.total_sar and self.total_sar > 0:
+        setelah setiap posting payment/charge untuk invoice ini. Invoice void
+        tetap void. Nota kredit mengurangi yang harus dibayar; invoice yang
+        habis dikreditkan dianggap lunas (tidak ada lagi yang ditagih)."""
+        if self.is_void:
+            return
+        paid, due = self.applied_paid_sar, self.due_sar
+        if self.total_sar > 0 and paid >= due:
             self.status = self.STATUS_PAID
         elif paid > 0:
             self.status = self.STATUS_PARTIAL

@@ -147,7 +147,7 @@ class BankAccountGuardTests(TestCase):
     def test_account_with_statement_keeps_branch_and_currency(self):
         from hw.models import BankStatement
         BankStatement.objects.create(bank_account=self.acc, period_start=date(2026, 9, 1), period_end=date(2026, 9, 30),
-                                     opening_balance_sar=0, closing_balance_sar=0)
+                                     opening_balance=0, closing_balance=0)
         self.client.post(f'/finance/bank-accounts/{self.acc.pk}/edit/', post_data(branch='jkt', currency='USD'))
         self.acc.refresh_from_db()
         self.assertEqual((self.acc.branch_id, self.acc.currency), ('sby', 'IDR'))
