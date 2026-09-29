@@ -154,8 +154,8 @@ def get_chat_reply(
     month = today.month
     year  = today.year
 
-    inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations', 'payments')
-    svc_qs = Invoice.objects.filter(invoice_type="visa").prefetch_related('service_items', 'payments')
+    inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations')
+    svc_qs = Invoice.objects.filter(invoice_type="visa").prefetch_related('service_items')
     cl_qs  = ConfirmationLetter.objects.all().prefetch_related('rooms')
 
     invoices = list(inv_qs.order_by("-created_at")[:20])

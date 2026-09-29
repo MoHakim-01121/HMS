@@ -8,14 +8,11 @@ bind the deposit to an invoice.
    through Reject.
 3. Applying a deposit saved the target invoice before the reservations were
    validated: a refused request left the deposit stuck on that invoice.
-4. clear_dead_payment_allocations cleans up rows left by the old behaviour.
 """
 import json
 from datetime import date
-from io import StringIO
 
 from django.contrib.auth.models import User
-from django.core.management import call_command
 from django.test import TestCase
 
 from hw.finance import posting
@@ -114,29 +111,3 @@ class DeadPaymentAllocationTests(TestCase):
         deposit.refresh_from_db()
         self.assertEqual(deposit.invoice_id, self.invoice.pk)
         self.assertEqual(deposit.status, PaymentRecord.STATUS_APPLIED)
-
-    # -- 4: cleanup command --------------------------------------------------
-
-    def _legacy_reversed_with_allocation(self):
-        """Reproduce old data: REVERSED status, allocation row still present."""
-        pr = self._payment(self.invoice)
-        PaymentRecord.objects.filter(pk=pr.pk).update(status=PaymentRecord.STATUS_REVERSED)
-        return pr
-
-    def test_cleanup_dry_run_changes_nothing(self):
-        pr = self._legacy_reversed_with_allocation()
-        out = StringIO()
-        call_command('clear_dead_payment_allocations', stdout=out)
-        self.assertIn(pr.payment_number, out.getvalue())
-        self.assertTrue(PaymentAllocation.objects.filter(payment=pr).exists())
-
-    def test_cleanup_apply_deletes_and_logs(self):
-        pr = self._legacy_reversed_with_allocation()
-        live = self._payment(self.invoice, amount=1000)
-
-        call_command('clear_dead_payment_allocations', '--apply', '--user', 'deadalloc', stdout=StringIO())
-
-        self.assertFalse(PaymentAllocation.objects.filter(payment=pr).exists())
-        self.assertTrue(PaymentAllocation.objects.filter(payment=live).exists())
-        log = pr.logs.filter(action=PaymentLog.ACTION_UPDATED).get()
-        self.assertEqual(log.before_state['allocations'][0]['amount_sar'], 6000)

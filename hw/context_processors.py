@@ -32,7 +32,7 @@ def _invoice_notifs(today, threshold, limit):
     qs = Invoice.objects.filter(due_date__lte=threshold, due_date__gte=today)
 
     notifs = []
-    for inv in qs.prefetch_related('reservations', 'payments').order_by("due_date")[:limit]:
+    for inv in qs.prefetch_related('reservations').order_by("due_date")[:limit]:
         if inv.remaining_sar <= 0:
             continue
         days = (inv.due_date - today).days

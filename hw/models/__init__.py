@@ -6,11 +6,10 @@ from .activity import ActivityLog, log_activity
 from .client import Client
 from .confirmation import ConfirmationLetter, Room
 from .invoice import (
-    Invoice, Reservation, ServiceItem, Payment,
+    Invoice, Reservation, ServiceItem,
     Attachment, _attachment_path,
 )
 from .remittance import Remittance, RemittanceLine
-from .ledger import ChargeReason, AllocationReason, Charge, Allocation, CashMovement
 from .bank import BankAccount, CashAccount
 from .bank_transaction import BankTransaction
 from .currency_exchange import CurrencyExchange
@@ -43,12 +42,10 @@ __all__ = [
     # Core
     'Client',
     'ConfirmationLetter', 'Room',
-    # Invoice (legacy — kept for backward compat during migration)
-    'Invoice', 'Reservation', 'ServiceItem', 'Payment', 'Attachment', '_attachment_path',
+    # Invoice
+    'Invoice', 'Reservation', 'ServiceItem', 'Attachment', '_attachment_path',
     # Remittance
     'Remittance', 'RemittanceLine',
-    # Ledger (legacy — kept for backward compat during migration)
-    'ChargeReason', 'AllocationReason', 'Charge', 'Allocation', 'CashMovement',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
     'BankAccount', 'CashAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)

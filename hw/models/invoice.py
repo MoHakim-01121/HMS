@@ -7,7 +7,6 @@ from django.db import models
 from django.urls import reverse
 
 from .choices import InvoiceType
-from ..utils import convert_to_sar
 
 
 # Cabang penerbit bila reservasi tidak menyebut owner_branch.
@@ -266,41 +265,6 @@ class ServiceItem(models.Model):
     @property
     def total(self):
         return self.qty * self.price
-
-
-class Payment(models.Model):
-    """[LEGACY / DEPRECATED] Pembayaran lama, digantikan oleh PaymentRecord
-    (hw/models/payment.py + finance/posting.py).
-
-    Tabel (`hw_payment`) & model ini SENG AJA dipertahankan untuk kompatibilitas
-    dengan seeder/backfill dan data historis. JANGAN menulis pembayaran baru
-    melalui model ini -- gunakan PaymentRecord + create_payment_record().
-    """
-    invoice       = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
-    cl            = models.ForeignKey(
-        'ConfirmationLetter', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='cl_payments',
-    )
-    linked_number = models.CharField(max_length=100, blank=True, db_index=True)
-    payment_date  = models.DateField(null=True, blank=True)
-    method        = models.CharField(max_length=100, blank=True)
-    amount        = models.PositiveIntegerField(default=0)
-    currency      = models.CharField(max_length=10, default='SAR')
-    exchange_rate = models.DecimalField(max_digits=14, decimal_places=4, default=1)
-    note          = models.TextField(blank=True)
-    proof         = models.FileField(upload_to='payments/proof/', null=True, blank=True)
-
-    class Meta:
-        ordering            = ['id']
-        verbose_name        = 'Payment'
-        verbose_name_plural = 'Payments'
-
-    def __str__(self):
-        return f"{self.payment_date} | {self.amount} {self.currency}"
-
-    @property
-    def amount_sar(self):
-        return int(round(convert_to_sar(self.amount, self.currency, float(self.exchange_rate))))
 
 
 def _attachment_path(instance, filename):
