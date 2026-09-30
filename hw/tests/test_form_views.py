@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -108,8 +109,8 @@ class PenaltyViewTests(TestCase):
         self.user = User.objects.create_user("tester3", password="pw12345")
         self.client.force_login(self.user)
         s = self.client.session; s["active_company"] = "konoz"; s.save()
-        self.cl = ConfirmationLetter.objects.create(
- guest_name="Budi", confirmation_number="CL-1",
+        self.cl = make_cl(
+            guest_name="Budi", confirmation_number="CL-1", reservation_status="CANCELLED",
         )
 
     def _inertia_get(self, url):
@@ -238,17 +239,23 @@ class ClFormTests(TestCase):
 
     def test_duplicate_number_returns_error(self):
         from hw.models import ConfirmationLetter
-        ConfirmationLetter.objects.create( confirmation_number="CLX-DUP")
+        make_cl( confirmation_number="CLX-DUP")
         page = self._post("/cl/new/", {"confirmation_number": "CLX-DUP", "company": "konoz", "rooms": "[]"}).json()
         self.assertIn("confirmation_number", page["props"]["errors"])
 
     def test_valid_create_with_rooms(self):
-        from hw.models import ConfirmationLetter, Room
+        import json
+        from hw.models import Client, ConfirmationLetter, Hotel, Room, RoomType
+        customer = Client.objects.create(name="PT Budi Wisata")
+        hotel = Hotel.objects.create(name="Hilton", city="makkah")
+        rt = RoomType.objects.create(hotel=hotel, name="Double", capacity=2)
         resp = self._post("/cl/new/", {
             "confirmation_number": "CLX-OK", "company": "konoz",
-            "guest_name": "Budi", "hotel_name": "Hilton",
+            "client_id": str(customer.pk), "guest_name": "PT Budi Wisata",
+            "hotel_id": str(hotel.pk), "hotel_name": "Hilton",
+            "check_in": "2026-10-01", "check_out": "2026-10-03",
             "reservation_status": "DEFINITE",
-            "rooms": '[{"room_type":"Double","meals":"BB","quantity":2,"price":300}]',
+            "rooms": json.dumps([{"room_type": "Double", "room_type_id": rt.pk, "meals": "BB", "quantity": 2, "price": 300}]),
         })
         self.assertEqual(resp.status_code, 302)
         cl = ConfirmationLetter.objects.get(confirmation_number="CLX-OK")

@@ -12,10 +12,8 @@ def global_search(request):
     if not q or len(q) < 2:
         return JsonResponse({"results": [], "q": q})
 
-    cl_qs = ConfirmationLetter.objects.filter(
-        Q(confirmation_number__icontains=q) |
-        Q(guest_name__icontains=q) |
-        Q(hotel_name__icontains=q)
+    cl_qs = ConfirmationLetter.objects.with_parties().filter(
+        ConfirmationLetter.objects.name_matches(q)
     )[:8]
 
     inv_qs = (

@@ -47,8 +47,9 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
 
-  // Guest = client. Typing free text keeps it as guest_name (no client link);
-  // an exact name match or picking from the list links the client_id.
+  // Guest = client, and a reservation always belongs to one (schema v2): an
+  // exact name match or picking from the list sets client_id; text that
+  // matches no client is refused on save with "choose the client from the list".
   const clientList = clients || [];
   const onGuestText = (text) => {
     const q = text.trim().toLowerCase();
@@ -61,9 +62,9 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     form.setData("client_id", String(cl.id));
   };
 
-  // Hotel = optional link to the catalog (RoomType-scoped rooms). Typed text
-  // that doesn't match a cataloged hotel keeps hotel_id empty — rooms then
-  // fall back to free text (see RoomRows). Switching hotels always clears
+  // Hotel = required link to the catalog (RoomType-scoped rooms). Typed text
+  // that doesn't match a cataloged hotel keeps hotel_id empty and is refused
+  // on save — the hotel is added to the catalog first. Switching hotels always clears
   // room_type selections — room types belong to one hotel. Meals survive
   // when they still make sense: a code the new hotel also sells is kept, and
   // free text is kept when the new hotel has no meal list to pick from
@@ -164,7 +165,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                     onSelect={onGuestSelect}
                     options={clientList}
                     getLabel={(o) => o.brand || o.name}
-                    placeholder={t("Search client or type a group name…")}
+                    placeholder={t("Search client…")}
+                    emptyLabel={t("Not in the client list — add the client first")}
                     error={errors.guest_name}
                   />
                 </FormField>
@@ -194,7 +196,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
               <span className="rd-sec-desc">{t("Nights are computed automatically from the dates.")}</span>
             </div>
             <div className="rd-sec-b">
-              <FormField label={t("Hotel")} name="hotel_name" error={errors.hotel_name}>
+              <FormField label={t("Hotel")} name="hotel_name" error={errors.hotel_name} required>
                 <Combobox
                   name="hotel_name"
                   value={form.data.hotel_name}
@@ -203,16 +205,16 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                   options={hotelList}
                   getLabel={(o) => o.name}
                   getSub={(o) => o.city || ""}
-                  placeholder={t("Search hotel or type name…")}
-                  emptyLabel={t("New hotel — typed manually")}
+                  placeholder={t("Search hotel…")}
+                  emptyLabel={t("Not in the hotel list — add the hotel first")}
                   error={errors.hotel_name}
                 />
               </FormField>
               <div className="rd-row3">
-                <FormField label={t("Check-in")} name="check_in" error={errors.check_in}>
+                <FormField label={t("Check-in")} name="check_in" error={errors.check_in} required>
                   <Input id="check_in" name="check_in" type="date" value={form.data.check_in} onChange={(e) => setDate("check_in", e.target.value)} />
                 </FormField>
-                <FormField label={t("Check-out")} name="check_out" error={errors.check_out}>
+                <FormField label={t("Check-out")} name="check_out" error={errors.check_out} required>
                   <Input id="check_out" name="check_out" type="date" min={form.data.check_in || undefined} value={form.data.check_out} onChange={(e) => setDate("check_out", e.target.value)} />
                 </FormField>
                 <FormField label={t("Nights")} name="nights">
@@ -236,6 +238,9 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                 addHotelHref={`/hotels/new/?name=${encodeURIComponent(form.data.hotel_name || "")}`}
                 editHotelHref={selectedHotel ? `/hotels/${selectedHotel.id}/edit/` : null}
               />
+              {errors.rooms && (
+                <div role="alert" style={{ fontSize: 12, color: "var(--red)", marginTop: 6 }}>{t(errors.rooms)}</div>
+              )}
               <div className="rd-rooms-foot">
                 <span>{totalRooms} {t(totalRooms === 1 ? "room" : "rooms")} · {t("capacity")} {capacity} {t("pax")}</span>
                 <span className="rd-rooms-foot-total">{t("Total")} {fmt(total)} <span className="cur">SAR</span></span>

@@ -1,4 +1,5 @@
 """hw.numbering — counter satu baris per jenis dokumen (DocumentSequence)."""
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.db import transaction
@@ -10,7 +11,7 @@ from hw.numbering import NumberingError, advance_number, generate_sequential_num
 
 
 def _cl(number):
-    return ConfirmationLetter.objects.create(
+    return make_cl(
         confirmation_number=number, hotel_name='H', guest_name='G',
         check_in=date(2040, 1, 1), check_out=date(2040, 1, 3),
     )

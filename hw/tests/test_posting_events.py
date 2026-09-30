@@ -1,4 +1,5 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -174,13 +175,13 @@ class KasMovementTests(PostingTestBase):
 
 class PenaltyChargeTests(PostingTestBase):
     def test_penalty_charge_posts(self):
-        cl = ConfirmationLetter.objects.create(
+        cl = make_cl(
  client=self.client_obj, hotel_name="H", guest_name="G",
             confirmation_number="CL-P1",
         )
         pen = CancellationPenalty.objects.create(
             cl=cl, penalty_number="PNL-P1",
-            cancellation_date=date(2045, 3, 1), penalty_amount=5000, amount_sar=5000,
+            cancellation_date=date(2045, 3, 1), penalty_amount=5000,
         )
         posting.post_penalty_charge(pen, created_by=self.user)
         self.assertEqual(_net(account_id=coa.AR, penalty=pen), 5000)

@@ -275,12 +275,13 @@ class HqReceivesSarOnlyTest(BankTransactionBase):
                                    received_in='pusat', created_by=self.user)
         self.assertEqual(pr.receiving_account.branch_id, 'pusat')
 
-    def test_non_sar_penalty_paid_at_hq_is_refused(self):
-        from types import SimpleNamespace
-        from hw.finance.errors import FinanceError
-        with self.assertRaises(FinanceError):
-            posting.post_penalty_payment(SimpleNamespace(penalty_currency='IDR', pk=1), created_by=self.user,
-                                         received_in='pusat')
+    def test_penalty_has_no_currency_other_than_sar(self):
+        # Schema v2: denda selalu SAR, jadi "denda rupiah dibayar di Pusat"
+        # tidak bisa lagi terjadi.
+        from hw.models import CancellationPenalty
+        fields = {f.name for f in CancellationPenalty._meta.get_fields()}
+        self.assertFalse({'penalty_currency', 'exchange_rate', 'amount_sar'} & fields)
+        self.assertEqual(CancellationPenalty.penalty_currency, 'SAR')
 
     def test_hq_cannot_hold_a_rupiah_account(self):
         u = User.objects.create_superuser('hqadm', password='pw12345')

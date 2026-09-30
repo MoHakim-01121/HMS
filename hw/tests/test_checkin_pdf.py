@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 from datetime import date, time, timedelta
 from unittest.mock import patch
 from django.test import TestCase
@@ -13,7 +14,7 @@ def _make_cl(**kwargs):
         confirmation_number='KNZ-001', reservation_status='DEFINITE',
     )
     defaults.update(kwargs)
-    return ConfirmationLetter.objects.create(**defaults)
+    return make_cl(**defaults)
 
 
 class CheckinPdfGroupingTest(TestCase):
@@ -26,7 +27,7 @@ class CheckinPdfGroupingTest(TestCase):
 
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(
-            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel_name', 'guest_name')
+            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel__name', 'client__name')
         )
 
         self.assertEqual(len(groups), 2)  # 2 tanggal
@@ -49,7 +50,7 @@ class CheckinPdfGroupingTest(TestCase):
         )
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(
-            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel_name', 'guest_name')
+            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel__name', 'client__name')
         )
         guest = groups[0]['hotels'][0]['guests'][0]
         self.assertEqual(guest['guest_name'], 'Zaid')
@@ -64,7 +65,7 @@ class CheckinPdfGroupingTest(TestCase):
         _make_cl(estimasi_tiba=None)
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(
-            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel_name', 'guest_name')
+            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel__name', 'client__name')
         )
         guest = groups[0]['hotels'][0]['guests'][0]
         self.assertEqual(guest['eta'], '—')
@@ -73,7 +74,7 @@ class CheckinPdfGroupingTest(TestCase):
         _make_cl(pic_name='', pic_phone='')
         from hw.views.pdf import _build_checkin_groups
         groups = _build_checkin_groups(
-            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel_name', 'guest_name')
+            ConfirmationLetter.objects.prefetch_related('rooms').order_by('check_in', 'hotel__name', 'client__name')
         )
         guest = groups[0]['hotels'][0]['guests'][0]
         self.assertEqual(guest['pic_name'], '—')

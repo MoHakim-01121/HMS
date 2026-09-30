@@ -10,6 +10,7 @@ Covers the review findings that were actually implemented:
       ledger.
 * M3: visa/service invoices compute total_sar and remaining_sar correctly.
 """
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -49,11 +50,11 @@ class PenaltyLedgerSyncTest(TestCase):
  invoice_type='hotel', invoice_number='INV-PEN-1',
             customer_name='Amanah', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
  client=self.cl_obj, hotel_name='Hotel A',
             guest_name='Guest A', check_in=date(2026, 8, 10),
             check_out=date(2026, 8, 12), confirmation_number='CL-PEN-1',
-            invoice=self.inv,
+            invoice=self.inv, reservation_status='CANCELLED',
         )
 
     def test_penalty_create_posts_charge_and_payment_to_journal(self):
@@ -110,7 +111,7 @@ class PenaltyIndependentFromInvoicePaymentTest(TestCase):
         self.res = Reservation.objects.create(
             invoice=self.inv, reservation_number='R1', hotel='H', total_sar=5000,
         )
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
  client=self.cl_obj, hotel_name='Hotel B',
             guest_name='Guest B', check_in=date(2026, 8, 10),
             check_out=date(2026, 8, 12), confirmation_number='CL-PAY-1',
@@ -210,7 +211,7 @@ class DeleteGuardTest(TestCase):
         self.assertFalse(Remittance.objects.filter(pk=rem.pk).exists())
 
     def test_penalty_delete_blocked_when_journaled(self):
-        cl = ConfirmationLetter.objects.create(
+        cl = make_cl(
  client=self.cl_obj, hotel_name='H', guest_name='G',
             confirmation_number='CL-DEL-1',
         )

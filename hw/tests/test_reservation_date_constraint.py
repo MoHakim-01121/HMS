@@ -3,6 +3,7 @@
 Added only after confirming against production data (2026-09-12): 0 of 84
 existing reservations violate it, including 0 same-day bookings.
 """
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.db import IntegrityError, transaction
@@ -16,20 +17,20 @@ class ConfirmationLetterDateConstraintTest(TestCase):
     97 existing CLs, 0 violations, 0 same-day rows."""
 
     def test_check_out_after_check_in_is_allowed(self):
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number='CL-DC-1', guest_name='Ahmad',
             check_in=date(2026, 6, 1), check_out=date(2026, 6, 3),
         )
 
     def test_null_dates_are_allowed(self):
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number='CL-DC-2', guest_name='Ahmad',
         )
 
     def test_same_day_is_rejected(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                ConfirmationLetter.objects.create(
+                make_cl(
  confirmation_number='CL-DC-3', guest_name='Ahmad',
                     check_in=date(2026, 6, 1), check_out=date(2026, 6, 1),
                 )
@@ -37,7 +38,7 @@ class ConfirmationLetterDateConstraintTest(TestCase):
     def test_check_out_before_check_in_is_rejected(self):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                ConfirmationLetter.objects.create(
+                make_cl(
  confirmation_number='CL-DC-4', guest_name='Ahmad',
                     check_in=date(2026, 6, 3), check_out=date(2026, 6, 1),
                 )

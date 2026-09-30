@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl, make_room
 import json
 from datetime import date
 
@@ -25,7 +26,7 @@ class InvoiceEditClLinkTests(TestCase):
             invoice_number="INV-CL-001", customer_name="Test Customer",
             currency="SAR",
         )
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
  hotel_name="Hotel A", guest_name="Guest A",
             confirmation_number="CL-LINK-001", invoice=self.invoice,
         )
@@ -73,13 +74,13 @@ class InvoiceChargeClientResolutionTests(TestCase):
             name="2020-2030",            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.customer = Client.objects.create( name="PT Regression Client")
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
  hotel_name="Hotel Regress", guest_name="Guest Regress",
             confirmation_number="CL-REGRESS-001", client=self.customer,
         )
         # The linked CL is what the invoice bills (reservation_rules), not the
         # reservation_total the form posts -- so the CL carries the price.
-        Room.objects.create(cl=self.cl, room_type="Quad", quantity=1, price=1000)
+        make_room(cl=self.cl, room_type="Quad", quantity=1, price=1000)
 
     def test_invoice_new_with_linked_cl_resolves_charge_client(self):
         resp = self.client.post("/invoice/new/", {

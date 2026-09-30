@@ -4,7 +4,7 @@ from .user import BranchAccess, Language, Role, UserProfile
 from .role import RoleDefinition
 from .activity import ActivityLog, log_activity
 from .client import Client
-from .confirmation import ConfirmationLetter, Room
+from .confirmation import ConfirmationLetter, ReservationStatus, Room
 from .invoice import (
     Invoice, Reservation, ServiceItem,
     Attachment, _attachment_path,
@@ -46,7 +46,7 @@ __all__ = [
     'ActivityLog', 'log_activity',
     # Core
     'Client',
-    'ConfirmationLetter', 'Room',
+    'ConfirmationLetter', 'ReservationStatus', 'Room',
     # Invoice
     'Invoice', 'Reservation', 'ServiceItem', 'Attachment', '_attachment_path',
     # Remittance

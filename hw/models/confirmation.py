@@ -1,20 +1,60 @@
+"""ConfirmationLetter = reservasi (skema target 3.2).
+
+CL adalah reservasi itu sendiri: diterbitkan KONOZ Pusat untuk satu client di
+satu hotel, dengan nomor internal KONOZ. Nama client dan nama hotel TIDAK
+disimpan di sini: guest_name dan hotel_name adalah properti yang membaca
+Client dan Hotel lewat foreign key, jadi tidak bisa berbeda dari master.
+(Dulu keduanya kolom teks salinan; di produksi 3 nama hotel dan 1 tanggal di
+baris tagihan sudah menyimpang dari CL-nya.)
+"""
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import Coalesce, NullIf
 from django.urls import reverse
 
 from ..utils import round_half_up
 
 
+class ReservationStatus(models.TextChoices):
+    TENTATIVE = 'TENTATIVE', 'Tentative'
+    DEFINITE = 'DEFINITE', 'Definite'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+def guest_name_expr(prefix=''):
+    """Ekspresi ORM nama tampil client (brand, atau nama perusahaan) untuk
+    order_by/annotate. `prefix` = jalur ke CL dari model lain (mis. 'cl__')."""
+    return Coalesce(
+        NullIf(models.F(f'{prefix}client__brand'), models.Value('')),
+        models.F(f'{prefix}client__name'),
+    )
+
+
+class ConfirmationLetterQuerySet(models.QuerySet):
+    def with_parties(self):
+        """Ikut memuat client dan hotel, yang dibaca guest_name/hotel_name."""
+        return self.select_related('client', 'hotel')
+
+    def name_matches(self, token):
+        """Q: nomor CL, nama client/brand, atau nama hotel memuat `token`."""
+        return (
+            models.Q(confirmation_number__icontains=token)
+            | models.Q(client__name__icontains=token)
+            | models.Q(client__brand__icontains=token)
+            | models.Q(hotel__name__icontains=token)
+        )
+
+
 class ConfirmationLetter(models.Model):
-    client              = models.ForeignKey('Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='cls')
-    hotel_name          = models.CharField(max_length=200)
-    hotel               = models.ForeignKey('Hotel', null=True, blank=True, on_delete=models.SET_NULL, related_name='confirmation_letters')
-    guest_name          = models.CharField(max_length=200)
+    client              = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='cls')
+    hotel               = models.ForeignKey('Hotel', on_delete=models.PROTECT, related_name='confirmation_letters')
     guest_phone         = models.CharField(max_length=50, blank=True)
-    check_in            = models.DateField(null=True, blank=True, db_index=True)
-    check_out           = models.DateField(null=True, blank=True, db_index=True)
+    check_in            = models.DateField(db_index=True)
+    check_out           = models.DateField(db_index=True)
     confirmation_number = models.CharField(max_length=100, db_index=True)
-    reservation_status  = models.CharField(max_length=50, default='DEFINITE', db_index=True)
+    reservation_status  = models.CharField(
+        max_length=10, choices=ReservationStatus.choices, default=ReservationStatus.DEFINITE,
+    )
     invoice             = models.ForeignKey(
         'Invoice', null=True, blank=True,
         on_delete=models.SET_NULL, related_name='confirmation_letters',
@@ -26,6 +66,8 @@ class ConfirmationLetter(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = ConfirmationLetterQuerySet.as_manager()
+
     class Meta:
         ordering            = ['-created_at']
         verbose_name        = 'Confirmation Letter'
@@ -35,15 +77,13 @@ class ConfirmationLetter(models.Model):
                 fields=['confirmation_number'],
                 name='uniq_confirmation_number',
             ),
-            # v2.0 §11. Verified data-safe against production before adding
-            # (2026-09-14): 97 existing CLs, 0 violations, 0 same-day rows —
-            # same audit method as Reservation's mirror of this constraint.
             models.CheckConstraint(
-                condition=(
-                    models.Q(check_in__isnull=True) | models.Q(check_out__isnull=True)
-                    | models.Q(check_out__gt=models.F('check_in'))
-                ),
+                condition=models.Q(check_out__gt=models.F('check_in')),
                 name='cl_check_out_after_check_in',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(reservation_status__in=[c[0] for c in ReservationStatus.choices]),
+                name='cl_status_valid',
             ),
         ]
         indexes = [
@@ -55,6 +95,19 @@ class ConfirmationLetter(models.Model):
 
     def get_absolute_url(self):
         return reverse('cl_detail', args=[self.pk])
+
+    @property
+    def guest_name(self):
+        """Nama tampil client (brand, atau nama perusahaan)."""
+        return self.client.display_name if self.client_id else ''
+
+    @property
+    def hotel_name(self):
+        return self.hotel.name if self.hotel_id else ''
+
+    @property
+    def is_cancelled(self):
+        return self.reservation_status == ReservationStatus.CANCELLED
 
     @property
     def num_nights(self):
@@ -72,12 +125,7 @@ class ConfirmationLetter(models.Model):
 
     @property
     def num_guests(self):
-        legacy_capacity = {'Double': 2, 'Triple': 3, 'Quad': 4, 'Quint': 5}
-        total = 0
-        for r in self.rooms.all():
-            cap = r.room_type_ref.capacity if r.room_type_ref_id else legacy_capacity.get(r.room_type, 1)
-            total += cap * r.quantity
-        return total
+        return sum(r.room_type_ref.capacity * r.quantity for r in self.rooms.all())
 
     @property
     def paid_sar(self):
@@ -107,20 +155,39 @@ class ConfirmationLetter(models.Model):
 
 
 class Room(models.Model):
+    """Kamar dalam sebuah reservasi: komponen CL (terhapus bersama CL-nya).
+
+    Tipe kamar dan meal plan menunjuk master lewat foreign key. room_type dan
+    meals (dulu kolom teks salinan) sekarang properti yang membaca master itu.
+    """
     cl        = models.ForeignKey(ConfirmationLetter, on_delete=models.CASCADE, related_name='rooms')
-    room_type = models.CharField(max_length=50)
-    room_type_ref = models.ForeignKey('RoomType', null=True, blank=True, on_delete=models.SET_NULL, related_name='bookings')
-    meals     = models.CharField(max_length=100, blank=True)
-    meal_plan = models.ForeignKey('MealPlan', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    room_type_ref = models.ForeignKey('RoomType', on_delete=models.PROTECT, related_name='bookings')
+    meal_plan = models.ForeignKey('MealPlan', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    # Catatan bebas tentang makan/kamar (mis. "BB + late checkout"), bukan data.
+    note      = models.CharField(max_length=100, blank=True)
     quantity  = models.PositiveIntegerField(default=1)
     price     = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)])
 
     class Meta:
         verbose_name        = 'Room'
         verbose_name_plural = 'Rooms'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name='room_quantity_positive'),
+            models.CheckConstraint(condition=models.Q(price__gte=0), name='room_price_non_negative'),
+        ]
 
     def __str__(self):
         return f"{self.room_type} x{self.quantity} — {self.cl}"
+
+    @property
+    def room_type(self):
+        """Nama tipe kamar dari master (mis. "Quad Kaaba View")."""
+        return self.room_type_ref.name
+
+    @property
+    def meals(self):
+        """Kode meal plan (FB/RO/BB), atau catatan bebas bila tidak memakai master."""
+        return self.meal_plan_id or self.note
 
     @property
     def subtotal(self):

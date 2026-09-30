@@ -7,6 +7,7 @@ reservation, Reservation.confirmation_letter) -- and all three FKs are
 SET_NULL. So a delete-recreate silently detached the money from the row it was
 paid for, even when nothing about the row changed.
 """
+from hw.tests.factories import make_cl, make_room
 import json
 from datetime import date, timedelta
 
@@ -36,12 +37,12 @@ class InvoiceEditPreservesLinksTest(TestCase):
         )
         self.customer = Client.objects.create(name='PT Edit Link')
         self.check_in = date.today() + timedelta(days=30)
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
             hotel_name='Hotel Edit', guest_name='PT Edit Link', client=self.customer,
             confirmation_number='CL-EDIT-LINK-1',
             check_in=self.check_in, check_out=self.check_in + timedelta(days=2),
         )
-        Room.objects.create(cl=self.cl, room_type='Quad', quantity=1, price=1000)
+        make_room(cl=self.cl, room_type='Quad', quantity=1, price=1000)
 
         # Invoice built the normal way: one Reservation per CL.
         self.client.post('/cl/invoice-from-cls/', {'cl_ids': [str(self.cl.pk)]})

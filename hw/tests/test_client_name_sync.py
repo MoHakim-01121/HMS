@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 from datetime import date, timedelta
 from django.test import TestCase
 from hw.models import Client, ConfirmationLetter, Invoice
@@ -11,7 +12,7 @@ class ClientDisplayNameSyncTest(TestCase):
 
     def setUp(self):
         self.client_obj = Client.objects.create( name='PT Sync Test')
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
  confirmation_number='CL-NSYNC-001', guest_name='PT Sync Test',
             client=self.client_obj, check_in=date.today(), check_out=date.today() + timedelta(days=1),
         )
@@ -52,7 +53,7 @@ class ClientDisplayNameSyncTest(TestCase):
         )
         self.cl.invoice = invoice
         self.cl.save(update_fields=['invoice'])
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number='CL-NSYNC-002', guest_name='PT Other Sync',
             client=other_client, invoice=invoice,
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
@@ -65,7 +66,7 @@ class ClientDisplayNameSyncTest(TestCase):
         self.assertEqual(invoice.customer_name, 'Mixed')
 
     def test_unlinked_cl_is_left_alone(self):
-        unlinked = ConfirmationLetter.objects.create(
+        unlinked = make_cl(
  confirmation_number='CL-NSYNC-003', guest_name='Free Text Guest',
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
         )

@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 import csv
 import io
 from datetime import date
@@ -78,13 +79,13 @@ class InvoiceTotalsTest(TestCase):
         self._charge()
         self._pay(400)
 
-        cl = ConfirmationLetter.objects.create(
+        cl = make_cl(
  client=self.client_obj, hotel_name='Hotel', guest_name='Guest',
             confirmation_number='CL-PEN-001', invoice=self.invoice,
         )
         penalty = CancellationPenalty.objects.create(
             cl=cl, penalty_number='PNL-TEST',
-            cancellation_date=date(2026, 1, 2), penalty_amount=250, amount_sar=250,
+            cancellation_date=date(2026, 1, 2), penalty_amount=250,
         )
         posting.post_penalty_charge(penalty, created_by=self.user)
         posting.post_penalty_payment(penalty, created_by=self.user, entry_date=date(2026, 1, 2))

@@ -4,6 +4,7 @@ Covers the two things RBAC has to get right:
   * the matrix itself (hw/permissions.py) resolves the role correctly,
   * guarded views actually refuse the actions a role lacks.
 """
+from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -90,7 +91,7 @@ class MatrixTests(TestCase):
 
 class ViewGuardTests(TestCase):
     def setUp(self):
-        self.cl = ConfirmationLetter.objects.create(
+        self.cl = make_cl(
             confirmation_number="KU-CL-9001", guest_name="Guest",
         )
 

@@ -118,10 +118,10 @@ def _home_widgets(today):
     """Third-row dashboard widgets: top hotels by CL volume, client-region
     heat map, reservation lifecycle funnel, and the six most recent CLs."""
     top_hotels = [
-        {"hotel": row["hotel_name"], "count": row["n"]}
+        {"hotel": row["hotel__name"], "count": row["n"]}
         for row in (
             ConfirmationLetter.objects
-            .values("hotel_name")
+            .values("hotel__name")
             .annotate(n=Count("id"))
             .order_by("-n")[:5]
         )

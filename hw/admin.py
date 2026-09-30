@@ -34,7 +34,8 @@ class InvoiceAdmin(admin.ModelAdmin):
 class ConfirmationLetterAdmin(admin.ModelAdmin):
     list_display  = ('confirmation_number', 'guest_name', 'hotel_name', 'check_in', 'check_out', 'reservation_status')
     list_filter   = ('reservation_status',)
-    search_fields = ('confirmation_number', 'guest_name', 'hotel_name')
+    search_fields = ('confirmation_number', 'client__name', 'client__brand', 'hotel__name')
+    list_select_related = ('client', 'hotel')
     date_hierarchy = 'check_in'
 
 

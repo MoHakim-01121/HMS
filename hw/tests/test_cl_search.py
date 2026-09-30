@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -40,13 +41,13 @@ class ClListMultiSearchTests(TestCase):
         s = self.client.session
         s["active_company"] = "konoz"
         s.save()
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number="HMS/241", guest_name="Ahmad", hotel_name="Hotel A"
         )
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number="HMS/142", guest_name="Budi", hotel_name="Hotel B"
         )
-        ConfirmationLetter.objects.create(
+        make_cl(
  confirmation_number="HMS/999", guest_name="Citra", hotel_name="Hotel C"
         )
 

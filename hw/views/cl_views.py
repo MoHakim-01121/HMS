@@ -12,7 +12,11 @@ from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, Reservation, Room, RoomType, log_activity
+from ..models import (
+    ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, Reservation, ReservationStatus, Room,
+    RoomType, log_activity,
+)
+from ..models.confirmation import guest_name_expr
 from ..permissions import require_perm
 from ..i18n import tr
 from .helpers import _is_mobile, _parse_date, _parse_search_tokens, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
@@ -30,11 +34,16 @@ def _get_cl(request, pk, qs=None):
 
 
 _SORT_MAP = {
-    '-check_in':   '-check_in',
-    'check_in':    'check_in',
-    'guest_name':  'guest_name',
-    '-created_at': '-created_at',
+    '-check_in':   ['-check_in'],
+    'check_in':    ['check_in'],
+    # Nama tampil client (brand, atau nama perusahaan) dibaca lewat FK.
+    'guest_name':  [guest_name_expr().asc(), 'pk'],
+    '-created_at': ['-created_at'],
 }
+
+
+def _order(qs, sort, default='-check_in'):
+    return qs.order_by(*_SORT_MAP.get(sort, _SORT_MAP[default]))
 
 
 def _cl_filter_params(request):
@@ -53,11 +62,7 @@ def _apply_cl_filters(qs, q, status_list, date_from, date_to):
         if tokens:
             combined = Q()
             for token in tokens:
-                combined |= (
-                    Q(guest_name__icontains=token) |
-                    Q(hotel_name__icontains=token) |
-                    Q(confirmation_number__icontains=token)
-                )
+                combined |= ConfirmationLetter.objects.name_matches(token)
             qs = qs.filter(combined)
     if status_list:
         qs = qs.filter(reservation_status__in=status_list)
@@ -72,14 +77,15 @@ def _filter_cl_qs(qs, request):
     q, status_list, date_from, date_to = _cl_filter_params(request)
     sort = request.GET.get('sort', '-check_in')
     qs = _apply_cl_filters(qs, q, status_list, date_from, date_to)
-    return qs.order_by(_SORT_MAP.get(sort, '-check_in'))
+    return _order(qs, sort)
 
 
 @require_perm('cl', 'view')
 def cl_list(request):
     base_qs = (
         ConfirmationLetter.objects.all()
-        .defer('note').select_related('invoice').prefetch_related('rooms')
+        .defer('note').select_related('invoice', 'client', 'hotel')
+        .prefetch_related('rooms__room_type_ref')
     )
 
     q, status_list, date_from, date_to = _cl_filter_params(request)
@@ -93,7 +99,7 @@ def cl_list(request):
     }
 
     qs = _apply_cl_filters(base_qs, q, status_list, date_from, date_to)
-    qs = qs.order_by(_SORT_MAP.get(sort, '-check_in'))
+    qs = _order(qs, sort)
 
     # Counts filter GROUPS in use, not individual values (doc 02b "Badge
     # hitung"): three checked statuses is still one group, a date range is
@@ -170,10 +176,46 @@ def _resolve_hotel_id(request):
     return hotel_id
 
 
+def _posted_rooms(data):
+    try:
+        rooms = json.loads(data.get("rooms", "[]") or "[]")
+    except (ValueError, TypeError):
+        rooms = []
+    return [r for r in rooms if isinstance(r, dict) and ((r.get("room_type") or "").strip() or r.get("room_type_id"))]
+
+
 def _validate_cl(data, exclude_pk=None):
     errors = {}
+    # Reservasi selalu milik satu client dan satu hotel dari master (skema v2):
+    # nama yang diketik tanpa memilih dari daftar tidak lagi disimpan sebagai teks.
+    client_id = data.get("client_id") or None
+    if not client_id or not Client.objects.filter(pk=client_id).exists():
+        errors["guest_name"] = "Choose the client from the list (add the client first if it is new)."
+    hotel_id = data.get("hotel_id") or None
+    if not hotel_id or not Hotel.objects.filter(pk=hotel_id).exists():
+        errors["hotel_name"] = "Choose the hotel from the list (add the hotel first if it is new)."
     check_in = _parse_date(data.get("check_in"))
     check_out = _parse_date(data.get("check_out"))
+    if not check_in:
+        errors["check_in"] = "Check-in date is required."
+    if not check_out:
+        errors["check_out"] = "Check-out date is required."
+    status = (data.get("reservation_status") or "DEFINITE").upper()
+    if status not in ReservationStatus.values:
+        errors["reservation_status"] = "Unknown reservation status."
+    rooms = _posted_rooms(data)
+    if not rooms:
+        errors["rooms"] = "Add at least one room."
+    elif hotel_id and "hotel_name" not in errors:
+        valid = set(RoomType.objects.filter(hotel_id=hotel_id).values_list("pk", flat=True))
+        for r in rooms:
+            try:
+                ok = int(r.get("room_type_id") or 0) in valid
+            except (ValueError, TypeError):
+                ok = False
+            if not ok:
+                errors["rooms"] = "Choose each room type from this hotel's catalog."
+                break
     if check_in and check_out and check_out <= check_in:
         # <=, not <: mirrors the DB CheckConstraint (cl_check_out_after_check_in,
         # v2.0 §11) so a same-day date surfaces as a clean form error instead
@@ -219,24 +261,18 @@ def cl_new(request):
                 "suggested_number": request.POST.get("confirmation_number", suggested_number),
                 **_form_context_data(),
             })
-        client_id = request.POST.get("client_id") or None
-        guest_name = request.POST.get("guest_name", "").strip()
-        if not guest_name and client_id:
-            picked = Client.objects.filter(pk=client_id).values("name", "brand").first()
-            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
-        cl = ConfirmationLetter.objects.create(
-            client_id=client_id,
-            hotel_id=_resolve_hotel_id(request),
-            hotel_name=request.POST.get("hotel_name", ""),
-            guest_name=guest_name,
-            guest_phone=request.POST.get("guest_phone", ""),
-            check_in=_parse_date(request.POST.get("check_in")),
-            check_out=_parse_date(request.POST.get("check_out")),
-            confirmation_number=request.POST.get("confirmation_number", ""),
-            reservation_status=request.POST.get("reservation_status", "DEFINITE"),
-            note=request.POST.get("note", ""),
-        )
-        _save_cl_rooms(cl, request)
+        with transaction.atomic():
+            cl = ConfirmationLetter.objects.create(
+                client_id=request.POST.get("client_id"),
+                hotel_id=_resolve_hotel_id(request),
+                guest_phone=request.POST.get("guest_phone", ""),
+                check_in=_parse_date(request.POST.get("check_in")),
+                check_out=_parse_date(request.POST.get("check_out")),
+                confirmation_number=request.POST.get("confirmation_number", ""),
+                reservation_status=(request.POST.get("reservation_status") or "DEFINITE").upper(),
+                note=request.POST.get("note", ""),
+            )
+            _save_cl_rooms(cl, request)
         ConfirmationLetter.claim_number(cl.confirmation_number)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} created successfully.")
@@ -253,8 +289,8 @@ def cl_new(request):
 def cl_detail(request, pk):
     cl = _get_cl(
         request, pk,
-        ConfirmationLetter.objects.select_related('client', 'invoice', 'penalty')
-        .prefetch_related('rooms', 'attachments'),
+        ConfirmationLetter.objects.select_related('client', 'hotel', 'invoice', 'penalty')
+        .prefetch_related('rooms__room_type_ref', 'attachments'),
     )
     rooms = [{
         "room_type": r.room_type,
@@ -339,19 +375,13 @@ def cl_edit(request, pk):
         _before = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status'])
         _rooms_before = _room_snapshot(cl.rooms.all())
 
-        cl.client_id = request.POST.get("client_id") or None
+        cl.client_id = request.POST.get("client_id")
         cl.hotel_id = _resolve_hotel_id(request)
-        cl.hotel_name = request.POST.get("hotel_name", "")
-        guest_name = request.POST.get("guest_name", "").strip()
-        if not guest_name and cl.client_id:
-            picked = Client.objects.filter(pk=cl.client_id).values("name", "brand").first()
-            guest_name = (picked and (picked["brand"] or picked["name"])) or ""
-        cl.guest_name = guest_name
         cl.guest_phone = request.POST.get("guest_phone", "")
         cl.check_in = _parse_date(request.POST.get("check_in"))
         cl.check_out = _parse_date(request.POST.get("check_out"))
         cl.confirmation_number = request.POST.get("confirmation_number", "")
-        cl.reservation_status = request.POST.get("reservation_status", "DEFINITE")
+        cl.reservation_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
         cl.note = request.POST.get("note", "")
         cl.save()
         ConfirmationLetter.claim_number(cl.confirmation_number)
@@ -417,7 +447,7 @@ def cl_pdf(request, pk):
 @require_perm('cl', 'export')
 def cl_list_pdf(request):
     qs = ConfirmationLetter.objects.all()
-    qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
+    qs = _filter_cl_qs(qs, request).with_parties().prefetch_related('rooms__room_type_ref')
     letters = list(qs)
     # One bulk Payment query for all paid totals -- summing cl.paid_sar here
     # used to cost two queries per CL (N+1).
@@ -450,7 +480,7 @@ def cl_list_pdf(request):
 @require_perm('cl', 'export')
 def cl_list_pdf_v2(request):
     qs = ConfirmationLetter.objects.all()
-    qs = _filter_cl_qs(qs, request).prefetch_related('rooms')
+    qs = _filter_cl_qs(qs, request).with_parties().prefetch_related('rooms__room_type_ref')
     letters = list(qs)
     for cl in letters:
         counts = {}
@@ -495,24 +525,14 @@ def cl_export_csv(request):
 def cl_duplicate(request, pk):
     original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()
-    # A duplicate is a new booking, so each link is carried only while it is
-    # still valid for one: an inactive client or hotel is no longer offered
-    # on a new document, a removed room type or a board type the hotel stopped
-    # selling would recreate exactly the mismatch the catalog exists to stop.
-    # Whatever is stale falls back to the copied text, as every duplicate did
-    # before. Carrying the hotel matters most: without it the copy opens with
-    # its room-type dropdowns locked, and re-picking the hotel wipes the rooms.
-    client_id = original.client_id if Client.objects.filter(pk=original.client_id, is_active=True).exists() else None
-    hotel_id = original.hotel_id if Hotel.objects.filter(pk=original.hotel_id, is_active=True).exists() else None
-    live_room_types, sold_plans = set(), set()
-    if hotel_id:
-        live_room_types = set(RoomType.objects.filter(hotel_id=hotel_id, is_active=True).values_list('pk', flat=True))
-        sold_plans = set(MealPlan.objects.filter(hotels__pk=hotel_id, is_active=True).values_list('code', flat=True))
+    # A duplicate is a new booking for the same client and hotel. A board type
+    # the hotel has since stopped selling is not carried as a link: it is kept
+    # as the room's free-text note instead, so nothing the catalog no longer
+    # offers is re-created as a master reference.
+    sold_plans = set(MealPlan.objects.filter(hotels__pk=original.hotel_id, is_active=True).values_list('code', flat=True))
     new_cl = ConfirmationLetter.objects.create(
-        client_id=client_id,
-        hotel_id=hotel_id,
-        hotel_name=original.hotel_name,
-        guest_name=original.guest_name,
+        client_id=original.client_id,
+        hotel_id=original.hotel_id,
         guest_phone=original.guest_phone,
         check_in=original.check_in,
         check_out=original.check_out,
@@ -521,12 +541,12 @@ def cl_duplicate(request, pk):
         note=original.note,
     )
     for room in original.rooms.all():
+        keep_plan = room.meal_plan_id in sold_plans
         Room.objects.create(
             cl=new_cl,
-            room_type=room.room_type,
-            room_type_ref_id=room.room_type_ref_id if room.room_type_ref_id in live_room_types else None,
-            meals=room.meals,
-            meal_plan_id=room.meal_plan_id if room.meal_plan_id in sold_plans else None,
+            room_type_ref_id=room.room_type_ref_id,
+            meal_plan_id=room.meal_plan_id if keep_plan else None,
+            note=room.note if keep_plan or not room.meal_plan_id else room.meal_plan_id,
             quantity=room.quantity,
             price=room.price,
         )
@@ -590,14 +610,7 @@ def invoice_from_cls(request):
 
 
 def _save_cl_rooms(cl, request):
-    try:
-        rooms = json.loads(request.POST.get("rooms", "[]") or "[]")
-    except (ValueError, TypeError):
-        rooms = []
-    for r in rooms:
-        rt = (r.get("room_type") or "").strip()
-        if not rt:
-            continue
+    for r in _posted_rooms(request.POST):
         try:
             qty = max(1, int(r.get("quantity") or 1))
         except (ValueError, TypeError):
@@ -606,28 +619,22 @@ def _save_cl_rooms(cl, request):
             price = max(0, float(r.get("price") or 0))
         except (ValueError, TypeError):
             price = 0
-        room_type_ref = None
-        room_type_id = r.get("room_type_id")
-        if room_type_id and cl.hotel_id:
-            room_type_ref = RoomType.objects.filter(pk=room_type_id, hotel_id=cl.hotel_id).first()
-        # A code only counts if the hotel actually sells it; otherwise the row
-        # keeps the typed free text exactly as before. Legacy free text that is
-        # exactly a code ("BB") is tried as one too, so old CLs pick up the
-        # link the next time they are saved. Room.meals still gets the code,
-        # so the PDFs, exports and CL detail that read that string keep
-        # working without being touched.
-        meals = r.get("meals") or ""
-        meal_plan = None
-        meal_plan_code = (r.get("meal_plan_code") or "").strip() or meals.strip()
-        if meal_plan_code and cl.hotel_id:
-            meal_plan = MealPlan.objects.filter(
-                code=meal_plan_code, is_active=True, hotels__pk=cl.hotel_id,
-            ).first()
-            if meal_plan:
-                meals = meal_plan.code
+        # _validate_cl already refused a room type outside this hotel's catalog.
+        room_type_ref = RoomType.objects.filter(pk=r.get("room_type_id") or 0, hotel_id=cl.hotel_id).first()
+        if room_type_ref is None:
+            continue
+        # A board code counts only if the hotel actually sells it; anything
+        # else (e.g. "BB + late checkout") is kept as the room's free-text
+        # note. Room.meals reads the code or the note, so the PDFs, exports
+        # and CL detail that show that string keep working untouched.
+        meals = (r.get("meals") or "").strip()
+        meal_plan_code = (r.get("meal_plan_code") or "").strip() or meals
+        meal_plan = MealPlan.objects.filter(
+            code=meal_plan_code, is_active=True, hotels__pk=cl.hotel_id,
+        ).first() if meal_plan_code else None
         Room.objects.create(
-            cl=cl, room_type=rt, room_type_ref=room_type_ref,
-            meals=meals, meal_plan=meal_plan, quantity=qty, price=price,
+            cl=cl, room_type_ref=room_type_ref, meal_plan=meal_plan,
+            note='' if meal_plan else meals[:100], quantity=qty, price=price,
         )
 
 

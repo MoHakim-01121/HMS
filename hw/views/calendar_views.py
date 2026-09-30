@@ -8,6 +8,7 @@ from django.urls import reverse
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter
+from ..models.confirmation import guest_name_expr
 from ..permissions import require_perm
 from ..i18n import tr, user_language
 from .pdf import _render_checkin_pdf
@@ -31,9 +32,9 @@ def _get_upcoming_checkins():
         ConfirmationLetter.objects
         .filter(check_in__gte=today, check_in__lte=week_end)
         .exclude(reservation_status='CANCELLED')
-        .select_related('client')
-        .prefetch_related('rooms')
-        .order_by('check_in', 'hotel_name')
+        .select_related('client', 'hotel')
+        .prefetch_related('rooms__room_type_ref')
+        .order_by('check_in', 'hotel__name')
     )
     result = []
     for cl in qs:
@@ -219,8 +220,8 @@ def calendar_checkin_pdf(request):
         ConfirmationLetter.objects
         .filter(**date_filter)
         .exclude(reservation_status='CANCELLED')
-        .prefetch_related('rooms')
-        .order_by('check_in', 'hotel_name', 'guest_name')
+        .with_parties().prefetch_related('rooms__room_type_ref')
+        .order_by('check_in', 'hotel__name', guest_name_expr().asc())
     )
 
     return _render_checkin_pdf(list(qs), title, filename,

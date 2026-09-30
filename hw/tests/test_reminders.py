@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl, make_room
 from datetime import date, timedelta
 from django.core.cache import cache
 from django.test import TestCase
@@ -12,7 +13,7 @@ def _make_cl(**kwargs):
         confirmation_number='CL-001', reservation_status='DEFINITE',
     )
     defaults.update(kwargs)
-    return ConfirmationLetter.objects.create(**defaults)
+    return make_cl(**defaults)
 
 
 class ClEstimasiFieldTest(TestCase):
@@ -160,8 +161,8 @@ class BuildGroupedReminderMessageTest(TestCase):
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT Format')
         cl = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='555')
-        Room.objects.create(cl=cl, room_type='Double', quantity=3, price=500000)
-        Room.objects.create(cl=cl, room_type='Quad', quantity=5, price=700000)
+        make_room(cl=cl, room_type='Double', quantity=3, price=500000)
+        make_room(cl=cl, room_type='Quad', quantity=5, price=700000)
         msg = build_grouped_reminder_message([cl], 'H0_GUEST', recipient_name=client.name)
         self.assertIn('1. #RSV : 555\n   Kamar : 3 Double, 5 Quad', msg)
         self.assertNotIn('Tamu:', msg)
@@ -272,64 +273,6 @@ class BuildGroupedReminderMessageTest(TestCase):
         self.assertIn('CL-DF', msg)
 
 
-class ResolveGuestTargetTest(TestCase):
-    def test_returns_guest_channel_with_phone(self):
-        from hw.services.recap import resolve_guest_target
-        cl = _make_cl(client=None, guest_phone='628999')
-        self.assertEqual(resolve_guest_target([cl]), [('GUEST', '628999')])
-
-    def test_empty_when_no_phone(self):
-        from hw.services.recap import resolve_guest_target
-        cl = _make_cl(client=None, guest_phone='')
-        self.assertEqual(resolve_guest_target([cl]), [])
-
-    def test_uses_first_pending_cl_with_phone(self):
-        from hw.services.recap import resolve_guest_target
-        cl1 = _make_cl(client=None, guest_phone='', confirmation_number='CL-NP1')
-        cl2 = _make_cl(client=None, guest_phone='628999', confirmation_number='CL-NP2')
-        self.assertEqual(resolve_guest_target([cl1, cl2]), [('GUEST', '628999')])
-
-
-class GroupGuestsTest(TestCase):
-    def test_same_name_blank_and_filled_phone_grouped(self):
-        from hw.services.recap import group_guests
-        cl1 = _make_cl(guest_name='Nur Sultan', guest_phone='', confirmation_number='CL-BP1')
-        cl2 = _make_cl(guest_name='Nur Sultan', guest_phone='085385557053', confirmation_number='CL-BP2')
-        groups = group_guests([cl1, cl2])
-        self.assertEqual(len(groups), 1)
-        self.assertEqual(len(list(groups.values())[0]), 2)
-
-    def test_same_name_two_distinct_phones_kept_separate(self):
-        from hw.services.recap import group_guests
-        cl1 = _make_cl(guest_name='Ahmad', guest_phone='628111', confirmation_number='CL-DP1')
-        cl2 = _make_cl(guest_name='Ahmad', guest_phone='628222', confirmation_number='CL-DP2')
-        groups = group_guests([cl1, cl2])
-        self.assertEqual(len(groups), 2)
-
-    def test_blank_phone_stays_standalone_when_name_ambiguous(self):
-        from hw.services.recap import group_guests
-        cl1 = _make_cl(guest_name='Ahmad', guest_phone='628111', confirmation_number='CL-AM1')
-        cl2 = _make_cl(guest_name='Ahmad', guest_phone='628222', confirmation_number='CL-AM2')
-        cl3 = _make_cl(guest_name='Ahmad', guest_phone='', confirmation_number='CL-AM3')
-        groups = group_guests([cl1, cl2, cl3])
-        self.assertEqual(len(groups), 3)
-
-    def test_different_names_never_grouped(self):
-        from hw.services.recap import group_guests
-        cl1 = _make_cl(guest_name='Nur Sultan', confirmation_number='CL-DN1')
-        cl2 = _make_cl(guest_name='Budi', confirmation_number='CL-DN2')
-        groups = group_guests([cl1, cl2])
-        self.assertEqual(len(groups), 2)
-
-    def test_name_matching_ignores_case_and_whitespace(self):
-        from hw.services.recap import group_guests
-        cl1 = _make_cl(guest_name='Nur Sultan', guest_phone='628999', confirmation_number='CL-CS1')
-        cl2 = _make_cl(guest_name='  NUR SULTAN ', guest_phone='', confirmation_number='CL-CS2')
-        groups = group_guests([cl1, cl2])
-        self.assertEqual(len(groups), 1)
-        self.assertEqual(len(list(groups.values())[0]), 2)
-
-
 from datetime import time
 from django.contrib.auth.models import User
 
@@ -361,11 +304,12 @@ class CalendarUpcomingCheckinsTest(TestCase):
         self.assertEqual(entry['client_id'], client.pk)
         self.assertEqual(entry['client_name'], 'PT Upcoming')
 
-    def test_client_fields_none_when_no_client(self):
+    def test_client_fields_are_always_present(self):
+        # Schema v2: tidak ada reservasi tanpa client.
         resp = self.client.get('/calendar/', HTTP_X_INERTIA='true')
         entry = resp.json()['props']['upcoming_checkins'][0]
-        self.assertIsNone(entry['client_id'])
-        self.assertIsNone(entry['client_name'])
+        self.assertIsNotNone(entry['client_id'])
+        self.assertTrue(entry['client_name'])
 
 
 class EstimasiSaveTest(TestCase):
@@ -489,10 +433,17 @@ class SendReminderGroupViewTest(TestCase):
         self.assertTrue(data['ok'])
         self.assertEqual(data['phone'], '')
 
-    def test_builds_guest_grouped_message_when_no_client(self):
-        cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+    def _pic_client(self, name='Nur Sultan'):
+        """Client tanpa nomor WA sendiri, pengingat ke PIC: nomornya diambil
+        dari booking."""
+        from hw.models import Client
+        return Client.objects.create(name=name, reminder_target='PIC')
+
+    def test_falls_back_to_the_booking_phone_when_client_has_no_wa(self):
+        client = self._pic_client()
+        cl1 = _make_cl(client=client, guest_phone='628999',
                        check_in=date.today(), confirmation_number='CL-GV1')
-        cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='628999',
+        cl2 = _make_cl(client=client, guest_phone='628999',
                        check_in=date.today(), confirmation_number='CL-GV2')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         data = resp.json()
@@ -512,10 +463,11 @@ class SendReminderGroupViewTest(TestCase):
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         self.assertFalse(resp.json()['ok'])
 
-    def test_guest_group_message_when_one_booking_has_blank_phone(self):
-        cl1 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='',
+    def test_booking_phone_is_found_on_any_booking_of_the_group(self):
+        client = self._pic_client()
+        cl1 = _make_cl(client=client, guest_phone='',
                        check_in=date.today(), confirmation_number='CL-BPV1')
-        cl2 = _make_cl(client=None, guest_name='Nur Sultan', guest_phone='085385557053',
+        cl2 = _make_cl(client=client, guest_phone='085385557053',
                        check_in=date.today(), confirmation_number='CL-BPV2')
         resp = self.client.post('/calendar/send-reminder-group/', {'cl_ids': [cl1.pk, cl2.pk]})
         data = resp.json()

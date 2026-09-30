@@ -1,5 +1,6 @@
 ﻿"""Halaman finance read-only baru: Journal, Trial Balance, Client Ledger,
 Penalty list. Fokus verifikasi: scoping company, kebenaran agregat, permission."""
+from hw.tests.factories import make_cl
 import json
 from datetime import date
 
@@ -161,23 +162,23 @@ class FinanceViewsTest(TestCase):
     # â”€â”€ Penalty list â”€â”€
 
     def test_penalty_list_render_and_status_filter(self):
-        cl_paid = ConfirmationLetter.objects.create(
+        cl_paid = make_cl(
             hotel_name='Hotel Uji', guest_name='Budi',
             confirmation_number='CL-FV-001',
         )
-        cl_open = ConfirmationLetter.objects.create(
+        cl_open = make_cl(
             hotel_name='Hotel Dua', guest_name='Ani',
             confirmation_number='CL-FV-002',
         )
         pen_paid = CancellationPenalty.objects.create(
             cl=cl_paid, penalty_number='PNL-901',
             cancellation_date=date(2026, 3, 1), penalty_amount=1000,
-            amount_sar=1000, is_paid=True,
+            is_paid=True,
         )
         CancellationPenalty.objects.create(
             cl=cl_open, penalty_number='PNL-902',
             cancellation_date=date(2026, 3, 2), penalty_amount=2000,
-            amount_sar=2000, is_paid=False,
+            is_paid=False,
         )
         r = self.client.get(reverse('penalty_list'), {'status': 'paid'})
         props = _props(r)

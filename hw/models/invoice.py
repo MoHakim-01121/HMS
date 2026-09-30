@@ -304,6 +304,16 @@ class Attachment(models.Model):
     class Meta:
         verbose_name        = 'Attachment'
         verbose_name_plural = 'Attachments'
+        constraints = [
+            # Lampiran milik tepat satu dokumen: invoice ATAU reservasi.
+            models.CheckConstraint(
+                condition=(
+                    models.Q(invoice__isnull=False, cl__isnull=True)
+                    | models.Q(invoice__isnull=True, cl__isnull=False)
+                ),
+                name='attachment_exactly_one_parent',
+            ),
+        ]
 
     def __str__(self):
         return self.name

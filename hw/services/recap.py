@@ -57,47 +57,15 @@ def resolve_reminder_targets(client, pending_cls: list) -> list:
     """Return [(channel, phone), ...] to send a grouped reminder to. Empty = skip."""
     targets = []
     if client.reminder_target in ('PIC', 'BOTH'):
-        phone = client.wa or (pending_cls[0].guest_phone if pending_cls else '')
+        # The contact number may live on any booking of the group, not only
+        # the first one.
+        phone = client.wa or next((cl.guest_phone for cl in pending_cls if cl.guest_phone), '')
         if phone:
             targets.append(('PIC', phone))
     if client.reminder_target in ('GROUP', 'BOTH'):
         if client.wa_group:
             targets.append(('GROUP', client.wa_group))
     return targets
-
-
-def resolve_guest_target(pending_cls: list) -> list:
-    """Return [('GUEST', phone)] for a client-less group (same guest_name), or [] if no phone."""
-    phone = next((cl.guest_phone for cl in pending_cls if cl.guest_phone), '')
-    return [('GUEST', phone)] if phone else []
-
-
-def group_guests(cls: list) -> dict:
-    """Group client-less CLs by guest identity for reminder purposes.
-
-    Names are compared case/whitespace-insensitively. Same guest name with a
-    single agreed non-blank phone across the group are merged (a blank phone
-    acts as a wildcard). Two distinct non-blank phones under the same name are
-    kept apart, treated as different people; a blank phone in that ambiguous
-    situation is kept standalone rather than guessed.
-    """
-    def name_key(cl):
-        return (cl.guest_name or '').strip().casefold()
-
-    phones_by_name = defaultdict(set)
-    for cl in cls:
-        if cl.guest_phone:
-            phones_by_name[name_key(cl)].add(cl.guest_phone)
-
-    groups = {}
-    for cl in cls:
-        phones = phones_by_name.get(name_key(cl), set())
-        if len(phones) <= 1:
-            key = (name_key(cl), next(iter(phones), ''))
-        else:
-            key = (name_key(cl), cl.guest_phone or cl.pk)
-        groups.setdefault(key, []).append(cl)
-    return groups
 
 
 def build_grouped_reminder_message(cls: list, reminder_type: str, recipient_name: str) -> str:

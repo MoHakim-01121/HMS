@@ -32,6 +32,12 @@ def _sync_penalty_ledger(penalty, user=None):
     )
 
 
+def _penalty_amount(request):
+    """Nominal denda (SAR, bilangan bulat > 0) dari form, atau None bila tidak sah."""
+    amount = int(round(_to_float(request.POST.get('penalty_amount')) or 0))
+    return amount if amount > 0 else None
+
+
 def _get_cl(request, cl_pk):
     """Fetch a CL by pk."""
     return get_object_or_404(ConfirmationLetter, pk=cl_pk)
@@ -68,17 +74,24 @@ def penalty_new(request, cl_pk):
     if hasattr(cl, 'penalty'):
         return redirect('penalty_detail', pk=cl.penalty.pk)
 
+    # Denda hanya ada untuk reservasi yang dibatalkan (aturan bisnis B14).
+    if not cl.is_cancelled:
+        messages.error(request, 'Set the reservation status to Cancelled before adding a penalty.')
+        return redirect('cl_detail', pk=cl.pk)
+
     suggested_number = CancellationPenalty.suggest_number()
 
     if request.method == 'POST':
+        amount = _penalty_amount(request)
+        if amount is None:
+            messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
+            return redirect('penalty_new', cl_pk=cl.pk)
         penalty = CancellationPenalty.objects.create(
             cl=cl,
             penalty_number=request.POST.get('penalty_number', suggested_number),
             cancellation_date=_parse_date(request.POST.get('cancellation_date')),
             reason=request.POST.get('reason', ''),
-            penalty_amount=_to_float(request.POST.get('penalty_amount')),
-            penalty_currency=request.POST.get('penalty_currency', 'SAR'),
-            exchange_rate=_to_float(request.POST.get('exchange_rate'), 1) or 1,
+            penalty_amount=amount,
             is_paid=request.POST.get('is_paid') == 'on',
             payment_date=_parse_date(request.POST.get('payment_date')),
             payment_method=request.POST.get('payment_method', ''),
@@ -111,12 +124,14 @@ def penalty_edit(request, pk):
     cl = penalty.cl
 
     if request.method == 'POST':
+        amount = _penalty_amount(request)
+        if amount is None:
+            messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
+            return redirect('penalty_edit', pk=penalty.pk)
         penalty.penalty_number  = request.POST.get('penalty_number', penalty.penalty_number)
         penalty.cancellation_date = _parse_date(request.POST.get('cancellation_date')) or penalty.cancellation_date
         penalty.reason          = request.POST.get('reason', '')
-        penalty.penalty_amount  = _to_float(request.POST.get('penalty_amount'))
-        penalty.penalty_currency = request.POST.get('penalty_currency', 'SAR')
-        penalty.exchange_rate   = _to_float(request.POST.get('exchange_rate'), 1) or 1
+        penalty.penalty_amount  = amount
         penalty.is_paid         = request.POST.get('is_paid') == 'on'
         penalty.payment_date    = _parse_date(request.POST.get('payment_date'))
         penalty.payment_method  = request.POST.get('payment_method', '')

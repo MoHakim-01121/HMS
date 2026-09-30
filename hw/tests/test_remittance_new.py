@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -35,7 +36,7 @@ class ReservasiMengendapTest(TestCase):
         )
 
     def _cl(self, number, status):
-        return ConfirmationLetter.objects.create(
+        return make_cl(
  confirmation_number=number, reservation_status=status,
             hotel_name='Hotel CL', guest_name='Guest CL',
         )

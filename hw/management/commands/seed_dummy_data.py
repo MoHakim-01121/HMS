@@ -185,13 +185,19 @@ class Command(BaseCommand):
         rooms = []
         for cap in self.rng.sample([2, 3, 4, 4, 4, 5], k=min(n_rooms, 3)):
             match = [t for t in types if t.capacity == cap] or types
-            rt = self.rng.choice(match) if match else None
-            capacity = rt.capacity if rt else cap
-            base = table.get(capacity, table[max(table)])
-            view = 1.1 if rt and 'view' in rt.name.lower() and 'non' not in rt.name.lower() else 1.0
+            if match:
+                rt = self.rng.choice(match)
+            else:
+                # A room always points at the hotel's catalog: add the type.
+                from hw.models import RoomType, room_type_name
+                rt, _ = RoomType.objects.get_or_create(
+                    hotel=hotel, name=room_type_name(cap), defaults={'capacity': cap},
+                )
+                types.append(rt)
+            base = table.get(rt.capacity, table[max(table)])
+            view = 1.1 if 'view' in rt.name.lower() and 'non' not in rt.name.lower() else 1.0
             rooms.append({
-                'room_type': rt.name if rt else {2: 'Double', 3: 'Triple', 4: 'Quad', 5: 'Quint'}.get(cap, 'Quad'),
-                'room_type_ref': rt, 'meal_plan': meal, 'meals': meal.code if meal else '',
+                'room_type_ref': rt, 'meal_plan': meal,
                 'quantity': self.rng.randint(1, 4), 'price': Decimal(round(base * view / 5) * 5),
             })
         return rooms
@@ -213,7 +219,7 @@ class Command(BaseCommand):
         day = trip['check_in']
         for hotel, nights in legs:
             cl = ConfirmationLetter.objects.create(
-                client=client, hotel=hotel, hotel_name=hotel.name, guest_name=client.brand or client.name,
+                client=client, hotel=hotel,
                 guest_phone=client.wa, check_in=day, check_out=day + timedelta(days=nights),
                 confirmation_number=self._next_cl(), reservation_status=status,
                 pic_name=client.pic, pic_phone=client.wa,

@@ -1,4 +1,5 @@
 """Void invoice + credit notes (Nota Kredit)."""
+from hw.tests.factories import make_cl
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -122,7 +123,7 @@ class CreditNoteTest(TestCase):
     # ── Void ───────────────────────────────────────────────────────
 
     def test_void_invoice_releases_cls_and_stops_billing(self):
-        cl = ConfirmationLetter.objects.create(confirmation_number='7801', client=self.client_obj, invoice=self.inv)
+        cl = make_cl(confirmation_number='7801', client=self.client_obj, invoice=self.inv)
         released = cns.void_invoice(self.inv, reason='Wrong client', created_by=self.user)
         inv = self._refresh()
         self.assertEqual(released, ['7801'])

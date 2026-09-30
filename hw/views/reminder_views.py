@@ -17,11 +17,12 @@ from django.shortcuts import get_object_or_404
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, WATarget, MessageTemplate
+from ..models.confirmation import guest_name_expr
 from ..permissions import require_perm
 from ..i18n import tr
 from ..services.recap import (
     build_recap_message,
-    build_grouped_reminder_message, resolve_reminder_targets, resolve_guest_target, group_guests,
+    build_grouped_reminder_message, resolve_reminder_targets,
     TEMPLATE_H0_CLIENT, TEMPLATE_H1_CLIENT, TEMPLATE_RECAP,
 )
 
@@ -61,8 +62,8 @@ def calendar_send_recap(request):
         ConfirmationLetter.objects
         .filter(**date_filter)
         .exclude(reservation_status='CANCELLED')
-        .prefetch_related('rooms')
-        .order_by('check_in', 'hotel_name', 'guest_name')
+        .with_parties().prefetch_related('rooms__room_type_ref')
+        .order_by('check_in', 'hotel__name', guest_name_expr().asc())
     )
     cls = list(qs)
     if not cls:
@@ -87,19 +88,13 @@ def calendar_send_reminder_group(request):
     )
     if len(cls) != len(cl_ids):
         return JsonResponse({'ok': False, 'message': tr(request, 'Some bookings were not found', 'Sebagian booking tidak ditemukan')})
-    client_ids = {cl.client_id for cl in cls}
-    if len(client_ids) == 1 and None not in client_ids:
-        client = cls[0].client
-        recipient_name = client.name
-        resolve_targets = lambda cl_list: resolve_reminder_targets(client, cl_list)
-    elif client_ids == {None}:
-        if len(group_guests(cls)) != 1:
-            return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same guest', 'Booking harus dari tamu yang sama')})
-        recipient_name = cls[0].guest_name
-        # Resolve from the whole group: the phone may live on a sibling booking.
-        resolve_targets = lambda cl_list: resolve_guest_target(cl_list)
-    else:
+    # Every reservation belongs to a client (schema v2), so a group is simply
+    # the bookings of one client.
+    if len({cl.client_id for cl in cls}) != 1:
         return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must be for the same client', 'Booking harus dari 1 client yang sama')})
+    client = cls[0].client
+    recipient_name = client.name
+    resolve_targets = lambda cl_list: resolve_reminder_targets(client, cl_list)
     check_ins = {cl.check_in for cl in cls}
     if len(check_ins) != 1:
         return JsonResponse({'ok': False, 'message': tr(request, 'Bookings must have the same check-in date', 'Booking harus di tanggal check-in yang sama')})

@@ -1,3 +1,4 @@
+from hw.tests.factories import make_cl, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -108,7 +109,7 @@ class LedgerTest(TestCase):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
 
     def _cl(self, number, status, **kw):
-        return ConfirmationLetter.objects.create(
+        return make_cl(
  confirmation_number=number, reservation_status=status,
             hotel_name=kw.get('hotel', 'Hotel CL'), guest_name=kw.get('guest', 'Guest CL'),
         )
@@ -255,7 +256,7 @@ class LedgerTest(TestCase):
         cl.check_in = date(2026, 4, 1)
         cl.check_out = date(2026, 4, 3)
         cl.save()
-        Room.objects.create(cl=cl, room_type='Double', quantity=2, price=500)
+        make_room(cl=cl, room_type='Double', quantity=2, price=500)
         row = self._row(_build_ledger_rows(), 'CL-ROOM')
         self.assertEqual(row['check_in'], date(2026, 4, 1))
         self.assertEqual(row['check_out'], date(2026, 4, 3))

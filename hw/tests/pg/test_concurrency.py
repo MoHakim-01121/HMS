@@ -2,6 +2,7 @@
 
 Dilewati di SQLite. Jalankan dengan TEST_DATABASE_URL (config/settings.py).
 """
+from hw.tests.factories import make_cl
 import threading
 from datetime import date
 
@@ -46,7 +47,7 @@ def _run_parallel(fn):
 @pg_only
 class ParallelNumberingTest(TransactionTestCase):
     def test_parallel_allocation_never_duplicates(self):
-        ConfirmationLetter.objects.create(
+        make_cl(
             confirmation_number='CL-100', hotel_name='H', guest_name='G',
             check_in=date(2040, 1, 1), check_out=date(2040, 1, 2),
         )
@@ -54,7 +55,7 @@ class ParallelNumberingTest(TransactionTestCase):
         def allocate_and_insert():
             with transaction.atomic():
                 number = ConfirmationLetter.generate_number()
-                ConfirmationLetter.objects.create(
+                make_cl(
                     confirmation_number=number, hotel_name='H', guest_name='G',
                     check_in=date(2040, 1, 1), check_out=date(2040, 1, 2),
                 )

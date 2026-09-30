@@ -68,8 +68,6 @@ def _sync_client_display_name(sender, instance, **kwargs):
     from .models import ConfirmationLetter, Invoice
     display_name = instance.brand or instance.name
 
-    ConfirmationLetter.objects.filter(client=instance).exclude(guest_name=display_name).update(guest_name=display_name)
-
     linked_invoice_ids = set(
         ConfirmationLetter.objects.filter(client=instance, invoice__isnull=False)
         .values_list('invoice_id', flat=True)

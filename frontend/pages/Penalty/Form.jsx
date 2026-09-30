@@ -7,11 +7,9 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-const CURRENCIES = ["SAR", "IDR", "USD"];
 
 function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverErrors }) {
   const { t } = useI18n();
@@ -21,8 +19,6 @@ function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverEr
     cancellation_date: p.cancellation_date || today || "",
     reason: p.reason || "",
     penalty_amount: p.penalty_amount ?? "",
-    penalty_currency: p.penalty_currency || "SAR",
-    exchange_rate: p.exchange_rate ?? 1,
     is_paid: edit ? !!p.is_paid : false,
     payment_date: p.payment_date || "",
     payment_method: p.payment_method || "",
@@ -61,20 +57,9 @@ function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverEr
           </FormSection>
 
           <FormSection label={t("Amount")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
-              <FormField label={t("Amount")} name="penalty_amount" type="number" step="any" value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount} />
-              <FormField label={t("Currency")} name="penalty_currency">
-                <Select name="penalty_currency" value={form.data.penalty_currency} onValueChange={(v) => form.setData("penalty_currency", v)}>
-                  <SelectTrigger id="penalty_currency" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </FormField>
-            </div>
-            <FormField label={t("Exchange Rate to SAR")} name="exchange_rate" type="number" step="any" value={form.data.exchange_rate} onChange={set("exchange_rate")} />
+            <FormField label={t("Amount (SAR)")} name="penalty_amount" type="number" step="1" min="1" required
+              value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount}
+              hint={t("Penalties are always set in SAR. A client paying in another currency is recorded as a payment with its rate.")} />
           </FormSection>
 
           <FormSection label={t("Payment")}>

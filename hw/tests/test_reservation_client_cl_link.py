@@ -1,4 +1,5 @@
 """FASE G (partial) — Reservation.client / Reservation.confirmation_letter FKs."""
+from hw.tests.factories import make_cl, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -21,11 +22,11 @@ class InvoiceFromClsLinksReservationTest(TestCase):
         self.client_obj = Client.objects.create( name='PT Reservasi')
 
     def test_invoice_from_cls_links_confirmation_letter_and_client(self):
-        cl = ConfirmationLetter.objects.create(
+        cl = make_cl(
  confirmation_number='CL-RES-1', guest_name='Ahmad',
             client=self.client_obj, check_in=date(2026, 6, 1), check_out=date(2026, 6, 3),
         )
-        Room.objects.create(cl=cl, room_type='Double', quantity=1, price=500)
+        make_room(cl=cl, room_type='Double', quantity=1, price=500)
 
         self.client.post('/cl/invoice-from-cls/', {'cl_ids': [str(cl.pk)]})
 
@@ -45,7 +46,7 @@ class BackfillMatchesLiveSyncRuleTest(TestCase):
 
         invoice = Invoice.objects.create(invoice_number='INV-BF-1', customer_name='X')
         client_obj = Client.objects.create( name='PT Backfill')
-        cl = ConfirmationLetter.objects.create(
+        cl = make_cl(
  confirmation_number='CL-BF-1', guest_name='Ahmad',
             client=client_obj, invoice=invoice,
         )
