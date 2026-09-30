@@ -63,30 +63,21 @@ class RoomTypeOccupancyDerivationTest(TestCase):
 
     def test_occupancy_follows_capacity(self):
         for capacity, occupancy in [(1, ''), (2, 'double'), (3, 'triple'), (4, 'quad'), (5, 'quint'), (6, '')]:
-            rt = RoomType.objects.create(hotel=self.hotel, name=f'R{capacity}', capacity=capacity, occupancy='quad')
+            rt = RoomType.objects.create(hotel=self.hotel, name=f'R{capacity}', capacity=capacity)
             rt.refresh_from_db()
             self.assertEqual(rt.occupancy, occupancy, capacity)
 
-    def test_capacity_change_with_update_fields_also_saves_occupancy(self):
+    def test_capacity_change_with_update_fields_changes_occupancy(self):
         rt = RoomType.objects.create(hotel=self.hotel, name='R', capacity=2)
         rt.capacity = 3
         rt.save(update_fields=['capacity'])
         rt.refresh_from_db()
         self.assertEqual(rt.occupancy, 'triple')
 
-    def test_backfill_migration_lets_capacity_win(self):
-        from importlib import import_module
-        from django.apps import apps
-        migration = import_module('hw.migrations.0105_room_type_occupancy_from_capacity')
-        two = RoomType.objects.create(hotel=self.hotel, name='A', capacity=2)
-        six = RoomType.objects.create(hotel=self.hotel, name='B', capacity=6)
-        # .update() skips save(), recreating the hand-typed mismatches.
-        RoomType.objects.filter(pk=two.pk).update(occupancy='quad')
-        RoomType.objects.filter(pk=six.pk).update(occupancy='quint')
-        migration.derive_occupancy(apps, None)
-        two.refresh_from_db()
-        six.refresh_from_db()
-        self.assertEqual((two.occupancy, six.occupancy), ('double', ''))
+    def test_occupancy_is_not_a_stored_column(self):
+        # Schema v2: tidak ada kolom yang bisa berbeda dari capacity (dulu
+        # .update(occupancy=…) bisa menghasilkan "Quad, capacity 2").
+        self.assertNotIn('occupancy', [f.name for f in RoomType._meta.get_fields()])
 
 
 class RoomTypeNameTest(TestCase):

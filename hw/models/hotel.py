@@ -36,6 +36,15 @@ class Hotel(models.Model):
         ordering            = ['name']
         verbose_name        = 'Hotel'
         verbose_name_plural = 'Hotels'
+        constraints = [
+            models.UniqueConstraint(fields=['city', 'name'], name='uniq_hotel_city_name'),
+            models.CheckConstraint(
+                condition=models.Q(stars__gte=1, stars__lte=5), name='hotel_stars_1_to_5',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(city__in=[c[0] for c in HotelCity.choices]), name='hotel_city_valid',
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -140,10 +149,9 @@ class RoomType(models.Model):
     hotel      = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='room_types')
     name       = models.CharField(max_length=100)
     capacity   = models.PositiveSmallIntegerField(default=2, help_text='Guests per room')
-    # Structured dimensions (v2.0 §8.2-8.3) on top of the free-form `name`,
-    # for filtering/reporting. Occupancy is never entered: save() derives it
-    # from capacity. View is optional input.
-    occupancy  = models.CharField(max_length=10, choices=Occupancy.choices, blank=True)
+    # Structured dimension (v2.0 §8.3) on top of the free-form `name`, for
+    # filtering/reporting. Occupancy (Double/Triple/…) is only the name of a
+    # guest count, so it is a property of `capacity`, not a stored column.
     view       = models.CharField(max_length=10, choices=RoomView.choices, blank=True)
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -155,14 +163,17 @@ class RoomType(models.Model):
         verbose_name_plural = 'Room Types'
         constraints = [
             models.UniqueConstraint(fields=['hotel', 'name'], name='uniq_room_type_per_hotel'),
+            models.CheckConstraint(
+                condition=models.Q(capacity__gte=1, capacity__lte=10), name='room_type_capacity_1_to_10',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(view__in=[''] + [c[0] for c in RoomView.choices]), name='room_type_view_valid',
+            ),
         ]
 
     def __str__(self):
         return f'{self.name} ({self.hotel.name})'
 
-    def save(self, *args, **kwargs):
-        self.occupancy = occupancy_for_capacity(self.capacity)
-        update_fields = kwargs.get('update_fields')
-        if update_fields is not None and 'capacity' in update_fields:
-            kwargs['update_fields'] = {*update_fields, 'occupancy'}
-        super().save(*args, **kwargs)
+    @property
+    def occupancy(self):
+        return occupancy_for_capacity(self.capacity)

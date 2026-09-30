@@ -33,6 +33,7 @@ from .journal import AccountType, LedgerAccount, JournalEntry, JournalLine
 # ── Schema v2 foundation ───────────────────────────────────────
 from .currency import Currency
 from .sequence import DocumentSequence
+from .vendor import Vendor
 
 __all__ = [
     # Choices
@@ -74,5 +75,5 @@ __all__ = [
     'PaymentRecord', 'PaymentLog', 'PaymentAllocation',
     'AccountType', 'LedgerAccount', 'JournalEntry', 'JournalLine',
     # ── Schema v2 foundation ──
-    'Currency', 'DocumentSequence',
+    'Currency', 'DocumentSequence', 'Vendor',
 ]

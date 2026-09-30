@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-function FormBody({ client, edit, errors: serverErrors }) {
+function FormBody({ client, edit, errors: serverErrors, branch_choices: branchChoices = [] }) {
   const { t } = useI18n();
   const c = client || {};
   const form = useForm({
     name: c.name || "", brand: c.brand || "", city: c.city || "", province: c.province || "",
+    owner_branch: c.owner_branch || branchChoices[0]?.value || "",
     address: c.address || "",
     pic: c.pic || "", wa: c.wa || "", wa_group: c.wa_group || "",
     reminder_target: c.reminder_target || "GROUP",
@@ -51,6 +52,19 @@ function FormBody({ client, edit, errors: serverErrors }) {
                 value={form.data.name} onChange={set("name")} error={errors.name}
                 placeholder="PT. Anugerah Wisata" autoFocus />
               <FormField label={t("Brand")} name="brand" value={form.data.brand} onChange={set("brand")} placeholder={t("Trade name / brand")} />
+              <FormField span={2} label={t("Owner Branch")} name="owner_branch" required error={errors.owner_branch}
+                hint={t("The branch that issues this client's invoices")}>
+                <Select name="owner_branch" value={form.data.owner_branch} onValueChange={(v) => form.setData("owner_branch", v)}>
+                  <SelectTrigger id="owner_branch" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchChoices.map((b) => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
               <FormField label={t("City")} name="city" value={form.data.city} onChange={set("city")} placeholder="Surabaya" />
               <FormField label={t("Province")} name="province" value={form.data.province} onChange={set("province")} placeholder="Jawa Timur" />
               <FormField span={2} label={t("Address")} name="address">

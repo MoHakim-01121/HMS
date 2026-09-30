@@ -16,6 +16,9 @@ class Branch(models.Model):
     # (PaymentRecord.received_in: sby/jkt/pusat).
     code = models.CharField(max_length=10, primary_key=True)
     name = models.CharField(max_length=100)
+    # Pusat (head office) tetap cabang biasa; penanda ini dipakai aturan
+    # "Pusat hanya menerima SAR" dan "setoran menuju Pusat". Tepat satu baris.
+    is_hq = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -24,6 +27,11 @@ class Branch(models.Model):
         ordering = ['code']
         verbose_name = 'Branch'
         verbose_name_plural = 'Branches'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_hq'], condition=models.Q(is_hq=True), name='branch_single_hq',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.code} — {self.name}"

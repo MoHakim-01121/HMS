@@ -81,6 +81,8 @@ export const id = {
   "Company Name": "Nama Perusahaan",
   "Street, building, RT/RW": "Jalan, gedung, RT/RW",
   "Trade name / brand": "Merk dagang / merek usaha",
+  "Owner Branch": "Cabang Pemilik",
+  "The branch that issues this client's invoices": "Cabang yang menerbitkan invoice untuk client ini",
   "All": "Semua",
   "All ★": "Semua ★",
   "All Cities": "Semua Kota",

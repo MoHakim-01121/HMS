@@ -17,6 +17,31 @@ from ..permissions import require_perm
 from .helpers import _is_mobile, pagination_props, snapshot_fields, track_changes
 
 
+def _hotel_error(data, instance=None):
+    """Alasan form hotel ditolak (None bila sah). Aturannya sama dengan
+    constraint di tabel — nama unik per kota, bintang 1–5 — supaya yang sampai
+    ke user berupa pesan, bukan IntegrityError."""
+    from ..models.choices import HotelCity
+    name = data.get('name', '').strip()
+    if not name:
+        return 'Hotel name is required.'
+    city = data.get('city', 'makkah')
+    if city not in {c for c, _ in HotelCity.choices}:
+        return 'Choose Makkah or Madinah.'
+    try:
+        stars = int(data.get('stars') or 3)
+    except (ValueError, TypeError):
+        stars = 0
+    if not 1 <= stars <= 5:
+        return 'Stars must be between 1 and 5.'
+    clash = Hotel.objects.filter(city=city, name__iexact=name)
+    if instance is not None and instance.pk:
+        clash = clash.exclude(pk=instance.pk)
+    if clash.exists():
+        return f'Hotel "{name}" already exists in {dict(HotelCity.choices)[city]}.'
+    return None
+
+
 def _save_hotel(h, data):
     h.name    = data.get('name', '').strip()
     h.city    = data.get('city', 'makkah')
@@ -55,7 +80,7 @@ def _clean_room_type_fields(data):
     derives it from capacity.
     """
     try:
-        capacity = max(1, int(data.get('capacity') or 1))
+        capacity = min(10, max(1, int(data.get('capacity') or 1)))
     except (ValueError, TypeError):
         capacity = 1
     view = data.get('view') or ''
@@ -137,6 +162,10 @@ def hotel_list(request):
 @require_perm('hotels', 'create')
 def hotel_new(request):
     if request.method == 'POST':
+        error = _hotel_error(request.POST)
+        if error:
+            messages.error(request, error)
+            return redirect('hotel_new')
         h = Hotel()
         _save_hotel(h, request.POST)
         # Same starting point migration 0104 gave every existing hotel: allow
@@ -152,6 +181,10 @@ def hotel_new(request):
 def hotel_edit(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
     if request.method == 'POST':
+        error = _hotel_error(request.POST, instance=h)
+        if error:
+            messages.error(request, error)
+            return redirect('hotel_edit', pk=h.pk)
         _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
         _after = snapshot_fields(h, ['name', 'city', 'area', 'stars'])

@@ -89,10 +89,29 @@ def client_list(request):
     })
 
 
-def _validate_client(data):
+def _branch_choices():
+    from ..models.branch import Branch
+    return [{"value": b.code, "label": b.name} for b in Branch.objects.filter(is_active=True).order_by("name")]
+
+
+def _validate_client(data, instance=None):
+    from ..models.branch import Branch
+    from ..models.client import DEFAULT_OWNER_BRANCH, client_name_key
     errors = {}
-    if not data.get("name", "").strip():
+    name = data.get("name", "").strip()
+    if not name:
         errors["name"] = "Agent name is required."
+    else:
+        # Satu perusahaan satu baris: "PT. Safaar" dan "SAFAAR" dianggap sama.
+        clash = Client.objects.filter(name_key=client_name_key(name))
+        if instance is not None and instance.pk:
+            clash = clash.exclude(pk=instance.pk)
+        other = clash.first()
+        if other:
+            errors["name"] = f'A client named "{other.name}" already exists.'
+    branch = (data.get("owner_branch") or DEFAULT_OWNER_BRANCH).strip()
+    if not Branch.objects.filter(code=branch, is_active=True).exists():
+        errors["owner_branch"] = "Choose the branch that owns this client."
     return errors
 
 
@@ -100,6 +119,7 @@ def _client_echo(data):
     """Echo submitted values back to the form on validation error."""
     return {
         "name": data.get("name", ""), "brand": data.get("brand", ""),
+        "owner_branch": data.get("owner_branch", ""),
         "city": data.get("city", ""),
         "province": data.get("province", ""), "address": data.get("address", ""),
         "pic": data.get("pic", ""),
@@ -117,24 +137,28 @@ def client_new(request):
         if errors:
             return inertia_render(request, "Client/Form", props={
                 "client": _client_echo(request.POST), "edit": False, "errors": errors,
+                "branch_choices": _branch_choices(),
             })
         c = Client()
         _save_client(c, request.POST)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name)
         messages.success(request, f'Client "{c.name}" added successfully.')
         return redirect('client_detail', pk=c.pk)
-    return inertia_render(request, "Client/Form", props={"client": None, "edit": False})
+    return inertia_render(request, "Client/Form", props={
+        "client": None, "edit": False, "branch_choices": _branch_choices(),
+    })
 
 
 @require_perm('clients', 'edit')
 def client_edit(request, pk):
     c = get_object_or_404(Client, pk=pk)
     if request.method == 'POST':
-        errors = _validate_client(request.POST)
+        errors = _validate_client(request.POST, instance=c)
         if errors:
             echo = _client_echo(request.POST); echo["id"] = c.pk
             return inertia_render(request, "Client/Form", props={
                 "client": echo, "edit": True, "errors": errors,
+                "branch_choices": _branch_choices(),
             })
         _before = snapshot_fields(c, ['name', 'brand', 'city', 'province', 'address', 'pic', 'wa', 'email'])
         _save_client(c, request.POST)
@@ -149,12 +173,14 @@ def client_edit(request, pk):
     return inertia_render(request, "Client/Form", props={
         "client": {
             "id": c.pk, "name": c.name, "brand": c.brand, "city": c.city, "province": c.province,
+            "owner_branch": c.owner_branch_id,
             "address": c.address,
             "pic": c.pic, "wa": c.wa, "wa_group": c.wa_group, "reminder_target": c.reminder_target,
             "email": c.email, "note": c.note,
             "lat": c.lat, "lng": c.lng, "is_active": c.is_active,
         },
         "edit": True,
+        "branch_choices": _branch_choices(),
     })
 
 
@@ -251,6 +277,9 @@ def client_map_data(request):
 def _save_client(c, data):
     c.name      = data.get('name', '').strip()
     c.brand     = data.get('brand', '').strip()
+    branch = (data.get('owner_branch') or '').strip()
+    if branch:
+        c.owner_branch_id = branch
     c.city      = data.get('city', '').strip()
     c.province  = data.get('province', '').strip()
     c.address   = data.get('address', '').strip()

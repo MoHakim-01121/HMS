@@ -7,6 +7,7 @@ from .models import (
     BankStatement, BankStatementLine, Hotel, Invoice, MealPlan, Pricelist,
     Remittance, RemittanceLine, RemittanceSettlement,
     Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
+    Currency, DocumentSequence, Vendor,
 )
 
 
@@ -54,15 +55,33 @@ class HotelAdmin(admin.ModelAdmin):
 @admin.register(RoomType)
 class RoomTypeAdmin(admin.ModelAdmin):
     list_display  = ('name', 'hotel', 'capacity', 'occupancy', 'view', 'is_active')
-    list_filter   = ('is_active', 'occupancy', 'view')
+    list_filter   = ('is_active', 'capacity', 'view')
     search_fields = ('name', 'hotel__name')
-    readonly_fields = ('occupancy',)  # derived from capacity in RoomType.save()
+    readonly_fields = ('occupancy',)  # derived from capacity (RoomType.occupancy property)
 
 
 @admin.register(MealPlan)
 class MealPlanAdmin(admin.ModelAdmin):
     list_display = ('code', 'name', 'is_active')
     list_filter = ('is_active',)
+
+
+@admin.register(Vendor)
+class VendorAdmin(admin.ModelAdmin):
+    list_display = ('name', 'contact', 'phone', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'contact')
+
+
+@admin.register(Currency)
+class CurrencyAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'minor_digits')
+
+
+@admin.register(DocumentSequence)
+class DocumentSequenceAdmin(admin.ModelAdmin):
+    list_display = ('key', 'last_value')
+    readonly_fields = ('key', 'last_value')  # counter hanya bergerak lewat hw.numbering
 
 
 @admin.register(ActivityLog)

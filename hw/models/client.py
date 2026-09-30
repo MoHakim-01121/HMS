@@ -1,9 +1,28 @@
+import re
+import unicodedata
 from datetime import date
 
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+# Cabang pemilik bila tidak dipilih (satu-satunya cabang penjual saat ini).
+DEFAULT_OWNER_BRANCH = 'sby'
+
+_LEGAL_FORMS = {'pt', 'cv', 'tbk', 'persero', 'ud'}
+
+
+def client_name_key(name):
+    """Bentuk pembanding nama perusahaan, untuk mencegah client dobel:
+    "PT. Safaar" / "SAFAAR" / "  safaar  " → "safaar"."""
+    text = unicodedata.normalize('NFKC', name or '').lower()
+    text = re.sub(r'[^\w\s]', ' ', text)
+    tokens = [t for t in text.split() if t not in _LEGAL_FORMS]
+    return ' '.join(tokens) or ' '.join(text.split())
+
+
+def default_owner_branch():
+    return DEFAULT_OWNER_BRANCH
 
 
 class Client(models.Model):
@@ -13,8 +32,17 @@ class Client(models.Model):
         ('BOTH', 'PIC & Group'),
     ]
 
+    # `name` = nama perusahaan; `brand` = nama brand travel (boleh kosong).
+    # Nama yang tampil di dokumen: brand, atau nama perusahaan bila kosong.
     name       = models.CharField(max_length=200, db_index=True)
     brand      = models.CharField(max_length=200, blank=True)
+    # Diisi save() dari `name`; UNIQUE supaya satu perusahaan tidak tercatat dua kali.
+    name_key   = models.CharField(max_length=200, unique=True, editable=False)
+    # Cabang pemilik client: penerbit invoice-nya. Client bisa pindah cabang;
+    # invoice lama tetap atas nama cabang lama (Invoice.branch = fakta saat terbit).
+    owner_branch = models.ForeignKey(
+        'Branch', on_delete=models.PROTECT, related_name='clients', default=default_owner_branch,
+    )
     city       = models.CharField(max_length=100, blank=True)
     province   = models.CharField(max_length=100, blank=True)
     address    = models.CharField(max_length=255, blank=True)
@@ -37,6 +65,17 @@ class Client(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        self.name_key = client_name_key(self.name)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'name' in update_fields:
+            kwargs['update_fields'] = {*update_fields, 'name_key'}
+        super().save(*args, **kwargs)
+
+    @property
+    def display_name(self):
+        return self.brand or self.name
 
     def get_absolute_url(self):
         return reverse('client_detail', args=[self.pk])
