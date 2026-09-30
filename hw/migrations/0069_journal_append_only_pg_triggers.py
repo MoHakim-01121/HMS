@@ -34,12 +34,12 @@ DROP FUNCTION IF EXISTS hw_journal_block_mutation();
 
 def up(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(PG_UP)
+        schema_editor.execute(PG_UP, params=None)
 
 
 def down(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(PG_DOWN)
+        schema_editor.execute(PG_DOWN, params=None)
 
 
 class Migration(migrations.Migration):

@@ -3,6 +3,8 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
+from hw.db_pg import settle_constraints
+
 
 def penalties_to_sar(apps, schema_editor):
     """Denda kini selalu SAR. Baris lama bermata uang lain memakai nilai SAR
@@ -18,6 +20,7 @@ def penalties_to_sar(apps, schema_editor):
             Penalty.objects.filter(pk=p.pk).update(penalty_amount=amount)
     if bad:
         raise RuntimeError('Denda bernilai 0 atau tanpa nilai SAR, perbaiki dulu: ' + ', '.join(bad))
+    settle_constraints(schema_editor)
 
 
 def attachments_have_one_parent(apps, schema_editor):

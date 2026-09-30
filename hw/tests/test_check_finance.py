@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase
 
+from hw.db_pg import user_triggers_disabled
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import Client, Invoice, Reservation
@@ -59,11 +60,14 @@ class CheckFinanceTest(TestCase):
         self.assertIn("charge basi", output)
 
     def test_unbalanced_entry_is_flagged(self):
-        # Rusak satu baris jurnal langsung di DB (bypass AppendOnly via queryset).
+        # Rusak satu baris jurnal langsung di DB (bypass AppendOnly via queryset;
+        # di PostgreSQL trigger append-only harus dimatikan dulu, seperti orang
+        # yang punya akses pemilik tabel).
         line = JournalLine.objects.filter(
             journal_entry__entry_type=JournalEntry.TYPE_PAYMENT, debit__gt=0,
         ).first()
-        JournalLine.objects.filter(pk=line.pk).update(debit=line.debit + 999)
+        with user_triggers_disabled('hw_journalline'):
+            JournalLine.objects.filter(pk=line.pk).update(debit=line.debit + 999)
         code, output = self._run()
         self.assertEqual(code, 1)
         self.assertIn("Balance per entry", output)

@@ -11,7 +11,8 @@ from hw.db_pg import pg_sql
 # hanya boleh SAR (aturan bisnis B11).
 PG_UP = """
 ALTER TABLE hw_moneyaccount
-    ADD CONSTRAINT moneyaccount_currency_fk FOREIGN KEY (currency) REFERENCES hw_currency (code);
+    ADD CONSTRAINT moneyaccount_currency_fk FOREIGN KEY (currency) REFERENCES hw_currency (code)
+    DEFERRABLE INITIALLY DEFERRED;  -- sama seperti FK buatan Django: diperiksa saat COMMIT
 
 CREATE OR REPLACE FUNCTION hw_moneyaccount_hq_sar() RETURNS trigger AS $$
 BEGIN

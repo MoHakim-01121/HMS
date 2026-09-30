@@ -13,6 +13,7 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 import hw.models.client
+from hw.db_pg import settle_constraints
 
 _LEGAL_FORMS = {'pt', 'cv', 'tbk', 'persero', 'ud'}
 
@@ -37,6 +38,7 @@ def fill_name_keys(apps, schema_editor):
             key = f'{key} #{client.pk}'
         seen.add(key)
         Client.objects.filter(pk=client.pk).update(name_key=key)
+    settle_constraints(schema_editor)
 
 
 class Migration(migrations.Migration):

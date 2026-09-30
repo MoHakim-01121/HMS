@@ -46,6 +46,10 @@ def _run_parallel(fn):
 
 @pg_only
 class ParallelNumberingTest(TransactionTestCase):
+    # TransactionTestCase mengosongkan tabel; pulihkan data seed migrasi
+    # (cabang, bagan akun) yang dibutuhkan test ini.
+    serialized_rollback = True
+
     def test_parallel_allocation_never_duplicates(self):
         make_cl(
             confirmation_number='CL-100', hotel_name='H', guest_name='G',
@@ -69,6 +73,10 @@ class ParallelNumberingTest(TransactionTestCase):
 
 @pg_only
 class ParallelPostingTest(TransactionTestCase):
+    # TransactionTestCase mengosongkan tabel; pulihkan data seed migrasi
+    # (cabang, bagan akun) yang dibutuhkan test ini.
+    serialized_rollback = True
+
     def setUp(self):
         self.user = User.objects.create_user('fin', password='x')
         FinancialPeriod.objects.create(name='2040-01', date_from=date(2040, 1, 1), date_to=date(2040, 1, 31))
@@ -96,6 +104,10 @@ class ParallelPostingTest(TransactionTestCase):
 
 @pg_only
 class AppendOnlyTriggerTest(TransactionTestCase):
+    # TransactionTestCase mengosongkan tabel; pulihkan data seed migrasi
+    # (cabang, bagan akun) yang dibutuhkan test ini.
+    serialized_rollback = True
+
     def setUp(self):
         user = User.objects.create_user('fin', password='x')
         FinancialPeriod.objects.create(name='2040-01', date_from=date(2040, 1, 1), date_to=date(2040, 1, 31))

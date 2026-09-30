@@ -12,6 +12,8 @@ docs/superpowers/specs/2026-09-29-keputusan-data-produksi.md.
 import django.db.models.deletion
 from django.db import migrations, models
 
+from hw.db_pg import settle_constraints
+
 STATUSES = ['TENTATIVE', 'DEFINITE', 'CANCELLED']
 CAPACITY_BY_TEXT = {'single': 1, 'double': 2, 'twin': 2, 'triple': 3, 'quad': 4, 'quint': 5}
 
@@ -38,6 +40,7 @@ def check_and_normalise_cl(apps, schema_editor):
             'CL berikut belum lengkap, lengkapi dulu sebelum migrasi ini: ' + '; '.join(problems[:40])
             + (f' … (+{len(problems) - 40} lagi)' if len(problems) > 40 else '')
         )
+    settle_constraints(schema_editor)
 
 
 def link_rooms_to_masters(apps, schema_editor):
@@ -70,6 +73,7 @@ def link_rooms_to_masters(apps, schema_editor):
                 updates['note'] = meals[:100]   # mis. "RO/FB", "BB + late checkout"
         if updates:
             Room.objects.filter(pk=room.pk).update(**updates)
+    settle_constraints(schema_editor)
 
 
 class Migration(migrations.Migration):

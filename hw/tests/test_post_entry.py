@@ -4,6 +4,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.db_pg import user_triggers_disabled
 from hw.finance import accounts as coa
 from hw.finance.hashing import verify_chain
 from hw.finance.posting import MissingDimensionError, post_entry, reverse_entry
@@ -72,7 +73,8 @@ class PostEntryTests(TestCase):
     def test_tamper_breaks_chain(self):
         self._balanced()
         e = self._balanced()
-        JournalLine.objects.filter(journal_entry=e, debit__gt=0).update(debit=999, credit=0)
+        with user_triggers_disabled('hw_journalline'):
+            JournalLine.objects.filter(journal_entry=e, debit__gt=0).update(debit=999, credit=0)
         problems = verify_chain()
         self.assertTrue(any("tampered" in p or "hash" in p for p in problems))
 

@@ -16,7 +16,7 @@ DROP FUNCTION IF EXISTS hw_remittanceallocation_check_sum();
 
 def drop_pg_trigger(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(DROP_PG_TRIGGER)
+        schema_editor.execute(DROP_PG_TRIGGER, params=None)
 
 
 def noop(apps, schema_editor):

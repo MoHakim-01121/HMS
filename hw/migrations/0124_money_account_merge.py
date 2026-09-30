@@ -14,6 +14,8 @@ Tidak bisa dibalik: id kas lama tidak disimpan.
 import django.db.models.deletion
 from django.db import migrations, models
 
+from hw.db_pg import settle_constraints
+
 # (model, kolom kas lama, kolom FK baru)
 CASH_LINKS = [
     ('BankTransaction', 'cash_account', 'account'),
@@ -54,6 +56,7 @@ def merge_cash_accounts(apps, schema_editor):
         BankTransaction.objects.filter(source_type='OpeningBalanceCash', source_id=old).update(
             source_type='OpeningBalance', source_id=new,
         )
+    settle_constraints(schema_editor)
 
 
 class Migration(migrations.Migration):

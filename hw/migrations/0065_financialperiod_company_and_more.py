@@ -20,12 +20,12 @@ ALTER TABLE hw_financialperiod DROP CONSTRAINT IF EXISTS financialperiod_no_over
 
 def add_pg_exclusion(apps, schema_editor):
     if schema_editor.connection.vendor == 'postgresql':
-        schema_editor.execute(PG_ADD_EXCLUSION)
+        schema_editor.execute(PG_ADD_EXCLUSION, params=None)
 
 
 def drop_pg_exclusion(apps, schema_editor):
     if schema_editor.connection.vendor == 'postgresql':
-        schema_editor.execute(PG_DROP_EXCLUSION)
+        schema_editor.execute(PG_DROP_EXCLUSION, params=None)
 
 
 class Migration(migrations.Migration):
