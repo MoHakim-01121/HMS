@@ -787,10 +787,8 @@ def money_accounts_overview(branch=None, include_inactive=False):
     # ledger); flag those so the page doesn't pass a shared figure off as one
     # account's own.
     from collections import Counter
-    ledger_use = Counter(
-        list(BankAccount.objects.values_list('ledger_account_id', flat=True))
-        + list(CashAccount.objects.values_list('ledger_account_id', flat=True))
-    )
+    from ..models.bank import MoneyAccount
+    ledger_use = Counter(MoneyAccount.objects.values_list('ledger_account_id', flat=True))
     rows = []
     for kind, qs in (('bank', bank_qs), ('cash', cash_qs)):
         for acc in qs:
@@ -802,8 +800,8 @@ def money_accounts_overview(branch=None, include_inactive=False):
                 'branch': acc.branch_id, 'currency': acc.currency,
                 'book_balance': acc.book_balance,
                 'is_active': acc.is_active,
-                'show_on_invoice': getattr(acc, 'show_on_invoice', False),
-                'account_identifier': getattr(acc, 'account_identifier', ''),
+                'show_on_invoice': acc.show_on_invoice,
+                'account_identifier': acc.account_identifier,
             })
     return rows
 
@@ -823,9 +821,8 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
     if account is None:
         return None
 
-    field = 'bank_account' if kind == 'bank' else 'cash_account'
     qs = (
-        BankTransaction.objects.filter(**{field: account_id})
+        BankTransaction.objects.filter(account_id=account.pk)
         .exclude(status=BankTransaction.STATUS_VOIDED)
         .prefetch_related('statement_lines').order_by('transaction_date', 'id')
     )

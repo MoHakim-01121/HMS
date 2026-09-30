@@ -80,7 +80,7 @@ class IdrReconciliationTest(TestCase):
         client = Client.objects.create(name='PT Alpha')
         inv = Invoice.objects.create(invoice_number='INV-1', customer_name='x', client=client)
         p = create_payment_record(inv, client, date(2026, 9, 2), 49_000_000, currency='IDR', exchange_rate=4900,
-                                  method='Transfer', bank_account=self.idr, created_by=self.user)
+                                  method='Transfer', receiving_account=self.idr, created_by=self.user)
         confirm_payment(p, self.user)
         self.pay_tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=p.pk)
         self.client.force_login(self.user)
@@ -126,7 +126,7 @@ class IdrReconciliationTest(TestCase):
             rs.match_line(line, self.pay_tx)
         other = BankAccount.objects.create(branch_id='sby', name='BCA', currency='IDR', bank_name='BCA', account_identifier='9',
                                            ledger_account=self.idr.ledger_account)
-        other_tx = BankTransaction.objects.create(bank_account=other, direction='in', amount=48_999_000, amount_sar=1,
+        other_tx = BankTransaction.objects.create(account=other, direction='in', amount=48_999_000, amount_sar=1,
                                                   currency='IDR', transaction_date=date(2026, 9, 3), source_type='X', source_id=1)
         with self.assertRaises(FinanceError):
             rs.match_line(line, other_tx, force=True)

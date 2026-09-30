@@ -12,8 +12,7 @@ from django.db import models
 
 
 class BankStatement(models.Model):
-    bank_account = models.ForeignKey('BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='statements')
-    cash_account = models.ForeignKey('CashAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='statements')
+    account = models.ForeignKey('MoneyAccount', on_delete=models.PROTECT, related_name='statements')
     currency     = models.CharField(max_length=3, default='SAR')
     period_start = models.DateField()
     period_end   = models.DateField()
@@ -31,20 +30,13 @@ class BankStatement(models.Model):
         verbose_name_plural = 'Bank Statements'
         constraints = [
             models.CheckConstraint(
-                condition=(
-                    models.Q(bank_account__isnull=False, cash_account__isnull=True)
-                    | models.Q(bank_account__isnull=True, cash_account__isnull=False)
-                ),
-                name='bankstatement_exactly_one_account',
+                condition=models.Q(period_start__lte=models.F('period_end')),
+                name='bankstatement_period_order',
             ),
         ]
 
     def __str__(self):
         return f'{self.account} {self.period_start}–{self.period_end}'
-
-    @property
-    def account(self):
-        return self.bank_account or self.cash_account
 
     @property
     def is_fully_matched(self):

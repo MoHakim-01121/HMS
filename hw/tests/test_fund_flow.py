@@ -34,7 +34,7 @@ class FundFlowScenario(TestCase):
             (6, 49_000_000, 'IDR', 4900, self.idr),
         ):
             p = create_payment_record(inv, client, date(2026, 9, day), amount, currency=currency, exchange_rate=rate,
-                                      method='Transfer', bank_account=acc, created_by=self.user)
+                                      method='Transfer', receiving_account=acc, created_by=self.user)
             confirm_payment(p, self.user)
         exchange_service.record_exchange(from_account=self.usd, amount_out=2_500, to_account=self.idr,
                                          amount_in=48_125_000, exchange_date=date(2026, 9, 8), created_by=self.user)
@@ -51,7 +51,7 @@ class FundFlowScenario(TestCase):
             lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 105}],
         )
         expense_service.add_expense_payment(exp, amount=idr, currency='IDR', exchange_rate=4750,
-                                            payment_date=date(2026, 9, 12), bank_account=self.idr, created_by=self.user)
+                                            payment_date=date(2026, 9, 12), account=self.idr, created_by=self.user)
 
     def _line(self, flow, key, cur):
         return next(l for l in flow['lines'] if l['key'] == key)['values'].get(cur, 0)

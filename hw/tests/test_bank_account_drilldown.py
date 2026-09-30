@@ -27,12 +27,12 @@ class AccountTransactionsQueryTest(TestCase):
         inv = Invoice.objects.create(invoice_number='INV-DD-1', customer_name='PT DD', client=client_obj)
         pr1 = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr1, confirmed_by=self.user)
         pr2 = create_payment_record(
             inv, client_obj, date(2026, 7, 2), 3000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr2, confirmed_by=self.user)
 

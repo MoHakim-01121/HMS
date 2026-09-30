@@ -24,7 +24,7 @@ class PeriodChecklistTest(TestCase):
 
     def _pay(self, confirm=True):
         p = create_payment_record(self.inv, self.cl, date(2026, 9, 5), 4_900_000, currency='IDR', exchange_rate=4900,
-                                  method='Transfer', bank_account=self.idr, created_by=self.user)
+                                  method='Transfer', receiving_account=self.idr, created_by=self.user)
         if confirm:
             confirm_payment(p, self.user)
         return p

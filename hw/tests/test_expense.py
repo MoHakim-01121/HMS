@@ -2,7 +2,7 @@
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from hw.models import (
@@ -48,7 +48,7 @@ class RecordExpenseTest(ExpenseBase):
         exp = expense_service.record_expense(
             branch=self.sby, expense_date=date(2026, 3, 2), created_by=self.user,
             lines=[{'category': self.util, 'amount': 2000}],
-            pay_now={'cash_account': self.cash},
+            pay_now={'account': self.cash},
         )
         exp.refresh_from_db()
         self.assertEqual(exp.status, Expense.STATUS_PAID)
@@ -64,7 +64,7 @@ class RecordExpenseTest(ExpenseBase):
         )
         expense_service.add_expense_payment(
             exp, amount=2000, payment_date=date(2026, 3, 4),
-            cash_account=self.cash, created_by=self.user,
+            account=self.cash, created_by=self.user,
         )
         exp.refresh_from_db()
         self.assertEqual(exp.status, Expense.STATUS_PARTIALLY_PAID)
@@ -78,7 +78,7 @@ class RecordExpenseTest(ExpenseBase):
         with self.assertRaises(FinanceError):
             expense_service.add_expense_payment(
                 exp, amount=2000, payment_date=date(2026, 3, 6),
-                cash_account=self.cash, created_by=self.user,
+                account=self.cash, created_by=self.user,
             )
 
 
@@ -87,7 +87,7 @@ class VoidExpenseTest(ExpenseBase):
         exp = expense_service.record_expense(
             branch=self.sby, expense_date=date(2026, 3, 7), created_by=self.user,
             lines=[{'category': self.util, 'amount': 3000}],
-            pay_now={'cash_account': self.cash},
+            pay_now={'account': self.cash},
         )
         expense_service.void_expense(exp, created_by=self.user)
         exp.refresh_from_db()
@@ -99,18 +99,25 @@ class VoidExpenseTest(ExpenseBase):
 
 class ExpensePaymentConstraintTest(ExpenseBase):
     def test_exactly_one_account_enforced(self):
+        # Schema v2: satu kolom akun wajib — pembayaran tanpa akun ditolak
+        # database, dan "dua akun sekaligus" tidak bisa lagi ditulis.
         exp = Expense.objects.create(
             expense_number='EXP-C1', branch=self.sby, expense_date=date(2026, 3, 1),
             total_amount=100, total_amount_sar=100, status=Expense.STATUS_POSTED,
             period=FinancialPeriod.objects.first(), created_by=self.user,
         )
-        bank = BankAccount.objects.create(
-            branch=self.sby, name='Ops', currency='SAR',
-            ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
-            bank_name='BCA', account_identifier='1',
-        )
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(IntegrityError), transaction.atomic():
             ExpensePayment.objects.create(
                 expense=exp, payment_date=date(2026, 3, 1), amount=100, amount_sar=100,
-                bank_account=bank, cash_account=self.cash, created_by=self.user,
+                created_by=self.user,
+            )
+
+    def test_service_refuses_payment_without_account(self):
+        exp = expense_service.record_expense(
+            branch=self.sby, expense_date=date(2026, 3, 1), created_by=self.user,
+            lines=[{'category': self.util, 'amount': 100}],
+        )
+        with self.assertRaises(FinanceError):
+            expense_service.add_expense_payment(
+                exp, amount=100, payment_date=date(2026, 3, 1), account=None, created_by=self.user,
             )

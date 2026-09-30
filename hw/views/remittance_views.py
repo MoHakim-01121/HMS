@@ -252,7 +252,7 @@ def remittance_new(request):
         receipt_reference=receipt_reference,
         amount_idr=amount_idr,
         exchange_rate=exchange_rate,
-        from_bank_account=from_account,
+        from_account=from_account,
         note=note,
     )
     # Cash book: the rupiah that left the branch account (fund-flow report).
@@ -339,7 +339,7 @@ def remittance_detail(request, pk):
     diff_sar = basis_sar - settled_total_sar if settlements and basis_sar is not None else None
 
     from ..finance import fund_flow
-    sender = rem.from_bank_account.branch_id if rem.from_bank_account_id else 'sby'
+    sender = rem.from_account.branch_id if rem.from_account_id else 'sby'
     fx_row = next((r for r in fund_flow.fx_profit(branch=sender, date_to=rem.date)['transfers'] if r['id'] == rem.pk), None)
 
     return inertia_render(request, "Remittance/Detail", props={
@@ -352,8 +352,8 @@ def remittance_detail(request, pk):
             "proof_url": rem.proof.url if rem.proof else None,
             "receipt_reference": rem.receipt_reference,
             "from_account": (
-                f"{rem.from_bank_account.bank_name} {rem.from_bank_account.account_identifier}".strip()
-                if rem.from_bank_account_id else None
+                f"{rem.from_account.bank_name} {rem.from_account.account_identifier}".strip()
+                if rem.from_account_id else None
             ),
             "note": rem.note,
             "total_sar": rem.total_sar,

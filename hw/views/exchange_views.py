@@ -40,9 +40,7 @@ def _row(ex):
 
 @require_perm('payments', 'view')
 def exchange_list(request):
-    qs = CurrencyExchange.objects.select_related(
-        'from_bank_account', 'from_cash_account', 'to_bank_account', 'to_cash_account',
-    )
+    qs = CurrencyExchange.objects.select_related('from_account', 'to_account')
     return inertia_render(request, 'Finance/Exchanges', props={'exchanges': [_row(ex) for ex in qs]})
 
 
@@ -50,9 +48,7 @@ def _form_props(data=None, error=None):
     choices = money_account_choices()
     # Last active rate per pair, so the form can warn about a likely typo live.
     last_rates = {}
-    for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).order_by('-exchange_date', '-pk').select_related(
-        'from_bank_account', 'from_cash_account', 'to_bank_account', 'to_cash_account',
-    )[:50]:
+    for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).order_by('-exchange_date', '-pk').select_related('from_account', 'to_account')[:50]:
         last_rates.setdefault(f'{ex.from_currency}>{ex.to_currency}', float(ex.rate))
     return {
         'account_choices': choices,
@@ -78,9 +74,9 @@ def exchange_new(request):
     if not error:
         try:
             ex = exchange_service.record_exchange(
-                from_account=_one(resolve_money_account(data['from_account'])),
+                from_account=resolve_money_account(data['from_account']),
                 amount_out=_int(data['amount_out']),
-                to_account=_one(resolve_money_account(data['to_account'])),
+                to_account=resolve_money_account(data['to_account']),
                 amount_in=_int(data['amount_in']),
                 exchange_date=exchange_date, created_by=request.user,
                 reference=data['reference'].strip(), note=data['note'].strip(), proof=proof,
@@ -91,11 +87,6 @@ def exchange_new(request):
         return inertia_render(request, 'Finance/ExchangeForm', props=_form_props(data, error))
     messages.success(request, f'{ex.exchange_number} tercatat: {ex.amount_out:,} {ex.from_currency} → {ex.amount_in:,} {ex.to_currency}.')
     return redirect('exchange_list')
-
-
-def _one(pair):
-    bank, cash = pair
-    return bank or cash
 
 
 @require_perm('payments', 'delete')

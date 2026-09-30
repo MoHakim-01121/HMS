@@ -33,8 +33,8 @@ class RecordExchangeTest(ExchangeBase):
         self.assertEqual(ex.rate, Decimal('17500.0000'))
         out = BankTransaction.objects.get(source_type=fx.SOURCE_OUT, source_id=ex.pk)
         inn = BankTransaction.objects.get(source_type=fx.SOURCE_IN, source_id=ex.pk)
-        self.assertEqual((out.bank_account_id, out.direction, out.currency, out.amount), (self.usd.pk, 'out', 'USD', 2750))
-        self.assertEqual((inn.bank_account_id, inn.direction, inn.currency, inn.amount), (self.idr.pk, 'in', 'IDR', 48_125_000))
+        self.assertEqual((out.account_id, out.direction, out.currency, out.amount), (self.usd.pk, 'out', 'USD', 2750))
+        self.assertEqual((inn.account_id, inn.direction, inn.currency, inn.amount), (self.idr.pk, 'in', 'IDR', 48_125_000))
         self.assertFalse(JournalEntry.objects.exists())  # SAR owed to HQ is unchanged
 
     def test_rejects_same_currency_same_account_and_zero(self):

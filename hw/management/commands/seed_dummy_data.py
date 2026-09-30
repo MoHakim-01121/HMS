@@ -30,7 +30,10 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
 KEEP_MODELS = {
-    'Branch', 'UserProfile', 'RoleDefinition', 'LedgerAccount', 'CashAccount', 'ExpenseCategory',
+    'Branch', 'UserProfile', 'RoleDefinition', 'LedgerAccount', 'ExpenseCategory',
+    # Satu tabel (hw_moneyaccount): kas cabang dipertahankan, rekening bank
+    # hasil seed dihapus terpisah di _wipe().
+    'MoneyAccount', 'BankAccount', 'CashAccount', 'Currency',
     'MealPlan', 'Hotel', 'RoomType', 'WATarget', 'MessageTemplate', 'TeamMember', 'Pricelist',
 }
 
@@ -94,6 +97,7 @@ class Command(BaseCommand):
             for table in tables:
                 cur.execute(f'DELETE FROM "{table}"')
                 cur.execute('DELETE FROM sqlite_sequence WHERE name = %s', [table])
+            cur.execute("DELETE FROM hw_moneyaccount WHERE kind = 'bank'")
             cur.execute('PRAGMA foreign_keys = ON')
         from hw.models import CashAccount
         CashAccount.objects.update(opening_balance=0, opening_date=None)
@@ -273,14 +277,14 @@ class Command(BaseCommand):
             roll = 0.5
         if roll < 0.12:       # SAR paid straight to HQ
             kw = dict(amount=sar, currency='SAR', exchange_rate=1, received_in='pusat',
-                      cash_account=self.cash_pusat, method='Direct')
+                      receiving_account=self.cash_pusat, method='Direct')
         elif roll < 0.24:     # USD into the branch USD account
             rate = Decimal('3.70')
             usd = int(Decimal(sar) / rate)
-            kw = dict(amount=usd, currency='USD', exchange_rate=rate, bank_account=self.usd, method='Transfer')
+            kw = dict(amount=usd, currency='USD', exchange_rate=rate, receiving_account=self.usd, method='Transfer')
         else:                 # IDR into the branch IDR account (the usual case)
             rate = self.rng.choice([4870, 4880, 4890, 4900, 4910, 4920])
-            kw = dict(amount=sar * rate, currency='IDR', exchange_rate=rate, bank_account=self.idr, method='Transfer')
+            kw = dict(amount=sar * rate, currency='IDR', exchange_rate=rate, receiving_account=self.idr, method='Transfer')
         p = create_payment_record(
             inv, inv.client, day, created_by=self.user,
             reference=f'TRF{day:%y%m%d}{self.rng.randint(1000, 9999)}', **kw,
@@ -365,7 +369,7 @@ class Command(BaseCommand):
         amount_idr = sar * rate
         rem = Remittance.objects.create(
             remittance_number=Remittance.generate_number(), date=day, amount_idr=amount_idr,
-            exchange_rate=Decimal(rate), from_bank_account=self.idr,
+            exchange_rate=Decimal(rate), from_account=self.idr,
             receipt_reference=f'MDR{day:%y%m%d}{self.rng.randint(100, 999)}',
         )
         record_bank_transaction(
@@ -436,7 +440,7 @@ class Command(BaseCommand):
                 )
                 expense_service.add_expense_payment(
                     exp, amount=idr, currency='IDR', exchange_rate=rate, payment_date=day,
-                    bank_account=self.idr, created_by=self.user, reference=f'OUT{day:%y%m%d}',
+                    account=self.idr, created_by=self.user, reference=f'OUT{day:%y%m%d}',
                 )
             month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
 
@@ -487,8 +491,8 @@ class Command(BaseCommand):
         if first < self.start:
             return
         rows = BankTransaction.objects.filter(
-            bank_account=self.idr, transaction_date__gte=first, transaction_date__lte=last,
-        ).exclude(status=BankTransaction.STATUS_VOIDED).exclude(source_type='OpeningBalanceBank').order_by('transaction_date', 'pk')
+            account=self.idr, transaction_date__gte=first, transaction_date__lte=last,
+        ).exclude(status=BankTransaction.STATUS_VOIDED).exclude(source_type='OpeningBalance').order_by('transaction_date', 'pk')
         labels = {'PaymentRecord': 'TRSF MASUK', 'Remittance': 'TRSF KELUAR SWIFT', 'ExpensePayment': 'PEMBAYARAN',
                   'CurrencyExchangeIn': 'JUAL VALAS USD', 'Refund': 'TRSF KELUAR'}
         lines = []

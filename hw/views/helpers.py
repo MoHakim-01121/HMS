@@ -120,37 +120,31 @@ def money_account_choices(branch=None):
     """[{value, label, branch, currency}] for a receiving/paying-account
     picker — value is "cash:<id>" or "bank:<id>", parsed back by
     resolve_money_account(). Shared by payment_views and expense_views."""
-    from ..models.bank import BankAccount, CashAccount
-    cash_qs = CashAccount.objects.filter(is_active=True).select_related('branch')
-    bank_qs = BankAccount.objects.filter(is_active=True).select_related('branch')
+    from ..models.bank import MoneyAccount
+    qs = MoneyAccount.objects.filter(is_active=True)
     if branch:
-        cash_qs = cash_qs.filter(branch_id=branch)
-        bank_qs = bank_qs.filter(branch_id=branch)
-    choices = []
-    for a in cash_qs:
-        choices.append({'value': f'cash:{a.pk}', 'label': f'{a.name} ({a.currency})', 'branch': a.branch_id, 'currency': a.currency})
-    for a in bank_qs:
-        choices.append({'value': f'bank:{a.pk}', 'label': str(a), 'branch': a.branch_id, 'currency': a.currency})
-    return choices
+        qs = qs.filter(branch_id=branch)
+    # Kas dulu, lalu bank — urutan yang sama seperti sebelum digabung.
+    accounts = sorted(qs, key=lambda a: (a.kind != MoneyAccount.KIND_CASH, a.bank_name, a.name, a.pk))
+    return [
+        {'value': a.token, 'label': str(a), 'branch': a.branch_id, 'currency': a.currency}
+        for a in accounts
+    ]
 
 
 def resolve_money_account(value):
-    """"cash:<id>" / "bank:<id>" -> (bank_account, cash_account).
+    """"cash:<id>" / "bank:<id>" -> MoneyAccount, or None.
 
     Only active accounts resolve — the same set money_account_choices offers,
     so a hand-crafted value can't book money into a deactivated account.
     Every caller is a create path (record payment/expense, new statement)."""
-    from ..models.bank import BankAccount, CashAccount
+    from ..models.bank import MoneyAccount
     if not value or ':' not in value:
-        return None, None
+        return None
     kind, _, pk = value.partition(':')
-    if not pk.isdigit():
-        return None, None
-    if kind == 'cash':
-        return None, CashAccount.objects.filter(pk=pk, is_active=True).first()
-    if kind == 'bank':
-        return BankAccount.objects.filter(pk=pk, is_active=True).first(), None
-    return None, None
+    if not pk.isdigit() or kind not in (MoneyAccount.KIND_BANK, MoneyAccount.KIND_CASH):
+        return None
+    return MoneyAccount.objects.filter(pk=pk, kind=kind, is_active=True).first()
 
 
 def _client_options():

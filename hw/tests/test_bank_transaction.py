@@ -26,11 +26,11 @@ class PaymentBankTransactionTest(BankTransactionBase):
         inv = Invoice.objects.create(invoice_number='INV-BT-1', customer_name='PT BT', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr, self.user)
         tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
-        self.assertEqual(tx.cash_account_id, self.cash_sby.pk)
+        self.assertEqual(tx.account_id, self.cash_sby.pk)
         self.assertEqual(tx.direction, 'in')
         self.assertEqual(tx.amount_sar, 5000)
 
@@ -56,7 +56,7 @@ class PaymentBankTransactionTest(BankTransactionBase):
         inv = Invoice.objects.create(invoice_number='INV-BT-3', customer_name='PT BT3', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr, self.user)
         posting.post_payment(pr, created_by=self.user)  # idempotent re-post
@@ -73,7 +73,7 @@ class ExpensePaymentBankTransactionTest(BankTransactionBase):
         )
         ep = expense_service.add_expense_payment(
             exp, amount=1500, payment_date=date(2026, 7, 3),
-            cash_account=self.cash_sby, created_by=self.user,
+            account=self.cash_sby, created_by=self.user,
         )
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual(tx.direction, 'out')
@@ -87,7 +87,7 @@ class SettlementBankTransactionTest(BankTransactionBase):
             rmt, received_amount_sar=20000, received_date=date(2026, 7, 5), created_by=self.user,
         )
         tx = BankTransaction.objects.get(source_type='RemittanceSettlement', source_id=settlement.pk)
-        self.assertEqual(tx.cash_account.branch_id, 'pusat')
+        self.assertEqual(tx.account.branch_id, 'pusat')
         self.assertEqual(tx.direction, 'in')
         self.assertEqual(tx.amount_sar, 20000)
 
@@ -106,7 +106,7 @@ class OriginalAmountTest(BankTransactionBase):
         inv = Invoice.objects.create(invoice_number='INV-BT-IDR', customer_name='PT BT IDR', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 49_000_000, currency='IDR', exchange_rate=4900,
-            method='Transfer', bank_account=self._idr_account(), created_by=self.user,
+            method='Transfer', receiving_account=self._idr_account(), created_by=self.user,
         )
         confirm_payment(pr, self.user)
         tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
@@ -120,7 +120,7 @@ class OriginalAmountTest(BankTransactionBase):
         )
         ep = expense_service.add_expense_payment(
             exp, amount=475_000, currency='IDR', exchange_rate=4750, payment_date=date(2026, 7, 3),
-            bank_account=self._idr_account(), created_by=self.user,
+            account=self._idr_account(), created_by=self.user,
         )
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual((tx.direction, tx.currency, tx.amount, tx.amount_sar), ('out', 'IDR', 475_000, 100))
@@ -151,7 +151,7 @@ class VoidedCashRowTest(BankTransactionBase):
         inv = Invoice.objects.create(invoice_number=number, customer_name='X', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr, self.user)
         return pr
@@ -197,7 +197,7 @@ class VoidedCashRowTest(BankTransactionBase):
             lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 700}],
         )
         ep = expense_service.add_expense_payment(
-            exp, amount=700, payment_date=date(2026, 7, 3), cash_account=self.cash_sby, created_by=self.user,
+            exp, amount=700, payment_date=date(2026, 7, 3), account=self.cash_sby, created_by=self.user,
         )
         expense_service.void_expense(exp, created_by=self.user, date=date(2026, 7, 4))
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
@@ -221,21 +221,20 @@ class AccountCurrencyTest(BankTransactionBase):
         inv, client_obj = self._inv('INV-CUR-1')
         pr = create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
                                    method='Transfer', received_in='sby', created_by=self.user)
-        self.assertEqual((pr.bank_account_id, pr.cash_account_id), (acc.pk, None))
+        self.assertEqual(pr.receiving_account_id, acc.pk)
 
     def test_idr_payment_without_idr_account_is_not_put_in_the_sar_till(self):
         inv, client_obj = self._inv('INV-CUR-2')
         pr = create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
                                    method='Transfer', received_in='sby', created_by=self.user)
-        self.assertIsNone(pr.bank_account_id)
-        self.assertIsNone(pr.cash_account_id)
+        self.assertIsNone(pr.receiving_account_id)
 
     def test_explicit_account_in_another_currency_is_refused(self):
         from hw.finance.errors import FinanceError
         inv, client_obj = self._inv('INV-CUR-3')
         with self.assertRaises(FinanceError):
             create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
-                                  method='Transfer', cash_account=self.cash_sby, created_by=self.user)
+                                  method='Transfer', receiving_account=self.cash_sby, created_by=self.user)
 
     def test_expense_paid_from_account_in_another_currency_is_refused(self):
         from hw.finance.errors import FinanceError
@@ -246,7 +245,7 @@ class AccountCurrencyTest(BankTransactionBase):
         )
         with self.assertRaises(FinanceError):
             expense_service.add_expense_payment(exp, amount=475_000, currency='IDR', exchange_rate=4750,
-                                                payment_date=date(2026, 7, 3), cash_account=self.cash_sby, created_by=self.user)
+                                                payment_date=date(2026, 7, 3), account=self.cash_sby, created_by=self.user)
 
     def test_expense_paid_from_another_branch_account_is_refused(self):
         from hw.finance.errors import FinanceError
@@ -257,7 +256,7 @@ class AccountCurrencyTest(BankTransactionBase):
         )
         with self.assertRaises(FinanceError):
             expense_service.add_expense_payment(exp, amount=100, payment_date=date(2026, 7, 3),
-                                                cash_account=CashAccount.objects.get(branch_id='jkt'),
+                                                account=CashAccount.objects.get(branch_id='jkt'),
                                                 created_by=self.user)
 
 
@@ -274,7 +273,7 @@ class HqReceivesSarOnlyTest(BankTransactionBase):
                                   method='Transfer', received_in='pusat', created_by=self.user)
         pr = create_payment_record(inv, client_obj, date(2026, 7, 1), 1000, method='Transfer',
                                    received_in='pusat', created_by=self.user)
-        self.assertEqual(pr.cash_account.branch_id, 'pusat')
+        self.assertEqual(pr.receiving_account.branch_id, 'pusat')
 
     def test_non_sar_penalty_paid_at_hq_is_refused(self):
         from types import SimpleNamespace

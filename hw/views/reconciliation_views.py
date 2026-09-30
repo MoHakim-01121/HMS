@@ -94,7 +94,7 @@ def _account_choices():
 
 @require_perm('statements', 'view')
 def reconciliation_list(request):
-    statements = BankStatement.objects.select_related('bank_account', 'cash_account').all()
+    statements = BankStatement.objects.select_related('account').all()
     return inertia_render(request, 'Reconciliation/List', props={
         'statements': [_statement_props(s) for s in statements],
         'account_choices': _account_choices(),
@@ -113,8 +113,7 @@ def reconciliation_new(request):
     if request.method != 'POST':
         return redirect('reconciliation_list')
     data = _payload(request)
-    bank_account, cash_account = resolve_money_account(data.get('account'))
-    account = bank_account or cash_account
+    account = resolve_money_account(data.get('account'))
 
     raw_lines = data.get('lines', '')
     try:
@@ -205,12 +204,12 @@ def reconciliation_import(request):
                 form[key] = str(preview[key])
         return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(form, preview))
 
-    bank_account, cash_account = resolve_money_account(form['account'])
+    account = resolve_money_account(form['account'])
     period_start, period_end = _parse_date(form['period_start']), _parse_date(form['period_end'])
     lines = [l for l in result['lines'] if period_start and period_end and period_start <= l['line_date'] <= period_end]
     try:
         statement = rs.create_statement(
-            account=bank_account or cash_account, period_start=period_start, period_end=period_end,
+            account=account, period_start=period_start, period_end=period_end,
             opening_balance=int(round(_to_float(form['opening_balance']))),
             closing_balance=int(round(_to_float(form['closing_balance']))),
             lines=lines, created_by=request.user, note=form['note'],

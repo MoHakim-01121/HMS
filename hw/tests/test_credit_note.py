@@ -34,7 +34,7 @@ class CreditNoteTest(TestCase):
 
     def _pay(self, sar):
         p = create_payment_record(self.inv, self.client_obj, DAY, sar * 4900, currency='IDR', exchange_rate=4900,
-                                  method='Transfer', bank_account=self.idr, created_by=self.user)
+                                  method='Transfer', receiving_account=self.idr, created_by=self.user)
         confirm_payment(p, self.user)
         return p
 

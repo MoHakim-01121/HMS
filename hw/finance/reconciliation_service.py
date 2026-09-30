@@ -13,7 +13,6 @@ from datetime import timedelta
 
 from django.db import transaction
 
-from ..models.bank import BankAccount
 from ..models.bank_transaction import BankTransaction
 from ..models.reconciliation import BankStatement, BankStatementLine
 from .errors import FinanceError
@@ -21,10 +20,6 @@ from .errors import FinanceError
 # How far a statement line's date may be from the cash-book date and still be
 # suggested as the same movement (bank value dates lag a day or two).
 SUGGEST_DAYS = 3
-
-
-def _account_filter(account):
-    return {'bank_account': account} if isinstance(account, BankAccount) else {'cash_account': account}
 
 
 @transaction.atomic
@@ -49,7 +44,7 @@ def create_statement(*, account, period_start, period_end, opening_balance, clos
     statement = BankStatement.objects.create(
         currency=account.currency, period_start=period_start, period_end=period_end,
         opening_balance=int(opening_balance or 0), closing_balance=int(closing_balance or 0),
-        note=note, source_filename=source_filename, created_by=created_by, **_account_filter(account),
+        note=note, source_filename=source_filename, created_by=created_by, account=account,
     )
     BankStatementLine.objects.bulk_create([
         BankStatementLine(
@@ -63,7 +58,7 @@ def create_statement(*, account, period_start, period_end, opening_balance, clos
 def _open_transactions(statement):
     """Live cash-book rows of the statement's account not yet matched."""
     return BankTransaction.objects.filter(
-        statement_lines__isnull=True, amount__isnull=False, **_account_filter(statement.account),
+        statement_lines__isnull=True, amount__isnull=False, account=statement.account,
     ).exclude(status=BankTransaction.STATUS_VOIDED)
 
 
@@ -121,7 +116,7 @@ def match_line(statement_line, bank_transaction, *, force=False):
     `force=True` (a human looked and decided to match anyway). Never invents
     or adjusts either side's numbers."""
     statement = statement_line.statement
-    if (bank_transaction.bank_account_id, bank_transaction.cash_account_id) != (statement.bank_account_id, statement.cash_account_id):
+    if bank_transaction.account_id != statement.account_id:
         raise FinanceError('Transaksi itu bukan dari rekening statement ini.')
     if bank_transaction.status == BankTransaction.STATUS_VOIDED:
         raise FinanceError('Transaksi itu sudah dibatalkan.')
@@ -167,7 +162,7 @@ def book_balance(account, through_date):
     date, not by when it was recorded — that is what a statement period means."""
     total = 0
     for direction, amount in BankTransaction.objects.filter(
-        transaction_date__lte=through_date, amount__isnull=False, **_account_filter(account),
+        transaction_date__lte=through_date, amount__isnull=False, account=account,
     ).exclude(status=BankTransaction.STATUS_VOIDED).values_list('direction', 'amount'):
         total += amount if direction == BankTransaction.DIRECTION_IN else -amount
     return total

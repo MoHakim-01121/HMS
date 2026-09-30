@@ -88,10 +88,7 @@ def _payment_props(p):
         'method': p.method,
         'received_in': p.received_in,
         'received_in_display': p.get_received_in_display(),
-        'receiving_account': (
-            f'cash:{p.cash_account_id}' if p.cash_account_id
-            else f'bank:{p.bank_account_id}' if p.bank_account_id else None
-        ),
+        'receiving_account': p.receiving_account.token if p.receiving_account_id else None,
         'receiving_account_label': str(p.receiving_account) if p.receiving_account else None,
         'receiving_branch': p.receiving_branch_code,
         'bank_name': p.bank_name,
@@ -469,12 +466,11 @@ def payment_record(request):
     exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
     currency = (data.get('currency') or 'SAR').upper()
 
-    # Receiving account (v2.0 FASE C): a concrete BankAccount/CashAccount
+    # Receiving account (v2.0 FASE C): a concrete MoneyAccount (bank or cash)
     # picked in the UI. received_in stays the routing fallback — derived
     # from the account's branch when one is chosen, or the raw field for
     # older callers/tests that still send received_in directly.
-    bank_account, cash_account = resolve_money_account(data.get('account'))
-    receiving_account = bank_account or cash_account
+    receiving_account = resolve_money_account(data.get('account'))
     if receiving_account is not None:
         received_in = receiving_account.branch_id
     else:
@@ -604,8 +600,7 @@ def payment_record(request):
                     note=data.get('note', '') or f'Allocated to {len(valid_alloc)} reservation(s)',
                     created_by=request.user,
                     received_in=received_in,
-                    bank_account=bank_account,
-                    cash_account=cash_account,
+                    receiving_account=receiving_account,
                 )
                 if proof_file:
                     payment.proof = proof_file
@@ -642,8 +637,7 @@ def payment_record(request):
                     note=data.get('note', ''),
                     created_by=request.user,
                     received_in=received_in,
-                    bank_account=bank_account,
-                    cash_account=cash_account,
+                    receiving_account=receiving_account,
                 )
                 if proof_file:
                     payment.proof = proof_file

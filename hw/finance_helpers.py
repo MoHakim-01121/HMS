@@ -121,8 +121,7 @@ def create_payment_record(
     reservation=None,
     service_item=None,
     received_in='sby',
-    bank_account=None,
-    cash_account=None,
+    receiving_account=None,
 ):
     """Create a PaymentRecord + JournalEntry atomically.
 
@@ -143,14 +142,13 @@ def create_payment_record(
     period = get_period_for_date(payment_date)
 
     received_in = received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby'
-    # Kalau pemanggil tidak memberi rekening konkret, turunkan CashAccount
-    # cabang dari received_in (v2.0 FASE C). Rekening bank riil harus eksplisit.
+    # Kalau pemanggil tidak memberi akun konkret, turunkan kas cabang dari
+    # received_in (v2.0 FASE C). Rekening bank riil harus eksplisit.
     from .finance.bank_ledger import default_account, ensure_account_currency, ensure_hq_receives_sar
-    explicit = bank_account or cash_account
-    ensure_hq_receives_sar(explicit.branch_id if explicit else received_in, currency)
-    if bank_account is None and cash_account is None:
-        bank_account, cash_account = default_account(received_in, currency)
-    ensure_account_currency(bank_account or cash_account, currency)
+    ensure_hq_receives_sar(receiving_account.branch_id if receiving_account else received_in, currency)
+    if receiving_account is None:
+        receiving_account = default_account(received_in, currency)
+    ensure_account_currency(receiving_account, currency)
 
     # Create PaymentRecord
     payment = PaymentRecord.objects.create(
@@ -165,8 +163,7 @@ def create_payment_record(
         exchange_rate=exchange_rate,
         amount_sar=amount_sar,
         received_in=received_in,
-        bank_account=bank_account,
-        cash_account=cash_account,
+        receiving_account=receiving_account,
         method=method,
         bank_name=bank_name,
         account_number=account_number,

@@ -404,8 +404,7 @@ def client_refund(request, pk):
         return page()
 
     P = request.POST
-    bank, cash = resolve_money_account(P.get('from_account'))
-    account = bank or cash
+    account = resolve_money_account(P.get('from_account'))
     amount = int(round(_to_float(P.get('amount_sar'))))
     note = (P.get('note') or '').strip()
     proof = request.FILES.get('proof')

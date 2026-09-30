@@ -37,7 +37,7 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor='',
     """Buat Expense (POSTED) + baris + jurnal accrual. Optional bayar penuh langsung.
 
     lines: iterable {category, ledger_account?, description?, amount}
-    pay_now: None atau {bank_account|cash_account, payment_date?, reference?}
+    pay_now: None atau {account (MoneyAccount), payment_date?, reference?}
     """
     lines = list(lines)
     if not lines:
@@ -71,8 +71,7 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor='',
             expense,
             amount=total, currency=currency, exchange_rate=exchange_rate,
             payment_date=pay_now.get('payment_date') or expense_date,
-            bank_account=pay_now.get('bank_account'),
-            cash_account=pay_now.get('cash_account'),
+            account=pay_now.get('account'),
             reference=pay_now.get('reference', ''),
             created_by=created_by,
         )
@@ -101,15 +100,14 @@ def _post_accrual(expense, created_by):
 
 @transaction.atomic
 def add_expense_payment(expense, *, amount, payment_date, created_by,
-                        bank_account=None, cash_account=None, currency='SAR',
+                        account=None, currency='SAR',
                         exchange_rate=1, reference='', note=''):
     """Bayar (sebagian/penuh) sebuah Expense: Dr AP / Cr Bank/Kas."""
     if expense.status == Expense.STATUS_VOIDED:
         raise FinanceError('Expense sudah void')
-    if (bank_account is None) == (cash_account is None):
-        raise FinanceError('Tepat satu dari bank_account / cash_account harus diisi')
+    if account is None:
+        raise FinanceError('Pilih rekening atau kas yang membayar.')
     from .bank_ledger import ensure_account_currency
-    account = bank_account or cash_account
     ensure_account_currency(account, currency)
     if account.branch_id != expense.branch_id:
         raise FinanceError(
@@ -125,7 +123,7 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
     ep = ExpensePayment.objects.create(
         expense=expense, payment_date=payment_date, amount=amount,
         currency=currency, amount_sar=amt_sar,
-        bank_account=bank_account, cash_account=cash_account,
+        source_account=account,
         reference=reference, status=ExpensePayment.STATUS_PAID,
         note=note, created_by=created_by,
     )

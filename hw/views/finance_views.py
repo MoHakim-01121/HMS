@@ -321,7 +321,7 @@ def _bank_account_in_use(acc):
     return (
         acc.transactions.exclude(status='voided').exclude(source_type__startswith='OpeningBalance').exists()
         or acc.statements.exists()
-        or PaymentRecord.objects.filter(bank_account=acc).exists()
+        or PaymentRecord.objects.filter(receiving_account=acc).exists()
     )
 
 

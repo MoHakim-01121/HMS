@@ -68,11 +68,12 @@ class PaymentRecord(models.Model):
     ]
     received_in    = models.CharField(max_length=10, choices=RECEIVED_IN_CHOICES, default='sby')
 
-    # Rekening penerima konkret (Master Architecture v2.0 FASE C). Tepat satu
-    # dari keduanya, atau (untuk baris historis) tidak ada — `received_in`
-    # tetap jadi fallback routing. `receiving_branch` diturunkan dari sini.
-    bank_account   = models.ForeignKey('BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
-    cash_account   = models.ForeignKey('CashAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    # Akun uang penerima (rekening bank atau kas). Kosong hanya untuk baris
+    # historis — `received_in` tetap jadi fallback routing. Cabang penerima
+    # diturunkan dari sini (bisa berbeda dari cabang pemilik client).
+    receiving_account = models.ForeignKey(
+        'MoneyAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='payments_received',
+    )
 
     # Metadata
     method         = models.CharField(max_length=50)
@@ -102,23 +103,12 @@ class PaymentRecord(models.Model):
             models.Index(fields=['client', 'status'], name='payrec_client_status_idx'),
             models.Index(fields=['invoice', 'status'], name='payrec_invoice_status_idx'),
         ]
-        constraints = [
-            models.CheckConstraint(
-                condition=~(models.Q(bank_account__isnull=False) & models.Q(cash_account__isnull=False)),
-                name='paymentrecord_one_receiving_account',
-            ),
-        ]
 
     def __str__(self):
         return f"{self.payment_number} | {self.amount} {self.currency} | {self.get_status_display()}"
 
     def get_absolute_url(self):
         return reverse('payment_detail', args=[self.pk])
-
-    @property
-    def receiving_account(self):
-        """BankAccount atau CashAccount penerima (None kalau baris historis)."""
-        return self.bank_account or self.cash_account
 
     @property
     def receiving_branch_code(self):

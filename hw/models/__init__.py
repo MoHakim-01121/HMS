@@ -10,7 +10,7 @@ from .invoice import (
     Attachment, _attachment_path,
 )
 from .remittance import Remittance, RemittanceLine
-from .bank import BankAccount, CashAccount
+from .bank import BankAccount, CashAccount, MoneyAccount
 from .bank_transaction import BankTransaction
 from .currency_exchange import CurrencyExchange
 from .credit_note import CreditNote, CreditNoteLine
@@ -52,7 +52,7 @@ __all__ = [
     # Remittance
     'Remittance', 'RemittanceLine',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
-    'BankAccount', 'CashAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
+    'MoneyAccount', 'BankAccount', 'CashAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)
     'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment',
     # Settlement (Master Architecture v2.0 FASE E)

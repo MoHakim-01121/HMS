@@ -65,7 +65,7 @@ class ReconciliationMatchViewTest(ReconciliationViewsBase):
         super().setUp()
         pr = create_payment_record(
             self.inv, self.client_obj, date(2026, 8, 5), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.manager,
+            receiving_account=self.cash_sby, created_by=self.manager,
         )
         confirm_payment(pr, self.manager)
         self.tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)

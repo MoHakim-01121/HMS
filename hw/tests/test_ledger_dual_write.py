@@ -171,9 +171,9 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         # Cash book: the rupiah left the chosen IDR account.
         from hw.models import BankTransaction, Remittance
         rem = Remittance.objects.get()
-        self.assertEqual(rem.from_bank_account_id, acc.pk)
+        self.assertEqual(rem.from_account_id, acc.pk)
         tx = BankTransaction.objects.get(source_type="Remittance", source_id=rem.pk)
-        self.assertEqual((tx.bank_account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
+        self.assertEqual((tx.account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
                          (acc.pk, "out", "IDR", 14_400_000, 3000))
 
     def test_new_remittance_requires_from_account(self):

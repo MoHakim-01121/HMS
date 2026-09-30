@@ -1,17 +1,17 @@
 """BankTransaction recording — the write side of hw/models/bank_transaction.py.
 
-One call site per event that moves cash through a concrete BankAccount/
-CashAccount. Idempotent per (source_type, source_id): safe to call again for
+One call site per event that moves cash through a concrete MoneyAccount.
+Idempotent per (source_type, source_id): safe to call again for
 an already-recorded event (e.g. a retried request) without doubling it.
 """
-from ..models.bank import BankAccount
+from ..models.bank import BankAccount, CashAccount
 from ..models.bank_transaction import BankTransaction
 
 
 def record_bank_transaction(*, account, direction, amount_sar, source_type, source_id,
                             transaction_date, currency='SAR', amount=None, reference=''):
     """Log a cash movement against a concrete account. No-op if `account` is
-    None (legacy/unlinked event with no resolvable BankAccount/CashAccount —
+    None (legacy/unlinked event with no resolvable MoneyAccount —
     the movement is still correct in the journal, just not in this log).
 
     `amount` is the money that actually moved, in `currency`; a SAR movement
@@ -23,13 +23,12 @@ def record_bank_transaction(*, account, direction, amount_sar, source_type, sour
         amount = amount_sar
     if account is None:
         return None
-    kwargs = {'bank_account': account} if isinstance(account, BankAccount) else {'cash_account': account}
     tx, _created = BankTransaction.objects.get_or_create(
         source_type=source_type, source_id=source_id,
         defaults={
             'transaction_date': transaction_date, 'direction': direction,
             'amount_sar': amount_sar, 'currency': currency, 'amount': amount, 'reference': reference,
-            **kwargs,
+            'account': account,
         },
     )
     return tx
@@ -57,7 +56,7 @@ def void_bank_transactions(source_type, source_ids):
 
 
 def opening_source_type(account):
-    return 'OpeningBalanceBank' if isinstance(account, BankAccount) else 'OpeningBalanceCash'
+    return 'OpeningBalance'
 
 
 def sync_opening_balance(account):
@@ -104,15 +103,12 @@ def sync_opening_balance(account):
 def default_account(branch_id, currency):
     """The account a branch receives `currency` into when the caller did not
     name one: its cash account in that currency, else its first bank account
-    in that currency. (None, None) when the branch holds no such account —
-    never an account in another currency, which would book rupiah into a
-    riyal till."""
-    from ..models.bank import CashAccount
+    in that currency. None when the branch holds no such account — never an
+    account in another currency, which would book rupiah into a riyal till."""
     cash = CashAccount.objects.filter(branch_id=branch_id, currency=currency, is_active=True).order_by('id').first()
     if cash:
-        return None, cash
-    bank = BankAccount.objects.filter(branch_id=branch_id, currency=currency, is_active=True).order_by('id').first()
-    return bank, None
+        return cash
+    return BankAccount.objects.filter(branch_id=branch_id, currency=currency, is_active=True).order_by('id').first()
 
 
 def ensure_hq_receives_sar(branch_id, currency):

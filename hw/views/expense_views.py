@@ -62,7 +62,7 @@ def _expense_props(e):
             'account_name': str(p.source_account) if p.source_account else None,
             'reference': p.reference, 'status': p.status,
             'status_display': p.get_status_display(),
-        } for p in e.payments.select_related('bank_account', 'cash_account')],
+        } for p in e.payments.select_related('source_account')],
     }
 
 
@@ -170,10 +170,9 @@ def expense_record(request):
     pay_now = None
     account_value = data.get('pay_now_account')
     if account_value:
-        bank_account, cash_account = _resolve_account(account_value)
-        if bank_account or cash_account:
-            pay_now = {'bank_account': bank_account, 'cash_account': cash_account,
-                      'reference': data.get('pay_now_reference', '')}
+        account = _resolve_account(account_value)
+        if account:
+            pay_now = {'account': account, 'reference': data.get('pay_now_reference', '')}
 
     try:
         expense = expense_service.record_expense(
@@ -207,8 +206,8 @@ def expense_pay(request, pk):
         messages.error(request, 'Jumlah pembayaran harus diisi.')
         return redirect('expense_detail', pk=pk)
 
-    bank_account, cash_account = _resolve_account(data.get('account'))
-    if not bank_account and not cash_account:
+    account = _resolve_account(data.get('account'))
+    if not account:
         messages.error(request, 'Rekening pembayar harus dipilih.')
         return redirect('expense_detail', pk=pk)
     currency = (data.get('currency') or expense.currency).upper()
@@ -219,7 +218,7 @@ def expense_pay(request, pk):
     try:
         expense_service.add_expense_payment(
             expense, amount=amount, payment_date=_parse_date(data.get('payment_date')) or date.today(),
-            bank_account=bank_account, cash_account=cash_account,
+            account=account,
             currency=currency,
             exchange_rate=_to_float(data.get('exchange_rate'), 1) or 1,
             reference=data.get('reference', ''), note=data.get('note', ''),

@@ -8,7 +8,6 @@ from decimal import Decimal
 
 from django.db import transaction
 
-from ..models.bank import BankAccount
 from ..models.currency_exchange import CurrencyExchange
 from .bank_ledger import record_bank_transaction, void_bank_transactions
 from .errors import FinanceError
@@ -22,18 +21,12 @@ SOURCE_IN = 'CurrencyExchangeIn'
 RATE_WARNING_PCT = Decimal('3')
 
 
-def _side(account):
-    return ({'bank_account': account} if isinstance(account, BankAccount) else {'cash_account': account})
-
-
 def previous_rate(from_currency, to_currency, *, exclude_pk=None):
     """Rate of the latest active exchange for the same currency pair, or None."""
     qs = CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE)
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
-    for ex in qs.order_by('-exchange_date', '-pk').select_related(
-        'from_bank_account', 'from_cash_account', 'to_bank_account', 'to_cash_account',
-    )[:50]:
+    for ex in qs.order_by('-exchange_date', '-pk').select_related('from_account', 'to_account')[:50]:
         if ex.from_currency == from_currency and ex.to_currency == to_currency:
             return ex.rate
     return None
@@ -65,8 +58,7 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
         exchange_date=exchange_date,
         amount_out=amount_out, amount_in=amount_in,
         reference=reference, note=note, created_by=created_by,
-        **{f'from_{k}': v for k, v in _side(from_account).items()},
-        **{f'to_{k}': v for k, v in _side(to_account).items()},
+        from_account=from_account, to_account=to_account,
     )
     if proof:
         ex.proof = proof

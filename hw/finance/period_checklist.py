@@ -77,13 +77,13 @@ def _bank_statements(period):
     from .reconciliation_service import statement_summary
     active_ids = set(
         BankTransaction.objects.filter(
-            transaction_date__gte=period.date_from, transaction_date__lte=period.date_to, bank_account__isnull=False,
-        ).exclude(status=BankTransaction.STATUS_VOIDED).values_list('bank_account_id', flat=True)
+            transaction_date__gte=period.date_from, transaction_date__lte=period.date_to, account__kind='bank',
+        ).exclude(status=BankTransaction.STATUS_VOIDED).values_list('account_id', flat=True)
     )
     problems = []
     for acc in BankAccount.objects.filter(pk__in=active_ids).order_by('branch_id', 'bank_name'):
         st = BankStatement.objects.filter(
-            bank_account=acc, period_start__lte=period.date_to, period_end__gte=period.date_to,
+            account=acc, period_start__lte=period.date_to, period_end__gte=period.date_to,
         ).order_by('-period_end').first()
         if st is None:
             problems.append(f'{acc}: no statement up to {period.date_to:%d/%m/%Y}')

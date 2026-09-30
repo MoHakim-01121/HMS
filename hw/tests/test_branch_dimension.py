@@ -32,28 +32,18 @@ class ReceivingAccountTest(TestCase):
         )
 
     def test_at_most_one_receiving_account(self):
-        cash = CashAccount.objects.get(branch_id='sby')
-        bank = BankAccount.objects.create(
-            branch=Branch.objects.get(code='sby'), name='Ops', currency='SAR',
-            ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
-            bank_name='BCA', account_identifier='1',
-        )
-        with self.assertRaises(IntegrityError):
-            PaymentRecord.objects.create(
-                payment_number='PAY-X', invoice=self.inv, client=self.client_obj,
-                payment_date=date(2026, 1, 1), amount=1, amount_sar=1,
-                method='Cash', status=PaymentRecord.STATUS_PENDING,
- created_by=self.user,
-                period=FinancialPeriod.objects.first(),
-                bank_account=bank, cash_account=cash,
-            )
+        # Schema v2: bank dan kas satu tabel, jadi pembayaran hanya punya satu
+        # kolom akun penerima — "dua akun sekaligus" tidak bisa lagi ditulis.
+        names = {f.name for f in PaymentRecord._meta.get_fields()}
+        self.assertIn('receiving_account', names)
+        self.assertFalse({'bank_account', 'cash_account'} & names)
 
     def test_create_payment_record_derives_cash_account_from_received_in(self):
         pr = create_payment_record(
             self.inv, self.client_obj, date(2026, 1, 5), 3000,
             method='Transfer', received_in='jkt', created_by=self.user,
         )
-        self.assertEqual(pr.cash_account.branch_id, 'jkt')
+        self.assertEqual(pr.receiving_account.branch_id, 'jkt')
         self.assertEqual(pr.receiving_branch_code, 'jkt')
 
     def test_payment_journal_lines_carry_receiving_branch(self):
@@ -111,7 +101,7 @@ class PaymentRecordAccountPickerViewTest(TestCase):
         })
         self.assertEqual(resp.status_code, 302)
         pr = PaymentRecord.objects.get(invoice=self.inv)
-        self.assertEqual(pr.cash_account_id, self.jkt_cash.pk)
+        self.assertEqual(pr.receiving_account_id, self.jkt_cash.pk)
         self.assertEqual(pr.receiving_branch_code, 'jkt')
 
     def test_list_props_expose_account_choices(self):

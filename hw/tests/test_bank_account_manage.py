@@ -146,7 +146,7 @@ class BankAccountGuardTests(TestCase):
 
     def test_account_with_statement_keeps_branch_and_currency(self):
         from hw.models import BankStatement
-        BankStatement.objects.create(bank_account=self.acc, period_start=date(2026, 9, 1), period_end=date(2026, 9, 30),
+        BankStatement.objects.create(account=self.acc, period_start=date(2026, 9, 1), period_end=date(2026, 9, 30),
                                      opening_balance=0, closing_balance=0)
         self.client.post(f'/finance/bank-accounts/{self.acc.pk}/edit/', post_data(branch='jkt', currency='USD'))
         self.acc.refresh_from_db()
@@ -154,10 +154,13 @@ class BankAccountGuardTests(TestCase):
 
     def test_inactive_account_does_not_resolve(self):
         from hw.views.helpers import resolve_money_account
-        self.assertEqual(resolve_money_account(f'bank:{self.acc.pk}')[0], self.acc)
+        self.assertEqual(resolve_money_account(f'bank:{self.acc.pk}'), self.acc)
+        # Jenis di token harus cocok dengan jenis akun: id rekening bank
+        # tidak bisa diselundupkan sebagai "cash:<id>".
+        self.assertIsNone(resolve_money_account(f'cash:{self.acc.pk}'))
         self.acc.is_active = False
         self.acc.save()
-        self.assertEqual(resolve_money_account(f'bank:{self.acc.pk}'), (None, None))
+        self.assertIsNone(resolve_money_account(f'bank:{self.acc.pk}'))
 
 
 class InvoiceFormBranchTests(TestCase):
@@ -193,7 +196,7 @@ class OpeningBalanceTests(TestCase):
 
     def _row(self, acc):
         from hw.models import BankTransaction
-        return BankTransaction.objects.filter(source_type='OpeningBalanceBank', source_id=acc.pk).first()
+        return BankTransaction.objects.filter(source_type='OpeningBalance', source_id=acc.pk).first()
 
     def test_opening_balance_becomes_one_cash_row_that_follows_edits(self):
         self.client.post('/finance/bank-accounts/new/', post_data(opening_balance='25000000', opening_date='2026-09-01'))
@@ -206,7 +209,7 @@ class OpeningBalanceTests(TestCase):
         row.refresh_from_db()
         self.assertEqual((row.amount, row.transaction_date), (30_000_000, date(2026, 9, 2)))
         from hw.models import BankTransaction
-        self.assertEqual(BankTransaction.objects.filter(source_type='OpeningBalanceBank').count(), 1)
+        self.assertEqual(BankTransaction.objects.filter(source_type='OpeningBalance').count(), 1)
 
         self.client.post(f'/finance/bank-accounts/{acc.pk}/edit/', post_data(opening_balance='', opening_date=''))
         row.refresh_from_db()

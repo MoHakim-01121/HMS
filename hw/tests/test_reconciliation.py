@@ -38,7 +38,7 @@ class MatchLineTest(ReconciliationBase):
         super().setUp()
         pr = create_payment_record(
             self.inv, self.client_obj, date(2026, 8, 5), 5000, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr, self.user)
         self.tx = BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk)
@@ -89,7 +89,7 @@ class StatementSummaryTest(ReconciliationBase):
     def test_summary_reports_difference_against_book_balance(self):
         pr = create_payment_record(
             self.inv, self.client_obj, date(2026, 8, 5), 4500, method='Transfer',
-            cash_account=self.cash_sby, created_by=self.user,
+            receiving_account=self.cash_sby, created_by=self.user,
         )
         confirm_payment(pr, self.user)
         statement = rs.create_statement(

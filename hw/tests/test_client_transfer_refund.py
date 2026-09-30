@@ -78,7 +78,7 @@ class RefundTransferViewTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         entry = JournalEntry.objects.get(entry_type=JournalEntry.TYPE_REFUND)
         tx = BankTransaction.objects.get(source_type="Refund", source_id=entry.pk)
-        self.assertEqual((tx.bank_account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
+        self.assertEqual((tx.account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
                          (acc.pk, "out", "IDR", 47_500_000, 10_000))
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 10_000)
 

@@ -28,8 +28,7 @@ CATEGORY_BY_SOURCE = {
     'RemittanceSettlement': 'hq_receipts',
     'ExpensePayment': 'operational',
     'Refund': 'refund',
-    'OpeningBalanceBank': 'opening_rows',
-    'OpeningBalanceCash': 'opening_rows',
+    'OpeningBalance': 'opening_rows',
 }
 LINES = [
     ('opening', 'Opening balance'),
@@ -47,7 +46,7 @@ UNRECORDED = 'Account not recorded'
 
 
 def _account(tx):
-    return tx.bank_account or tx.cash_account
+    return tx.account
 
 
 def _signed(tx):
@@ -58,7 +57,7 @@ def _live_rows(branch=None, date_to=None):
     qs = (
         BankTransaction.objects.exclude(status=BankTransaction.STATUS_VOIDED)
         .filter(amount__isnull=False)
-        .select_related('bank_account', 'cash_account')
+        .select_related('account')
         .order_by('transaction_date', 'pk')
     )
     if date_to:
@@ -77,7 +76,7 @@ def _unrecorded_transfers(branch, date_to):
     if branch not in (None, 'sby'):
         return []
     have = set(BankTransaction.objects.filter(source_type='Remittance').values_list('source_id', flat=True))
-    qs = Remittance.objects.filter(from_bank_account__isnull=True, amount_idr__isnull=False).exclude(pk__in=have)
+    qs = Remittance.objects.filter(from_account__isnull=True, amount_idr__isnull=False).exclude(pk__in=have)
     if date_to:
         qs = qs.filter(date__lte=date_to)
     return list(qs.order_by('date', 'pk'))
@@ -123,7 +122,7 @@ def fund_flow(*, branch=None, date_from=None, date_to=None):
         if line == 'opening_rows':
             line = 'opening'   # an opening balance inside the period still opens it
         in_period = not date_from or tx.transaction_date >= date_from
-        key = f'{"bank" if tx.bank_account_id else "cash"}:{acc.pk}'
+        key = acc.token
         entry = account_entry(key, str(acc), acc.branch_id, tx.currency)
         add(line, tx.currency, _signed(tx), entry, in_period, {
             'date': tx.transaction_date.isoformat(), 'account': str(acc),
@@ -181,19 +180,17 @@ def _branch_events(branch, date_to):
 
     events = []
     for p in (PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES).exclude(currency='SAR')
-              .select_related('bank_account', 'cash_account')):
+              .select_related('receiving_account')):
         if p.receiving_branch_code == branch and (not date_to or p.payment_date <= date_to):
             events.append((p.payment_date, 0, p.pk, 'payment', p))
-    for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).select_related(
-        'from_bank_account', 'from_cash_account', 'to_bank_account', 'to_cash_account',
-    ):
+    for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).select_related('from_account', 'to_account'):
         if ex.from_account.branch_id == branch and (not date_to or ex.exchange_date <= date_to):
             events.append((ex.exchange_date, 1, ex.pk, 'exchange', ex))
-    for tx in BankTransaction.objects.filter(source_type='Refund').exclude(status=BankTransaction.STATUS_VOIDED).select_related('bank_account', 'cash_account'):
+    for tx in BankTransaction.objects.filter(source_type='Refund').exclude(status=BankTransaction.STATUS_VOIDED).select_related('account'):
         if _account(tx).branch_id == branch and tx.currency != 'SAR' and (not date_to or tx.transaction_date <= date_to):
             events.append((tx.transaction_date, 2, tx.pk, 'refund', tx))
-    for rem in Remittance.objects.select_related('from_bank_account'):
-        sender = rem.from_bank_account.branch_id if rem.from_bank_account_id else 'sby'
+    for rem in Remittance.objects.select_related('from_account'):
+        sender = rem.from_account.branch_id if rem.from_account_id else 'sby'
         if sender == branch and (not date_to or rem.date <= date_to):
             events.append((rem.date, 3, rem.pk, 'remittance', rem))
     events.sort(key=lambda e: e[:3])

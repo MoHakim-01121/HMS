@@ -134,8 +134,8 @@ class ExpensePayment(models.Model):
     amount       = models.PositiveIntegerField()
     currency     = models.CharField(max_length=10, default='SAR')
     amount_sar   = models.PositiveIntegerField()
-    bank_account = models.ForeignKey('BankAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
-    cash_account = models.ForeignKey('CashAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    # Akun uang (rekening bank atau kas) yang membayar.
+    source_account = models.ForeignKey('MoneyAccount', on_delete=models.PROTECT, related_name='expense_payments')
     reference    = models.CharField(max_length=200, blank=True)
     status       = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PAID)
     note         = models.TextField(blank=True)
@@ -146,19 +146,6 @@ class ExpensePayment(models.Model):
         ordering = ['payment_date', 'id']
         verbose_name = 'Expense Payment'
         verbose_name_plural = 'Expense Payments'
-        constraints = [
-            models.CheckConstraint(
-                condition=(
-                    models.Q(bank_account__isnull=False, cash_account__isnull=True)
-                    | models.Q(bank_account__isnull=True, cash_account__isnull=False)
-                ),
-                name='expensepayment_exactly_one_account',
-            ),
-        ]
 
     def __str__(self):
         return f"{self.expense.expense_number} pay {self.amount_sar:,}"
-
-    @property
-    def source_account(self):
-        return self.bank_account or self.cash_account
