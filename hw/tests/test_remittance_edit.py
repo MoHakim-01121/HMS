@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Remittance, RemittanceLine
+from hw.models import Remittance, RemittanceLine
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
 from hw.tests.factories import make_hotel_line, make_invoice
@@ -86,7 +86,7 @@ class AddableReservasiTest(TestCase):
  invoice_type='hotel',
             invoice_number='INV-EDIT-002', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create( name="PT Uji")
+        self.client_obj = self.invoice.client
         self.r1 = make_hotel_line(
             invoice=self.invoice, reservation_number='R1', total_sar=10000,
             check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
@@ -164,7 +164,7 @@ class RemittanceEditViewTest(TestCase):
  invoice_type='hotel',
             invoice_number='INV-EDIT-003', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create( name="PT Uji")
+        self.client_obj = self.invoice.client
         r1 = make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         r2 = make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         # R2 dibayar lebih dulu (2 Jan) daripada R1 (5 Jan) — urutan jurnal ini

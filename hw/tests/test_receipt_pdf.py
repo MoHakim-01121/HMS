@@ -68,8 +68,8 @@ class ReceiptPdfBase(TestCase):
 class AllocationRowsTest(ReceiptPdfBase):
     def test_rows_reconcile_when_fully_applied(self):
         payment = self._payment(45000)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r1, amount_sar=30000)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r2, amount_sar=15000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r2, amount_sar=15000)
 
         rows = _allocation_rows(payment)
         self.assertEqual([r['label'] for r in rows], ['RCP-R1', 'RCP-R2'])
@@ -77,7 +77,7 @@ class AllocationRowsTest(ReceiptPdfBase):
 
     def test_partially_applied_leaves_a_remainder(self):
         payment = self._payment(48750)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r1, amount_sar=30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
 
         rows = _allocation_rows(payment)
         allocated = sum(r['amount_sar'] for r in rows)
@@ -85,8 +85,9 @@ class AllocationRowsTest(ReceiptPdfBase):
         self.assertEqual(payment.amount_sar - allocated, 18750)
 
     def test_payment_bound_to_one_reservation_counts_as_fully_applied(self):
-        """The second allocation shape: no rows, a direct reservation FK."""
-        payment = self._payment(30000, reservation=self.r1)
+        """A payment made for one reservation carries a single full allocation."""
+        payment = self._payment(30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
         rows = _allocation_rows(payment)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['label'], 'RCP-R1')
@@ -108,7 +109,7 @@ class AllocationRowsTest(ReceiptPdfBase):
         expectation is visible rather than inferred.
         """
         payment = self._payment(30000)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r1, amount_sar=30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
@@ -155,13 +156,13 @@ class ReceiptPdfRenderTest(ReceiptPdfBase):
 
     def test_fully_applied_receipt_renders(self):
         payment = self._payment(45000)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r1, amount_sar=30000)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r2, amount_sar=15000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r2, amount_sar=15000)
         self._render(self._receipt(payment))
 
     def test_partially_applied_receipt_renders(self):
         payment = self._payment(48750)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.r1, amount_sar=30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
         self._render(self._receipt(payment, number='RCP-0002'))
 
     def test_unapplied_receipt_renders(self):

@@ -122,37 +122,19 @@ def payment_unallocated_sar(payment_id):
 
     = amount_sar - sum(PaymentAllocation.amount_sar).
 
-    Sebuah payment dianggap TERALOKASI penuh ke reservasi di dua cara:
-    1. Punya baris PaymentAllocation -> sisa dihitung per baris.
-    2. Tanpa baris PaymentAllocation tapi terikat LANGSUNG ke satu reservasi
-       (payment.reservation_id terisi) -> dianggap penuh dialokasikan ke
-       target tunggal itu (unallocated = 0).
-
-    Hanya punya invoice_id (tanpa reservation/allocation) BUKAN tanda
-    teralokasi: payment masih menunggu pemecahan alokasi per reservasi via
-    reallocate, sehingga tetap dihitung sebagai unallocated.
+    Setiap tujuan pembayaran adalah baris PaymentAllocation (payment yang
+    dibuat untuk satu reservasi langsung punya satu alokasi penuh). Hanya
+    punya invoice_id BUKAN tanda teralokasi: payment masih menunggu pemecahan
+    per baris invoice, sehingga tetap dihitung sebagai unallocated.
 
     Berguna untuk menampilkan badge 'X SAR unallocated' di payment detail."""
-    from ..models.payment import PaymentRecord
-    try:
-        pr = PaymentRecord.objects.get(pk=payment_id)
-    except PaymentRecord.DoesNotExist:
-        return 0
-    alloc_sum = sum(int(a.amount_sar) for a in pr.allocations.all())
-    if alloc_sum:
-        return max(0, int(pr.amount_sar) - alloc_sum)
-    if pr.reservation_id:
-        return 0
-    return int(pr.amount_sar)
+    return payment_unallocated_map([payment_id]).get(payment_id, 0)
 
 
 def payment_unallocated_map(payment_ids):
     """{payment_id: unallocated_sar} — bentuk bulk dari payment_unallocated_sar.
 
-    Dua query untuk N payment, bukan dua query PER payment. Aturannya persis
-    sama dengan versi satuan: baris PaymentAllocation menang; tanpa baris tapi
-    terikat langsung ke satu reservasi = teralokasi penuh; selain itu seluruh
-    nilainya belum teralokasi.
+    Dua query untuk N payment, bukan dua query PER payment.
     """
     from ..models.payment import PaymentRecord, PaymentAllocation
 
@@ -165,18 +147,10 @@ def payment_unallocated_map(payment_ids):
         for r in PaymentAllocation.objects.filter(payment_id__in=ids)
         .values("payment_id").annotate(t=Sum("amount_sar"))
     }
-    out = {}
-    for pk, amount_sar, reservation_id in PaymentRecord.objects.filter(
-        pk__in=ids,
-    ).values_list("pk", "amount_sar", "reservation_id"):
-        allocated = alloc.get(pk, 0)
-        if allocated:
-            out[pk] = max(0, int(amount_sar) - allocated)
-        elif reservation_id:
-            out[pk] = 0
-        else:
-            out[pk] = int(amount_sar)
-    return out
+    return {
+        pk: max(0, int(amount_sar) - alloc.get(pk, 0))
+        for pk, amount_sar in PaymentRecord.objects.filter(pk__in=ids).values_list("pk", "amount_sar")
+    }
 
 
 def invoice_paid_map(invoice_ids):
@@ -215,10 +189,7 @@ def payment_history_rows(invoice):
     prs = list(
         PaymentRecord.objects
         .filter(invoice=invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
-        .select_related('reservation__confirmation_letter', 'service_item')
-        .prefetch_related(
-            'allocations', 'allocations__reservation__confirmation_letter', 'allocations__service_item',
-        )
+        .prefetch_related('allocations__invoice_line__confirmation_letter')
         .order_by('payment_date', 'pk')
     )
 
@@ -226,12 +197,6 @@ def payment_history_rows(invoice):
     for pr in prs:
         refs = []
         svc_nos = []
-        if pr.reservation_id and pr.reservation:
-            refs.append(pr.reservation.reservation_number)
-            if str(pr.reservation.reservation_number).isdigit():
-                svc_nos.append(int(pr.reservation.reservation_number))
-        if pr.service_item_id and pr.service_item:
-            svc_nos.append(pr.service_item.service_number)
         for a in pr.allocations.all():
             if a.reservation_id and a.reservation and a.reservation.reservation_number not in refs:
                 refs.append(a.reservation.reservation_number)

@@ -61,8 +61,6 @@ def _payment_props(p):
         'invoice_number': p.invoice.invoice_number if p.invoice else None,
         'client_id': p.client_id,
         'client_name': p.client.name if p.client else None,
-        'reservation_id': p.reservation_id,
-        'service_item_id': p.service_item_id,
         # hotel/check_in/check_out ikut dikirim supaya tabel alokasi di detail
         # bisa menyebut kamar mana yang dibayar, bukan cuma nomor reservasi.
         # Alokasi ke ServiceItem tidak punya hotel/tanggal -- namanya dipakai
@@ -77,7 +75,7 @@ def _payment_props(p):
             'service_item_id': a.service_item_id,
             'service_item_name': a.service_item.name if a.service_item else None,
             'amount_sar': a.amount_sar,
-        } for a in p.allocations.select_related('reservation', 'service_item')],
+        } for a in p.allocations.select_related('invoice_line__confirmation_letter__hotel')],
         'unallocated_sar': unallocated,
         'allocated_sar': allocated,
         'payment_date': p.payment_date.isoformat() if p.payment_date else None,

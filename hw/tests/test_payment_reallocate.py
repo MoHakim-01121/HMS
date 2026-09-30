@@ -84,8 +84,8 @@ class PaymentReallocateTest(TestCase):
         self.assertEqual(fq.invoice_paid_sar(self.invoice.pk), 20000)
 
     def test_payment_bound_directly_to_reservation_is_allocated(self):
-        """A payment attached directly to one reservation (no PaymentAllocation
-        rows) counts as fully allocated, not unallocated."""
+        """A payment made for one reservation is allocated to it in full: the
+        target is an allocation row, not a second kind of link on the payment."""
         from ..finance_helpers import create_payment_record, confirm_payment, allocate_payment as fh_allocate
         pr = create_payment_record(
             invoice=self.invoice, client=self.invoice.client, reservation=self.r1,
@@ -93,14 +93,17 @@ class PaymentReallocateTest(TestCase):
             method='Transfer', created_by=self.user,
         )
         self.assertEqual(int(pr.amount_sar), 15000)
-        self.assertEqual(pr.reservation_id, self.r1.pk)
+        self.assertEqual(
+            list(PaymentAllocation.objects.filter(payment=pr).values_list('invoice_line_id', 'amount_sar')),
+            [(self.r1.pk, 15000)],
+        )
         confirm_payment(pr, confirmed_by=self.user)
         fh_allocate(pr, allocation_date=pr.payment_date, created_by=self.user)
         pr.refresh_from_db()
 
         self.assertEqual(pr.status, PaymentRecord.STATUS_ALLOCATED)
-        self.assertEqual(PaymentAllocation.objects.filter(payment=pr).count(), 0)
-        # Direct reservation binding -> fully allocated (no unallocated warning)
+        self.assertEqual(PaymentAllocation.objects.filter(payment=pr).count(), 1)
+        # Fully allocated (no unallocated warning)
         self.assertEqual(fq.payment_unallocated_sar(pr.pk), 0)
 
     def test_reallocate_assigns_to_reservation(self):

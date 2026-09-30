@@ -76,7 +76,7 @@ class MultiAllocationSaveTest(TestCase):
         # Menunggu konfirmasi finance/admin — bukan langsung efektif.
         self.assertEqual(p.status, PaymentRecord.STATUS_PENDING)
 
-        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
+        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('invoice_line_id'))
         self.assertEqual(
             [(a.reservation_id, a.amount_sar) for a in allocs],
             [(self.r1.pk, 500), (self.r2.pk, 1000)],
@@ -104,7 +104,7 @@ class MultiAllocationSaveTest(TestCase):
         # ...sementara nilai SAR (riyal patokan) dihitung via convert_to_sar.
         self.assertEqual(p.amount_sar, 10000)
 
-        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('reservation_id'))
+        allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('invoice_line_id'))
         self.assertEqual(
             [(a.reservation_id, a.amount_sar) for a in allocs],
             [(self.r1.pk, 6000), (self.r2.pk, 4000)],

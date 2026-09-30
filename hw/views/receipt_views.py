@@ -104,53 +104,26 @@ def _allocation_rows(payment):
 
     rows = []
     for a in payment.allocations.select_related(
-        'reservation__confirmation_letter__hotel', 'service_item', 'penalty',
+        'invoice_line__confirmation_letter__hotel',
     ).order_by('pk'):
-        if a.reservation_id and a.reservation:
+        line = a.invoice_line
+        if line.kind == line.KIND_HOTEL:
             rows.append({
-                'label': a.reservation.reservation_number,
-                'sublabel': a.reservation.hotel,
-                'stay': _stay_label(a.reservation.check_in, a.reservation.check_out),
-                'amount_sar': a.amount_sar,
-            })
-        elif a.service_item_id and a.service_item:
-            rows.append({
-                'label': a.service_item.name,
-                'sublabel': f'Service item x{a.service_item.qty}',
-                'stay': '',
-                'amount_sar': a.amount_sar,
-            })
-        elif a.penalty_id and a.penalty:
-            rows.append({
-                'label': a.penalty.penalty_number,
-                'sublabel': 'Cancellation penalty',
-                'stay': '',
+                'label': line.reservation_number,
+                'sublabel': line.hotel,
+                'stay': _stay_label(line.check_in, line.check_out),
                 'amount_sar': a.amount_sar,
             })
         else:
-            # Every allocation target is SET_NULL, so a deleted reservation
-            # leaves the row pointing nowhere. The money still belongs on the
-            # receipt: keep the row so the column still sums to the total,
-            # rather than letting it silently vanish.
             rows.append({
-                'label': '—',
-                'sublabel': 'Allocation target no longer available',
+                'label': line.description,
+                'sublabel': f'Service item x{line.quantity}',
                 'stay': '',
                 'amount_sar': a.amount_sar,
             })
 
     for row in rows:
         row['amount_fmt'] = f"{row['amount_sar']:,}"
-
-    if not rows and payment.reservation_id and payment.reservation:
-        r = payment.reservation
-        rows.append({
-            'label': r.reservation_number,
-            'sublabel': r.hotel,
-            'stay': _stay_label(r.check_in, r.check_out),
-            'amount_sar': payment.amount_sar,
-            'amount_fmt': f"{payment.amount_sar:,}",
-        })
     return rows
 
 

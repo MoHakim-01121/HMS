@@ -48,10 +48,6 @@ class PaymentRecord(models.Model):
     invoice        = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='payment_records')
     client         = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='payment_records')
 
-    # Target alokasi (opsional: salah satu atau none)
-    reservation    = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    service_item   = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-
     # Data pembayaran
     payment_date   = models.DateField()
     amount         = models.PositiveIntegerField()
@@ -147,17 +143,17 @@ class PaymentRecord(models.Model):
 
 
 class PaymentAllocation(models.Model):
-    """Alokasi analitik satu PaymentRecord ke reservation/service/penalty.
+    """Bagian dari satu pembayaran yang melunasi satu baris invoice.
 
-    BUKAN mekanisme akuntansi (jurnal payment sudah menempelkan dimensi
-    reservation di baris CR Piutang) — ini rincian "pembayaran ini untuk
-    apa saja" saat satu transfer menutup beberapa item.
+    Tujuannya selalu satu baris invoice: baris hotel (reservasi) atau baris
+    service. Denda tidak dialokasikan sendiri: ia dibayar lewat baris hotel
+    reservasinya (lihat hw.finance.penalty_billing). Bagian pembayaran yang
+    tidak punya alokasi adalah kelebihan bayar.
     """
 
     payment      = models.ForeignKey(PaymentRecord, on_delete=models.PROTECT, related_name='allocations')
-    reservation  = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    service_item = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    penalty      = models.ForeignKey('CancellationPenalty', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # PROTECT: baris invoice yang sudah menerima uang tidak boleh hilang.
+    invoice_line = models.ForeignKey('InvoiceLine', on_delete=models.PROTECT, related_name='payment_allocations')
     amount_sar   = models.BigIntegerField()
     created_at   = models.DateTimeField(auto_now_add=True)
 
@@ -169,18 +165,32 @@ class PaymentAllocation(models.Model):
                 condition=models.Q(amount_sar__gt=0),
                 name='paymentallocation_amount_positive',
             ),
-            models.CheckConstraint(
-                condition=(
-                    models.Q(reservation__isnull=False, service_item__isnull=True, penalty__isnull=True)
-                    | models.Q(reservation__isnull=True, service_item__isnull=False, penalty__isnull=True)
-                    | models.Q(reservation__isnull=True, service_item__isnull=True, penalty__isnull=False)
-                ),
-                name='paymentallocation_exactly_one_target',
-            ),
         ]
 
     def __str__(self):
         return f"{self.payment.payment_number} → {self.amount_sar:,}"
+
+    # Nama lama per jenis baris, untuk pembaca yang membedakan reservasi dari
+    # service (tampilan alokasi, kwitansi, dimensi jurnal).
+    @property
+    def reservation(self):
+        line = self.invoice_line
+        return line if line.kind == line.KIND_HOTEL else None
+
+    @property
+    def reservation_id(self):
+        line = self.reservation
+        return line.pk if line else None
+
+    @property
+    def service_item(self):
+        line = self.invoice_line
+        return line if line.kind == line.KIND_SERVICE else None
+
+    @property
+    def service_item_id(self):
+        line = self.service_item
+        return line.pk if line else None
 
 
 class PaymentLog(models.Model):

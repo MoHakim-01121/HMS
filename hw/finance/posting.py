@@ -424,12 +424,12 @@ def clear_payment_allocations(payment):
     """
     rows = [
         {
+            "invoice_line_id": a.invoice_line_id,
             "reservation_id": a.reservation_id,
             "service_item_id": a.service_item_id,
-            "penalty_id": a.penalty_id,
             "amount_sar": a.amount_sar,
         }
-        for a in payment.allocations.all()
+        for a in payment.allocations.select_related("invoice_line")
     ]
     if rows:
         payment.allocations.all().delete()
@@ -493,22 +493,32 @@ def _pk(v):
     return getattr(v, "pk", v)
 
 
-def _payment_dims(payment):
-    dims = {"client": payment.client_id, "invoice": payment.invoice_id}
-    if payment.reservation_id:
-        dims["reservation"] = payment.reservation_id
-    if payment.service_item_id:
-        dims["service_item"] = payment.service_item_id
-    return dims
+def _allocation_dim(allocation):
+    """Dimensi jurnal sebuah alokasi: baris hotel → reservation, baris service → service_item."""
+    line = allocation.invoice_line
+    return {"reservation" if line.kind == line.KIND_HOTEL else "service_item": line.pk}
+
+
+def _payment_segments(payment):
+    """[(nominal, dimensi)] — satu segmen per alokasi, plus sisa yang belum
+    dialokasikan (tanpa dimensi baris) bila ada."""
+    amt = int(payment.amount_sar)
+    segments, used = [], 0
+    allocs = list(payment.allocations.select_related("invoice_line")) if payment.pk else []
+    for pa in allocs:
+        segments.append((int(pa.amount_sar), _allocation_dim(pa)))
+        used += int(pa.amount_sar)
+    if used < amt:
+        segments.append((amt - used, {}))
+    return segments
 
 
 def _payment_targets(payment):
     """Daftar identitas yang dibayar oleh payment ini, untuk deskripsi jurnal.
 
-    Sumbernya dua: field langsung (payment.reservation / service_item) dan
-    PaymentAllocation (satu payment bisa menutup beberapa reservasi/service).
-    Nomor reservasi dipakai karena identitas stabil + konsisten dengan
-    deskripsi jurnal lain (Charge/Remittance pakai nomor, bukan nama).
+    Dari PaymentAllocation (satu payment bisa menutup beberapa reservasi/
+    service). Nomor reservasi dipakai karena identitas stabil + konsisten
+    dengan deskripsi jurnal lain (Charge/Remittance pakai nomor, bukan nama).
     """
     refs = []
     seen = set()
@@ -519,13 +529,8 @@ def _payment_targets(payment):
         seen.add(spec)
         refs.append(spec)
 
-    if payment.reservation_id and payment.reservation:
-        _add(payment.reservation.reservation_number)
-    if payment.service_item_id and payment.service_item:
-        _add(f"SVC#{payment.service_item.service_number}")
-
     if payment.pk:
-        for pa in payment.allocations.all():
+        for pa in payment.allocations.select_related("invoice_line__confirmation_letter"):
             if pa.reservation_id and pa.reservation:
                 _add(pa.reservation.reservation_number)
             elif pa.service_item_id and pa.service_item:
@@ -573,28 +578,10 @@ def post_payment(payment, *, created_by, idempotency_key=None):
     base = {"client": payment.client_id, "invoice": payment.invoice_id,
             "branch": payment.receiving_branch_code}
 
-    # Segmen (nominal, dimensi target) — dari PaymentAllocation kalau ada,
-    # kalau tidak dari payment.reservation/service_item, kalau tidak satu
-    # segmen polos. Tiap segmen = DR Kas + CR Piutang berpasangan.
-    segments = []
-    allocs = list(payment.allocations.all()) if payment.pk else []
-    if allocs:
-        used = 0
-        for pa in allocs:
-            dim = ({"reservation": pa.reservation_id} if pa.reservation_id
-                   else {"service_item": pa.service_item_id} if pa.service_item_id
-                   else {"penalty": pa.penalty_id} if pa.penalty_id else {})
-            segments.append((int(pa.amount_sar), dim))
-            used += int(pa.amount_sar)
-        if used < amt:
-            segments.append((amt - used, {}))
-    else:
-        dim = ({"reservation": payment.reservation_id} if payment.reservation_id
-               else {"service_item": payment.service_item_id} if payment.service_item_id else {})
-        segments.append((amt, dim))
-
+    # Satu segmen per alokasi (nominal, dimensi baris invoice), plus sisa yang
+    # belum dialokasikan. Tiap segmen = DR Kas + CR Piutang berpasangan.
     lines = []
-    for seg_amt, dim in segments:
+    for seg_amt, dim in _payment_segments(payment):
         lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim})
         lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})
 
@@ -652,15 +639,16 @@ def post_payment_from_credit(payment, *, created_by):
         raise InsufficientCreditError(
             f"Saldo titipan {payment.client} tidak cukup untuk {amt:,}"
         )
-    dims = _payment_dims(payment)
+    base = {"client": payment.client_id, "invoice": payment.invoice_id}
+    lines = []
+    for seg_amt, dim in _payment_segments(payment):
+        lines.append({"account": coa.CUST_CREDIT, "debit": seg_amt, **base, **dim})
+        lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})
     return post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
         description=f"Payment {payment.payment_number} (titipan) - {', '.join(_payment_targets(payment)) or 'unallocated'}",
         entry_date=payment.payment_date,
-        lines=[
-            {"account": coa.CUST_CREDIT, "debit": amt, **dims},
-            {"account": coa.AR, "credit": amt, **dims},
-        ],
+        lines=lines,
         source_type="PaymentRecord",
         source_id=payment.pk,
         idempotency_key=f"payment:{payment.payment_number}:from-credit",
@@ -893,21 +881,13 @@ def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
 
 
 def _allocation_target(target):
-    """Kolom PaymentAllocation untuk `target`: baris invoice (hotel / service)
-    atau CancellationPenalty."""
-    from ..models import CancellationPenalty
+    """Kolom PaymentAllocation untuk `target`: satu baris invoice (hotel atau
+    service). Denda dibayar lewat baris hotel reservasinya, bukan sendiri."""
     from ..models.invoice import InvoiceLine
 
-    kw = {"reservation_id": None, "service_item_id": None, "penalty": None}
-    if isinstance(target, InvoiceLine) and target.kind == InvoiceLine.KIND_HOTEL:
-        kw["reservation_id"] = target.pk
-    elif isinstance(target, InvoiceLine) and target.kind == InvoiceLine.KIND_SERVICE:
-        kw["service_item_id"] = target.pk
-    elif isinstance(target, CancellationPenalty):
-        kw["penalty"] = target
-    else:
-        raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
-    return kw
+    if isinstance(target, InvoiceLine) and target.kind in (InvoiceLine.KIND_HOTEL, InvoiceLine.KIND_SERVICE):
+        return {"invoice_line_id": target.pk}
+    raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
 
 
 @transaction.atomic
@@ -915,7 +895,7 @@ def allocate_payment(payment, allocations, *, created_by=None):
     """Tulis PaymentAllocation (analitik) — TANPA journal entry.
 
     allocations: iterable (target, amount_sar) di mana target adalah
-    baris invoice (hotel / service) atau CancellationPenalty.
+    baris invoice (hotel atau service).
     """
     from ..models.payment import PaymentAllocation
 

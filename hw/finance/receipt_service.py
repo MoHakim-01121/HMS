@@ -11,14 +11,11 @@ from django.db import transaction
 
 def _resolve_confirmation(payment):
     """Reservasi (CL) yang dibayar payment ini: dari baris invoice hotel yang
-    ditunjuk payment, atau dari alokasi pertamanya."""
-    line = getattr(payment, 'reservation', None)
-    if line is None:
-        alloc = payment.allocations.exclude(reservation=None).select_related(
-            'reservation__confirmation_letter',
-        ).first()
-        line = alloc.reservation if alloc else None
-    return line.confirmation_letter if line is not None else None
+    pada alokasi pertamanya."""
+    alloc = payment.allocations.filter(invoice_line__kind='hotel').select_related(
+        'invoice_line__confirmation_letter',
+    ).order_by('pk').first()
+    return alloc.invoice_line.confirmation_letter if alloc else None
 
 
 def void_receipts_for_payment(payment, *, reason):

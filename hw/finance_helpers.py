@@ -134,6 +134,11 @@ def create_payment_record(
 
     if invoice is not None and invoice.status == invoice.STATUS_VOID:
         raise FinanceError(f'Invoice {invoice.invoice_number} sudah void, tidak bisa menerima pembayaran.')
+    if invoice is not None and invoice.client_id != client.pk:
+        raise FinanceError(
+            f'Invoice {invoice.invoice_number} milik {invoice.customer_name}, bukan {client.name}. '
+            'Pembayaran seorang client hanya melunasi invoice client itu.'
+        )
 
     # Calculate SAR
     amount_sar = int(round(convert_to_sar(amount, currency, float(exchange_rate))))
@@ -155,8 +160,6 @@ def create_payment_record(
         payment_number=PaymentRecord.generate_number(),
         invoice=invoice,
         client=client,
-        reservation=reservation,
-        service_item=service_item,
         payment_date=payment_date,
         amount=amount,
         currency=currency,
@@ -174,6 +177,14 @@ def create_payment_record(
         created_by=created_by,
         period=period,
     )
+
+    # A payment made for one reservation or service is allocated to it in
+    # full: the target is an allocation row like any other, not a second kind
+    # of link on the payment itself.
+    target = reservation or service_item
+    if target is not None:
+        from .models.payment import PaymentAllocation
+        PaymentAllocation.objects.create(payment=payment, invoice_line_id=target.pk, amount_sar=amount_sar)
 
     # Create initial log
     PaymentLog.objects.create(

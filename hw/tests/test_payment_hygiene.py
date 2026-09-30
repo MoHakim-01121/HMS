@@ -67,7 +67,7 @@ class PaymentHygieneBase(TestCase):
 class AllocationCleanupTest(PaymentHygieneBase):
     def test_rejecting_a_payment_removes_its_allocations(self):
         payment = self._payment()
-        PaymentAllocation.objects.create(payment=payment, reservation=self.res, amount_sar=20000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
 
         resp = self.client.post(f'/finance/payments/{payment.pk}/reject/')
         self.assertEqual(resp.status_code, 302)
@@ -78,14 +78,14 @@ class AllocationCleanupTest(PaymentHygieneBase):
 
     def test_rejected_payment_reports_no_allocated_money(self):
         payment = self._payment(number='PAY-HYG-002')
-        PaymentAllocation.objects.create(payment=payment, reservation=self.res, amount_sar=20000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
         self.client.post(f'/finance/payments/{payment.pk}/reject/')
 
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), payment.amount_sar)
 
     def test_the_dropped_rows_are_kept_in_the_payment_log(self):
         payment = self._payment(number='PAY-HYG-003')
-        PaymentAllocation.objects.create(payment=payment, reservation=self.res, amount_sar=20000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
         self.client.post(f'/finance/payments/{payment.pk}/reject/')
 
         log = payment.logs.filter(action='rejected').first()
@@ -95,7 +95,7 @@ class AllocationCleanupTest(PaymentHygieneBase):
 
     def test_voiding_a_payment_removes_its_allocations(self):
         payment = self._payment(number='PAY-HYG-004', status=PaymentRecord.STATUS_RECEIVED)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.res, amount_sar=20000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
 
         resp = self.client.post(f'/finance/payments/{payment.pk}/void/')
         self.assertEqual(resp.status_code, 302)
@@ -123,7 +123,7 @@ class ForeignReservationIsRefusedTest(PaymentHygieneBase):
 
     def test_reallocate_refuses_a_reservation_from_another_invoice(self):
         payment = self._payment(number='PAY-HYG-011', status=PaymentRecord.STATUS_RECEIVED)
-        PaymentAllocation.objects.create(payment=payment, reservation=self.res, amount_sar=20000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
 
         resp = self.client.post(
             f'/finance/payments/{payment.pk}/reallocate/',
@@ -170,8 +170,9 @@ class UnallocatedMapTest(PaymentHygieneBase):
     def test_bulk_map_agrees_with_the_single_row_helper(self):
         unallocated = self._payment(number='PAY-HYG-M1', amount_sar=5000)
         partial = self._payment(number='PAY-HYG-M2', amount_sar=8000)
-        PaymentAllocation.objects.create(payment=partial, reservation=self.res, amount_sar=3000)
-        direct = self._payment(number='PAY-HYG-M3', amount_sar=7000, reservation=self.res)
+        PaymentAllocation.objects.create(payment=partial, invoice_line=self.res, amount_sar=3000)
+        direct = self._payment(number='PAY-HYG-M3', amount_sar=7000)
+        PaymentAllocation.objects.create(payment=direct, invoice_line=self.res, amount_sar=7000)
 
         ids = [unallocated.pk, partial.pk, direct.pk]
         bulk = fq.payment_unallocated_map(ids)

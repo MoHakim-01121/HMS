@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, ConfirmationLetter, Remittance
+from hw.models import ConfirmationLetter, Remittance
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_reservasi_mengendap
 
@@ -27,7 +27,7 @@ class ReservasiMengendapTest(TestCase):
  invoice_type='hotel',
             invoice_number='INV-NEW-001', customer_name='Budi',
         )
-        self.client_obj = Client.objects.create( name="PT Uji")
+        self.client_obj = self.invoice.client
         self.rem_counter = 0
 
     def _res(self, number, **kw):

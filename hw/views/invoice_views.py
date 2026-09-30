@@ -540,11 +540,9 @@ def _line_has_money(line, column='reservation_id'):
     from ..models.credit_note import CreditNote, CreditNoteLine
     from ..models.payment import PaymentAllocation, PaymentRecord
     open_statuses = (*PaymentRecord.EFFECTIVE_STATUSES, PaymentRecord.STATUS_PENDING)
-    key = {column: line.pk}
-    settled = fq.line_settled_sar(**key)
+    settled = fq.line_settled_sar(**{column: line.pk})
     return (
-        PaymentAllocation.objects.filter(payment__status__in=open_statuses, **key).exists()
-        or PaymentRecord.objects.filter(status__in=open_statuses, **key).exists()
+        PaymentAllocation.objects.filter(payment__status__in=open_statuses, invoice_line=line).exists()
         or bool(settled)
         or CreditNoteLine.objects.filter(invoice_line=line, credit_note__status=CreditNote.STATUS_ACTIVE).exists()
     )
@@ -555,17 +553,15 @@ def _line_is_referenced(line, column='reservation_id'):
     A referenced line is voided instead of deleted, so that history keeps its key."""
     from ..models.credit_note import CreditNoteLine
     from ..models.journal import JournalLine
-    from ..models.payment import PaymentAllocation, PaymentRecord
+    from ..models.payment import PaymentAllocation
     if column == 'penalty_line':
         return (
             JournalLine.objects.filter(invoice_id=line.invoice_id, penalty_id=line.penalty_id).exists()
             or CreditNoteLine.objects.filter(invoice_line=line).exists()
         )
-    key = {column: line.pk}
     return (
-        JournalLine.objects.filter(**key).exists()
-        or PaymentAllocation.objects.filter(**key).exists()
-        or PaymentRecord.objects.filter(**key).exists()
+        JournalLine.objects.filter(**{column: line.pk}).exists()
+        or PaymentAllocation.objects.filter(invoice_line=line).exists()
         or CreditNoteLine.objects.filter(invoice_line=line).exists()
     )
 
