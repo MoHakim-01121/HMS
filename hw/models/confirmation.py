@@ -94,6 +94,17 @@ class ConfirmationLetter(models.Model):
         from ..numbering import generate_sequential_number
         return generate_sequential_number(cls, 'CL', field='confirmation_number', padding=3)
 
+    @classmethod
+    def suggest_number(cls):
+        from ..numbering import peek_number
+        return peek_number(cls, 'CL', field='confirmation_number', padding=3)
+
+    @classmethod
+    def claim_number(cls, number):
+        """Counter mengikuti nomor yang diketik user."""
+        from ..numbering import advance_number
+        advance_number(cls, 'CL', number, field='confirmation_number')
+
 
 class Room(models.Model):
     cl        = models.ForeignKey(ConfirmationLetter, on_delete=models.CASCADE, related_name='rooms')

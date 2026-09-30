@@ -30,6 +30,10 @@ from .period import FinancialPeriod
 from .payment import PaymentRecord, PaymentLog, PaymentAllocation
 from .journal import AccountType, LedgerAccount, JournalEntry, JournalLine
 
+# ── Schema v2 foundation ───────────────────────────────────────
+from .currency import Currency
+from .sequence import DocumentSequence
+
 __all__ = [
     # Choices
     'Company', 'HotelCity', 'InvoiceType',
@@ -69,4 +73,6 @@ __all__ = [
     'FinancialPeriod',
     'PaymentRecord', 'PaymentLog', 'PaymentAllocation',
     'AccountType', 'LedgerAccount', 'JournalEntry', 'JournalLine',
+    # ── Schema v2 foundation ──
+    'Currency', 'DocumentSequence',
 ]

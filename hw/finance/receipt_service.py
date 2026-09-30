@@ -6,6 +6,8 @@ memastikan setiap pembayaran punya kwitansi tanpa langkah manual tambahan.
 """
 from datetime import date
 
+from django.db import transaction
+
 
 def _resolve_confirmation(payment):
     """Resolve ConfirmationLetter dari reservation payment atau alokasinya.
@@ -47,6 +49,7 @@ def void_receipts_for_payment(payment, *, reason):
     ).update(status=Receipt.STATUS_VOIDED, voided_reason=reason)
 
 
+@transaction.atomic
 def ensure_receipt(payment, created_by=None):
     """Buat receipt untuk `payment` bila belum ada yang aktif.
 

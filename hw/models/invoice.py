@@ -197,11 +197,31 @@ class Invoice(models.Model):
     @classmethod
     def generate_number(cls, invoice_type):
         from ..numbering import generate_sequential_number
-        prefix = 'INV' if invoice_type == InvoiceType.HOTEL else 'SVC'
         return generate_sequential_number(
-            cls, prefix, field='invoice_number', padding=3,
+            cls, cls._number_prefix(invoice_type), field='invoice_number', padding=3,
             extra_filter={'invoice_type': invoice_type},
         )
+
+    @classmethod
+    def suggest_number(cls, invoice_type):
+        from ..numbering import peek_number
+        return peek_number(
+            cls, cls._number_prefix(invoice_type), field='invoice_number', padding=3,
+            extra_filter={'invoice_type': invoice_type},
+        )
+
+    @classmethod
+    def claim_number(cls, invoice_type, number):
+        """Counter mengikuti nomor yang diketik user."""
+        from ..numbering import advance_number
+        advance_number(
+            cls, cls._number_prefix(invoice_type), number, field='invoice_number',
+            extra_filter={'invoice_type': invoice_type},
+        )
+
+    @staticmethod
+    def _number_prefix(invoice_type):
+        return 'INV' if invoice_type == InvoiceType.HOTEL else 'SVC'
 
 
 class Reservation(models.Model):

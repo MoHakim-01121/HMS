@@ -178,22 +178,6 @@ class JournalEntry(AppendOnlyModel):
         agg = self.lines.aggregate(d=models.Sum('debit'), c=models.Sum('credit'))
         return (agg['d'] or 0) == (agg['c'] or 0)
 
-    @staticmethod
-    def generate_number():
-        from django.db import transaction
-        with transaction.atomic():
-            nums = []
-            for num_str in JournalEntry.objects.select_for_update().filter(
-                entry_number__startswith='JE-',
-            ).values_list('entry_number', flat=True):
-                parts = num_str.split('-')
-                if len(parts) == 2:
-                    try:
-                        nums.append(int(parts[1]))
-                    except ValueError:
-                        pass
-            return f"JE-{(max(nums) + 1 if nums else 1):06d}"
-
 
 class JournalLine(AppendOnlyModel):
     """Satu kaki dari journal entry — debit XOR credit, non-negatif.

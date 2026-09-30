@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 import re
+import sys
 from pathlib import Path
 
 import dj_database_url
@@ -129,6 +130,13 @@ else:
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+
+# Test suite di PostgreSQL (produksi = PG18). Trigger, locking, dan transaksi
+# yang gagal di tengah hanya teruji di sini — SQLite tidak menjalankannya.
+# Dev harian tetap memakai DATABASE_URL/SQLite di atas.
+TEST_DATABASE_URL = get_env_variable('TEST_DATABASE_URL')
+if TEST_DATABASE_URL and len(sys.argv) > 1 and sys.argv[1] == 'test':
+    DATABASES = {'default': dj_database_url.parse(TEST_DATABASE_URL)}
 
 
 CACHES = {

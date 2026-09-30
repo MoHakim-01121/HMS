@@ -121,6 +121,22 @@ def _needs_client(account_id):
     return account_id in _AR_LIKE
 
 
+def _lock_journal_sequence():
+    """Baris counter 'JE-SEQ', dikunci. Dibuat saat pertama dipakai dengan
+    nilai awal = seq tertinggi yang sudah ada."""
+    from ..models.sequence import DocumentSequence
+    row = DocumentSequence.objects.select_for_update().filter(key="JE-SEQ").first()
+    if row is None:
+        start = JournalEntry.objects.aggregate(m=models.Max("seq"))["m"] or 0
+        try:
+            with transaction.atomic():
+                DocumentSequence.objects.create(key="JE-SEQ", last_value=start)
+        except IntegrityError:
+            pass  # dibuat transaksi lain lebih dulu; tunggu kuncinya di bawah
+        row = DocumentSequence.objects.select_for_update().get(key="JE-SEQ")
+    return row
+
+
 @transaction.atomic
 def post_entry(
     *,
@@ -173,21 +189,20 @@ def post_entry(
     period = get_period_for_date(entry_date)
     check_period_postable(period)
 
-    # seq monoton global + prev_hash dari entry terakhir.
-    # select_for_update() memastikan dua transaksi paralel tidak menghasilkan
-    # seq yang sama. Untuk tabel kosong (entry pertama), kita menggunakan
-    # 0 + 1 = 1. IntegrityError (seq) ditangkap sebagai fallback
-    # untuk race condition extremely-narrow-window.
-    last = (
-        JournalEntry.objects.select_for_update()
-        .filter(seq__isnull=False)
-        .order_by("-seq").first()
-    )
-    seq = (last.seq if last else 0) + 1
+    # Semua posting jurnal berbaris di satu baris counter (DocumentSequence
+    # 'JE-SEQ', dikunci FOR UPDATE sampai transaksi ini selesai). Karena itu
+    # seq tidak bisa kembar dan rantai hash tidak bisa bercabang: prev_hash
+    # dibaca SETELAH kunci didapat, jadi selalu entry yang terakhir commit.
+    # (Versi lama mengunci baris entry terakhir lalu "retry" saat bentrok —
+    # retry di transaksi PostgreSQL yang sudah gagal tidak pernah berhasil.)
+    seq_row = _lock_journal_sequence()
+    seq = seq_row.last_value + 1
+    last = JournalEntry.objects.filter(seq__isnull=False).order_by("-seq").first()
     prev_hash = last.entry_hash if last else ""
 
+    from ..numbering import generate_sequential_number
     entry = JournalEntry(
-        entry_number=JournalEntry.generate_number(),
+        entry_number=generate_sequential_number(JournalEntry, 'JE', field='entry_number', padding=6),
         entry_type=entry_type,
         description=description,
         entry_date=entry_date,
@@ -203,20 +218,9 @@ def post_entry(
         proof=proof,
     )
     entry.entry_hash = entry_hash(entry, rows, prev_hash)
-
-    try:
-        entry.save()
-    except IntegrityError as exc:
-        if 'journal_entry_seq' in str(exc) or 'unique' in str(exc).lower():
-            logger.warning("post_entry seq race detected, retrying")
-            return post_entry(
-                entry_type=entry_type, description=description,
-                entry_date=entry_date, lines=lines,
-                source_type=source_type, source_id=source_id,
-                idempotency_key=idempotency_key, created_by=created_by,
-                is_reversal=is_reversal, reverses=reverses, proof=proof,
-            )
-        raise
+    entry.save()
+    seq_row.last_value = seq
+    seq_row.save(update_fields=["last_value"])
 
     JournalLine.objects.bulk_create([
         JournalLine(journal_entry=entry, **r) for r in rows

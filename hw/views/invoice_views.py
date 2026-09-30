@@ -209,7 +209,7 @@ def _invoice_stats(invoice_qs):
 
 @require_perm('invoice', 'create')
 def invoice_new(request):
-    suggested_number = Invoice.generate_number(InvoiceType.HOTEL)
+    suggested_number = Invoice.suggest_number(InvoiceType.HOTEL)
 
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
@@ -248,6 +248,7 @@ def invoice_new(request):
                     due_date=_parse_date(request.POST.get("due_date")),
                     currency="SAR",
                 )
+                Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
                 # CL must be linked before _save_reservations/_save_hotel_payments run --
                 # both call _billing_client(invoice), which resolves the client from
                 # invoice.confirmation_letters. Linking after would leave the journal
@@ -438,6 +439,7 @@ def invoice_edit(request, pk):
                 invoice.issued_date = _parse_date(request.POST.get("issued_date"))
                 invoice.due_date = _parse_date(request.POST.get("due_date"))
                 invoice.save()
+                Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
 
                 # Relink CL selection before syncing reservations/payments -- see
                 # the matching comment in invoice_new for why the order matters.
@@ -548,6 +550,7 @@ def invoice_export_csv(request):
 
 
 @require_perm('invoice', 'create')
+@transaction.atomic
 def invoice_duplicate(request, pk):
     original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
     new_num = Invoice.generate_number(InvoiceType.HOTEL)

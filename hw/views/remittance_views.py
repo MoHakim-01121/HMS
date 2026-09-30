@@ -194,6 +194,7 @@ def remittance_list(request):
 
 
 @require_perm('remittance', 'create')
+@transaction.atomic
 def remittance_new(request):
     """Transfer baru = lump-sum: uang IDR keluar dari bank Surabaya dengan kurs
     tertentu. Tidak memilih reservasi -- alokasi ke reservasi dilakukan saat

@@ -68,7 +68,7 @@ def penalty_new(request, cl_pk):
     if hasattr(cl, 'penalty'):
         return redirect('penalty_detail', pk=cl.penalty.pk)
 
-    suggested_number = CancellationPenalty.generate_number()
+    suggested_number = CancellationPenalty.suggest_number()
 
     if request.method == 'POST':
         penalty = CancellationPenalty.objects.create(
@@ -85,6 +85,7 @@ def penalty_new(request, cl_pk):
             payment_note=request.POST.get('payment_note', ''),
             note=request.POST.get('note', ''),
         )
+        CancellationPenalty.claim_number(penalty.penalty_number)
         _sync_penalty_ledger(penalty, request.user)
         messages.success(request, f"Penalty document {penalty.penalty_number} created successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
@@ -122,6 +123,7 @@ def penalty_edit(request, pk):
         penalty.payment_note    = request.POST.get('payment_note', '')
         penalty.note            = request.POST.get('note', '')
         penalty.save()
+        CancellationPenalty.claim_number(penalty.penalty_number)
         _sync_penalty_ledger(penalty, request.user)
         messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
         return redirect('penalty_detail', pk=penalty.pk)

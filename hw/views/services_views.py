@@ -78,7 +78,7 @@ def services_list(request):
 
 @require_perm('services', 'create')
 def services_new(request):
-    suggested_number = Invoice.generate_number("visa")
+    suggested_number = Invoice.suggest_number("visa")
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
         if Invoice.objects.filter(invoice_number=invoice_number).exists():
@@ -101,6 +101,7 @@ def services_new(request):
                 due_date=_parse_date(request.POST.get("due_date")),
                 currency=request.POST.get("invoice_currency", "USD"),
             )
+            Invoice.claim_number("visa", invoice.invoice_number)
             _save_service_items(invoice, request)
             _save_service_payments(invoice, request)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number)
@@ -187,6 +188,7 @@ def services_edit(request, pk):
             invoice.due_date = _parse_date(request.POST.get("due_date"))
             invoice.currency = request.POST.get("invoice_currency", "USD")
             invoice.save()
+            Invoice.claim_number("visa", invoice.invoice_number)
 
             invoice.service_items.all().delete()
             _save_service_items(invoice, request)
@@ -261,6 +263,7 @@ def services_export_csv(request):
 
 
 @require_perm('services', 'create')
+@transaction.atomic
 def services_duplicate(request, pk):
     original = _get_service_invoice(request, pk)
     new_num = Invoice.generate_number("visa")

@@ -210,7 +210,7 @@ def _cl_echo(data):
 
 @require_perm('cl', 'create')
 def cl_new(request):
-    suggested_number = ConfirmationLetter.generate_number()
+    suggested_number = ConfirmationLetter.suggest_number()
     if request.method == "POST":
         errors = _validate_cl(request.POST)
         if errors:
@@ -237,6 +237,7 @@ def cl_new(request):
             note=request.POST.get("note", ""),
         )
         _save_cl_rooms(cl, request)
+        ConfirmationLetter.claim_number(cl.confirmation_number)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number)
         messages.success(request, f"Confirmation Letter {cl.confirmation_number} created successfully.")
         return redirect("cl_detail", pk=cl.pk)
@@ -353,6 +354,7 @@ def cl_edit(request, pk):
         cl.reservation_status = request.POST.get("reservation_status", "DEFINITE")
         cl.note = request.POST.get("note", "")
         cl.save()
+        ConfirmationLetter.claim_number(cl.confirmation_number)
 
         cl.rooms.all().delete()
         _save_cl_rooms(cl, request)
@@ -489,6 +491,7 @@ def cl_export_csv(request):
 
 
 @require_perm('cl', 'create')
+@transaction.atomic
 def cl_duplicate(request, pk):
     original = _get_cl(request, pk)
     new_num = ConfirmationLetter.generate_number()

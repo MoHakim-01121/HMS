@@ -43,3 +43,14 @@ class CancellationPenalty(models.Model):
     def generate_number(cls):
         from ..numbering import generate_sequential_number
         return generate_sequential_number(cls, 'PNL', field='penalty_number', padding=3)
+
+    @classmethod
+    def suggest_number(cls):
+        from ..numbering import peek_number
+        return peek_number(cls, 'PNL', field='penalty_number', padding=3)
+
+    @classmethod
+    def claim_number(cls, number):
+        """Counter mengikuti nomor yang diketik user."""
+        from ..numbering import advance_number
+        advance_number(cls, 'PNL', number, field='penalty_number')

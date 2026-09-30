@@ -1,0 +1,32 @@
+"""Currency — master mata uang (skema target §3.1).
+
+Setiap nominal uang di HMS disimpan sebagai bilangan bulat dalam satuan
+terkecil mata uangnya; `minor_digits` menyatakan berapa digit desimal satuan
+itu (SAR 2 = halala, USD 2 = sen, IDR 0 = rupiah). Konversi dan pembulatan
+hanya lewat `hw.money`.
+"""
+from django.db import models
+
+
+class Currency(models.Model):
+    code = models.CharField(max_length=3, primary_key=True)
+    name = models.CharField(max_length=50)
+    minor_digits = models.PositiveSmallIntegerField()
+
+    class Meta:
+        ordering = ['code']
+        verbose_name = 'Currency'
+        verbose_name_plural = 'Currencies'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(minor_digits__lte=3),
+                name='currency_minor_digits_range',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(code__regex=r'^[A-Z]{3}$'),
+                name='currency_code_iso',
+            ),
+        ]
+
+    def __str__(self):
+        return self.code
