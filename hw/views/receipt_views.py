@@ -104,7 +104,7 @@ def _allocation_rows(payment):
 
     rows = []
     for a in payment.allocations.select_related(
-        'reservation', 'service_item', 'penalty',
+        'reservation__confirmation_letter__hotel', 'service_item', 'penalty',
     ).order_by('pk'):
         if a.reservation_id and a.reservation:
             rows.append({

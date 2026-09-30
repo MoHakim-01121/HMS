@@ -5,8 +5,9 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class ClientDetailViewTest(TestCase):
@@ -23,13 +24,13 @@ class ClientDetailViewTest(TestCase):
         self.client_obj = Client.objects.create( name="PT Detail View")
         # invoice.client dipasang supaya charge (yang di-posting ke jurnal)
         # ter-atribusi ke client -- jurnal membaca client dari dimensi baris.
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-CDV-001", customer_name="PT Detail View",
             client=self.client_obj, issued_date=date(2026, 1, 2),
         )
         self.invoice = invoice
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=invoice, reservation_number="R1", total_sar=5000,
         )
         posting.post_invoice_charge(invoice, created_by=self.user)
@@ -89,7 +90,7 @@ class ClientDetailViewTest(TestCase):
         # must not depend on journal lines alone, or this invoice silently
         # vanishes from the client's totals/statement until its first entry
         # (charge/payment) lands.
-        fk_only_invoice = Invoice.objects.create(
+        fk_only_invoice = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-CDV-002", customer_name="PT Detail View",
             client=self.client_obj,

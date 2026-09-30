@@ -7,6 +7,10 @@ hanya lewat `hw.money`.
 """
 from django.db import models
 
+# Kode yang dipakai CHECK constraint kolom mata uang (baris master-nya disemai
+# migrasi). Menambah mata uang = menambah baris Currency dan kode di sini.
+CURRENCY_CODES = ['SAR', 'USD', 'IDR']
+
 
 class Currency(models.Model):
     code = models.CharField(max_length=3, primary_key=True)

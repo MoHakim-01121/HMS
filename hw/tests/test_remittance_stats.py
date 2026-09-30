@@ -3,11 +3,12 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client, Invoice
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.views.invoice_views import _invoice_stats
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class InvoiceStatsTest(TestCase):
@@ -17,11 +18,11 @@ class InvoiceStatsTest(TestCase):
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create( name='Test Customer')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', invoice_number='INV-STAT-001',
             customer_name='Test Customer', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='R1', total_sar=1000,
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)

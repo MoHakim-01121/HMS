@@ -8,8 +8,9 @@ from django.test import TestCase
 
 from hw.finance import exchange_service, expense_service, fund_flow
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, Client, ExpenseCategory, Invoice, LedgerAccount
+from hw.models import BankAccount, Client, ExpenseCategory, LedgerAccount
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 SEP = dict(date_from=date(2026, 9, 1), date_to=date(2026, 9, 30))
 
@@ -27,7 +28,7 @@ class FundFlowScenario(TestCase):
         self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account=la,
                                               bank_name='Mandiri', account_identifier='2')
         client = Client.objects.create(name='PT Scenario')
-        inv = Invoice.objects.create(invoice_number='INV-FF', customer_name='PT Scenario', client=client)
+        inv = make_invoice(invoice_number='INV-FF', customer_name='PT Scenario', client=client)
         # A: USD 2,500 × 4 SAR/USD = 10,000 SAR · B: IDR 49,000,000 ÷ 4,900 = 10,000 SAR
         for day, amount, currency, rate, acc in (
             (5, 2_500, 'USD', 4, self.usd),

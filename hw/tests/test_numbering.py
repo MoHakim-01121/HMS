@@ -1,5 +1,5 @@
 """hw.numbering — counter satu baris per jenis dokumen (DocumentSequence)."""
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_invoice
 from datetime import date
 
 from django.db import transaction
@@ -52,7 +52,7 @@ class AllocateTest(TestCase):
 
     def test_invoice_prefix_per_type(self):
         client = Client.objects.create(name='PT A')
-        Invoice.objects.create(invoice_type=InvoiceType.HOTEL, invoice_number='INV-004', client=client, customer_name='PT A')
+        make_invoice(invoice_type=InvoiceType.HOTEL, invoice_number='INV-004', client=client, customer_name='PT A')
         with transaction.atomic():
             self.assertEqual(Invoice.generate_number(InvoiceType.HOTEL), 'INV-005')
             self.assertEqual(Invoice.generate_number('visa'), 'SVC-001')

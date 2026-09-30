@@ -30,7 +30,36 @@ def guest_name_expr(prefix=''):
     )
 
 
+def _live_hotel_lines(**extra):
+    """Subquery: baris invoice hotel yang masih berlaku untuk CL di baris luar."""
+    from .invoice import InvoiceLine
+    return InvoiceLine.objects.filter(
+        confirmation_letter=models.OuterRef('pk'), kind=InvoiceLine.KIND_HOTEL,
+        voided_at__isnull=True, **extra,
+    )
+
+
 class ConfirmationLetterQuerySet(models.QuerySet):
+    def with_invoice(self):
+        """Ikut memuat invoice yang menagih tiap CL (dibaca `cl.invoice`)."""
+        from .invoice import InvoiceLine
+        return self.prefetch_related(models.Prefetch(
+            'invoice_lines',
+            queryset=InvoiceLine.objects.filter(
+                kind=InvoiceLine.KIND_HOTEL, voided_at__isnull=True,
+            ).select_related('invoice'),
+            to_attr='_live_invoice_lines',
+        ))
+
+    def uninvoiced(self):
+        return self.filter(~models.Exists(_live_hotel_lines()))
+
+    def invoiced(self):
+        return self.filter(models.Exists(_live_hotel_lines()))
+
+    def on_invoice(self, invoice):
+        return self.filter(models.Exists(_live_hotel_lines(invoice=invoice)))
+
     def with_parties(self):
         """Ikut memuat client dan hotel, yang dibaca guest_name/hotel_name."""
         return self.select_related('client', 'hotel')
@@ -54,10 +83,6 @@ class ConfirmationLetter(models.Model):
     confirmation_number = models.CharField(max_length=100, db_index=True)
     reservation_status  = models.CharField(
         max_length=10, choices=ReservationStatus.choices, default=ReservationStatus.DEFINITE,
-    )
-    invoice             = models.ForeignKey(
-        'Invoice', null=True, blank=True,
-        on_delete=models.SET_NULL, related_name='confirmation_letters',
     )
     note          = models.TextField(blank=True)
     estimasi_tiba = models.TimeField(null=True, blank=True)
@@ -104,6 +129,31 @@ class ConfirmationLetter(models.Model):
     @property
     def hotel_name(self):
         return self.hotel.name if self.hotel_id else ''
+
+    @property
+    def invoice_line(self):
+        """Baris invoice yang sedang menagih reservasi ini (None bila belum
+        ditagih). Reservasi tidak menyimpan invoice-nya: tautannya adalah
+        baris invoice, dan paling banyak satu yang berlaku (unique constraint)."""
+        # Dibaca segar kecuali sudah dimuat with_invoice(): tautan ini berubah
+        # saat invoice dibuat, diedit, atau di-void.
+        lines = getattr(self, '_live_invoice_lines', None)
+        if lines is None:
+            from .invoice import InvoiceLine
+            lines = list(InvoiceLine.objects.filter(
+                confirmation_letter_id=self.pk, kind=InvoiceLine.KIND_HOTEL, voided_at__isnull=True,
+            ).select_related('invoice')[:1]) if self.pk else []
+        return lines[0] if lines else None
+
+    @property
+    def invoice(self):
+        line = self.invoice_line
+        return line.invoice if line else None
+
+    @property
+    def invoice_id(self):
+        line = self.invoice_line
+        return line.invoice_id if line else None
 
     @property
     def is_cancelled(self):

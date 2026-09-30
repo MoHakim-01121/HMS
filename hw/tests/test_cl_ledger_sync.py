@@ -1,11 +1,10 @@
-from hw.tests.factories import cl_form_payload, make_cl, make_room
-import json
+from hw.tests.factories import cl_form_payload, make_cl, make_hotel_line, make_invoice, make_room
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, ConfirmationLetter, Room, Invoice, Reservation
+from hw.models import Client, Reservation
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -36,7 +35,7 @@ class InvoiceFromClsChargeTest(_Base):
     def test_converting_cl_to_invoice_posts_initial_charge(self):
         resp = self.client.post("/cl/invoice-from-cls/", {"cl_ids": [self.cl.pk]})
         self.assertEqual(resp.status_code, 302)
-        reservation = Reservation.objects.get(reservation_number='CL-FROMCLS-001')
+        reservation = Reservation.objects.get(confirmation_letter__confirmation_number='CL-FROMCLS-001')
         self.assertEqual(reservation.total_sar, 2000)  # 1000 * 1 room * 2 nights
         self.assertEqual(fq.invoice_charged_sar(reservation.invoice_id), 2000)
         self.assertEqual(fq.client_receivable(self.client_obj.id), 2000)
@@ -45,7 +44,7 @@ class InvoiceFromClsChargeTest(_Base):
 class ClEditReservationSyncChargeTest(_Base):
     def setUp(self):
         super().setUp()
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-CLEDIT-001', customer_name='PT CL Ledger',
             client=self.client_obj, issued_date=date(2026, 1, 1),
@@ -56,7 +55,7 @@ class ClEditReservationSyncChargeTest(_Base):
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
             invoice=self.invoice,
         )
-        self.reservation = Reservation.objects.create(
+        self.reservation = make_hotel_line(
             invoice=self.invoice, reservation_number='CL-EDIT-001', total_sar=0,
         )
         make_room(cl=self.cl, room_type='Deluxe', quantity=1, price=800)
@@ -108,5 +107,5 @@ class InvoiceFromCancelledClTest(_Base):
         )
         make_room(cl=cl, room_type='Deluxe', quantity=1, price=1000)
         self.client.post("/cl/invoice-from-cls/", {"cl_ids": [cl.pk]})
-        reservation = Reservation.objects.get(reservation_number='CL-FROMCLS-CXL')
+        reservation = Reservation.objects.get(confirmation_letter__confirmation_number='CL-FROMCLS-CXL')
         self.assertEqual(reservation.total_sar, 0)

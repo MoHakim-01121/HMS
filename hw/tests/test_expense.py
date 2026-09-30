@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from hw.models import (
-    BankAccount, Branch, CashAccount, Expense, ExpenseCategory, ExpensePayment,
+    Branch, CashAccount, Expense, ExpenseCategory, ExpensePayment,
 )
 from hw.models.journal import JournalEntry, LedgerAccount
 from hw.models.period import FinancialPeriod

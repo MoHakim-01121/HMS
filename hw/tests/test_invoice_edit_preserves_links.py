@@ -14,7 +14,7 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, ConfirmationLetter, PaymentAllocation, Room
+from hw.models import Client, PaymentAllocation
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
 from hw.finance import posting

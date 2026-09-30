@@ -1,11 +1,11 @@
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 import csv
 import io
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import Invoice, Reservation, ConfirmationLetter, CancellationPenalty, Client
+from hw.models import Invoice, CancellationPenalty, Client
 from hw.models.period import FinancialPeriod
 from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
 from hw.finance import posting
@@ -18,7 +18,7 @@ class InvoiceTotalsTest(TestCase):
             name='2026-01',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.client_obj = Client.objects.create( name='Test Customer')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-CALC-001', customer_name='Test Customer',
             client=self.client_obj, currency='SAR', issued_date=date(2026, 1, 1),
@@ -37,8 +37,8 @@ class InvoiceTotalsTest(TestCase):
         return p
 
     def test_total_sar_sums_reservations(self):
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=500)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=500)
         self.assertEqual(self.invoice.total_sar, 1500)
 
     def test_total_sar_zero_with_no_reservations(self):
@@ -60,13 +60,13 @@ class InvoiceTotalsTest(TestCase):
         self.assertEqual(self.invoice.total_paid_sar, 300)
 
     def test_remaining_sar_is_total_minus_paid(self):
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         self._charge()
         self._pay(400)
         self.assertEqual(self.invoice.remaining_sar, 600)
 
     def test_remaining_sar_negative_when_overpaid(self):
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=500)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=500)
         self._charge()
         self._pay(700)
         self.assertEqual(self.invoice.remaining_sar, -200)
@@ -75,7 +75,7 @@ class InvoiceTotalsTest(TestCase):
         """Pembayaran penalty tidak mengkredit Piutang invoice (baris jurnal
         penalty tidak ber-dimensi invoice), jadi total_paid_sar tetap simetris
         dengan total_sar yang hanya menjumlah reservasi."""
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         self._charge()
         self._pay(400)
 
@@ -93,7 +93,7 @@ class InvoiceTotalsTest(TestCase):
         self.assertEqual(self.invoice.total_paid_sar, 400)
 
     def test_total_paid_sar_sees_finance_page_payment(self):
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         self._charge()
         payment = create_payment_record(
             invoice=self.invoice, client=self.client_obj, payment_date=date(2026, 1, 1),
@@ -105,7 +105,7 @@ class InvoiceTotalsTest(TestCase):
         self.assertEqual(self.invoice.total_paid_sar, 400)
         self.assertEqual(self.invoice.remaining_sar, 600)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, Invoice.STATUS_PARTIAL)
+        self.assertEqual(self.invoice.financial_state, Invoice.FINANCIAL_STATE_PARTIAL)
 
 
 class InvoiceExportStatusFilterTest(TestCase):
@@ -123,12 +123,12 @@ class InvoiceExportStatusFilterTest(TestCase):
         )
         client_obj = Client.objects.create( name="Paid Co")
 
-        self.paid = Invoice.objects.create(
+        self.paid = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-EXP-PAID", customer_name="Paid Co",
             client=client_obj, currency="SAR", issued_date=date(2026, 1, 1),
         )
-        Reservation.objects.create(invoice=self.paid, reservation_number="R1", total_sar=1000)
+        make_hotel_line(invoice=self.paid, reservation_number="R1", total_sar=1000)
         posting.post_invoice_charge(self.paid, created_by=self.user)
         p = create_payment_record(
             invoice=self.paid, client=client_obj, payment_date=date(2026, 1, 1),
@@ -136,11 +136,11 @@ class InvoiceExportStatusFilterTest(TestCase):
         )
         confirm_payment(p, confirmed_by=self.user)
 
-        self.unpaid = Invoice.objects.create(
+        self.unpaid = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-EXP-UNPAID", customer_name="Unpaid Co", currency="SAR",
         )
-        Reservation.objects.create(invoice=self.unpaid, reservation_number="R2", total_sar=500)
+        make_hotel_line(invoice=self.unpaid, reservation_number="R2", total_sar=500)
 
     def test_csv_export_respects_status_filter(self):
         resp = self.client.get("/invoice/export/csv/", {"status": "belum"})

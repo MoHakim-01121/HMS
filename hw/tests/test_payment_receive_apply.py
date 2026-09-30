@@ -16,12 +16,13 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, PaymentRecord, PaymentAllocation
+from hw.models import Client, PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
 from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
 from hw.finance import queries as fq
 from hw.finance import posting
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class ReceiveApplyFlowTest(TestCase):
@@ -36,14 +37,14 @@ class ReceiveApplyFlowTest(TestCase):
         s.save()
 
         self.client_obj = Client.objects.create( name='PT Apply')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-APPLY-001', customer_name='PT Apply',
         )
-        self.r1 = Reservation.objects.create(
+        self.r1 = make_hotel_line(
             invoice=self.invoice, reservation_number='AP-1', total_sar=15000,
         )
-        self.r2 = Reservation.objects.create(
+        self.r2 = make_hotel_line(
             invoice=self.invoice, reservation_number='AP-2', total_sar=8000,
         )
         FinancialPeriod.objects.create(

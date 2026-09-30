@@ -14,10 +14,11 @@ from django.utils import timezone
 
 from ..models.choices import InvoiceType
 from ..models.credit_note import CreditNote, CreditNoteLine
-from ..models.invoice import Invoice
+from ..models.invoice import Invoice, InvoiceLine, InvoiceRevision
 from ..models.journal import JournalEntry
 from ..models.payment import PaymentRecord
 from . import accounts as coa
+from . import invoice_revisions
 from . import queries
 from .errors import FinanceError
 from .posting import _live_entries, post_entry, reverse_entry, void_invoice_charge
@@ -50,14 +51,19 @@ def void_invoice(invoice, *, reason, created_by, void_date=None):
     if blockers:
         raise FinanceError(blockers[0])
     void_invoice_charge(invoice, created_by=created_by, entry_date=void_date or timezone.now().date())
-    from ..models.confirmation import ConfirmationLetter
-    released = list(ConfirmationLetter.objects.filter(invoice=invoice).values_list('confirmation_number', flat=True))
-    ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
+    released = list(invoice.confirmation_letters.values_list('confirmation_number', flat=True))
+    # Potret baris SEBELUM di-void: nilai baris yang sudah void dibaca dari sini.
+    billed = invoice_revisions.snapshot(invoice)
+    now = timezone.now()
+    # Baris ikut di-void dengan cap waktu yang sama: reservasinya bebas ditagih
+    # lagi, dan invoice void tetap bisa menunjukkan apa yang dulu ditagihnya.
+    invoice.lines.filter(voided_at__isnull=True).update(voided_at=now)
     invoice.status = Invoice.STATUS_VOID
     invoice.void_reason = reason
-    invoice.voided_at = timezone.now()
+    invoice.voided_at = now
     invoice.voided_by = created_by
     invoice.save(update_fields=['status', 'void_reason', 'voided_at', 'voided_by'])
+    invoice_revisions.record(invoice, reason=InvoiceRevision.REASON_VOID, user=created_by, lines=billed)
     return released
 
 
@@ -67,37 +73,37 @@ def _income_account(invoice):
     return coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
 
 
+def _line_key(line):
+    """('r', pk) for a hotel line, ('s', pk) for a service line."""
+    return ('r' if line.kind == InvoiceLine.KIND_HOTEL else 's', line.pk)
+
+
 def _credited_by_line(invoice):
     """{('r', pk) | ('s', pk): SAR already credited by active credit notes}."""
     out = {}
-    for line in CreditNoteLine.objects.filter(
+    for cn_line in CreditNoteLine.objects.filter(
         credit_note__invoice=invoice, credit_note__status=CreditNote.STATUS_ACTIVE,
-    ):
-        key = ('r', line.reservation_id) if line.reservation_id else ('s', line.service_item_id)
-        out[key] = out.get(key, 0) + line.amount_sar
+    ).select_related('invoice_line'):
+        key = _line_key(cn_line.invoice_line)
+        out[key] = out.get(key, 0) + cn_line.amount_sar
     return out
 
 
 def creditable_lines(invoice):
-    """What each reservation / service line of the invoice may still be
-    credited: its billed amount minus active credit notes on it."""
+    """What each line of the invoice may still be credited: its billed amount
+    minus active credit notes on it."""
     credited = _credited_by_line(invoice)
     rows = []
-    for r in invoice.reservations.all().order_by('pk'):
-        billed = int(r.total_sar or 0)
+    for line in sorted(invoice.billed_lines(), key=lambda l: (l.kind != InvoiceLine.KIND_HOTEL, l.pk)):
+        if line.kind == InvoiceLine.KIND_PENALTY:
+            continue
+        key = _line_key(line)
+        billed = int(line.amount or 0)
         rows.append({
-            'kind': 'reservation', 'id': r.pk,
-            'label': f'{r.reservation_number} · {r.hotel}'.strip(' ·'),
-            'billed': billed, 'credited': credited.get(('r', r.pk), 0),
-            'available': max(billed - credited.get(('r', r.pk), 0), 0),
-        })
-    for s in invoice.service_items.all():
-        billed = int(s.total or 0)
-        rows.append({
-            'kind': 'service', 'id': s.pk,
-            'label': f'#{s.service_number} {s.name}',
-            'billed': billed, 'credited': credited.get(('s', s.pk), 0),
-            'available': max(billed - credited.get(('s', s.pk), 0), 0),
+            'kind': 'reservation' if line.kind == InvoiceLine.KIND_HOTEL else 'service', 'id': line.pk,
+            'label': line.label,
+            'billed': billed, 'credited': credited.get(key, 0),
+            'available': max(billed - credited.get(key, 0), 0),
         })
     return rows
 
@@ -150,14 +156,14 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
     for row, amount in picked:
         dims = {'invoice': invoice.pk}
         if row['kind'] == 'reservation':
-            res = invoice.reservations.get(pk=row['id'])
-            dims['reservation'] = res.pk
-            branch = coa.HQ_BRANCH if income == coa.INC_HOTEL else res.owner_branch_id
-            CreditNoteLine.objects.create(credit_note=cn, reservation=res, description=row['label'], amount_sar=amount)
+            dims['reservation'] = row['id']
+            branch = coa.HQ_BRANCH if income == coa.INC_HOTEL else invoice.branch_id
         else:
             dims['service_item'] = row['id']
             branch = None
-            CreditNoteLine.objects.create(credit_note=cn, service_item_id=row['id'], description=row['label'], amount_sar=amount)
+        CreditNoteLine.objects.create(
+            credit_note=cn, invoice_line_id=row['id'], description=row['label'], amount_sar=amount,
+        )
         journal.append({'account': income, 'debit': amount, 'branch': branch, **dims})
         to_ar = min(amount, ar_room)
         ar_room -= to_ar
@@ -172,7 +178,7 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
         entry_date=issued_date, lines=journal,
         source_type='CreditNote', source_id=cn.pk, created_by=created_by,
     )
-    invoice.sync_status()
+    invoice_revisions.record(invoice, reason=InvoiceRevision.REASON_CREDIT_NOTE, user=created_by)
     return cn
 
 
@@ -196,5 +202,5 @@ def void_credit_note(cn, *, reason, created_by, void_date=None):
     cn.voided_by = created_by
     cn.voided_at = timezone.now()
     cn.save(update_fields=['status', 'voided_reason', 'voided_by', 'voided_at'])
-    cn.invoice.sync_status()
+    invoice_revisions.record(cn.invoice, reason=InvoiceRevision.REASON_CREDIT_NOTE, user=created_by)
     return cn

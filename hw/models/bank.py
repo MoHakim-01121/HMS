@@ -15,7 +15,7 @@ Saldo BUKAN kolom di sini: `book_balance` diturunkan dari JournalLine pada
 """
 from django.db import models
 
-CURRENCY_CODES = ['SAR', 'USD', 'IDR']
+from .currency import CURRENCY_CODES  # noqa: E402,F401  (nama lama tetap diekspor dari sini)
 
 
 class MoneyAccount(models.Model):

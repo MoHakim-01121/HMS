@@ -105,7 +105,6 @@ class ClientFormTests(TestCase):
 
 class PenaltyViewTests(TestCase):
     def setUp(self):
-        from hw.models import ConfirmationLetter
         self.user = User.objects.create_user("tester3", password="pw12345")
         self.client.force_login(self.user)
         s = self.client.session; s["active_company"] = "konoz"; s.save()
@@ -238,7 +237,6 @@ class ClFormTests(TestCase):
         self.assertIn("check_out", page["props"]["errors"])
 
     def test_duplicate_number_returns_error(self):
-        from hw.models import ConfirmationLetter
         make_cl( confirmation_number="CLX-DUP")
         page = self._post("/cl/new/", {"confirmation_number": "CLX-DUP", "company": "konoz", "rooms": "[]"}).json()
         self.assertIn("confirmation_number", page["props"]["errors"])

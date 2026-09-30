@@ -17,9 +17,10 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import Client, Invoice, PaymentAllocation, PaymentRecord, Reservation
+from hw.models import Client, PaymentRecord
 from hw.models.payment import PaymentLog
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class DeadPaymentAllocationTests(TestCase):
@@ -32,18 +33,18 @@ class DeadPaymentAllocationTests(TestCase):
             name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create(name='PT Dead Alloc')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-DEAD-001', customer_name='PT Dead Alloc',
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='DEAD-R1', total_sar=10000,
         )
-        other_invoice = Invoice.objects.create(
+        other_invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-DEAD-002', customer_name='PT Dead Alloc',
         )
-        self.foreign_res = Reservation.objects.create(
+        self.foreign_res = make_hotel_line(
             invoice=other_invoice, reservation_number='DEAD-R9', total_sar=5000,
         )
 

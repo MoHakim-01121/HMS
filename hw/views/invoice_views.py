@@ -4,13 +4,13 @@ from datetime import date, timedelta
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, Reservation, log_activity
+from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, InvoiceLine, log_activity
 from ..models.choices import InvoiceType
 from ..permissions import require_perm
 from ..finance import queries as fq
@@ -21,14 +21,13 @@ from .helpers import (
     _is_mobile,
     _parse_date,
     _render_list_pdf,
-    _to_float,
     csv_export_response,
     due_soon_alert,
     pagination_props,
     snapshot_fields,
     track_changes,
 )
-from .invoice_billing import _billing_client, _billing_props, _save_hotel_payments
+from .invoice_billing import _billing_props, _save_hotel_payments
 from .credit_note_views import invoice_credit_props
 from .pdf import _logo_file_url, _render_invoice_pdf
 
@@ -47,8 +46,7 @@ def _resolve_client_from_post(request):
     cl_ids = _parse_cl_ids(request)
     if cl_ids:
         cl_clients = set(
-            ConfirmationLetter.objects.filter(pk__in=cl_ids)
-            .exclude(client__isnull=True).values_list('client_id', flat=True)
+            ConfirmationLetter.objects.filter(pk__in=cl_ids).values_list('client_id', flat=True)
         )
         if len(cl_clients) == 1:
             try:
@@ -63,17 +61,14 @@ def _branch_choices():
     return [{"value": b.code, "label": b.name} for b in Branch.objects.filter(is_active=True).order_by("name")]
 
 
-def _apply_invoice_branch(invoice, request):
-    """Set invoice.branch from the form's pick; left blank ("Automatic") it is
-    inferred from the reservations' owner_branch. Run after reservations are
-    saved so the inference can see them."""
+def _posted_branch(request, client, current=None):
+    """Issuing branch for the invoice: the form's pick, otherwise the branch it
+    already has, otherwise ("Automatic" on a new invoice) the client's owner branch."""
     from ..models.branch import Branch
     code = (request.POST.get("branch") or "").strip()
     if code and Branch.objects.filter(code=code, is_active=True).exists():
-        invoice.branch_id = code
-    elif not code or not invoice.branch_id:
-        invoice.branch_id = invoice.infer_branch_id()
-    invoice.save(update_fields=["branch"])
+        return code
+    return current or client.owner_branch_id
 
 
 def _filter_by_status(qs, status):
@@ -118,7 +113,7 @@ def _filter_invoice_qs(base_qs, request, apply_status=True, order=True):
 
     qs = base_qs
     if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+        qs = qs.filter(Invoice.objects.name_matches(q))
     if date_from:
         qs = qs.filter(due_date__gte=date_from)
     if date_to:
@@ -133,9 +128,7 @@ def _filter_invoice_qs(base_qs, request, apply_status=True, order=True):
 
 @require_perm('invoice', 'view')
 def invoice_list(request):
-    base_qs = Invoice.objects.filter(
-        invoice_type=InvoiceType.HOTEL,
-    ).prefetch_related('reservations', 'service_items')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
 
     qs, filters = _filter_invoice_qs(base_qs, request)
     q, status, date_from, date_to = filters['q'], filters['status'], filters['date_from'], filters['date_to']
@@ -231,33 +224,25 @@ def invoice_new(request):
 
         cl_ids = _billable_cl_ids(request)
         client = _resolve_client_from_post(request)
-        # Hotel invoice butuh isi: minimal harus ada CL yang bisa ditagih ATAU
-        # baris reservasi manual ATAU client yang dipilih langsung di form.
-        # (Kiriman kosong → reject, jangan bikin invoice yatim.)
-        if not cl_ids and not client and not _has_reservation_rows(request):
-            return _reject({"reservations": "Pick at least one confirmation letter that isn't already on an invoice."})
+        errors = _validate_hotel_invoice(request, cl_ids, client)
+        if errors:
+            return _reject(errors)
 
         try:
             with transaction.atomic():
-                client = _resolve_client_from_post(request)
                 invoice = Invoice.objects.create(
                     invoice_type=InvoiceType.HOTEL,
                     invoice_number=invoice_number,
                     client=client,
+                    branch_id=_posted_branch(request, client),
                     issued_date=_parse_date(request.POST.get("issued_date")),
                     due_date=_parse_date(request.POST.get("due_date")),
                     currency="SAR",
+                    created_by=request.user,
                 )
                 Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
-                # CL must be linked before _save_reservations/_save_hotel_payments run --
-                # both call _billing_client(invoice), which resolves the client from
-                # invoice.confirmation_letters. Linking after would leave the journal
-                # charge lines client=None even when a CL was selected.
-                ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
-
-                _save_reservations(invoice, request)
+                _sync_hotel_lines(invoice, cl_ids, request.user)
                 _save_hotel_payments(invoice, request)
-                _apply_invoice_branch(invoice, request)
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
 
@@ -266,9 +251,7 @@ def invoice_new(request):
         return redirect("invoice_detail", pk=invoice.pk)
 
     initial = None
-    preselect_cl = ConfirmationLetter.objects.filter(
-        pk=request.GET.get("cl"), invoice__isnull=True,
-    ).first()
+    preselect_cl = ConfirmationLetter.objects.uninvoiced().filter(pk=request.GET.get("cl") or 0).first()
     if preselect_cl:
         initial = {"linked_cl_ids": [preselect_cl.pk]}
 
@@ -336,7 +319,7 @@ def invoice_detail(request, pk):
         Receipt.objects.filter(invoice=invoice).exclude(status=Receipt.STATUS_VOIDED)
         .order_by("-pk").values("pk", "receipt_number").first()
     )
-    client = _billing_client(invoice) or invoice.client
+    client = invoice.client
     logs = [{
         "action": l.action,
         "action_label": l.get_action_display(),
@@ -381,6 +364,7 @@ def invoice_detail(request, pk):
             "total_paid_sar": invoice.total_paid_sar,
             "remaining_sar": invoice.remaining_sar,
             "status": invoice.status,
+            "payment_state": invoice.financial_state,
         },
         "reservations": reservations,
         "payments": payments,
@@ -426,32 +410,27 @@ def invoice_edit(request, pk):
             return _reject({"invoice_number": f"Invoice number '{new_number}' is already in use."})
 
         cl_ids = _billable_cl_ids(request, invoice)
-        # Hotel invoice butuh isi: CL yang bisa ditagih ATAU baris reservasi
-        # manual ATAU client pilihan form — kiriman kosong jangan disimpan.
-        if not cl_ids and not _resolve_client_from_post(request) and not _has_reservation_rows(request):
-            return _reject({"reservations": "Pick at least one confirmation letter that isn't already on an invoice."})
+        client = _resolve_client_from_post(request)
+        errors = _validate_hotel_invoice(request, cl_ids, client)
+        if errors:
+            return _reject(errors)
 
         try:
             with transaction.atomic():
-                client = _resolve_client_from_post(request)
+                # Lines first: a client change is only legal together with a
+                # full swap of the reservations billed, and the old lines must
+                # be off the invoice before its client moves.
+                if client.pk != invoice.client_id:
+                    _sync_hotel_lines(invoice, [], request.user)
                 invoice.invoice_number = new_number
                 invoice.client = client
+                invoice.branch_id = _posted_branch(request, client, current=invoice.branch_id)
                 invoice.issued_date = _parse_date(request.POST.get("issued_date"))
                 invoice.due_date = _parse_date(request.POST.get("due_date"))
                 invoice.save()
                 Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
-
-                # Relink CL selection before syncing reservations/payments -- see
-                # the matching comment in invoice_new for why the order matters.
-                # Reservation rows themselves are upserted by _save_reservations,
-                # never wiped: their pk is the dimension the ledger, the payment
-                # allocations and the CL paid totals all hang off.
-                ConfirmationLetter.objects.filter(invoice=invoice).update(invoice=None)
-                ConfirmationLetter.objects.filter(pk__in=cl_ids).update(invoice=invoice)
-
-                _save_reservations(invoice, request)
+                _sync_hotel_lines(invoice, cl_ids, request.user)
                 _save_hotel_payments(invoice, request)
-                _apply_invoice_branch(invoice, request)
         except (FinanceError, ValueError) as e:
             # A finance failure (e.g. PeriodLockedError when a payment falls in a
             # closed period) must roll back cleanly and show the user a form error,
@@ -489,7 +468,9 @@ def invoice_delete(request, pk):
             messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('invoice_detail', pk=pk)
         try:
-            invoice.delete()
+            with transaction.atomic():
+                invoice.lines.all().delete()
+                invoice.delete()
         except Exception as exc:
             # A pending PaymentRecord (PROTECT) may still exist even when no
             # journal lines were written; surface that cleanly instead of a 500.
@@ -517,7 +498,7 @@ def invoice_pdf(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).prefetch_related('reservations', 'service_items')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
     qs, _ = _filter_invoice_qs(base_qs, request)
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
@@ -538,7 +519,7 @@ def invoice_list_pdf(request):
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).prefetch_related('reservations', 'service_items')
+    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
     qs, _ = _filter_invoice_qs(base_qs, request)
     headers = ['Invoice #', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR']
     rows = ([
@@ -549,126 +530,82 @@ def invoice_export_csv(request):
     return csv_export_response('invoices_hotel.csv', headers, rows)
 
 
-@require_perm('invoice', 'create')
-@transaction.atomic
-def invoice_duplicate(request, pk):
-    original = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
-    new_num = Invoice.generate_number(InvoiceType.HOTEL)
-    today = date.today()
-    try:
-        with transaction.atomic():
-            new_inv = Invoice.objects.create(
-                invoice_type=InvoiceType.HOTEL,
-                invoice_number=new_num,
-                customer_name=original.customer_name,
-                branch_id=original.branch_id,
-                issued_date=today,
-                due_date=today + timedelta(days=30),
-                currency=original.currency,
-            )
-            for res in original.reservations.all():
-                Reservation.objects.create(
-                    invoice=new_inv,
-                    client_id=original.client_id,
-                    reservation_number=res.reservation_number,
-                    hotel=res.hotel,
-                    check_in=res.check_in,
-                    check_out=res.check_out,
-                    total_sar=res.total_sar,
-                )
-    except Exception as e:  # IntegrityError dll — jangan tinggalkan invoice yatim tanpa reservasi
-        logger.warning("Duplikasi invoice %s gagal: %s", original.pk, e)
-        messages.error(request, f"Gagal menduplikasi invoice: {e}")
-        return redirect("invoice_edit", pk=original.pk)
-    messages.success(request, f"Invoice duplicated as {new_num} (from {original.invoice_number}).")
-    return redirect("invoice_edit", pk=new_inv.pk)
+def _line_has_money(line, column='reservation_id'):
+    """Whether money already stands against this invoice line: a payment (or
+    one still pending), an allocation, or an active credit note. Such a line
+    cannot leave the invoice; the money has to be moved or reversed first.
 
-
-def _reservation_has_money(reservation):
-    """Apakah baris reservasi ini sudah dipakai uang di mana pun.
-
-    Dipakai sebelum menghapus baris: Reservation adalah dimensi yang dipegang
-    jurnal, alokasi payment, dan PaymentRecord -- ketiganya SET_NULL, jadi
-    menghapus baris diam-diam melepas uang dari barisnya (dan pada alokasi
-    malah melanggar CHECK constraint exactly-one-target).
-    """
-    from ..models.journal import JournalLine
+    `column` is the key payments and the journal use for this kind of line
+    (reservation_id for a hotel line, service_item_id for a service line)."""
+    from ..models.credit_note import CreditNote, CreditNoteLine
     from ..models.payment import PaymentAllocation, PaymentRecord
+    open_statuses = (*PaymentRecord.EFFECTIVE_STATUSES, PaymentRecord.STATUS_PENDING)
+    key = {column: line.pk}
+    settled = fq.line_settled_sar(**key)
     return (
-        PaymentAllocation.objects.filter(reservation=reservation).exists()
-        or PaymentRecord.objects.filter(reservation=reservation).exists()
-        or JournalLine.objects.filter(reservation=reservation).exists()
+        PaymentAllocation.objects.filter(payment__status__in=open_statuses, **key).exists()
+        or PaymentRecord.objects.filter(status__in=open_statuses, **key).exists()
+        or bool(settled)
+        or CreditNoteLine.objects.filter(invoice_line=line, credit_note__status=CreditNote.STATUS_ACTIVE).exists()
     )
 
 
-def _save_reservations(invoice, request):
-    """Upsert baris reservasi dari form, lalu posting.post_invoice_charge
-    (idempotent-by-content: reverse charge lama + repost) supaya jurnal
-    (DR Piutang / CR Pendapatan) selalu cocok dengan total reservasi.
+def _line_is_referenced(line, column='reservation_id'):
+    """Whether any row points at this line (journal, payments, credit notes).
+    A referenced line is voided instead of deleted, so that history keeps its key."""
+    from ..models.credit_note import CreditNoteLine
+    from ..models.journal import JournalLine
+    from ..models.payment import PaymentAllocation, PaymentRecord
+    key = {column: line.pk}
+    return (
+        JournalLine.objects.filter(**key).exists()
+        or PaymentAllocation.objects.filter(**key).exists()
+        or PaymentRecord.objects.filter(**key).exists()
+        or CreditNoteLine.objects.filter(invoice_line=line).exists()
+    )
 
-    Upsert, bukan delete-recreate: baris yang nomornya sama diperbarui di
-    tempat supaya pk-nya lestari -- lihat _reservation_has_money. Baris yang
-    benar-benar dikeluarkan dari invoice hanya boleh hilang kalau belum
-    tersentuh uang; kalau sudah, simpan ditolak dengan pesan yang jelas.
 
-    Nilai baris yang bertaut CL dihitung server dari CL-nya
-    (finance.reservation_rules), bukan dari angka kiriman form: form tidak tahu
-    aturan CL yang dibatalkan bernilai 0.
+def _line_has_service_money(line):
+    return _line_has_money(line, 'service_item_id')
+
+
+def _line_is_service_referenced(line):
+    return _line_is_referenced(line, 'service_item_id')
+
+
+def _sync_hotel_lines(invoice, cl_ids, user):
+    """Make the invoice bill exactly the reservations in `cl_ids`, then
+    re-post its charge (posting.post_invoice_charge, idempotent by content).
+
+    A hotel line carries no figures of its own: what it bills is read from its
+    CL. A reservation taken off the invoice loses its line only when nothing
+    references it; once the ledger does, the line is voided (kept, no longer
+    billed), and when money stands against it the save is refused.
     """
     from ..finance.posting import post_invoice_charge
-    from ..finance.reservation_rules import reservation_total_for_cl
 
-    try:
-        rows = json.loads(request.POST.get("reservations", "[]"))
-    except (ValueError, TypeError):
-        rows = []
     with transaction.atomic():
-        if not invoice.client_id and _billing_client(invoice):
-            invoice.client = _billing_client(invoice)
-            invoice.save(update_fields=['client', 'customer_name'])
-
-        cl_by_number = {
-            cl.confirmation_number: cl
-            for cl in invoice.confirmation_letters.prefetch_related('rooms')
-        }
-        existing = {}
-        for res in invoice.reservations.all():
-            existing.setdefault(res.reservation_number, []).append(res)
-
-        kept_ids = []
-        for r in rows:
-            number = (r.get("reservation_number") or "-").strip() or "-"
-            cl = cl_by_number.get(number)
-            total_sar = (
-                reservation_total_for_cl(cl) if cl is not None
-                else int(round(_to_float(r.get("reservation_total"))))
-            )
-            pool = existing.get(number) or []
-            res = pool.pop(0) if pool else Reservation(invoice=invoice, reservation_number=number)
-            res.hotel = (r.get("hotel") or "-").strip() or "-"
-            res.check_in = _parse_date(r.get("check_in"))
-            res.check_out = _parse_date(r.get("check_out"))
-            res.total_sar = total_sar
-            res.confirmation_letter = cl
-            res.client_id = cl.client_id if cl is not None else invoice.client_id
-            res.save()
-            kept_ids.append(res.pk)
-
-        for leftovers in existing.values():
-            for res in leftovers:
-                if _reservation_has_money(res):
-                    raise ValueError(
-                        f"Reservasi {res.reservation_number} sudah tersentuh pembayaran, "
-                        "jadi tidak bisa dikeluarkan dari invoice. Realokasi atau balikkan "
-                        "pembayarannya dulu lewat modul Payment."
-                    )
-                res.delete()
-
-        if invoice.client_id:
-            post_invoice_charge(invoice, created_by=request.user)
+        wanted = list(ConfirmationLetter.objects.filter(pk__in=cl_ids).select_related('client', 'hotel'))
+        wanted_ids = {cl.pk for cl in wanted}
+        for line in invoice.lines.filter(kind=InvoiceLine.KIND_HOTEL, voided_at__isnull=True):
+            if line.confirmation_letter_id in wanted_ids:
+                continue
+            if _line_has_money(line):
+                raise ValueError(
+                    f"Reservasi {line.reservation_number} sudah tersentuh pembayaran, "
+                    "jadi tidak bisa dikeluarkan dari invoice. Realokasi atau balikkan "
+                    "pembayarannya dulu lewat modul Payment."
+                )
+            if _line_is_referenced(line):
+                line.void()
+            else:
+                line.delete()
+        for cl in wanted:
+            invoice.add_hotel_line(cl)
+        post_invoice_charge(invoice, created_by=user)
     logger.info(
         "ledger: %d reservation(s) synced for invoice %s",
-        len(rows), invoice.invoice_number,
+        len(wanted), invoice.invoice_number,
     )
 
 
@@ -715,7 +652,7 @@ def _serialize_hotel_invoice(invoice):
             "check_in": r.check_in.strftime("%Y-%m-%d") if r.check_in else "",
             "check_out": r.check_out.strftime("%Y-%m-%d") if r.check_out else "",
             "reservation_total": int(r.total_sar or 0),
-        } for r in invoice.reservations.all()],
+        } for r in invoice.reservations],
         "payments": [{
             "ref": p["ref"],
             "date": p["payment_date"].strftime("%Y-%m-%d") if p["payment_date"] else "",
@@ -740,15 +677,6 @@ def _parse_cl_ids(request):
     return [i for i in ids if i]
 
 
-def _has_reservation_rows(request):
-    """True jika body form memuat minimal satu baris reservasi manual ber-isi."""
-    try:
-        rows = json.loads(request.POST.get("reservations", "[]"))
-    except (ValueError, TypeError):
-        return False
-    return any(_to_float(r.get("reservation_total")) for r in rows if isinstance(r, dict))
-
-
 def _billable_cl_ids(request, invoice=None):
     """CL pks from the POST this invoice may bill: either not yet on any
     invoice or already on this one (edit). A hotel invoice can only be built
@@ -756,12 +684,29 @@ def _billable_cl_ids(request, invoice=None):
     ids = _parse_cl_ids(request)
     if not ids:
         return []
-    qs = ConfirmationLetter.objects.filter(pk__in=ids)
+    free = ConfirmationLetter.objects.uninvoiced().filter(pk__in=ids)
+    allowed = set(free.values_list("pk", flat=True))
     if invoice is not None:
-        qs = qs.filter(Q(invoice__isnull=True) | Q(invoice=invoice))
-    else:
-        qs = qs.filter(invoice__isnull=True)
-    return list(qs.values_list("pk", flat=True))
+        allowed |= set(invoice.confirmation_letters.filter(pk__in=ids).values_list("pk", flat=True))
+    return [i for i in ids if i in allowed]
+
+
+def _validate_hotel_invoice(request, cl_ids, client):
+    """{field: message} for a hotel invoice form. A hotel invoice bills one
+    client's reservations, so it needs the client and at least one CL of theirs."""
+    if not cl_ids:
+        return {"reservations": "Pick at least one confirmation letter that isn't already on an invoice."}
+    if client is None:
+        return {"client_id": "Choose the client this invoice bills."}
+    others = (
+        ConfirmationLetter.objects.filter(pk__in=cl_ids).exclude(client=client)
+        .values_list("confirmation_number", flat=True)
+    )
+    if others:
+        return {"reservations": (
+            f"CL {', '.join(others)} belongs to another client. One invoice bills one client."
+        )}
+    return {}
 
 
 def _cl_data_for_form():
@@ -773,7 +718,8 @@ def _cl_data_for_form():
     # room.cl for num_nights; a reverse-FK prefetch populates that back
     # reference, so it stays free.
     cl_qs = (ConfirmationLetter.objects
-             .select_related("invoice", "client")
+             .select_related("client", "hotel")
+             .with_invoice()
              .prefetch_related("rooms"))
     return [{
         "id": cl.pk,
@@ -785,5 +731,5 @@ def _cl_data_for_form():
         "total": int(round(cl.total_price)) if cl.total_price else 0,
         "inv": cl.invoice.invoice_number if cl.invoice_id else "",
         "client_id": cl.client_id or "",
-        "client_name": cl.client.name if cl.client_id else "",
+        "client_name": cl.client.name,
     } for cl in cl_qs.order_by("-created_at")[:100]]

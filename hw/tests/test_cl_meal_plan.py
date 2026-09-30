@@ -11,7 +11,7 @@ from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
-from hw.models import Client, ConfirmationLetter, Hotel, MealPlan, Room, RoomType
+from hw.models import Client, ConfirmationLetter, Hotel, MealPlan, RoomType
 
 
 class CLMealPlanTest(TestCase):

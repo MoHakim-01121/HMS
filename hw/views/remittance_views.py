@@ -284,7 +284,7 @@ def remittance_detail(request, pk):
     # Baris tanpa settlement = dialokasikan saat kirim (jalur lama). Alokasi
     # penerimaan ditampilkan di bawah penerimaannya masing-masing.
     lines = _sort_lines_by_payment_date(
-        list(rem.lines.filter(settlement__isnull=True).select_related('invoice'))
+        list(rem.lines.filter(settlement__isnull=True).select_related('invoice__client'))
     )
 
     linked_numbers = [l.linked_number for l in lines]
@@ -292,7 +292,7 @@ def remittance_detail(request, pk):
     # Reservation data (check_in, hotel)
     res_map = {
         r['reservation_number']: r
-        for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
+        for r in Reservation.objects.numbered(linked_numbers).reservation_rows()
     }
 
     # Total previously sent (remittance sebelum yang ini)
@@ -327,9 +327,9 @@ def remittance_detail(request, pk):
     )
     alloc_res = {
         r['reservation_number']: r
-        for r in Reservation.objects.filter(
-            reservation_number__in=[a.linked_number for s in settlements for a in s.allocations.all()],
-        ).values('reservation_number', 'check_in', 'hotel')
+        for r in Reservation.objects.numbered(
+            a.linked_number for s in settlements for a in s.allocations.all()
+        ).reservation_rows()
     }
     settled_total_sar = sum(int(s.received_amount_sar) for s in settlements)
     basis_sar = rem.settlement_basis_sar
@@ -593,7 +593,7 @@ def remittance_edit(request, pk):
         return redirect('remittance_detail', pk=rem.pk)
 
     lines_editable = rem.amount_idr is None
-    lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice'))) if lines_editable else []
+    lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice__client'))) if lines_editable else []
     return inertia_render(request, "Remittance/Edit", props={
         "rem": {
             "id": rem.id,
@@ -626,12 +626,12 @@ def remittance_pdf(request, pk):
     from .pdf import _logo_file_url
     from ..models import Reservation
     rem = get_object_or_404(Remittance, pk=pk)
-    raw_lines = list(rem.lines.select_related('invoice').order_by('linked_number'))
+    raw_lines = list(rem.lines.select_related('invoice__client').order_by('linked_number'))
     linked_numbers = [l.linked_number for l in raw_lines]
 
     res_map = {
         r['reservation_number']: r
-        for r in Reservation.objects.filter(reservation_number__in=linked_numbers).values('reservation_number', 'check_in', 'hotel')
+        for r in Reservation.objects.numbered(linked_numbers).reservation_rows()
     }
     prev_map = _prev_sent_map(rem, linked_numbers)
 
@@ -881,10 +881,7 @@ def _build_ledger_rows(date_from=None, date_to=None):
     direct_total = 0
 
     # semua reservasi Konoz ikut dilacak, bukan hanya yang sudah ada uangnya
-    res_rows = list(Reservation.objects.all().values(
-        'id', 'reservation_number', 'hotel', 'check_in', 'check_out', 'total_sar',
-        'invoice__customer_name',
-    ))
+    res_rows = list(Reservation.objects.all().reservation_rows())
     res_map = {r['reservation_number']: r for r in res_rows}
 
     # Debit = seluruh uang client yang sudah dibayar untuk reservasi (kas sby +
@@ -908,7 +905,7 @@ def _build_ledger_rows(date_from=None, date_to=None):
     # CL ikut jadi basis baris supaya reservasi yang belum punya invoice tetap terlacak
     cl_map = {
         c.confirmation_number: c
-        for c in ConfirmationLetter.objects.prefetch_related('rooms')
+        for c in ConfirmationLetter.objects.with_parties().prefetch_related('rooms')
     }
 
     rows = []
@@ -926,12 +923,12 @@ def _build_ledger_rows(date_from=None, date_to=None):
             continue
         if date_to and check_in and check_in > date_to:
             continue
-        total_sar = int(res.get('total_sar') or (cl.total_price if cl else 0) or 0)
+        total_sar = int((cl.total_price if cl else 0) or 0)
         rows.append({
             'linked_number': linked_number or '—',
             'status': status,
             'hotel': res.get('hotel') or (cl.hotel_name if cl else '') or '—',
-            'guest': res.get('invoice__customer_name') or (cl.guest_name if cl else '') or '—',
+            'guest': (cl.guest_name if cl else '') or '—',
             'check_in': check_in,
             'check_out': check_out,
             'total_sar': total_sar,

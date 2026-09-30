@@ -4,9 +4,10 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client, Invoice
 from hw.models.period import FinancialPeriod
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class InvoiceFinancialStateTest(TestCase):
@@ -18,9 +19,9 @@ class InvoiceFinancialStateTest(TestCase):
         self.client_obj = Client.objects.create( name='PT FinState')
 
     def _invoice(self, **kw):
-        inv = Invoice.objects.create(invoice_number=f'INV-FS-{Invoice.objects.count()}', customer_name='PT FinState',
+        inv = make_invoice(invoice_number=f'INV-FS-{Invoice.objects.count()}', customer_name='PT FinState',
                                      client=self.client_obj, **kw)
-        Reservation.objects.create(invoice=inv, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=inv, reservation_number='R1', total_sar=1000)
         return inv
 
     def test_unpaid_with_no_due_date(self):
@@ -45,8 +46,8 @@ class InvoiceFinancialStateTest(TestCase):
 
     def test_financial_state_does_not_touch_persisted_status(self):
         inv = self._invoice()
-        inv.status = Invoice.STATUS_SENT
+        inv.status = Invoice.STATUS_DRAFT
         inv.save(update_fields=['status'])
         _ = inv.financial_state
         inv.refresh_from_db()
-        self.assertEqual(inv.status, Invoice.STATUS_SENT)
+        self.assertEqual(inv.status, Invoice.STATUS_DRAFT)

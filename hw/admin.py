@@ -6,7 +6,7 @@ from .models import (
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
     BankStatement, BankStatementLine, Hotel, Invoice, MealPlan, Pricelist,
     Remittance, RemittanceLine, RemittanceSettlement,
-    Reservation, RoleDefinition, Room, RoomType, ServiceItem, TeamMember, UserProfile,
+    InvoiceLine, InvoiceRevision, RoleDefinition, Room, RoomType, TeamMember, UserProfile,
     Currency, DocumentSequence, Vendor,
 )
 
@@ -26,7 +26,8 @@ admin.site.__class__ = SuperuserOnlyAdminSite
 class InvoiceAdmin(admin.ModelAdmin):
     list_display  = ('invoice_number', 'customer_name', 'invoice_type', 'issued_date', 'due_date')
     list_filter   = ('invoice_type',)
-    search_fields = ('invoice_number', 'customer_name')
+    search_fields = ('invoice_number', 'client__name', 'client__brand')
+    list_select_related = ('client',)
     date_hierarchy = 'issued_date'
 
 
@@ -193,9 +194,9 @@ class RemittanceSettlementAdmin(admin.ModelAdmin):
     list_display = ('remittance', 'received_amount_sar', 'received_date')
 
 
-admin.site.register(Reservation)
+admin.site.register(InvoiceLine)
+admin.site.register(InvoiceRevision)
 admin.site.register(Room)
-admin.site.register(ServiceItem)
 admin.site.register(Attachment)
 admin.site.register(TeamMember)
 admin.site.register(Pricelist)

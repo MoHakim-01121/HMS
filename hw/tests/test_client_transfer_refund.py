@@ -14,9 +14,10 @@ from django.urls import reverse
 
 from hw.finance import accounts as coa
 from hw.finance import posting
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 def _net(**f):
@@ -37,14 +38,14 @@ class RefundTransferViewTest(TestCase):
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type="hotel", invoice_number="INV-CR-001",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2026, 1, 5),
         )
-        self.res_a = Reservation.objects.create(
+        self.res_a = make_hotel_line(
             invoice=self.invoice, reservation_number="R-A", total_sar=100000,
         )
-        self.res_b = Reservation.objects.create(
+        self.res_b = make_hotel_line(
             invoice=self.invoice, reservation_number="R-B", total_sar=40000,
         )
 
@@ -170,11 +171,11 @@ class RefundTransferViewTest(TestCase):
     def test_transfer_blocks_different_client_reservation(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         other_client = Client.objects.create( name="PT Lain")
-        other_invoice = Invoice.objects.create(
+        other_invoice = make_invoice(
  invoice_type="hotel", invoice_number="INV-CR-002",
             customer_name="PT Lain", client=other_client, issued_date=date(2026, 2, 1),
         )
-        other_res = Reservation.objects.create(
+        other_res = make_hotel_line(
             invoice=other_invoice, reservation_number="R-OR", total_sar=5000,
         )
         resp = self.client.post(

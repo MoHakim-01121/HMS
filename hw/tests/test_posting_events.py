@@ -1,5 +1,5 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_service_line, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -10,8 +10,7 @@ from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.finance.hashing import verify_chain
 from hw.models import (
-    CancellationPenalty, Client, ConfirmationLetter, Invoice, PaymentAllocation,
-    Reservation, ServiceItem,
+    CancellationPenalty, Client, PaymentAllocation,
 )
 from hw.finance_helpers import create_payment_record, FinanceError
 from hw.models.journal import JournalEntry, JournalLine
@@ -30,11 +29,11 @@ class PostingTestBase(TestCase):
             name="2045",            date_from=date(2045, 1, 1), date_to=date(2045, 12, 31),
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type="hotel", invoice_number="INV-P1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2045, 1, 5),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number="R-P1", total_sar=100000,
         )
 
@@ -55,8 +54,7 @@ class InvoiceChargeTests(PostingTestBase):
 
     def test_revision_reverses_and_reposts(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
-        self.res.total_sar = 120000
-        self.res.save()
+        self.res = set_line_total(self.res, 120000)
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         # net AR for invoice reflects the new total, old charge reversed
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 120000)
@@ -70,11 +68,11 @@ class InvoiceChargeTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 0)
 
     def test_service_invoice_uses_service_income(self):
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type="visa", invoice_number="SVC-P1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2045, 2, 1),
         )
-        ServiceItem.objects.create(invoice=inv, name="Visa", qty=2, price=15000)
+        make_service_line(invoice=inv, name="Visa", qty=2, price=15000)
         posting.post_invoice_charge(inv, created_by=self.user)
         self.assertEqual(_net(account_id=coa.INC_SERVICE, invoice=inv), -30000)
 
@@ -142,7 +140,7 @@ class KasMovementTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
 
     def test_fund_transfer_keeps_client_receivable_total(self):
-        r2 = Reservation.objects.create(
+        r2 = make_hotel_line(
             invoice=self.invoice, reservation_number="R-P2", total_sar=0,
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)

@@ -26,10 +26,11 @@ from hw.finance import settlement_service as svc
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import create_payment_record
 from hw.management.commands.check_finance import Command as CheckFinance
-from hw.models import Client, Invoice, Remittance, RemittanceLine, Reservation
+from hw.models import Client, Remittance, RemittanceLine
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.models.settlement import RemittanceSettlement
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 def _net(account_id):
@@ -44,7 +45,7 @@ class AllocationBase(TestCase):
             name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.client_obj = Client.objects.create(name='PT Amanah')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_type='hotel', invoice_number='INV-ALC-001', customer_name='PT Amanah',
             client=self.client_obj,
         )
@@ -57,7 +58,7 @@ class AllocationBase(TestCase):
         self.rem = self._transfer(240_000_000, 4800, date(2026, 9, 10))
 
     def _res(self, number, total, check_in):
-        return Reservation.objects.create(
+        return make_hotel_line(
             invoice=self.invoice, reservation_number=number, total_sar=total, check_in=check_in,
         )
 
@@ -268,10 +269,10 @@ class ClosedTransferPeriodTest(TestCase):
             name='2026-10', date_from=date(2026, 10, 1), date_to=date(2026, 10, 31),
         )
         client_obj = Client.objects.create(name='PT Rawda')
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
             invoice_type='hotel', invoice_number='INV-ALC-002', customer_name='PT Rawda', client=client_obj,
         )
-        res = Reservation.objects.create(invoice=invoice, reservation_number='R9', total_sar=4800)
+        res = make_hotel_line(invoice=invoice, reservation_number='R9', total_sar=4800)
         p = create_payment_record(
             invoice=invoice, client=client_obj, payment_date=date(2026, 9, 2), amount=4800,
             method='transfer', created_by=user, received_in='sby', reservation=res,

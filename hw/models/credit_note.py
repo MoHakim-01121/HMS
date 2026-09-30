@@ -2,7 +2,7 @@
 
 An issued invoice is never edited down in silence once money has moved on it;
 the reduction is its own numbered document that references the invoice, with
-one line per reservation or service it reduces. Posting (credit_note_service):
+one line per invoice line it reduces. Posting (credit_note_service):
 Dr Pendapatan / Cr Piutang — and when the client has already paid more than
 the invoice still bills, the excess goes to the client's deposit (Titipan)
 instead, for the existing refund / transfer tools to settle.
@@ -54,19 +54,13 @@ class CreditNote(models.Model):
 
 class CreditNoteLine(models.Model):
     credit_note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name='lines')
-    reservation = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.PROTECT, related_name='credit_note_lines')
-    service_item = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.PROTECT, related_name='credit_note_lines')
+    invoice_line = models.ForeignKey('InvoiceLine', on_delete=models.PROTECT, related_name='credit_note_lines')
     description = models.CharField(max_length=255)
     amount_sar = models.PositiveIntegerField()
 
     class Meta:
         ordering = ['pk']
         constraints = [
-            models.CheckConstraint(
-                condition=models.Q(reservation__isnull=False, service_item__isnull=True)
-                | models.Q(reservation__isnull=True, service_item__isnull=False),
-                name='cn_line_one_target',
-            ),
             models.CheckConstraint(condition=models.Q(amount_sar__gt=0), name='cn_line_amount_positive'),
         ]
 

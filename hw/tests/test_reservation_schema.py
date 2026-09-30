@@ -7,9 +7,9 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from hw.models import (
-    Attachment, CancellationPenalty, Client, ConfirmationLetter, Hotel, Invoice, Room, RoomType,
+    Attachment, CancellationPenalty, Client, ConfirmationLetter, Hotel, Room, RoomType,
 )
-from hw.tests.factories import make_cl, make_client, make_hotel, make_room
+from hw.tests.factories import make_cl, make_client, make_hotel, make_invoice, make_room
 
 
 class ReservationNamesTest(TestCase):
@@ -147,7 +147,7 @@ class PenaltySchemaTest(TestCase):
 class AttachmentParentTest(TestCase):
     def test_exactly_one_parent(self):
         cl = make_cl()
-        inv = Invoice.objects.create(invoice_number='INV-A', customer_name='X', client=cl.client)
+        inv = make_invoice(invoice_number='INV-A', customer_name='X', client=cl.client)
         Attachment.objects.create(cl=cl, file='a.pdf', name='a.pdf')
         Attachment.objects.create(invoice=inv, file='b.pdf', name='b.pdf')
         with self.assertRaises(IntegrityError), transaction.atomic():

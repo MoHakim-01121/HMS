@@ -32,7 +32,10 @@ const blankService = () => ({ name: "", qty: 1, price: "" });
 
 function seedFrom(src) {
   if (!src) return { items: [blankService()] };
+  // service_number is the line's identity on the server: a saved line keeps
+  // it so an edit updates that line in place (payments point at it).
   const items = (src.service_items || []).map((it) => ({
+    service_number: it.service_number || null,
     name: it.name || "", qty: it.qty ?? 1, price: it.price ?? "",
   }));
   return { items: items.length ? items : [blankService()] };
@@ -88,7 +91,10 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
     e.preventDefault();
     const serviceItems = items
       .filter((it) => (it.name || "").trim())
-      .map((it) => ({ name: it.name.trim(), qty: parseFloat(it.qty) || 1, price: parseFloat(it.price) || 0 }));
+      .map((it) => ({
+        service_number: it.service_number || null,
+        name: it.name.trim(), qty: parseFloat(it.qty) || 1, price: parseFloat(it.price) || 0,
+      }));
 
     form.transform(() => ({
       client_id: clientId, customer_name: customerName, invoice_number: invoiceNumber,
@@ -117,7 +123,7 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
           {/* ── Info ── */}
           <FormSection label={t("Invoice Info")}>
             <div className="svc-info-row" style={{ display: "grid", gridTemplateColumns: "1fr 160px 100px 140px 140px", gap: 12 }}>
-              <FormField label={t("Customer")} name="client_id">
+              <FormField label={t("Customer")} name="client_id" required error={errors.client_id && t(errors.client_id)}>
                 <Combobox
                   name="client_id"
                   value={clientQuery}
@@ -131,7 +137,7 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
               <FormField label={t("Invoice Number")} name="invoice_number" required
                 value={invoiceNumber} onChange={setInvoiceNumber}
                 placeholder={suggested_number} error={errors.invoice_number} />
-              <FormField label={t("Currency")} name="invoice_currency" required>
+              <FormField label={t("Currency")} name="invoice_currency" required error={errors.invoice_currency && t(errors.invoice_currency)}>
                 <select id="invoice_currency" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                   {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
@@ -140,6 +146,10 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
               <FormField label={t("Due Date")} name="due_date" type="date" required value={dueDate} onChange={setDueDate} />
             </div>
           </FormSection>
+
+          {errors.finance && (
+            <div role="alert" style={{ fontSize: 12, color: "var(--destructive)", margin: "0 0 12px" }}>{errors.finance}</div>
+          )}
 
           {/* ── Services ── */}
           <FormSection label={t("Services")}>

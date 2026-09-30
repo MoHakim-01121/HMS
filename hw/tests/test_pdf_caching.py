@@ -2,19 +2,19 @@ from datetime import date
 from unittest.mock import patch
 from django.core.cache import cache
 from django.test import TestCase
-from hw.models import Invoice, Reservation
 from hw.views.pdf import _render_invoice_pdf
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class InvoicePdfCachingTest(TestCase):
     def setUp(self):
         cache.clear()
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-PDFCACHE-001', customer_name='Test Customer',
             issued_date=date.today(),
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
 
     @patch('hw.views.pdf.HTML')
     def test_second_render_uses_cache_not_weasyprint(self, mock_html):
@@ -31,7 +31,6 @@ class InvoicePdfCachingTest(TestCase):
         mock_html.return_value.write_pdf.return_value = b'%PDF-fake-bytes'
 
         _render_invoice_pdf(self.invoice)
-        self.invoice.customer_name = 'Changed Name'
         self.invoice.save()  # bumps updated_at
         _render_invoice_pdf(self.invoice)
 

@@ -1,5 +1,4 @@
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
 from django.http import JsonResponse
 from django.urls import reverse
 
@@ -18,14 +17,14 @@ def global_search(request):
 
     inv_qs = (
         Invoice.objects.filter(invoice_type="hotel")
-        .filter(Q(invoice_number__icontains=q) | Q(customer_name__icontains=q))
-        .prefetch_related('reservations')
+        .filter(Invoice.objects.name_matches(q))
+        .with_lines()
     )[:8]
 
     svc_qs = (
         Invoice.objects.filter(invoice_type="visa")
-        .filter(Q(invoice_number__icontains=q) | Q(customer_name__icontains=q))
-        .prefetch_related('service_items')
+        .filter(Invoice.objects.name_matches(q))
+        .with_lines()
     )[:8]
 
     results = []

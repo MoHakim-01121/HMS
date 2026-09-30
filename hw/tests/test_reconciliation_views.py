@@ -5,10 +5,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import BankTransaction, CashAccount, Client, Invoice
+from hw.models import BankTransaction, CashAccount, Client
 from hw.models.reconciliation import BankStatement
 from hw.models.period import FinancialPeriod
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_invoice
 
 
 def make_user(username, role):
@@ -27,7 +28,7 @@ class ReconciliationViewsBase(TestCase):
         self.staff = make_user('rv_staff', 'staff')
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
         self.client_obj = Client.objects.create( name='PT RV')
-        self.inv = Invoice.objects.create(invoice_number='INV-RV-1', customer_name='PT RV', client=self.client_obj)
+        self.inv = make_invoice(invoice_number='INV-RV-1', customer_name='PT RV', client=self.client_obj)
 
 
 class ReconciliationListViewTest(ReconciliationViewsBase):

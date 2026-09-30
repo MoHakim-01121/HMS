@@ -6,12 +6,13 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client, Invoice
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
 from hw.views.context import _build_reservation_context
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class FinancePagePaymentTest(TestCase):
@@ -21,11 +22,11 @@ class FinancePagePaymentTest(TestCase):
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create( name='PT Ledger Sync')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', invoice_number='INV-LS-001',
             customer_name='PT Ledger Sync', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='R1', total_sar=1000,
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -45,14 +46,14 @@ class FinancePagePaymentTest(TestCase):
         self.assertEqual(self.invoice.total_paid_sar, 400)
         self.assertEqual(self.invoice.remaining_sar, 600)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, Invoice.STATUS_PARTIAL)
+        self.assertEqual(self.invoice.financial_state, Invoice.FINANCIAL_STATE_PARTIAL)
 
     def test_two_payments_accumulate_to_paid(self):
         self._pay(400)
         self._pay(600)
         self.assertEqual(self.invoice.total_paid_sar, 1000)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, Invoice.STATUS_PAID)
+        self.assertEqual(self.invoice.financial_state, Invoice.FINANCIAL_STATE_PAID)
 
     def test_direct_method_hits_kas_pusat(self):
         from hw.finance import queries as fq
@@ -78,11 +79,11 @@ class PaymentReverseTest(TestCase):
         s.save()
 
         self.client_obj = Client.objects.create( name='PT Reverse')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', invoice_number='INV-REV-001',
             customer_name='PT Reverse', client=self.client_obj, issued_date=date(2026, 1, 1),
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         FinancialPeriod.objects.create(
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
@@ -100,7 +101,7 @@ class PaymentReverseTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(self.invoice.total_paid_sar, 0)
         self.invoice.refresh_from_db()
-        self.assertEqual(self.invoice.status, Invoice.STATUS_DRAFT)
+        self.assertEqual(self.invoice.financial_state, Invoice.FINANCIAL_STATE_UNPAID)
         self.payment.refresh_from_db()
         self.assertEqual(self.payment.status, PaymentRecord.STATUS_REVERSED)
 

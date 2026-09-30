@@ -17,6 +17,7 @@ from django.test import TestCase
 from hw.finance_helpers import create_journal_entry
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 
 class FinancialPeriodOverlapTest(TestCase):
@@ -106,10 +107,10 @@ class FinancialPeriodCloseLockTest(TestCase):
 
     def test_lock_rejects_pending_payments(self):
         from hw.finance_helpers import create_payment_record
-        from hw.models import Client, Invoice
+        from hw.models import Client
 
         client = Client.objects.create( name='Test Client')
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
  invoice_type='hotel', invoice_number='INV-LOCK-1',
             customer_name='Test Client', issued_date=date(2099, 1, 1),
         )

@@ -6,9 +6,10 @@ from django.test import TestCase
 
 from hw.finance import accounts as coa
 from hw.finance import posting, queries
-from hw.models import Client, Invoice
+from hw.models import Client
 from hw.models.journal import JournalEntry
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 
 def _charge(inv, amount, day):
@@ -47,7 +48,7 @@ class ArAgingTest(TestCase):
         _charge(self.b1, 12_000, date(2026, 4, 1))
 
     def _inv(self, number, client, due):
-        return Invoice.objects.create(invoice_number=number, customer_name=client.name, client=client, due_date=due)
+        return make_invoice(invoice_number=number, customer_name=client.name, client=client, due_date=due)
 
     def test_buckets_as_of(self):
         aging = queries.ar_aging(as_of=date(2026, 9, 10))

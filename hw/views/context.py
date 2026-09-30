@@ -8,9 +8,10 @@ def _credited_by_line(invoice):
     """{('r'|'s', pk): SAR no longer billed} — active credit notes per line;
     a void invoice bills nothing, so every line counts as fully credited."""
     if invoice.is_void:
-        out = {('r', r.pk): int(r.total_sar or 0) for r in invoice.reservations.all()}
-        out.update({('s', s.pk): int(s.total or 0) for s in invoice.service_items.all()})
-        return out
+        return {
+            ('r' if line.kind == line.KIND_HOTEL else 's', line.pk): int(line.amount or 0)
+            for line in invoice.billed_lines()
+        }
     from ..finance.credit_note_service import _credited_by_line as active
     return active(invoice)
 
@@ -23,13 +24,8 @@ def _build_reservation_context(invoice):
     paid_by_reservation_id = fq.reservation_paid_map(invoice.id)
     credited = _credited_by_line(invoice)
 
-    cl_by_number = {
-        cl.confirmation_number: cl.pk
-        for cl in invoice.confirmation_letters.all()
-    }
-
     result = []
-    for res in invoice.reservations.all():
+    for res in invoice.reservations:
         paid = paid_by_reservation_id.get(res.pk, 0)
         credited_int = credited.get(('r', res.pk), 0)
         remaining = res.total_sar - credited_int - paid
@@ -39,7 +35,8 @@ def _build_reservation_context(invoice):
             cls = "remaining-unpaid"
         else:
             cls = "remaining-partial"
-        cl_pk = cl_by_number.get(res.reservation_number)
+        # A void invoice no longer bills its reservations, so it does not link to them.
+        cl_pk = None if invoice.is_void else res.confirmation_letter_id
         result.append({
             "id": res.pk,
             "number": res.reservation_number,
@@ -87,8 +84,8 @@ def _build_visa_services_context(invoice):
 
     credited = _credited_by_line(invoice)
     result = []
-    for item in invoice.service_items.all():
-        total = int(item.qty * float(item.price))
+    for item in invoice.service_items:
+        total = int(item.total)
         paid = int(payments_by_svc.get(item.service_number, 0))
         credited_int = credited.get(('s', item.pk), 0)
         remaining = total - credited_int - paid

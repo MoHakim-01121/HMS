@@ -8,9 +8,10 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice
+from hw.models import Client
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 
 class PaymentListFilterTests(TestCase):
@@ -26,7 +27,7 @@ class PaymentListFilterTests(TestCase):
         )
         self.alpha = Client.objects.create(name='PT Alpha Travel')
         self.beta = Client.objects.create(name='PT Beta Umrah')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_number='INV-FLT-777', customer_name='PT Alpha Travel', client=self.alpha,
         )
         self.p1 = self._pay('PAY-FLT-001', self.alpha, date(2026, 1, 10), 1000, 'pending', invoice=self.invoice)

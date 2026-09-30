@@ -2,7 +2,7 @@
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, ServiceItem
+from hw.tests.factories import make_invoice, make_service_line
 
 
 class ServicesListTotalTest(TestCase):
@@ -15,15 +15,15 @@ class ServicesListTotalTest(TestCase):
         return {r['invoice_number']: r for r in resp.json()['props']['invoices']}
 
     def test_total_is_sum_of_items_in_invoice_currency(self):
-        inv = Invoice.objects.create(invoice_type='visa', invoice_number='SVC-T-1',
+        inv = make_invoice(invoice_type='visa', invoice_number='SVC-T-1',
                                      customer_name='Global Tour', currency='USD')
-        ServiceItem.objects.create(invoice=inv, name='Visa', qty=3, price=150)
-        ServiceItem.objects.create(invoice=inv, name='Handling', qty=1, price=40)
+        make_service_line(invoice=inv, name='Visa', qty=3, price=150)
+        make_service_line(invoice=inv, name='Handling', qty=1, price=40)
 
         row = self._rows()['SVC-T-1']
         self.assertEqual((row['total'], row['currency']), (490, 'USD'))
 
     def test_invoice_without_items_totals_zero(self):
-        Invoice.objects.create(invoice_type='visa', invoice_number='SVC-T-2',
+        make_invoice(invoice_type='visa', invoice_number='SVC-T-2',
                                customer_name='Global Tour')
         self.assertEqual(self._rows()['SVC-T-2']['total'], 0)

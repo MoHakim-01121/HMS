@@ -16,8 +16,9 @@ from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, PaymentRecord, PaymentAllocation
+from hw.models import Client, PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class MultiAllocationSaveTest(TestCase):
@@ -31,12 +32,12 @@ class MultiAllocationSaveTest(TestCase):
         s.save()
 
         c = Client.objects.create( name='PT Multi')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', client=c,
             invoice_number='INV-MULTI-001', customer_name='PT Multi',
         )
-        self.r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R-1', total_sar=1000)
-        self.r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R-2', total_sar=2000)
+        self.r1 = make_hotel_line(invoice=self.invoice, reservation_number='R-1', total_sar=1000)
+        self.r2 = make_hotel_line(invoice=self.invoice, reservation_number='R-2', total_sar=2000)
         FinancialPeriod.objects.create(
             name='2026-08', date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
         )

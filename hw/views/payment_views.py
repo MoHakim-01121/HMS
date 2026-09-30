@@ -110,6 +110,30 @@ def _payment_props(p):
     }
 
 
+def _open_invoices(queryset, limit=None):
+    """Invoices in `queryset` the client still owes on, newest first.
+
+    Whether an invoice is paid is derived from the ledger, not stored, so the
+    filter runs here: not void, and not yet covered by payments."""
+    from ..finance import queries as fq
+    invoices = list(
+        queryset.exclude(status=Invoice.STATUS_VOID).with_lines().order_by('-created_at')
+    )
+    ids = [inv.pk for inv in invoices]
+    paid_map = fq.invoice_paid_map(ids)
+    credited_map = fq.invoice_credited_map(ids)
+    out = []
+    for inv in invoices:
+        credited, deposited = credited_map.get(inv.pk, (0, 0))
+        total = inv.total_sar
+        if total > 0 and paid_map.get(inv.pk, 0) - deposited >= total - credited:
+            continue
+        out.append(inv)
+        if limit and len(out) >= limit:
+            break
+    return out
+
+
 def _invoice_choices(queryset):
     """Choices daftar invoice untuk dialog Record Payment / ApplyPaymentSheet.
 
@@ -133,7 +157,7 @@ def _invoice_choices(queryset):
             'paid': r['paid_int'],
             'remaining': r['remaining_int'],
         } for r in res_ctx]
-        client_name = inv.client.name if inv.client else inv.customer_name or ''
+        client_name = inv.client.name
         out.append({
             'id': inv.pk,
             'label': f'{inv.invoice_number} - {client_name}',
@@ -305,11 +329,7 @@ def payment_list(request):
     # (reservation context per invoice), which used to run on every keystroke
     # of the search box.
     def invoice_choices():
-        return _invoice_choices(
-            Invoice.objects.filter(
-                status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
-            ).select_related('client').order_by('-created_at')[:50],
-        )
+        return _invoice_choices(_open_invoices(Invoice.objects.all(), limit=50))
 
     # Client choices for the record dialog — deposit (tanpa invoice) butuh
     # client eksplisit, dan client-first memendekkan daftar invoice.
@@ -382,12 +402,7 @@ def payment_detail(request, pk):
         # Deposit (tanpa invoice): tawarkan invoice milik client ini sebagai
         # target distribusi nanti — tersaring ke draft/sent/partial supaya
         # daftarnya pendek dan hanya invoice yang masih punya saldo.
-        invoice_choices = _invoice_choices(
-            Invoice.objects.filter(
-                client=payment.client,
-                status__in=[Invoice.STATUS_DRAFT, Invoice.STATUS_SENT, Invoice.STATUS_PARTIAL],
-            ).select_related('client').order_by('-created_at'),
-        )
+        invoice_choices = _invoice_choices(_open_invoices(Invoice.objects.filter(client=payment.client)))
 
     # Receipts (kwitansi) auto-generated for this payment.
     from ..models import Receipt
@@ -449,12 +464,6 @@ def payment_record(request):
     if invoice_id:
         invoice = get_object_or_404(Invoice, pk=invoice_id)
         client = invoice.client
-        if not client:
-            cl = invoice.confirmation_letters.first()
-            client = cl.client if cl and cl.client else None
-        if not client:
-            messages.error(request, 'Invoice tidak memiliki client yang valid.')
-            return redirect('payment_list')
     else:
         # Deposit: invoice opsional — client wajib dipilih eksplisit.
         client_id = data.get('client_id')
@@ -555,7 +564,7 @@ def payment_record(request):
         unknown = []
         for alloc in valid_alloc:
             reservation = Reservation.objects.filter(
-                pk=alloc.get('reservation_id'), invoice=invoice,
+                pk=alloc.get('reservation_id'), invoice=invoice, voided_at__isnull=True,
             ).first()
             if reservation is None:
                 unknown.append(str(alloc.get('reservation_id')))
@@ -688,8 +697,6 @@ def payment_confirm(request, pk):
                     performed_by=request.user,
                     note='Status derived from allocations after confirm',
                 )
-            if payment.invoice_id:
-                payment.invoice.sync_status()
 
             # Auto-generate the payment receipt (kwitansi) on confirmation.
             from ..finance.receipt_service import ensure_receipt
@@ -810,7 +817,7 @@ def payment_reallocate(request, pk):
         if not amt or amt <= 0:
             continue
         reservation = Reservation.objects.filter(
-            pk=alloc.get('reservation_id'), invoice=target_invoice,
+            pk=alloc.get('reservation_id'), invoice=target_invoice, voided_at__isnull=True,
         ).first()
         if reservation is None:
             unknown.append(str(alloc.get('reservation_id')))
@@ -880,8 +887,6 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
         )
         dropped = posting.clear_payment_allocations(payment)
 
-        if payment.invoice_id:
-            payment.invoice.sync_status()
 
         PaymentLog.objects.create(
             payment=payment,
@@ -1010,7 +1015,7 @@ def payment_apply(request, pk):
     unknown = []
     for a in valid_allocs:
         res = Reservation.objects.filter(
-            pk=a.get('reservation_id'), invoice=target_invoice,
+            pk=a.get('reservation_id'), invoice=target_invoice, voided_at__isnull=True,
         ).first()
         if res is None:
             unknown.append(str(a.get('reservation_id')))
@@ -1050,8 +1055,6 @@ def payment_apply(request, pk):
             note=f'Applied to {len(targets)} reservation(s)',
         )
 
-        if payment.invoice_id:
-            payment.invoice.sync_status()
 
     except FinanceError as e:
         messages.error(request, str(e))

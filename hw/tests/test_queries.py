@@ -6,9 +6,10 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance import queries as q
-from hw.models import Client, Invoice, Reservation, ServiceItem
+from hw.models import Client
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice, make_service_line
 
 
 class QueriesTests(TestCase):
@@ -18,11 +19,11 @@ class QueriesTests(TestCase):
             name="2046",            date_from=date(2046, 1, 1), date_to=date(2046, 12, 31),
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type="hotel", invoice_number="INV-Q1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 5),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number="R-Q1", total_sar=100000,
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -118,6 +119,7 @@ class QueriesTests(TestCase):
 
     def test_open_items_overdue_flag(self):
         # due_date in the (real) past → flag overdue.
+        self.invoice.issued_date = date(2020, 1, 5)
         self.invoice.due_date = date(2020, 2, 1)
         self.invoice.save()
         oi = q.open_items(self.client_obj.id)
@@ -152,11 +154,11 @@ class QueriesTests(TestCase):
         self.assertTrue(g["settled"])
 
     def test_statement_by_reservation_multi(self):
-        inv2 = Invoice.objects.create(
+        inv2 = make_invoice(
  invoice_type="hotel", invoice_number="INV-Q2",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 8),
         )
-        Reservation.objects.create(
+        make_hotel_line(
             invoice=inv2, reservation_number="R-Q2", total_sar=30000,
         )
         posting.post_invoice_charge(inv2, created_by=self.user)
@@ -187,11 +189,11 @@ class QueriesTests(TestCase):
     def test_byres_summary_figures_walk_down_to_closing_balance(self):
         """Angka-angka yang dicetak PDF (baris tabel + Account Summary) harus
         bisa dijumlah ulang persis ke `closing_balance` versi balance-forward."""
-        svc = Invoice.objects.create(
-            invoice_type="service", invoice_number="INV-Q-SVC2",
+        svc = make_invoice(
+            invoice_type="visa", invoice_number="INV-Q-SVC2",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
         )
-        ServiceItem.objects.create(invoice=svc, name="Visa", qty=1, price=16250)
+        make_service_line(invoice=svc, name="Visa", qty=1, price=16250)
         posting.post_invoice_charge(svc, created_by=self.user)
         self._pay(40000)
         dep = create_payment_record(
@@ -217,11 +219,11 @@ class QueriesTests(TestCase):
         charge service-item 16.250 yang juga tanpa reservasi (regresi: bucket
         `unallocated` dulu melaporkan -83.750, bukan -100.000)."""
         # Charge tanpa dimensi reservasi: service item di invoice servis.
-        svc = Invoice.objects.create(
-            invoice_type="service", invoice_number="INV-Q-SVC",
+        svc = make_invoice(
+            invoice_type="visa", invoice_number="INV-Q-SVC",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
         )
-        ServiceItem.objects.create(
+        make_service_line(
             invoice=svc, name="Visa", qty=1, price=16250,
         )
         posting.post_invoice_charge(svc, created_by=self.user)

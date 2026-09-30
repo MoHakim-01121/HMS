@@ -13,10 +13,11 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, Receipt
+from hw.models import Client, Receipt
 from hw.models.payment import PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
 from hw.views.receipt_views import _allocation_rows, _stay_label, _number_in_words
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class ReceiptPdfBase(TestCase):
@@ -33,15 +34,15 @@ class ReceiptPdfBase(TestCase):
             name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create(name='PT Receipt')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-RCP-001', customer_name='PT Receipt',
         )
-        self.r1 = Reservation.objects.create(
+        self.r1 = make_hotel_line(
             invoice=self.invoice, reservation_number='RCP-R1', hotel='Dar Al Eiman',
             check_in=date(2026, 10, 5), check_out=date(2026, 10, 12), total_sar=30000,
         )
-        self.r2 = Reservation.objects.create(
+        self.r2 = make_hotel_line(
             invoice=self.invoice, reservation_number='RCP-R2', hotel='Anjum Makkah',
             check_in=date(2026, 10, 14), check_out=date(2026, 10, 18), total_sar=15000,
         )

@@ -4,11 +4,12 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import CashAccount, Client, Invoice
+from hw.models import CashAccount, Client
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
 from hw.finance import reconciliation_service as rs
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_invoice
 
 
 class ReconciliationBase(TestCase):
@@ -19,7 +20,7 @@ class ReconciliationBase(TestCase):
         )
         self.cash_sby = CashAccount.objects.get(branch_id='sby')
         self.client_obj = Client.objects.create( name='PT Recon')
-        self.inv = Invoice.objects.create(invoice_number='INV-RC-1', customer_name='PT Recon', client=self.client_obj)
+        self.inv = make_invoice(invoice_number='INV-RC-1', customer_name='PT Recon', client=self.client_obj)
 
 
 class CreateStatementTest(ReconciliationBase):

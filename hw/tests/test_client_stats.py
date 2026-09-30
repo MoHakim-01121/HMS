@@ -5,8 +5,9 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice, set_line_total
 
 
 class ClientStatsTest(TestCase):
@@ -21,18 +22,17 @@ class ClientStatsTest(TestCase):
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.client_obj = Client.objects.create( name='PT Client Stats')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-CS-001', customer_name='PT Client Stats',
             client=self.client_obj, issued_date=date(2026, 1, 2),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='R1', total_sar=1000,
         )
 
     def _charge(self, amount):
-        self.res.total_sar = amount
-        self.res.save(update_fields=['total_sar'])
+        self.res = set_line_total(self.res, amount)
         posting.post_invoice_charge(self.invoice, created_by=self.user)
 
     def _pay(self, amount):

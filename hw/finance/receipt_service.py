@@ -10,25 +10,15 @@ from django.db import transaction
 
 
 def _resolve_confirmation(payment):
-    """Resolve ConfirmationLetter dari reservation payment atau alokasinya.
-
-    Reservation pada PaymentRecord ber-nomor `reservation_number` yang sama
-    dengan `confirmation_number` pada ConfirmationLetter.
-    """
-    from ..models import ConfirmationLetter
-
-    cl_number = None
-    reservation = getattr(payment, 'reservation', None)
-    if reservation is not None and reservation.reservation_number:
-        cl_number = reservation.reservation_number
-    if not cl_number:
-        alloc = payment.allocations.select_related('reservation').first()
-        if alloc and alloc.reservation_id and alloc.reservation:
-            cl_number = alloc.reservation.reservation_number
-    if not cl_number:
-        return None
-
-    return ConfirmationLetter.objects.filter(confirmation_number=cl_number).first()
+    """Reservasi (CL) yang dibayar payment ini: dari baris invoice hotel yang
+    ditunjuk payment, atau dari alokasi pertamanya."""
+    line = getattr(payment, 'reservation', None)
+    if line is None:
+        alloc = payment.allocations.exclude(reservation=None).select_related(
+            'reservation__confirmation_letter',
+        ).first()
+        line = alloc.reservation if alloc else None
+    return line.confirmation_letter if line is not None else None
 
 
 def void_receipts_for_payment(payment, *, reason):

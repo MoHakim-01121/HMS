@@ -12,10 +12,11 @@ from django.test import TestCase
 from django.urls import reverse
 
 from hw.finance import accounts as coa
-from hw.models import Client, Invoice, Reservation, Remittance, RemittanceLine
+from hw.models import Client, Remittance, RemittanceLine
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _remittance_send_segments
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 def _net(**f):
@@ -43,15 +44,15 @@ class LumpSumRemittanceTest(TestCase):
         self.user = User.objects.create_user('fin', password='x', is_superuser=True)
 
         self.client_user = Client.objects.create(name='PT Maju',)
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-LS-001', customer_name='PT Maju',
             client=self.client_user,
         )
-        self.res1 = Reservation.objects.create(
+        self.res1 = make_hotel_line(
             invoice=self.invoice, reservation_number='R-LS-1', total_sar=60000,
         )
-        self.res2 = Reservation.objects.create(
+        self.res2 = make_hotel_line(
             invoice=self.invoice, reservation_number='R-LS-2', total_sar=40000,
         )
         from hw.models import BankAccount, LedgerAccount

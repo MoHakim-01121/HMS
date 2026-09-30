@@ -312,50 +312,74 @@ def _ar_debit_total(entries):
 # ── Charge-side (Fase 3 Group A) ───────────────────────────────
 
 def _invoice_charge_lines(invoice):
+    from ..models.invoice import InvoiceLine
+
     income = coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
     client_id = invoice.client_id
     lines = []
-    for r in invoice.reservations.all():
-        amt = int(r.total_sar or 0)
+    for line in invoice.billed_lines():
+        amt = int(line.amount or 0)
         if not amt:
             continue
-        br = r.owner_branch_id
-        lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                      "invoice": invoice.pk, "reservation": r.pk, "branch": br})
-        # Receivable stays with the owning branch; hotel revenue is HQ's.
-        lines.append({"account": income, "credit": amt,
-                      "invoice": invoice.pk, "reservation": r.pk,
-                      "branch": coa.HQ_BRANCH if income == coa.INC_HOTEL else br})
-    for s in invoice.service_items.all():
-        amt = int(s.total or 0)
-        if not amt:
-            continue
-        lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                      "invoice": invoice.pk, "service_item": s.pk})
-        lines.append({"account": income, "credit": amt,
-                      "invoice": invoice.pk, "service_item": s.pk})
+        if line.kind == InvoiceLine.KIND_HOTEL:
+            br = invoice.branch_id
+            lines.append({"account": coa.AR, "debit": amt, "client": client_id,
+                          "invoice": invoice.pk, "reservation": line.pk, "branch": br})
+            # Receivable stays with the issuing branch; hotel revenue is HQ's.
+            lines.append({"account": income, "credit": amt,
+                          "invoice": invoice.pk, "reservation": line.pk,
+                          "branch": coa.HQ_BRANCH if income == coa.INC_HOTEL else br})
+        elif line.kind == InvoiceLine.KIND_SERVICE:
+            lines.append({"account": coa.AR, "debit": amt, "client": client_id,
+                          "invoice": invoice.pk, "service_item": line.pk})
+            lines.append({"account": income, "credit": amt,
+                          "invoice": invoice.pk, "service_item": line.pk})
     return lines
 
 
+def _charge_signature(lines):
+    """{(dimensi, pk baris invoice): nilai} dari kaki Piutang sebuah charge."""
+    sig = {}
+    for l in lines:
+        if l["account"] != coa.AR:
+            continue
+        key = ("reservation", l["reservation"]) if l.get("reservation") else ("service_item", l.get("service_item"))
+        sig[key] = sig.get(key, 0) + int(l.get("debit") or 0)
+    return sig
+
+
+def _posted_charge_signature(entries):
+    sig = {}
+    for ln in JournalLine.objects.filter(journal_entry__in=entries, account_id=coa.AR):
+        key = ("reservation", ln.reservation_id) if ln.reservation_id else ("service_item", ln.service_item_id)
+        sig[key] = sig.get(key, 0) + int(ln.debit or 0)
+    return sig
+
+
 @transaction.atomic
-def post_invoice_charge(invoice, *, created_by, entry_date=None):
-    """DR Piutang / CR Pendapatan per reservation/service_item.
+def post_invoice_charge(invoice, *, created_by, entry_date=None, reason=None):
+    """DR Piutang / CR Pendapatan per baris invoice.
 
     Idempotent-by-content: kalau charge invoice ini sudah terposting dengan
-    total yang sama → no-op; kalau total berubah (revisi) → reversal charge
-    lama lalu post ulang; kalau invoice tak punya baris → None.
+    nilai per baris yang sama → no-op; kalau berubah (revisi) → reversal charge
+    lama lalu post ulang; kalau invoice tak punya baris → None. Setiap
+    perubahan dicatat sebagai InvoiceRevision (`reason`: InvoiceRevision.
+    REASON_*; bawaan: issue untuk yang pertama, selain itu line_change).
     """
+    from . import invoice_revisions
+
     entry_date = entry_date or invoice.issued_date or timezone.now().date()
     if invoice.status == invoice.STATUS_VOID:
         return None  # a void invoice bills nothing; its charge was reversed
     lines = _invoice_charge_lines(invoice)
-    expected = sum(l["debit"] for l in lines if l["account"] == coa.AR)
 
     live = _live_entries("Invoice", invoice.pk, JournalEntry.TYPE_CHARGE)
-    if live and _ar_debit_total(live) == expected:
+    if live and _posted_charge_signature(live) == _charge_signature(lines):
         return live[-1]
     for e in live:
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+    if lines or live:
+        invoice_revisions.record(invoice, reason=reason, user=created_by)
     if not lines:
         return None
     return post_entry(
@@ -375,8 +399,8 @@ def clear_payment_allocations(payment):
 
     Allocations are analytic rows, not accounting (see PaymentAllocation). Once
     a payment is rejected, voided or reversed its money is gone, but surviving
-    rows still report allocated_sar and make invoice_views._reservation_has_money
-    refuse to delete those reservations. Callers log the returned rows in the
+    rows still report allocated_sar and make invoice_views._line_has_money
+    refuse to take those lines off the invoice. Callers log the returned rows in the
     PaymentLog they write, so no audit trail is lost.
     """
     rows = [
@@ -924,14 +948,31 @@ def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
     )
 
 
+def _allocation_target(target):
+    """Kolom PaymentAllocation untuk `target`: baris invoice (hotel / service)
+    atau CancellationPenalty."""
+    from ..models import CancellationPenalty
+    from ..models.invoice import InvoiceLine
+
+    kw = {"reservation_id": None, "service_item_id": None, "penalty": None}
+    if isinstance(target, InvoiceLine) and target.kind == InvoiceLine.KIND_HOTEL:
+        kw["reservation_id"] = target.pk
+    elif isinstance(target, InvoiceLine) and target.kind == InvoiceLine.KIND_SERVICE:
+        kw["service_item_id"] = target.pk
+    elif isinstance(target, CancellationPenalty):
+        kw["penalty"] = target
+    else:
+        raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
+    return kw
+
+
 @transaction.atomic
 def allocate_payment(payment, allocations, *, created_by=None):
     """Tulis PaymentAllocation (analitik) — TANPA journal entry.
 
     allocations: iterable (target, amount_sar) di mana target adalah
-    instance Reservation / ServiceItem / CancellationPenalty.
+    baris invoice (hotel / service) atau CancellationPenalty.
     """
-    from ..models import CancellationPenalty, Reservation, ServiceItem
     from ..models.payment import PaymentAllocation
 
     allocations = list(allocations)
@@ -942,16 +983,7 @@ def allocate_payment(payment, allocations, *, created_by=None):
         )
     rows = []
     for target, amt in allocations:
-        kw = {"reservation": None, "service_item": None, "penalty": None}
-        if isinstance(target, Reservation):
-            kw["reservation"] = target
-        elif isinstance(target, ServiceItem):
-            kw["service_item"] = target
-        elif isinstance(target, CancellationPenalty):
-            kw["penalty"] = target
-        else:
-            raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
-        rows.append(PaymentAllocation(payment=payment, amount_sar=int(amt), **kw))
+        rows.append(PaymentAllocation(payment=payment, amount_sar=int(amt), **_allocation_target(target)))
     PaymentAllocation.objects.bulk_create(rows)
     return rows
 
@@ -1013,30 +1045,16 @@ def reallocate_payment(payment, allocations, *, created_by):
         )
 
     # Replace PaymentAllocation rows.
-    from ..models import CancellationPenalty, Reservation, ServiceItem
     from ..models.payment import PaymentAllocation
     payment.allocations.all().delete()
     for target, amt in allocations:
-        kw = {"reservation": None, "service_item": None, "penalty": None}
-        if isinstance(target, Reservation):
-            kw["reservation"] = target
-        elif isinstance(target, ServiceItem):
-            kw["service_item"] = target
-        elif isinstance(target, CancellationPenalty):
-            kw["penalty"] = target
-        else:
-            raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
-        PaymentAllocation.objects.create(payment=payment, amount_sar=int(amt), **kw)
+        PaymentAllocation.objects.create(payment=payment, amount_sar=int(amt), **_allocation_target(target))
 
     # Repost with the new allocation dims. Fresh idempotency key because the
     # default key (payment:...:confirm) is still held by the now-reversed
     # original entry, and idempotency_key is unique.
     repost_key = f"payment:{payment.payment_number}:realloc:{timezone.now().timestamp()}"
     post_payment(payment, created_by=created_by, idempotency_key=repost_key)
-
-    # Re-sync invoice status.
-    if payment.invoice_id:
-        payment.invoice.sync_status()
 
     PaymentLog.objects.create(
         payment=payment,

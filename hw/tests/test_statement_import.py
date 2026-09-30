@@ -10,9 +10,10 @@ from hw.finance import statement_import as si
 from hw.finance.bank_ledger import sync_opening_balance
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, BankStatement, Client, Invoice, LedgerAccount
+from hw.models import BankAccount, BankStatement, Client, LedgerAccount
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 MANDIRI = '''Account No,Date,Val. Date,Transaction Code,Description,Description,Reference No.,Debit,Credit,Balance
 1400012345678,03/09/2026,03/09/2026,1234,TRANSFER DARI PT ALPHA,INV-1,REF001,0.00,"49,000,000.00","84,000,000.00"
@@ -78,7 +79,7 @@ class IdrReconciliationTest(TestCase):
             bank_name='Mandiri', account_identifier='1400012345678', opening_balance=35_000_000, opening_date=date(2026, 9, 1))
         sync_opening_balance(self.idr)
         client = Client.objects.create(name='PT Alpha')
-        inv = Invoice.objects.create(invoice_number='INV-1', customer_name='x', client=client)
+        inv = make_invoice(invoice_number='INV-1', customer_name='x', client=client)
         p = create_payment_record(inv, client, date(2026, 9, 2), 49_000_000, currency='IDR', exchange_rate=4900,
                                   method='Transfer', receiving_account=self.idr, created_by=self.user)
         confirm_payment(p, self.user)

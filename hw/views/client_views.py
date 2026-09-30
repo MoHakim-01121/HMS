@@ -307,7 +307,7 @@ def _client_reservation_options(client_obj):
     the billing flow since the journal became the system of record).
     """
     reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
-    reservations = Reservation.objects.filter(pk__in=reservation_ids).select_related('invoice').order_by('-check_in')
+    reservations = Reservation.objects.filter(pk__in=reservation_ids).select_related('invoice').order_by('-confirmation_letter__check_in')
     return [{
         'id': r.id,
         'label': f'{r.reservation_number} — {r.invoice.invoice_number}',

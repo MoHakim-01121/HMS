@@ -29,7 +29,6 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('invoice/<int:pk>/edit/', views.invoice_edit, name='invoice_edit'),
     path('invoice/<int:pk>/delete/', views.invoice_delete, name='invoice_delete'),
     path('invoice/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
-    path('invoice/<int:pk>/duplicate/', views.invoice_duplicate, name='invoice_duplicate'),
 
     # Invoice Services / Visa
     path('services/', views.services_list, name='services_list'),

@@ -215,8 +215,10 @@ def payment_history_rows(invoice):
     prs = list(
         PaymentRecord.objects
         .filter(invoice=invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
-        .select_related('reservation', 'service_item')
-        .prefetch_related('allocations', 'allocations__reservation', 'allocations__service_item')
+        .select_related('reservation__confirmation_letter', 'service_item')
+        .prefetch_related(
+            'allocations', 'allocations__reservation__confirmation_letter', 'allocations__service_item',
+        )
         .order_by('payment_date', 'pk')
     )
 
@@ -292,26 +294,32 @@ def reservation_paid_map(invoice_id):
     return {r["reservation_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
 
 
+def line_settled_sar(**key):
+    """Uang yang sudah melunasi satu baris invoice (kredit bersih Piutang di
+    luar charge dan nota kredit). `key`: reservation_id=… untuk baris hotel,
+    service_item_id=… untuk baris service."""
+    a = _settling(**key).aggregate(d=Sum("debit"), c=Sum("credit"))
+    return (a["c"] or 0) - (a["d"] or 0)
+
+
 def cl_paid_sar_map(letters):
     """Bulk ConfirmationLetter.paid_sar: {cl_pk: paid_sar} dari jurnal.
 
-    Nomor CL = nomor reservasi pada invoice hotel, jadi CL dicocokkan ke baris
-    pembayaran lewat `reservation.reservation_number == confirmation_number`.
-    Paid = kredit bersih Piutang (payment - reversal) pada baris jurnal
-    ber-dimensi reservasi itu — konsisten dengan `reservation_paid_map`."""
+    Baris jurnal pembayaran membawa dimensi baris invoice hotel, dan baris itu
+    menunjuk CL-nya. Paid = kredit bersih Piutang (payment - reversal) pada
+    semua baris invoice milik CL itu — konsisten dengan `reservation_paid_map`."""
     if not letters:
         return {}
-    numbers = {cl.confirmation_number for cl in letters}
     rows = (
-        _settling(reservation__reservation_number__in=numbers)
-        .values("reservation__reservation_number")
+        _settling(reservation__confirmation_letter_id__in=[cl.pk for cl in letters])
+        .values("reservation__confirmation_letter_id")
         .annotate(d=Sum("debit"), c=Sum("credit"))
     )
-    by_number = {
-        r["reservation__reservation_number"]: (r["c"] or 0) - (r["d"] or 0)
+    by_cl = {
+        r["reservation__confirmation_letter_id"]: (r["c"] or 0) - (r["d"] or 0)
         for r in rows
     }
-    return {cl.pk: by_number.get(cl.confirmation_number, 0) for cl in letters}
+    return {cl.pk: by_cl.get(cl.pk, 0) for cl in letters}
 
 
 def client_receivable(client_id):
@@ -387,7 +395,7 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
     qs = _scoped(
         JournalLine.objects.filter(
             client_id=client_id, account_id__in=[coa.AR, coa.CUST_CREDIT],
-        ).select_related("journal_entry", "account", "invoice", "reservation"),
+        ).select_related("journal_entry", "account", "invoice", "reservation__confirmation_letter__hotel"),
         as_of=as_of,
     ).order_by("journal_entry__entry_date", "journal_entry__created_at", "line_no")
     if date_from:
@@ -1007,11 +1015,11 @@ def reservation_first_payment_date_map(reservation_numbers):
     if not reservation_numbers:
         return {}
     rows = (
-        _settling(reservation__reservation_number__in=list(reservation_numbers))
-        .values("reservation__reservation_number")
+        _settling(reservation__confirmation_letter__confirmation_number__in=list(reservation_numbers))
+        .values("reservation__confirmation_letter__confirmation_number")
         .annotate(first=Min("journal_entry__entry_date"))
     )
-    return {r["reservation__reservation_number"]: r["first"] for r in rows}
+    return {r["reservation__confirmation_letter__confirmation_number"]: r["first"] for r in rows}
 
 
 def reservation_remittance_map(linked_numbers=None):

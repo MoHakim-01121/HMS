@@ -38,7 +38,7 @@ def build_reservasi_mengendap():
     from ..models import ConfirmationLetter, Reservation
     from . import queries as finance_queries
 
-    reservations = Reservation.objects.all().select_related('invoice')
+    reservations = Reservation.objects.all().select_related('invoice__client')
     breakdown = finance_queries.reservation_cash_breakdown()
 
     cancelled_numbers = set(
@@ -57,8 +57,10 @@ def build_reservasi_mengendap():
         # mengendap boleh negatif: Surabaya bisa mengirim lebih dari yang
         # pernah diterima untuk reservasi ini (kredit di pusat).
         mengendap = d['mengendap']
+        # Baris yang sudah di-void (invoice void / reservasi dikeluarkan) dan
+        # reservasi batal hanya relevan kalau uangnya terlanjur bergerak.
         if (
-            r.reservation_number in cancelled_numbers
+            (r.voided_at is not None or r.reservation_number in cancelled_numbers)
             and not terbayar_sby and not terbayar_direct and not sudah_dikirim
         ):
             continue
@@ -101,8 +103,8 @@ def send_segments(rem):
         reservation = client = None
         if line.invoice_id:
             reservation = Reservation.objects.filter(
-                invoice_id=line.invoice_id, reservation_number=line.linked_number,
-            ).first()
+                invoice_id=line.invoice_id, confirmation_letter__confirmation_number=line.linked_number,
+            ).order_by('voided_at').last()
             client = _billing_client(line.invoice)
         segments.append({
             'reservation': reservation, 'invoice': line.invoice,

@@ -4,10 +4,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import BankTransaction, Branch, CashAccount, Client, Invoice, Remittance
+from hw.models import BankTransaction, Branch, CashAccount, Client, Remittance
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_invoice
 
 
 class BankTransactionBase(TestCase):
@@ -23,7 +24,7 @@ class BankTransactionBase(TestCase):
 class PaymentBankTransactionTest(BankTransactionBase):
     def test_confirming_payment_with_receiving_account_records_transaction(self):
         client_obj = Client.objects.create( name='PT BT')
-        inv = Invoice.objects.create(invoice_number='INV-BT-1', customer_name='PT BT', client=client_obj)
+        inv = make_invoice(invoice_number='INV-BT-1', customer_name='PT BT', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
             receiving_account=self.cash_sby, created_by=self.user,
@@ -41,7 +42,7 @@ class PaymentBankTransactionTest(BankTransactionBase):
         from hw.models.payment import PaymentRecord
         from hw.models.period import FinancialPeriod as FP
         client_obj = Client.objects.create( name='PT BT2')
-        inv = Invoice.objects.create(invoice_number='INV-BT-2', customer_name='PT BT2', client=client_obj)
+        inv = make_invoice(invoice_number='INV-BT-2', customer_name='PT BT2', client=client_obj)
         pr = PaymentRecord.objects.create(
             payment_number='PAY-BT-2', invoice=inv, client=client_obj,
             payment_date=date(2026, 7, 1), amount=5000, amount_sar=5000,
@@ -53,7 +54,7 @@ class PaymentBankTransactionTest(BankTransactionBase):
 
     def test_reconfirm_does_not_duplicate_transaction(self):
         client_obj = Client.objects.create( name='PT BT3')
-        inv = Invoice.objects.create(invoice_number='INV-BT-3', customer_name='PT BT3', client=client_obj)
+        inv = make_invoice(invoice_number='INV-BT-3', customer_name='PT BT3', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
             receiving_account=self.cash_sby, created_by=self.user,
@@ -103,7 +104,7 @@ class OriginalAmountTest(BankTransactionBase):
 
     def test_idr_payment_keeps_rupiah_amount(self):
         client_obj = Client.objects.create(name='PT BT IDR')
-        inv = Invoice.objects.create(invoice_number='INV-BT-IDR', customer_name='PT BT IDR', client=client_obj)
+        inv = make_invoice(invoice_number='INV-BT-IDR', customer_name='PT BT IDR', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 49_000_000, currency='IDR', exchange_rate=4900,
             method='Transfer', receiving_account=self._idr_account(), created_by=self.user,
@@ -148,7 +149,7 @@ class VoidedCashRowTest(BankTransactionBase):
 
     def _paid(self, number):
         client_obj = Client.objects.create(name=f'PT {number}')
-        inv = Invoice.objects.create(invoice_number=number, customer_name='X', client=client_obj)
+        inv = make_invoice(invoice_number=number, customer_name='X', client=client_obj)
         pr = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
             receiving_account=self.cash_sby, created_by=self.user,
@@ -214,7 +215,7 @@ class AccountCurrencyTest(BankTransactionBase):
 
     def _inv(self, number):
         client_obj = Client.objects.create(name=f'PT {number}')
-        return Invoice.objects.create(invoice_number=number, customer_name='X', client=client_obj), client_obj
+        return make_invoice(invoice_number=number, customer_name='X', client=client_obj), client_obj
 
     def test_idr_payment_defaults_to_the_branch_idr_account(self):
         acc = self._idr_bank()
@@ -267,7 +268,7 @@ class HqReceivesSarOnlyTest(BankTransactionBase):
     def test_idr_payment_received_at_hq_is_refused(self):
         from hw.finance.errors import FinanceError
         client_obj = Client.objects.create(name='PT HQ')
-        inv = Invoice.objects.create(invoice_number='INV-HQ-1', customer_name='X', client=client_obj)
+        inv = make_invoice(invoice_number='INV-HQ-1', customer_name='X', client=client_obj)
         with self.assertRaises(FinanceError):
             create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
                                   method='Transfer', received_in='pusat', created_by=self.user)

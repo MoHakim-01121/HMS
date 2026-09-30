@@ -1,8 +1,7 @@
-from hw.tests.factories import make_cl, make_room
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
 from datetime import date, timedelta
 from django.core.cache import cache
 from django.test import TestCase
-from hw.models import ConfirmationLetter
 
 
 def _make_cl(**kwargs):
@@ -157,7 +156,6 @@ class BuildGroupedReminderMessageTest(TestCase):
         self.assertIn('CL-M2', msg)
 
     def test_booking_line_uses_rsv_and_kamar_two_line_format(self):
-        from hw.models import Room
         from hw.services.recap import build_grouped_reminder_message
         client = self._make_client(name='PT Format')
         cl = _make_cl(client=client, hotel_name='Hilton Makkah', confirmation_number='555')
@@ -534,11 +532,10 @@ class DueSoonNotificationsTest(TestCase):
         self.assertEqual(days, sorted(days))
 
     def test_invoice_notifs_keep_remaining(self):
-        from hw.models import Invoice, Reservation
-        inv = Invoice.objects.create( invoice_type='HOTEL',
+        inv = make_invoice( invoice_type='hotel',
                                      invoice_number='INV-001', customer_name='PT Uji',
                                      due_date=date.today())
-        Reservation.objects.create(invoice=inv, reservation_number='RSV-1', total_sar=1000)
+        make_hotel_line(invoice=inv, reservation_number='RSV-1', total_sar=1000)
         inv_notif = [n for n in self._notifs() if n['type'] == 'invoice_due']
         self.assertEqual(len(inv_notif), 1)
         self.assertEqual(inv_notif[0]['ref'], 'INV-001')

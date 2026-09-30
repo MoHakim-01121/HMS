@@ -7,8 +7,9 @@ from django.test import TestCase
 from hw.finance import period_checklist as pc
 from hw.finance import reconciliation_service as rs
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, Client, Invoice, LedgerAccount
+from hw.models import BankAccount, Client, LedgerAccount
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice
 
 
 class PeriodChecklistTest(TestCase):
@@ -19,7 +20,7 @@ class PeriodChecklistTest(TestCase):
             branch_id='sby', name='IDR', currency='IDR', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
             bank_name='Mandiri', account_identifier='1')
         self.cl = Client.objects.create(name='PT Close')
-        self.inv = Invoice.objects.create(invoice_number='INV-PC', customer_name='x', client=self.cl)
+        self.inv = make_invoice(invoice_number='INV-PC', customer_name='x', client=self.cl)
         self.client.force_login(self.user)
 
     def _pay(self, confirm=True):

@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import (
-    ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, Reservation, ReservationStatus, Room,
+    ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, ReservationStatus, Room,
     RoomType, log_activity,
 )
 from ..models.confirmation import guest_name_expr
@@ -22,7 +22,7 @@ from ..i18n import tr
 from .helpers import _is_mobile, _parse_date, _parse_search_tokens, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
 from .pdf import _logo_file_url, _render_cl_pdf
 from ..utils import round_half_up
-from ..finance.reservation_rules import reservation_total_for_cl
+from ..signals import invoice_sync_suspended, sync_invoice_for_cl
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def _filter_cl_qs(qs, request):
 def cl_list(request):
     base_qs = (
         ConfirmationLetter.objects.all()
-        .defer('note').select_related('invoice', 'client', 'hotel')
+        .defer('note').select_related('client', 'hotel').with_invoice()
         .prefetch_related('rooms__room_type_ref')
     )
 
@@ -289,7 +289,7 @@ def cl_new(request):
 def cl_detail(request, pk):
     cl = _get_cl(
         request, pk,
-        ConfirmationLetter.objects.select_related('client', 'hotel', 'invoice', 'penalty')
+        ConfirmationLetter.objects.select_related('client', 'hotel', 'penalty').with_invoice()
         .prefetch_related('rooms__room_type_ref', 'attachments'),
     )
     rooms = [{
@@ -364,6 +364,12 @@ def cl_edit(request, pk):
 
     if request.method == "POST":
         errors = _validate_cl(request.POST, exclude_pk=cl.pk)
+        billed_on = cl.invoice
+        if billed_on and not errors and str(request.POST.get("client_id") or "") != str(cl.client_id):
+            errors["client_id"] = (
+                f"This reservation is billed on invoice {billed_on.invoice_number}, "
+                "so its client cannot be changed. Void the invoice first."
+            )
         if errors:
             echo = _cl_echo(request.POST); echo["id"] = cl.pk
             return inertia_render(request, "Cl/Form", props={
@@ -375,22 +381,24 @@ def cl_edit(request, pk):
         _before = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status'])
         _rooms_before = _room_snapshot(cl.rooms.all())
 
-        cl.client_id = request.POST.get("client_id")
-        cl.hotel_id = _resolve_hotel_id(request)
-        cl.guest_phone = request.POST.get("guest_phone", "")
-        cl.check_in = _parse_date(request.POST.get("check_in"))
-        cl.check_out = _parse_date(request.POST.get("check_out"))
-        cl.confirmation_number = request.POST.get("confirmation_number", "")
-        cl.reservation_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
-        cl.note = request.POST.get("note", "")
-        cl.save()
-        ConfirmationLetter.claim_number(cl.confirmation_number)
+        # One transaction, one invoice sync: the rooms are rewritten row by
+        # row, and the invoice should follow the finished CL, not each step.
+        with transaction.atomic(), invoice_sync_suspended():
+            cl.client_id = request.POST.get("client_id")
+            cl.hotel_id = _resolve_hotel_id(request)
+            cl.guest_phone = request.POST.get("guest_phone", "")
+            cl.check_in = _parse_date(request.POST.get("check_in"))
+            cl.check_out = _parse_date(request.POST.get("check_out"))
+            cl.confirmation_number = request.POST.get("confirmation_number", "")
+            cl.reservation_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
+            cl.note = request.POST.get("note", "")
+            cl.save()
+            ConfirmationLetter.claim_number(cl.confirmation_number)
 
-        cl.rooms.all().delete()
-        _save_cl_rooms(cl, request)
-
-        if cl.invoice_id:
-            _sync_invoice_reservation_from_cl(cl, request.user)
+            cl.rooms.all().delete()
+            _save_cl_rooms(cl, request)
+            cl = ConfirmationLetter.objects.get(pk=cl.pk)   # drop cached rooms
+            sync_invoice_for_cl(cl, request.user)
 
         _after = snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status'])
         _rooms_after = _room_snapshot(cl.rooms.all())
@@ -430,6 +438,13 @@ def cl_delete(request, pk):
     cl = _get_cl(request, pk)
     if request.method == "POST":
         num = cl.confirmation_number
+        if cl.invoice_lines.exists():
+            messages.error(
+                request,
+                f"Confirmation Letter {num} is on an invoice and cannot be deleted. "
+                "Cancel the reservation instead.",
+            )
+            return redirect("cl_detail", pk=cl.pk)
         cl.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num)
         messages.success(request, f"Confirmation Letter {num} deleted successfully.")
@@ -562,9 +577,19 @@ def invoice_from_cls(request):
         messages.error(request, "Select at least one CL.")
         return redirect("cl_list")
 
-    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids)
+    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids).select_related('client', 'hotel').with_invoice()
     if not cls.exists():
         messages.error(request, "CL not found.")
+        return redirect("cl_list")
+
+    # One invoice bills one client, and a reservation is billed once.
+    clients = {cl.client_id for cl in cls}
+    if len(clients) > 1:
+        messages.error(request, "The selected CLs belong to different clients. One invoice bills one client.")
+        return redirect("cl_list")
+    billed = [cl.confirmation_number for cl in cls if cl.invoice_id]
+    if billed:
+        messages.error(request, f"Already on an invoice: CL {', '.join(billed)}.")
         return redirect("cl_list")
 
     first_cl = cls.order_by('created_at').first()
@@ -572,34 +597,17 @@ def invoice_from_cls(request):
         invoice = Invoice.objects.create(
             invoice_type="hotel",
             invoice_number=Invoice.generate_number("hotel"),
-            customer_name=first_cl.guest_name,
+            client_id=first_cl.client_id,
+            branch_id=first_cl.client.owner_branch_id,
             issued_date=date.today(),
             currency="SAR",
+            created_by=request.user,
         )
+        for cl in cls.order_by('created_at'):
+            invoice.add_hotel_line(cl)
 
-        clients = {cl.client_id for cl in cls if cl.client_id}
-        if len(clients) == 1:
-            invoice.client_id = next(iter(clients))
-            invoice.save(update_fields=["client", "customer_name"])
-
-        for cl in cls:
-            total_sar = reservation_total_for_cl(cl)
-            Reservation.objects.create(
-                invoice=invoice,
-                confirmation_letter=cl,
-                client_id=cl.client_id,
-                reservation_number=cl.confirmation_number,
-                hotel=cl.hotel_name or "-",
-                check_in=cl.check_in,
-                check_out=cl.check_out,
-                total_sar=total_sar,
-            )
-            cl.invoice = invoice
-            cl.save(update_fields=["invoice"])
-
-        if invoice.client_id:
-            from ..finance.posting import post_invoice_charge
-            post_invoice_charge(invoice, created_by=request.user)
+        from ..finance.posting import post_invoice_charge
+        post_invoice_charge(invoice, created_by=request.user)
 
     logger.info(
         "ledger: invoice %s created from %d CL(s)",
@@ -636,29 +644,3 @@ def _save_cl_rooms(cl, request):
             cl=cl, room_type_ref=room_type_ref, meal_plan=meal_plan,
             note='' if meal_plan else meals[:100], quantity=qty, price=price,
         )
-
-
-def _sync_invoice_reservation_from_cl(cl, user=None):
-    """Update the Invoice's Reservation to match the CL's current data, lalu
-    re-post charge jurnal invoice (idempotent-by-content)."""
-    from ..models import Reservation
-    try:
-        reservation = cl.invoice.reservations.get(reservation_number=cl.confirmation_number)
-    except Reservation.DoesNotExist:
-        return
-    with transaction.atomic():
-        reservation.check_in = cl.check_in
-        reservation.check_out = cl.check_out
-        reservation.total_sar = reservation_total_for_cl(cl)
-        reservation.hotel = cl.hotel_name or "-"
-        reservation.confirmation_letter = cl
-        reservation.client_id = cl.client_id
-        reservation.save()
-
-        invoice = cl.invoice
-        if not invoice.client_id and cl.client_id:
-            invoice.client_id = cl.client_id
-            invoice.save(update_fields=["client", "customer_name"])
-        if invoice.client_id:
-            from ..finance.posting import post_invoice_charge
-            post_invoice_charge(invoice, created_by=user)

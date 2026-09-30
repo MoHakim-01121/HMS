@@ -1,11 +1,11 @@
-"""FASE G (partial) — Reservation.client / Reservation.confirmation_letter FKs."""
+"""A hotel invoice line points at the reservation (CL) it bills."""
 from hw.tests.factories import make_cl, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, ConfirmationLetter, Invoice, Reservation, Room
+from hw.models import Client, Reservation
 from hw.models.period import FinancialPeriod
 
 
@@ -30,43 +30,7 @@ class InvoiceFromClsLinksReservationTest(TestCase):
 
         self.client.post('/cl/invoice-from-cls/', {'cl_ids': [str(cl.pk)]})
 
-        reservation = Reservation.objects.get(reservation_number='CL-RES-1')
-        self.assertEqual(reservation.confirmation_letter_id, cl.pk)
-        self.assertEqual(reservation.client_id, self.client_obj.pk)
-
-
-class BackfillMatchesLiveSyncRuleTest(TestCase):
-    """The 0095 backfill must reproduce exactly what _sync_invoice_reservation_
-    from_cl already assumes: same invoice, reservation_number == confirmation_number."""
-
-    def test_backfill_logic_matches_by_invoice_and_number(self):
-        import importlib.util
-        from pathlib import Path
-        from django.apps import apps as django_apps
-
-        invoice = Invoice.objects.create(invoice_number='INV-BF-1', customer_name='X')
-        client_obj = Client.objects.create( name='PT Backfill')
-        cl = make_cl(
- confirmation_number='CL-BF-1', guest_name='Ahmad',
-            client=client_obj, invoice=invoice,
-        )
-        # Simulate a pre-FASE-G row: created without the new FKs.
-        reservation = Reservation.objects.create(
-            invoice=invoice, reservation_number='CL-BF-1', total_sar=1000,
-        )
-        Reservation.objects.filter(pk=reservation.pk).update(confirmation_letter=None, client=None)
-
-        # Module name starts with a digit -- not import_module-able by dotted
-        # path, so load it straight from its file.
-        path = Path(__file__).resolve().parents[1] / 'migrations' / '0095_backfill_reservation_client_cl.py'
-        spec = importlib.util.spec_from_file_location('_backfill_0095', path)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        # apps.get_model on the *live* app registry returns the real models
-        # here (fine for this test: we only exercise field assignment logic,
-        # not a historical-state migration).
-        mod.backfill(django_apps, None)
-
-        reservation.refresh_from_db()
-        self.assertEqual(reservation.confirmation_letter_id, cl.pk)
-        self.assertEqual(reservation.client_id, client_obj.pk)
+        reservation = Reservation.objects.get(confirmation_letter=cl)
+        self.assertEqual(reservation.reservation_number, 'CL-RES-1')
+        self.assertEqual(reservation.invoice.client_id, self.client_obj.pk)
+        self.assertEqual(reservation.invoice.branch_id, self.client_obj.owner_branch_id)

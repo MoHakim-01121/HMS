@@ -1,8 +1,8 @@
-from hw.tests.factories import make_cl, make_room
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
 from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import ConfirmationLetter, Room, Invoice, Reservation, Client, Hotel, RoomType
+from hw.models import Client, Hotel, RoomType
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -58,22 +58,25 @@ class CLNumGuestsTest(TestCase):
 
 
 class RoomTotalChangedSignalTest(TestCase):
-    """hw/signals.py::_room_total_changed keeps the linked Reservation.total_sar
-    in sync whenever a CL's rooms change, so the invoice total stays correct."""
+    """hw/signals.py::_room_total_changed makes the invoice follow whenever a
+    billed CL's rooms change: the line reads its value from the CL, and the
+    invoice charge in the journal is re-posted to match."""
 
     def setUp(self):
-        self.invoice = Invoice.objects.create(
- invoice_type='hotel',
-            invoice_number='INV-SYNC-001', customer_name='Test Customer',
+        User.objects.create_user('sync', password='x')
+        FinancialPeriod.objects.create(
+            name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
+        )
+        self.client_obj = Client.objects.create(name='PT Sync Client')
+        self.invoice = make_invoice(
+            invoice_type='hotel', invoice_number='INV-SYNC-001', client=self.client_obj,
         )
         self.cl = make_cl(
- confirmation_number='CL-SYNC-001', guest_name='Budi',
+            confirmation_number='CL-SYNC-001', client=self.client_obj,
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
             invoice=self.invoice,
         )
-        self.reservation = Reservation.objects.create(
-            invoice=self.invoice, reservation_number='CL-SYNC-001', total_sar=0,
-        )
+        self.reservation = make_hotel_line(invoice=self.invoice, reservation_number='CL-SYNC-001')
 
     def test_creating_a_room_syncs_reservation_total(self):
         make_room(cl=self.cl, room_type='Deluxe', quantity=1, price=750)
@@ -95,16 +98,7 @@ class RoomTotalChangedSignalTest(TestCase):
         make_room(cl=cl_no_invoice, room_type='Deluxe', quantity=1, price=500)
 
     def _wire_client_and_period(self):
-        User.objects.create_user('sync', password='x')
-        FinancialPeriod.objects.get_or_create(
-            name='2020-2030',            defaults=dict(date_from=date(2020, 1, 1), date_to=date(2030, 12, 31)),
-        )
-        c = Client.objects.create( name='PT Sync Client')
-        self.cl.client = c
-        self.cl.save(update_fields=['client'])
-        self.invoice.client = c
-        self.invoice.save(update_fields=['client'])
-        return c
+        return self.client_obj
 
     def test_room_change_reposts_invoice_charge_in_journal(self):
         self._wire_client_and_period()

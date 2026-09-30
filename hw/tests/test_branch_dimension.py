@@ -5,16 +5,15 @@ import base64
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
 from django.test import TestCase
 
-from hw.models import BankAccount, Branch, CashAccount, Client, Invoice, Reservation
-from hw.models.journal import LedgerAccount
+from hw.models import CashAccount, Client
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class ReceivingAccountTest(TestCase):
@@ -24,12 +23,9 @@ class ReceivingAccountTest(TestCase):
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create( name='PT FaseC')
-        self.inv = Invoice.objects.create(invoice_number='INV-FC-1', customer_name='PT FaseC',
+        self.inv = make_invoice(invoice_number='INV-FC-1', customer_name='PT FaseC',
                                           client=self.client_obj)
-        self.res = Reservation.objects.create(
-            invoice=self.inv, reservation_number='R1', total_sar=5000,
-            owner_branch=Branch.objects.get(code='sby'),
-        )
+        self.res = make_hotel_line(invoice=self.inv, reservation_number='R1', total_sar=5000)
 
     def test_at_most_one_receiving_account(self):
         # Schema v2: bank dan kas satu tabel, jadi pembayaran hanya punya satu
@@ -85,7 +81,7 @@ class PaymentRecordAccountPickerViewTest(TestCase):
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create( name='PT Picker')
-        self.inv = Invoice.objects.create(
+        self.inv = make_invoice(
             invoice_number='INV-PICK-1', customer_name='PT Picker', client=self.client_obj,
         )
         self.jkt_cash = CashAccount.objects.get(branch_id='jkt')

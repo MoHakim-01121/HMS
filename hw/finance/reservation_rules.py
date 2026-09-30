@@ -1,9 +1,8 @@
-"""Aturan nilai baris Reservation di invoice, satu sumber untuk semua jalur.
+"""Aturan nilai sebuah reservasi (CL) di invoice, satu sumber untuk semua jalur.
 
-Reservation adalah salinan CL di invoice, dan nilainya dipakai jurnal charge.
-Jalur yang menulisnya ada empat (buat invoice dari CL, edit CL, ubah kamar CL,
-edit invoice), jadi aturannya dikumpulkan di sini supaya tidak ada satu jalur
-pun yang menagih beda dari yang lain.
+Baris hotel di invoice tidak menyimpan nilai: InvoiceLine.amount memanggil
+aturan ini setiap kali dibaca, jadi invoice, jurnal charge, dan semua laporan
+menagih angka yang sama dengan CL-nya.
 """
 from ..utils import round_half_up
 

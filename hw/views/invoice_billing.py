@@ -65,12 +65,10 @@ def _save_payments(invoice, request, default_currency):
             invoice, created_by=request.user, entry_date=rev_date,
         )
 
-        # Dimensi client untuk jurnal: client tunggal dari CL, kalau CL ambigu
-        # (menunjuk >1 client) jatuh ke invoice.client yang dipilih user di form.
-        client = _billing_client(invoice) or invoice.client
+        client = invoice.client
         is_hotel = invoice.invoice_type == InvoiceType.HOTEL
-        reservations_by_number = {r.reservation_number: r for r in invoice.reservations.all()} if is_hotel else {}
-        service_items_by_number = {} if is_hotel else {s.service_number: s for s in invoice.service_items.all()}
+        reservations_by_number = {r.reservation_number: r for r in invoice.reservations} if is_hotel else {}
+        service_items_by_number = {} if is_hotel else {s.service_number: s for s in invoice.service_items}
 
         for i, r in enumerate(rows):
             proof = request.FILES.get(f"payment_proof_{i}")
@@ -98,13 +96,6 @@ def _save_payments(invoice, request, default_currency):
                 except (ValueError, TypeError):
                     service_item = None
 
-            if client is None:
-                # Jurnal double-entry butuh dimensi client dan form invoice
-                # tidak punya field client sendiri untuk di-set di sini.
-                raise ValueError(
-                    "Tidak bisa mencatat pembayaran: invoice belum punya client. "
-                    "Pilih client di invoice atau benahi tautan CL dulu."
-                )
             method_l = (method or '').lower()
             received_in = 'pusat' if method_l == 'direct' else 'sby'
             pr = create_payment_record(
@@ -119,8 +110,6 @@ def _save_payments(invoice, request, default_currency):
             post_payment(pr, created_by=request.user)
             pr.status = pr.STATUS_ALLOCATED
             pr.save(update_fields=['status'])
-
-    invoice.sync_status()
 
     logger.info(
         "ledger: %d payment(s) synced for invoice %s",
@@ -137,19 +126,9 @@ def _save_service_payments(invoice, request):
 
 
 def _billing_client(invoice):
-    """Client efektif untuk kirim billing: client tunggal dari CL-CL yang
-    terhubung ke invoice. Lebih dari satu client berbeda = ambigu — fallback
-    ke invoice.client yang dipilih user di form."""
-    clients = {
-        cl.client_id: cl.client
-        for cl in invoice.confirmation_letters.select_related('client')
-        if cl.client_id
-    }
-    if len(clients) == 1:
-        return next(iter(clients.values()))
-    if len(clients) > 1:
-        return None
-    # No CLs or CLs have no client — fall back to invoice.client
+    """Client yang ditagih invoice ini. Satu invoice satu client, dan setiap
+    reservasi di dalamnya milik client itu (dijaga skema), jadi tidak ada lagi
+    yang perlu ditebak dari CL-nya."""
     return invoice.client
 
 

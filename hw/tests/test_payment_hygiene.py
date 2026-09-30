@@ -12,9 +12,10 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.finance import queries as fq
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client
 from hw.models.payment import PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 def _props(response):
@@ -35,20 +36,20 @@ class PaymentHygieneBase(TestCase):
             name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create(name='PT Hygiene')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-HYG-001', customer_name='PT Hygiene',
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='HYG-R1', hotel='Hotel Hygiene',
             total_sar=30000,
         )
         # A reservation on a different invoice — a valid pk, wrong owner.
-        self.other_invoice = Invoice.objects.create(
+        self.other_invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-HYG-OTHER', customer_name='PT Hygiene',
         )
-        self.foreign_res = Reservation.objects.create(
+        self.foreign_res = make_hotel_line(
             invoice=self.other_invoice, reservation_number='HYG-X1',
             hotel='Hotel Elsewhere', total_sar=9000,
         )

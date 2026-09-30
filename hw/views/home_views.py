@@ -32,9 +32,7 @@ def _home_invoice_totals(month_start):
     reading Invoice.total_paid_sar per row used to cost one query each.
     """
     hotel_invoices = list(
-        Invoice.objects.filter(
-            invoice_type=InvoiceType.HOTEL,
-        ).prefetch_related('reservations', 'service_items')
+        Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
     )
     paid_map = finance_queries.invoice_paid_map([inv.pk for inv in hotel_invoices])
 
@@ -58,7 +56,7 @@ def _home_invoice_totals(month_start):
     prev_invoices = list(Invoice.objects.filter(
         invoice_type=InvoiceType.HOTEL,
         created_at__date__lt=month_start,
-    ))
+    ).with_lines())
     if prev_invoices:
         prev_paid_map = finance_queries.invoice_paid_map_before(
             [inv.pk for inv in prev_invoices], month_start,

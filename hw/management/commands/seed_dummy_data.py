@@ -239,23 +239,16 @@ class Command(BaseCommand):
 
     def _invoice(self, trip):
         from hw.finance import posting
-        from hw.finance.reservation_rules import reservation_total_for_cl
-        from hw.models import Invoice, Reservation
+        from hw.models import Invoice
         issued = trip['booked']
         client = trip['client']
         inv = Invoice.objects.create(
             invoice_type='hotel', invoice_number=self._invoice_number('INV', issued), client=client,
-            customer_name=client.name, issued_date=issued, due_date=trip['check_in'] - timedelta(days=10),
+            issued_date=issued, due_date=max(trip['check_in'] - timedelta(days=10), issued),
             currency='SAR', branch_id='sby', created_by=self.user,
         )
         for cl in trip['cls']:
-            Reservation.objects.create(
-                invoice=inv, confirmation_letter=cl, client=client, reservation_number=cl.confirmation_number,
-                hotel=cl.hotel_name, check_in=cl.check_in, check_out=cl.check_out,
-                total_sar=reservation_total_for_cl(cl), owner_branch_id='sby',
-            )
-            cl.invoice = inv
-            cl.save(update_fields=['invoice'])
+            inv.add_hotel_line(cl)
         posting.post_invoice_charge(inv, created_by=self.user, entry_date=issued)
         Invoice.objects.filter(pk=inv.pk).update(created_at=_dt(issued))
         return inv
@@ -346,9 +339,6 @@ class Command(BaseCommand):
                 self._exchange(day)
             elif kind == 'remit':
                 self._remit(day)
-        from hw.models import Invoice
-        for inv in Invoice.objects.all():
-            inv.sync_status()
 
     def _exchange(self, day):
         from hw.finance import exchange_service, fund_flow
@@ -403,20 +393,19 @@ class Command(BaseCommand):
     def _services(self):
         """A few visa invoices (services), paid in IDR."""
         from hw.finance import posting
-        from hw.models import Invoice, ServiceItem
+        from hw.models import Invoice
         for client in self.rng.sample(self.clients, 4):
             issued = self.today - timedelta(days=self.rng.randint(10, 70))
             pax = self.rng.randint(12, 45)
             inv = Invoice.objects.create(
-                invoice_type='services', invoice_number=self._invoice_number('SVC', issued), client=client,
-                customer_name=client.name, issued_date=issued, due_date=issued + timedelta(days=14),
+                invoice_type='visa', invoice_number=self._invoice_number('SVC', issued), client=client,
+                issued_date=issued, due_date=issued + timedelta(days=14),
                 currency='SAR', branch_id='sby', created_by=self.user,
             )
-            item = ServiceItem.objects.create(invoice=inv, service_number=1, name='Visa Umrah', qty=pax, price=550)
+            item = inv.add_service_line('Visa Umrah', pax, 550)
             posting.post_invoice_charge(inv, created_by=self.user, entry_date=issued)
             Invoice.objects.filter(pk=inv.pk).update(created_at=_dt(issued))
             self._pay(inv, [item], issued + timedelta(days=self.rng.randint(1, 5)), None, settle=True)
-            inv.sync_status()
 
     def _expenses(self):
         """Surabaya office running costs, paid in IDR from the branch account."""
@@ -456,11 +445,11 @@ class Command(BaseCommand):
         from hw.models import Invoice
 
         # A room cancelled after part-payment: credit that share of one stay.
-        partial = [i for i in Invoice.objects.filter(invoice_type='hotel', status=Invoice.STATUS_PARTIAL)
-                   if i.reservations.count() >= 2]
+        partial = [i for i in Invoice.objects.filter(invoice_type='hotel').exclude(status=Invoice.STATUS_VOID)
+                   if i.financial_state == Invoice.FINANCIAL_STATE_PARTIAL and i.reservations.count() >= 2]
         if partial:
             inv = self.rng.choice(partial)
-            res = max(inv.reservations.all(), key=lambda r: r.total_sar)
+            res = max(inv.reservations, key=lambda r: r.total_sar)
             amount = int(res.total_sar * 0.2) // 100 * 100
             cns.issue_credit_note(
                 inv, lines=[{'kind': 'reservation', 'id': res.pk, 'amount_sar': amount}],

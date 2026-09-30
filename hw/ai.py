@@ -79,13 +79,13 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
         return f"{int(round(n)):,}".replace(",", ".")
 
     client = _billing_client(invoice)
-    name = client.name if client else invoice.customer_name
+    name = client.name
     signature = _SIGNATURE
     lunas = invoice_type in ('invoice_lunas', 'services_lunas')
 
     if invoice_type in ('invoice', 'invoice_lunas'):
         detail_lines = []
-        for r in invoice.reservations.all():
+        for r in invoice.reservations:
             detail_lines.append(f"- RSV : {r.reservation_number}")
             detail_lines.append(f"  Hotel: {r.hotel or '-'}")
         total = invoice.total_sar
@@ -154,8 +154,8 @@ def get_chat_reply(
     month = today.month
     year  = today.year
 
-    inv_qs = Invoice.objects.filter(invoice_type="hotel").prefetch_related('reservations')
-    svc_qs = Invoice.objects.filter(invoice_type="visa").prefetch_related('service_items')
+    inv_qs = Invoice.objects.filter(invoice_type="hotel").with_lines()
+    svc_qs = Invoice.objects.filter(invoice_type="visa").with_lines()
     cl_qs  = ConfirmationLetter.objects.all().prefetch_related('rooms')
 
     invoices = list(inv_qs.order_by("-created_at")[:20])

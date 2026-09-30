@@ -1,6 +1,6 @@
 ﻿"""Halaman finance read-only baru: Journal, Trial Balance, Client Ledger,
 Penalty list. Fokus verifikasi: scoping company, kebenaran agregat, permission."""
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 import json
 from datetime import date
 
@@ -11,8 +11,7 @@ from hw.finance import posting
 from hw.finance import queries as q
 from hw.finance_helpers import create_payment_record
 from hw.models import (
-    CancellationPenalty, Client, ConfirmationLetter, FinancialPeriod, Invoice,
-    Reservation,
+    CancellationPenalty, Client, FinancialPeriod,
 )
 from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
@@ -35,12 +34,12 @@ class FinanceViewsTest(TestCase):
             name='2026-TEST', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.konoz_client = Client.objects.create(name='PT Uji')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
             invoice_type='hotel',
             invoice_number='INV-FV-001', customer_name='PT Uji',
             client=self.konoz_client,
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number='R-FV-1', total_sar=100000,
         )
 

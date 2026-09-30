@@ -22,10 +22,11 @@ from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from hw.models import Client, Invoice
+from hw.models import Client, ConfirmationLetter, Invoice
 from hw.models.journal import JournalEntry
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_invoice, make_priced_cl
 
 
 class PaymentGuardBase(TestCase):
@@ -43,11 +44,13 @@ class PaymentGuardBase(TestCase):
         )
         self.client_obj = Client.objects.create(name='PT Guard')
 
-    RESERVATIONS = json.dumps([{
-        'reservation_number': 'G-1', 'hotel': 'Hotel Guard',
-        'check_in': '2026-02-01', 'check_out': '2026-02-03',
-        'reservation_total': '5000',
-    }])
+    @property
+    def linked_cl_ids(self):
+        cl = ConfirmationLetter.objects.filter(confirmation_number='G-1').first() or make_priced_cl(
+            self.client_obj, 'G-1', 5000, hotel_name='Hotel Guard',
+            check_in=date(2026, 2, 1), check_out=date(2026, 2, 3),
+        )
+        return json.dumps([cl.pk])
 
     def _create_invoice_with_payment(self, number='INV-GUARD-001'):
         resp = self.client.post('/invoice/new/', {
@@ -56,7 +59,7 @@ class PaymentGuardBase(TestCase):
             'client_id': str(self.client_obj.pk),
             'issued_date': '2026-01-01',
             'due_date': '',
-            'reservations': self.RESERVATIONS,
+            'linked_cl_ids': self.linked_cl_ids,
             'payments': json.dumps([{
                 'ref': 'G-1', 'date': '2026-01-05', 'method': 'Cash',
                 'amount': '3000', 'currency': 'SAR', 'exchange': '1',
@@ -75,7 +78,7 @@ class PaymentGuardBase(TestCase):
             'client_id': str(self.client_obj.pk),
             'issued_date': '2026-01-01',
             'due_date': '2026-03-01',
-            'reservations': self.RESERVATIONS,
+            'linked_cl_ids': self.linked_cl_ids,
         }
 
 
@@ -111,7 +114,7 @@ class InvoiceSaveDoesNotWipePaymentsTest(PaymentGuardBase):
 
 class PaymentAmountGuardTest(PaymentGuardBase):
     def _record(self, **overrides):
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number=overrides.pop('invoice_number', 'INV-AMT-001'),
             customer_name='PT Guard',
@@ -176,7 +179,7 @@ class PaymentAmountGuardTest(PaymentGuardBase):
 
 class PaymentApplyBodyGuardTest(PaymentGuardBase):
     def test_multipart_apply_without_allocations_is_not_a_server_error(self):
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-APPLY-GUARD', customer_name='PT Guard',
         )

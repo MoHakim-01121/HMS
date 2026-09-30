@@ -11,12 +11,13 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, Invoice, Reservation, PaymentRecord, PaymentAllocation
+from hw.models import Client, PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
 from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
 from hw.finance import queries as fq
 from hw.finance import posting
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class PaymentReallocateTest(TestCase):
@@ -31,14 +32,14 @@ class PaymentReallocateTest(TestCase):
         s.save()
 
         c = Client.objects.create( name='PT Realloc')
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', client=c,
             invoice_number='INV-REALLOC-001', customer_name='PT Realloc',
         )
-        self.r1 = Reservation.objects.create(
+        self.r1 = make_hotel_line(
             invoice=self.invoice, reservation_number='RE-1', total_sar=15000,
         )
-        self.r2 = Reservation.objects.create(
+        self.r2 = make_hotel_line(
             invoice=self.invoice, reservation_number='RE-2', total_sar=8000,
         )
         FinancialPeriod.objects.create(

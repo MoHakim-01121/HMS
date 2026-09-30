@@ -6,9 +6,10 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Remittance, RemittanceLine, Reservation
+from hw.models import Client, Remittance, RemittanceLine
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class SyncRemittanceLinesTest(TestCase):
@@ -18,12 +19,12 @@ class SyncRemittanceLinesTest(TestCase):
         FinancialPeriod.objects.create(
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-EDIT-001', customer_name='Budi',
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E01')
         self.line = RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,
@@ -81,16 +82,16 @@ class AddableReservasiTest(TestCase):
         FinancialPeriod.objects.create(
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-EDIT-002', customer_name='Budi',
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        self.r1 = Reservation.objects.create(
+        self.r1 = make_hotel_line(
             invoice=self.invoice, reservation_number='R1', total_sar=10000,
             check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
         )
-        self.r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
+        self.r2 = make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E10')
         self.rem_counter = 0
 
@@ -159,13 +160,13 @@ class RemittanceEditViewTest(TestCase):
         FinancialPeriod.objects.create(
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-EDIT-003', customer_name='Budi',
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        r1 = Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        r2 = Reservation.objects.create(invoice=self.invoice, reservation_number='R2', total_sar=8000)
+        r1 = make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
+        r2 = make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
         # R2 dibayar lebih dulu (2 Jan) daripada R1 (5 Jan) — urutan jurnal ini
         # yang dipakai _sort_lines_by_payment_date. Nomor sengaja terbalik.
         for res, amount, pay_date in ((r1, 5000, date(2026, 1, 5)), (r2, 3000, date(2026, 1, 2))):
@@ -202,7 +203,7 @@ class RemittanceEditViewTest(TestCase):
 
     def test_lines_without_payment_date_go_last(self):
         # R3 punya baris remittance tapi belum ada pembayaran -> ditaruh terakhir.
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R3', total_sar=1000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R3', total_sar=1000)
         RemittanceLine.objects.create(
             remittance=self.rem, invoice=self.invoice, linked_number='R3', amount_sar=100,
         )

@@ -1,4 +1,4 @@
-from hw.tests.factories import make_cl, make_room
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -7,7 +7,7 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import (
-    Client, ConfirmationLetter, Invoice, Remittance, RemittanceLine, Reservation,
+    Client, ConfirmationLetter, Remittance, RemittanceLine,
 )
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_ledger_rows, _prev_sent_map
@@ -17,11 +17,11 @@ class PrevSentMapTest(TestCase):
     """Prev Sent hanya boleh menghitung remittance yang dibuat SEBELUM remittance ini."""
 
     def setUp(self):
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-PREV-001', customer_name='Test Customer',
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='R1', total_sar=10000)
+        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
         self.rem1 = Remittance.objects.create( date=date(2026, 1, 1), remittance_number='RMT-001')
         RemittanceLine.objects.create(remittance=self.rem1, invoice=self.invoice, linked_number='R1', amount_sar=2000)
         self.rem2 = Remittance.objects.create( date=date(2026, 2, 1), remittance_number='RMT-002')
@@ -49,13 +49,13 @@ class RemittancePdfOrderingTest(TestCase):
     """Baris PDF diurutkan check-in terdekat dulu, baris tanpa check-in paling bawah."""
 
     def setUp(self):
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-ORD-001', customer_name='Test Customer',
         )
-        Reservation.objects.create(invoice=self.invoice, reservation_number='900', total_sar=1000, check_in=date(2026, 6, 30))
-        Reservation.objects.create(invoice=self.invoice, reservation_number='100', total_sar=1000, check_in=date(2026, 6, 11))
-        Reservation.objects.create(invoice=self.invoice, reservation_number='500', total_sar=1000, check_in=date(2026, 6, 20))
+        make_hotel_line(invoice=self.invoice, reservation_number='900', total_sar=1000, check_in=date(2026, 6, 30))
+        make_hotel_line(invoice=self.invoice, reservation_number='100', total_sar=1000, check_in=date(2026, 6, 11))
+        make_hotel_line(invoice=self.invoice, reservation_number='500', total_sar=1000, check_in=date(2026, 6, 20))
         self.rem = Remittance.objects.create( date=date(2026, 6, 10), remittance_number='RMT-010')
         for num in ('100', '500', '900', 'NOCI'):
             RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number=num, amount_sar=100)
@@ -92,16 +92,16 @@ class LedgerTest(TestCase):
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.client_obj = Client.objects.create( name="Budi")
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-LED-001', customer_name='Budi',
         )
         self.res = {
-            'R1': Reservation.objects.create(
+            'R1': make_hotel_line(
                 invoice=self.invoice, reservation_number='R1', total_sar=10000,
                 hotel='Hilton Makkah', check_in=date(2026, 3, 10), check_out=date(2026, 3, 14),
             ),
-            'R2': Reservation.objects.create(
+            'R2': make_hotel_line(
                 invoice=self.invoice, reservation_number='R2', total_sar=5000,
                 hotel='Anwar Al Madinah', check_in=date(2026, 2, 5), check_out=date(2026, 2, 8),
             ),
@@ -109,6 +109,11 @@ class LedgerTest(TestCase):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
 
     def _cl(self, number, status, **kw):
+        existing = ConfirmationLetter.objects.filter(confirmation_number=number).first()
+        if existing:   # reservasi yang sudah ditagih: ubah statusnya saja
+            existing.reservation_status = status
+            existing.save(update_fields=['reservation_status'])
+            return existing
         return make_cl(
  confirmation_number=number, reservation_status=status,
             hotel_name=kw.get('hotel', 'Hotel CL'), guest_name=kw.get('guest', 'Guest CL'),
@@ -240,9 +245,10 @@ class LedgerTest(TestCase):
         self.assertEqual(row['status'], 'CANCELLED')
         self.assertEqual(row['debit'], 600)
 
-    def test_reservation_without_cl_has_blank_status_but_is_listed(self):
+    def test_status_is_read_from_the_reservation(self):
+        # Setiap baris invoice hotel menunjuk CL-nya, jadi status selalu ada.
         led = _build_ledger_rows()
-        self.assertEqual(self._row(led, 'R1')['status'], '')
+        self.assertEqual(self._row(led, 'R1')['status'], 'DEFINITE')
 
     def test_cl_without_invoice_is_still_tracked(self):
         self._cl('CL-NOINV', 'DEFINITE', hotel='Swissotel', guest='Rina')
@@ -251,7 +257,6 @@ class LedgerTest(TestCase):
         self.assertEqual((row['debit'], row['credit'], row['balance']), (0, 0, 0))
 
     def test_cl_without_invoice_uses_cl_dates_and_room_total(self):
-        from hw.models import Room
         cl = self._cl('CL-ROOM', 'TENTATIVE')
         cl.check_in = date(2026, 4, 1)
         cl.check_out = date(2026, 4, 3)

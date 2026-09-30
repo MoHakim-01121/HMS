@@ -4,10 +4,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Branch, Client, Invoice, Reservation
+from hw.models import Branch, Client
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance.hashing import verify_chain
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class BranchSeedTest(TestCase):
@@ -39,13 +40,10 @@ class BranchAccessTest(TestCase):
 
 
 class ReservationOwnerBranchTest(TestCase):
-    def test_reservation_can_carry_owner_branch(self):
-        inv = Invoice.objects.create(invoice_number='INV-B-1', customer_name='X')
-        r = Reservation.objects.create(
-            invoice=inv, reservation_number='R1', total_sar=1000,
-            owner_branch=Branch.objects.get(code='sby'),
-        )
-        self.assertEqual(r.owner_branch_id, 'sby')
+    def test_line_belongs_to_the_issuing_branch_of_its_invoice(self):
+        inv = make_invoice(invoice_number='INV-B-1', customer_name='X')
+        r = make_hotel_line(invoice=inv, reservation_number='R1', total_sar=1000)
+        self.assertEqual((inv.branch_id, r.owner_branch_id), ('sby', 'sby'))
 
 
 class JournalBranchDimensionTest(TestCase):

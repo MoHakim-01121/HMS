@@ -6,7 +6,7 @@ from .activity import ActivityLog, log_activity
 from .client import Client
 from .confirmation import ConfirmationLetter, ReservationStatus, Room
 from .invoice import (
-    Invoice, Reservation, ServiceItem,
+    Invoice, InvoiceLine, InvoiceRevision, Reservation, ServiceItem,
     Attachment, _attachment_path,
 )
 from .remittance import Remittance, RemittanceLine
@@ -48,7 +48,7 @@ __all__ = [
     'Client',
     'ConfirmationLetter', 'ReservationStatus', 'Room',
     # Invoice
-    'Invoice', 'Reservation', 'ServiceItem', 'Attachment', '_attachment_path',
+    'Invoice', 'InvoiceLine', 'InvoiceRevision', 'Reservation', 'ServiceItem', 'Attachment', '_attachment_path',
     # Remittance
     'Remittance', 'RemittanceLine',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)

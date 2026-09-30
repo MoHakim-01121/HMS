@@ -2,7 +2,6 @@ from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import ConfirmationLetter
 from hw.views.cl_views import _parse_search_tokens
 
 

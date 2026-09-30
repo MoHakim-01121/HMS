@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from inertia import render as inertia_render
 
-from ..models import ConfirmationLetter
+from ..models import ConfirmationLetter, Invoice
 from ..models.confirmation import guest_name_expr
 from ..permissions import require_perm
 from ..i18n import tr, user_language
@@ -95,10 +95,11 @@ def calendar_view(request):
         ConfirmationLetter.objects
         .filter(check_in__lte=month_end, check_out__gt=month_start)
         .exclude(check_in=None).exclude(check_out=None)
-        .select_related('invoice')
-        .prefetch_related('invoice__reservations', 'invoice__service_items')
+        .select_related('client', 'hotel')
+        .with_invoice()
     )
     cls_list = list(cl_qs)
+    invoices = Invoice.objects.with_lines().in_bulk({cl.invoice_id for cl in cls_list if cl.invoice_id})
 
     from ..finance import queries as finance_queries
     paid_by_invoice = finance_queries.invoice_paid_map(
@@ -112,7 +113,7 @@ def calendar_view(request):
             end = start
         hotel = cl.hotel_name or "—"
 
-        inv = cl.invoice
+        inv = invoices.get(cl.invoice_id)
         inv_number = inv.invoice_number if inv else ''
         inv_remaining = (
             f"{inv.total_sar - paid_by_invoice.get(inv.pk, 0):,.0f} SAR" if inv else ''

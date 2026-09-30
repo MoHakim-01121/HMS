@@ -16,7 +16,7 @@ from .cl_views import (
     cl_list_pdf, cl_list_pdf_v2, cl_new, cl_pdf, invoice_from_cls,
 )
 from .invoice_views import (
-    invoice_delete, invoice_detail, invoice_duplicate, invoice_edit,
+    invoice_delete, invoice_detail, invoice_edit,
     invoice_export_csv, invoice_list, invoice_list_pdf, invoice_new, invoice_pdf,
 )
 from .services_views import (

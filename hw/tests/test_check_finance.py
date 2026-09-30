@@ -9,10 +9,11 @@ from django.test import TestCase
 from hw.db_pg import user_triggers_disabled
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, Invoice, Reservation
+from hw.models import Client
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice, set_line_total
 
 
 class CheckFinanceTest(TestCase):
@@ -22,11 +23,11 @@ class CheckFinanceTest(TestCase):
             name="2046",            date_from=date(2046, 1, 1), date_to=date(2046, 12, 31),
         )
         self.client_obj = Client.objects.create( name="PT Uji")
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type="hotel", invoice_number="INV-CF1",
             customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 5),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.invoice, reservation_number="R-CF1", total_sar=100000,
         )
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -53,8 +54,7 @@ class CheckFinanceTest(TestCase):
 
     def test_stale_charge_is_flagged(self):
         # Ubah total invoice tanpa re-post charge → cek #5 harus gagal.
-        self.res.total_sar = 120000
-        self.res.save(update_fields=["total_sar"])
+        self.res = set_line_total(self.res, 120000)
         code, output = self._run()
         self.assertEqual(code, 1)
         self.assertIn("charge basi", output)

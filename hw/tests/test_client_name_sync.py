@@ -1,14 +1,13 @@
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_invoice
 from datetime import date, timedelta
 from django.test import TestCase
-from hw.models import Client, ConfirmationLetter, Invoice
+from hw.models import Client, Invoice
 
 
 class ClientDisplayNameSyncTest(TestCase):
-    """hw/signals.py::_sync_client_display_name keeps CL.guest_name and
-    Invoice.customer_name mirroring the client's brand (falling back to the
-    registered name) so every CL/invoice for a client reads identically
-    instead of drifting apart the moment a brand gets added or edited."""
+    """CL.guest_name and Invoice.customer_name are not stored: both read the
+    client's brand (falling back to the registered name), so every CL and
+    invoice of a client reads identically the moment a brand is added or edited."""
 
     def setUp(self):
         self.client_obj = Client.objects.create( name='PT Sync Test')
@@ -31,39 +30,25 @@ class ClientDisplayNameSyncTest(TestCase):
         self.cl.refresh_from_db()
         self.assertEqual(self.cl.guest_name, 'PT Sync Test')
 
-    def test_syncs_customer_name_on_unambiguous_linked_invoice(self):
-        invoice = Invoice.objects.create(
- invoice_type='hotel', invoice_number='INV-NSYNC-001',
-            customer_name='PT Sync Test',
-        )
-        self.cl.invoice = invoice
-        self.cl.save(update_fields=['invoice'])
+    def test_invoice_name_follows_the_client_brand(self):
+        invoice = make_invoice(invoice_type='hotel', invoice_number='INV-NSYNC-001', client=self.client_obj)
+        invoice.add_hotel_line(self.cl)
 
         self.client_obj.brand = 'Sync Travel'
         self.client_obj.save()
 
-        invoice.refresh_from_db()
-        self.assertEqual(invoice.customer_name, 'Sync Travel')
+        self.assertEqual(Invoice.objects.get(pk=invoice.pk).customer_name, 'Sync Travel')
 
-    def test_leaves_ambiguous_invoice_untouched(self):
+    def test_an_invoice_cannot_mix_clients(self):
         other_client = Client.objects.create( name='PT Other Sync')
-        invoice = Invoice.objects.create(
- invoice_type='hotel', invoice_number='INV-NSYNC-002',
-            customer_name='Mixed',
-        )
-        self.cl.invoice = invoice
-        self.cl.save(update_fields=['invoice'])
-        make_cl(
- confirmation_number='CL-NSYNC-002', guest_name='PT Other Sync',
-            client=other_client, invoice=invoice,
+        invoice = make_invoice(invoice_type='hotel', invoice_number='INV-NSYNC-002', client=self.client_obj)
+        invoice.add_hotel_line(self.cl)
+        other_cl = make_cl(
+ confirmation_number='CL-NSYNC-002', client=other_client,
             check_in=date.today(), check_out=date.today() + timedelta(days=1),
         )
-
-        self.client_obj.brand = 'Sync Travel'
-        self.client_obj.save()
-
-        invoice.refresh_from_db()
-        self.assertEqual(invoice.customer_name, 'Mixed')
+        with self.assertRaises(ValueError):
+            invoice.add_hotel_line(other_cl)
 
     def test_unlinked_cl_is_left_alone(self):
         unlinked = make_cl(

@@ -1,4 +1,4 @@
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import Client, ConfirmationLetter, Invoice, Remittance, Reservation
+from hw.models import Client, ConfirmationLetter, Remittance
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_reservasi_mengendap
 
@@ -23,7 +23,7 @@ class ReservasiMengendapTest(TestCase):
         FinancialPeriod.objects.create(
             name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type='hotel',
             invoice_number='INV-NEW-001', customer_name='Budi',
         )
@@ -31,11 +31,16 @@ class ReservasiMengendapTest(TestCase):
         self.rem_counter = 0
 
     def _res(self, number, **kw):
-        return Reservation.objects.create(
+        return make_hotel_line(
             invoice=self.invoice, reservation_number=number, total_sar=kw.pop('total_sar', 10000), **kw
         )
 
     def _cl(self, number, status):
+        existing = ConfirmationLetter.objects.filter(confirmation_number=number).first()
+        if existing:   # reservasi yang sudah ditagih: ubah statusnya saja
+            existing.reservation_status = status
+            existing.save(update_fields=['reservation_status'])
+            return existing
         return make_cl(
  confirmation_number=number, reservation_status=status,
             hotel_name='Hotel CL', guest_name='Guest CL',

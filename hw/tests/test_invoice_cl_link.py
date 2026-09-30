@@ -1,11 +1,11 @@
-from hw.tests.factories import make_cl, make_room
+from hw.tests.factories import make_cl, make_invoice, make_room
 import json
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, ConfirmationLetter, Invoice, Room
+from hw.models import Client, Invoice
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
 
@@ -21,7 +21,7 @@ class InvoiceEditClLinkTests(TestCase):
         s["active_company"] = "konoz"
         s.save()
 
-        self.invoice = Invoice.objects.create(
+        self.invoice = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-CL-001", customer_name="Test Customer",
             currency="SAR",
@@ -106,7 +106,7 @@ class InvoiceChargeClientResolutionTests(TestCase):
         self.assertEqual(fq.client_receivable(self.customer.id), 1000)
 
     def test_invoice_edit_relinking_cl_resolves_charge_client(self):
-        invoice = Invoice.objects.create(
+        invoice = make_invoice(
  invoice_type="hotel",
             invoice_number="INV-REGRESS-002", customer_name="Test Customer",
             currency="SAR",

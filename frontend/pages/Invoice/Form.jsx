@@ -156,7 +156,7 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
 
   const resCount = selectedCls.length;
   const checklist = [
-    { ok: !!clientId || !!customerName.trim(), label: t("Client filled") },
+    { ok: !!clientId, label: t("Client filled") },
     { ok: !!invoiceNumber.trim(), label: t("Invoice number set") },
     { ok: !!issuedDate && !!dueDate, label: t("Issue & due dates set") },
     { ok: resCount > 0, label: t("At least one confirmation letter selected") },
@@ -189,7 +189,7 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
                 <span className="rd-sec-desc">{t("Due date is computed from the issue date plus the term.")}</span>
               </div>
               <div className="rd-sec-b">
-                <FormField label={t("Bill to")} name="client_id">
+                <FormField label={t("Bill to")} name="client_id" required error={errs.client_id && t(errs.client_id)}>
                   <Combobox
                     name="client_id"
                     value={clientQuery}
@@ -280,7 +280,13 @@ export default function Form({ invoice, edit, suggested_number, cl_data = [], cl
                 )}
 
                 {errs.reservations && (
-                  <div role="alert" style={{ fontSize: 12, color: "var(--destructive)" }}>{errs.reservations}</div>
+                  <div role="alert" style={{ fontSize: 12, color: "var(--destructive)" }}>{t(errs.reservations)}</div>
+                )}
+                {/* The server refuses a save the ledger cannot follow (a
+                    reservation with money on it taken off the invoice, a
+                    closed period); say why instead of failing silently. */}
+                {errs.finance && (
+                  <div role="alert" style={{ fontSize: 12, color: "var(--destructive)" }}>{errs.finance}</div>
                 )}
 
                 {availableCls.length > 0 && (

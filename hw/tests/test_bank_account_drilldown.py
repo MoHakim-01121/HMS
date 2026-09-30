@@ -4,10 +4,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import Client as HttpClient, TestCase
 
-from hw.models import Branch, CashAccount, Client, Invoice
+from hw.models import Branch, CashAccount, Client
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as finance_queries
 from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_invoice
 
 
 class AccountTransactionsQueryTest(TestCase):
@@ -24,7 +25,7 @@ class AccountTransactionsQueryTest(TestCase):
 
     def test_running_balance_accumulates_in_chronological_order(self):
         client_obj = Client.objects.create( name='PT DD')
-        inv = Invoice.objects.create(invoice_number='INV-DD-1', customer_name='PT DD', client=client_obj)
+        inv = make_invoice(invoice_number='INV-DD-1', customer_name='PT DD', client=client_obj)
         pr1 = create_payment_record(
             inv, client_obj, date(2026, 7, 1), 5000, method='Transfer',
             receiving_account=self.cash_sby, created_by=self.user,

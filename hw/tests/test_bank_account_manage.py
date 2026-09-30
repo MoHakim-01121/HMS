@@ -4,9 +4,10 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Reservation
+from hw.models import Invoice
 from hw.models.bank import BankAccount
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 
 
 def make_user(username, role):
@@ -95,14 +96,15 @@ class InvoicePayToTests(TestCase):
         self.client.post('/finance/bank-accounts/new/', post_data(branch='jkt', account_identifier='999', bank_name='BSI'))
         self.client.post('/finance/bank-accounts/new/', post_data(account_identifier='555', show_on_invoice=''))
 
-    def test_infer_branch_from_reservation_owner(self):
-        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-1', customer_name='X', currency='SAR')
-        self.assertEqual(inv.infer_branch_id(), 'sby')  # default
-        Reservation.objects.create(invoice=inv, reservation_number='R1', hotel='H', owner_branch_id='jkt')
-        self.assertEqual(inv.infer_branch_id(), 'jkt')
+    def test_new_invoice_takes_the_client_owner_branch(self):
+        from hw.models import Client
+        inv = make_invoice(invoice_type='hotel', invoice_number='INV-BR-1', customer_name='X', currency='SAR')
+        self.assertEqual(inv.branch_id, 'sby')  # default owner branch
+        jkt_client = Client.objects.create(name='PT Jakarta', owner_branch_id='jkt')
+        self.assertEqual(make_invoice(invoice_number='INV-BR-1B', client=jkt_client).branch_id, 'jkt')
 
     def test_detail_lists_only_flagged_accounts_of_invoice_branch(self):
-        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-2', customer_name='X', currency='SAR', branch_id='sby')
+        inv = make_invoice(invoice_type='hotel', invoice_number='INV-BR-2', customer_name='X', currency='SAR', branch_id='sby')
         resp = self.client.get(f'/invoice/{inv.pk}/', HTTP_X_INERTIA='true')
         props = resp.json()['props']
         self.assertEqual([a['account_identifier'] for a in props['pay_to']], ['1400550011119'])
@@ -110,8 +112,8 @@ class InvoicePayToTests(TestCase):
 
     def test_draft_message_uses_the_same_pay_to_accounts(self):
         from hw.ai import generate_draft_message
-        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-3', customer_name='X', currency='SAR', branch_id='sby')
-        Reservation.objects.create(invoice=inv, reservation_number='R3', hotel='H', total_sar=1000)
+        inv = make_invoice(invoice_type='hotel', invoice_number='INV-BR-3', customer_name='X', currency='SAR', branch_id='sby')
+        make_hotel_line(invoice=inv, reservation_number='R3', hotel='H', total_sar=1000)
         msg = generate_draft_message('invoice', inv)
         self.assertIn('Informasi Pembayaran:', msg)
         self.assertIn('No. Rekening : 1400550011119', msg)
@@ -121,7 +123,7 @@ class InvoicePayToTests(TestCase):
 
     def test_draft_message_omits_payment_block_without_pay_to(self):
         from hw.ai import generate_draft_message
-        inv = Invoice.objects.create(invoice_type='hotel', invoice_number='INV-BR-4', customer_name='X', currency='SAR', branch_id='pusat')
+        inv = make_invoice(invoice_type='hotel', invoice_number='INV-BR-4', customer_name='X', currency='SAR', branch_id='pusat')
         self.assertNotIn('Informasi Pembayaran', generate_draft_message('invoice', inv))
 
 
@@ -174,7 +176,7 @@ class InvoiceFormBranchTests(TestCase):
         self.base = {
             'customer_name': 'PT Branch', 'client_id': str(self.c.pk),
             'issued_date': '2026-01-01', 'due_date': '',
-            'reservations': json.dumps([{'reservation_number': 'R1', 'hotel': 'H', 'check_in': '', 'check_out': '', 'reservation_total': '100'}]),
+            'linked_cl_ids': json.dumps([make_cl(client=self.c).pk]),
             'payments': '[]',
         }
 

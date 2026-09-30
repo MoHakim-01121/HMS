@@ -1,5 +1,5 @@
 """Void invoice + credit notes (Nota Kredit)."""
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_hotel_line, make_invoice, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -11,7 +11,7 @@ from hw.finance import posting, queries
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import (
-    BankAccount, Client, ConfirmationLetter, CreditNote, Invoice, JournalLine, LedgerAccount, Reservation,
+    BankAccount, Client, CreditNote, Invoice, JournalLine, LedgerAccount,
 )
 from hw.models.period import FinancialPeriod
 
@@ -26,10 +26,10 @@ class CreditNoteTest(TestCase):
             branch_id='sby', name='IDR', currency='IDR', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
             bank_name='Mandiri', account_identifier='1')
         self.client_obj = Client.objects.create(name='PT Credit')
-        self.inv = Invoice.objects.create(invoice_number='INV-CN-1', customer_name='x', client=self.client_obj,
+        self.inv = make_invoice(invoice_number='INV-CN-1', customer_name='x', client=self.client_obj,
                                           issued_date=date(2026, 9, 1), due_date=date(2026, 9, 20))
-        self.r1 = Reservation.objects.create(invoice=self.inv, reservation_number='7801', hotel='Hilton', total_sar=10_000)
-        self.r2 = Reservation.objects.create(invoice=self.inv, reservation_number='7802', hotel='Swiss', total_sar=8_000)
+        self.r1 = make_hotel_line(invoice=self.inv, reservation_number='7801', hotel='Hilton', total_sar=10_000)
+        self.r2 = make_hotel_line(invoice=self.inv, reservation_number='7802', hotel='Swiss', total_sar=8_000)
         posting.post_invoice_charge(self.inv, created_by=self.user)
         self.client.force_login(self.user)
 
@@ -62,7 +62,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(queries.invoice_paid_map([inv.pk]), {inv.pk: 4_000})
         self.assertEqual(queries.reservation_paid_map(inv.pk).get(self.r2.pk, 0), 0)
         self.assertEqual(queries.total_charged([inv.pk]), 10_000)
-        self.assertEqual(inv.status, Invoice.STATUS_PARTIAL)
+        self.assertFalse(inv.is_fully_paid)                  # part paid (and past due by now)
         # Revenue reduced on the same branch dimension as the charge (HQ).
         dr = JournalLine.objects.get(journal_entry__reference_type='CreditNote', account_id=coa.INC_HOTEL)
         self.assertEqual((dr.debit, dr.branch_id), (8_000, coa.HQ_BRANCH))
@@ -75,7 +75,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(queries.invoice_outstanding_sar(inv.pk), 0)
         self.assertEqual(queries.client_credit_balance(self.client_obj.pk), 2_000)
         self.assertEqual(inv.remaining_sar, 0)
-        self.assertEqual(inv.status, Invoice.STATUS_PAID)
+        self.assertEqual(inv.financial_state, Invoice.FINANCIAL_STATE_PAID)
 
     def test_line_cap_and_validation(self):
         self._cn(5_000)
@@ -84,8 +84,8 @@ class CreditNoteTest(TestCase):
         with self.assertRaises(FinanceError):
             cns.issue_credit_note(self.inv, lines=[{'kind': 'reservation', 'id': self.r1.pk, 'amount_sar': 10}],
                                   reason='', issued_date=DAY, created_by=self.user)
-        other = Invoice.objects.create(invoice_number='INV-OTHER', customer_name='x', client=self.client_obj)
-        foreign = Reservation.objects.create(invoice=other, reservation_number='9', total_sar=100)
+        other = make_invoice(invoice_number='INV-OTHER', customer_name='x', client=self.client_obj)
+        foreign = make_hotel_line(invoice=other, reservation_number='9', total_sar=100)
         with self.assertRaises(FinanceError):
             self._cn(50, res=foreign)
 
@@ -111,8 +111,7 @@ class CreditNoteTest(TestCase):
         reversal nor the credit note may be read as a payment."""
         self._pay(4_000)
         self._cn(2_000, res=self.r1)
-        self.r1.total_sar = 11_000
-        self.r1.save()
+        self.r1 = set_line_total(self.r1, 11_000)
         posting.post_invoice_charge(self.inv, created_by=self.user)
         inv = self._refresh()
         self.assertEqual(inv.total_paid_sar, 4_000)
@@ -123,10 +122,11 @@ class CreditNoteTest(TestCase):
     # ── Void ───────────────────────────────────────────────────────
 
     def test_void_invoice_releases_cls_and_stops_billing(self):
-        cl = make_cl(confirmation_number='7801', client=self.client_obj, invoice=self.inv)
+        cl = self.r1.confirmation_letter
+        self.assertEqual(cl.invoice_id, self.inv.pk)
         released = cns.void_invoice(self.inv, reason='Wrong client', created_by=self.user)
         inv = self._refresh()
-        self.assertEqual(released, ['7801'])
+        self.assertEqual(sorted(released), ['7801', '7802'])
         cl.refresh_from_db()
         self.assertIsNone(cl.invoice_id)
         self.assertEqual(inv.status, Invoice.STATUS_VOID)
@@ -134,8 +134,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(queries.total_charged([inv.pk]), 0)
         self.assertEqual(inv.remaining_sar, 0)
         self.assertIsNone(posting.post_invoice_charge(inv, created_by=self.user))   # no re-billing
-        inv.sync_status()
-        self.assertEqual(inv.status, Invoice.STATUS_VOID)
+        self.assertEqual(self._refresh().status, Invoice.STATUS_VOID)
         with self.assertRaises(FinanceError):
             self._pay(100)
         self.assertEqual(queries.ar_aging()['total'], 0)          # void is dated today

@@ -5,14 +5,15 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, Invoice, ServiceItem, log_activity
+from ..models import ActivityLog, Client, Invoice, InvoiceLine, log_activity
 from ..permissions import require_perm
 from ..finance import queries as fq
+from ..finance.errors import FinanceError
+from ..finance.posting import post_invoice_charge
 from .context import _build_visa_payments_context, _build_visa_services_context
 from .credit_note_views import invoice_credit_props
 from .helpers import (
@@ -51,10 +52,10 @@ def _get_service_invoice(request, pk):
 
 @require_perm('services', 'view')
 def services_list(request):
-    qs = Invoice.objects.filter(invoice_type="visa").prefetch_related("service_items")
+    qs = Invoice.objects.filter(invoice_type="visa").with_lines()
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+        qs = qs.filter(Invoice.objects.name_matches(q))
 
     paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
@@ -64,7 +65,7 @@ def services_list(request):
         "customer_name": inv.customer_name,
         "currency": inv.currency,
         # Same figure as the detail page: sum of the items, in the invoice currency.
-        "total": sum(s.total for s in inv.service_items.all()),
+        "total": inv.total_sar,
         "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
         "created_at": inv.created_at.strftime("%d/%m/%Y"),
     } for inv in page_obj]
@@ -81,29 +82,42 @@ def services_new(request):
     suggested_number = Invoice.suggest_number("visa")
     if request.method == "POST":
         invoice_number = request.POST.get("invoice_number", "")
-        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+
+        def _reject(errors):
             return inertia_render(request, "Services/Form", props={
                 "edit": False,
                 "invoice": None,
                 "suggested_number": suggested_number,
                 "clients": _client_options(),
                 "initial": _services_echo(request),
-                "errors": {"invoice_number": f"Invoice number '{invoice_number}' is already in use."},
+                "errors": errors,
             })
 
-        with transaction.atomic():
-            client = _resolve_client_from_post(request)
-            invoice = Invoice.objects.create(
-                invoice_type="visa",
-                invoice_number=invoice_number,
-                client=client,
-                issued_date=_parse_date(request.POST.get("issued_date")),
-                due_date=_parse_date(request.POST.get("due_date")),
-                currency=request.POST.get("invoice_currency", "USD"),
-            )
-            Invoice.claim_number("visa", invoice.invoice_number)
-            _save_service_items(invoice, request)
-            _save_service_payments(invoice, request)
+        if Invoice.objects.filter(invoice_number=invoice_number).exists():
+            return _reject({"invoice_number": f"Invoice number '{invoice_number}' is already in use."})
+        client = _resolve_client_from_post(request)
+        errors = _validate_service_invoice(request, client)
+        if errors:
+            return _reject(errors)
+
+        try:
+            with transaction.atomic():
+                # A services invoice belongs to the branch that owns the client.
+                invoice = Invoice.objects.create(
+                    invoice_type="visa",
+                    invoice_number=invoice_number,
+                    client=client,
+                    branch_id=client.owner_branch_id,
+                    issued_date=_parse_date(request.POST.get("issued_date")),
+                    due_date=_parse_date(request.POST.get("due_date")),
+                    currency=(request.POST.get("invoice_currency") or "USD").upper(),
+                    created_by=request.user,
+                )
+                Invoice.claim_number("visa", invoice.invoice_number)
+                _save_service_items(invoice, request)
+                _save_service_payments(invoice, request)
+        except (FinanceError, ValueError) as e:
+            return _reject({"finance": str(e)})
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number)
         messages.success(request, f"Services Invoice {invoice.invoice_number} created successfully.")
         return redirect("services_detail", pk=invoice.pk)
@@ -169,7 +183,8 @@ def services_edit(request, pk):
     if request.method == "POST":
         _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency'])
         new_number = request.POST.get("invoice_number", "")
-        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+
+        def _reject(errors):
             echo = _services_echo(request)
             echo["pk"] = invoice.pk
             return inertia_render(request, "Services/Form", props={
@@ -177,22 +192,30 @@ def services_edit(request, pk):
                 "invoice": _serialize_service_invoice(invoice),
                 "clients": _client_options(),
                 "initial": echo,
-                "errors": {"invoice_number": f"Invoice number '{new_number}' is already in use."},
+                "errors": errors,
             })
 
-        with transaction.atomic():
-            client = _resolve_client_from_post(request)
-            invoice.invoice_number = new_number
-            invoice.client = client
-            invoice.issued_date = _parse_date(request.POST.get("issued_date"))
-            invoice.due_date = _parse_date(request.POST.get("due_date"))
-            invoice.currency = request.POST.get("invoice_currency", "USD")
-            invoice.save()
-            Invoice.claim_number("visa", invoice.invoice_number)
+        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+            return _reject({"invoice_number": f"Invoice number '{new_number}' is already in use."})
+        client = _resolve_client_from_post(request)
+        errors = _validate_service_invoice(request, client)
+        if errors:
+            return _reject(errors)
 
-            invoice.service_items.all().delete()
-            _save_service_items(invoice, request)
-            _save_service_payments(invoice, request)
+        try:
+            with transaction.atomic():
+                invoice.invoice_number = new_number
+                invoice.client = client
+                invoice.issued_date = _parse_date(request.POST.get("issued_date"))
+                invoice.due_date = _parse_date(request.POST.get("due_date"))
+                invoice.currency = (request.POST.get("invoice_currency") or "USD").upper()
+                invoice.save()
+                Invoice.claim_number("visa", invoice.invoice_number)
+                _save_service_items(invoice, request)
+                _save_service_payments(invoice, request)
+        except (FinanceError, ValueError) as e:
+            invoice.refresh_from_db()
+            return _reject({"finance": str(e)})
         _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'currency'])
         changes = track_changes(
             _before, _after,
@@ -220,7 +243,9 @@ def services_delete(request, pk):
         if JournalLine.objects.filter(invoice=invoice).exists():
             messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
             return redirect('services_detail', pk=pk)
-        invoice.delete()
+        with transaction.atomic():
+            invoice.lines.all().delete()
+            invoice.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Services', num)
         messages.success(request, f"Services Invoice {num} deleted successfully.")
         return redirect("services_list")
@@ -239,7 +264,7 @@ def services_list_pdf(request):
     qs = Invoice.objects.filter(invoice_type="visa")
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+        qs = qs.filter(Invoice.objects.name_matches(q))
     return _render_list_pdf(
         request, qs,
         template="hw/services/services_list_pdf.html",
@@ -253,7 +278,7 @@ def services_export_csv(request):
     qs = Invoice.objects.filter(invoice_type="visa")
     q = request.GET.get('q', '').strip()
     if q:
-        qs = qs.filter(Q(customer_name__icontains=q) | Q(invoice_number__icontains=q))
+        qs = qs.filter(Invoice.objects.name_matches(q))
     headers = ['Invoice #', 'Customer', 'Currency', 'Issued Date', 'Due Date']
     rows = ([
         inv.invoice_number, inv.customer_name,
@@ -271,58 +296,89 @@ def services_duplicate(request, pk):
     new_inv = Invoice.objects.create(
         invoice_type="visa",
         invoice_number=new_num,
-        customer_name=original.customer_name,
+        client_id=original.client_id,
+        branch_id=original.branch_id,
         issued_date=today,
         due_date=today + timedelta(days=30),
         currency=original.currency,
+        created_by=request.user,
     )
-    for item in original.service_items.all():
-        ServiceItem.objects.create(
-            invoice=new_inv,
-            service_number=item.service_number,
-            name=item.name,
-            qty=item.qty,
-            price=item.price,
-        )
+    for item in original.service_items:
+        new_inv.add_service_line(item.description, item.quantity, item.unit_price)
+    post_invoice_charge(new_inv, created_by=request.user)
     messages.success(request, f"Services Invoice duplicated as {new_num} (from {original.invoice_number}).")
     return redirect("services_edit", pk=new_inv.pk)
 
 
 def _save_service_items(invoice, request):
-    """Full recreate service items, lalu posting.post_invoice_charge
-    (DR Piutang / CR Pendapatan Services, idempotent-by-content)."""
+    """Make the invoice's service lines match the submitted rows, then re-post
+    its charge (DR Piutang / CR Pendapatan Services, idempotent by content).
+
+    Rows are matched to existing lines by `service_number` (rows without one
+    are matched in order), and a matched line is updated in place: its key is
+    what the ledger, payment allocations and credit notes point at. A line
+    that was dropped is deleted only when nothing references it; otherwise it
+    is voided, and refused outright when money stands against it.
+    """
     from ..finance.posting import post_invoice_charge
+    from .invoice_views import _line_has_service_money, _line_is_service_referenced
 
     try:
         rows = json.loads(request.POST.get("service_items", "[]"))
     except (ValueError, TypeError):
         rows = []
-    number = 0
+    rows = [r for r in rows if isinstance(r, dict) and (r.get("name") or "").strip()]
+
     with transaction.atomic():
+        existing = list(invoice.lines.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True).order_by('line_no'))
+        by_number = {line.line_no: line for line in existing}
+        matched = []
         for r in rows:
-            name = (r.get("name") or "").strip()
-            if not name:
-                continue
-            number += 1
+            try:
+                number = int(r.get("service_number") or 0)
+            except (TypeError, ValueError):
+                number = 0
+            matched.append(by_number.pop(number, None))
+        spare = sorted(by_number.values(), key=lambda line: line.line_no)
+        for i, line in enumerate(matched):
+            if line is None and spare and not rows[i].get("service_number"):
+                matched[i] = spare.pop(0)
+
+        for line in spare:
+            if _line_has_service_money(line):
+                raise ValueError(
+                    f"Service #{line.line_no} {line.description} sudah tersentuh pembayaran, "
+                    "jadi tidak bisa dihapus dari invoice. Balikkan pembayarannya dulu lewat modul Payment."
+                )
+            if _line_is_service_referenced(line):
+                line.void()
+            else:
+                line.delete()
+
+        for r, line in zip(rows, matched):
+            name = r["name"].strip()
             qty = int(_to_float(r.get("qty"), 1)) or 1
-            price = _to_float(r.get("price"))
-            ServiceItem.objects.create(
-                invoice=invoice,
-                service_number=number,
-                name=name,
-                qty=qty,
-                price=price,
-            )
-        from .invoice_billing import _billing_client
-        if not invoice.client_id and _billing_client(invoice):
-            invoice.client = _billing_client(invoice)
-            invoice.save(update_fields=['client', 'customer_name'])
-        if invoice.client_id:
-            post_invoice_charge(invoice, created_by=request.user)
+            price = int(_to_float(r.get("price")))
+            if line is None:
+                invoice.add_service_line(name, qty, price)
+            elif (line.description, line.quantity, line.unit_price) != (name, qty, price):
+                line.description, line.quantity, line.unit_price = name, qty, price
+                line.save(update_fields=['description', 'quantity', 'unit_price'])
+        post_invoice_charge(invoice, created_by=request.user)
     logger.info(
         "ledger: %d service item(s) synced for invoice %s",
-        number, invoice.invoice_number,
+        len(rows), invoice.invoice_number,
     )
+
+
+def _validate_service_invoice(request, client):
+    """{field: message} for a services invoice form."""
+    from ..models.currency import CURRENCY_CODES
+    if client is None:
+        return {"client_id": "Choose the client this invoice bills."}
+    if (request.POST.get("invoice_currency") or "USD").upper() not in CURRENCY_CODES:
+        return {"invoice_currency": "Choose SAR, USD or IDR."}
+    return {}
 
 
 def _services_echo(request):
@@ -362,7 +418,7 @@ def _serialize_service_invoice(invoice):
             "name": it.name,
             "qty": it.qty,
             "price": float(it.price),
-        } for it in invoice.service_items.all()],
+        } for it in invoice.service_items],
         "payments": [{
             "ref": p["ref"],
             "date": p["payment_date"].strftime("%Y-%m-%d") if p["payment_date"] else "",

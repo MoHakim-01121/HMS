@@ -10,14 +10,14 @@ Covers the review findings that were actually implemented:
       ledger.
 * M3: visa/service invoices compute total_sar and remaining_sar correctly.
 """
-from hw.tests.factories import make_cl
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_service_line
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import (
-    Client, Invoice, Reservation, ConfirmationLetter, CancellationPenalty, Remittance, RemittanceLine, ServiceItem,
+    Client, Invoice, CancellationPenalty, Remittance, RemittanceLine,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
@@ -46,7 +46,7 @@ class PenaltyLedgerSyncTest(TestCase):
             name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.cl_obj = Client.objects.create( name='Amanah')
-        self.inv = Invoice.objects.create(
+        self.inv = make_invoice(
  invoice_type='hotel', invoice_number='INV-PEN-1',
             customer_name='Amanah', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
@@ -104,11 +104,11 @@ class PenaltyIndependentFromInvoicePaymentTest(TestCase):
             name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
         )
         self.cl_obj = Client.objects.create( name='Bina')
-        self.inv = Invoice.objects.create(
+        self.inv = make_invoice(
  invoice_type='hotel', invoice_number='INV-PAY-1',
             customer_name='Bina', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        self.res = Reservation.objects.create(
+        self.res = make_hotel_line(
             invoice=self.inv, reservation_number='R1', hotel='H', total_sar=5000,
         )
         self.cl = make_cl(
@@ -155,11 +155,11 @@ class DeleteGuardTest(TestCase):
         )
 
     def _hotel_invoice_with_charge(self):
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type='hotel', invoice_number='INV-DEL-1',
             customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        Reservation.objects.create(
+        make_hotel_line(
             invoice=inv, reservation_number='R1', hotel='H', total_sar=1000,
         )
         posting.post_invoice_charge(inv, created_by=self.user)
@@ -173,7 +173,7 @@ class DeleteGuardTest(TestCase):
         self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
 
     def test_invoice_delete_allowed_when_no_ledger(self):
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type='hotel', invoice_number='INV-DEL-2',
             customer_name='Sinar', issued_date=date(2026, 8, 1),
         )
@@ -182,11 +182,11 @@ class DeleteGuardTest(TestCase):
         self.assertFalse(Invoice.objects.filter(pk=inv.pk).exists())
 
     def test_services_delete_blocked_when_charges_exist(self):
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type='visa', invoice_number='SVC-DEL-1',
             customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
         )
-        ServiceItem.objects.create(invoice=inv, name='Visa', qty=1, price=300)
+        make_service_line(invoice=inv, name='Visa', qty=1, price=300)
         posting.post_invoice_charge(inv, created_by=self.user)
         resp = self.client.post(f'/services/{inv.pk}/delete/')
         self.assertEqual(resp.status_code, 302)
@@ -235,12 +235,12 @@ class ServiceInvoiceTotalTest(TestCase):
         )
         cl = Client.objects.create( name='Sinar')
         user = User.objects.create_user('svc_tot', password='x')
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type='visa', invoice_number='SVC-TOT-1',
             customer_name='Sinar', client=cl, issued_date=date(2026, 8, 1),
         )
-        ServiceItem.objects.create(invoice=inv, name='Visa', qty=2, price=150)
-        ServiceItem.objects.create(invoice=inv, name='Insurance', qty=1, price=100)
+        make_service_line(invoice=inv, name='Visa', qty=2, price=150)
+        make_service_line(invoice=inv, name='Insurance', qty=1, price=100)
         self.assertEqual(inv.total_sar, 400)
         self.assertEqual(inv.remaining_sar, 400)
 
@@ -254,9 +254,9 @@ class ServiceInvoiceTotalTest(TestCase):
         self.assertEqual(inv.remaining_sar, 100)
 
     def test_hotel_invoice_total_unaffected(self):
-        inv = Invoice.objects.create(
+        inv = make_invoice(
  invoice_type='hotel', invoice_number='INV-TOT-1',
             customer_name='Sinar', issued_date=date(2026, 8, 1),
         )
-        Reservation.objects.create(invoice=inv, reservation_number='R1', total_sar=1000)
+        make_hotel_line(invoice=inv, reservation_number='R1', total_sar=1000)
         self.assertEqual(inv.total_sar, 1000)

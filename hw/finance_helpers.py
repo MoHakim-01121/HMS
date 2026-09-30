@@ -236,7 +236,7 @@ def allocate_payment(payment, allocation_date, created_by, note=''):
     Jurnal (DR Kas / CR Piutang, dipecah per PaymentAllocation) sudah
     diposting di confirm_payment. PaymentAllocation rows sendiri dibuat
     pemanggil (posting.allocate_payment) sebelum confirm. Fungsi ini
-    tinggal transisi status + Invoice.sync_status().
+    tinggal transisi status (status bayar invoice diturunkan dari jurnal).
     """
     if payment.status != PaymentRecord.STATUS_CONFIRMED:
         raise PaymentAlreadyProcessedError(
@@ -244,8 +244,6 @@ def allocate_payment(payment, allocation_date, created_by, note=''):
         )
 
     old_state = _payment_snapshot(payment)
-    if payment.invoice_id:
-        payment.invoice.sync_status()
 
     payment.status = PaymentRecord.STATUS_ALLOCATED
     payment.save(update_fields=['status'])
