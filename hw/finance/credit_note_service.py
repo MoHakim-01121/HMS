@@ -73,9 +73,13 @@ def _income_account(invoice):
     return coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
 
 
+_KEY_BY_KIND = {InvoiceLine.KIND_HOTEL: 'r', InvoiceLine.KIND_SERVICE: 's', InvoiceLine.KIND_PENALTY: 'p'}
+_FORM_KIND = {InvoiceLine.KIND_HOTEL: 'reservation', InvoiceLine.KIND_SERVICE: 'service', InvoiceLine.KIND_PENALTY: 'penalty'}
+
+
 def _line_key(line):
-    """('r', pk) for a hotel line, ('s', pk) for a service line."""
-    return ('r' if line.kind == InvoiceLine.KIND_HOTEL else 's', line.pk)
+    """('r', pk) for a hotel line, ('s', pk) for a service line, ('p', pk) for a penalty line."""
+    return (_KEY_BY_KIND[line.kind], line.pk)
 
 
 def _credited_by_line(invoice):
@@ -95,12 +99,10 @@ def creditable_lines(invoice):
     credited = _credited_by_line(invoice)
     rows = []
     for line in sorted(invoice.billed_lines(), key=lambda l: (l.kind != InvoiceLine.KIND_HOTEL, l.pk)):
-        if line.kind == InvoiceLine.KIND_PENALTY:
-            continue
         key = _line_key(line)
         billed = int(line.amount or 0)
         rows.append({
-            'kind': 'reservation' if line.kind == InvoiceLine.KIND_HOTEL else 'service', 'id': line.pk,
+            'kind': _FORM_KIND[line.kind], 'id': line.pk,
             'label': line.label,
             'billed': billed, 'credited': credited.get(key, 0),
             'available': max(billed - credited.get(key, 0), 0),
@@ -151,20 +153,31 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
         to_deposit_sar=to_deposit, created_by=created_by,
     )
     income = _income_account(invoice)
+    hotel_by_cl = {
+        l.confirmation_letter_id: l.pk for l in invoice.billed_lines() if l.kind == InvoiceLine.KIND_HOTEL
+    }
     journal = []
     ar_room = total - to_deposit
     for row, amount in picked:
         dims = {'invoice': invoice.pk}
+        line_income = income
         if row['kind'] == 'reservation':
             dims['reservation'] = row['id']
             branch = coa.HQ_BRANCH if income == coa.INC_HOTEL else invoice.branch_id
+        elif row['kind'] == 'penalty':
+            # Same dimensions as the penalty charge: the reservation's line, revenue at HQ.
+            pen_line = InvoiceLine.objects.select_related('penalty').get(pk=row['id'])
+            dims['reservation'] = hotel_by_cl.get(pen_line.penalty.cl_id)
+            dims['penalty'] = pen_line.penalty_id
+            branch = coa.HQ_BRANCH
+            line_income = coa.INC_PENALTY
         else:
             dims['service_item'] = row['id']
             branch = None
         CreditNoteLine.objects.create(
             credit_note=cn, invoice_line_id=row['id'], description=row['label'], amount_sar=amount,
         )
-        journal.append({'account': income, 'debit': amount, 'branch': branch, **dims})
+        journal.append({'account': line_income, 'debit': amount, 'branch': branch, **dims})
         to_ar = min(amount, ar_room)
         ar_room -= to_ar
         if to_ar:

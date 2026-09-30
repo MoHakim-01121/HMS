@@ -20,9 +20,6 @@ export default function Detail({ penalty: p }) {
   if (p.reason) {
     sections.push({ title: t("Reason"), body: <div className="hms-rv-railtext">{p.reason}</div> });
   }
-  if (p.is_paid && p.payment_note) {
-    sections.push({ title: t("Payment Note"), body: <div className="hms-rv-railtext">{p.payment_note}</div> });
-  }
   if (p.note) {
     sections.push({ title: t("Notes"), body: <div className="hms-rv-railtext">{p.note}</div> });
   }
@@ -37,9 +34,8 @@ export default function Detail({ penalty: p }) {
         title={p.cl.guest_name}
         facts={[
           p.cancellation_date ? { k: t("Cancellation Date"), v: p.cancellation_date } : null,
-          p.is_paid && p.payment_method ? { k: t("Payment Method"), v: p.payment_method } : null,
           p.is_paid && p.payment_date ? { k: t("Payment Date"), v: p.payment_date } : null,
-          p.exchange_rate !== 1 ? { k: t("Exchange Rate"), v: `${p.exchange_rate}` } : null,
+          !p.is_paid && p.paid_sar > 0 ? { k: t("Paid so far"), v: `${fmt(p.paid_sar)} SAR` } : null,
         ].filter(Boolean)}
         side={
           <RvFigure
@@ -52,7 +48,9 @@ export default function Detail({ penalty: p }) {
         note={
           p.is_paid
             ? { icon: <Icon name="check" size={12} strokeWidth={2.4} />, iconBg: "var(--green)", title: t("Paid"), text: t("This penalty has been paid.") }
-            : { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--yellow)", title: t("Penalty due"), text: t("This penalty has not been paid yet.") }
+            : p.invoice
+              ? { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--yellow)", title: t("Penalty due"), text: t("This penalty has not been paid yet.") }
+              : { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--red)", title: t("Not billed"), text: t("The invoice that billed this penalty was voided. Put the reservation on an invoice to bill it again.") }
         }
         actions={
           <>
@@ -80,6 +78,7 @@ export default function Detail({ penalty: p }) {
 
         <RvRail rows={[
           { k: t("Confirmation Letter"), v: <DvLink href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</DvLink> },
+          { k: t("Invoice"), v: p.invoice ? <DvLink href={`/invoice/${p.invoice.id}/`}>{p.invoice.invoice_number}</DvLink> : t("Not billed") },
         ]} />
       </div>
 

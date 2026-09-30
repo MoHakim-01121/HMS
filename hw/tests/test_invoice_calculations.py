@@ -1,4 +1,4 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice
 import csv
 import io
 from datetime import date
@@ -71,26 +71,26 @@ class InvoiceTotalsTest(TestCase):
         self._pay(700)
         self.assertEqual(self.invoice.remaining_sar, -200)
 
-    def test_total_paid_sar_excludes_penalty_payment(self):
-        """Pembayaran penalty tidak mengkredit Piutang invoice (baris jurnal
-        penalty tidak ber-dimensi invoice), jadi total_paid_sar tetap simetris
-        dengan total_sar yang hanya menjumlah reservasi."""
-        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
+    def test_penalty_is_part_of_the_invoice_total(self):
+        """Denda ditagih sebagai baris invoice: reservasi yang batal bernilai 0,
+        dendanya masuk total, dan uang yang sudah diterima tetap terhitung."""
+        from hw.finance.penalty_billing import bill_penalty
+        line = make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)
         self._charge()
         self._pay(400)
 
-        cl = make_cl(
- client=self.client_obj, hotel_name='Hotel', guest_name='Guest',
-            confirmation_number='CL-PEN-001', invoice=self.invoice,
-        )
+        cl = line.confirmation_letter
+        cl.reservation_status = 'CANCELLED'
+        cl.save(update_fields=['reservation_status'])
         penalty = CancellationPenalty.objects.create(
             cl=cl, penalty_number='PNL-TEST',
             cancellation_date=date(2026, 1, 2), penalty_amount=250,
         )
-        posting.post_penalty_charge(penalty, created_by=self.user)
-        posting.post_penalty_payment(penalty, created_by=self.user, entry_date=date(2026, 1, 2))
+        bill_penalty(penalty, user=self.user)
 
+        self.assertEqual(self.invoice.total_sar, 250)
         self.assertEqual(self.invoice.total_paid_sar, 400)
+        self.assertEqual(self.invoice.remaining_sar, -150)
 
     def test_total_paid_sar_sees_finance_page_payment(self):
         make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=1000)

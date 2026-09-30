@@ -7,50 +7,53 @@ from ..utils import format_currency
 def _credited_by_line(invoice):
     """{('r'|'s', pk): SAR no longer billed} — active credit notes per line;
     a void invoice bills nothing, so every line counts as fully credited."""
+    from ..finance.credit_note_service import _credited_by_line as active, _line_key
     if invoice.is_void:
         return {
-            ('r' if line.kind == line.KIND_HOTEL else 's', line.pk): int(line.amount or 0)
+            _line_key(line): int(line.amount or 0)
             for line in invoice.billed_lines()
         }
-    from ..finance.credit_note_service import _credited_by_line as active
     return active(invoice)
 
 
 def _build_reservation_context(invoice):
+    """One row per reservation billed on the invoice.
 
-    # Kredit Piutang per reservasi dari general ledger — payment lewat jalur
-    # mana pun (Finance page / form invoice) menempel dimensi reservation di
-    # baris CR Piutang-nya.
-    paid_by_reservation_id = fq.reservation_paid_map(invoice.id)
-    credited = _credited_by_line(invoice)
+    A row covers the reservation's hotel line and, when it was cancelled with
+    a penalty, its penalty line: `total` is what the reservation costs now,
+    and payments recorded against the reservation cover the penalty first
+    (finance.penalty_billing). A negative `remaining_int` is an overpayment.
+    """
+    from ..finance.penalty_billing import reservation_balances
 
     result = []
-    for res in invoice.reservations:
-        paid = paid_by_reservation_id.get(res.pk, 0)
-        credited_int = credited.get(('r', res.pk), 0)
-        remaining = res.total_sar - credited_int - paid
+    for row in sorted(reservation_balances(invoice).values(), key=lambda r: r['line'].line_no):
+        res, pen_line = row['line'], row['penalty_line']
+        total, remaining = row['total'], row['remaining']
         if remaining == 0:
             cls = "remaining-paid"
-        elif remaining > res.total_sar * 0.5:
+        elif remaining > total * 0.5:
             cls = "remaining-unpaid"
         else:
             cls = "remaining-partial"
-        # A void invoice no longer bills its reservations, so it does not link to them.
-        cl_pk = None if invoice.is_void else res.confirmation_letter_id
         result.append({
             "id": res.pk,
             "number": res.reservation_number,
             "hotel": res.hotel,
             "check_in": res.check_in,
             "check_out": res.check_out,
-            "total": format_currency(res.total_sar),
-            "total_int": res.total_sar,
-            "paid_int": paid,
-            "credited_int": credited_int,
+            "total": format_currency(total),
+            "total_int": total,
+            "paid_int": row['paid'],
+            "credited_int": row['credited'],
             "remaining": format_currency(remaining),
             "remaining_int": remaining,
             "remaining_class": cls,
-            "cl_pk": cl_pk,
+            # A void invoice no longer bills its reservations, so it does not link to them.
+            "cl_pk": None if invoice.is_void else res.confirmation_letter_id,
+            "penalty_int": row['penalty_amount'],
+            "penalty_number": pen_line.penalty.penalty_number if pen_line else None,
+            "penalty_pk": pen_line.penalty_id if pen_line else None,
         })
     return result
 

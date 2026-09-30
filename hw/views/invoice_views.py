@@ -556,6 +556,11 @@ def _line_is_referenced(line, column='reservation_id'):
     from ..models.credit_note import CreditNoteLine
     from ..models.journal import JournalLine
     from ..models.payment import PaymentAllocation, PaymentRecord
+    if column == 'penalty_line':
+        return (
+            JournalLine.objects.filter(invoice_id=line.invoice_id, penalty_id=line.penalty_id).exists()
+            or CreditNoteLine.objects.filter(invoice_line=line).exists()
+        )
     key = {column: line.pk}
     return (
         JournalLine.objects.filter(**key).exists()
@@ -596,6 +601,10 @@ def _sync_hotel_lines(invoice, cl_ids, user):
                     "jadi tidak bisa dikeluarkan dari invoice. Realokasi atau balikkan "
                     "pembayarannya dulu lewat modul Payment."
                 )
+            for pen_line in invoice.lines.filter(
+                kind=InvoiceLine.KIND_PENALTY, penalty__cl_id=line.confirmation_letter_id, voided_at__isnull=True,
+            ):
+                pen_line.void() if _line_is_referenced(pen_line, 'penalty_line') else pen_line.delete()
             if _line_is_referenced(line):
                 line.void()
             else:

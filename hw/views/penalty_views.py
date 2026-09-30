@@ -2,6 +2,7 @@ import logging
 from datetime import date, datetime
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -10,7 +11,7 @@ from django.template.loader import render_to_string
 from inertia import render as inertia_render
 
 from ..models import CancellationPenalty, ConfirmationLetter
-from ..finance.posting import resync_penalty
+from ..finance.penalty_billing import bill_penalty, penalty_state, unbill_penalty
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
 from .helpers import _parse_date, _to_float
@@ -19,17 +20,13 @@ from .pdf import _logo_file_url
 logger = logging.getLogger(__name__)
 
 
-def _sync_penalty_ledger(penalty, user=None):
-    """Resync jurnal penalty (charge + payment kalau is_paid) — reverse entry
-    lama, repost dari data penalty sekarang. Aman dipanggil tiap create/edit."""
-    try:
-        resync_penalty(penalty, created_by=user)
-    except FinanceError as e:
-        logger.warning("penalty journal resync gagal: %s", e)
-    logger.info(
-        "ledger: penalty %s synced (%s SAR, paid=%s)",
-        penalty.penalty_number, penalty.penalty_amount_sar, penalty.is_paid,
-    )
+def _billing_notice(cl):
+    """What saving a penalty on `cl` will do to its billing, for the form."""
+    invoice = cl.invoice
+    if invoice is not None:
+        return {"invoice_number": invoice.invoice_number, "invoice_id": invoice.pk, "creates_invoice": False}
+    return {"invoice_number": None, "invoice_id": None, "creates_invoice": True,
+            "branch": cl.client.owner_branch.name}
 
 
 def _penalty_amount(request):
@@ -49,6 +46,19 @@ def _get_penalty(request, pk, qs=None):
     return get_object_or_404(qs, pk=pk)
 
 
+def _state_props(penalty):
+    """Billing and payment state of a penalty: both derived, never stored."""
+    state = penalty_state(penalty)
+    invoice = state['invoice']
+    return {
+        "is_paid": state['is_paid'],
+        "paid_sar": state['paid'],
+        "due_sar": state['due'],
+        "payment_date": state['paid_on'].isoformat() if state['paid_on'] else None,
+        "invoice": {"id": invoice.pk, "invoice_number": invoice.invoice_number} if invoice else None,
+    }
+
+
 def _penalty_props(penalty):
     cl = penalty.cl
     return {
@@ -59,10 +69,7 @@ def _penalty_props(penalty):
         "penalty_amount": float(penalty.penalty_amount or 0),
         "penalty_currency": penalty.penalty_currency,
         "exchange_rate": float(penalty.exchange_rate or 1),
-        "is_paid": penalty.is_paid,
-        "payment_date": penalty.payment_date.isoformat() if penalty.payment_date else None,
-        "payment_method": penalty.payment_method,
-        "payment_note": penalty.payment_note,
+        **_state_props(penalty),
         "note": penalty.note,
         "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
     }
@@ -86,21 +93,33 @@ def penalty_new(request, cl_pk):
         if amount is None:
             messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
             return redirect('penalty_new', cl_pk=cl.pk)
-        penalty = CancellationPenalty.objects.create(
-            cl=cl,
-            penalty_number=request.POST.get('penalty_number', suggested_number),
-            cancellation_date=_parse_date(request.POST.get('cancellation_date')),
-            reason=request.POST.get('reason', ''),
-            penalty_amount=amount,
-            is_paid=request.POST.get('is_paid') == 'on',
-            payment_date=_parse_date(request.POST.get('payment_date')),
-            payment_method=request.POST.get('payment_method', ''),
-            payment_note=request.POST.get('payment_note', ''),
-            note=request.POST.get('note', ''),
-        )
-        CancellationPenalty.claim_number(penalty.penalty_number)
-        _sync_penalty_ledger(penalty, request.user)
-        messages.success(request, f"Penalty document {penalty.penalty_number} created successfully.")
+        number = request.POST.get('penalty_number', suggested_number)
+        if CancellationPenalty.objects.filter(penalty_number=number).exists():
+            messages.error(request, f"Penalty number '{number}' is already in use.")
+            return redirect('penalty_new', cl_pk=cl.pk)
+        try:
+            with transaction.atomic():
+                penalty = CancellationPenalty.objects.create(
+                    cl=cl,
+                    penalty_number=number,
+                    cancellation_date=_parse_date(request.POST.get('cancellation_date')) or date.today(),
+                    reason=request.POST.get('reason', ''),
+                    penalty_amount=amount,
+                    note=request.POST.get('note', ''),
+                )
+                CancellationPenalty.claim_number(penalty.penalty_number)
+                # A penalty is always billed: on the invoice that bills its
+                # reservation, or on a new invoice issued right here.
+                invoice, created = bill_penalty(penalty, user=request.user)
+        except FinanceError as e:
+            messages.error(request, str(e))
+            return redirect('penalty_new', cl_pk=cl.pk)
+        logger.info("ledger: penalty %s billed on invoice %s", penalty.penalty_number, invoice.invoice_number)
+        messages.success(request, (
+            f"Penalty document {penalty.penalty_number} created and invoice {invoice.invoice_number} issued for it."
+            if created else
+            f"Penalty document {penalty.penalty_number} created and billed on invoice {invoice.invoice_number}."
+        ))
         return redirect('penalty_detail', pk=penalty.pk)
 
     return inertia_render(request, "Penalty/Form", props={
@@ -109,6 +128,7 @@ def penalty_new(request, cl_pk):
         "suggested_number": suggested_number,
         "today": date.today().isoformat(),
         "edit": False,
+        "billing": _billing_notice(cl),
     })
 
 
@@ -128,18 +148,19 @@ def penalty_edit(request, pk):
         if amount is None:
             messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
             return redirect('penalty_edit', pk=penalty.pk)
-        penalty.penalty_number  = request.POST.get('penalty_number', penalty.penalty_number)
-        penalty.cancellation_date = _parse_date(request.POST.get('cancellation_date')) or penalty.cancellation_date
-        penalty.reason          = request.POST.get('reason', '')
-        penalty.penalty_amount  = amount
-        penalty.is_paid         = request.POST.get('is_paid') == 'on'
-        penalty.payment_date    = _parse_date(request.POST.get('payment_date'))
-        penalty.payment_method  = request.POST.get('payment_method', '')
-        penalty.payment_note    = request.POST.get('payment_note', '')
-        penalty.note            = request.POST.get('note', '')
-        penalty.save()
-        CancellationPenalty.claim_number(penalty.penalty_number)
-        _sync_penalty_ledger(penalty, request.user)
+        try:
+            with transaction.atomic():
+                penalty.penalty_number  = request.POST.get('penalty_number', penalty.penalty_number)
+                penalty.cancellation_date = _parse_date(request.POST.get('cancellation_date')) or penalty.cancellation_date
+                penalty.reason          = request.POST.get('reason', '')
+                penalty.penalty_amount  = amount
+                penalty.note            = request.POST.get('note', '')
+                penalty.save()
+                CancellationPenalty.claim_number(penalty.penalty_number)
+                bill_penalty(penalty, user=request.user)
+        except FinanceError as e:
+            messages.error(request, str(e))
+            return redirect('penalty_edit', pk=penalty.pk)
         messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
         return redirect('penalty_detail', pk=penalty.pk)
 
@@ -149,6 +170,7 @@ def penalty_edit(request, pk):
         "suggested_number": penalty.penalty_number,
         "today": date.today().isoformat(),
         "edit": True,
+        "billing": _billing_notice(cl),
     })
 
 
@@ -159,12 +181,19 @@ def penalty_delete(request, pk):
     if request.method == 'POST':
         num = penalty.penalty_number
         # System of record: penalty yang sudah menyentuh jurnal tidak bisa
-        # dihapus dari riwayat keuangan.
+        # dihapus dari riwayat keuangan. Denda yang keliru dikoreksi nominalnya,
+        # atau dibebaskan lewat nota kredit pada baris dendanya.
         from ..models.journal import JournalLine
         if JournalLine.objects.filter(penalty=penalty).exists():
-            messages.error(request, f'Penalty {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
+            messages.error(
+                request,
+                f'Penalty {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan. '
+                'Ubah nominalnya, atau bebaskan lewat nota kredit di invoice-nya.',
+            )
             return redirect('penalty_detail', pk=penalty.pk)
-        penalty.delete()
+        with transaction.atomic():
+            unbill_penalty(penalty, user=request.user)
+            penalty.delete()
         messages.success(request, f"Penalty document {num} deleted successfully.")
         return redirect('cl_detail', pk=cl_pk)
     # Confirmation is handled client-side (React modal); GET just bounces back.
@@ -206,7 +235,7 @@ def penalty_pdf(request, pk):
 
 @require_perm('penalty', 'view')
 def penalty_list(request):
-    qs = CancellationPenalty.objects.select_related('cl', 'cl__client', 'invoice')
+    qs = CancellationPenalty.objects.select_related('cl', 'cl__client')
 
     q = (request.GET.get('q') or '').strip()
     if q:
@@ -216,25 +245,26 @@ def penalty_list(request):
             | Q(cl__client__name__icontains=q),
         )
     status = request.GET.get('status', '')
-    if status == 'paid':
-        qs = qs.filter(is_paid=True)
-    elif status == 'unpaid':
-        qs = qs.filter(is_paid=False)
 
-    penalties = qs[:100]
-    return inertia_render(request, 'Penalty/List', props={
-        'penalties': [{
+    # Paid or not is derived from the ledger, so that filter runs here.
+    rows = []
+    for p in qs[:300]:
+        state = _state_props(p)
+        if (status == 'paid' and not state['is_paid']) or (status == 'unpaid' and state['is_paid']):
+            continue
+        rows.append({
             'id': p.id,
             'penalty_number': p.penalty_number,
             'cl_id': p.cl_id,
-            'confirmation_number': p.cl.confirmation_number if p.cl else '',
-            'client_id': p.cl.client_id if p.cl_id else None,
-            'client_name': p.cl.client.name if (p.cl_id and p.cl.client_id) else '',
+            'confirmation_number': p.cl.confirmation_number,
+            'client_id': p.cl.client_id,
+            'client_name': p.cl.client.name,
             'cancellation_date': p.cancellation_date.isoformat(),
             'amount_sar': p.amount_sar,
-            'is_paid': p.is_paid,
-            'payment_date': p.payment_date.isoformat() if p.payment_date else None,
-        } for p in penalties],
-        'total': qs.count(),
+            **state,
+        })
+    return inertia_render(request, 'Penalty/List', props={
+        'penalties': rows[:100],
+        'total': len(rows),
         'filters': {'q': q, 'status': status},
     })

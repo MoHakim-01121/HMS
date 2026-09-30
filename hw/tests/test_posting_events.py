@@ -181,7 +181,10 @@ class PenaltyChargeTests(PostingTestBase):
             cl=cl, penalty_number="PNL-P1",
             cancellation_date=date(2045, 3, 1), penalty_amount=5000,
         )
-        posting.post_penalty_charge(pen, created_by=self.user)
+        from hw.finance.penalty_billing import bill_penalty
+        invoice, created = bill_penalty(pen, user=self.user)   # reservation not invoiced yet
+        self.assertTrue(created)
+        self.assertEqual(invoice.total_sar, 5000)
         self.assertEqual(_net(account_id=coa.AR, penalty=pen), 5000)
         self.assertEqual(_net(account_id=coa.INC_PENALTY, penalty=pen), -5000)
 

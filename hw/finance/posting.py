@@ -317,7 +317,9 @@ def _invoice_charge_lines(invoice):
     income = coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
     client_id = invoice.client_id
     lines = []
-    for line in invoice.billed_lines():
+    billed = invoice.billed_lines()
+    hotel_by_cl = {l.confirmation_letter_id: l.pk for l in billed if l.kind == InvoiceLine.KIND_HOTEL}
+    for line in billed:
         amt = int(line.amount or 0)
         if not amt:
             continue
@@ -334,16 +336,33 @@ def _invoice_charge_lines(invoice):
                           "invoice": invoice.pk, "service_item": line.pk})
             lines.append({"account": income, "credit": amt,
                           "invoice": invoice.pk, "service_item": line.pk})
+        elif line.kind == InvoiceLine.KIND_PENALTY:
+            # Denda ditagih pada dimensi reservasinya: uang yang sudah masuk
+            # untuk reservasi itu menutup denda lebih dulu. Pendapatannya Pusat.
+            hotel_pk = hotel_by_cl.get(line.penalty.cl_id)
+            lines.append({"account": coa.AR, "debit": amt, "client": client_id, "invoice": invoice.pk,
+                          "reservation": hotel_pk, "penalty": line.penalty_id, "branch": invoice.branch_id})
+            lines.append({"account": coa.INC_PENALTY, "credit": amt, "invoice": invoice.pk,
+                          "reservation": hotel_pk, "penalty": line.penalty_id, "branch": coa.HQ_BRANCH})
     return lines
 
 
+def _charge_key(penalty, reservation, service_item, client, branch):
+    if penalty:
+        return ("penalty", penalty, client, branch)
+    if reservation:
+        return ("reservation", reservation, client, branch)
+    return ("service_item", service_item, client, branch)
+
+
 def _charge_signature(lines):
-    """{(dimensi, pk baris invoice): nilai} dari kaki Piutang sebuah charge."""
+    """{(dimensi, pk, client, cabang): nilai} dari kaki Piutang sebuah charge."""
     sig = {}
     for l in lines:
         if l["account"] != coa.AR:
             continue
-        key = ("reservation", l["reservation"]) if l.get("reservation") else ("service_item", l.get("service_item"))
+        key = _charge_key(l.get("penalty"), l.get("reservation"), l.get("service_item"),
+                          l.get("client"), l.get("branch"))
         sig[key] = sig.get(key, 0) + int(l.get("debit") or 0)
     return sig
 
@@ -351,7 +370,7 @@ def _charge_signature(lines):
 def _posted_charge_signature(entries):
     sig = {}
     for ln in JournalLine.objects.filter(journal_entry__in=entries, account_id=coa.AR):
-        key = ("reservation", ln.reservation_id) if ln.reservation_id else ("service_item", ln.service_item_id)
+        key = _charge_key(ln.penalty_id, ln.reservation_id, ln.service_item_id, ln.client_id, ln.branch_id)
         sig[key] = sig.get(key, 0) + int(ln.debit or 0)
     return sig
 
@@ -462,56 +481,6 @@ def void_invoice_charge(invoice, *, created_by, entry_date=None):
     entry_date = entry_date or timezone.now().date()
     for e in _live_entries("Invoice", invoice.pk, JournalEntry.TYPE_CHARGE):
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
-
-
-def _penalty_client_id(penalty):
-    return penalty.cl.client_id if penalty.cl_id else None
-
-
-def _penalty_amount(penalty):
-    return int(penalty.penalty_amount or 0)
-
-
-@transaction.atomic
-def post_penalty_charge(penalty, *, created_by, entry_date=None):
-    """DR Piutang / CR Pendapatan Penalty."""
-    amt = _penalty_amount(penalty)
-    if not amt:
-        return None
-    entry_date = entry_date or penalty.cancellation_date or timezone.now().date()
-    return post_entry(
-        entry_type=JournalEntry.TYPE_PENALTY,
-        description=f"Penalty {penalty.penalty_number}",
-        entry_date=entry_date,
-        lines=[
-            {"account": coa.AR, "debit": amt, "client": _penalty_client_id(penalty),
-             "penalty": penalty.pk},
-            {"account": coa.INC_PENALTY, "credit": amt, "penalty": penalty.pk},
-        ],
-        source_type="CancellationPenalty",
-        source_id=penalty.pk,
-        created_by=created_by,
-    )
-
-
-@transaction.atomic
-def resync_penalty(penalty, *, created_by):
-    """Full resync jurnal penalty: reverse semua entry penalty yang hidup,
-    lalu repost charge (+ payment kalau is_paid). Idempotent-by-content."""
-    entry_date = penalty.cancellation_date or timezone.now().date()
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
-    for e in JournalEntry.objects.filter(
-        reference_type="CancellationPenalty", reference_id=penalty.pk,
-        entry_type=JournalEntry.TYPE_PENALTY, is_reversal=False,
-    ).exclude(pk__in=reversed_ids):
-        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
-
-    if not _penalty_amount(penalty) or not _penalty_client_id(penalty):
-        return
-    post_penalty_charge(penalty, created_by=created_by)
-    if penalty.is_paid:
-        received_in = "pusat" if (penalty.payment_method or "").lower() == "direct" else "sby"
-        post_penalty_payment(penalty, created_by=created_by, received_in=received_in)
 
 
 # ── Payment-side (Fase 3 Group B) ──────────────────────────────
@@ -698,31 +667,6 @@ def post_payment_from_credit(payment, *, created_by):
         created_by=created_by,
     )
 
-
-@transaction.atomic
-def post_penalty_payment(penalty, *, created_by, received_in="sby", entry_date=None):
-    """DR Kas / CR Piutang untuk pelunasan penalty (denda selalu SAR)."""
-    amt = _penalty_amount(penalty)
-    if not amt:
-        return None
-    cash_acc = _CASH_BY_LOCATION.get(received_in, coa.CASH_SBY)
-    entry_date = entry_date or getattr(penalty, "payment_date", None) or timezone.now().date()
-    dims = {"client": _penalty_client_id(penalty), "penalty": penalty.pk, "branch": received_in}
-    return post_entry(
-        entry_type=JournalEntry.TYPE_PENALTY,
-        description=f"Pembayaran penalty {penalty.penalty_number}",
-        entry_date=entry_date,
-        lines=[
-            {"account": cash_acc, "debit": amt, **dims},
-            {"account": coa.AR, "credit": amt, **dims},
-        ],
-        source_type="CancellationPenalty",
-        source_id=penalty.pk,
-        created_by=created_by,
-    )
-
-
-# ── Kas movement (Fase 3 Group C) ──────────────────────────────
 
 @transaction.atomic
 def post_remittance_send(remittance, *, from_location, amount_sar, created_by, entry_date=None,

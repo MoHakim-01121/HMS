@@ -22,6 +22,7 @@ from hw.models import (
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
+from hw.finance.penalty_billing import bill_penalty
 from hw.finance import queries as fq
 from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.views.invoice_billing import _save_payments
@@ -57,42 +58,30 @@ class PenaltyLedgerSyncTest(TestCase):
             invoice=self.inv, reservation_status='CANCELLED',
         )
 
-    def test_penalty_create_posts_charge_and_payment_to_journal(self):
+    def test_penalty_create_bills_it_on_the_reservation_invoice(self):
         resp = self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
             'penalty_number': 'PNL-001', 'cancellation_date': '2026-08-05',
-            'reason': 'batal', 'penalty_amount': '1000', 'penalty_currency': 'SAR',
-            'exchange_rate': '1', 'is_paid': 'on', 'payment_method': 'transfer',
+            'reason': 'batal', 'penalty_amount': '1000',
         })
         self.assertEqual(resp.status_code, 302)
-        CancellationPenalty.objects.get(penalty_number='PNL-001')
+        penalty = CancellationPenalty.objects.get(penalty_number='PNL-001')
+        self.assertEqual(penalty.invoice, self.inv)
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -1000)
-        self.assertEqual(fq.kas_surabaya(), 1000)
-        self.assertEqual(fq.client_receivable(self.cl_obj.id), 0)  # ditagih lalu dibayar
-
-    def test_penalty_create_unpaid_posts_charge_only(self):
-        resp = self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
-            'penalty_number': 'PNL-002', 'cancellation_date': '2026-08-05',
-            'penalty_amount': '500', 'penalty_currency': 'SAR', 'exchange_rate': '1',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(fq.client_receivable(self.cl_obj.id), 500)
-        self.assertEqual(fq.kas_surabaya(), 0)
+        self.assertEqual(fq.client_receivable(self.cl_obj.id), 1000)
+        self.assertEqual(fq.kas_surabaya(), 0)   # a penalty is paid through Payments, not this form
+        self.assertFalse(penalty.is_paid)
 
     def test_penalty_edit_resyncs_journal_to_new_amount(self):
-        penalty = CancellationPenalty.objects.create(
-            cl=self.cl, penalty_number='PNL-003', cancellation_date=date(2026, 8, 5),
-            penalty_amount=1000, is_paid=True, payment_method='transfer',
-        )
-        from hw.finance import posting
-        posting.resync_penalty(penalty, created_by=self.user)
+        self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
+            'penalty_number': 'PNL-003', 'cancellation_date': '2026-08-05', 'penalty_amount': '1000',
+        })
+        penalty = CancellationPenalty.objects.get(penalty_number='PNL-003')
         resp = self.client.post(f'/penalty/{penalty.pk}/edit/', {
-            'penalty_number': 'PNL-003', 'cancellation_date': '2026-08-05',
-            'penalty_amount': '700', 'penalty_currency': 'SAR', 'exchange_rate': '1',
-            'is_paid': 'on', 'payment_method': 'direct',
+            'penalty_number': 'PNL-003', 'cancellation_date': '2026-08-05', 'penalty_amount': '700',
         })
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), -700)
-        self.assertEqual(fq.kas_pusat(), 700)  # method 'direct'
+        self.assertEqual(fq.client_receivable(self.cl_obj.id), 700)
 
 
 class PenaltyIndependentFromInvoicePaymentTest(TestCase):
@@ -115,14 +104,14 @@ class PenaltyIndependentFromInvoicePaymentTest(TestCase):
  client=self.cl_obj, hotel_name='Hotel B',
             guest_name='Guest B', check_in=date(2026, 8, 10),
             check_out=date(2026, 8, 12), confirmation_number='CL-PAY-1',
-            invoice=self.inv,
+            invoice=self.inv, reservation_status='CANCELLED',
         )
         self.penalty = CancellationPenalty.objects.create(
             cl=self.cl, penalty_number='PNL-PAY', cancellation_date=date(2026, 8, 5),
-            penalty_amount=1000, is_paid=True, payment_method='transfer',
+            penalty_amount=1000,
         )
         posting.post_invoice_charge(self.inv, created_by=self.user)
-        posting.resync_penalty(self.penalty, created_by=self.user)
+        bill_penalty(self.penalty, user=self.user)
 
     def test_payment_save_keeps_penalty_income(self):
         before = fq.account_balance(fq.coa.INC_PENALTY)
@@ -219,7 +208,7 @@ class DeleteGuardTest(TestCase):
             cl=cl, penalty_number='PNL-DEL', cancellation_date=date(2026, 8, 5),
             penalty_amount=500,
         )
-        posting.resync_penalty(penalty, created_by=self.user)
+        bill_penalty(penalty, user=self.user)
         self.assertTrue(JournalLine.objects.filter(penalty=penalty).exists())
         resp = self.client.post(f'/penalty/{penalty.pk}/delete/')
         self.assertEqual(resp.status_code, 302)

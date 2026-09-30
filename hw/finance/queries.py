@@ -302,6 +302,14 @@ def line_settled_sar(**key):
     return (a["c"] or 0) - (a["d"] or 0)
 
 
+def line_last_settled_date(**key):
+    """Tanggal pembayaran terakhir pada satu baris invoice (None bila belum ada)."""
+    from django.db.models import Max
+    return _settling(**key).filter(credit__gt=0).exclude(
+        journal_entry_id__in=_reversed_entry_ids(),
+    ).aggregate(d=Max("journal_entry__entry_date"))["d"]
+
+
 def cl_paid_sar_map(letters):
     """Bulk ConfirmationLetter.paid_sar: {cl_pk: paid_sar} dari jurnal.
 

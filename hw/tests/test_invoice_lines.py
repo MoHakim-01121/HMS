@@ -228,7 +228,7 @@ class InvoiceFollowsReservationTest(_Base):
         other = make_client('PT Lain')
         resp = self.client.post(f'/cl/{self.cl.pk}/edit/', cl_form_payload(self.cl, client_id=str(other.pk)),
                                 HTTP_X_INERTIA='true')
-        self.assertIn('client_id', resp.json()['props']['errors'])
+        self.assertIn('guest_name', resp.json()['props']['errors'])
         self.cl.refresh_from_db()
         self.assertEqual(self.cl.client_id, self.client_obj.pk)
 

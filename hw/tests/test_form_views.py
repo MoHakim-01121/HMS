@@ -111,6 +111,10 @@ class PenaltyViewTests(TestCase):
         self.cl = make_cl(
             guest_name="Budi", confirmation_number="CL-1", reservation_status="CANCELLED",
         )
+        # Saving a penalty bills it on an invoice, which posts to the ledger.
+        from datetime import date
+        from hw.models.period import FinancialPeriod
+        FinancialPeriod.objects.create(name="2020-2040", date_from=date(2020, 1, 1), date_to=date(2040, 12, 31))
 
     def _inertia_get(self, url):
         return self.client.get(url, HTTP_X_INERTIA="true")

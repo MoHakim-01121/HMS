@@ -191,6 +191,23 @@ class Invoice(models.Model):
             invoice=self, kind=InvoiceLine.KIND_HOTEL, confirmation_letter=cl, voided_at__isnull=True,
             defaults={'line_no': self._next_line_no()},
         )
+        # A penalty on the reservation is billed wherever the reservation is.
+        from .penalty import CancellationPenalty
+        penalty = CancellationPenalty.objects.filter(cl_id=cl.pk).first()
+        if penalty is not None:
+            self.add_penalty_line(penalty)
+        return line
+
+    def add_penalty_line(self, penalty):
+        """Bill `penalty` on this invoice, next to the reservation it belongs to."""
+        if not self.lines.filter(
+            kind=InvoiceLine.KIND_HOTEL, confirmation_letter_id=penalty.cl_id, voided_at__isnull=True,
+        ).exists():
+            raise ValueError('A penalty is billed on the invoice that bills its reservation.')
+        line, _ = InvoiceLine.objects.get_or_create(
+            invoice=self, kind=InvoiceLine.KIND_PENALTY, penalty=penalty, voided_at__isnull=True,
+            defaults={'line_no': self._next_line_no()},
+        )
         return line
 
     def add_service_line(self, description, quantity, unit_price):

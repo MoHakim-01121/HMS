@@ -7,11 +7,10 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
-import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 
-function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverErrors }) {
+function FormBody({ penalty, cl, suggested_number, today, edit, billing, errors: serverErrors }) {
   const { t } = useI18n();
   const p = penalty || {};
   const form = useForm({
@@ -19,10 +18,6 @@ function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverEr
     cancellation_date: p.cancellation_date || today || "",
     reason: p.reason || "",
     penalty_amount: p.penalty_amount ?? "",
-    is_paid: edit ? !!p.is_paid : false,
-    payment_date: p.payment_date || "",
-    payment_method: p.payment_method || "",
-    payment_note: p.payment_note || "",
     note: p.note || "",
   });
   const errors = { ...serverErrors, ...form.errors };
@@ -30,7 +25,6 @@ function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverEr
 
   const submit = (e) => {
     e.preventDefault();
-    form.transform((d) => ({ ...d, is_paid: d.is_paid ? "on" : "" }));
     const url = edit ? `/penalty/${p.id}/edit/` : `/cl/${cl.id}/penalty/new/`;
     form.post(url, { forceFormData: true });
   };
@@ -62,20 +56,16 @@ function FormBody({ penalty, cl, suggested_number, today, edit, errors: serverEr
               hint={t("Penalties are always set in SAR. A client paying in another currency is recorded as a payment with its rate.")} />
           </FormSection>
 
-          <FormSection label={t("Payment")}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-              <Checkbox checked={form.data.is_paid} onCheckedChange={(v) => form.setData("is_paid", !!v)} />
-              <span>{t("Already paid")}</span>
-            </label>
-            {form.data.is_paid && (
-              <div className="fg-2" style={{ marginTop: 12 }}>
-                <FormField label={t("Payment Date")} name="payment_date" type="date" value={form.data.payment_date} onChange={set("payment_date")} />
-                <FormField label={t("Method")} name="payment_method" value={form.data.payment_method} onChange={set("payment_method")} placeholder={t("Transfer / Cash")} />
-                <FormField span={2} name="payment_note" label={t("Payment Note")}>
-                  <Textarea name="payment_note" rows={2} value={form.data.payment_note} onChange={(e) => form.setData("payment_note", e.target.value)} />
-                </FormField>
-              </div>
-            )}
+          {/* A penalty is always billed on an invoice and paid through the
+              Payment module; this form no longer records payment itself. */}
+          <FormSection label={t("Billing")}>
+            <div role="note" style={{ fontSize: 13, lineHeight: 1.5, color: "var(--muted-foreground)" }}>
+              {billing?.creates_invoice
+                ? t("This reservation is not on an invoice yet. Saving will issue a new invoice in the name of {branch} that bills this penalty.", { branch: billing.branch })
+                : t("This penalty is billed on invoice {number}, next to its reservation.", { number: billing?.invoice_number || "" })}
+              {" "}
+              {t("Money already received for this reservation covers the penalty first; record any further payment in Payments.")}
+            </div>
           </FormSection>
 
           <FormSection label={t("Internal Notes")}>

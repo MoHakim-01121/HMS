@@ -161,24 +161,33 @@ class FinanceViewsTest(TestCase):
     # â”€â”€ Penalty list â”€â”€
 
     def test_penalty_list_render_and_status_filter(self):
+        from hw.finance.penalty_billing import bill_penalty
+        from hw.models import Reservation
         cl_paid = make_cl(
-            hotel_name='Hotel Uji', guest_name='Budi',
-            confirmation_number='CL-FV-001',
+            hotel_name='Hotel Uji', client=self.konoz_client,
+            confirmation_number='CL-FV-001', reservation_status='CANCELLED',
         )
         cl_open = make_cl(
-            hotel_name='Hotel Dua', guest_name='Ani',
-            confirmation_number='CL-FV-002',
+            hotel_name='Hotel Dua', client=self.konoz_client,
+            confirmation_number='CL-FV-002', reservation_status='CANCELLED',
         )
         pen_paid = CancellationPenalty.objects.create(
             cl=cl_paid, penalty_number='PNL-901',
             cancellation_date=date(2026, 3, 1), penalty_amount=1000,
-            is_paid=True,
         )
-        CancellationPenalty.objects.create(
+        invoice, _created = bill_penalty(pen_paid, user=self.user)
+        # Paid or not is derived: money received for the reservation covers its penalty.
+        payment = create_payment_record(
+            invoice=invoice, client=self.konoz_client, payment_date=date(2026, 3, 2),
+            amount=1000, method='transfer', created_by=self.user,
+            reservation=Reservation.objects.get(confirmation_letter=cl_paid),
+        )
+        posting.post_payment(payment, created_by=self.user)
+        pen_open = CancellationPenalty.objects.create(
             cl=cl_open, penalty_number='PNL-902',
             cancellation_date=date(2026, 3, 2), penalty_amount=2000,
-            is_paid=False,
         )
+        bill_penalty(pen_open, user=self.user)
         r = self.client.get(reverse('penalty_list'), {'status': 'paid'})
         props = _props(r)
         ids = [p['id'] for p in props['penalties']]

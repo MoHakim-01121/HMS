@@ -366,9 +366,15 @@ def cl_edit(request, pk):
         errors = _validate_cl(request.POST, exclude_pk=cl.pk)
         billed_on = cl.invoice
         if billed_on and not errors and str(request.POST.get("client_id") or "") != str(cl.client_id):
-            errors["client_id"] = (
+            errors["guest_name"] = (
                 f"This reservation is billed on invoice {billed_on.invoice_number}, "
                 "so its client cannot be changed. Void the invoice first."
+            )
+        new_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
+        if hasattr(cl, 'penalty') and new_status != ReservationStatus.CANCELLED and not errors:
+            errors["reservation_status"] = (
+                f"This reservation has cancellation penalty {cl.penalty.penalty_number}, "
+                "so it stays Cancelled. Remove the penalty first."
             )
         if errors:
             echo = _cl_echo(request.POST); echo["id"] = cl.pk

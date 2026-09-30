@@ -288,6 +288,12 @@ export default function Detail({
                         {r.cl_pk ? <RefChip href={`/cl/${r.cl_pk}/`}>CL</RefChip> : null}
                       </div>
                       <div className="sub ell">{r.hotel}</div>
+                      {r.penalty_int > 0 ? (
+                        <div className="sub">
+                          {t("incl. cancellation penalty {n}", { n: fmt(r.penalty_int) })}
+                          {r.penalty_pk ? <> · <a className="hms-dv-link" href={`/penalty/${r.penalty_pk}/`}>{r.penalty_number}</a></> : null}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="c-stay">
                       <div className="tab nowrap">{fmtStay(a, b) || t("Not set")}</div>
