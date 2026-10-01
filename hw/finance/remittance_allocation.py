@@ -202,9 +202,7 @@ def _position_inputs(remittances):
         ),
         'sent': {k: int(v) for k, v in queries.remittance_sent_map(ids).items()},
         'diff_closed': set(
-            JournalEntry.objects.filter(
-                reference_type='RemittanceDiff', reference_id__in=ids, is_reversal=False,
-            ).exclude(pk__in=reversed_ids).values_list('reference_id', flat=True)
+            JournalEntry.objects.for_source('RemittanceDiff', ids).live().values_list('source_remittance_id', flat=True)
         ),
     }
 
@@ -374,12 +372,7 @@ def create_lines(settlement, validated):
 
 
 def live_allocation_entries(settlement):
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
-    return list(
-        JournalEntry.objects.filter(
-            reference_type=ALLOCATION_SOURCE, reference_id=settlement.pk, is_reversal=False,
-        ).exclude(pk__in=reversed_ids)
-    )
+    return list(JournalEntry.objects.for_source(ALLOCATION_SOURCE, settlement.pk).live())
 
 
 def post_allocation(settlement, validated, *, entry_date, created_by=None):
@@ -401,11 +394,11 @@ def post_allocation(settlement, validated, *, entry_date, created_by=None):
         client = _billing_client(invoice) if invoice else None
         lines.append({
             'account': source, 'credit': v['amount_sar'], 'remittance': remittance.pk,
-            'branch': branch, 'reservation': row['reservation_id'], 'invoice': row['invoice_id'],
+            'branch': branch, 'invoice_line': row['reservation_id'], 'invoice': row['invoice_id'],
             'client': getattr(client, 'pk', None),
         })
     return post_entry(
-        entry_type=JournalEntry.TYPE_REMITTANCE,
+        entry_type=JournalEntry.TYPE_ALLOCATE,
         description=(
             f"Alokasi {remittance.remittance_number} — penerimaan "
             f"{settlement.received_date:%d/%m/%Y}"

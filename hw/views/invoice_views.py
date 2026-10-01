@@ -532,17 +532,14 @@ def invoice_export_csv(request):
     return csv_export_response('invoices_hotel.csv', headers, rows)
 
 
-def _line_has_money(line, column='reservation_id'):
+def _line_has_money(line):
     """Whether money already stands against this invoice line: a payment (or
     one still pending), an allocation, or an active credit note. Such a line
-    cannot leave the invoice; the money has to be moved or reversed first.
-
-    `column` is the key payments and the journal use for this kind of line
-    (reservation_id for a hotel line, service_item_id for a service line)."""
+    cannot leave the invoice; the money has to be moved or reversed first."""
     from ..models.credit_note import CreditNote, CreditNoteLine
     from ..models.payment import PaymentAllocation, PaymentRecord
     open_statuses = (*PaymentRecord.EFFECTIVE_STATUSES, PaymentRecord.STATUS_PENDING)
-    settled = fq.line_settled_sar(**{column: line.pk})
+    settled = fq.line_settled_sar(line.pk)
     return (
         PaymentAllocation.objects.filter(payment__status__in=open_statuses, invoice_line=line).exists()
         or bool(settled)
@@ -550,7 +547,7 @@ def _line_has_money(line, column='reservation_id'):
     )
 
 
-def _line_is_referenced(line, column='reservation_id'):
+def _line_is_referenced(line, column=None):
     """Whether any row points at this line (journal, payments, credit notes).
     A referenced line is voided instead of deleted, so that history keeps its key."""
     from ..models.credit_note import CreditNoteLine
@@ -562,18 +559,18 @@ def _line_is_referenced(line, column='reservation_id'):
             or CreditNoteLine.objects.filter(invoice_line=line).exists()
         )
     return (
-        JournalLine.objects.filter(**{column: line.pk}).exists()
+        JournalLine.objects.filter(invoice_line=line).exists()
         or PaymentAllocation.objects.filter(invoice_line=line).exists()
         or CreditNoteLine.objects.filter(invoice_line=line).exists()
     )
 
 
 def _line_has_service_money(line):
-    return _line_has_money(line, 'service_item_id')
+    return _line_has_money(line)
 
 
 def _line_is_service_referenced(line):
-    return _line_is_referenced(line, 'service_item_id')
+    return _line_is_referenced(line)
 
 
 def _sync_hotel_lines(invoice, cl_ids, user):

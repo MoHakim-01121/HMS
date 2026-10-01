@@ -120,8 +120,8 @@ class SimulationScenarioTest(AllocationBase):
 
     def test_send_entry_is_never_reposted(self):
         self._receive(40000, date(2026, 9, 12), [{'linked_number': 'A', 'amount_sar': 32000}])
-        self.assertFalse(JournalEntry.objects.filter(is_reversal=True).exists())
-        send = JournalEntry.objects.filter(reference_type='Remittance', reference_id=self.rem.pk)
+        self.assertFalse(JournalEntry.objects.filter(reverses__isnull=False).exists())
+        send = JournalEntry.objects.filter(source_remittance=self.rem.pk)
         self.assertEqual(send.count(), 1)
 
     def test_allocation_lines_belong_to_their_receipt(self):

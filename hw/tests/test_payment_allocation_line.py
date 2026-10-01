@@ -46,8 +46,8 @@ class AllocationTargetTest(_Base):
         self.assertEqual((alloc.invoice_line_id, alloc.amount_sar), (self.line.pk, 5000))
         self.assertEqual((alloc.reservation_id, alloc.service_item_id), (self.line.pk, None))
         confirm_payment(p, self.user)
-        credit = JournalLine.objects.get(journal_entry__reference_type='PaymentRecord', credit__gt=0)
-        self.assertEqual((credit.reservation_id, credit.credit), (self.line.pk, 5000))
+        credit = JournalLine.objects.get(journal_entry__source_payment__isnull=False, credit__gt=0)
+        self.assertEqual((credit.invoice_line_id, credit.credit), (self.line.pk, 5000))
 
     def test_service_allocation_posts_the_service_dimension(self):
         svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='SAR', issued_date=date(2026, 3, 1))
@@ -56,8 +56,8 @@ class AllocationTargetTest(_Base):
         p = create_payment_record(svc_inv, self.client_obj, date(2026, 3, 5), 600, method='Transfer',
                                   created_by=self.user, service_item=svc)
         confirm_payment(p, self.user)
-        credit = JournalLine.objects.get(journal_entry__reference_id=p.pk, journal_entry__reference_type='PaymentRecord', credit__gt=0)
-        self.assertEqual((credit.service_item_id, credit.reservation_id), (svc.pk, None))
+        credit = JournalLine.objects.get(journal_entry__source_payment=p.pk, credit__gt=0)
+        self.assertEqual((credit.invoice_line_id, credit.invoice_line.kind), (svc.pk, 'service'))
 
     def test_unallocated_part_stays_without_a_line(self):
         p = self._payment(7000)
@@ -65,8 +65,8 @@ class AllocationTargetTest(_Base):
         confirm_payment(p, self.user)
         from hw.finance import queries as fq
         self.assertEqual(fq.payment_unallocated_sar(p.pk), 2000)
-        credits = JournalLine.objects.filter(journal_entry__reference_id=p.pk, journal_entry__reference_type='PaymentRecord', credit__gt=0)
-        self.assertEqual({c.reservation_id: c.credit for c in credits}, {None: 2000, self.line.pk: 5000})
+        credits = JournalLine.objects.filter(journal_entry__source_payment=p.pk, credit__gt=0)
+        self.assertEqual({c.invoice_line_id: c.credit for c in credits}, {None: 2000, self.line.pk: 5000})
 
     def test_line_with_an_allocation_cannot_be_deleted(self):
         self._payment(reservation=self.line)

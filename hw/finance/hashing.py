@@ -7,19 +7,22 @@ sebelumnya). Mengubah baris mana pun secara retroaktif memutus rantai —
 """
 import hashlib
 import json
+from decimal import Decimal
 
 
 _ENTRY_FIELDS = (
-    "entry_number", "entry_type", "entry_date", "seq",
-    "is_reversal", "reverses_id", "reference_type", "reference_id", "description",
+    "entry_number", "entry_type", "entry_date", "seq", "reverses_id",
+    "source_invoice_id", "source_credit_note_id", "source_payment_id",
+    "source_remittance_id", "source_remittance_settlement_id", "source_expense_id",
+    "source_expense_payment_id", "source_client_refund_id", "source_client_transfer_id",
+    "description",
 )
 # `branch_id` sengaja TIDAK di sini: branch adalah dimensi analitik/pelaporan
 # yang boleh dikoreksi tanpa reversal (sama alasannya dgn JournalEntry.proof).
 # Memasukkannya akan membatalkan semua entry_hash historis.
 _LINE_FIELDS = (
-    "line_no", "account_id", "debit", "credit", "currency",
-    "client_id", "invoice_id", "reservation_id", "service_item_id",
-    "penalty_id", "remittance_id", "note",
+    "line_no", "account_id", "debit", "credit", "currency", "amount_txn", "fx_rate",
+    "client_id", "invoice_id", "invoice_line_id", "penalty_id", "remittance_id", "note",
 )
 
 
@@ -37,6 +40,8 @@ def _entry_payload(entry, line_dicts, prev_hash):
 def _s(v):
     if v is None:
         return None
+    if isinstance(v, Decimal):
+        return f"{v:.8f}"
     if hasattr(v, "isoformat"):
         return v.isoformat()
     return str(v)

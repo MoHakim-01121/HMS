@@ -134,11 +134,11 @@ class PaymentReallocateTest(TestCase):
         reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
         ar_live = JournalLine.objects.filter(
             invoice=self.invoice, account_id=coa.AR, credit__gt=0,
-        ).exclude(journal_entry_id__in=reversed_ids).exclude(journal_entry__is_reversal=True)
+        ).exclude(journal_entry_id__in=reversed_ids).exclude(journal_entry__reverses__isnull=False)
         res_dims = set()
         for ln in ar_live:
-            if ln.reservation_id:
-                res_dims.add((ln.reservation_id, ln.credit))
+            if ln.invoice_line_id:
+                res_dims.add((ln.invoice_line_id, ln.credit))
         self.assertTrue((self.r1.pk, 12000) in res_dims)
         self.assertTrue((self.r2.pk, 8000) in res_dims)
 

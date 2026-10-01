@@ -41,7 +41,7 @@ class RecordExpenseTest(ExpenseBase):
         self.assertEqual(exp.status, Expense.STATUS_POSTED)
         self.assertEqual(exp.outstanding_sar, 1500)
         self.assertEqual(fq.ap_balance(), 1500)
-        je = JournalEntry.objects.get(reference_type='Expense', reference_id=exp.pk)
+        je = JournalEntry.objects.get(source_expense=exp.pk)
         self.assertTrue(je.is_balanced)
         self.assertTrue(all(l.branch_id == 'sby' for l in je.lines.all()))
 

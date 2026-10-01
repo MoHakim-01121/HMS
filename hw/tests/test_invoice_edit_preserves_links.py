@@ -2,7 +2,7 @@
 
 invoice_edit used to delete every Reservation and recreate it from the posted
 form rows. Reservation is the dimension the ledger, the payment allocations and
-the CL "paid" figures all key off (JournalLine.reservation, PaymentAllocation.
+the CL "paid" figures all key off (JournalLine.invoice_line, PaymentAllocation.
 reservation, Reservation.confirmation_letter) -- and all three FKs are
 SET_NULL. So a delete-recreate silently detached the money from the row it was
 paid for, even when nothing about the row changed.
@@ -107,7 +107,7 @@ class InvoiceEditPreservesLinksTest(TestCase):
         self._edit_unchanged()
         self.assertFalse(
             JournalLine.objects.filter(
-                invoice=self.invoice, reservation__isnull=True,
+                invoice=self.invoice, invoice_line__isnull=True,
                 journal_entry__entry_type='payment',
             ).exists(),
             'payment journal lines lost their reservation dimension',

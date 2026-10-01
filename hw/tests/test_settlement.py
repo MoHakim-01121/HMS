@@ -51,7 +51,7 @@ class SettlementFlowTest(SettlementBase):
             self.rmt, received_amount_sar=7000, received_date=date(2026, 4, 5),
             created_by=self.user,
         )
-        je = JournalEntry.objects.get(reference_type='RemittanceSettlement', reference_id=s1.pk)
+        je = JournalEntry.objects.get(source_remittance_settlement=s1.pk)
         self.assertTrue(je.is_balanced)
 
 

@@ -57,7 +57,10 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
                 <TableRow key={l.id}>
                   <TableCell className="font-medium whitespace-nowrap">{l.account_display}</TableCell>
                   <TableCell className="text-muted-foreground">{l.dim || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{l.note || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {l.note || "—"}
+                    {l.native && <div style={{ fontSize: 11.5 }}>{l.native}</div>}
+                  </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {l.amount_sar > 0 ? l.amount_sar.toLocaleString("en-US") : ""}
                   </TableCell>

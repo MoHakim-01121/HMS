@@ -23,6 +23,11 @@ def _scoped(qs, as_of=None):
 
 # ── Invoice ────────────────────────────────────────────────────
 
+_HOTEL = "hotel"
+# Entry yang menyentuh transfer cabang → Pusat: kirim/terima, alokasi penerimaan, selisih.
+REMITTANCE_TYPES = (JournalEntry.TYPE_REMITTANCE, JournalEntry.TYPE_ALLOCATE, JournalEntry.TYPE_REMITTANCE_DIFF)
+
+
 def _ar_qs(**f):
     return JournalLine.objects.filter(account_id=coa.AR, **f)
 
@@ -251,27 +256,26 @@ def mengendap(invoice_ids=None):
 # ── Client ─────────────────────────────────────────────────────
 
 def reservation_paid_map(invoice_id):
-    """{reservation_id: paid_sar} — kredit bersih Piutang per reservasi
-    (payment credit - reversal debit) utk invoice."""
+    """{baris hotel (reservasi): paid_sar} — kredit bersih Piutang per
+    reservasi (payment credit - reversal debit) utk invoice."""
     rows = (
-        _settling(invoice_id=invoice_id, reservation_id__isnull=False)
-        .values("reservation_id").annotate(d=Sum("debit"), c=Sum("credit"))
+        _settling(invoice_id=invoice_id, invoice_line__kind=_HOTEL)
+        .values("invoice_line_id").annotate(d=Sum("debit"), c=Sum("credit"))
     )
-    return {r["reservation_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
+    return {r["invoice_line_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
 
 
-def line_settled_sar(**key):
+def line_settled_sar(line_id):
     """Uang yang sudah melunasi satu baris invoice (kredit bersih Piutang di
-    luar charge dan nota kredit). `key`: reservation_id=… untuk baris hotel,
-    service_item_id=… untuk baris service."""
-    a = _settling(**key).aggregate(d=Sum("debit"), c=Sum("credit"))
+    luar charge dan nota kredit)."""
+    a = _settling(invoice_line_id=line_id).aggregate(d=Sum("debit"), c=Sum("credit"))
     return (a["c"] or 0) - (a["d"] or 0)
 
 
-def line_last_settled_date(**key):
+def line_last_settled_date(line_id):
     """Tanggal pembayaran terakhir pada satu baris invoice (None bila belum ada)."""
     from django.db.models import Max
-    return _settling(**key).filter(credit__gt=0).exclude(
+    return _settling(invoice_line_id=line_id).filter(credit__gt=0).exclude(
         journal_entry_id__in=_reversed_entry_ids(),
     ).aggregate(d=Max("journal_entry__entry_date"))["d"]
 
@@ -285,12 +289,12 @@ def cl_paid_sar_map(letters):
     if not letters:
         return {}
     rows = (
-        _settling(reservation__confirmation_letter_id__in=[cl.pk for cl in letters])
-        .values("reservation__confirmation_letter_id")
+        _settling(invoice_line__confirmation_letter_id__in=[cl.pk for cl in letters])
+        .values("invoice_line__confirmation_letter_id")
         .annotate(d=Sum("debit"), c=Sum("credit"))
     )
     by_cl = {
-        r["reservation__confirmation_letter_id"]: (r["c"] or 0) - (r["d"] or 0)
+        r["invoice_line__confirmation_letter_id"]: (r["c"] or 0) - (r["d"] or 0)
         for r in rows
     }
     return {cl.pk: by_cl.get(cl.pk, 0) for cl in letters}
@@ -353,13 +357,12 @@ def client_reservation_ids(client_id):
 
     Pengganti pembacaan Charge (tabel legacy, tidak lagi ditulis oleh alur
     billing sejak jurnal jadi system of record): reservasi seorang client
-    adalah yang pernah muncul ber-dimensi `reservation` pada baris jurnal
-    ber-dimensi `client` yang bersangkutan."""
+    adalah baris hotel yang pernah muncul pada baris jurnal ber-dimensi
+    `client` yang bersangkutan."""
     return set(
-        JournalLine.objects.exclude(reservation_id=None)
-        .filter(client_id=client_id)
+        JournalLine.objects.filter(client_id=client_id, invoice_line__kind=_HOTEL)
         .exclude(journal_entry_id__in=_reversed_entry_ids())
-        .values_list("reservation_id", flat=True)
+        .values_list("invoice_line_id", flat=True)
     )
 
 
@@ -369,7 +372,7 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
     qs = _scoped(
         JournalLine.objects.filter(
             client_id=client_id, account_id__in=[coa.AR, coa.CUST_CREDIT],
-        ).select_related("journal_entry", "account", "invoice", "reservation__confirmation_letter__hotel"),
+        ).select_related("journal_entry", "account", "invoice", "invoice_line__confirmation_letter__hotel"),
         as_of=as_of,
     ).order_by("journal_entry__entry_date", "journal_entry__created_at", "line_no")
     if date_from:
@@ -381,6 +384,7 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
     reversed_ids = set(_reversed_entry_ids())
     for ln in qs:
         e = ln.journal_entry
+        res = ln.invoice_line if ln.invoice_line_id and ln.invoice_line.kind == _HOTEL else None
         balance += ln.debit - ln.credit
         rows.append({
             "date": e.entry_date,
@@ -391,10 +395,10 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
             "account": ln.account_id,
             "account_name": ln.account.name,
             "invoice_number": ln.invoice.invoice_number if ln.invoice_id else None,
-            "reservation_id": ln.reservation_id,
-            "reservation_number": ln.reservation.reservation_number if ln.reservation_id else None,
-            "hotel": ln.reservation.hotel if ln.reservation_id else None,
-            "check_in": ln.reservation.check_in if ln.reservation_id else None,
+            "reservation_id": res.pk if res else None,
+            "reservation_number": res.reservation_number if res else None,
+            "hotel": res.hotel if res else None,
+            "check_in": res.check_in if res else None,
             "debit": ln.debit,
             "credit": ln.credit,
             "balance": balance,
@@ -850,9 +854,9 @@ def branch_expense_sar(branch_code, *, date_from=None, date_to=None):
     return _net(qs)
 
 
-def mengendap_per_reservation(reservation_id):
+def mengendap_per_reservation(line_id):
     """Kas Surabaya yang menempel pada reservasi ini (belum diremit)."""
-    return _net(JournalLine.objects.filter(reservation_id=reservation_id, account_id=coa.CASH_SBY))
+    return _net(JournalLine.objects.filter(invoice_line_id=line_id, account_id=coa.CASH_SBY))
 
 
 def total_allocated():
@@ -893,8 +897,8 @@ def _sent_lines(**f):
     return (
         JournalLine.objects.filter(account_id=coa.TRANSIT, **f)
         .exclude(journal_entry_id__in=_reversed_entry_ids())
-        .exclude(journal_entry__is_reversal=True)
-        .exclude(journal_entry__reference_type="RemittanceDiff")
+        .exclude(journal_entry__reverses__isnull=False)
+        .exclude(journal_entry__entry_type=JournalEntry.TYPE_REMITTANCE_DIFF)
     )
 
 
@@ -916,8 +920,8 @@ def remittance_has_live_entries(remittance_id):
     return (
         JournalLine.objects.filter(
             remittance_id=remittance_id,
-            journal_entry__entry_type=JournalEntry.TYPE_REMITTANCE,
-            journal_entry__is_reversal=False,
+            journal_entry__entry_type__in=REMITTANCE_TYPES,
+            journal_entry__reverses__isnull=True,
         ).exclude(journal_entry_id__in=_reversed_entry_ids()).exists()
     )
 
@@ -927,10 +931,10 @@ def selisih_kurs():
     return _net(JournalLine.objects.filter(account_id=coa.FX_CLEARING))
 
 
-def piutang(reservation_id):
-    """Sisa piutang satu reservasi = net baris Piutang ber-dimensi reservasi
-    (charge debit - payment credit) yang masih hidup."""
-    return _net(_ar_qs(reservation_id=reservation_id).exclude(
+def piutang(line_id):
+    """Sisa piutang satu baris invoice = net baris Piutang ber-dimensi baris
+    itu (charge debit - payment credit) yang masih hidup."""
+    return _net(_ar_qs(invoice_line_id=line_id).exclude(
         journal_entry_id__in=_reversed_entry_ids(),
     ))
 
@@ -941,21 +945,22 @@ def reservation_cash_breakdown():
     sudah_dikirim, mengendap, mengendap_jkt}} — derivasi dari JournalLine
     (payment legs ke kas + remittance send credit kas cabang per reservasi)."""
     from collections import defaultdict
-    qs = JournalLine.objects.exclude(reservation_id=None).exclude(
+    qs = JournalLine.objects.filter(invoice_line__kind=_HOTEL).exclude(
         journal_entry_id__in=_reversed_entry_ids(),
     )
 
     pay = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_PAYMENT, debit__gt=0)
-           .values("reservation_id", "account_id").annotate(d=Sum("debit")))
-    send = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_REMITTANCE)
-            .values("reservation_id", "account_id").annotate(c=Sum("credit")))
+           .values("invoice_line_id", "account_id").annotate(d=Sum("debit")))
+    # Uang reservasi yang sudah sampai di Pusat: alokasi penerimaan transfer.
+    send = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_ALLOCATE)
+            .values("invoice_line_id", "account_id").annotate(c=Sum("credit")))
 
     out = defaultdict(lambda: {
         "terbayar_sby": 0, "terbayar_jkt": 0, "terbayar_direct": 0,
         "sent_from_sby": 0, "sent_from_jkt": 0,
     })
     for r in pay:
-        rid = r["reservation_id"]
+        rid = r["invoice_line_id"]
         if r["account_id"] == coa.CASH_SBY:
             out[rid]["terbayar_sby"] += r["d"]
         elif r["account_id"] == coa.CASH_JKT:
@@ -963,7 +968,7 @@ def reservation_cash_breakdown():
         elif r["account_id"] == coa.CASH_PUSAT:
             out[rid]["terbayar_direct"] += r["d"]
     for r in send:
-        rid = r["reservation_id"]
+        rid = r["invoice_line_id"]
         if r["account_id"] == coa.CASH_SBY:
             out[rid]["sent_from_sby"] += r["c"]
         elif r["account_id"] == coa.CASH_JKT:
@@ -989,11 +994,11 @@ def reservation_first_payment_date_map(reservation_numbers):
     if not reservation_numbers:
         return {}
     rows = (
-        _settling(reservation__confirmation_letter__confirmation_number__in=list(reservation_numbers))
-        .values("reservation__confirmation_letter__confirmation_number")
+        _settling(invoice_line__confirmation_letter__confirmation_number__in=list(reservation_numbers))
+        .values("invoice_line__confirmation_letter__confirmation_number")
         .annotate(first=Min("journal_entry__entry_date"))
     )
-    return {r["reservation__confirmation_letter__confirmation_number"]: r["first"] for r in rows}
+    return {r["invoice_line__confirmation_letter__confirmation_number"]: r["first"] for r in rows}
 
 
 def reservation_remittance_map(linked_numbers=None):

@@ -130,5 +130,5 @@ def penalty_state(penalty):
         return {**unbilled, 'invoice': invoice}
     due, paid = row['penalty_due'], row['penalty_paid']
     is_paid = paid >= due
-    paid_on = queries.line_last_settled_date(reservation_id=row['line'].pk) if is_paid and due > 0 else None
+    paid_on = queries.line_last_settled_date(row['line'].pk) if is_paid and due > 0 else None
     return {'invoice': invoice, 'due': due, 'paid': paid, 'is_paid': is_paid, 'paid_on': paid_on}

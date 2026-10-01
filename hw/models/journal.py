@@ -1,5 +1,7 @@
 from django.db import models
 
+from .currency import CURRENCY_CODES
+
 
 class ImmutableLedgerError(Exception):
     """Percobaan UPDATE/DELETE pada baris ledger append-only."""
@@ -80,6 +82,41 @@ class LedgerAccount(models.Model):
         return f"{self.code} | {self.name}"
 
 
+SOURCE_COLUMNS = (
+    'source_invoice', 'source_credit_note', 'source_payment', 'source_remittance',
+    'source_remittance_settlement', 'source_expense', 'source_expense_payment',
+    'source_client_refund', 'source_client_transfer', 'reverses',
+)
+
+
+def _at_most_one_source():
+    condition = models.Q(**{f'{f}__isnull': True for f in SOURCE_COLUMNS})
+    for f in SOURCE_COLUMNS:
+        condition |= models.Q(**{f'{f}__isnull': False}) & models.Q(
+            **{f'{o}__isnull': True for o in SOURCE_COLUMNS if o != f}
+        )
+    return condition
+
+
+class JournalEntryQuerySet(models.QuerySet):
+    def for_source(self, source_type, source_id):
+        """Entry yang bersumber dari dokumen ini. `source_id` boleh daftar id."""
+        name, entry_type = JournalEntry.SOURCE_ALIASES.get(source_type, (source_type, None))
+        field = JournalEntry.SOURCE_FIELDS[name]
+        if isinstance(source_id, (list, tuple, set, models.QuerySet)):
+            qs = self.filter(**{f'{field}_id__in': source_id})
+        else:
+            qs = self.filter(**{f'{field}_id': source_id})
+        if entry_type is not None:
+            return qs.filter(entry_type=entry_type)
+        aliased = [t for base, t in JournalEntry.SOURCE_ALIASES.values() if base == name]
+        return qs.exclude(entry_type__in=aliased) if aliased else qs
+
+    def live(self):
+        """Bukan pembalik dan belum dibalik."""
+        return self.filter(reverses__isnull=True, reversed_by__isnull=True)
+
+
 class JournalEntry(AppendOnlyModel):
     """Immutable journal entry. Setiap entry harus balance: SUM(lines) = 0.
 
@@ -97,6 +134,7 @@ class JournalEntry(AppendOnlyModel):
     TYPE_REVERSAL   = 'reversal'
     TYPE_ADJUSTMENT = 'adjustment'
     TYPE_CREDIT_NOTE = 'credit_note'
+    TYPE_REMITTANCE_DIFF = 'remittance_diff'
     TYPE_CHOICES = [
         (TYPE_CHARGE,     'Charge'),
         (TYPE_PAYMENT,    'Payment'),
@@ -109,7 +147,29 @@ class JournalEntry(AppendOnlyModel):
         (TYPE_REVERSAL,   'Reversal'),
         (TYPE_ADJUSTMENT, 'Adjustment'),
         (TYPE_CREDIT_NOTE, 'Credit note'),
+        (TYPE_REMITTANCE_DIFF, 'Remittance difference'),
     ]
+
+    # Dokumen sumber -> kolom FK-nya. Satu entry punya paling banyak satu
+    # sumber; entry pembalik tidak punya sumber (ia menunjuk `reverses`).
+    SOURCE_FIELDS = {
+        'Invoice':              'source_invoice',
+        'CreditNote':           'source_credit_note',
+        'PaymentRecord':        'source_payment',
+        'Remittance':           'source_remittance',
+        'RemittanceSettlement': 'source_remittance_settlement',
+        'Expense':              'source_expense',
+        'ExpensePayment':       'source_expense_payment',
+        'ClientRefund':         'source_client_refund',
+        'ClientTransfer':       'source_client_transfer',
+    }
+    # Jenis entry yang punya nama sumber sendiri walau dokumennya sama:
+    # selisih penerimaan transfer (sumber Remittance) dan alokasi penerimaan
+    # Pusat ke reservasi (sumber RemittanceSettlement).
+    SOURCE_ALIASES = {
+        'RemittanceDiff':       ('Remittance', TYPE_REMITTANCE_DIFF),
+        'RemittanceAllocation': ('RemittanceSettlement', TYPE_ALLOCATE),
+    }
 
     entry_number   = models.CharField(max_length=50, unique=True, db_index=True)
     entry_type     = models.CharField(max_length=20, choices=TYPE_CHOICES)
@@ -119,15 +179,21 @@ class JournalEntry(AppendOnlyModel):
     # Nomor urut monoton tanpa gap (diisi post_entry()).
     seq            = models.BigIntegerField(null=True, blank=True, db_index=True)
 
-    # Referensi ke sumber data (polymorphic) + idempotency
-    reference_type  = models.CharField(max_length=50, blank=True)
-    reference_id    = models.PositiveIntegerField(null=True, blank=True)
     idempotency_key = models.CharField(max_length=120, unique=True, null=True, blank=True)
 
-    # Reversal tracking
-    is_reversal    = models.BooleanField(default=False)
-    reversed_by    = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='reversed_entries')
-    reverses       = models.ForeignKey('self', null=True, blank=True, on_delete=models.PROTECT, related_name='reversals_of')
+    # Dokumen sumber (paling banyak satu terisi), lihat SOURCE_FIELDS.
+    source_invoice               = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_credit_note           = models.ForeignKey('CreditNote', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_payment               = models.ForeignKey('PaymentRecord', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_remittance            = models.ForeignKey('Remittance', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_remittance_settlement = models.ForeignKey('RemittanceSettlement', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_expense               = models.ForeignKey('Expense', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_expense_payment       = models.ForeignKey('ExpensePayment', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
+    source_client_refund         = models.OneToOneField('ClientRefund', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entry')
+    source_client_transfer       = models.OneToOneField('ClientTransfer', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entry')
+
+    # Entry pembalik menunjuk entry yang dibaliknya; dibalik paling banyak sekali.
+    reverses       = models.OneToOneField('self', null=True, blank=True, on_delete=models.PROTECT, related_name='reversed_by')
 
     # Tamper-evidence: rantai hash antar entry (diisi post_entry()).
     prev_hash      = models.CharField(max_length=64, blank=True)
@@ -144,14 +210,20 @@ class JournalEntry(AppendOnlyModel):
     # tidak ikut entry_hash, jadi append-only tetap berlaku.
     proof = models.FileField(upload_to='ledger/proof/', null=True, blank=True)
 
+    objects = JournalEntryQuerySet.as_manager()
+
     class Meta:
         ordering            = ['entry_date', 'created_at']
         verbose_name        = 'Journal Entry'
         verbose_name_plural = 'Journal Entries'
         constraints = [
+            models.CheckConstraint(condition=_at_most_one_source(), name='journal_entry_one_source'),
             models.CheckConstraint(
-                condition=models.Q(reference_type='') | models.Q(reference_id__isnull=False),
-                name='journal_entry_ref_requires_id',
+                condition=models.Q(entry_type__in=[
+                    'charge', 'payment', 'allocate', 'transfer', 'refund', 'penalty', 'remittance',
+                    'expense', 'reversal', 'adjustment', 'credit_note', 'remittance_diff',
+                ]),
+                name='journal_entry_type_valid',
             ),
             models.UniqueConstraint(
                 fields=['seq'], name='journal_entry_seq_uniq',
@@ -164,6 +236,34 @@ class JournalEntry(AppendOnlyModel):
 
     def __str__(self):
         return f"{self.entry_number} | {self.get_entry_type_display()} | {self.description}"
+
+    @property
+    def is_reversal(self):
+        return self.reverses_id is not None
+
+    @property
+    def source_type(self):
+        """Nama sumber ('Invoice', 'RemittanceDiff', ...), 'JournalEntry' untuk
+        entry pembalik, '' untuk jurnal manual."""
+        if self.reverses_id is not None:
+            return 'JournalEntry'
+        for name, field in self.SOURCE_FIELDS.items():
+            if getattr(self, f'{field}_id') is not None:
+                for alias, (base, entry_type) in self.SOURCE_ALIASES.items():
+                    if base == name and self.entry_type == entry_type:
+                        return alias
+                return name
+        return ''
+
+    @property
+    def source_id(self):
+        if self.reverses_id is not None:
+            return self.reverses_id
+        for field in self.SOURCE_FIELDS.values():
+            value = getattr(self, f'{field}_id')
+            if value is not None:
+                return value
+        return None
 
     @property
     def total_debit(self):
@@ -182,7 +282,8 @@ class JournalEntry(AppendOnlyModel):
 class JournalLine(AppendOnlyModel):
     """Satu kaki dari journal entry — debit XOR credit, non-negatif.
 
-    Invariant per journal_entry per currency: SUM(debit) == SUM(credit).
+    Invariant per journal_entry: SUM(debit) == SUM(credit), dalam SAR.
+    `currency` adalah mata uang transaksi; `amount_txn` nominal aslinya.
     `amount_sar` (signed) tersedia sebagai property untuk kode pembaca lama.
     """
 
@@ -192,21 +293,22 @@ class JournalLine(AppendOnlyModel):
 
     debit         = models.BigIntegerField(default=0)   # SAR minor units, >= 0
     credit        = models.BigIntegerField(default=0)   # SAR minor units, >= 0
-    currency      = models.CharField(max_length=3, default='SAR')
+    currency      = models.CharField(max_length=3, default='SAR')   # mata uang transaksi
 
-    # Jejak mata uang asal (opsional)
-    orig_amount   = models.BigIntegerField(null=True, blank=True)
-    orig_currency = models.CharField(max_length=3, blank=True)
+    # Nominal asli dalam `currency` dan kursnya (baris kas/bank non-SAR).
+    amount_txn    = models.BigIntegerField(null=True, blank=True)
     fx_rate       = models.DecimalField(max_digits=18, decimal_places=8, null=True, blank=True)
 
     # Dimensi analitik — snapshot, salah satu atau lebih bisa null
     branch        = models.ForeignKey('Branch', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     client        = models.ForeignKey('Client', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
     invoice       = models.ForeignKey('Invoice', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
-    reservation   = models.ForeignKey('Reservation', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    service_item  = models.ForeignKey('ServiceItem', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    penalty       = models.ForeignKey('CancellationPenalty', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
-    remittance    = models.ForeignKey('Remittance', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    # Baris invoice yang ditagih / dibayar: baris hotel (reservasi) atau
+    # baris Services. Denda dicatat di baris hotel reservasinya, ditandai
+    # `penalty` (uang reservasi menutup dendanya lebih dulu).
+    invoice_line  = models.ForeignKey('InvoiceLine', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    penalty       = models.ForeignKey('CancellationPenalty', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    remittance    = models.ForeignKey('Remittance', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
 
     note          = models.CharField(max_length=255, blank=True)
 
@@ -227,13 +329,22 @@ class JournalLine(AppendOnlyModel):
             models.UniqueConstraint(
                 fields=['journal_entry', 'line_no'], name='journal_line_no_uniq',
             ),
+            models.CheckConstraint(
+                condition=models.Q(amount_txn__isnull=True) | models.Q(amount_txn__gt=0),
+                name='journal_line_amount_txn_positive',
+            ),
+            models.CheckConstraint(condition=models.Q(currency__in=CURRENCY_CODES), name='journal_line_currency_valid'),
+            models.CheckConstraint(
+                condition=models.Q(penalty__isnull=True) | models.Q(invoice_line__isnull=False),
+                name='journal_line_penalty_on_line',
+            ),
         ]
         indexes = [
             models.Index(fields=['account', 'client'], name='journal_acct_client_idx'),
             models.Index(fields=['branch', 'account'], name='journal_branch_acct_idx'),
             models.Index(fields=['account', 'invoice'], name='journal_acct_invoice_idx'),
             models.Index(fields=['client', 'account'], name='journal_client_acct_idx'),
-            models.Index(fields=['reservation', 'account'], name='journal_res_acct_idx'),
+            models.Index(fields=['invoice_line', 'account'], name='journal_line_acct_idx'),
         ]
 
     def __str__(self):

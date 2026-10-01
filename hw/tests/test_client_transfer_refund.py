@@ -149,8 +149,8 @@ class RefundTransferViewTest(TestCase):
         # res_a turun 100000→70000, res_b naik 40000→70000.
         entries = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_TRANSFER)
         self.assertEqual(entries.count(), 1)
-        self.assertEqual(_net(account_id=coa.AR, reservation=self.res_a), 70000)
-        self.assertEqual(_net(account_id=coa.AR, reservation=self.res_b), 70000)
+        self.assertEqual(_net(account_id=coa.AR, invoice_line=self.res_a), 70000)
+        self.assertEqual(_net(account_id=coa.AR, invoice_line=self.res_b), 70000)
         # Total piutang client tidak berubah (tetap 140000 dari charge 100000+40000).
         self.assertEqual(_net(account_id=coa.AR, client=self.client_obj.pk), 140000)
 

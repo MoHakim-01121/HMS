@@ -409,10 +409,7 @@ def payment_detail(request, pk):
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
 
     # Get related journal entries
-    journal_entries = JournalEntry.objects.filter(
-        reference_type='PaymentRecord',
-        reference_id=payment.pk,
-    ).order_by('-entry_date')
+    journal_entries = JournalEntry.objects.for_source('PaymentRecord', payment.pk).order_by('-entry_date')
 
     # Reservations for post-hoc allocation (unallocated payment). Filter to the
     # payment's own invoice only, so a user can't allocate a payment to a
@@ -876,13 +873,9 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
                 f'Payment {payment.payment_number} sudah {payment.display_status_label}.'
             )
         old_state = _payment_snapshot(payment)
-        reversed_ids = JournalEntry.objects.filter(
-            reverses__isnull=False,
-        ).values_list('reverses_id', flat=True)
-        journals = JournalEntry.objects.filter(
-            reference_type='PaymentRecord', reference_id=payment.pk,
-            entry_type__in=[JournalEntry.TYPE_PAYMENT], is_reversal=False,
-        ).exclude(pk__in=reversed_ids)
+        journals = JournalEntry.objects.for_source('PaymentRecord', payment.pk).filter(
+            entry_type=JournalEntry.TYPE_PAYMENT,
+        ).live()
         for journal in journals:
             reverse_journal_entry(journal, reversal_date, user, note=journal_note)
 

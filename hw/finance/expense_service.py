@@ -14,7 +14,7 @@ from ..models.journal import JournalEntry
 from ..utils import convert_to_sar
 from . import accounts as coa
 from .errors import FinanceError
-from .posting import get_period_for_date, post_entry, reverse_entry
+from .posting import native, get_period_for_date, post_entry, reverse_entry
 
 
 def _sar(amount, currency, rate):
@@ -22,12 +22,14 @@ def _sar(amount, currency, rate):
 
 
 def _live_entries(source_type, source_id):
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
-    return list(
-        JournalEntry.objects.filter(
-            reference_type=source_type, reference_id=source_id, is_reversal=False,
-        ).exclude(pk__in=reversed_ids)
-    )
+    return list(JournalEntry.objects.for_source(source_type, source_id).live())
+
+
+def _txn(expense, amount):
+    """Nominal asli baris beban non-SAR."""
+    if expense.currency == 'SAR':
+        return {}
+    return {'currency': expense.currency, 'amount_txn': int(amount)}
 
 
 def resolve_vendor(vendor):
@@ -105,10 +107,11 @@ def _post_accrual(expense, created_by):
     br = expense.branch_id
     lines = [
         {'account': ln.account_code, 'debit': ln.amount_sar, 'branch': br,
-         'note': ln.description or ln.category.name}
+         'note': ln.description or ln.category.name, **_txn(expense, ln.amount)}
         for ln in expense.lines.all() if ln.amount_sar
     ]
-    lines.append({'account': coa.AP, 'credit': expense.total_amount_sar, 'branch': br})
+    lines.append({'account': coa.AP, 'credit': expense.total_amount_sar, 'branch': br,
+                  **_txn(expense, expense.total_amount)})
     return post_entry(
         entry_type=JournalEntry.TYPE_EXPENSE,
         description=f"Expense {expense.expense_number} — {expense.vendor or expense.description}",
@@ -157,7 +160,8 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
         entry_date=payment_date,
         lines=[
             {'account': coa.AP, 'debit': amt_sar, 'branch': expense.branch_id},
-            {'account': src.ledger_account_id, 'credit': amt_sar, 'branch': src.branch_id},
+            {'account': src.ledger_account_id, 'credit': amt_sar, 'branch': src.branch_id,
+             **native(src, amount, exchange_rate)},
         ],
         source_type='ExpensePayment',
         source_id=ep.pk,

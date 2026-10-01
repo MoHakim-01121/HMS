@@ -17,6 +17,13 @@ dipanggil dari form manual yang tak pernah dipakai. Lihat migration 0102.
 from django.db import models
 
 
+class LiveSettlementManager(models.Manager):
+    """Penerimaan yang berlaku (yang dibatalkan tidak dihitung di mana pun)."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(voided_at__isnull=True)
+
+
 class RemittanceSettlement(models.Model):
     """Satu tanda terima aktual di pusat untuk sebagian/seluruh sebuah Remittance.
 
@@ -31,8 +38,15 @@ class RemittanceSettlement(models.Model):
     note                 = models.TextField(blank=True)
     created_by           = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
     created_at            = models.DateTimeField(auto_now_add=True)
+    # Penerimaan yang salah catat dibatalkan, tidak dihapus: jurnalnya (dan
+    # pembaliknya) tetap menunjuk dokumen ini.
+    voided_at             = models.DateTimeField(null=True, blank=True)
+
+    objects = LiveSettlementManager()
+    all_objects = models.Manager()
 
     class Meta:
+        base_manager_name = 'all_objects'
         ordering = ['received_date', 'id']
         verbose_name = 'Remittance Settlement'
         verbose_name_plural = 'Remittance Settlements'

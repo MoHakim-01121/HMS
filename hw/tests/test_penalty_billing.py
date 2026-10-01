@@ -148,7 +148,7 @@ class PenaltyLineRulesTest(_Base):
         hotel_line = InvoiceLine.objects.get(invoice=self.inv, kind='hotel')
         ar = JournalLine.objects.filter(penalty=self.pen, account_id=fq.coa.AR, debit__gt=0).latest('pk')
         income = JournalLine.objects.filter(penalty=self.pen, account_id=fq.coa.INC_PENALTY).latest('pk')
-        self.assertEqual((ar.reservation_id, ar.invoice_id, ar.branch_id), (hotel_line.pk, self.inv.pk, 'sby'))
+        self.assertEqual((ar.invoice_line_id, ar.invoice_id, ar.branch_id), (hotel_line.pk, self.inv.pk, 'sby'))
         self.assertEqual((income.credit, income.branch_id), (4_000, 'pusat'))
 
     def test_changing_the_amount_reposts_once(self):

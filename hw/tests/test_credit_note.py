@@ -64,7 +64,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(queries.total_charged([inv.pk]), 10_000)
         self.assertFalse(inv.is_fully_paid)                  # part paid (and past due by now)
         # Revenue reduced on the same branch dimension as the charge (HQ).
-        dr = JournalLine.objects.get(journal_entry__reference_type='CreditNote', account_id=coa.INC_HOTEL)
+        dr = JournalLine.objects.get(journal_entry__source_credit_note__isnull=False, account_id=coa.INC_HOTEL)
         self.assertEqual((dr.debit, dr.branch_id), (8_000, coa.HQ_BRANCH))
 
     def test_credit_beyond_open_goes_to_client_deposit(self):

@@ -18,7 +18,6 @@ class ClientRefund(models.Model):
     amount_paid   = models.PositiveIntegerField()      # yang benar-benar keluar dari rekening
     note          = models.TextField(blank=True)
     proof         = models.FileField(upload_to='refunds/proof/', null=True, blank=True)
-    journal_entry = models.OneToOneField('JournalEntry', on_delete=models.PROTECT, related_name='+')
     created_by    = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at    = models.DateTimeField(auto_now_add=True)
 
@@ -48,7 +47,6 @@ class ClientTransfer(models.Model):
     transfer_date   = models.DateField()
     amount_sar      = models.PositiveIntegerField()
     note            = models.TextField(blank=True)
-    journal_entry   = models.OneToOneField('JournalEntry', on_delete=models.PROTECT, related_name='+')
     created_by      = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at      = models.DateTimeField(auto_now_add=True)
 

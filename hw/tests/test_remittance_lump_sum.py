@@ -26,8 +26,8 @@ def _net(**f):
 def _live_remittance_entries(rem):
     reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
     return JournalEntry.objects.filter(
-        reference_type="Remittance", reference_id=rem.pk,
-        entry_type=JournalEntry.TYPE_REMITTANCE, is_reversal=False,
+        source_remittance=rem.pk,
+        entry_type=JournalEntry.TYPE_REMITTANCE, reverses__isnull=True,
     ).exclude(pk__in=reversed_ids)
 
 

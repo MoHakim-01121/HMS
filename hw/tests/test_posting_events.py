@@ -152,7 +152,7 @@ class KasMovementTests(PostingTestBase):
             amount_sar=30000, created_by=self.user, entry_date=date(2045, 4, 1),
         )
         self.assertEqual(_net(account_id=coa.AR, client_id=self.client_obj.pk), before)
-        self.assertEqual(_net(account_id=coa.AR, reservation=r2), 30000)
+        self.assertEqual(_net(account_id=coa.AR, invoice_line=r2), 30000)
 
     def test_remittance_send_then_receive_with_fee(self):
         from hw.finance import settlement_service
@@ -223,9 +223,9 @@ class RemittanceResyncTests(PostingTestBase):
     def test_resync_is_idempotent_by_content(self):
         rmt = self._remittance()
         posting.resync_remittance(rmt, created_by=self.user)
-        total_after_first = JournalEntry.objects.filter(reference_id=rmt.pk).count()
+        total_after_first = JournalEntry.objects.filter(source_remittance=rmt.pk).count()
         posting.resync_remittance(rmt, created_by=self.user)
-        self.assertEqual(JournalEntry.objects.filter(reference_id=rmt.pk).count(), total_after_first)
+        self.assertEqual(JournalEntry.objects.filter(source_remittance=rmt.pk).count(), total_after_first)
 
     def test_changing_the_amount_reposts_the_send_leg(self):
         rmt = self._remittance()

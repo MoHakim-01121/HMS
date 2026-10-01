@@ -86,7 +86,7 @@ class InvoiceSaveDoesNotWipePaymentsTest(PaymentGuardBase):
     def test_edit_without_payments_key_leaves_payments_untouched(self):
         invoice, payment = self._create_invoice_with_payment()
         before_status = payment.status
-        reversals_before = JournalEntry.objects.filter(is_reversal=True).count()
+        reversals_before = JournalEntry.objects.filter(reverses__isnull=False).count()
 
         resp = self.client.post(f'/invoice/{invoice.pk}/edit/', self._edit_payload(invoice))
         self.assertEqual(resp.status_code, 302)
@@ -95,7 +95,7 @@ class InvoiceSaveDoesNotWipePaymentsTest(PaymentGuardBase):
         self.assertEqual(payment.status, before_status)
         self.assertNotEqual(payment.status, PaymentRecord.STATUS_REVERSED)
         self.assertEqual(
-            JournalEntry.objects.filter(is_reversal=True).count(), reversals_before,
+            JournalEntry.objects.filter(reverses__isnull=False).count(), reversals_before,
             'an edit that submits no payment list must post no reversal',
         )
 
@@ -204,7 +204,7 @@ class PaymentDoubleSubmitTest(PaymentGuardBase):
     def _live_payment_entries(self, payment):
         reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
         return JournalEntry.objects.filter(
-            reference_type='PaymentRecord', reference_id=payment.pk, is_reversal=False,
+            source_payment=payment.pk, reverses__isnull=True,
         ).exclude(pk__in=reversed_ids).count()
 
     def test_stale_second_retire_is_refused(self):
@@ -218,13 +218,13 @@ class PaymentDoubleSubmitTest(PaymentGuardBase):
             payment, status=PaymentRecord.STATUS_REVERSED, action=PaymentLog.ACTION_REVERSED,
             reversal_date=date(2026, 1, 6), journal_note='first', user=self.user,
         )
-        reversals = JournalEntry.objects.filter(is_reversal=True).count()
+        reversals = JournalEntry.objects.filter(reverses__isnull=False).count()
 
         with self.assertRaises(FinanceError):
             _retire_payment(
                 stale, status=PaymentRecord.STATUS_VOIDED, action=PaymentLog.ACTION_VOIDED,
                 reversal_date=date(2026, 1, 6), journal_note='second', user=self.user,
             )
-        self.assertEqual(JournalEntry.objects.filter(is_reversal=True).count(), reversals)
+        self.assertEqual(JournalEntry.objects.filter(reverses__isnull=False).count(), reversals)
         payment.refresh_from_db()
         self.assertEqual(payment.status, PaymentRecord.STATUS_REVERSED)

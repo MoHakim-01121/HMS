@@ -5,6 +5,7 @@ barisnya, balance per currency, dengan seq monoton + rantai hash +
 idempotency. Semua fungsi posting per-event (Fase 3) dibangun di atasnya.
 """
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
@@ -22,7 +23,8 @@ from .hashing import entry_hash
 
 logger = logging.getLogger(__name__)
 
-_DIMS = ("branch", "client", "invoice", "reservation", "service_item", "penalty", "remittance")
+_DIMS = ("branch", "client", "invoice", "invoice_line", "penalty", "remittance")
+_FX_PLACES = Decimal("0.00000001")
 
 
 class MissingDimensionError(FinanceError):
@@ -86,28 +88,59 @@ def _norm_line(spec, line_no):
         "account_id": code,
         "debit": debit,
         "credit": credit,
-        "currency": spec.get("currency", "SAR"),
-        "orig_amount": spec.get("orig_amount"),
-        "orig_currency": spec.get("orig_currency", ""),
-        "fx_rate": spec.get("fx_rate"),
+        "currency": spec.get("currency") or "SAR",
+        "amount_txn": spec.get("amount_txn"),
+        "fx_rate": _fx(spec.get("fx_rate")),
         "note": spec.get("note", ""),
     }
     for dim in _DIMS:
         v = spec.get(dim)
         row[f"{dim}_id"] = getattr(v, "pk", v)
+    if row["invoice_line_id"] is not None:
+        from ..models.invoice import InvoiceLine
+        line_invoice = InvoiceLine.objects.filter(pk=row["invoice_line_id"]).values_list("invoice_id", flat=True).first()
+        if row["invoice_id"] is None:
+            row["invoice_id"] = line_invoice
+        elif row["invoice_id"] != line_invoice:
+            raise FinanceError(f"Baris {line_no}: baris invoice {row['invoice_line_id']} bukan milik invoice {row['invoice_id']}")
     return row
 
 
+def _fx(rate):
+    """Kurs disimpan 8 desimal; dibulatkan di sini supaya yang di-hash sama
+    dengan yang tersimpan."""
+    if rate in (None, ""):
+        return None
+    return Decimal(str(rate)).quantize(_FX_PLACES, rounding=ROUND_HALF_UP)
+
+
+def native(account, amount, rate=None):
+    """Kolom nominal asli untuk kaki kas/bank `account` (kosong untuk SAR)."""
+    if account.currency == "SAR" or not amount:
+        return {}
+    return {"currency": account.currency, "amount_txn": int(amount), "fx_rate": rate}
+
+
+def _split_native(total_native, parts):
+    """Bagi nominal asli `total_native` sebanding dengan `parts` (SAR); sisa
+    pembulatan masuk bagian terakhir."""
+    total = sum(parts)
+    if not total:
+        return [0 for _ in parts]
+    out, used = [], 0
+    for i, p in enumerate(parts):
+        share = total_native - used if i == len(parts) - 1 else int(round(total_native * p / total))
+        out.append(share)
+        used += share
+    return out
+
+
 def _validate_balance(rows):
-    per_ccy = {}
-    for r in rows:
-        d, c = per_ccy.get(r["currency"], (0, 0))
-        per_ccy[r["currency"]] = (d + r["debit"], c + r["credit"])
-    for ccy, (d, c) in per_ccy.items():
-        if d != c:
-            raise JournalImbalanceError(
-                f"Journal entry tidak balance ({ccy}): debit {d:,} != credit {c:,}"
-            )
+    """Debit dan kredit dalam SAR; mata uang transaksi tidak memecah neraca."""
+    d = sum(r["debit"] for r in rows)
+    c = sum(r["credit"] for r in rows)
+    if d != c:
+        raise JournalImbalanceError(f"Journal entry tidak balance: debit {d:,} != credit {c:,}")
 
 
 _AR_LIKE = None  # diisi lazily; akun yang wajib punya dimensi client
@@ -148,7 +181,6 @@ def post_entry(
     source_id=None,
     idempotency_key=None,
     created_by=None,
-    is_reversal=False,
     reverses=None,
     proof=None,
 ):
@@ -156,25 +188,20 @@ def post_entry(
 
     lines: list LineSpec (dict). Kunci wajib: `account` (kode v2/v1),
     dan `debit`+`credit` ATAU `amount_sar` (signed). Opsional: `currency`,
-    `orig_amount`/`orig_currency`/`fx_rate`, `note`, dimensi
-    (client/invoice/reservation/service_item/penalty/remittance).
+    `amount_txn`/`fx_rate` (nominal asli, lihat native()), `note`, dimensi
+    (branch/client/invoice/invoice_line/penalty/remittance).
+
+    `source_type`/`source_id`: dokumen sumber (kunci JournalEntry.SOURCE_FIELDS
+    atau SOURCE_ALIASES); kosong untuk jurnal manual dan entry pembalik.
 
     Idempotent terhadap `idempotency_key`: pemanggilan ulang mengembalikan
     entry yang sudah ada, tidak dobel-posting.
     """
     if idempotency_key:
-        existing = (
-            JournalEntry.objects
-            .filter(idempotency_key=idempotency_key, is_reversal=False)
-            .exclude(
-                pk__in=JournalEntry.objects.filter(
-                    reverses__isnull=False,
-                ).values_list("reverses_id", flat=True),
-            )
-            .first()
-        )
+        existing = JournalEntry.objects.filter(idempotency_key=idempotency_key).live().first()
         if existing:
             return existing
+    source = _source_columns(source_type, source_id, entry_type)
 
     rows = [_norm_line(spec, i) for i, spec in enumerate(lines, start=1)]
     if len(rows) < 2:
@@ -208,11 +235,9 @@ def post_entry(
         entry_date=entry_date,
         seq=seq,
         prev_hash=prev_hash,
-        reference_type=source_type,
-        reference_id=source_id,
         idempotency_key=idempotency_key or None,
-        is_reversal=is_reversal,
         reverses=reverses,
+        **source,
         period=period,
         created_by=created_by,
         proof=proof,
@@ -233,6 +258,19 @@ def post_entry(
         raise JournalImbalanceError("Balance check gagal setelah simpan")
 
     return entry
+
+
+def _source_columns(source_type, source_id, entry_type):
+    if not source_type or source_type == "JournalEntry":
+        return {}
+    name, alias_type = JournalEntry.SOURCE_ALIASES.get(source_type, (source_type, None))
+    if name not in JournalEntry.SOURCE_FIELDS:
+        raise FinanceError(f"Sumber jurnal tidak dikenal: {source_type}")
+    if alias_type is not None and entry_type != alias_type:
+        raise FinanceError(f"Sumber {source_type} hanya untuk entry {alias_type}")
+    if source_id is None:
+        raise FinanceError(f"Sumber {source_type} tanpa id")
+    return {f"{JournalEntry.SOURCE_FIELDS[name]}_id": source_id}
 
 
 @transaction.atomic
@@ -263,8 +301,7 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
             "debit": ln.credit,
             "credit": ln.debit,
             "currency": ln.currency,
-            "orig_amount": ln.orig_amount,
-            "orig_currency": ln.orig_currency,
+            "amount_txn": ln.amount_txn,
             "fx_rate": ln.fx_rate,
             "note": note or f"Reversal of {original.entry_number}",
         }
@@ -277,10 +314,7 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
         description=f"Reversal: {original.description}",
         entry_date=reversal_date,
         lines=lines,
-        source_type="JournalEntry",
-        source_id=original.pk,
         created_by=created_by,
-        is_reversal=True,
         reverses=original,
     )
 
@@ -289,14 +323,9 @@ def reverse_entry(original, *, reversal_date, created_by, note=""):
 
 def _live_entries(source_type, source_id, entry_type):
     """Entry non-reversal untuk sumber ini yang BELUM di-reverse."""
-    reversed_ids = JournalEntry.objects.filter(
-        reverses__isnull=False,
-    ).values_list("reverses_id", flat=True)
     return list(
-        JournalEntry.objects.filter(
-            reference_type=source_type, reference_id=source_id,
-            entry_type=entry_type, is_reversal=False,
-        ).exclude(pk__in=reversed_ids)
+        JournalEntry.objects.for_source(source_type, source_id).filter(entry_type=entry_type).live()
+        .order_by("seq", "pk")
     )
 
 
@@ -326,33 +355,29 @@ def _invoice_charge_lines(invoice):
         if line.kind == InvoiceLine.KIND_HOTEL:
             br = invoice.branch_id
             lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                          "invoice": invoice.pk, "reservation": line.pk, "branch": br})
+                          "invoice": invoice.pk, "invoice_line": line.pk, "branch": br})
             # Receivable stays with the issuing branch; hotel revenue is HQ's.
             lines.append({"account": income, "credit": amt,
-                          "invoice": invoice.pk, "reservation": line.pk,
+                          "invoice": invoice.pk, "invoice_line": line.pk,
                           "branch": coa.HQ_BRANCH if income == coa.INC_HOTEL else br})
         elif line.kind == InvoiceLine.KIND_SERVICE:
             lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                          "invoice": invoice.pk, "service_item": line.pk})
+                          "invoice": invoice.pk, "invoice_line": line.pk})
             lines.append({"account": income, "credit": amt,
-                          "invoice": invoice.pk, "service_item": line.pk})
+                          "invoice": invoice.pk, "invoice_line": line.pk})
         elif line.kind == InvoiceLine.KIND_PENALTY:
             # Denda ditagih pada dimensi reservasinya: uang yang sudah masuk
             # untuk reservasi itu menutup denda lebih dulu. Pendapatannya Pusat.
             hotel_pk = hotel_by_cl.get(line.penalty.cl_id)
             lines.append({"account": coa.AR, "debit": amt, "client": client_id, "invoice": invoice.pk,
-                          "reservation": hotel_pk, "penalty": line.penalty_id, "branch": invoice.branch_id})
+                          "invoice_line": hotel_pk, "penalty": line.penalty_id, "branch": invoice.branch_id})
             lines.append({"account": coa.INC_PENALTY, "credit": amt, "invoice": invoice.pk,
-                          "reservation": hotel_pk, "penalty": line.penalty_id, "branch": coa.HQ_BRANCH})
+                          "invoice_line": hotel_pk, "penalty": line.penalty_id, "branch": coa.HQ_BRANCH})
     return lines
 
 
-def _charge_key(penalty, reservation, service_item, client, branch):
-    if penalty:
-        return ("penalty", penalty, client, branch)
-    if reservation:
-        return ("reservation", reservation, client, branch)
-    return ("service_item", service_item, client, branch)
+def _charge_key(penalty, invoice_line, client, branch):
+    return ("penalty" if penalty else "line", penalty or invoice_line, client, branch)
 
 
 def _charge_signature(lines):
@@ -361,8 +386,7 @@ def _charge_signature(lines):
     for l in lines:
         if l["account"] != coa.AR:
             continue
-        key = _charge_key(l.get("penalty"), l.get("reservation"), l.get("service_item"),
-                          l.get("client"), l.get("branch"))
+        key = _charge_key(l.get("penalty"), l.get("invoice_line"), l.get("client"), l.get("branch"))
         sig[key] = sig.get(key, 0) + int(l.get("debit") or 0)
     return sig
 
@@ -370,7 +394,7 @@ def _charge_signature(lines):
 def _posted_charge_signature(entries):
     sig = {}
     for ln in JournalLine.objects.filter(journal_entry__in=entries, account_id=coa.AR):
-        key = _charge_key(ln.penalty_id, ln.reservation_id, ln.service_item_id, ln.client_id, ln.branch_id)
+        key = _charge_key(ln.penalty_id, ln.invoice_line_id, ln.client_id, ln.branch_id)
         sig[key] = sig.get(key, 0) + int(ln.debit or 0)
     return sig
 
@@ -452,11 +476,9 @@ def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
             status__in=PaymentRecord.EFFECTIVE_STATUSES,
         )
     )
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list("reverses_id", flat=True)
-    for e in JournalEntry.objects.filter(
-        reference_type="PaymentRecord", reference_id__in=[p.pk for p in old_prs],
-        entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
-    ).exclude(pk__in=reversed_ids):
+    for e in JournalEntry.objects.for_source("PaymentRecord", [p.pk for p in old_prs]).filter(
+        entry_type=JournalEntry.TYPE_PAYMENT,
+    ).live():
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
 
     from .bank_ledger import void_bank_transactions
@@ -494,9 +516,8 @@ def _pk(v):
 
 
 def _allocation_dim(allocation):
-    """Dimensi jurnal sebuah alokasi: baris hotel → reservation, baris service → service_item."""
-    line = allocation.invoice_line
-    return {"reservation" if line.kind == line.KIND_HOTEL else "service_item": line.pk}
+    """Dimensi jurnal sebuah alokasi: baris invoice yang dibayarnya."""
+    return {"invoice_line": allocation.invoice_line_id}
 
 
 def _payment_segments(payment):
@@ -544,7 +565,7 @@ def post_payment(payment, *, created_by, idempotency_key=None):
     """DR Kas (sesuai received_in) / CR Piutang. Idempotent per payment.
 
     Kalau payment punya PaymentAllocation → CR Piutang dipecah per alokasi
-    (dimensi reservation/service_item) supaya piutang & mengendap per-
+    (dimensi baris invoice) supaya piutang & mengendap per-
     reservasi akurat; sisa yang belum dialokasikan jadi satu baris CR
     Piutang bertingkat client/invoice saja.
 
@@ -555,10 +576,7 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         default_key = f"payment:{payment.payment_number}:confirm"
         existing = JournalEntry.objects.filter(idempotency_key=default_key).first()
         if existing is not None:
-            reversed_ids = JournalEntry.objects.filter(
-                reverses__isnull=False,
-            ).values_list("reverses_id", flat=True)
-            if existing.pk in reversed_ids:
+            if JournalEntry.objects.filter(reverses=existing).exists():
                 # Entry lama sudah di-reverse: idempotency key default tetap
                 # tertombstone (reversal melepas baris, bukan unique key-nya).
                 # Re-post (mis. re-confirm setelah reverse) butuh key baru agar
@@ -578,9 +596,12 @@ def post_payment(payment, *, created_by, idempotency_key=None):
 
     # Satu segmen per alokasi (nominal, dimensi baris invoice), plus sisa yang
     # belum dialokasikan. Tiap segmen = DR Kas + CR Piutang berpasangan.
+    segments = _payment_segments(payment)
+    natives = _split_native(int(payment.amount or 0), [s for s, _ in segments])
     lines = []
-    for seg_amt, dim in _payment_segments(payment):
-        lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim})
+    for (seg_amt, dim), seg_native in zip(segments, natives):
+        cash_native = native(payment.receiving_account, seg_native, payment.exchange_rate)
+        lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim, **cash_native})
         lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})
 
     entry = post_entry(
@@ -665,7 +686,8 @@ def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None)
         entry_date=entry_date,
         lines=[
             {"account": coa.TRANSIT, "debit": amount_sar, **dims},
-            {"account": acc.ledger_account_id, "credit": amount_sar, **dims},
+            {"account": acc.ledger_account_id, "credit": amount_sar, **dims,
+             **native(acc, remittance.amount_sent, remittance.exchange_rate)},
         ],
         source_type="Remittance",
         source_id=remittance.pk,
@@ -701,9 +723,9 @@ def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
         entry_date=entry_date,
         lines=[
             {"account": coa.AR, "debit": amount_sar, "client": client.pk,
-             "reservation": getattr(to_reservation, "pk", to_reservation)},
+             "invoice_line": getattr(to_reservation, "pk", to_reservation)},
             {"account": coa.AR, "credit": amount_sar, "client": client.pk,
-             "reservation": getattr(from_reservation, "pk", from_reservation)},
+             "invoice_line": getattr(from_reservation, "pk", from_reservation)},
         ],
         idempotency_key=idempotency_key,
         created_by=created_by,
@@ -834,7 +856,7 @@ def move_invoice_excess_to_deposit(invoice, *, created_by, entry_date=None):
             continue
         total += excess
         lines.append({"account": coa.AR, "debit": excess, "client": invoice.client_id,
-                      "invoice": invoice.pk, "reservation": row["line"].pk, "branch": invoice.branch_id})
+                      "invoice": invoice.pk, "invoice_line": row["line"].pk, "branch": invoice.branch_id})
     if not total:
         raise FinanceError(f"Invoice {invoice.invoice_number} tidak punya kelebihan bayar.")
     lines.append({"account": coa.CUST_CREDIT, "credit": total, "client": invoice.client_id, "invoice": invoice.pk})
@@ -893,14 +915,7 @@ def reallocate_payment(payment, allocations, *, created_by):
         )
 
     # Reverse live payment journal entry(ies).
-    reversed_ids = JournalEntry.objects.filter(
-        reverses__isnull=False,
-    ).values_list("reverses_id", flat=True)
-    live = JournalEntry.objects.filter(
-        reference_type="PaymentRecord", reference_id=payment.pk,
-        entry_type=JournalEntry.TYPE_PAYMENT, is_reversal=False,
-    ).exclude(pk__in=reversed_ids)
-    for entry in live:
+    for entry in _live_entries("PaymentRecord", payment.pk, JournalEntry.TYPE_PAYMENT):
         reverse_entry(
             entry, reversal_date=payment.payment_date or timezone.now().date(),
             created_by=created_by,

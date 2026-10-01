@@ -31,12 +31,7 @@ def diff_is_closed(remittance):
 
 
 def _live_diff_entries(remittance):
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
-    return list(
-        JournalEntry.objects.filter(
-            reference_type='RemittanceDiff', reference_id=remittance.pk, is_reversal=False,
-        ).exclude(pk__in=reversed_ids)
-    )
+    return list(JournalEntry.objects.for_source('RemittanceDiff', remittance.pk).live())
 
 
 @transaction.atomic
@@ -121,11 +116,12 @@ def set_settlement_allocations(settlement, allocations, *, created_by=None, entr
 
 @transaction.atomic
 def delete_settlement(settlement, *, created_by=None, entry_date=None):
-    """Hapus satu penerimaan yang salah catat.
+    """Batalkan satu penerimaan yang salah catat.
 
     Jurnal terima dan alokasinya di-reverse bertanggal `entry_date` (default
-    hari ini) -- jejak audit tetap di jurnal. Baris penerimaan, alokasinya, dan
-    log BankTransaction-nya dihapus, lalu status remittance diturunkan lagi
+    hari ini) -- jejak audit tetap di jurnal. Alokasinya dihapus, log
+    BankTransaction-nya di-void, dan penerimaannya ditandai batal (tetap ada
+    sebagai sumber jurnal), lalu status remittance diturunkan lagi
     kalau tidak lagi diterima penuh. Ditolak kalau selisih transfer sudah
     ditutup (nominal selisih dihitung dari penerimaan ini) atau transaksinya
     sudah dicocokkan dengan mutasi bank."""
@@ -160,8 +156,10 @@ def delete_settlement(settlement, *, created_by=None, entry_date=None):
         )
     settlement.allocations.all().delete()
     if bank_tx:
-        bank_tx.delete()
-    settlement.delete()
+        from .bank_ledger import void_bank_transactions
+        void_bank_transactions('RemittanceSettlement', settlement.pk)
+    settlement.voided_at = timezone.now()
+    settlement.save(update_fields=['voided_at'])
 
 
 @transaction.atomic
@@ -184,9 +182,7 @@ def reopen_remittance_diff(remittance, *, created_by=None, entry_date=None):
 
 def _diff_idempotency_key(remittance):
     base = f"remittance:{remittance.pk}:settlement-diff"
-    closed_before = JournalEntry.objects.filter(
-        reference_type='RemittanceDiff', reference_id=remittance.pk, is_reversal=False,
-    ).count()
+    closed_before = JournalEntry.objects.for_source('RemittanceDiff', remittance.pk).count()
     return base if closed_before == 0 else f"{base}:{closed_before + 1}"
 
 
@@ -233,7 +229,7 @@ def close_remittance_diff(remittance, *, created_by=None, entry_date=None):
             ]
             desc = f"Laba selisih kurs {remittance.remittance_number}"
         entry = post_entry(
-            entry_type=JournalEntry.TYPE_REMITTANCE,
+            entry_type=JournalEntry.TYPE_REMITTANCE_DIFF,
             description=desc,
             entry_date=entry_date or timezone.now().date(),
             lines=lines,

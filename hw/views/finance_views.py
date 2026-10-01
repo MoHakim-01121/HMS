@@ -206,7 +206,7 @@ def journal_detail(request, pk):
         JournalEntry.objects.select_related('period', 'created_by'), pk=pk,
     )
     lines = entry.lines.select_related(
-        'account', 'client', 'invoice', 'reservation', 'service_item', 'penalty',
+        'account', 'client', 'invoice', 'invoice_line__confirmation_letter', 'penalty',
     )
     totals = entry.lines.aggregate(debit=Sum('debit'), credit=Sum('credit'))
     return inertia_render(request, 'Finance/JournalDetail', props={
@@ -225,6 +225,8 @@ def journal_detail(request, pk):
             'account_display': ln.account.name,
             'amount_sar': ln.amount_sar,
             'note': ln.note,
+            # Nominal asli baris kas/bank non-SAR.
+            'native': f"{ln.amount_txn:,} {ln.currency}" if ln.amount_txn else None,
             'dim': journal_line_dimension(ln),
         } for ln in lines],
     })

@@ -7,13 +7,13 @@ dirinya sendiri dan terhadap dokumen sumber (Invoice, PaymentRecord,
 RemittanceLine):
 
   1. Rantai hash + nomor urut utuh (tamper-evidence).
-  2. Setiap JournalEntry balance per mata uang (Σdebit == Σcredit).
+  2. Setiap JournalEntry balance dalam SAR (Σdebit == Σcredit).
   3. Trial balance balance.
   4. Baris Piutang / Titipan selalu punya dimensi client.
   5. Total charge hidup per invoice == Invoice.total_sar (charge tak basi).
   6. Σ PaymentRecord (confirmed/allocated) per invoice == paid_sar jurnal.
   7. RemittanceLine vs jurnal kirim + jurnal alokasi penerimaan.
-  8. Setiap entry reversal menunjuk entry yang benar dan ber-flag is_reversal.
+  8. Setiap entry reversal membalik tepat baris-baris entry yang dibaliknya.
 
 Exit 1 kalau ada temuan. Tidak pernah menulis apa pun.
 """
@@ -98,13 +98,11 @@ class Command(BaseCommand):
     def _unbalanced_entries(self):
         out = []
         for e in self._entries():
-            by_cur = defaultdict(lambda: [0, 0])
-            for ln in e.lines.all():
-                by_cur[ln.currency][0] += ln.debit
-                by_cur[ln.currency][1] += ln.credit
-            for cur, (d, c) in by_cur.items():
-                if d != c:
-                    out.append(f'{e.entry_number} ({cur}): debit {d:,} ≠ kredit {c:,}')
+            # Debit/kredit selalu SAR; mata uang baris hanya mata uang transaksinya.
+            d = sum(ln.debit for ln in e.lines.all())
+            c = sum(ln.credit for ln in e.lines.all())
+            if d != c:
+                out.append(f'{e.entry_number}: debit {d:,} ≠ kredit {c:,}')
         return out
 
     def _lines_missing_client(self):
@@ -154,7 +152,6 @@ class Command(BaseCommand):
         """Transfer lama (tanpa IDR/kurs): Σ baris == terkirim jurnal.
         Transfer lump-sum: Σ baris <= terkirim (sisanya belum dialokasikan, sah),
         dan Σ baris alokasi penerimaan == Σ kredit reklasifikasi Kas SBY hidup."""
-        from hw.finance.remittance_allocation import ALLOCATION_SOURCE
         reversed_ids = JournalEntry.objects.filter(
             reverses__isnull=False,
         ).values_list('reverses_id', flat=True)
@@ -176,10 +173,10 @@ class Command(BaseCommand):
                 )
             journal_alloc = int(
                 JournalLine.objects.filter(
-                    journal_entry__reference_type=ALLOCATION_SOURCE,
-                    journal_entry__is_reversal=False,
+                    journal_entry__entry_type=JournalEntry.TYPE_ALLOCATE,
+                    journal_entry__source_remittance_settlement__isnull=False,
                     remittance_id=rem.id, account_id=coa.CASH_SBY,
-                    reservation_id__isnull=False,
+                    invoice_line__isnull=False,
                 ).exclude(journal_entry_id__in=reversed_ids)
                 .aggregate(c=Sum('credit'))['c'] or 0
             )
@@ -191,9 +188,9 @@ class Command(BaseCommand):
 
     def _bad_reversals(self):
         out = []
-        for e in JournalEntry.objects.filter(
-            reverses__isnull=False,
-        ).select_related('reverses'):
-            if not e.is_reversal:
-                out.append(f'{e.entry_number}: menunjuk reverses tapi is_reversal=False')
+        for e in JournalEntry.objects.filter(reverses__isnull=False).prefetch_related('lines', 'reverses__lines'):
+            mirror = sorted((l.account_id, l.credit, l.debit, l.invoice_line_id) for l in e.reverses.lines.all())
+            mine = sorted((l.account_id, l.debit, l.credit, l.invoice_line_id) for l in e.lines.all())
+            if mine != mirror:
+                out.append(f'{e.entry_number}: tidak membalik {e.reverses.entry_number} baris demi baris')
         return out

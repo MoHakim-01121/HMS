@@ -134,10 +134,9 @@ def expense_detail(request, pk):
     expense = get_object_or_404(
         Expense.objects.select_related('branch', 'created_by', 'vendor').prefetch_related(*_PROPS_PREFETCH), pk=pk,
     )
-    journal_entries = JournalEntry.objects.filter(
-        reference_type__in=['Expense', 'ExpensePayment'],
-    ).filter(
-        reference_id__in=[expense.pk, *expense.payments.values_list('pk', flat=True)],
+    journal_entries = (
+        JournalEntry.objects.for_source('Expense', expense.pk)
+        | JournalEntry.objects.for_source('ExpensePayment', list(expense.payments.values_list('pk', flat=True)))
     ).order_by('-entry_date')
 
     return inertia_render(request, 'Expense/Detail', props={

@@ -162,17 +162,17 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
         dims = {'invoice': invoice.pk}
         line_income = income
         if row['kind'] == 'reservation':
-            dims['reservation'] = row['id']
+            dims['invoice_line'] = row['id']
             branch = coa.HQ_BRANCH if income == coa.INC_HOTEL else invoice.branch_id
         elif row['kind'] == 'penalty':
             # Same dimensions as the penalty charge: the reservation's line, revenue at HQ.
             pen_line = InvoiceLine.objects.select_related('penalty').get(pk=row['id'])
-            dims['reservation'] = hotel_by_cl.get(pen_line.penalty.cl_id)
+            dims['invoice_line'] = hotel_by_cl.get(pen_line.penalty.cl_id)
             dims['penalty'] = pen_line.penalty_id
             branch = coa.HQ_BRANCH
             line_income = coa.INC_PENALTY
         else:
-            dims['service_item'] = row['id']
+            dims['invoice_line'] = row['id']
             branch = None
         CreditNoteLine.objects.create(
             credit_note=cn, invoice_line_id=row['id'], description=row['label'], amount_sar=amount,

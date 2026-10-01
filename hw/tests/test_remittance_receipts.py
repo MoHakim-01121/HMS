@@ -101,7 +101,8 @@ class DeleteReceiptTest(AllocationBase):
         self.assertEqual(self._idle(), {'A': 0, 'B': 9000, 'C': 1000})
         self.assertEqual(list(RemittanceSettlement.objects.values_list('pk', flat=True)), [self.s1.pk])
         self.assertFalse(RemittanceLine.objects.filter(settlement_id=self.s2.pk).exists())
-        self.assertFalse(BankTransaction.objects.filter(source_type='RemittanceSettlement', source_id=self.s2.pk).exists())
+        self.assertFalse(BankTransaction.objects.filter(source_type='RemittanceSettlement', source_id=self.s2.pk).exclude(status=BankTransaction.STATUS_VOIDED).exists())
+        self.assertIsNotNone(RemittanceSettlement.all_objects.get(pk=self.s2.pk).voided_at)
         self.assertEqual(CheckFinance()._remittance_line_mismatch(), [])
 
     def test_blocked_when_difference_already_closed(self):

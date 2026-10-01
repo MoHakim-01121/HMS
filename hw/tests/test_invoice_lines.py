@@ -280,7 +280,7 @@ class VoidAndRemoveTest(_Base):
         self.assertEqual(fq.invoice_charged_sar(inv.pk), 2000)
         self.assertIsNone(ConfirmationLetter.objects.get(pk=self.cl_b.pk).invoice)
         # The journal lines of the old charge still point at the voided line.
-        self.assertTrue(JournalLine.objects.filter(reservation_id=self.line_b.pk).exists())
+        self.assertTrue(JournalLine.objects.filter(invoice_line_id=self.line_b.pk).exists())
 
     def test_reservation_with_money_on_it_cannot_leave_the_invoice(self):
         self._pay(self.inv, Reservation.objects.get(pk=self.line_b.pk), 400)

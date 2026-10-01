@@ -101,8 +101,8 @@ class RecordPendingFlowTest(ReceiveApplyFlowTest):
 
         # No journal is posted until the payment is manually confirmed.
         live = JournalEntry.objects.filter(
-            reference_type='PaymentRecord', reference_id=payment.pk,
-            is_reversal=False,
+            source_payment=payment.pk,
+            reverses__isnull=True,
         ).exclude(reverses__isnull=False)
         self.assertFalse(live.exists())
 
@@ -153,9 +153,8 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
 
         # Journal CR AR carries reservation dimensions now.
         line = JournalLine.objects.filter(
-            journal_entry__reference_type='PaymentRecord',
-            journal_entry__reference_id=payment.pk,
-            account_id=coa.AR, credit__gt=0, reservation_id=self.r1.pk,
+            journal_entry__source_payment=payment.pk,
+            account_id=coa.AR, credit__gt=0, invoice_line_id=self.r1.pk,
         ).first()
         self.assertIsNotNone(line)
         self.assertEqual(line.credit, 4000)
@@ -229,8 +228,8 @@ class VoidEndpointTest(ReceiveApplyFlowTest):
         payment = self._record_unallocated(5000)
         # Original journal is live.
         original_entry = JournalEntry.objects.filter(
-            reference_type='PaymentRecord', reference_id=payment.pk,
-            is_reversal=False,
+            source_payment=payment.pk,
+            reverses__isnull=True,
         ).exclude(reverses__isnull=False).first()
         self.assertIsNotNone(original_entry)
 
@@ -242,7 +241,7 @@ class VoidEndpointTest(ReceiveApplyFlowTest):
         # A reversal of the original entry now exists.
         self.assertTrue(
             JournalEntry.objects.filter(
-                reverses=original_entry, is_reversal=True,
+                reverses=original_entry,
             ).exists()
         )
 
@@ -308,8 +307,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         self.assertEqual(payment.display_status, 'received')
 
         line = JournalLine.objects.filter(
-            journal_entry__reference_type='PaymentRecord',
-            journal_entry__reference_id=payment.pk,
+            journal_entry__source_payment=payment.pk,
             account_id=coa.AR, credit__gt=0,
         ).first()
         self.assertIsNotNone(line)
@@ -350,9 +348,8 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 2)
 
         line = JournalLine.objects.filter(
-            journal_entry__reference_type='PaymentRecord',
-            journal_entry__reference_id=payment.pk,
-            account_id=coa.AR, credit__gt=0, reservation_id=self.r1.pk,
+            journal_entry__source_payment=payment.pk,
+            account_id=coa.AR, credit__gt=0, invoice_line_id=self.r1.pk,
         ).first()
         self.assertIsNotNone(line)
         self.assertEqual(line.invoice_id, self.invoice.pk)

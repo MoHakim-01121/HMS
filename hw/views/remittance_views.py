@@ -132,7 +132,9 @@ def remittance_list(request):
                 Q(receipt_reference__icontains=q) |
                 Q(note__icontains=q)
             )
-        qs = remittance_allocation.annotate_statuses(qs.annotate(settled_sar_sum=Sum('settlements__received_amount_sar')))
+        qs = remittance_allocation.annotate_statuses(qs.annotate(settled_sar_sum=Sum(
+            'settlements__received_amount_sar', filter=Q(settlements__voided_at__isnull=True),
+        )))
         # Status is derived from the receipts, so the filter runs here.
         if status_filter in ('pending', 'received'):
             qs = [rem for rem in qs if rem.status == status_filter]
@@ -479,7 +481,9 @@ def remittance_delete(request, pk):
     # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
     # langsung atau lewat baris -- tidak boleh hilang diam-diam.
     from ..finance import queries as finance_queries
-    if rem.settlements.exists() or finance_queries.remittance_has_live_entries(rem.pk):
+    # Entry yang sudah dibalik pun tetap menunjuk transfer ini sebagai sumbernya.
+    if (rem.settlements.exists() or rem.journal_entries.exists()
+            or finance_queries.remittance_has_live_entries(rem.pk)):
         messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
         return redirect('remittance_detail', pk=pk)
     from ..finance.bank_ledger import void_bank_transactions

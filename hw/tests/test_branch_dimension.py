@@ -50,7 +50,7 @@ class ReceivingAccountTest(TestCase):
         confirm_payment(pr, self.user)
         lines = JournalLine.objects.filter(
             journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
-            journal_entry__reference_id=pr.pk,
+            journal_entry__source_payment=pr.pk,
         )
         self.assertTrue(lines.exists())
         self.assertTrue(all(l.branch_id == 'jkt' for l in lines))
@@ -61,7 +61,7 @@ class ReceivingAccountTest(TestCase):
         posting.post_invoice_charge(self.inv, created_by=self.user, entry_date=date(2026, 1, 1))
         lines = JournalLine.objects.filter(
             journal_entry__entry_type=JournalEntry.TYPE_CHARGE,
-            journal_entry__reference_id=self.inv.pk,
+            journal_entry__source_invoice=self.inv.pk,
         )
         self.assertTrue(lines.exists())
         by_account = {(l.account_id, l.branch_id) for l in lines}

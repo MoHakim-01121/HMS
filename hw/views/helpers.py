@@ -186,10 +186,9 @@ def journal_line_dimension(line):
         return line.client.name
     if getattr(line, 'invoice_id', None):
         return line.invoice.invoice_number
-    if getattr(line, 'reservation_id', None):
-        return line.reservation.reservation_number
-    if getattr(line, 'service_item_id', None):
-        return f"Service #{line.service_item_id}"
+    if getattr(line, 'invoice_line_id', None):
+        il = line.invoice_line
+        return il.confirmation_letter.confirmation_number if il.confirmation_letter_id else f"Service #{il.line_no}"
     if getattr(line, 'penalty_id', None):
         return line.penalty.penalty_number
     return ''

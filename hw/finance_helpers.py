@@ -68,7 +68,6 @@ def create_journal_entry(
     reference_type='',
     reference_id=None,
     created_by=None,
-    is_reversal=False,
     reverses=None,
 ):
     """[DEPRECATED] Adapter lama — delegasi ke hw.finance.posting.post_entry.
@@ -86,7 +85,6 @@ def create_journal_entry(
         source_type=reference_type,
         source_id=reference_id,
         created_by=created_by,
-        is_reversal=is_reversal,
         reverses=reverses,
     )
 
@@ -333,8 +331,8 @@ def client_statement(client, date_from=None, date_to=None):
             'account_display': line.account.name,
             'amount_sar': line.amount_sar,
             'balance': running_balance,
-            'reference_type': entry.reference_type,
-            'reference_id': entry.reference_id,
+            'reference_type': entry.source_type,
+            'reference_id': entry.source_id,
         })
 
     return {

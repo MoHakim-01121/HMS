@@ -37,7 +37,7 @@ class RefundDocumentTest(_Base):
         self.assertEqual(fq.client_credit_balance(self.a.pk), 3_000)
         credit = refund.journal_entry.lines.get(credit__gt=0)
         self.assertEqual((credit.account_id, credit.credit), (idr.ledger_account_id, 2_000))
-        tx = BankTransaction.objects.get(source_type='Refund', source_id=refund.journal_entry_id)
+        tx = BankTransaction.objects.get(source_type='Refund', source_id=refund.journal_entry.pk)
         self.assertEqual((tx.amount, tx.currency), (9_800_000, 'IDR'))
 
     def test_refund_cannot_exceed_the_deposit(self):
