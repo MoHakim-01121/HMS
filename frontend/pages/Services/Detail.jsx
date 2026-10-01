@@ -26,6 +26,7 @@ export default function Detail({
   const perms = usePerms();
   const { t } = useI18n();
   const cur = invoice.currency;
+  const hasVendorCost = visa_services.some((v) => v.vendor_cost_sar > 0);
   const isVoid = !!voidInfo;
   const paid = !isVoid && services_remaining <= 0;
   const servicesTotal = visa_services.reduce((s, v) => s + (v.total || 0), 0);
@@ -143,6 +144,14 @@ export default function Detail({
                   { header: t("Total"), align: "right", strong: true, render: (svc) => fmt(svc.total) },
                   { header: t("Paid"), align: "right", render: (svc) => <span style={{ color: svc.paid_int > 0 ? "var(--green)" : undefined }}>{fmt(svc.paid_int)}</span> },
                   { header: t("Remaining"), align: "right", render: (svc) => fmt(Math.max(0, svc.remaining || 0)) },
+                  ...(hasVendorCost ? [
+                    { header: `${t("Vendor cost")} (SAR)`, align: "right", render: (svc) => (svc.vendor_cost_sar ? fmt(svc.vendor_cost_sar) : "—") },
+                    // Margin only when the line is priced in SAR too.
+                    ...(cur === "SAR" ? [{
+                      header: t("Margin"), align: "right",
+                      render: (svc) => (svc.vendor_cost_sar ? fmt(svc.total - svc.vendor_cost_sar) : "—"),
+                    }] : []),
+                  ] : []),
                 ]}
                 rows={visa_services}
                 empty={t("No service data")}

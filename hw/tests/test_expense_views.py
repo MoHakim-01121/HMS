@@ -49,7 +49,7 @@ class ExpenseRecordViewTest(ExpenseViewsBase):
             'lines': json.dumps([{'category': 'UTIL', 'amount': 1200}]),
         })
         self.assertEqual(resp.status_code, 302)
-        exp = Expense.objects.get(vendor='PLN')
+        exp = Expense.objects.get(vendor__name='PLN')
         self.assertEqual(exp.status, Expense.STATUS_POSTED)
         self.assertEqual(exp.total_amount_sar, 1200)
 
@@ -61,8 +61,8 @@ class ExpenseRecordViewTest(ExpenseViewsBase):
             'lines': json.dumps([{'category': 'UTIL', 'amount': 800}]),
             'pay_now_account': f'cash:{self.cash.pk}',
         })
-        exp = Expense.objects.get(vendor='PDAM')
-        self.assertEqual(exp.status, Expense.STATUS_PAID)
+        exp = Expense.objects.get(vendor__name='PDAM')
+        self.assertEqual(exp.display_status, Expense.STATUS_PAID)
         self.assertEqual(exp.outstanding_sar, 0)
 
     def test_staff_can_record_expense(self):
@@ -106,7 +106,7 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         })
         self.assertEqual(resp.status_code, 302)
         self.exp.refresh_from_db()
-        self.assertEqual(self.exp.status, Expense.STATUS_PAID)
+        self.assertEqual(self.exp.display_status, Expense.STATUS_PAID)
 
     def test_pay_with_unknown_currency_is_rejected(self):
         self.client.force_login(self.manager)

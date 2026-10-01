@@ -28,7 +28,7 @@ def finance_hub(request):
     dilihat user (payments/statements/remittance/expenses/journal terpisah).
     """
     from ..models import PaymentRecord, Remittance
-    from ..models.expense import Expense, ExpensePayment
+    from ..models.expense import Expense, ExpenseLine, ExpensePayment
 
     today = date.today()
 
@@ -113,12 +113,11 @@ def finance_hub(request):
 
     # ── Expenses ──────────────────────────────────────────────────
     if has('expenses'):
-        open_statuses = (Expense.STATUS_POSTED, Expense.STATUS_PARTIALLY_PAID, Expense.STATUS_PAID)
         month_exp = Expense.objects.filter(
             expense_date__year=today.year, expense_date__month=today.month,
-            status__in=open_statuses,
+            status=Expense.STATUS_POSTED,
         )
-        month_total = month_exp.aggregate(t=Sum('total_amount_sar'))['t'] or 0
+        month_total = ExpenseLine.objects.filter(expense__in=month_exp).aggregate(t=Sum('amount_sar'))['t'] or 0
         month_paid = ExpensePayment.objects.filter(
             expense__in=month_exp, status=ExpensePayment.STATUS_PAID,
         ).aggregate(t=Sum('amount_sar'))['t'] or 0
@@ -128,11 +127,12 @@ def finance_hub(request):
             'recent': [{
                 'id': e.id,
                 'number': e.expense_number,
-                'vendor': e.vendor or e.description or f"EXP #{e.pk}",
+                'vendor': (e.vendor.name if e.vendor_id else '') or e.description or f"EXP #{e.pk}",
                 'date': e.expense_date.isoformat(),
                 'amount_sar': e.total_amount_sar,
-                'status': e.status,
-            } for e in Expense.objects.select_related('branch').order_by('-expense_date')[:6]],
+                'status': e.display_status,
+            } for e in Expense.objects.select_related('branch', 'vendor').prefetch_related('lines')
+                .order_by('-expense_date')[:6]],
         }
     else:
         data['expenses'] = None

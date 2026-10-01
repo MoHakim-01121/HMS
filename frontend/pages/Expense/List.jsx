@@ -30,6 +30,7 @@ const CSS = `
 .exp-lines { display:flex; flex-direction:column; gap:8px; }
 .exp-line-row { display:grid; grid-template-columns: 1fr 1fr 140px 32px; gap:8px; align-items:start; }
 @media (max-width: 640px) { .exp-line-row { grid-template-columns: 1fr; } }
+.exp-line-svc { grid-column: 1 / -1; }
 .exp-line-del { display:flex; align-items:center; justify-content:center; height:36px; color:var(--muted-foreground); }
 .exp-line-del:hover { color:var(--red); }
 .exp-add-row { font-size:13px; font-weight:600; color:var(--primary); align-self:flex-start; padding:4px 0; }
@@ -44,11 +45,14 @@ const STATUS_TONE = {
 };
 
 const CURRENCIES = ["SAR", "IDR", "USD"];
-const EMPTY_LINE = { category: "", description: "", amount: "" };
+const EMPTY_LINE = { category: "", description: "", amount: "", service_line: "" };
+// Category whose lines are a vendor cost for one sold Services line.
+const SVC_VENDOR = "SVC-VENDOR";
 
 export default function List({
   expenses = [], branch_choices = [], category_choices = [], status_choices = [],
   account_choices = [], stats = {}, pagination = null, branch_filter = "", status_filter = "",
+  vendor_choices = [], service_line_choices = [],
 }) {
   const { t } = useI18n();
   const perms = usePerms();
@@ -92,8 +96,11 @@ export default function List({
   };
 
   const submit = () => {
-    const validLines = lines.filter((l) => l.category && Number(l.amount) > 0);
+    const validLines = lines
+      .filter((l) => l.category && Number(l.amount) > 0)
+      .map((l) => ({ ...l, service_line: l.category === SVC_VENDOR ? l.service_line : "" }));
     if (!form.branch || validLines.length === 0) return;
+    if (validLines.some((l) => l.category === SVC_VENDOR && !l.service_line)) return;
     router.post("/finance/expenses/record/", {
       branch: form.branch,
       expense_date: form.expense_date,
@@ -265,8 +272,13 @@ export default function List({
                     </FormField>
                     <FormField label={t("Date")} name="expense_date" type="date" required
                       value={form.expense_date} onChange={(v) => setForm({ ...form, expense_date: v })} />
-                    <FormField label={t("Vendor")} name="vendor"
-                      value={form.vendor} onChange={(v) => setForm({ ...form, vendor: v })} />
+                    <FormField label={t("Vendor")} name="vendor">
+                      <Input id="vendor" list="exp-vendor-choices" value={form.vendor}
+                        onChange={(e) => setForm({ ...form, vendor: e.target.value })} />
+                      <datalist id="exp-vendor-choices">
+                        {vendor_choices.map((v) => <option key={v} value={v} />)}
+                      </datalist>
+                    </FormField>
                     <FormField label={t("Description")} name="description"
                       value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
                     <FormField label={t("Currency")} name="currency">
@@ -301,6 +313,18 @@ export default function List({
                         <button type="button" className="exp-line-del" onClick={() => removeLine(i)} aria-label={t("Remove line")}>
                           <Icon name="trash" size={14} />
                         </button>
+                        {l.category === SVC_VENDOR && (
+                          <div className="exp-line-svc">
+                            <Select value={l.service_line} onValueChange={(v) => updateLine(i, "service_line", v)}>
+                              <SelectTrigger className="w-full"><SelectValue placeholder={t("Services line sold by this branch...")} /></SelectTrigger>
+                              <SelectContent>
+                                {service_line_choices
+                                  .filter((s) => !form.branch || s.branch === form.branch)
+                                  .map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     ))}
                     <button type="button" className="exp-add-row" onClick={addLine}>{t("+ Add line")}</button>

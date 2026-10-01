@@ -18,6 +18,7 @@ from inertia import render as inertia_render
 from ..models.branch import Branch
 from ..models.expense import Expense, ExpenseCategory
 from ..models.journal import JournalEntry
+from ..models.vendor import Vendor
 from ..finance import expense_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
@@ -31,6 +32,26 @@ _account_choices = money_account_choices
 _resolve_account = resolve_money_account
 
 
+def _service_line_label(line):
+    return (f"{line.invoice.invoice_number} #{line.line_no} {line.description} "
+            f"· {line.quantity} pax · {line.invoice.customer_name}")
+
+
+def _service_line_choices():
+    """Baris Services yang masih berlaku, untuk menautkan biaya vendornya."""
+    from ..models import InvoiceLine
+    lines = (
+        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True)
+        .exclude(invoice__status='void')
+        .select_related('invoice__client').order_by('-invoice__issued_date', 'invoice_id', 'line_no')[:200]
+    )
+    return [{'value': str(l.pk), 'label': _service_line_label(l), 'branch': l.invoice.branch_id} for l in lines]
+
+
+# What _expense_props reads, fetched once for a page of expenses.
+_PROPS_PREFETCH = ('lines__category', 'lines__service_line__invoice__client', 'payments__source_account')
+
+
 def _expense_props(e):
     return {
         'id': e.pk,
@@ -38,15 +59,16 @@ def _expense_props(e):
         'branch': e.branch_id,
         'branch_name': e.branch.name if e.branch_id else None,
         'expense_date': e.expense_date.isoformat() if e.expense_date else None,
-        'vendor': e.vendor,
+        'vendor': e.vendor.name if e.vendor_id else '',
         'description': e.description,
         'currency': e.currency,
         'total_amount': e.total_amount,
         'total_amount_sar': e.total_amount_sar,
         'paid_sar': e.paid_sar,
         'outstanding_sar': e.outstanding_sar,
-        'status': e.status,
-        'status_display': e.get_status_display(),
+        # Lifecycle, and for a posted expense its payment state (derived).
+        'status': e.display_status,
+        'status_display': e.display_status_label,
         'note': e.note,
         'proof_url': e.proof.url if e.proof else None,
         'created_by': e.created_by.username if e.created_by else None,
@@ -54,7 +76,8 @@ def _expense_props(e):
         'lines': [{
             'id': l.pk, 'category': l.category_id, 'category_name': l.category.name,
             'description': l.description, 'amount': l.amount, 'amount_sar': l.amount_sar,
-        } for l in e.lines.select_related('category')],
+            'service_line': _service_line_label(l.service_line) if l.service_line_id else None,
+        } for l in e.lines.all()],
         'payments': [{
             'id': p.pk,
             'payment_date': p.payment_date.isoformat() if p.payment_date else None,
@@ -62,40 +85,42 @@ def _expense_props(e):
             'account_name': str(p.source_account) if p.source_account else None,
             'reference': p.reference, 'status': p.status,
             'status_display': p.get_status_display(),
-        } for p in e.payments.select_related('source_account')],
+        } for p in e.payments.all()],
     }
 
 
 @require_perm('expenses', 'view')
 def expense_list(request):
-    expenses = Expense.objects.select_related('branch', 'created_by')
+    expenses = Expense.objects.select_related('branch', 'created_by', 'vendor')
 
     branch = request.GET.get('branch')
     if branch:
         expenses = expenses.filter(branch_id=branch)
     status = request.GET.get('status')
+    expenses = expenses.prefetch_related(*_PROPS_PREFETCH).order_by('-expense_date', '-created_at')
     if status:
-        expenses = expenses.filter(status=status)
-
-    expenses = expenses.order_by('-expense_date', '-created_at')
+        # Paid / partially paid are derived from the payments.
+        expenses = [e for e in expenses if e.display_status == status]
 
     paginator = Paginator(expenses, 10 if _is_mobile(request) else 15)
     page_obj = paginator.get_page(request.GET.get('page'))
     page_expenses = list(page_obj)
 
-    all_expenses = Expense.objects.exclude(status=Expense.STATUS_VOIDED)
+    all_expenses = list(Expense.objects.exclude(status=Expense.STATUS_VOIDED).prefetch_related('lines', 'payments'))
     stats = {
-        'total': all_expenses.count(),
+        'total': len(all_expenses),
         'total_sar': sum(e.total_amount_sar for e in all_expenses),
         'outstanding_sar': sum(e.outstanding_sar for e in all_expenses),
-        'unpaid_count': all_expenses.exclude(status=Expense.STATUS_PAID).count(),
+        'unpaid_count': sum(1 for e in all_expenses if e.display_status != Expense.STATUS_PAID),
     }
 
     return inertia_render(request, 'Expense/List', props={
         'expenses': [_expense_props(e) for e in page_expenses],
         'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
         'category_choices': [{'value': c.code, 'label': c.name} for c in ExpenseCategory.objects.filter(is_active=True)],
-        'status_choices': Expense.STATUS_CHOICES,
+        'status_choices': Expense.DISPLAY_CHOICES,
+        'vendor_choices': [v.name for v in Vendor.objects.filter(is_active=True).order_by('name')],
+        'service_line_choices': _service_line_choices(),
         'account_choices': _account_choices(),
         'stats': stats,
         'branch_filter': branch or '',
@@ -107,7 +132,7 @@ def expense_list(request):
 @require_perm('expenses', 'view')
 def expense_detail(request, pk):
     expense = get_object_or_404(
-        Expense.objects.select_related('branch', 'created_by', 'period'), pk=pk,
+        Expense.objects.select_related('branch', 'created_by', 'vendor').prefetch_related(*_PROPS_PREFETCH), pk=pk,
     )
     journal_entries = JournalEntry.objects.filter(
         reference_type__in=['Expense', 'ExpensePayment'],
@@ -161,7 +186,12 @@ def expense_record(request):
         category = ExpenseCategory.objects.filter(pk=row.get('category'), is_active=True).first()
         if category is None:
             continue
-        lines.append({'category': category, 'description': row.get('description', ''), 'amount': int(amt)})
+        service_line = None
+        if row.get('service_line'):
+            from ..models import InvoiceLine
+            service_line = InvoiceLine.objects.select_related('invoice').filter(pk=row['service_line']).first()
+        lines.append({'category': category, 'description': row.get('description', ''), 'amount': int(amt),
+                      'service_line': service_line})
 
     if not lines:
         messages.error(request, 'Minimal satu baris beban dengan kategori dan nominal harus diisi.')
@@ -254,8 +284,9 @@ def expense_export_csv(request):
     if branch:
         expenses = expenses.filter(branch_id=branch)
     status = request.GET.get('status')
+    expenses = expenses.prefetch_related('lines', 'payments').select_related('vendor')
     if status:
-        expenses = expenses.filter(status=status)
+        expenses = [e for e in expenses if e.display_status == status]
 
     headers = [
         'Expense #', 'Branch', 'Date', 'Vendor', 'Description', 'Currency',
@@ -263,7 +294,7 @@ def expense_export_csv(request):
     ]
     rows = ([
         e.expense_number, e.branch.name if e.branch_id else '', e.expense_date,
-        e.vendor, e.description, e.currency, e.total_amount, e.total_amount_sar,
-        e.paid_sar, e.outstanding_sar, e.status, e.created_at,
+        e.vendor.name if e.vendor_id else '', e.description, e.currency, e.total_amount, e.total_amount_sar,
+        e.paid_sar, e.outstanding_sar, e.display_status, e.created_at,
     ] for e in expenses)
     return csv_export_response(f'expenses-{date.today().isoformat()}.csv', headers, rows)

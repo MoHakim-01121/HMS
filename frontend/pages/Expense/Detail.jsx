@@ -103,6 +103,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
           columns={[
             { header: t("Category"), render: (l) => l.category_name },
             { header: t("Description"), render: (l) => l.description || "—" },
+            { header: t("Service line"), render: (l) => l.service_line || "—" },
             { header: t("Amount (SAR)"), align: "right", render: (l) => l.amount_sar?.toLocaleString("en-US") },
           ]}
           rows={expense.lines || []}

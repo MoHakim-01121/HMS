@@ -86,6 +86,14 @@ def _build_visa_services_context(invoice):
             payments_by_svc[svc_no] = payments_by_svc.get(svc_no, 0) + amt_main
 
     credited = _credited_by_line(invoice)
+    from django.db.models import Sum
+    from ..models.expense import ExpenseLine
+    vendor_cost = {
+        row['service_line']: int(row['t'] or 0)
+        for row in ExpenseLine.objects.filter(
+            service_line__invoice=invoice, expense__status='posted',
+        ).values('service_line').annotate(t=Sum('amount_sar'))
+    }
     result = []
     for item in invoice.service_items:
         total = int(item.total)
@@ -108,6 +116,8 @@ def _build_visa_services_context(invoice):
             "credited_int": credited_int,
             "remaining": remaining,
             "remaining_class": cls,
+            # What the branch pays its vendor for this line (SAR, posted expenses).
+            "vendor_cost_sar": vendor_cost.get(item.pk, 0),
         })
     return result
 

@@ -39,6 +39,8 @@ EXP_MEALS         = "5460-EXP-MEALS"
 EXP_MAINTENANCE   = "5470-EXP-MAINT"
 EXP_MARKETING     = "5480-EXP-MKT"
 EXP_MISC          = "5490-EXP-MISC"
+# Biaya vendor untuk Services yang dijual cabang (harga beli per pax).
+EXP_SVC_VENDOR    = "5500-EXP-SVC-VENDOR"
 
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
@@ -74,6 +76,7 @@ ACCOUNTS = [
     {"code": EXP_MAINTENANCE, "name": "Beban Pemeliharaan", "type": AccountType.EXPENSE},
     {"code": EXP_MARKETING, "name": "Beban Marketing", "type": AccountType.EXPENSE},
     {"code": EXP_MISC, "name": "Beban Lain-lain", "type": AccountType.EXPENSE},
+    {"code": EXP_SVC_VENDOR, "name": "Biaya Vendor Services", "type": AccountType.EXPENSE},
 ]
 
 # Kategori Expense default (code → (nama, ledger account code)). Di-seed ke
@@ -89,6 +92,7 @@ DEFAULT_EXPENSE_CATEGORIES = [
     ("MARKETING", "Marketing",            EXP_MARKETING),
     ("BANKFEE",   "Biaya Bank",           EXP_BANKFEE),
     ("MISC",      "Lain-lain",            EXP_MISC),
+    ("SVC-VENDOR", "Biaya vendor Services", EXP_SVC_VENDOR),
 ]
 
 # Peta kode akun v1 (enum Account lama) → kode v2. Dipakai adapter

@@ -30,29 +30,51 @@ def _live_entries(source_type, source_id):
     )
 
 
+def resolve_vendor(vendor):
+    """Vendor dari nama (dibuat bila belum ada), objek Vendor, atau None."""
+    from ..models.client import client_name_key
+    from ..models.vendor import Vendor
+    if vendor is None or isinstance(vendor, Vendor):
+        return vendor
+    name = str(vendor).strip()
+    if not name:
+        return None
+    return Vendor.objects.filter(name_key=client_name_key(name)).first() or Vendor.objects.create(name=name)
+
+
+def _check_service_line(line, branch):
+    """Biaya vendor hanya untuk baris Services yang dijual cabang ini (B12/B13)."""
+    if line.kind != line.KIND_SERVICE or line.voided_at is not None:
+        raise FinanceError('Biaya vendor hanya bisa ditautkan ke baris Services yang masih berlaku.')
+    if line.invoice.branch_id != branch.pk:
+        raise FinanceError(
+            f'Baris Services {line.invoice.invoice_number} #{line.line_no} dijual cabang lain; '
+            'biaya vendornya dicatat di cabang itu.'
+        )
+
+
 @transaction.atomic
-def record_expense(*, branch, expense_date, lines, created_by, vendor='',
+def record_expense(*, branch, expense_date, lines, created_by, vendor=None,
                    description='', currency='SAR', exchange_rate=1, note='',
                    proof=None, pay_now=None):
     """Buat Expense (POSTED) + baris + jurnal accrual. Optional bayar penuh langsung.
-
-    lines: iterable {category, ledger_account?, description?, amount}
+    lines: iterable {category, ledger_account?, description?, amount, service_line?}
+    vendor: nama vendor (dibuat bila belum ada), objek Vendor, atau None.
     pay_now: None atau {account (MoneyAccount), payment_date?, reference?}
     """
     lines = list(lines)
     if not lines:
         raise FinanceError('Expense butuh minimal satu baris')
-
-    period = get_period_for_date(expense_date)
+    get_period_for_date(expense_date)
     total = sum(int(l['amount']) for l in lines)
-    total_sar = _sar(total, currency, exchange_rate)
-
+    for l in lines:
+        if l.get('service_line') is not None:
+            _check_service_line(l['service_line'], branch)
     expense = Expense.objects.create(
         expense_number=Expense.generate_number(),
-        branch=branch, expense_date=expense_date, vendor=vendor,
+        branch=branch, expense_date=expense_date, vendor=resolve_vendor(vendor),
         description=description, currency=currency,
-        total_amount=total, total_amount_sar=total_sar,
-        status=Expense.STATUS_POSTED, period=period,
+        status=Expense.STATUS_POSTED,
         note=note, proof=proof, created_by=created_by,
     )
     for l in lines:
@@ -60,6 +82,7 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor='',
         ExpenseLine.objects.create(
             expense=expense, category=l['category'],
             ledger_account=l.get('ledger_account'),
+            service_line=l.get('service_line'),
             description=l.get('description', ''),
             amount=amt, amount_sar=_sar(amt, currency, exchange_rate),
         )
@@ -122,7 +145,7 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
 
     ep = ExpensePayment.objects.create(
         expense=expense, payment_date=payment_date, amount=amount,
-        currency=currency, amount_sar=amt_sar,
+        amount_sar=amt_sar,
         source_account=account,
         reference=reference, status=ExpensePayment.STATUS_PAID,
         note=note, created_by=created_by,
@@ -141,9 +164,6 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
         idempotency_key=f"expensepayment:{ep.pk}:pay",
         created_by=created_by,
     )
-    expense.status = expense.derive_status()
-    expense.save(update_fields=['status', 'updated_at'])
-
     from .bank_ledger import record_bank_transaction
     record_bank_transaction(
         account=src, direction='out', amount_sar=amt_sar,
