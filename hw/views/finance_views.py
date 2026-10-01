@@ -645,6 +645,25 @@ def ar_aging_report(request):
     })
 
 
+@require_perm('statements', 'view')
+def service_margin_report(request):
+    """Margin baris Services terhadap biaya vendornya, dan utang per vendor."""
+    from ..models.branch import Branch
+    branch = request.GET.get('branch') or ''
+    date_from = _parse_date(request.GET.get('date_from'))
+    date_to = _parse_date(request.GET.get('date_to'))
+    return inertia_render(request, 'Finance/ServiceMargin', props={
+        'margins': finance_queries.service_margins(branch=branch or None, date_from=date_from, date_to=date_to),
+        'payables': finance_queries.vendor_payables(),
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True).order_by('name')],
+        'filters': {
+            'branch': branch,
+            'date_from': date_from.isoformat() if date_from else '',
+            'date_to': date_to.isoformat() if date_to else '',
+        },
+    })
+
+
 @require_perm('statements', 'export')
 def ar_aging_csv(request):
     from .helpers import csv_export_response

@@ -854,6 +854,98 @@ def branch_expense_sar(branch_code, *, date_from=None, date_to=None):
     return _net(qs)
 
 
+def service_margins(*, branch=None, date_from=None, date_to=None):
+    """Margin per baris Services (spec §5): pendapatan SAR yang ditagih (charge
+    hidup − nota kredit, dari jurnal) dibanding biaya vendornya (ExpenseLine
+    yang diposting dan menunjuk baris itu). Filter: cabang penjual dan tanggal
+    terbit invoice."""
+    from ..models.expense import Expense, ExpenseLine
+    from ..models.invoice import Invoice, InvoiceLine
+
+    lines = (
+        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True)
+        .exclude(invoice__status=Invoice.STATUS_VOID)
+        .select_related("invoice__client")
+        .order_by("-invoice__issued_date", "invoice_id", "line_no")
+    )
+    if branch:
+        lines = lines.filter(invoice__branch_id=branch)
+    if date_from:
+        lines = lines.filter(invoice__issued_date__gte=date_from)
+    if date_to:
+        lines = lines.filter(invoice__issued_date__lte=date_to)
+    lines = list(lines)
+    ids = [l.pk for l in lines]
+
+    revenue = {
+        r["invoice_line_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in _billing(invoice_line_id__in=ids).values("invoice_line_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    }
+    cost = {
+        r["service_line_id"]: r["t"] or 0
+        for r in ExpenseLine.objects.filter(service_line_id__in=ids, expense__status=Expense.STATUS_POSTED)
+        .values("service_line_id").annotate(t=Sum("amount_sar"))
+    }
+
+    rows = []
+    for l in lines:
+        rev, cst = int(revenue.get(l.pk, 0)), int(cost.get(l.pk, 0))
+        rows.append({
+            "line_id": l.pk,
+            "invoice_id": l.invoice_id,
+            "invoice_number": l.invoice.invoice_number,
+            "branch": l.invoice.branch_id,
+            "client": l.invoice.customer_name,
+            "description": l.description,
+            "quantity": l.quantity,
+            "revenue_sar": rev,
+            "cost_sar": cst,
+            "margin_sar": rev - cst,
+            "margin_pct": round((rev - cst) * 100 / rev, 1) if rev else None,
+            "has_cost": l.pk in cost,
+        })
+    total_rev = sum(r["revenue_sar"] for r in rows)
+    total_cost = sum(r["cost_sar"] for r in rows)
+    return {
+        "rows": rows,
+        "revenue_sar": total_rev,
+        "cost_sar": total_cost,
+        "margin_sar": total_rev - total_cost,
+        "without_cost": sum(1 for r in rows if not r["has_cost"]),
+    }
+
+
+def vendor_payables():
+    """Utang per vendor (spec §5): Σ beban diposting − Σ pembayarannya."""
+    from ..models.expense import Expense, ExpenseLine, ExpensePayment
+    from ..models.vendor import Vendor
+
+    billed = {
+        r["expense__vendor_id"]: r["t"] or 0
+        for r in ExpenseLine.objects.filter(expense__status=Expense.STATUS_POSTED)
+        .values("expense__vendor_id").annotate(t=Sum("amount_sar"))
+    }
+    paid = {
+        r["expense__vendor_id"]: r["t"] or 0
+        for r in ExpensePayment.objects.filter(
+            status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_POSTED,
+        ).values("expense__vendor_id").annotate(t=Sum("amount_sar"))
+    }
+    names = dict(Vendor.objects.filter(pk__in=[k for k in billed if k]).values_list("pk", "name"))
+    rows = [
+        {
+            "vendor_id": vid,
+            "vendor": names.get(vid) or "(no vendor)",
+            "billed_sar": int(t),
+            "paid_sar": int(paid.get(vid, 0)),
+            "outstanding_sar": int(t) - int(paid.get(vid, 0)),
+        }
+        for vid, t in billed.items()
+    ]
+    rows.sort(key=lambda r: (-r["outstanding_sar"], r["vendor"]))
+    return rows
+
+
 def mengendap_per_reservation(line_id):
     """Kas Surabaya yang menempel pada reservasi ini (belum diremit)."""
     return _net(JournalLine.objects.filter(invoice_line_id=line_id, account_id=coa.CASH_SBY))

@@ -73,7 +73,7 @@ from .finance_views import (
     finance_hub, journal_list, journal_detail, trial_balance, statements_list,
     client_finance_statement, bank_account_list, bank_account_transactions,
     bank_account_new, bank_account_edit,
-    fund_flow_report, fund_flow_csv, ar_aging_report, ar_aging_csv,
+    fund_flow_report, fund_flow_csv, ar_aging_report, ar_aging_csv, service_margin_report,
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
