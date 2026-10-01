@@ -30,7 +30,7 @@ from hw.models import Client, Remittance, RemittanceLine
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.models.settlement import RemittanceSettlement
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, make_remittance
 
 
 def _net(account_id):
@@ -71,10 +71,10 @@ class AllocationBase(TestCase):
         posting.post_payment(p, created_by=self.user)
 
     def _transfer(self, idr, rate, when, number='RMT-ALC-1'):
-        rem = Remittance.objects.create(
+        rem = make_remittance(
             remittance_number=number, date=when, amount_idr=idr, exchange_rate=rate,
         )
-        posting.resync_remittance(rem, created_by=self.user, send_segments=[])
+        posting.resync_remittance(rem, created_by=self.user)
         return rem
 
     def _receive(self, amount, when, allocations, rem=None):
@@ -186,11 +186,6 @@ class ValidationTest(AllocationBase):
         with self.assertRaises(FinanceError):
             self._receive(40000, date(2026, 9, 12), [{'linked_number': 'D', 'amount_sar': 1000}])
 
-    def test_rejects_allocation_on_remittance_without_amount_idr(self):
-        legacy = Remittance.objects.create(remittance_number='RMT-ALC-OLD', date=date(2026, 9, 10))
-        with self.assertRaises(FinanceError):
-            self._receive(1000, date(2026, 9, 12), [{'linked_number': 'A', 'amount_sar': 1000}], rem=legacy)
-
     def test_zero_amounts_are_ignored(self):
         s1 = self._receive(40000, date(2026, 9, 12), [
             {'linked_number': 'A', 'amount_sar': 32000},
@@ -278,10 +273,10 @@ class ClosedTransferPeriodTest(TestCase):
             method='transfer', created_by=user, received_in='sby', reservation=res,
         )
         posting.post_payment(p, created_by=user)
-        rem = Remittance.objects.create(
+        rem = make_remittance(
             remittance_number='RMT-ALC-9', date=date(2026, 9, 28), amount_idr=23_040_000, exchange_rate=4800,
         )
-        posting.resync_remittance(rem, created_by=user, send_segments=[])
+        posting.resync_remittance(rem, created_by=user)
         sept.status = FinancialPeriod.STATUS_CLOSED
         sept.save(update_fields=['status'])
 
@@ -374,8 +369,10 @@ class ReceiptViewTest(AllocationBase):
         self.assertFalse(RemittanceSettlement.objects.exists())
 
     def test_form_redirects_when_remittance_already_received(self):
-        self.rem.status = Remittance.STATUS_RECEIVED
-        self.rem.save(update_fields=['status'])
+        from hw.models.settlement import RemittanceSettlement
+        RemittanceSettlement.objects.create(
+            remittance=self.rem, received_amount_sar=self.rem.settlement_basis_sar, received_date=self.rem.date,
+        )
         self.assertEqual(self.client.get(self.url).status_code, 302)
 
     def test_reallocation_form_and_post(self):
@@ -453,20 +450,3 @@ class TrackingDataTest(AllocationBase):
         )
 
 
-class SendSegmentsTest(AllocationBase):
-    def test_receipt_allocations_are_not_send_segments(self):
-        self._receive(40000, date(2026, 9, 12), [{'linked_number': 'A', 'amount_sar': 32000}])
-        self.assertEqual(ra.send_segments(self.rem), [])
-        posting.resync_remittance(self.rem, created_by=self.user, send_segments=ra.send_segments(self.rem))
-        self.assertEqual(self._idle()['A'], 0)
-        self.assertEqual(_net(coa.TRANSIT), 10000)
-
-    def test_resync_keeps_unallocated_remainder_of_lump_sum(self):
-        """Regresi: segmen sebagian dulu mengganti seluruh jurnal kirim, jadi
-        sisa yang masih di jalan tercatat seolah kembali ke Kas SBY."""
-        posting.resync_remittance(self.rem, created_by=self.user, send_segments=[
-            {'reservation': self.a, 'invoice': self.invoice, 'client': self.client_obj, 'amount_sar': 32000},
-        ])
-        self.assertEqual(_net(coa.TRANSIT), 50000)
-        self.assertEqual(_net(coa.CASH_SBY), 0)
-        self.assertEqual(self.rem.settlement_basis_sar, 50000)

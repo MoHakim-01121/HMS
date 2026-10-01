@@ -1,4 +1,3 @@
-import json
 import logging
 
 from collections import defaultdict
@@ -7,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
@@ -25,10 +24,9 @@ logger = logging.getLogger(__name__)
 def _parse_transfer_fields(request):
     """Field transfer bank fisik dari form -- semuanya opsional.
 
-    amount_idr          : uang IDR yang keluar dari bank Surabaya
-    exchange_rate       : kurs IDR/SAR saat transfer
-    received_amount_sar : nominal SAR yang benar-benar diterima pusat
-                          (boleh beda dari idr/kurs karena biaya transfer)
+    amount_idr    : nominal yang keluar dari rekening asal (mata uang rekening itu)
+    exchange_rate : kurs rencana (mata uang asal per 1 SAR)
+    (nilai ketiga, nominal diterima manual jalur lama, tidak dipakai lagi)
     """
     def _num(key):
         raw = (request.POST.get(key) or '').strip().replace(',', '')
@@ -50,45 +48,22 @@ def _parse_transfer_fields(request):
 
 
 def _prev_sent_map(rem, linked_numbers):
-    """Total SAR yang sudah dikirim per reservasi lewat remittance SEBELUM `rem`.
-
-    Urutannya mengikuti Meta.ordering Remittance (date, lalu created_at), jadi
-    remittance yang dibuat setelah `rem` tidak ikut terhitung sebagai "prev sent".
-    """
+    """Total SAR yang sudah dialokasikan per reservasi lewat remittance SEBELUM
+    `rem` (urut tanggal kirim, lalu waktu dibuat)."""
     if not linked_numbers:
         return {}
     earlier = (
-        Q(remittance__date__lt=rem.date)
-        | Q(remittance__date=rem.date, remittance__created_at__lt=rem.created_at)
+        Q(settlement__remittance__date__lt=rem.date)
+        | Q(settlement__remittance__date=rem.date, settlement__remittance__created_at__lt=rem.created_at)
     )
     return {
-        row['linked_number']: int(row['total'] or 0)
+        row['number']: int(row['total'] or 0)
         for row in RemittanceLine.objects.filter(
-            earlier,
-            linked_number__in=linked_numbers,
-        ).exclude(remittance=rem).values('linked_number').annotate(total=Sum('amount_sar'))
+            earlier, invoice_line__confirmation_letter__confirmation_number__in=list(linked_numbers),
+        ).exclude(settlement__remittance=rem).values(
+            number=F('invoice_line__confirmation_letter__confirmation_number'),
+        ).annotate(total=Sum('amount_sar'))
     }
-
-
-def _sort_lines_by_payment_date(lines):
-    """Urutkan baris remittance sesuai tanggal pembayaran terkait per reservasi.
-
-    Baris tanpa tanggal pembayaran ditaruh paling bawah. Urutan antar render
-    tetap stabil (tidak berubah-ubah) lewat fallback linked_number.
-    """
-    from ..finance import queries as finance_queries
-    linked_numbers = [l.linked_number for l in lines]
-    first_payment = finance_queries.reservation_first_payment_date_map(
-        linked_numbers,
-    )
-    return sorted(
-        lines,
-        key=lambda l: (
-            first_payment.get(l.linked_number) is None,
-            first_payment.get(l.linked_number) or date.max,
-            l.linked_number or '',
-        ),
-    )
 
 
 def _fx_stats():
@@ -133,11 +108,9 @@ _build_reservasi_mengendap = remittance_allocation.build_reservasi_mengendap
 
 
 def _can_record_receipt(rem):
-    """Record Receipt (RemittanceSettlement) terbuka selama pusat belum
-    menerima penuh dan remittance ini tidak memakai jalur lama
-    received_amount_sar -- aturan yang sama ditegakkan di
-    settlement_service.add_settlement."""
-    return rem.status == Remittance.STATUS_PENDING and rem.received_amount_sar is None
+    """Record Receipt terbuka selama Pusat belum menerima penuh -- aturan yang
+    sama ditegakkan di settlement_service.add_settlement."""
+    return rem.status == Remittance.STATUS_PENDING
 
 
 @require_perm('remittance', 'view')
@@ -152,16 +125,17 @@ def remittance_list(request):
 
     remittances, stats = [], None
     if tab == 'transfers':
-        qs = Remittance.objects.all().prefetch_related('lines').order_by('-date')
-        if status_filter in ('pending', 'received'):
-            qs = qs.filter(status=status_filter)
+        qs = Remittance.objects.all().prefetch_related('settlements__allocations').order_by('-date')
         if q:
             qs = qs.filter(
                 Q(remittance_number__icontains=q) |
                 Q(receipt_reference__icontains=q) |
                 Q(note__icontains=q)
             )
-        qs = list(qs.annotate(settled_sar_sum=Sum('settlements__received_amount_sar')))
+        qs = remittance_allocation.annotate_statuses(qs.annotate(settled_sar_sum=Sum('settlements__received_amount_sar')))
+        # Status is derived from the receipts, so the filter runs here.
+        if status_filter in ('pending', 'received'):
+            qs = [rem for rem in qs if rem.status == status_filter]
         sent_map = finance_queries.remittance_sent_map([rem.pk for rem in qs])
         stats = _compute_stats()
         remittances = [{
@@ -172,13 +146,9 @@ def remittance_list(request):
             "status": rem.status,
             "settled_sar": int(rem.settled_sar_sum or 0),
             "expected_sar": rem.expected_sar,
-            "allocated_sar": sum(int(l.amount_sar or 0) for l in rem.lines.all()),
+            "allocated_sar": sum(int(a.amount_sar) for s in rem.settlements.all() for a in s.allocations.all()),
             "proof_url": rem.proof.url if rem.proof else None,
             "can_record_receipt": _can_record_receipt(rem),
-            # "Mark as Received" (jalur lama) cuma masuk akal untuk remittance
-            # yang memang sudah punya nominal diterima manual -- remittance baru
-            # mencatat penerimaan lewat Record Receipt. Lihat remittance_mark_received.
-            "can_mark_received": rem.status == Remittance.STATUS_PENDING and rem.received_amount_sar is not None,
         } for rem in qs]
 
     return inertia_render(request, "Remittance/List", props={
@@ -246,13 +216,18 @@ def remittance_new(request):
         return form_page('Choose the IDR bank account the money left from.'
                          if from_accounts else 'Add an IDR bank account in Bank Balances first.')
 
+    from ..finance.bank_ledger import default_account
+    to_account = default_account('pusat', 'SAR')
+    if to_account is None:
+        return form_page('Add an HQ SAR account in Bank Balances first.')
     rem = Remittance.objects.create(
         remittance_number=Remittance.generate_number(),
         date=remittance_date,
         receipt_reference=receipt_reference,
-        amount_idr=amount_idr,
+        amount_sent=amount_idr,
         exchange_rate=exchange_rate,
         from_account=from_account,
+        to_account=to_account,
         note=note,
     )
     # Cash book: the rupiah that left the branch account (fund-flow report).
@@ -269,7 +244,7 @@ def remittance_new(request):
     # Uang sudah keluar bank tapi belum milik reservasi mana pun. Posting
     # aggregate SBY->Transit via jurnal (Fase 7: tanpa shadow CashMovement).
     try:
-        posting.resync_remittance(rem, created_by=request.user, send_segments=[])
+        posting.resync_remittance(rem, created_by=request.user)
     except FinanceError as e:
         logger.warning("remittance %s: journal send resync gagal: %s", rem.remittance_number, e)
         messages.warning(request, f'Remittance dibuat, tapi jurnal belum tercatat: {e}')
@@ -280,44 +255,12 @@ def remittance_new(request):
 @require_perm('remittance', 'view')
 def remittance_detail(request, pk):
     from ..models import Reservation
-    rem = get_object_or_404(Remittance, pk=pk)
-    # Baris tanpa settlement = dialokasikan saat kirim (jalur lama). Alokasi
-    # penerimaan ditampilkan di bawah penerimaannya masing-masing.
-    lines = _sort_lines_by_payment_date(
-        list(rem.lines.filter(settlement__isnull=True).select_related('invoice__client'))
-    )
-
-    linked_numbers = [l.linked_number for l in lines]
-
-    # Reservation data (check_in, hotel)
-    res_map = {
-        r['reservation_number']: r
-        for r in Reservation.objects.numbered(linked_numbers).reservation_rows()
-    }
-
-    # Total previously sent (remittance sebelum yang ini)
-    prev_map = _prev_sent_map(rem, linked_numbers)
-
-    enriched = []
-    for line in lines:
-        res = res_map.get(line.linked_number, {})
-        ci = res.get('check_in')
-        enriched.append({
-            'linked_number': line.linked_number,
-            'amount_sar': int(line.amount_sar),
-            'check_in': ci.strftime("%d/%m/%Y") if ci else None,
-            'hotel': res.get('hotel') or '—',
-            'prev_sent': prev_map.get(line.linked_number, 0),
-            'invoice': {
-                'pk': line.invoice.pk,
-                'invoice_number': line.invoice.invoice_number,
-                'customer_name': line.invoice.customer_name,
-            } if line.invoice_id else None,
-        })
+    rem = get_object_or_404(Remittance.objects.select_related('from_account', 'to_account'), pk=pk)
 
     from ..finance.settlement_service import diff_is_closed
     settlements = list(
-        rem.settlements.order_by('received_date', 'id').prefetch_related('allocations__invoice')
+        rem.settlements.order_by('received_date', 'id')
+        .prefetch_related('allocations__invoice_line__invoice__client', 'allocations__invoice_line__confirmation_letter')
     )
     from ..models.bank_transaction import BankTransaction
     reconciled_receipts = set(
@@ -351,22 +294,18 @@ def remittance_detail(request, pk):
             "status": rem.status,
             "proof_url": rem.proof.url if rem.proof else None,
             "receipt_reference": rem.receipt_reference,
-            "from_account": (
-                f"{rem.from_account.bank_name} {rem.from_account.account_identifier}".strip()
-                if rem.from_account_id else None
-            ),
+            "from_account": f"{rem.from_account.bank_name} {rem.from_account.account_identifier}".strip(),
+            "to_account": str(rem.to_account),
             "note": rem.note,
             "total_sar": rem.total_sar,
             # Transfer bank fisik + progres alokasi ke reservasi
             "amount_idr": rem.amount_idr,
             "exchange_rate": float(rem.exchange_rate) if rem.exchange_rate else None,
             "expected_sar": rem.expected_sar,
-            "received_amount_sar": rem.received_amount_sar,
+            "received_amount_sar": None,
             "allocated_sar": rem.allocated_sar,
             "unallocated_sar": rem.unallocated_sar,
-            # Penerimaan pusat (RemittanceSettlement) -- lihat
-            # hw/models/settlement.py. Kosong kalau remittance ini masih
-            # pakai jalur lama (received_amount_sar).
+            # Penerimaan Pusat (RemittanceSettlement) -- lihat hw/models/settlement.py.
             "settlement_status": rem.settlement_status,
             "settled_total_sar": settled_total_sar,
             "settlement_basis_sar": basis_sar,
@@ -396,17 +335,20 @@ def remittance_detail(request, pk):
             "can_allocate": rem.expected_sar is not None,
             "position": remittance_allocation.transfer_position(rem),
         },
-        "lines": enriched,
+        # Allocations live under their receipts; there are no send-time lines.
+        "lines": [],
     })
 
 
 @require_perm('remittance', 'export')
 def remittance_export_csv(request):
-    remittances = Remittance.objects.all().prefetch_related('lines__invoice')
+    remittances = Remittance.objects.all().prefetch_related(
+        'settlements__allocations__invoice_line__invoice', 'settlements__allocations__invoice_line__confirmation_letter',
+    )
     headers = ['Tanggal', 'Total SAR', 'Note', 'Res#', 'Invoice', 'Amount SAR']
     rows = []
     for rem in remittances:
-        lines = list(rem.lines.all())
+        lines = [a for s in rem.settlements.all() for a in s.allocations.all()]
         if lines:
             for i, line in enumerate(lines):
                 rows.append([
@@ -423,152 +365,21 @@ def remittance_export_csv(request):
 
 
 @require_perm('remittance', 'edit')
-@require_POST
-def remittance_mark_received(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk)
-    if rem.settlements.exists():
-        messages.error(
-            request,
-            f'Remittance {rem.remittance_number} sudah punya settlement bertahap — '
-            'tidak bisa ditandai diterima lewat jalur lama. Catat penerimaannya lewat Record Receipt.',
-        )
-        return redirect('remittance_list')
-    if rem.status != Remittance.STATUS_RECEIVED:
-        rem.status = Remittance.STATUS_RECEIVED
-        rem.save(update_fields=['status'])
-        # Journal: post kaki terima -- Kas Pusat masuk, Transit bersih, selisih
-        # vs expected → beban bank / gain kurs. Sisi kirim sudah terposting sejak
-        # pembuatan; resync idempotent-by-content. Kalau nominal penerimaan belum
-        # diisi (RMT lama), sisi terima tak ada yang bisa diposting -- status saja.
-        if rem.received_amount_sar is not None:
-            try:
-                posting.resync_remittance(
-                    rem, created_by=request.user,
-                    send_segments=_remittance_send_segments(rem),
-                    received_sar=rem.received_amount_sar, touch_receive=True,
-                )
-            except FinanceError as e:
-                logger.warning("remittance %s: journal receive resync gagal: %s", rem.remittance_number, e)
-                messages.warning(request, f'Status diperbarui, tapi jurnal penerimaan gagal dicatat: {e}')
-    return redirect('remittance_list')
-
-
-def _addable_reservasi(rem):
-    """Reservasi yang masih punya uang mengendap dan belum ada di remittance ini."""
-    existing = set(rem.lines.values_list('linked_number', flat=True))
-    rows = []
-    for r in _build_reservasi_mengendap():
-        if r['linked_number'] in existing or r['mengendap'] <= 0:
-            continue
-        ci, co = r.get('check_in'), r.get('check_out')
-        rows.append({
-            'linked_number': r['linked_number'],
-            'invoice_id': r['invoice_id'],
-            'invoice_number': r['invoice_number'],
-            'customer_name': r['customer_name'],
-            'check_in': ci.strftime('%d/%m/%Y') if ci else None,
-            'check_out': co.strftime('%d/%m/%Y') if co else None,
-            'mengendap': r['mengendap'],
-        })
-    return rows
-
-
-_remittance_send_segments = remittance_allocation.send_segments
-
-
-def _sync_remittance_lines(rem, raw_lines, user=None):
-    """Samakan baris remittance dengan payload dari form.
-
-    Baris dengan line_id diperbarui, baris baru dibuat, dan baris yang tidak
-    ada di payload atau nominalnya nol akan dihapus.
-
-    Journal (sejak Fase 5, shadow CashMovement sudah dipensiunkan Fase 7):
-    reverse entry REMITTANCE hidup utk rmt ini lalu re-post per baris --
-    idempotent-by-content lewat `posting.resync_remittance`. Segmen kosong →
-    lump-sum aggregate.
-    """
-    with transaction.atomic():
-        keep_ids = set()
-        for ld in raw_lines:
-            try:
-                amount = int(round(float(ld.get('amount_sar') or 0)))
-            except (ValueError, TypeError):
-                amount = 0
-            line_id = ld.get('line_id')
-            if line_id:
-                if amount > 0 and RemittanceLine.objects.filter(pk=line_id, remittance=rem).update(amount_sar=amount):
-                    keep_ids.add(int(line_id))
-            elif amount > 0 and ld.get('linked_number'):
-                line = RemittanceLine.objects.create(
-                    remittance=rem,
-                    invoice_id=ld.get('invoice_id') or None,
-                    linked_number=ld['linked_number'],
-                    amount_sar=amount,
-                )
-                keep_ids.add(line.pk)
-        rem.lines.exclude(pk__in=keep_ids).delete()
-
-        # Journal: reverse entry REMITTANCE hidup utk rmt ini lalu re-post
-        # dari baris sekarang -- idempotent-by-content lewat resync_remittance.
-        # Segmen kosong → lump-sum aggregate (RMT yang barisnya dikosongkan
-        # tetap tercatat mengalir dari Surabaya kalau uangnya keluar).
-        # Kegagalan jurnal (mis. periode belum dibuka) tidak boleh membatalkan
-        # edit baris -- savepoint resync sudah rollback, baris tetap tersimpan.
-        try:
-            posting.resync_remittance(
-                rem, created_by=user, send_segments=_remittance_send_segments(rem),
-            )
-        except FinanceError as e:
-            logger.warning("remittance %s: journal line resync gagal: %s", rem.remittance_number, e)
-    logger.info(
-        "ledger: remittance %s synced, %d line(s)",
-        rem.remittance_number, len(keep_ids),
-    )
-
-
-@require_perm('remittance', 'edit')
 def remittance_edit(request, pk):
     # remittance yang sudah Received tetap boleh diedit: koreksi kadang baru
     # ketahuan setelah HQ menandai diterima
     rem = get_object_or_404(Remittance, pk=pk)
     if request.method == 'POST':
         rem.date = request.POST.get('date') or rem.date
-        # Status manual hanya untuk remittance tanpa penerimaan tercatat.
-        # Begitu ada RemittanceSettlement, status disinkronkan otomatis oleh
-        # settlement_service -- override di sini bikin status bertentangan
-        # dengan uang yang benar-benar tercatat diterima.
-        if not rem.settlements.exists():
-            rem.status = request.POST.get('status', rem.status)
         rem.receipt_reference = request.POST.get('receipt_reference', '').strip()
         rem.note = request.POST.get('note', '').strip()
-        amount_idr, exchange_rate, received_sar = _parse_transfer_fields(request)
-        if received_sar is not None and rem.settlements.exists():
-            messages.error(
-                request,
-                f'Remittance {rem.remittance_number} sudah punya settlement bertahap — '
-                'nominal diterima manual tidak bisa diisi lewat jalur lama.',
-            )
-            return redirect('remittance_edit', pk=rem.pk)
-        if received_sar is not None and rem.received_amount_sar is None:
-            # Remittance baru (2026-09-14: dibuat tanpa received_amount_sar
-            # sejak jalur ini pindah ke Settlement) tidak boleh "dibukakan"
-            # ke jalur lama lewat edit -- itu tepat jalan-buntu yang mau
-            # dihindari (field ini sengaja tak ada di form Edit; blok di sini
-            # cuma jaga-jaga kalau ada yang POST manual). Remittance LAMA yang
-            # memang sudah punya nilai ini masih boleh dikoreksi di bawah.
-            messages.error(
-                request,
-                f'Remittance {rem.remittance_number} belum pernah dicatat diterima. '
-                'Catat penerimaannya lewat Record Receipt di detail remittance, bukan di sini.',
-            )
-            return redirect('remittance_edit', pk=rem.pk)
-        if amount_idr or received_sar:
-            rem.amount_idr = amount_idr
-            rem.exchange_rate = exchange_rate
-            rem.received_amount_sar = received_sar
-        update_fields = ['date', 'status', 'receipt_reference', 'note']
-        if amount_idr or received_sar:
-            update_fields += ['amount_idr', 'exchange_rate', 'received_amount_sar']
+        # The amount and planned rate of the transfer can be corrected while
+        # HQ has recorded nothing against it yet.
+        amount_sent, exchange_rate, _ignored = _parse_transfer_fields(request)
+        update_fields = ['date', 'receipt_reference', 'note']
+        if amount_sent and exchange_rate and not rem.settlements.exists():
+            rem.amount_sent, rem.exchange_rate = amount_sent, exchange_rate
+            update_fields += ['amount_sent', 'exchange_rate']
         if request.POST.get('remove_proof'):
             rem.proof = None
             update_fields.append('proof')
@@ -580,20 +391,16 @@ def remittance_edit(request, pk):
             update_fields.append('proof')
         rem.save(update_fields=update_fields)
 
-        # tanpa key 'lines' sama sekali, baris dibiarkan apa adanya. Transfer
-        # lump-sum (punya IDR/kurs): baris = alokasi penerimaan, diatur lewat
-        # Catat Penerimaan / Ubah alokasi, bukan dari form edit.
-        if request.POST.get('lines') is not None and rem.amount_idr is None:
-            try:
-                raw_lines = json.loads(request.POST.get('lines') or '[]')
-            except (ValueError, TypeError):
-                raw_lines = []
-            _sync_remittance_lines(rem, raw_lines, request.user)
-
+        # The journal's send leg follows the transfer (date, amount, rate).
+        try:
+            posting.resync_remittance(rem, created_by=request.user)
+        except FinanceError as e:
+            logger.warning("remittance %s: journal send resync gagal: %s", rem.remittance_number, e)
         return redirect('remittance_detail', pk=rem.pk)
 
-    lines_editable = rem.amount_idr is None
-    lines = _sort_lines_by_payment_date(list(rem.lines.select_related('invoice__client'))) if lines_editable else []
+    # Allocations are made per receipt (Record Receipt / change allocation).
+    lines_editable = False
+    lines = []
     return inertia_render(request, "Remittance/Edit", props={
         "rem": {
             "id": rem.id,
@@ -615,7 +422,7 @@ def remittance_edit(request, pk):
                 "customer_name": l.invoice.customer_name,
             } if l.invoice_id else None,
         } for l in lines],
-        "reservasi": _addable_reservasi(rem) if lines_editable else [],
+        "reservasi": [],
         "lines_editable": lines_editable,
     })
 
@@ -626,7 +433,10 @@ def remittance_pdf(request, pk):
     from .pdf import _logo_file_url
     from ..models import Reservation
     rem = get_object_or_404(Remittance, pk=pk)
-    raw_lines = list(rem.lines.select_related('invoice__client').order_by('linked_number'))
+    raw_lines = list(
+        rem.lines.select_related('invoice_line__invoice__client', 'invoice_line__confirmation_letter', 'settlement')
+        .order_by('invoice_line__confirmation_letter__confirmation_number')
+    )
     linked_numbers = [l.linked_number for l in raw_lines]
 
     res_map = {
@@ -669,7 +479,7 @@ def remittance_delete(request, pk):
     # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
     # langsung atau lewat baris -- tidak boleh hilang diam-diam.
     from ..finance import queries as finance_queries
-    if rem.lines.exists() or finance_queries.remittance_has_live_entries(rem.pk):
+    if rem.settlements.exists() or finance_queries.remittance_has_live_entries(rem.pk):
         messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
         return redirect('remittance_detail', pk=pk)
     from ..finance.bank_ledger import void_bank_transactions
@@ -713,7 +523,7 @@ def _compute_recap_data():
     berstatus received. Penerimaan dihitung di bulan transfernya, bukan bulan
     diterima."""
     remittances = (
-        Remittance.objects.all().prefetch_related('lines', 'settlements').order_by('-date', '-created_at')
+        Remittance.objects.all().prefetch_related('settlements__allocations').order_by('-date', '-created_at')
     )
     months = {}
     for rem, fig in remittance_allocation.figures_for(remittances):
@@ -731,7 +541,7 @@ def _compute_recap_data():
             'id': rem.id,
             'remittance_number': rem.remittance_number,
             'date': rem.date.strftime('%d/%m/%Y'),
-            'lines_count': len(rem.lines.all()),
+            'lines_count': sum(len(s.allocations.all()) for s in rem.settlements.all()),
             'state': fig['state'],
             'sent': fig['sent'],
             'received': fig['received'],
@@ -815,7 +625,7 @@ def _compute_tracking_data():
     pending = []
     positions = [
         (rem, pos) for rem, pos in remittance_allocation.positions_for(
-            Remittance.objects.filter(amount_idr__isnull=False).order_by('date', 'pk'),
+            Remittance.objects.order_by('date', 'pk'),
         ) if pos
     ]
     # Penerimaan yang belum habis dialokasikan: satu query untuk semua transfer.
@@ -898,8 +708,8 @@ def _build_ledger_rows(date_from=None, date_to=None):
         pool[num]['credit'] += bd['terbayar_direct']
         direct_total += bd['terbayar_direct']
 
-    for l in RemittanceLine.objects.all().values(
-        'linked_number',
+    for l in RemittanceLine.objects.values(
+        linked_number=F('invoice_line__confirmation_letter__confirmation_number'),
     ).annotate(total=Sum('amount_sar')):
         pool[l['linked_number']]['credit'] += int(l['total'] or 0)
     # CL ikut jadi basis baris supaya reservasi yang belum punya invoice tetap terlacak
@@ -993,7 +803,7 @@ def remittance_period_pdf(request):
     remittances = Remittance.objects.filter(
         date__year=period_dt.year,
         date__month=period_dt.month,
-    ).prefetch_related('lines', 'settlements').order_by('date')
+    ).prefetch_related('settlements__allocations').order_by('date')
 
     # Sama dengan tab Recap: diterima = nominal yang benar-benar masuk Pusat,
     # "pending" = yang masih di jalan (termasuk sisa transfer diterima sebagian).

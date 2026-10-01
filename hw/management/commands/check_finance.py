@@ -162,7 +162,7 @@ class Command(BaseCommand):
         for rem in Remittance.objects.all():
             if not fq.remittance_has_live_entries(rem.id):
                 continue
-            lines = RemittanceLine.objects.filter(remittance=rem)
+            lines = RemittanceLine.objects.filter(settlement__remittance=rem)
             line_total = sum(int(l.amount_sar or 0) for l in lines)
             alloc_total = sum(int(l.amount_sar or 0) for l in lines if l.settlement_id)
             sent = int(fq.remittance_sent_sar(rem.id))

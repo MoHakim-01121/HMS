@@ -91,10 +91,7 @@ def finance_hub(request):
 
     # ── Remittance ────────────────────────────────────────────────
     if has('remittance'):
-        pending_remits = list(
-            Remittance.objects.filter(status=Remittance.STATUS_PENDING)
-            .order_by('-date', '-created_at')
-        )
+        pending_remits = Remittance.objects.order_by('-date', '-created_at').pending()
         sent_map = finance_queries.remittance_sent_map([r.id for r in pending_remits])
         recent = list(Remittance.objects.order_by('-date', '-created_at')[:6])
         recent_map = finance_queries.remittance_sent_map([r.id for r in recent])

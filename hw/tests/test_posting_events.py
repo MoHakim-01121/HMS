@@ -1,5 +1,5 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_service_line, set_line_total
+from hw.tests.factories import make_account, make_cl, make_hotel_line, make_invoice, make_remittance, make_service_line, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -155,18 +155,19 @@ class KasMovementTests(PostingTestBase):
         self.assertEqual(_net(account_id=coa.AR, reservation=r2), 30000)
 
     def test_remittance_send_then_receive_with_fee(self):
-        from hw.models import Remittance
-        rmt = Remittance.objects.create(
- date=date(2045, 5, 1), remittance_number="RMT-P1",
+        from hw.finance import settlement_service
+        rmt = make_remittance(
+            date=date(2045, 5, 1), remittance_number="RMT-P1", from_account=make_account('sby', 'SAR'),
         )
         posting.post_remittance_send(
-            rmt, from_location="sby", amount_sar=50000, created_by=self.user,
+            rmt, amount_sar=50000, created_by=self.user,
         )
         self.assertEqual(_net(account_id=coa.CASH_SBY), -50000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 50000)
-        posting.post_remittance_receive(
-            rmt, expected_sar=50000, received_sar=49000, created_by=self.user,
+        settlement_service.add_settlement(
+            rmt, received_amount_sar=49000, received_date=date(2045, 5, 2), created_by=self.user,
         )
+        settlement_service.close_remittance_diff(rmt, created_by=self.user, entry_date=date(2045, 5, 3))
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 1000)
@@ -192,93 +193,47 @@ class PenaltyChargeTests(PostingTestBase):
 
 
 class RemittanceResyncTests(PostingTestBase):
-    def _remittance(self):
-        from hw.models import Remittance
-        return Remittance.objects.create(
- date=date(2045, 5, 1), remittance_number="RMT-R",
+    """Satu jalur: jurnal kirim (Transit / rekening asal) mengikuti transfernya,
+    penerimaan Pusat lewat settlement_service, selisihnya ditutup terpisah."""
+
+    def _remittance(self, sar=50000):
+        return make_remittance(
+            date=date(2045, 5, 1), remittance_number="RMT-R", amount_sent=sar * 4750,
         )
 
-    def test_send_per_reservation_then_receive(self):
+    def test_send_then_receive_then_close_difference(self):
+        from hw.finance import settlement_service
         rmt = self._remittance()
-        segments = [
-            {"reservation": self.res, "invoice": self.invoice.pk,
-             "client": self.client_obj.pk, "amount_sar": 30000},
-            {"reservation": None, "invoice": None, "client": None, "amount_sar": 20000},
-        ]
-        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
-        self.assertEqual(_net(account_id=coa.CASH_SBY), -50000)
+        posting.resync_remittance(rmt, created_by=self.user)
+        source = rmt.from_account.ledger_account_id
+        self.assertEqual(_net(account_id=source), -50000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 50000)
-        # dimensi reservasi tercatat supaya mengendap_per_reservation turun
-        self.assertEqual(_net(account_id=coa.CASH_SBY, reservation=self.res), -30000)
 
-        # mark_received: resync ulang dengan segmen kirim yg sama + sisi terima
-        posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=segments,
-            received_sar=49000, touch_receive=True,
+        settlement_service.add_settlement(
+            rmt, received_amount_sar=49000, received_date=date(2045, 5, 3), created_by=self.user,
         )
-        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 49000)
+        self.assertEqual(rmt.status, "pending")
+        settlement_service.close_remittance_diff(rmt, created_by=self.user, entry_date=date(2045, 5, 4))
+        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
         self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 1000)
+        self.assertEqual(rmt.status, "received")
         self.assertEqual(verify_chain(), [])
 
     def test_resync_is_idempotent_by_content(self):
         rmt = self._remittance()
-        segments = [{"amount_sar": 30000}]
-        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
+        posting.resync_remittance(rmt, created_by=self.user)
         total_after_first = JournalEntry.objects.filter(reference_id=rmt.pk).count()
-        posting.resync_remittance(rmt, created_by=self.user, send_segments=segments)
-        # hanya 1 entry kirim "hidup" (belum di-reverse) tersisa
-        reversed_ids = JournalEntry.objects.filter(
-            reverses__isnull=False,
-        ).values_list("reverses_id", flat=True)
-        self.assertEqual(
-            JournalEntry.objects.filter(
-                reference_type="Remittance", reference_id=rmt.pk,
-                entry_type=JournalEntry.TYPE_REMITTANCE, is_reversal=False,
-            ).exclude(pk__in=reversed_ids).count(), 1
-        )
-        # idempotent-by-content sesungguhnya: resync kedua tidak menambah
-        # entry apa pun (tidak ada reversal+repost churn)
-        self.assertEqual(
-            JournalEntry.objects.filter(reference_id=rmt.pk).count(),
-            total_after_first,
-        )
+        posting.resync_remittance(rmt, created_by=self.user)
+        self.assertEqual(JournalEntry.objects.filter(reference_id=rmt.pk).count(), total_after_first)
 
-    def test_edit_resync_keeps_send_and_receive_consistent(self):
+    def test_changing_the_amount_reposts_the_send_leg(self):
         rmt = self._remittance()
-        posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
-        posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
-            received_sar=38000, touch_receive=True,
-        )
-        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
-
-        # edit: nominal kirim berubah, terima tetap; resync dengan kedua sisi
-        posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 45000}],
-            received_sar=38000, touch_receive=True,
-        )
-        self.assertEqual(_net(account_id=coa.CASH_SBY), -45000)
-        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 38000)
-        self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 7000)
+        posting.resync_remittance(rmt, created_by=self.user)
+        rmt.amount_sent = 45000 * 4750
+        rmt.save(update_fields=["amount_sent"])
+        posting.resync_remittance(rmt, created_by=self.user)
+        self.assertEqual(_net(account_id=rmt.from_account.ledger_account_id), -45000)
+        self.assertEqual(_net(account_id=coa.TRANSIT), 45000)
         self.assertEqual(verify_chain(), [])
 
-    def test_unreceived_revert_reverses_receive_without_repost(self):
-        rmt = self._remittance()
-        posting.resync_remittance(rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}])
-        posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
-            received_sar=39000, touch_receive=True,
-        )
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 39000)
-
-        # boleh dibuka/diedit lagi; sisi terima dibalik tanpa re-post
-        posting.resync_remittance(
-            rmt, created_by=self.user, send_segments=[{"amount_sar": 40000}],
-            received_sar=None, touch_receive=True,
-        )
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
-        self.assertEqual(_net(account_id=coa.TRANSIT), 40000)
-        self.assertEqual(verify_chain(), [])

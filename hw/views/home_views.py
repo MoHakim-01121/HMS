@@ -205,19 +205,13 @@ def home(request):
     invoice_totals = _home_invoice_totals(month_start)
 
     remittance_pending = (
-        Remittance.objects.filter(status=Remittance.STATUS_PENDING).count()
+        len(Remittance.objects.pending())
         if can(request.user, 'remittance', 'view') else None
     )
 
     # Remittance MoM: pending remittances dated this month vs last month.
-    rem_pending_this = Remittance.objects.filter(
-        status=Remittance.STATUS_PENDING,
-        date__gte=month_start, date__lt=next_month_start,
-    ).count()
-    rem_pending_prev = Remittance.objects.filter(
-        status=Remittance.STATUS_PENDING,
-        date__gte=prev_month_start, date__lt=month_start,
-    ).count()
+    rem_pending_this = len(Remittance.objects.filter(date__gte=month_start, date__lt=next_month_start).pending())
+    rem_pending_prev = len(Remittance.objects.filter(date__gte=prev_month_start, date__lt=month_start).pending())
 
     counts_by_month, cl_trend, cl_daily = _home_cl_trends(today)
 

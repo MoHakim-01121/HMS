@@ -654,30 +654,18 @@ def post_payment_from_credit(payment, *, created_by):
 
 
 @transaction.atomic
-def post_remittance_send(remittance, *, from_location, amount_sar, created_by, entry_date=None,
-                         reservation=None, invoice=None, client=None):
-    """Uang keluar dari kas cabang → Kas Dalam Perjalanan.
-
-    Opsional dimensi `reservation`/`client` supaya `mengendap_per_reservation`
-    bisa turun setelah diremit (kas SBY di-credit per reservasi, bukan hanya
-    aggregate remittance).
-    """
-    src = _CASH_BY_LOCATION.get(from_location, coa.CASH_SBY)
+def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None):
+    """Uang keluar dari rekening cabang asal → Kas Dalam Perjalanan (Transit)."""
+    acc = remittance.from_account
     entry_date = entry_date or remittance.date or timezone.now().date()
-    dims = {"remittance": remittance.pk, "branch": from_location}
-    if reservation is not None:
-        dims["reservation"] = getattr(reservation, "pk", reservation)
-    if invoice is not None:
-        dims["invoice"] = getattr(invoice, "pk", invoice)
-    if client is not None:
-        dims["client"] = getattr(client, "pk", client)
+    dims = {"remittance": remittance.pk, "branch": acc.branch_id}
     return post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
         description=f"Remittance {remittance.remittance_number} kirim",
         entry_date=entry_date,
         lines=[
             {"account": coa.TRANSIT, "debit": amount_sar, **dims},
-            {"account": src, "credit": amount_sar, **dims},
+            {"account": acc.ledger_account_id, "credit": amount_sar, **dims},
         ],
         source_type="Remittance",
         source_id=remittance.pk,
@@ -686,149 +674,21 @@ def post_remittance_send(remittance, *, from_location, amount_sar, created_by, e
 
 
 @transaction.atomic
-def post_remittance_receive(remittance, *, expected_sar, received_sar, created_by, entry_date=None):
-    """Kas Pusat terima; selisih expected vs received → beban bank."""
-    entry_date = entry_date or remittance.date or timezone.now().date()
-    lines = [
-        {"account": coa.CASH_PUSAT, "debit": received_sar, "remittance": remittance.pk, "branch": "pusat"},
-        {"account": coa.TRANSIT, "credit": expected_sar, "remittance": remittance.pk},
-    ]
-    diff = expected_sar - received_sar
-    if diff > 0:
-        lines.append({"account": coa.EXP_BANKFEE, "debit": diff, "remittance": remittance.pk, "branch": "pusat"})
-    elif diff < 0:
-        lines.append({"account": coa.INC_FX_GAIN, "credit": -diff, "remittance": remittance.pk, "branch": "pusat"})
-    return post_entry(
-        entry_type=JournalEntry.TYPE_REMITTANCE,
-        description=f"Remittance {remittance.remittance_number} diterima",
-        entry_date=entry_date,
-        lines=lines,
-        source_type="Remittance",
-        source_id=remittance.pk,
-        created_by=created_by,
-    )
-
-
-def _normalize_send_segments(remittance, send_segments):
-    """→ list tuple (reservation_id, invoice_id, client_id, from_location, amount).
-
-    `send_segments` kosong → lump-sum: satu segmen tanpa dimensi reservasi.
-    Nominal, urut prioritas: expected_sar (dari amount_idr/exchange_rate --
-    fakta SISI KIRIM, uang yang keluar dari bank cabang; 2026-09-14: ini jadi
-    basis utama karena received_amount_sar tidak pernah diisi lagi untuk
-    remittance baru) -> received_amount_sar (jalur lama, dipertahankan utuh
-    untuk remittance lama yang tak punya amount_idr) -> total kirim yang
-    sudah tercatat di jurnal."""
-    if send_segments:
-        out = []
-        for seg in send_segments:
-            amt = int(seg.get("amount_sar") or 0)
-            if not amt:
-                continue
-            out.append((
-                _pk(seg.get("reservation")), _pk(seg.get("invoice")),
-                _pk(seg.get("client")), seg.get("from_location", "sby"), amt,
-            ))
-        # Segmen yang belum menutup seluruh transfer: sisanya tetap tercatat
-        # sebagai lump-sum. Tanpa ini, alokasi sebagian membuat sisa yang masih
-        # di jalan seolah kembali ke Kas SBY dan basis status RMT ikut mengecil.
-        expected = remittance.expected_sar
-        remainder = (expected or 0) - sum(seg[-1] for seg in out)
-        if expected is not None and remainder > 0:
-            out.append((None, None, None, "sby", remainder))
-        return out
-    total = int(
-        (remittance.expected_sar or 0)
-        or (remittance.received_amount_sar or 0)
-        or remittance.total_sar or 0
-    )
-    return [(None, None, None, "sby", total)] if total else []
-
-
-def _remittance_leg_entries(remittance):
-    """(send_entries, receive_entries) yang masih hidup untuk remittance ini —
-    tiap item (entry, list[line]). Entry dengan debit Kas Pusat = sisi terima."""
-    send, receive = [], []
-    for e in _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE):
-        lines = list(e.lines.all())
-        if any(ln.account_id == coa.CASH_PUSAT and ln.debit for ln in lines):
-            receive.append((e, lines))
-        else:
-            send.append((e, lines))
-    return send, receive
-
-
-def _send_entry_signature(lines):
-    transit = next(ln for ln in lines if ln.account_id == coa.TRANSIT and ln.debit)
-    src = next(ln for ln in lines if ln.credit)
-    return (
-        transit.reservation_id, transit.invoice_id, transit.client_id,
-        _LOCATION_BY_CASH.get(src.account_id, "sby"), int(transit.debit),
-    )
-
-
-def _send_sort_key(sig):
-    """Urutkan tuple segmen kirim yang bisa mengandung None (dimensi kosong)."""
-    return (sig[0] or 0, sig[1] or 0, sig[2] or 0, sig[3], sig[4])
-
-
-@transaction.atomic
-def resync_remittance(remittance, *, created_by, send_segments=None,
-                      received_sar=None, touch_receive=False):
-    """Samakan jurnal remittance dengan keadaan sekarang. Idempotent-by-content:
-    kalau sisi yang disentuh sudah cocok → no-op (tidak menambah reversal).
-
-    send_segments: iterable {reservation, invoice, client, amount_sar,
-        from_location?} — satu entry kirim per segmen supaya
-        `mengendap_per_reservation` turun per reservasi. Kosong → lump-sum.
-
-    touch_receive: False (default) = jangan sentuh sisi terima sama sekali.
-        True = sinkronkan sisi terima ke `received_sar` (None = RMT belum
-        diterima, sisi terima dibalik tanpa re-post; int = post/re-post).
-    """
+def resync_remittance(remittance, *, created_by):
+    """Samakan jurnal kirim remittance dengan transfernya sekarang: satu entry
+    Transit / rekening asal sebesar expected_sar. Idempotent-by-content: bila
+    nominal dan rekeningnya sudah cocok, tidak ada yang diposting."""
     entry_date = remittance.date or timezone.now().date()
-    desired_send = _normalize_send_segments(remittance, send_segments)
-    send_entries, receive_entries = _remittance_leg_entries(remittance)
-
-    send_matches = (
-        sorted((_send_entry_signature(lines) for _, lines in send_entries), key=_send_sort_key)
-        == sorted(desired_send, key=_send_sort_key)
-    )
-    receive_matches = True
-    if touch_receive:
-        current_received = sum(
-            int(next(ln.debit for ln in lines if ln.account_id == coa.CASH_PUSAT))
-            for _, lines in receive_entries
-        )
-        want_received = int(received_sar) if received_sar is not None else 0
-        # `expected` pada entry terima diturunkan dari total kirim, jadi kalau
-        # sisi kirim berubah, sisi terima wajib diposting ulang juga.
-        receive_matches = current_received == want_received and send_matches
-
-    if send_matches and receive_matches:
+    want = int(remittance.expected_sar or 0)
+    source = remittance.from_account.ledger_account_id
+    live = _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE)
+    posted = [(ln.account_id, int(ln.credit)) for e in live for ln in e.lines.all() if ln.credit]
+    if posted == ([(source, want)] if want else []):
         return
-
-    sent_total = sum(amt for *_, amt in desired_send)
-    if not send_matches:
-        for e, _ in send_entries:
-            reverse_entry(e, reversal_date=entry_date, created_by=created_by)
-        for reservation_id, invoice_id, client_id, from_location, amt in desired_send:
-            post_remittance_send(
-                remittance, from_location=from_location, amount_sar=amt,
-                created_by=created_by, entry_date=entry_date,
-                reservation=reservation_id, invoice=invoice_id, client=client_id,
-            )
-
-    if touch_receive and not receive_matches:
-        for e, _ in receive_entries:
-            reverse_entry(e, reversal_date=entry_date, created_by=created_by)
-        if received_sar is not None:
-            expected = (remittance.expected_sar if remittance.expected_sar is not None
-                        else sent_total)
-            post_remittance_receive(
-                remittance, expected_sar=expected, received_sar=int(received_sar),
-                created_by=created_by, entry_date=entry_date,
-            )
+    for e in live:
+        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+    if want:
+        post_remittance_send(remittance, amount_sar=want, created_by=created_by, entry_date=entry_date)
 
 
 @transaction.atomic

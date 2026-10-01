@@ -1,4 +1,4 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -7,7 +7,7 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import (
-    Client, ConfirmationLetter, Remittance, RemittanceLine,
+    Client, ConfirmationLetter,
 )
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_ledger_rows, _prev_sent_map
@@ -22,10 +22,10 @@ class PrevSentMapTest(TestCase):
             invoice_number='INV-PREV-001', customer_name='Test Customer',
         )
         make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        self.rem1 = Remittance.objects.create( date=date(2026, 1, 1), remittance_number='RMT-001')
-        RemittanceLine.objects.create(remittance=self.rem1, invoice=self.invoice, linked_number='R1', amount_sar=2000)
-        self.rem2 = Remittance.objects.create( date=date(2026, 2, 1), remittance_number='RMT-002')
-        RemittanceLine.objects.create(remittance=self.rem2, invoice=self.invoice, linked_number='R1', amount_sar=2000)
+        self.rem1 = make_remittance( date=date(2026, 1, 1), remittance_number='RMT-001')
+        make_remittance_line(remittance=self.rem1, invoice=self.invoice, linked_number='R1', amount_sar=2000)
+        self.rem2 = make_remittance( date=date(2026, 2, 1), remittance_number='RMT-002')
+        make_remittance_line(remittance=self.rem2, invoice=self.invoice, linked_number='R1', amount_sar=2000)
 
     def test_first_remittance_has_no_prev_sent(self):
         self.assertEqual(_prev_sent_map(self.rem1, ['R1']).get('R1', 0), 0)
@@ -34,8 +34,8 @@ class PrevSentMapTest(TestCase):
         self.assertEqual(_prev_sent_map(self.rem2, ['R1']).get('R1', 0), 2000)
 
     def test_same_date_falls_back_to_creation_order(self):
-        rem3 = Remittance.objects.create( date=date(2026, 2, 1), remittance_number='RMT-003')
-        RemittanceLine.objects.create(remittance=rem3, invoice=self.invoice, linked_number='R1', amount_sar=1000)
+        rem3 = make_remittance( date=date(2026, 2, 1), remittance_number='RMT-003')
+        make_remittance_line(remittance=rem3, invoice=self.invoice, linked_number='R1', amount_sar=1000)
         # rem2 tanggalnya sama tapi dibuat lebih dulu -> ikut terhitung
         self.assertEqual(_prev_sent_map(rem3, ['R1']).get('R1', 0), 4000)
         # rem2 tidak boleh kena imbas rem3 yang dibuat belakangan
@@ -56,9 +56,9 @@ class RemittancePdfOrderingTest(TestCase):
         make_hotel_line(invoice=self.invoice, reservation_number='900', total_sar=1000, check_in=date(2026, 6, 30))
         make_hotel_line(invoice=self.invoice, reservation_number='100', total_sar=1000, check_in=date(2026, 6, 11))
         make_hotel_line(invoice=self.invoice, reservation_number='500', total_sar=1000, check_in=date(2026, 6, 20))
-        self.rem = Remittance.objects.create( date=date(2026, 6, 10), remittance_number='RMT-010')
-        for num in ('100', '500', '900', 'NOCI'):
-            RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number=num, amount_sar=100)
+        self.rem = make_remittance( date=date(2026, 6, 10), remittance_number='RMT-010')
+        for num in ('100', '500', '900'):
+            make_remittance_line(remittance=self.rem, invoice=self.invoice, linked_number=num, amount_sar=100)
 
     def test_lines_sorted_by_check_in_ascending(self):
         from hw.views import remittance_views
@@ -80,7 +80,7 @@ class RemittancePdfOrderingTest(TestCase):
             helpers._render_list_pdf = original
 
         order = [row['line'].linked_number for row in captured['lines']]
-        self.assertEqual(order, ['100', '500', '900', 'NOCI'])
+        self.assertEqual(order, ['100', '500', '900'])
 
 
 class LedgerTest(TestCase):
@@ -132,8 +132,8 @@ class LedgerTest(TestCase):
         return rec
 
     def _remit(self, res, amount, day, number):
-        rem = Remittance.objects.create( date=date(2026, 1, day), remittance_number=number)
-        RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number=res, amount_sar=amount)
+        rem = make_remittance( date=date(2026, 1, day), remittance_number=number)
+        make_remittance_line(remittance=rem, invoice=self.invoice, linked_number=res, amount_sar=amount)
         return rem
 
     def _row(self, led, number):
@@ -211,12 +211,6 @@ class LedgerTest(TestCase):
         self.assertEqual([r['linked_number'] for r in led['rows']], ['R1'])
         led = _build_ledger_rows(date_to=date(2026, 2, 28))
         self.assertEqual([r['linked_number'] for r in led['rows']], ['R2'])
-
-    def test_reservation_without_master_data_still_listed(self):
-        self._remit('R-HILANG', 500, 10, 'RMT-L01')
-        row = self._row(_build_ledger_rows(), 'R-HILANG')
-        self.assertEqual((row['hotel'], row['guest']), ('—', '—'))
-        self.assertEqual((row['debit'], row['credit'], row['balance']), (0, 500, -500))
 
     # --- pelacakan: reservasi tanpa pergerakan uang tetap tampil ---
 

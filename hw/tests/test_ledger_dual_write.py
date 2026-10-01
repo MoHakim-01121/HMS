@@ -193,31 +193,3 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         resp = self.client.post("/remittance/new/", {"date": "2026-01-10", "amount_idr": "14400000"})
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(Remittance.objects.exists())
-
-    def test_editing_remittance_amount_resyncs_journal_not_duplicates(self):
-        rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-01")
-        from hw.models import RemittanceLine
-        line = RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
-
-        resp = self.client.post(f"/remittance/{rem.pk}/edit/", {
-            "date": "2026-01-10", "status": "pending", "receipt_reference": "", "note": "",
-            "lines": json.dumps([{"line_id": line.pk, "amount_sar": "4500"}]),
-        })
-        self.assertEqual(resp.status_code, 302)
-
-        # Idempotent-by-content: jumlah di-resync, tidak ditumpuk.
-        self.assertEqual(fq.transit(), 4500)
-        self.assertEqual(fq.kas_surabaya(), -4500)
-
-    def test_deleting_remittance_line_reverses_its_journal_leg(self):
-        rem = Remittance.objects.create( date="2026-01-10", remittance_number="RMT-DW-02")
-        from hw.models import RemittanceLine
-        RemittanceLine.objects.create(remittance=rem, invoice=self.invoice, linked_number="R1", amount_sar=3000)
-
-        resp = self.client.post(f"/remittance/{rem.pk}/edit/", {
-            "date": "2026-01-10", "status": "pending", "receipt_reference": "", "note": "",
-            "lines": json.dumps([]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(RemittanceLine.objects.filter(remittance=rem).count(), 0)
-        self.assertEqual(fq.transit(), 0)

@@ -4,11 +4,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import BankTransaction, Branch, CashAccount, Client, Remittance
+from hw.models import BankTransaction, Branch, CashAccount, Client
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
 from hw.finance_helpers import create_payment_record, confirm_payment
-from hw.tests.factories import make_invoice
+from hw.tests.factories import make_invoice, make_remittance
 
 
 class BankTransactionBase(TestCase):
@@ -78,7 +78,7 @@ class ExpensePaymentBankTransactionTest(BankTransactionBase):
 
 class SettlementBankTransactionTest(BankTransactionBase):
     def test_settlement_records_in_transaction_against_pusat_cash(self):
-        rmt = Remittance.objects.create( date=date(2026, 7, 4), remittance_number='RMT-BT-1')
+        rmt = make_remittance( date=date(2026, 7, 4), remittance_number='RMT-BT-1')
         settlement = settlement_service.add_settlement(
             rmt, received_amount_sar=20000, received_date=date(2026, 7, 5), created_by=self.user,
         )
@@ -122,7 +122,7 @@ class OriginalAmountTest(BankTransactionBase):
         self.assertEqual((tx.direction, tx.currency, tx.amount, tx.amount_sar), ('out', 'IDR', 475_000, 100))
 
     def test_sar_settlement_amount_equals_sar_value(self):
-        rmt = Remittance.objects.create(date=date(2026, 7, 4), remittance_number='RMT-BT-2')
+        rmt = make_remittance(date=date(2026, 7, 4), remittance_number='RMT-BT-2')
         s = settlement_service.add_settlement(
             rmt, received_amount_sar=20000, received_date=date(2026, 7, 5), created_by=self.user,
         )

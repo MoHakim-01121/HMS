@@ -41,10 +41,7 @@ def _remittances(period):
     from ..models.remittance import Remittance
     from ..models.settlement import RemittanceSettlement
     from .settlement_service import diff_is_closed
-    open_rems = list(
-        Remittance.objects.filter(date__lte=period.date_to, status=Remittance.STATUS_PENDING)
-        .prefetch_related('settlements').order_by('date')
-    )
+    open_rems = Remittance.objects.filter(date__lte=period.date_to).order_by('date').pending()
     transit = [r for r in open_rems if not r.settlements.all()]
     unclosed = [r for r in open_rems if r.settlements.all() and not diff_is_closed(r)]
     items = [

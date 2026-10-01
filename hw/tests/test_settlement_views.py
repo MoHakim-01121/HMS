@@ -4,8 +4,9 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Branch, Remittance
+from hw.models import Branch
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_remittance
 
 
 def make_user(username, role):
@@ -23,7 +24,7 @@ class SettlementViewsBase(TestCase):
         self.manager = make_user('stl_mgr', 'manager')
         self.staff = make_user('stl_staff', 'staff')
         self.sby = Branch.objects.get(code='sby')
-        self.rmt = Remittance.objects.create(
+        self.rmt = make_remittance(
  date=date(2026, 6, 1), remittance_number='RMT-UI-1',
         )
 
@@ -65,17 +66,6 @@ class RecordReceiptViewTest(SettlementViewsBase):
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(self.rmt.settlements.exists())
 
-    def test_record_receipt_rejected_when_legacy_received_amount_set(self):
-        self.rmt.received_amount_sar = 10000
-        self.rmt.save(update_fields=['received_amount_sar'])
-        self.client.force_login(self.manager)
-        resp = self.client.post(self._url(), {
-            'received_amount_sar': '10000', 'received_date': '2026-06-05',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertFalse(self.rmt.settlements.exists())
-
-
 class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
     """remittance_detail harus mengekspos status settlement bertahap --
     lihat frontend/pages/Remittance/Detail.jsx (kartu 'Received at HQ' salah
@@ -86,7 +76,7 @@ class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
         super().setUp()
         self.rmt.amount_idr = 240_000_000
         self.rmt.exchange_rate = 4800  # expected_sar = 50000
-        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        self.rmt.save(update_fields=['amount_sent', 'exchange_rate'])
 
     def test_props_reflect_partial_settlement(self):
         from hw.finance import settlement_service as svc
@@ -101,22 +91,11 @@ class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
         self.assertEqual(len(rem_props['settlements']), 1)
         self.assertIsNone(rem_props['received_amount_sar'])
 
-    def test_props_empty_settlements_for_legacy_remittance(self):
-        self.rmt.received_amount_sar = 50000
-        self.rmt.save(update_fields=['received_amount_sar'])
-
-        self.client.force_login(self.manager)
-        resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
-        rem_props = resp.json()['props']['rem']
-        self.assertEqual(rem_props['settlements'], [])
-        self.assertEqual(rem_props['received_amount_sar'], 50000)
-
-
 class RemittanceCloseDiffViewTest(SettlementViewsBase):
     def setUp(self):
         super().setUp()
         from hw.finance import posting
-        posting.post_remittance_send(self.rmt, from_location='sby', amount_sar=10000, created_by=self.manager)
+        posting.post_remittance_send(self.rmt, amount_sar=10000, created_by=self.manager)
         self.client.force_login(self.manager)
         self.client.post(f'/remittance/{self.rmt.pk}/receipt/', {
             'received_amount_sar': '9500', 'received_date': '2026-06-10',
@@ -155,10 +134,3 @@ class RemittanceCloseDiffViewTest(SettlementViewsBase):
         self.assertEqual(row['settled_sar'], 9500)
         self.assertEqual(row['status'], 'pending')
         self.assertTrue(row['can_record_receipt'])
-
-    def test_edit_cannot_override_status_once_receipts_exist(self):
-        self.client.post(f'/remittance/{self.rmt.pk}/edit/', {
-            'date': '2026-06-01', 'status': 'received', 'receipt_reference': '', 'note': '',
-        })
-        self.rmt.refresh_from_db()
-        self.assertEqual(self.rmt.status, 'pending')

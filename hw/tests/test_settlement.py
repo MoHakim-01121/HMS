@@ -10,6 +10,7 @@ from hw.models.period import FinancialPeriod
 from hw.finance import posting, settlement_service as svc
 from hw.finance import queries as fq
 from hw.finance.errors import FinanceError
+from hw.tests.factories import make_remittance
 
 
 class SettlementBase(TestCase):
@@ -19,7 +20,7 @@ class SettlementBase(TestCase):
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.sby = Branch.objects.get(code='sby')
-        self.rmt = Remittance.objects.create(
+        self.rmt = make_remittance(
  date=date(2026, 4, 1), remittance_number='RMT-STL1',
         )
 
@@ -45,12 +46,6 @@ class SettlementFlowTest(SettlementBase):
         with self.assertRaises(FinanceError):
             svc.add_settlement(self.rmt, received_amount_sar=0, received_date=date(2026, 4, 5))
 
-    def test_rejects_settlement_when_legacy_received_amount_already_set(self):
-        self.rmt.received_amount_sar = 40000
-        self.rmt.save(update_fields=['received_amount_sar'])
-        with self.assertRaises(FinanceError):
-            svc.add_settlement(self.rmt, received_amount_sar=10000, received_date=date(2026, 4, 5))
-
     def test_settlement_posts_balanced_journal_entry(self):
         s1 = svc.add_settlement(
             self.rmt, received_amount_sar=7000, received_date=date(2026, 4, 5),
@@ -61,13 +56,10 @@ class SettlementFlowTest(SettlementBase):
 
 
 class RemittanceSettlementStatusTest(SettlementBase):
-    def test_none_without_amount_idr(self):
-        self.assertIsNone(self.rmt.settlement_status)
-
     def test_sent_partially_fully(self):
         self.rmt.amount_idr = 240_000_000
         self.rmt.exchange_rate = 4800
-        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        self.rmt.save(update_fields=['amount_sent', 'exchange_rate'])
         self.assertEqual(self.rmt.settlement_status, 'sent')
 
         svc.add_settlement(self.rmt, received_amount_sar=30000, received_date=date(2026, 4, 5),
@@ -84,9 +76,9 @@ class CloseRemittanceDiffTest(SettlementBase):
         super().setUp()
         self.rmt.amount_idr = 240_000_000
         self.rmt.exchange_rate = 4800  # expected_sar = 50000
-        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        self.rmt.save(update_fields=['amount_sent', 'exchange_rate'])
         posting.post_remittance_send(
-            self.rmt, from_location='sby', amount_sar=50000, created_by=self.user,
+            self.rmt, amount_sar=50000, created_by=self.user,
         )
 
     def test_shortfall_books_bank_fee(self):
@@ -115,7 +107,7 @@ class MoneyAccountsOverviewTest(SettlementBase):
         rows = fq.money_accounts_overview()
         codes = {r['branch'] for r in rows}
         self.assertIn('sby', codes)
-        self.assertTrue(all(r['kind'] == 'cash' for r in rows))  # no bank accounts seeded
+        self.assertTrue(all(r['kind'] == 'cash' for r in rows if r['branch'] == 'pusat'))
 
 
 class SettlementBasisAndStatusSyncTest(SettlementBase):
@@ -125,17 +117,8 @@ class SettlementBasisAndStatusSyncTest(SettlementBase):
 
     def _send(self, amount):
         posting.post_remittance_send(
-            self.rmt, from_location='sby', amount_sar=amount, created_by=self.user,
+            self.rmt, amount_sar=amount, created_by=self.user,
         )
-
-    def test_status_uses_send_total_without_amount_idr(self):
-        self._send(17000)
-        svc.add_settlement(self.rmt, received_amount_sar=10000, received_date=date(2026, 4, 5),
-                           created_by=self.user)
-        self.assertEqual(self.rmt.settlement_status, 'partially_settled')
-        svc.add_settlement(self.rmt, received_amount_sar=7000, received_date=date(2026, 4, 6),
-                           created_by=self.user)
-        self.assertEqual(self.rmt.settlement_status, 'fully_settled')
 
     def test_full_settlement_marks_remittance_received(self):
         self._send(50000)
@@ -162,7 +145,7 @@ class SettlementBasisAndStatusSyncTest(SettlementBase):
         # ke TRANSIT cuma 48,000. Selisih harus menutup TRANSIT ke nol.
         self.rmt.amount_idr = 240_000_000
         self.rmt.exchange_rate = 4800
-        self.rmt.save(update_fields=['amount_idr', 'exchange_rate'])
+        self.rmt.save(update_fields=['amount_sent', 'exchange_rate'])
         self._send(48000)
         svc.add_settlement(self.rmt, received_amount_sar=47500, received_date=date(2026, 4, 5),
                            created_by=self.user)
@@ -171,8 +154,10 @@ class SettlementBasisAndStatusSyncTest(SettlementBase):
         self.assertEqual(fq.account_balance('1200-TRANSIT'), 0)
 
     def test_rejects_settlement_on_received_remittance(self):
-        self.rmt.status = Remittance.STATUS_RECEIVED
-        self.rmt.save(update_fields=['status'])
+        from hw.models.settlement import RemittanceSettlement
+        RemittanceSettlement.objects.create(
+            remittance=self.rmt, received_amount_sar=self.rmt.settlement_basis_sar, received_date=self.rmt.date,
+        )
         with self.assertRaises(FinanceError):
             svc.add_settlement(self.rmt, received_amount_sar=1000, received_date=date(2026, 4, 5))
 

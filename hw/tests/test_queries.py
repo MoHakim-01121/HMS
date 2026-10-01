@@ -9,7 +9,7 @@ from hw.finance import queries as q
 from hw.models import Client
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice, make_service_line
+from hw.tests.factories import make_hotel_line, make_invoice, make_remittance, make_service_line
 
 
 class QueriesTests(TestCase):
@@ -288,14 +288,13 @@ class QueriesTests(TestCase):
         self.assertEqual(self.client_obj.outstanding, 40000)
 
     def test_remittance_sent_sar(self):
-        from hw.models import Remittance
-        rmt = Remittance.objects.create(
+        rmt = make_remittance(
  date=date(2046, 3, 1), remittance_number="RMT-Q1",
             received_amount_sar=50000,
         )
         self.assertEqual(q.remittance_sent_sar(rmt.id), 0)
         posting.post_remittance_send(
-            rmt, from_location="sby", amount_sar=50000, created_by=self.user,
+            rmt, amount_sar=50000, created_by=self.user,
         )
         self.assertEqual(q.remittance_sent_sar(rmt.id), 50000)
         self.assertEqual(rmt.total_sar, 50000)

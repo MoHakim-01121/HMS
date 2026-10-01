@@ -45,7 +45,6 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
     ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); visit({ q: "", status: status_filter || "" }); } }] : []),
     ...(status_filter ? [{ key: "status", label: t("Status {status}", { status: t(statusLabelOf(status_filter)) }), onRemove: () => { setSel(""); visit({ q: query, status: "" }); } }] : []),
   ];
-  const markReceived = (e, pk) => { e.stopPropagation(); router.post(`/remittance/${pk}/mark-received/`); };
   const [confirm, confirmDialog] = useConfirm();
   const del = (e, pk, label) => { e.stopPropagation(); confirm({ title: t("Delete remittance"), message: t("Delete remittance {label}?", { label }), onConfirm: () => router.post(`/remittance/${pk}/delete/`) }); };
   const openForm = useFormModal();
@@ -110,7 +109,6 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
       render: (rem) => (
         <RowActions actions={[
           rem.can_record_receipt && perms.can("remittance", "edit") && { icon: "check", label: t("Record Receipt"), variant: "green", strokeWidth: 2.5, onClick: () => openForm(receiptUrl(rem)) },
-          rem.can_mark_received && perms.can("remittance", "edit") && { icon: "check", label: t("Mark as Received"), variant: "green", strokeWidth: 2.5, onClick: (e) => markReceived(e, rem.id) },
           { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
           perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
           rem.status === "pending" && !rem.settled_sar && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },

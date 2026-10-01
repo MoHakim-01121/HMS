@@ -10,14 +10,14 @@ Covers the review findings that were actually implemented:
       ledger.
 * M3: visa/service invoices compute total_sar and remaining_sar correctly.
 """
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_service_line
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line, make_service_line
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import (
-    Client, Invoice, CancellationPenalty, Remittance, RemittanceLine,
+    Client, Invoice, CancellationPenalty, Remittance,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
@@ -182,17 +182,19 @@ class DeleteGuardTest(TestCase):
         self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
 
     def test_remittance_delete_blocked_when_lines_exist(self):
-        rem = Remittance.objects.create(
+        rem = make_remittance(
  remittance_number='RMT-001', date=date(2026, 8, 1),
         )
-        RemittanceLine.objects.create(remittance=rem, linked_number='R1', amount_sar=500)
+        inv = make_invoice(client=self.cl_obj, invoice_number='INV-RMT-DEL')
+        make_hotel_line(invoice=inv, reservation_number='R1', total_sar=500)
+        make_remittance_line(remittance=rem, invoice=inv, linked_number='R1', amount_sar=500)
         resp = self.client.post(f'/remittance/{rem.pk}/delete/')
         self.assertEqual(resp.status_code, 302)
         self.assertIn(f'/remittance/{rem.pk}/', resp['Location'])
         self.assertTrue(Remittance.objects.filter(pk=rem.pk).exists())
 
     def test_remittance_delete_allowed_when_empty(self):
-        rem = Remittance.objects.create(
+        rem = make_remittance(
  remittance_number='RMT-002', date=date(2026, 8, 1),
         )
         resp = self.client.post(f'/remittance/{rem.pk}/delete/')

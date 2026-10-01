@@ -362,8 +362,8 @@ class Command(BaseCommand):
         rate = self.rng.choice([4735, 4745, 4750, 4760, 4770, 4780])
         amount_idr = sar * rate
         rem = Remittance.objects.create(
-            remittance_number=Remittance.generate_number(), date=day, amount_idr=amount_idr,
-            exchange_rate=Decimal(rate), from_account=self.idr,
+            remittance_number=Remittance.generate_number(), date=day, amount_sent=amount_idr,
+            exchange_rate=Decimal(rate), from_account=self.idr, to_account=self.cash_pusat,
             receipt_reference=f'MDR{day:%y%m%d}{self.rng.randint(100, 999)}',
         )
         record_bank_transaction(

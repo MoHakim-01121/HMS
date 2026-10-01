@@ -72,7 +72,7 @@ def _receipt_props(remittance, *, settlement=None, next_url='', form=None, error
                 'reference': settlement.reference,
                 'allocations': [
                     {'linked_number': l.linked_number, 'invoice_id': l.invoice_id, 'amount_sar': int(l.amount_sar)}
-                    for l in settlement.allocations.all()
+                    for l in settlement.allocations.select_related('invoice_line__confirmation_letter')
                 ],
             }
         else:

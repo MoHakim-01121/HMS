@@ -69,17 +69,10 @@ def _live_rows(branch=None, date_to=None):
 
 
 def _unrecorded_transfers(branch, date_to):
-    """Old IDR transfers with no source account (before the field existed):
-    real rupiah that left a branch, counted under UNRECORDED. Assumed to be
-    Surabaya's — the only sending branch at the time."""
-    from ..models.remittance import Remittance
-    if branch not in (None, 'sby'):
-        return []
-    have = set(BankTransaction.objects.filter(source_type='Remittance').values_list('source_id', flat=True))
-    qs = Remittance.objects.filter(from_account__isnull=True, amount_idr__isnull=False).exclude(pk__in=have)
-    if date_to:
-        qs = qs.filter(date__lte=date_to)
-    return list(qs.order_by('date', 'pk'))
+    """Transfers with no source account. Since schema v2 every remittance names
+    the account the money left, so there are none; kept so the report keeps
+    its UNRECORDED line (always zero now)."""
+    return []
 
 
 def _source_link(source_type, source_id):

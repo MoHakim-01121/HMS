@@ -101,6 +101,57 @@ def make_account(branch='sby', currency='SAR'):
     )
 
 
+def make_remittance(**kwargs):
+    """Remittance dengan nilai bawaan yang sah: dari rekening IDR Surabaya ke
+    rekening SAR Pusat. Nama lama diterima: `amount_idr` → amount_sent;
+    `received_amount_sar` / status='received' → satu penerimaan (tanpa jurnal)."""
+    from decimal import Decimal
+    from hw.finance.bank_ledger import default_account
+    from hw.models import Remittance
+    from hw.models.settlement import RemittanceSettlement
+    received = kwargs.pop('received_amount_sar', None)
+    status = kwargs.pop('status', None)
+    if 'amount_idr' in kwargs:
+        kwargs['amount_sent'] = kwargs.pop('amount_idr')
+    if kwargs.get('from_account') is None:
+        kwargs['from_account'] = make_account('sby', 'IDR')
+    if kwargs.get('to_account') is None:
+        kwargs['to_account'] = default_account('pusat', 'SAR')
+    sar_source = kwargs['from_account'].currency == 'SAR'
+    if kwargs.get('exchange_rate') is None:
+        kwargs['exchange_rate'] = Decimal(1) if sar_source else Decimal(4750)
+    if kwargs.get('amount_sent') is None:
+        kwargs['amount_sent'] = int(Decimal(kwargs['exchange_rate']) * 50000)   # 50,000 SAR expected
+    kwargs.setdefault('remittance_number', f'RMT-F{next(_numbers)}')
+    rem = Remittance.objects.create(**kwargs)
+    if received or status == Remittance.STATUS_RECEIVED:
+        RemittanceSettlement.objects.create(
+            remittance=rem, received_amount_sar=received or rem.expected_sar, received_date=rem.date,
+        )
+    return rem
+
+
+def make_remittance_line(remittance=None, invoice=None, linked_number=None, amount_sar=0, settlement=None, **legacy):
+    """Alokasi penerimaan ke reservasi `linked_number` (baris hotel invoice-nya).
+    Tanpa `settlement`, dipakai penerimaan pertama remittance itu (dibuat bila belum ada)."""
+    from hw.models import InvoiceLine, RemittanceLine
+    from hw.models.settlement import RemittanceSettlement
+    legacy.pop('invoice_id', None)
+    if legacy:
+        raise TypeError(f'make_remittance_line: argumen tidak dikenal {sorted(legacy)}')
+    if settlement is None:
+        settlement = remittance.settlements.order_by('pk').first() or RemittanceSettlement.objects.create(
+            remittance=remittance, received_amount_sar=max(int(amount_sar), 1), received_date=remittance.date,
+        )
+    lines = InvoiceLine.objects.filter(kind='hotel', confirmation_letter__confirmation_number=linked_number)
+    if invoice is not None:
+        lines = lines.filter(invoice=invoice)
+    line = lines.order_by('voided_at', 'pk').first()
+    if line is None:
+        raise ValueError(f'make_remittance_line: tidak ada baris hotel untuk {linked_number}')
+    return RemittanceLine.objects.create(settlement=settlement, invoice_line=line, amount_sar=amount_sar)
+
+
 def make_payment(**kwargs):
     """PaymentRecord langsung (tanpa jurnal), untuk test yang menyiapkan
     keadaan tertentu. Rekening penerima wajib sejak skema v2: bila tidak

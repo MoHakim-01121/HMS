@@ -26,7 +26,6 @@ function EditBody({ rem, lines = [], reservasi = [], lines_editable = true }) {
   const form = useForm({
     date: rem.date || "",
     receipt_reference: rem.receipt_reference || "",
-    status: rem.status || "pending",
     note: rem.note || "",
     proof: null,
     remove_proof: "",
@@ -91,21 +90,7 @@ function EditBody({ rem, lines = [], reservasi = [], lines_editable = true }) {
                 value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
                 placeholder={t("Receipt code from HQ")}
               />
-              {/* Begitu ada penerimaan tercatat, status diatur otomatis dari
-                  penerimaan itu (backend mengabaikan override manual). */}
-              {!rem.has_receipts && (
-                <FormField label={t("Status")} name="status">
-                  <Select value={form.data.status} onValueChange={(v) => form.setData("status", v)}>
-                    <SelectTrigger id="status" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">{t("Pending")}</SelectItem>
-                      <SelectItem value="received">{t("Received")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormField>
-              )}
+              {/* Status is derived from the receipts recorded at HQ. */}
               <FormField
                 label={t("Note")} name="note"
                 value={form.data.note} onChange={(v) => form.setData("note", v)}

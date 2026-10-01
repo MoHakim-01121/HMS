@@ -1003,18 +1003,20 @@ def reservation_remittance_map(linked_numbers=None):
     (RemittanceLine.settlement), None untuk baris yang dialokasikan saat kirim."""
     from collections import defaultdict
     from ..models.remittance import RemittanceLine
-    qs = RemittanceLine.objects.select_related("remittance", "settlement").order_by(
-        "remittance__date", "remittance__created_at", "settlement__received_date", "pk",
+    qs = RemittanceLine.objects.select_related(
+        "settlement__remittance", "invoice_line__confirmation_letter",
+    ).order_by(
+        "settlement__remittance__date", "settlement__remittance__created_at", "settlement__received_date", "pk",
     )
     if linked_numbers is not None:
-        qs = qs.filter(linked_number__in=linked_numbers)
+        qs = qs.filter(invoice_line__confirmation_letter__confirmation_number__in=list(linked_numbers))
     result = defaultdict(list)
     for l in qs:
         result[l.linked_number].append({
             "rmt_id": l.remittance_id, "rmt_number": l.remittance.remittance_number,
             "date": l.remittance.date, "status": l.remittance.status,
             "amount_sar": int(l.amount_sar or 0),
-            "received_date": l.settlement.received_date if l.settlement_id else None,
+            "received_date": l.settlement.received_date,
         })
     return result
 

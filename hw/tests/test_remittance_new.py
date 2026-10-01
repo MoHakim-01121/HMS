@@ -1,4 +1,4 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
-from hw.models import ConfirmationLetter, Remittance
+from hw.models import ConfirmationLetter
 from hw.models.period import FinancialPeriod
 from hw.views.remittance_views import _build_reservasi_mengendap
 
@@ -56,12 +56,12 @@ class ReservasiMengendapTest(TestCase):
 
     def _remit(self, res, amount):
         self.rem_counter += 1
-        rmt = Remittance.objects.create(
+        rmt = make_remittance(
  date=date(2026, 1, 10),
             remittance_number=f"RMT-NEW-{self.rem_counter}",
         )
         posting.post_remittance_send(
-            rmt, from_location="sby", amount_sar=amount,
+            rmt, amount_sar=amount,
             created_by=self.user, reservation=res,
         )
 
@@ -97,10 +97,3 @@ class ReservasiMengendapTest(TestCase):
         self._cl('R1', 'TENTATIVE')
         rows = _build_reservasi_mengendap()
         self.assertEqual([r['linked_number'] for r in rows], ['R1'])
-
-    def test_mengendap_can_go_negative(self):
-        r1 = self._res('R1')
-        self._pay(r1, 2000)
-        self._remit(r1, 6000)
-        rows = _build_reservasi_mengendap()
-        self.assertEqual(rows[0]['mengendap'], -4000)

@@ -5,7 +5,7 @@ from .models import (
     ActivityLog, Attachment, BankAccount, BankTransaction, Branch, CashAccount, Client, ConfirmationLetter,
     Expense, ExpenseCategory, ExpenseLine, ExpensePayment,
     BankStatement, BankStatementLine, Hotel, Invoice, MealPlan, Pricelist,
-    Remittance, RemittanceLine, RemittanceSettlement,
+    Remittance, RemittanceSettlement,
     InvoiceLine, InvoiceRevision, RoleDefinition, Room, RoomType, TeamMember, UserProfile,
     Currency, DocumentSequence, Vendor,
 )
@@ -101,18 +101,12 @@ class UserProfileAdmin(admin.ModelAdmin):
     search_fields = ('user__username',)
 
 
-class RemittanceLineInline(admin.TabularInline):
-    model = RemittanceLine
-    extra = 0
-    readonly_fields = ('linked_number', 'invoice', 'amount_sar')
-
 
 @admin.register(Remittance)
 class RemittanceAdmin(admin.ModelAdmin):
     list_display  = ('remittance_number', 'date', 'total_sar', 'note', 'has_proof')
     search_fields = ('note',)
     date_hierarchy = 'date'
-    inlines       = [RemittanceLineInline]
 
     @admin.display(boolean=True, description='Kwitansi')
     def has_proof(self, obj):

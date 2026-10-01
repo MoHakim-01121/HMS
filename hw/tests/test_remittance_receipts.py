@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 
 from hw.finance import accounts as coa
-from hw.finance import posting
 from hw.finance import remittance_allocation as ra
 from hw.finance import settlement_service as svc
 from hw.finance.errors import FinanceError
@@ -43,22 +42,6 @@ class TransferFiguresTest(AllocationBase):
         self._receive(9850, date(2026, 9, 15), None)
         svc.close_remittance_diff(self.rem, created_by=self.user, entry_date=date(2026, 9, 16))
         self.assertEqual(_figures(self.rem), ('received', 50000, 49850, 0, 150))
-
-    def test_legacy_manual_received_amount(self):
-        legacy = Remittance.objects.create(
-            remittance_number='RMT-OLD-1', date=date(2026, 9, 5),
-            status=Remittance.STATUS_RECEIVED, received_amount_sar=16900,
-        )
-        posting.post_remittance_send(legacy, from_location='sby', amount_sar=17000, created_by=self.user)
-        self.assertEqual(_figures(legacy), ('received', 17000, 16900, 0, 100))
-
-    def test_legacy_received_without_amount_counts_as_full(self):
-        legacy = Remittance.objects.create(
-            remittance_number='RMT-OLD-2', date=date(2026, 9, 5), status=Remittance.STATUS_RECEIVED,
-        )
-        posting.post_remittance_send(legacy, from_location='sby', amount_sar=5000, created_by=self.user)
-        self.assertEqual(_figures(legacy), ('received', 5000, 5000, 0, 0))
-
 
 class RecapTest(AllocationBase):
     def test_month_totals_use_actual_received_and_partial_state(self):

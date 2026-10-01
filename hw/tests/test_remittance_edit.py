@@ -1,292 +1,53 @@
-import json
+"""Edit transfer setoran: hanya data transfernya; alokasi diatur per penerimaan."""
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import posting
+from hw.finance import posting, queries as fq
 from hw.finance_helpers import create_payment_record
-from hw.models import Remittance, RemittanceLine
 from hw.models.period import FinancialPeriod
-from hw.views.remittance_views import _addable_reservasi, _sync_remittance_lines
-from hw.tests.factories import make_hotel_line, make_invoice
-
-
-class SyncRemittanceLinesTest(TestCase):
-    """Edit remittance: ubah nominal, tambah reservasi, hapus baris."""
-
-    def setUp(self):
-        FinancialPeriod.objects.create(
-            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
-        )
-        self.invoice = make_invoice(
- invoice_type='hotel',
-            invoice_number='INV-EDIT-001', customer_name='Budi',
-        )
-        make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E01')
-        self.line = RemittanceLine.objects.create(
-            remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,
-        )
-
-    def _lines(self):
-        return {l.linked_number: int(l.amount_sar) for l in self.rem.lines.all()}
-
-    def test_update_existing_amount(self):
-        _sync_remittance_lines(self.rem, [{'line_id': self.line.pk, 'amount_sar': 3500}])
-        self.assertEqual(self._lines(), {'R1': 3500})
-
-    def test_add_new_reservation(self):
-        _sync_remittance_lines(self.rem, [
-            {'line_id': self.line.pk, 'amount_sar': 2000},
-            {'linked_number': 'R2', 'invoice_id': self.invoice.pk, 'amount_sar': 1500},
-        ])
-        self.assertEqual(self._lines(), {'R1': 2000, 'R2': 1500})
-        self.assertEqual(self.rem.lines.get(linked_number='R2').invoice_id, self.invoice.pk)
-
-    def test_line_missing_from_payload_is_deleted(self):
-        RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number='R2', amount_sar=900)
-        _sync_remittance_lines(self.rem, [{'line_id': self.line.pk, 'amount_sar': 2000}])
-        self.assertEqual(self._lines(), {'R1': 2000})
-
-    def test_zero_amount_deletes_the_line(self):
-        _sync_remittance_lines(self.rem, [{'line_id': self.line.pk, 'amount_sar': 0}])
-        self.assertEqual(self._lines(), {})
-
-    def test_new_line_with_zero_amount_is_ignored(self):
-        _sync_remittance_lines(self.rem, [
-            {'line_id': self.line.pk, 'amount_sar': 2000},
-            {'linked_number': 'R2', 'invoice_id': self.invoice.pk, 'amount_sar': 0},
-        ])
-        self.assertEqual(self._lines(), {'R1': 2000})
-
-    def test_garbage_amount_is_treated_as_zero(self):
-        _sync_remittance_lines(self.rem, [{'line_id': self.line.pk, 'amount_sar': 'abc'}])
-        self.assertEqual(self._lines(), {})
-
-    def test_cannot_touch_line_of_another_remittance(self):
-        other = Remittance.objects.create( date=date(2026, 1, 11), remittance_number='RMT-E02')
-        foreign = RemittanceLine.objects.create(remittance=other, invoice=self.invoice, linked_number='R2', amount_sar=700)
-        _sync_remittance_lines(self.rem, [{'line_id': foreign.pk, 'amount_sar': 9999}])
-        foreign.refresh_from_db()
-        self.assertEqual(int(foreign.amount_sar), 700)   # milik remittance lain, tidak ikut berubah
-        self.assertEqual(self._lines(), {})              # dan tidak diklaim jadi baris di sini
-
-
-class AddableReservasiTest(TestCase):
-    """Daftar reservasi yang bisa ditambahkan ke sebuah remittance."""
-
-    def setUp(self):
-        self.user = User.objects.create_user("adder", password="pw12345")
-        FinancialPeriod.objects.create(
-            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
-        )
-        self.invoice = make_invoice(
- invoice_type='hotel',
-            invoice_number='INV-EDIT-002', customer_name='Budi',
-        )
-        self.client_obj = self.invoice.client
-        self.r1 = make_hotel_line(
-            invoice=self.invoice, reservation_number='R1', total_sar=10000,
-            check_in=date(2026, 3, 1), check_out=date(2026, 3, 5),
-        )
-        self.r2 = make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E10')
-        self.rem_counter = 0
-
-    def _pay(self, res, amount, received_in='sby'):
-        p = create_payment_record(
-            invoice=self.invoice, client=self.client_obj,
-            payment_date=date(2026, 1, 5), amount=amount, method='transfer',
-            created_by=self.user, received_in=received_in, reservation=res,
-        )
-        posting.post_payment(p, created_by=self.user)
-
-    def _send(self, res, amount):
-        """Pembayaran res + kirim penuh via remittance lain."""
-        self._pay(res, amount)
-        self.rem_counter += 1
-        other = Remittance.objects.create(
- date=date(2026, 1, 9),
-            remittance_number=f'RMT-E{self.rem_counter:02d}-S',
-        )
-        RemittanceLine.objects.create(
-            remittance=other, invoice=self.invoice,
-            linked_number=res.reservation_number, amount_sar=amount,
-        )
-        posting.post_remittance_send(
-            other, from_location="sby", amount_sar=amount,
-            created_by=self.user, reservation=res,
-        )
-        return other
-
-    def test_lists_reservation_with_idle_money(self):
-        self._pay(self.r1, 5000)
-        rows = _addable_reservasi(self.rem)
-        self.assertEqual([r['linked_number'] for r in rows], ['R1'])
-        self.assertEqual(rows[0]['mengendap'], 5000)
-        self.assertEqual(rows[0]['check_in'], '01/03/2026')
-        self.assertEqual(rows[0]['customer_name'], 'Budi')
-
-    def test_excludes_reservation_already_in_this_remittance(self):
-        self._pay(self.r1, 5000)
-        self._pay(self.r2, 3000)
-        RemittanceLine.objects.create(remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=1000)
-        self.assertEqual([r['linked_number'] for r in _addable_reservasi(self.rem)], ['R2'])
-
-    def test_excludes_reservation_already_fully_sent(self):
-        self._send(self.r1, 5000)
-        self.assertEqual(_addable_reservasi(self.rem), [])
-
-    def test_direct_payment_is_not_addable(self):
-        self._pay(self.r1, 5000, received_in='pusat')
-        self.assertEqual(_addable_reservasi(self.rem), [])
+from hw.tests.factories import make_hotel_line, make_invoice, make_remittance, make_remittance_line
 
 
 class RemittanceEditViewTest(TestCase):
-    """Alur penuh lewat HTTP: buka form edit lalu simpan perubahan."""
-
     def setUp(self):
-        from django.contrib.auth.models import User
         self.user = User.objects.create_user('editor', password='pw12345')
         self.user.profile.role = 'manager'
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
-        session = self.client.session
-        session['active_company'] = 'konoz'
-        session.save()
-
-        FinancialPeriod.objects.create(
-            name="2026",            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
-        )
-        self.invoice = make_invoice(
- invoice_type='hotel',
-            invoice_number='INV-EDIT-003', customer_name='Budi',
-        )
-        self.client_obj = self.invoice.client
+        FinancialPeriod.objects.create(name="2026", date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
+        self.invoice = make_invoice(invoice_type='hotel', invoice_number='INV-EDIT-003', customer_name='Budi')
         r1 = make_hotel_line(invoice=self.invoice, reservation_number='R1', total_sar=10000)
-        r2 = make_hotel_line(invoice=self.invoice, reservation_number='R2', total_sar=8000)
-        # R2 dibayar lebih dulu (2 Jan) daripada R1 (5 Jan) — urutan jurnal ini
-        # yang dipakai _sort_lines_by_payment_date. Nomor sengaja terbalik.
-        for res, amount, pay_date in ((r1, 5000, date(2026, 1, 5)), (r2, 3000, date(2026, 1, 2))):
-            rec = create_payment_record(
-                invoice=self.invoice, client=self.client_obj,
-                payment_date=pay_date, amount=amount, method='cash',
-                created_by=self.user, received_in='sby', reservation=res,
-            )
-            posting.post_payment(rec, created_by=self.user)
-        self.rem = Remittance.objects.create( date=date(2026, 1, 10), remittance_number='RMT-E20')
-        self.line = RemittanceLine.objects.create(
-            remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=2000,
+        rec = create_payment_record(
+            invoice=self.invoice, client=self.invoice.client, payment_date=date(2026, 1, 5), amount=5000,
+            method='cash', created_by=self.user, received_in='sby', reservation=r1,
         )
+        posting.post_payment(rec, created_by=self.user)
+        self.rem = make_remittance(date=date(2026, 1, 10), remittance_number='RMT-E20', amount_sent=4_750_000)
+        posting.resync_remittance(self.rem, created_by=self.user)
 
-    def test_form_offers_reservations_that_can_be_added(self):
+    def test_form_has_no_editable_lines(self):
         resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
-        self.assertEqual(resp.status_code, 200)
         props = resp.json()['props']
-        self.assertEqual([l['linked_number'] for l in props['lines']], ['R1'])
-        self.assertEqual([r['linked_number'] for r in props['reservasi']], ['R2'])
-        self.assertEqual(props['reservasi'][0]['mengendap'], 3000)
+        self.assertEqual((props['lines'], props['reservasi'], props['lines_editable']), ([], [], False))
 
-    def test_lines_are_ordered_by_payment_date(self):
-        # R2 bayar lebih dulu (2 Jan, lihat setUp) daripada R1 (5 Jan).
-        RemittanceLine.objects.create(
-            remittance=self.rem, invoice=self.invoice, linked_number='R2', amount_sar=1200,
-        )
-        resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R2', 'R1'])
-        # Urutan yang sama juga dipakai di halaman detail.
-        resp = self.client.get(f'/remittance/{self.rem.pk}/', HTTP_X_INERTIA='true')
-        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R2', 'R1'])
-
-    def test_lines_without_payment_date_go_last(self):
-        # R3 punya baris remittance tapi belum ada pembayaran -> ditaruh terakhir.
-        make_hotel_line(invoice=self.invoice, reservation_number='R3', total_sar=1000)
-        RemittanceLine.objects.create(
-            remittance=self.rem, invoice=self.invoice, linked_number='R3', amount_sar=100,
-        )
-        resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
-        self.assertEqual([l['linked_number'] for l in resp.json()['props']['lines']], ['R1', 'R3'])
-
-    def test_post_adds_removes_and_updates_in_one_save(self):
-        payload = [
-            {'linked_number': 'R2', 'invoice_id': self.invoice.pk, 'amount_sar': 1500},
-        ]
+    def test_post_updates_transfer_and_resyncs_the_send_leg(self):
         resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-12',
-            'status': 'pending',
-            'receipt_reference': 'REF-9',
-            'note': 'revisi',
-            'lines': json.dumps(payload),
+            'date': '2026-01-12', 'receipt_reference': 'REF-9', 'note': 'revisi',
+            'amount_idr': '9500000', 'exchange_rate': '4750',
         })
         self.assertEqual(resp.status_code, 302)
         self.rem.refresh_from_db()
-        self.assertEqual(str(self.rem.date), '2026-01-12')
-        self.assertEqual(self.rem.receipt_reference, 'REF-9')
-        # R1 dihapus karena tidak ada di payload, R2 ditambahkan
-        self.assertEqual(
-            {l.linked_number: int(l.amount_sar) for l in self.rem.lines.all()},
-            {'R2': 1500},
-        )
+        self.assertEqual((str(self.rem.date), self.rem.receipt_reference, self.rem.expected_sar),
+                         ('2026-01-12', 'REF-9', 2000))
+        self.assertEqual(fq.remittance_sent_sar(self.rem.pk), 2000)
 
-    def test_post_without_lines_key_keeps_existing_lines(self):
-        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-12', 'status': 'pending', 'receipt_reference': '', 'note': '',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual([l.linked_number for l in self.rem.lines.all()], ['R1'])
-
-    def test_received_remittance_can_still_be_opened_and_saved(self):
-        self.rem.status = 'received'
-        self.rem.save(update_fields=['status'])
-
-        resp = self.client.get(f'/remittance/{self.rem.pk}/edit/', HTTP_X_INERTIA='true')
-        self.assertEqual(resp.status_code, 200)   # tidak lagi dilempar ke halaman detail
-        self.assertEqual(resp.json()['props']['rem']['status'], 'received')
-
-        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-12', 'status': 'received', 'receipt_reference': 'REF-KOREKSI', 'note': '',
-            'lines': json.dumps([{'line_id': self.line.pk, 'amount_sar': 2500}]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.rem.refresh_from_db()
-        self.assertEqual(self.rem.receipt_reference, 'REF-KOREKSI')
-        self.assertEqual(self.rem.status, 'received')   # status tidak ikut ter-reset
-        self.assertEqual(int(self.rem.lines.get().amount_sar), 2500)
-
-    def test_cannot_set_received_amount_for_the_first_time(self):
-        """Remittance baru (belum pernah punya received_amount_sar) tidak
-        boleh 'dibukakan' ke jalur lama lewat edit -- satu-satunya cara
-        mencatat penerimaan sekarang adalah Settlement (2026-09-14)."""
-        self.assertIsNone(self.rem.received_amount_sar)
-        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-12', 'status': 'pending', 'receipt_reference': '', 'note': '',
-            'received_amount_sar': '5000',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.rem.refresh_from_db()
-        self.assertIsNone(self.rem.received_amount_sar)
-
-    def test_can_correct_an_already_legacy_received_amount(self):
-        """Remittance LAMA yang sudah punya received_amount_sar tetap boleh
-        dikoreksi -- hanya pengisian PERTAMA kali yang diblok."""
-        self.rem.received_amount_sar = 2000
-        self.rem.save(update_fields=['received_amount_sar'])
-        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-12', 'status': 'pending', 'receipt_reference': '', 'note': '',
-            'received_amount_sar': '2500',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.rem.refresh_from_db()
-        self.assertEqual(self.rem.received_amount_sar, 2500)
-
-    def test_received_remittance_can_be_reverted_to_pending(self):
-        self.rem.status = 'received'
-        self.rem.save(update_fields=['status'])
+    def test_amount_is_locked_once_hq_recorded_a_receipt(self):
+        make_remittance_line(remittance=self.rem, invoice=self.invoice, linked_number='R1', amount_sar=500)
         self.client.post(f'/remittance/{self.rem.pk}/edit/', {
-            'date': '2026-01-10', 'status': 'pending', 'receipt_reference': '', 'note': '',
+            'date': '2026-01-10', 'receipt_reference': '', 'note': '', 'amount_idr': '1', 'exchange_rate': '1',
         })
         self.rem.refresh_from_db()
-        self.assertEqual(self.rem.status, 'pending')
+        self.assertEqual(self.rem.amount_sent, 4_750_000)
+        self.assertEqual([l.linked_number for l in self.rem.lines], ['R1'])

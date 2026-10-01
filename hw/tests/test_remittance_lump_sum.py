@@ -12,10 +12,9 @@ from django.test import TestCase
 from django.urls import reverse
 
 from hw.finance import accounts as coa
-from hw.models import Client, Remittance, RemittanceLine
+from hw.models import Client, Remittance
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
-from hw.views.remittance_views import _remittance_send_segments
 from hw.tests.factories import make_hotel_line, make_invoice
 
 
@@ -81,7 +80,6 @@ class LumpSumRemittanceTest(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         rem = Remittance.objects.get(remittance_number__startswith='RMT-')
-        self.assertIsNone(rem.received_amount_sar)
         self.assertEqual(rem.expected_sar, 100000)
 
         # Lump-sum tanpa label → aggregate kirim Kas SBY → Transit. Basis
@@ -138,94 +136,3 @@ class LumpSumRemittanceTest(TestCase):
         self.assertIsNotNone(props['tracking'])
         self.assertIsNone(props['monthly'])
         self.assertEqual(props['remittances'], [])
-
-    def test_new_ignores_received_amount_sar_even_if_posted(self):
-        """Defense-in-depth: form pembuatan tak lagi mengirim field ini, tapi
-        kalaupun ada yang POST manual, backend harus tetap mengabaikannya --
-        satu-satunya jalur mencatat penerimaan sekarang Settlement."""
-        self._login()
-        response = self.client.post(reverse('remittance_new'), {
-            'from_bank_account': str(self.idr_account.pk),
-            'date': '2026-02-10',
-            'amount_idr': '480000000',
-            'exchange_rate': '4800',
-            'received_amount_sar': '999999',
-            'lines': '[]',
-        })
-        self.assertEqual(response.status_code, 302)
-        rem = Remittance.objects.get(remittance_number__startswith='RMT-')
-        self.assertIsNone(rem.received_amount_sar)
-
-    def test_list_exposes_can_mark_received_only_for_legacy_remittances(self):
-        self._login()
-        legacy = Remittance.objects.create(
-            remittance_number='RMT-LEGACY', date=date(2026, 2, 1), received_amount_sar=50000,
-        )
-        new_style = Remittance.objects.create(
-            remittance_number='RMT-NEW', date=date(2026, 2, 2),
-        )
-        resp = self.client.get(reverse('remittance_list'), HTTP_X_INERTIA='true')
-        rows = {r['id']: r['can_mark_received'] for r in resp.json()['props']['remittances']}
-        self.assertTrue(rows[legacy.pk])
-        self.assertFalse(rows[new_style.pk])
-
-    def test_mark_received_posts_receive_leg(self):
-        """Kaki terima (Kas Pusat masuk, Transit bersih) masuk jurnal saat HQ
-        menandai remittance diterima -- bukan hanya ganti status.
-
-        `remittance_mark_received` (jalur lama) sekarang cuma bisa dicapai
-        lewat remittance yang SUDAH punya received_amount_sar -- form
-        pembuatan/edit tak lagi bisa mengisinya untuk remittance baru
-        (2026-09-14, lihat test_lump_sum_then_allocate). Fixture di sini
-        mensimulasikan data lama itu langsung lewat ORM + resync manual,
-        supaya jalur legacy post_remittance_receive/resync_remittance masih
-        tertes tanpa memakai view yang sekarang sengaja menolaknya."""
-        from ..finance import posting
-
-        self._login()
-
-        rem = Remittance.objects.create(
-            remittance_number=Remittance.generate_number(),
-            date=date(2026, 2, 10),
-            amount_idr=480000000, exchange_rate=4800,
-            received_amount_sar=100000,
-        )
-        RemittanceLine.objects.create(
-            remittance=rem, invoice=self.invoice, linked_number='R-LS-1', amount_sar=60000,
-        )
-        RemittanceLine.objects.create(
-            remittance=rem, invoice=self.invoice, linked_number='R-LS-2', amount_sar=40000,
-        )
-        posting.resync_remittance(
-            rem, created_by=self.user, send_segments=_remittance_send_segments(rem),
-        )
-
-        # belum diterima: sisi kirim tercatat, pusat belum menerima apa pun
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
-        self.assertEqual(_net(account_id=coa.TRANSIT), 100000)
-
-        resp = self.client.post(reverse('remittance_mark_received', args=[rem.pk]))
-        self.assertEqual(resp.status_code, 302)
-        rem.refresh_from_db()
-        self.assertEqual(rem.status, Remittance.STATUS_RECEIVED)
-
-        # journal: Kas Pusat +100000, Transit bersih (send 100000 ter-reverse
-        # lalu re-post + receive 100000), tanpa selisih kurs/bank fee
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 100000)
-        self.assertEqual(_net(account_id=coa.TRANSIT), 0)
-        self.assertEqual(_net(account_id=coa.EXP_BANKFEE), 0)
-        # entry hidup utk rmt ini: 2 kirim (per baris) + 1 terima
-        self.assertEqual(_live_remittance_entries(rem).count(), 3)
-        # resync ulang idempotent-by-content: tidak dobel-posting, tidak
-        # menambah entry apa pun
-        before = _live_remittance_entries(rem).count()
-        total_entries_before = JournalEntry.objects.count()
-        posting.resync_remittance(
-            rem, created_by=self.user,
-            send_segments=_remittance_send_segments(rem),
-            received_sar=100000, touch_receive=True,
-        )
-        self.assertEqual(_live_remittance_entries(rem).count(), before)
-        self.assertEqual(JournalEntry.objects.count(), total_entries_before)
-        self.assertEqual(_net(account_id=coa.CASH_PUSAT), 100000)
-        self.assertEqual(_net(account_id=coa.TRANSIT), 0)

@@ -1,4 +1,4 @@
-"""HQ settlement orchestration (Master Architecture v2.0 §33–39).
+"""Penerimaan Pusat atas setoran cabang (skema target 3.6).
 
 Jalur penerimaan pusat untuk remittance — satu transfer boleh diterima dalam
 beberapa tanda terima (RemittanceSettlement). Jalur lama
@@ -39,28 +39,6 @@ def _live_diff_entries(remittance):
     )
 
 
-def _demote_received_status(remittance):
-    """Kebalikan _sync_received_status: kembali ke pending kalau penerimaan
-    tidak lagi mencapai basisnya dan selisihnya tidak (lagi) ditutup. Jalur
-    lama (received_amount_sar manual) tidak disentuh."""
-    if (
-        remittance.status == Remittance.STATUS_RECEIVED
-        and remittance.received_amount_sar is None
-        and remittance.settlement_status != 'fully_settled'
-        and not diff_is_closed(remittance)
-    ):
-        remittance.status = Remittance.STATUS_PENDING
-        remittance.save(update_fields=['status'])
-
-
-def _sync_received_status(remittance):
-    if remittance.status == Remittance.STATUS_RECEIVED:
-        return
-    if remittance.settlement_status == 'fully_settled' or diff_is_closed(remittance):
-        remittance.status = Remittance.STATUS_RECEIVED
-        remittance.save(update_fields=['status'])
-
-
 @transaction.atomic
 def add_settlement(remittance, *, received_amount_sar, received_date, created_by=None,
                    reference='', note='', allocations=None):
@@ -78,12 +56,6 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
     validated = remittance_allocation.validate(remittance, allocations)
     if received_amount_sar <= 0:
         raise FinanceError('received_amount_sar harus > 0')
-    if remittance.received_amount_sar is not None:
-        raise FinanceError(
-            f'Remittance {remittance.remittance_number} sudah punya nominal diterima manual '
-            '(jalur lama) — tidak bisa sekaligus pakai settlement bertahap. '
-            'Kosongkan received_amount_sar dulu di form remittance kalau memang mau pindah jalur.'
-        )
     if remittance.status == Remittance.STATUS_RECEIVED:
         raise FinanceError(
             f'Remittance {remittance.remittance_number} sudah diterima penuh — '
@@ -100,8 +72,8 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
         description=f"Settlement {remittance.remittance_number} — {received_amount_sar:,} SAR",
         entry_date=received_date,
         lines=[
-            {'account': coa.CASH_PUSAT, 'debit': received_amount_sar, 'branch': 'pusat',
-             'remittance': remittance.pk},
+            {'account': remittance.to_account.ledger_account_id, 'debit': received_amount_sar,
+             'branch': remittance.to_account.branch_id, 'remittance': remittance.pk},
             {'account': coa.TRANSIT, 'credit': received_amount_sar, 'remittance': remittance.pk},
         ],
         source_type='RemittanceSettlement',
@@ -110,10 +82,9 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
         created_by=created_by,
     )
 
-    from ..models.bank import CashAccount
     from .bank_ledger import record_bank_transaction
     record_bank_transaction(
-        account=CashAccount.objects.filter(branch_id='pusat', is_active=True).first(),
+        account=remittance.to_account,
         direction='in', amount_sar=received_amount_sar, currency='SAR', amount=received_amount_sar,
         source_type='RemittanceSettlement', source_id=settlement.pk,
         transaction_date=received_date, reference=reference,
@@ -122,7 +93,6 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
     remittance_allocation.post_allocation(
         settlement, validated, entry_date=received_date, created_by=created_by,
     )
-    _sync_received_status(remittance)
     return settlement
 
 
@@ -192,7 +162,6 @@ def delete_settlement(settlement, *, created_by=None, entry_date=None):
     if bank_tx:
         bank_tx.delete()
     settlement.delete()
-    _demote_received_status(remittance)
 
 
 @transaction.atomic
@@ -211,7 +180,6 @@ def reopen_remittance_diff(remittance, *, created_by=None, entry_date=None):
             entry, reversal_date=entry_date or timezone.now().date(), created_by=created_by,
             note=f'Selisih {remittance.remittance_number} dibuka kembali',
         )
-    _demote_received_status(remittance)
 
 
 def _diff_idempotency_key(remittance):
@@ -274,5 +242,4 @@ def close_remittance_diff(remittance, *, created_by=None, entry_date=None):
             idempotency_key=_diff_idempotency_key(remittance),
             created_by=created_by,
         )
-    _sync_received_status(remittance)
     return entry

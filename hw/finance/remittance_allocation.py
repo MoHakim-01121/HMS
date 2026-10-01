@@ -14,7 +14,7 @@ Saldo Kas SBY tidak berubah, tapi kredit per reservasi membuat
 diposting ulang, jadi periode bulan transfer yang sudah ditutup tidak
 menghalangi alokasi.
 
-Baris RemittanceLine tanpa `settlement` = jalur lama (dialokasikan saat kirim,
+(Dulu ada jalur lama: baris dialokasikan saat kirim,
 dijurnal lewat segmen kirim `send_segments`).
 """
 from datetime import date
@@ -22,7 +22,6 @@ from datetime import date
 from django.db.models import Sum
 
 from ..models.journal import JournalEntry
-from . import accounts as coa
 from .errors import FinanceError
 
 ALLOCATION_SOURCE = 'RemittanceAllocation'
@@ -83,34 +82,6 @@ def build_reservasi_mengendap():
 
     result.sort(key=lambda x: x['check_in'] or date.max)
     return result
-
-
-def send_segments(rem):
-    """Segmen kirim jurnal per baris remittance JALUR LAMA (tanpa settlement).
-
-    Satu {reservation, invoice, client, amount_sar} per baris ber-nominal,
-    supaya `mengendap_per_reservation` turun per reservasi. Baris alokasi
-    penerimaan (settlement terisi) sengaja tidak ikut -- sudah dijurnal lewat
-    reklasifikasi, memasukkannya di sini akan menurunkan mengendap dua kali.
-    """
-    from ..models import Reservation
-    from ..views.invoice_billing import _billing_client
-
-    segments = []
-    for line in rem.lines.filter(settlement__isnull=True).select_related('invoice'):
-        if not line.amount_sar:
-            continue
-        reservation = client = None
-        if line.invoice_id:
-            reservation = Reservation.objects.filter(
-                invoice_id=line.invoice_id, confirmation_letter__confirmation_number=line.linked_number,
-            ).order_by('voided_at').last()
-            client = _billing_client(line.invoice)
-        segments.append({
-            'reservation': reservation, 'invoice': line.invoice,
-            'client': client, 'amount_sar': line.amount_sar,
-        })
-    return segments
 
 
 def candidates(remittance, settlement=None):
@@ -206,10 +177,10 @@ def transfer_position(remittance, inputs=None):
     }
 
 
-def _sum_by_remittance(qs, field):
+def _sum_by_remittance(qs, field, key='remittance_id'):
     return {
-        row['remittance_id']: int(row['t'] or 0)
-        for row in qs.order_by().values('remittance_id').annotate(t=Sum(field))
+        row[key]: int(row['t'] or 0)
+        for row in qs.order_by().values(key).annotate(t=Sum(field))
     }
 
 
@@ -223,7 +194,9 @@ def _position_inputs(remittances):
     ids = [r.pk for r in remittances]
     reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
     return {
-        'allocated': _sum_by_remittance(RemittanceLine.objects.filter(remittance_id__in=ids), 'amount_sar'),
+        'allocated': _sum_by_remittance(
+            RemittanceLine.objects.filter(settlement__remittance_id__in=ids), 'amount_sar', 'settlement__remittance_id',
+        ),
         'settled': _sum_by_remittance(
             RemittanceSettlement.objects.filter(remittance_id__in=ids), 'received_amount_sar',
         ),
@@ -236,10 +209,26 @@ def _position_inputs(remittances):
     }
 
 
+def annotate_statuses(remittances, inputs=None):
+    """Hitung `status` banyak transfer dengan jumlah query tetap, lalu simpan
+    di objeknya (Remittance.status membacanya). Mengembalikan daftar transfer."""
+    from ..models import Remittance
+    remittances = list(remittances)
+    if inputs is None:
+        inputs = _position_inputs(remittances)
+    for r in remittances:
+        basis = inputs['sent'].get(r.pk, 0) or r.expected_sar or 0
+        settled = inputs['settled'].get(r.pk, 0)
+        received = (basis and settled >= basis) or r.pk in inputs['diff_closed']
+        r._status_cache = Remittance.STATUS_RECEIVED if received else Remittance.STATUS_PENDING
+    return remittances
+
+
 def positions_for(remittances):
     """[(remittance, transfer_position)] untuk banyak transfer lump-sum."""
     remittances = list(remittances)
     inputs = _position_inputs(remittances)
+    annotate_statuses(remittances, inputs)
     return [(r, transfer_position(r, inputs)) for r in remittances]
 
 
@@ -247,9 +236,7 @@ def transfer_figures(remittance, sent=None, settled=None):
     """Angka satu transfer -- satu definisi untuk Recap, KPI tab Transfer, dan
     PDF rekap.
 
-    received = yang benar-benar masuk Kas Pusat: Σ penerimaan bertahap; untuk
-    transfer lama, nominal diterima manual; transfer lama berstatus received
-    tanpa nominal apa pun dianggap diterima penuh (tidak ada data lain).
+    received = yang benar-benar masuk Kas Pusat: Σ penerimaan.
     outstanding = masih di jalan; difference = biaya (+) / laba kurs (−) pada
     transfer yang sudah diterima. `sent`/`settled` boleh dioper dari query
     bulk supaya daftar tidak N+1."""
@@ -258,14 +245,7 @@ def transfer_figures(remittance, sent=None, settled=None):
     if settled is None:
         settled = remittance.settled_sar
     done = remittance.status == remittance.STATUS_RECEIVED
-    if settled:
-        received = settled
-    elif done and remittance.received_amount_sar is not None:
-        received = int(remittance.received_amount_sar)
-    elif done:
-        received = sent
-    else:
-        received = 0
+    received = settled
     basis = sent or remittance.expected_sar or 0
     return {
         'state': 'received' if done else ('partial' if received > 0 else 'pending'),
@@ -280,7 +260,7 @@ def figures_for(remittances):
     """[(remittance, transfer_figures)] untuk banyak transfer sekaligus.
     Remittance sebaiknya sudah prefetch_related('settlements')."""
     from . import queries
-    remittances = list(remittances)
+    remittances = annotate_statuses(remittances)
     sent_map = queries.remittance_sent_map([r.pk for r in remittances])
     return [
         (r, transfer_figures(
@@ -303,7 +283,7 @@ def transfer_totals():
         totals['received'] += fig['received']
         totals['in_transit'] += fig['outstanding']
     # pos None: IDR terisi tapi kurs kosong -- belum lump-sum yang bisa dihitung.
-    for rem, pos in positions_for(r for r in remittances if r.amount_idr is not None):
+    for rem, pos in positions_for(remittances):
         if pos:
             totals['received_unallocated'] += pos['received_unallocated']
     return totals
@@ -313,7 +293,7 @@ def open_transfers():
     """Transfer lump-sum yang masih punya uang belum dialokasikan."""
     from ..models import Remittance
     out = []
-    for rem, pos in positions_for(Remittance.objects.filter(amount_idr__isnull=False).order_by('date', 'pk')):
+    for rem, pos in positions_for(Remittance.objects.order_by('date', 'pk')):
         if pos and pos['in_transit'] + pos['received_unallocated'] > 0:
             out.append({
                 'id': rem.pk, 'remittance_number': rem.remittance_number,
@@ -387,9 +367,7 @@ def create_lines(settlement, validated):
     from ..models import RemittanceLine
     return [
         RemittanceLine.objects.create(
-            remittance=settlement.remittance, settlement=settlement,
-            invoice_id=v['row']['invoice_id'], linked_number=v['row']['linked_number'],
-            amount_sar=v['amount_sar'],
+            settlement=settlement, invoice_line_id=v['row']['reservation_id'], amount_sar=v['amount_sar'],
         )
         for v in validated
     ]
@@ -405,7 +383,7 @@ def live_allocation_entries(settlement):
 
 
 def post_allocation(settlement, validated, *, entry_date, created_by=None):
-    """Reklasifikasi Kas SBY: pindahkan kredit kirim lump-sum ke dimensi reservasi."""
+    """Reklasifikasi kas rekening asal: pindahkan kredit kirim lump-sum ke dimensi reservasi."""
     if not validated:
         return None
     from ..models import Invoice
@@ -413,16 +391,17 @@ def post_allocation(settlement, validated, *, entry_date, created_by=None):
     from .posting import post_entry
 
     remittance = settlement.remittance
+    source, branch = remittance.from_account.ledger_account_id, remittance.from_account.branch_id
     invoices = Invoice.objects.in_bulk({v['row']['invoice_id'] for v in validated if v['row']['invoice_id']})
     total = sum(v['amount_sar'] for v in validated)
-    lines = [{'account': coa.CASH_SBY, 'debit': total, 'remittance': remittance.pk, 'branch': 'sby'}]
+    lines = [{'account': source, 'debit': total, 'remittance': remittance.pk, 'branch': branch}]
     for v in validated:
         row = v['row']
         invoice = invoices.get(row['invoice_id'])
         client = _billing_client(invoice) if invoice else None
         lines.append({
-            'account': coa.CASH_SBY, 'credit': v['amount_sar'], 'remittance': remittance.pk,
-            'branch': 'sby', 'reservation': row['reservation_id'], 'invoice': row['invoice_id'],
+            'account': source, 'credit': v['amount_sar'], 'remittance': remittance.pk,
+            'branch': branch, 'reservation': row['reservation_id'], 'invoice': row['invoice_id'],
             'client': getattr(client, 'pk', None),
         })
     return post_entry(
