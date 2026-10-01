@@ -18,6 +18,40 @@ STATUSES = ['TENTATIVE', 'DEFINITE', 'CANCELLED']
 CAPACITY_BY_TEXT = {'single': 1, 'double': 2, 'twin': 2, 'triple': 3, 'quad': 4, 'quint': 5}
 
 
+def link_cl_to_masters(apps, schema_editor):
+    """Isi hotel dan client CL dari teks salinannya bila cocok persis dengan
+    satu baris master (hotel: nama; client: nama atau brand, lewat
+    client_name_key). Yang tidak cocok dibiarkan kosong dan dilaporkan oleh
+    langkah berikutnya untuk diputuskan manual."""
+    from hw.models.client import client_name_key
+
+    CL = apps.get_model('hw', 'ConfirmationLetter')
+    Hotel = apps.get_model('hw', 'Hotel')
+    Client = apps.get_model('hw', 'Client')
+
+    hotels = {}
+    for h in Hotel.objects.all():
+        hotels.setdefault(' '.join(h.name.lower().split()), []).append(h.pk)
+    clients = {}
+    for c in Client.objects.all():
+        for text in {c.name, c.brand}:
+            if text:
+                clients.setdefault(client_name_key(text), set()).add(c.pk)
+
+    for cl in CL.objects.filter(models.Q(hotel_id__isnull=True) | models.Q(client_id__isnull=True)):
+        updates = {}
+        if cl.hotel_id is None:
+            found = hotels.get(' '.join((cl.hotel_name or '').lower().split()), [])
+            if len(found) == 1:
+                updates['hotel_id'] = found[0]
+        if cl.client_id is None and (cl.guest_name or '').strip():
+            found = clients.get(client_name_key(cl.guest_name), set())
+            if len(found) == 1:
+                updates['client_id'] = next(iter(found))
+        if updates:
+            CL.objects.filter(pk=cl.pk).update(**updates)
+
+
 def check_and_normalise_cl(apps, schema_editor):
     CL = apps.get_model('hw', 'ConfirmationLetter')
     problems = []
@@ -84,6 +118,7 @@ class Migration(migrations.Migration):
 
     operations = [
         # ── CL ────────────────────────────────────────────────────────────
+        migrations.RunPython(link_cl_to_masters, migrations.RunPython.noop),
         migrations.RunPython(check_and_normalise_cl, migrations.RunPython.noop),
         migrations.RemoveConstraint(model_name='confirmationletter', name='cl_check_out_after_check_in'),
         migrations.RemoveField(model_name='confirmationletter', name='hotel_name'),
