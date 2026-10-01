@@ -86,6 +86,8 @@ class MultiAllocationSaveTest(TestCase):
         self.assertTrue(any('Payment berhasil' in m for m in msgs))
 
     def test_non_sar_amount_keeps_original_currency_and_rate_for_analysis(self):
+        from hw.tests.factories import make_account
+        make_account('sby', 'IDR')
         # 48,000,000 IDR @ 4800 == 10,000 SAR (riyal patokan), split in SAR.
         # This is the regression case: allocation is in SAR (patokan riyal),
         # while the payment record keeps the IDR amount + rate for analysis.

@@ -70,7 +70,7 @@ function PayToAccount({ t, acc }) {
 }
 
 export default function Detail({
-  invoice, reservations, payments, due_alert, wa_send, logs = [], pay_to = [],
+  invoice, reservations, payments, due_alert, wa_send, logs = [], pay_to = [], excess_sar = 0,
   void: voidInfo = null, credit_notes = [], credited_sar = 0, can_void = false,
 }) {
   const openForm = useFormModal();
@@ -124,6 +124,17 @@ export default function Detail({
   const menuItems = [
     canEdit && { label: t("Edit"), icon: "edit", onClick: () => openForm(`/invoice/${invoice.pk}/edit/`) },
     canCredit && !isVoid && { label: t("Credit note…"), icon: "file-text", onClick: () => openForm(`/finance/invoices/${invoice.pk}/credit-notes/new/`) },
+    canCredit && !isVoid && excess_sar > 0 && {
+      label: t("Move {n} SAR overpayment to deposit…", { n: fmt(excess_sar) }),
+      icon: "file-text",
+      onClick: () =>
+        confirm({
+          title: t("Move {n} SAR to deposit?", { n: fmt(excess_sar) }),
+          message: t("What {client} paid beyond this invoice becomes their deposit. It can then pay other invoices, be transferred, or be refunded.", { client: invoice.customer_name }),
+          confirmLabel: t("Move to deposit"),
+          onConfirm: () => router.post(`/finance/invoices/${invoice.pk}/excess-to-deposit/`),
+        }),
+    },
     canCredit && can_void && { label: t("Void invoice…"), icon: "close", danger: true, separator: true, onClick: () => openForm(`/finance/invoices/${invoice.pk}/void/`) },
     perms.can("invoice", "delete") && {
       label: t("Delete invoice…"),

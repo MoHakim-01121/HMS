@@ -116,6 +116,12 @@ class FinancialPeriod(models.Model):
             self.closed_by = locked.closed_by
             self.closed_at = locked.closed_at
 
+    @property
+    def payments(self):
+        """Pembayaran client yang tanggalnya jatuh di periode ini."""
+        from .payment import PaymentRecord
+        return PaymentRecord.objects.filter(payment_date__gte=self.date_from, payment_date__lte=self.date_to)
+
     def lock(self, user):
         """Lock periode. Irreversible."""
         if self.status != self.STATUS_CLOSED:
@@ -123,10 +129,7 @@ class FinancialPeriod(models.Model):
         
         # Validate no pending payments in this period
         from .payment import PaymentRecord
-        pending = PaymentRecord.objects.filter(
-            period=self,
-            status=PaymentRecord.STATUS_PENDING,
-        )
+        pending = self.payments.filter(status=PaymentRecord.STATUS_PENDING)
         if pending.exists():
             raise ValueError(f"Ada {pending.count()} pembayaran pending. Harus di-confirm/reject dulu.")
         

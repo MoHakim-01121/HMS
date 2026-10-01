@@ -120,7 +120,7 @@ def invoice_unallocated_sar(invoice_id):
 def payment_unallocated_sar(payment_id):
     """Sisa alokasi satu payment yang belum ditentukan.
 
-    = amount_sar - sum(PaymentAllocation.amount_sar).
+    = amount_sar - sum(PaymentAllocation.amount_sar) - deposited_sar.
 
     Setiap tujuan pembayaran adalah baris PaymentAllocation (payment yang
     dibuat untuk satu reservasi langsung punya satu alokasi penuh). Hanya
@@ -148,8 +148,9 @@ def payment_unallocated_map(payment_ids):
         .values("payment_id").annotate(t=Sum("amount_sar"))
     }
     return {
-        pk: max(0, int(amount_sar) - alloc.get(pk, 0))
-        for pk, amount_sar in PaymentRecord.objects.filter(pk__in=ids).values_list("pk", "amount_sar")
+        pk: max(0, int(amount_sar) - alloc.get(pk, 0) - int(deposited))
+        for pk, amount_sar, deposited in PaymentRecord.objects.filter(pk__in=ids)
+        .values_list("pk", "amount_sar", "deposited_sar")
     }
 
 

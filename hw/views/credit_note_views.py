@@ -64,6 +64,25 @@ def invoice_void(request, pk):
     return redirect(_detail_url(invoice))
 
 
+@require_perm('invoice', 'delete')
+def invoice_excess_to_deposit(request, pk):
+    """Move what the client overpaid on this invoice's reservations to their
+    deposit (a reservation already paid whose value dropped: the CL changed,
+    or it was cancelled with a penalty smaller than what was paid)."""
+    from ..finance.posting import move_invoice_excess_to_deposit
+    invoice = get_object_or_404(Invoice, pk=pk)
+    if request.method != 'POST':
+        return redirect(_detail_url(invoice))
+    try:
+        moved = move_invoice_excess_to_deposit(invoice, created_by=request.user)
+    except FinanceError as e:
+        messages.error(request, str(e))
+    else:
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice', f'{invoice.invoice_number} excess to deposit')
+        messages.success(request, f'{moved:,} SAR kelebihan bayar dipindahkan ke deposit {invoice.client.name}.')
+    return redirect(_detail_url(invoice))
+
+
 def _cn_form_props(invoice, data=None, error=None):
     return {
         'invoice': {

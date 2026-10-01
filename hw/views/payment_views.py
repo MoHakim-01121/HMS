@@ -6,7 +6,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import F, Q
 from django.http.request import RawPostDataException
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
@@ -53,7 +53,7 @@ def _payment_props(p):
         allocated = p.amount_sar - unallocated
     else:
         unallocated = allocated = 0
-    group_key, group_label, group_tone = _STATUS_GROUP[p.status]
+    group_key, group_label, group_tone = _GROUP_META[_group_of(p)]
     return {
         'id': p.pk,
         'payment_number': p.payment_number,
@@ -78,6 +78,7 @@ def _payment_props(p):
         } for a in p.allocations.select_related('invoice_line__confirmation_letter__hotel')],
         'unallocated_sar': unallocated,
         'allocated_sar': allocated,
+        'deposited_sar': p.deposited_sar,
         'payment_date': p.payment_date.isoformat() if p.payment_date else None,
         'amount': p.amount,
         'currency': p.currency,
@@ -89,14 +90,14 @@ def _payment_props(p):
         'receiving_account': p.receiving_account.token if p.receiving_account_id else None,
         'receiving_account_label': str(p.receiving_account) if p.receiving_account else None,
         'receiving_branch': p.receiving_branch_code,
-        'bank_name': p.bank_name,
-        'account_number': p.account_number,
         'reference': p.reference,
         'note': p.note,
         'proof_url': proof_url,
         'proof': proofs,
-        'status': p.status,
-        'status_display': p.get_status_display(),
+        # `status` as the screens read it: lifecycle, and for an effective
+        # payment its allocation state (received / partially_applied / applied).
+        'status': p.display_status,
+        'status_display': p.display_status_label,
         'status_group': group_key,
         'status_group_label': group_label,
         'status_group_tone': group_tone,
@@ -212,20 +213,45 @@ _PAYMENT_SORT_MAP = {
     'payment_date':  ('payment_date', 'created_at'),
     '-amount_sar':   ('-amount_sar', '-created_at'),
 }
-# What the user filters and reads on the list: five meanings instead of nine
-# technical statuses. `confirmed` only lives for one request (payment_confirm
-# re-derives it straight away), `allocated` is the legacy twin of `applied`,
-# and rejected/reversed/voided all read as "cancelled". Stored values are
-# untouched -- this is a presentation layer over them.
+# What the user filters and reads on the list. The payment stores only its
+# lifecycle status; whether its money has been allocated is derived from the
+# allocation rows (PaymentRecord.allocation_state), so an effective payment
+# falls into one of three groups by that state.
 PAYMENT_STATUS_GROUPS = (
-    ('pending',     'Awaiting confirmation', 'yellow', (PaymentRecord.STATUS_PENDING,)),
-    ('unallocated', 'Unallocated',           'blue',   (PaymentRecord.STATUS_RECEIVED, PaymentRecord.STATUS_CONFIRMED)),
-    ('partial',     'Partially allocated',   'yellow', (PaymentRecord.STATUS_PARTIALLY_APPLIED,)),
-    ('allocated',   'Allocated',             'green',  (PaymentRecord.STATUS_APPLIED, PaymentRecord.STATUS_ALLOCATED)),
-    ('cancelled',   'Cancelled',             'gray',   (PaymentRecord.STATUS_REJECTED, PaymentRecord.STATUS_REVERSED, PaymentRecord.STATUS_VOIDED)),
+    ('pending',     'Awaiting confirmation', 'yellow'),
+    ('unallocated', 'Unallocated',           'blue'),
+    ('partial',     'Partially allocated',   'yellow'),
+    ('allocated',   'Allocated',             'green'),
+    ('cancelled',   'Cancelled',             'gray'),
 )
-_GROUP_STATUSES = {key: statuses for key, _, _, statuses in PAYMENT_STATUS_GROUPS}
-_STATUS_GROUP = {st: (key, label, tone) for key, label, tone, statuses in PAYMENT_STATUS_GROUPS for st in statuses}
+_GROUP_META = {key: (key, label, tone) for key, label, tone in PAYMENT_STATUS_GROUPS}
+_DEAD_STATUSES = (PaymentRecord.STATUS_REJECTED, PaymentRecord.STATUS_REVERSED, PaymentRecord.STATUS_VOIDED)
+# Links from before the statuses were reduced (?status=applied, ...).
+_LEGACY_STATUS_GROUP = {
+    'received': 'unallocated', 'confirmed': 'unallocated', 'partially_applied': 'partial',
+    'applied': 'allocated', 'rejected': 'cancelled', 'reversed': 'cancelled', 'voided': 'cancelled',
+}
+
+
+def _group_of(payment):
+    """Group key of one payment (see PAYMENT_STATUS_GROUPS)."""
+    if payment.status == PaymentRecord.STATUS_PENDING:
+        return 'pending'
+    return payment.allocation_state or 'cancelled'
+
+
+def _group_q(key):
+    """Q over a queryset annotated with_allocated() for one group."""
+    confirmed = Q(status=PaymentRecord.STATUS_CONFIRMED)
+    if key == 'pending':
+        return Q(status=PaymentRecord.STATUS_PENDING)
+    if key == 'cancelled':
+        return Q(status__in=_DEAD_STATUSES)
+    if key == 'unallocated':
+        return confirmed & Q(allocated=0)
+    if key == 'partial':
+        return confirmed & Q(allocated__gt=0, allocated__lt=F('amount_sar'))
+    return confirmed & Q(allocated__gte=F('amount_sar'))
 
 
 def _status_group_keys(values):
@@ -235,10 +261,10 @@ def _status_group_keys(values):
     """
     out = []
     for v in values:
-        if v in _GROUP_STATUSES:
+        if v in _GROUP_META:
             key = v
-        elif v in _STATUS_GROUP:
-            key = _STATUS_GROUP[v][0]
+        elif v in _LEGACY_STATUS_GROUP:
+            key = _LEGACY_STATUS_GROUP[v]
         else:
             continue
         if key not in out:
@@ -277,7 +303,10 @@ def _apply_payment_filters(qs, f):
             )
         qs = qs.filter(combined)
     if f['status_list']:
-        qs = qs.filter(status__in=[st for key in f['status_list'] for st in _GROUP_STATUSES[key]])
+        wanted = Q()
+        for key in f['status_list']:
+            wanted |= _group_q(key)
+        qs = qs.with_allocated().filter(wanted)
     if f['date_from']:
         qs = qs.filter(payment_date__gte=f['date_from'])
     if f['date_to']:
@@ -305,13 +334,12 @@ def payment_list(request):
     # Counts filter GROUPS in use (same rule as the CL list): several ticked
     # statuses are one group, a date range is one more.
     active_filters = bool(f['status_list']) + bool(f['date_from'] or f['date_to'])
-    raw_counts = {
-        row['status']: row['n']
-        for row in PaymentRecord.objects.values('status').annotate(n=Count('id'))
-    }
+    group_counts = {key: 0 for key, _, _ in PAYMENT_STATUS_GROUPS}
+    for p in PaymentRecord.objects.with_allocated().only('status', 'amount_sar'):
+        group_counts[_group_of(p)] += 1
     status_groups = [
-        {'key': key, 'label': label, 'count': sum(raw_counts.get(st, 0) for st in statuses)}
-        for key, label, _, statuses in PAYMENT_STATUS_GROUPS
+        {'key': key, 'label': label, 'count': group_counts[key]}
+        for key, label, _ in PAYMENT_STATUS_GROUPS
     ]
 
     # Server-side pagination (matches the other list pages: 10 on mobile, 15
@@ -343,13 +371,11 @@ def payment_list(request):
         # One aggregate pair for the whole set instead of two queries per
         # payment -- the same bulk pattern as fq.invoice_paid_map.
         unapplied_map = fq.payment_unallocated_map(effective.values_list('pk', flat=True))
-        # Counts come from raw_counts (one GROUP BY, shared with the filter
-        # panel) instead of a COUNT query each.
+        # Counts come from group_counts (shared with the filter panel).
         return {
-            'total': sum(raw_counts.values()),
-            # The group, not the raw status: legacy `allocated` + current `applied`.
-            'allocated': sum(raw_counts.get(st, 0) for st in _GROUP_STATUSES['allocated']),
-            'partially_applied': raw_counts.get(PaymentRecord.STATUS_PARTIALLY_APPLIED, 0),
+            'total': sum(group_counts.values()),
+            'allocated': group_counts['allocated'],
+            'partially_applied': group_counts['partial'],
             'unapplied_total': sum(unapplied_map.values()),
             'unapplied_count': sum(1 for v in unapplied_map.values() if v > 0),
         }
@@ -377,7 +403,7 @@ def payment_list(request):
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
     payment = get_object_or_404(
-        PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'period'),
+        PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'receiving_account__branch'),
         pk=pk,
     )
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
@@ -480,6 +506,8 @@ def payment_record(request):
     receiving_account = resolve_money_account(data.get('account'))
     if receiving_account is not None:
         received_in = receiving_account.branch_id
+        # The payment's currency is its receiving account's currency.
+        currency = receiving_account.currency
     else:
         received_in = data.get('received_in', 'sby')
         if received_in not in ('sby', 'jkt', 'pusat'):
@@ -493,6 +521,12 @@ def payment_record(request):
     if not amount or amount <= 0:
         messages.error(request, 'Jumlah pembayaran harus lebih besar dari nol.')
         return redirect('payment_list')
+    if amount != int(amount):
+        # Money is kept in whole units (riyal, rupiah, dollar); a fraction
+        # would be dropped silently when stored.
+        messages.error(request, 'Jumlah pembayaran harus bilangan bulat, tanpa desimal.')
+        return redirect('payment_list')
+    amount = int(amount)
     if exchange_rate <= 0:
         messages.error(request, 'Kurs harus lebih besar dari nol.')
         return redirect('payment_list')
@@ -601,8 +635,6 @@ def payment_record(request):
                     currency=currency,
                     exchange_rate=exchange_rate,   # kurs asli — utk analisis
                     method=data.get('method', ''),
-                    bank_name=data.get('bank_name', ''),
-                    account_number=data.get('account_number', ''),
                     reference=data.get('reference', ''),
                     note=data.get('note', '') or f'Allocated to {len(valid_alloc)} reservation(s)',
                     created_by=request.user,
@@ -638,8 +670,6 @@ def payment_record(request):
                     currency=currency,
                     exchange_rate=exchange_rate,
                     method=data.get('method', ''),
-                    bank_name=data.get('bank_name', ''),
-                    account_number=data.get('account_number', ''),
                     reference=data.get('reference', ''),
                     note=data.get('note', ''),
                     created_by=request.user,
@@ -675,27 +705,6 @@ def payment_confirm(request, pk):
 
             confirm_payment(payment, confirmed_by=request.user, note=note)
 
-            # Derive final status from the allocation sum vs amount — fully
-            # allocated → applied, sebagian → partially_applied, tanpa alokasi
-            # → received.
-            old_state = _payment_snapshot(payment)
-            payment.status = payment.derive_status()
-            payment.save(update_fields=['status'])
-            if payment.status != PaymentRecord.STATUS_CONFIRMED:
-                PaymentLog.objects.create(
-                    payment=payment,
-                    action=(
-                        PaymentLog.ACTION_APPLIED
-                        if payment.status in (PaymentRecord.STATUS_APPLIED,
-                                              PaymentRecord.STATUS_PARTIALLY_APPLIED)
-                        else PaymentLog.ACTION_RECEIVED
-                    ),
-                    before_state=old_state,
-                    after_state=_payment_snapshot(payment),
-                    performed_by=request.user,
-                    note='Status derived from allocations after confirm',
-                )
-
             # Auto-generate the payment receipt (kwitansi) on confirmation.
             from ..finance.receipt_service import ensure_receipt
             ensure_receipt(payment, created_by=request.user)
@@ -720,7 +729,7 @@ def payment_reject(request, pk):
             messages.error(
                 request,
                 f'Payment {payment.payment_number} berstatus '
-                f'{payment.get_status_display()}. Hanya payment pending yang bisa '
+                f'{payment.display_status_label}. Hanya payment pending yang bisa '
                 'ditolak. Gunakan "Revers sebagai koreksi untuk pembayaran efektif.',
             )
             return redirect('payment_detail', pk=pk)
@@ -780,7 +789,7 @@ def payment_reallocate(request, pk):
         messages.error(
             request,
             f'Payment {payment.payment_number} berstatus '
-            f'{payment.get_status_display()}. Hanya payment efektif yang bisa '
+            f'{payment.display_status_label}. Hanya payment efektif yang bisa '
             'direalokasi.',
         )
         return redirect('payment_detail', pk=pk)
@@ -864,7 +873,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
         )
         if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
             raise FinanceError(
-                f'Payment {payment.payment_number} sudah {payment.get_status_display()}.'
+                f'Payment {payment.payment_number} sudah {payment.display_status_label}.'
             )
         old_state = _payment_snapshot(payment)
         reversed_ids = JournalEntry.objects.filter(
@@ -876,6 +885,11 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
         ).exclude(pk__in=reversed_ids)
         for journal in journals:
             reverse_journal_entry(journal, reversal_date, user, note=journal_note)
+
+        # Money this payment moved to the client's deposit comes back first
+        # (refused when the deposit has already been spent).
+        payment.refresh_from_db(fields=['deposited_sar'])
+        posting.return_payment_deposit(payment, created_by=user, entry_date=reversal_date)
 
         payment.status = status
         payment.save(update_fields=['status'])
@@ -906,7 +920,7 @@ def payment_reverse(request, pk):
             messages.error(
                 request,
                 f'Payment {payment.payment_number} berstatus '
-                f'{payment.get_status_display()} dan tidak bisa di-reverse.',
+                f'{payment.display_status_label} dan tidak bisa di-reverse.',
             )
             return redirect('payment_detail', pk=pk)
 
@@ -952,7 +966,7 @@ def payment_apply(request, pk):
         messages.error(
             request,
             f'Payment {payment.payment_number} berstatus '
-            f'{payment.get_status_display()} dan tidak bisa dialokasi.',
+            f'{payment.display_status_label} dan tidak bisa dialokasi.',
         )
         return redirect('payment_detail', pk=pk)
 
@@ -1040,10 +1054,6 @@ def payment_apply(request, pk):
                 payment, targets, created_by=request.user,
             )
 
-            # Derive and save new status.
-            payment.status = payment.derive_status()
-            payment.save(update_fields=['status'])
-
         PaymentLog.objects.create(
             payment=payment,
             action=PaymentLog.ACTION_APPLIED,
@@ -1077,7 +1087,7 @@ def payment_void(request, pk):
         messages.error(
             request,
             f'Payment {payment.payment_number} berstatus '
-            f'{payment.get_status_display()} dan tidak bisa di-void.',
+            f'{payment.display_status_label} dan tidak bisa di-void.',
         )
         return redirect('payment_detail', pk=pk)
 
@@ -1093,6 +1103,23 @@ def payment_void(request, pk):
     except FinanceError as e:
         messages.error(request, str(e))
 
+    return redirect('payment_detail', pk=pk)
+
+
+@require_perm('payments', 'edit')
+def payment_to_deposit(request, pk):
+    """Move a payment's excess (the part not allocated to any invoice line)
+    to the client's deposit. An explicit step: until then the money stays on
+    the payment and can only be allocated to that client's invoices."""
+    payment = get_object_or_404(PaymentRecord, pk=pk)
+    if request.method != 'POST':
+        return redirect('payment_detail', pk=pk)
+    try:
+        moved = posting.move_payment_excess_to_deposit(payment, created_by=request.user)
+    except FinanceError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f'{moved:,} SAR dari {payment.payment_number} dipindahkan ke deposit {payment.client.name}.')
     return redirect('payment_detail', pk=pk)
 
 

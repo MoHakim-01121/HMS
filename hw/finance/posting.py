@@ -468,7 +468,7 @@ def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
         PaymentLog.objects.create(
             payment=pr,
             action=PaymentLog.ACTION_REVERSED,
-            before_state={"status": PaymentRecord.STATUS_ALLOCATED, "allocations": dropped},
+            before_state={"status": PaymentRecord.STATUS_CONFIRMED, "allocations": dropped},
             after_state={"status": PaymentRecord.STATUS_REVERSED},
             performed_by=created_by,
             note="Superseded by invoice-form payment re-sync",
@@ -570,10 +570,8 @@ def post_payment(payment, *, created_by, idempotency_key=None):
                     n += 1
                 idempotency_key = f"{default_key}#{n}"
 
-    # Akun kas: kalau ada receiving_account konkret pakai ledger-nya, kalau
-    # tidak fallback ke peta received_in lama.
-    acc = payment.receiving_account
-    cash_acc = acc.ledger_account_id if acc else _CASH_BY_LOCATION.get(payment.received_in, coa.CASH_SBY)
+    # Akun kas = akun buku besar rekening penerimanya.
+    cash_acc = payment.receiving_account.ledger_account_id
     amt = int(payment.amount_sar)
     base = {"client": payment.client_id, "invoice": payment.invoice_id,
             "branch": payment.receiving_branch_code}
@@ -595,11 +593,10 @@ def post_payment(payment, *, created_by, idempotency_key=None):
         idempotency_key=idempotency_key or f"payment:{payment.payment_number}:confirm",
         created_by=created_by,
     )
-    # Traceable movement log (v2.0 §25-28) — no-op for legacy payments with no
-    # concrete receiving_account (received_in-only rows).
+    # Traceable movement log (v2.0 §25-28).
     from .bank_ledger import record_bank_transaction
     record_bank_transaction(
-        account=acc, direction="in", amount_sar=amt,
+        account=payment.receiving_account, direction="in", amount_sar=amt,
         source_type="PaymentRecord", source_id=payment.pk,
         transaction_date=payment.payment_date, currency=payment.currency,
         amount=payment.amount, reference=payment.reference,
@@ -880,14 +877,31 @@ def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
     )
 
 
-def _allocation_target(target):
+def _allocation_target(target, payment=None):
     """Kolom PaymentAllocation untuk `target`: satu baris invoice (hotel atau
     service). Denda dibayar lewat baris hotel reservasinya, bukan sendiri."""
     from ..models.invoice import InvoiceLine
 
-    if isinstance(target, InvoiceLine) and target.kind in (InvoiceLine.KIND_HOTEL, InvoiceLine.KIND_SERVICE):
-        return {"invoice_line_id": target.pk}
-    raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
+    if not (isinstance(target, InvoiceLine) and target.kind in (InvoiceLine.KIND_HOTEL, InvoiceLine.KIND_SERVICE)):
+        raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
+    if payment is not None:
+        check_allocation(payment, target)
+    return {"invoice_line_id": target.pk}
+
+
+def check_allocation(payment, line):
+    """Aturan sebuah alokasi: pembayaran hanya melunasi invoice client-nya
+    sendiri, dan Services hanya dibayar ke rekening cabang penerbitnya (B12)."""
+    invoice = line.invoice
+    if invoice.client_id != payment.client_id:
+        raise FinanceError(
+            f"Invoice {invoice.invoice_number} milik client lain; pembayaran hanya melunasi invoice client-nya sendiri."
+        )
+    if line.kind == line.KIND_SERVICE and payment.receiving_account.branch_id != invoice.branch_id:
+        raise FinanceError(
+            f"Invoice Services {invoice.invoice_number} diterbitkan cabang {invoice.branch.name}, jadi hanya "
+            f"bisa dibayar ke rekening cabang itu (bukan {payment.receiving_account})."
+        )
 
 
 @transaction.atomic
@@ -901,15 +915,106 @@ def allocate_payment(payment, allocations, *, created_by=None):
 
     allocations = list(allocations)
     total = sum(int(a) for _, a in allocations)
-    if total > int(payment.amount_sar):
+    if total + int(payment.deposited_sar) > int(payment.amount_sar):
         raise FinanceError(
             f"Alokasi {total:,} melebihi pembayaran {payment.amount_sar:,}"
         )
     rows = []
     for target, amt in allocations:
-        rows.append(PaymentAllocation(payment=payment, amount_sar=int(amt), **_allocation_target(target)))
+        rows.append(PaymentAllocation(payment=payment, amount_sar=int(amt), **_allocation_target(target, payment)))
     PaymentAllocation.objects.bulk_create(rows)
     return rows
+
+
+# ── Kelebihan bayar → deposit client ───────────────────────────
+
+@transaction.atomic
+def move_payment_excess_to_deposit(payment, *, created_by, entry_date=None):
+    """Pindahkan kelebihan sebuah pembayaran (bagian Z tanpa alokasi) ke
+    deposit client: DR Piutang / CR Titipan. Mengembalikan nominalnya.
+
+    Selama masih kelebihan, uang itu hanya bisa dialokasikan ke tagihan client
+    yang sama; sebagai deposit ia bisa dipakai membayar tagihan lain,
+    dipindah ke client lain, atau dikembalikan."""
+    payment = PaymentRecord.objects.select_for_update().get(pk=payment.pk)
+    if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
+        raise FinanceError(f"Payment {payment.payment_number} belum efektif.")
+    excess = payment.unallocated_sar
+    if excess <= 0:
+        raise FinanceError(f"Payment {payment.payment_number} tidak punya kelebihan untuk dipindahkan.")
+    dims = {"client": payment.client_id, "invoice": payment.invoice_id}
+    post_entry(
+        entry_type=JournalEntry.TYPE_TRANSFER,
+        description=f"Kelebihan {payment.payment_number} → deposit client",
+        entry_date=entry_date or timezone.now().date(),
+        lines=[
+            {"account": coa.AR, "debit": excess, "branch": payment.receiving_branch_code, **dims},
+            {"account": coa.CUST_CREDIT, "credit": excess, **dims},
+        ],
+        source_type="PaymentRecord",
+        source_id=payment.pk,
+        idempotency_key=f"payment:{payment.payment_number}:deposit:{payment.deposited_sar + excess}",
+        created_by=created_by,
+    )
+    before = {"deposited_sar": payment.deposited_sar}
+    payment.deposited_sar += excess
+    payment.save(update_fields=["deposited_sar"])
+    PaymentLog.objects.create(
+        payment=payment, action=PaymentLog.ACTION_DEPOSITED, performed_by=created_by,
+        before_state=before, after_state={"deposited_sar": payment.deposited_sar},
+        note=f"{excess:,} SAR moved to client deposit",
+    )
+    return excess
+
+
+@transaction.atomic
+def return_payment_deposit(payment, *, created_by, entry_date=None):
+    """Batalkan pemindahan ke deposit milik pembayaran ini (dipanggil sebelum
+    pembayarannya di-void / di-reverse). Ditolak bila depositnya sudah dipakai."""
+    if not payment.deposited_sar:
+        return 0
+    if client_credit_balance(payment.client_id) < payment.deposited_sar:
+        raise FinanceError(
+            f"{payment.deposited_sar:,} SAR dari payment {payment.payment_number} sudah dipindah ke deposit "
+            "client dan sebagian sudah dipakai. Pembayarannya tidak bisa dibatalkan."
+        )
+    for e in _live_entries("PaymentRecord", payment.pk, JournalEntry.TYPE_TRANSFER):
+        reverse_entry(e, reversal_date=entry_date or timezone.now().date(), created_by=created_by)
+    returned = payment.deposited_sar
+    payment.deposited_sar = 0
+    payment.save(update_fields=["deposited_sar"])
+    return returned
+
+
+@transaction.atomic
+def move_invoice_excess_to_deposit(invoice, *, created_by, entry_date=None):
+    """Pindahkan kelebihan bayar per reservasi di sebuah invoice hotel ke
+    deposit client. Kelebihan ini muncul ketika reservasi yang sudah dibayar
+    nilainya turun (CL berubah, atau dibatalkan dengan denda). Mengembalikan
+    total yang dipindahkan."""
+    from .penalty_billing import reservation_balances
+
+    lines, total = [], 0
+    for row in reservation_balances(invoice).values():
+        excess = -row["remaining"]
+        if excess <= 0:
+            continue
+        total += excess
+        lines.append({"account": coa.AR, "debit": excess, "client": invoice.client_id,
+                      "invoice": invoice.pk, "reservation": row["line"].pk, "branch": invoice.branch_id})
+    if not total:
+        raise FinanceError(f"Invoice {invoice.invoice_number} tidak punya kelebihan bayar.")
+    lines.append({"account": coa.CUST_CREDIT, "credit": total, "client": invoice.client_id, "invoice": invoice.pk})
+    post_entry(
+        entry_type=JournalEntry.TYPE_TRANSFER,
+        description=f"Kelebihan bayar {invoice.invoice_number} → deposit client",
+        entry_date=entry_date or timezone.now().date(),
+        lines=lines,
+        source_type="Invoice",
+        source_id=invoice.pk,
+        created_by=created_by,
+    )
+    return total
 
 
 @transaction.atomic
@@ -948,9 +1053,10 @@ def reallocate_payment(payment, allocations, *, created_by):
 
     allocations = list(allocations)
     total = sum(int(a) for _, a in allocations)
-    if total > int(payment.amount_sar):
+    if total + int(payment.deposited_sar) > int(payment.amount_sar):
         raise FinanceError(
             f"Alokasi {total:,} melebihi pembayaran {payment.amount_sar:,}"
+            + (f" (sudah {payment.deposited_sar:,} dipindah ke deposit)" if payment.deposited_sar else "")
         )
 
     # Reverse live payment journal entry(ies).
@@ -972,7 +1078,7 @@ def reallocate_payment(payment, allocations, *, created_by):
     from ..models.payment import PaymentAllocation
     payment.allocations.all().delete()
     for target, amt in allocations:
-        PaymentAllocation.objects.create(payment=payment, amount_sar=int(amt), **_allocation_target(target))
+        PaymentAllocation.objects.create(payment=payment, amount_sar=int(amt), **_allocation_target(target, payment))
 
     # Repost with the new allocation dims. Fresh idempotency key because the
     # default key (payment:...:confirm) is still held by the now-reversed

@@ -11,7 +11,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, PaymentRecord, PaymentAllocation
+from hw.models import Client, PaymentAllocation
 from hw.models.period import FinancialPeriod
 from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
@@ -74,7 +74,7 @@ class PaymentReallocateTest(TestCase):
 
     def test_payment_without_allocation_is_unallocated(self):
         pr = self._record_unallocated(20000)
-        self.assertEqual(pr.status, PaymentRecord.STATUS_ALLOCATED)
+        self.assertEqual(pr.display_status, 'received')
         self.assertEqual(fq.payment_unallocated_sar(pr.pk), 20000)
         self.assertEqual(fq.invoice_unallocated_sar(self.invoice.pk), 20000)
 
@@ -101,7 +101,7 @@ class PaymentReallocateTest(TestCase):
         fh_allocate(pr, allocation_date=pr.payment_date, created_by=self.user)
         pr.refresh_from_db()
 
-        self.assertEqual(pr.status, PaymentRecord.STATUS_ALLOCATED)
+        self.assertEqual(pr.display_status, 'applied')
         self.assertEqual(PaymentAllocation.objects.filter(payment=pr).count(), 1)
         # Fully allocated (no unallocated warning)
         self.assertEqual(fq.payment_unallocated_sar(pr.pk), 0)

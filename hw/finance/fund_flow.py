@@ -179,7 +179,7 @@ def _branch_events(branch, date_to):
     from ..models.remittance import Remittance
 
     events = []
-    for p in (PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES).exclude(currency='SAR')
+    for p in (PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES).exclude(receiving_account__currency='SAR')
               .select_related('receiving_account')):
         if p.receiving_branch_code == branch and (not date_to or p.payment_date <= date_to):
             events.append((p.payment_date, 0, p.pk, 'payment', p))

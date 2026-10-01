@@ -357,8 +357,11 @@ def _save_service_items(invoice, request):
 
         for r, line in zip(rows, matched):
             name = r["name"].strip()
-            qty = int(_to_float(r.get("qty"), 1)) or 1
-            price = int(_to_float(r.get("price")))
+            qty_raw, price_raw = _to_float(r.get("qty"), 1) or 1, _to_float(r.get("price"))
+            if qty_raw != int(qty_raw) or price_raw != int(price_raw) or qty_raw < 1 or price_raw < 0:
+                # Money is kept in whole units; a fraction would be dropped silently.
+                raise ValueError(f"{name}: jumlah dan harga harus bilangan bulat, tanpa desimal.")
+            qty, price = int(qty_raw), int(price_raw)
             if line is None:
                 invoice.add_service_line(name, qty, price)
             elif (line.description, line.quantity, line.unit_price) != (name, qty, price):

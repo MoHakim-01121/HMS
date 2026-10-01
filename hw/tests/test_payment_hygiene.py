@@ -15,7 +15,7 @@ from hw.finance import queries as fq
 from hw.models import Client
 from hw.models.payment import PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, make_payment
 
 
 def _props(response):
@@ -56,7 +56,7 @@ class PaymentHygieneBase(TestCase):
 
     def _payment(self, number='PAY-HYG-001', amount_sar=20000,
                  status=PaymentRecord.STATUS_PENDING, **kw):
-        return PaymentRecord.objects.create(
+        return make_payment(
             payment_number=number, invoice=self.invoice, client=self.client_obj,
             payment_date=date(2026, 1, 10), amount=amount_sar, currency='SAR',
             exchange_rate=1, amount_sar=amount_sar, method='Transfer',
@@ -94,7 +94,7 @@ class AllocationCleanupTest(PaymentHygieneBase):
         self.assertEqual(log.before_state['allocations'][0]['amount_sar'], 20000)
 
     def test_voiding_a_payment_removes_its_allocations(self):
-        payment = self._payment(number='PAY-HYG-004', status=PaymentRecord.STATUS_RECEIVED)
+        payment = self._payment(number='PAY-HYG-004', status=PaymentRecord.STATUS_CONFIRMED)
         PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
 
         resp = self.client.post(f'/finance/payments/{payment.pk}/void/')
@@ -107,7 +107,7 @@ class AllocationCleanupTest(PaymentHygieneBase):
 
 class ForeignReservationIsRefusedTest(PaymentHygieneBase):
     def test_apply_refuses_a_reservation_from_another_invoice(self):
-        payment = self._payment(number='PAY-HYG-010', status=PaymentRecord.STATUS_RECEIVED)
+        payment = self._payment(number='PAY-HYG-010', status=PaymentRecord.STATUS_CONFIRMED)
 
         resp = self.client.post(
             f'/finance/payments/{payment.pk}/apply/',
@@ -122,7 +122,7 @@ class ForeignReservationIsRefusedTest(PaymentHygieneBase):
         self.assertEqual(payment.allocations.count(), 0)
 
     def test_reallocate_refuses_a_reservation_from_another_invoice(self):
-        payment = self._payment(number='PAY-HYG-011', status=PaymentRecord.STATUS_RECEIVED)
+        payment = self._payment(number='PAY-HYG-011', status=PaymentRecord.STATUS_CONFIRMED)
         PaymentAllocation.objects.create(payment=payment, invoice_line=self.res, amount_sar=20000)
 
         resp = self.client.post(
@@ -151,7 +151,7 @@ class FinanceHubKpiTest(PaymentHygieneBase):
 class PaymentExportFilterTest(PaymentHygieneBase):
     def test_export_honours_the_invoice_filter(self):
         self._payment(number='PAY-HYG-E1', amount_sar=1000)
-        PaymentRecord.objects.create(
+        make_payment(
             payment_number='PAY-HYG-E2', invoice=self.other_invoice,
             client=self.client_obj, payment_date=date(2026, 1, 10), amount=2000,
             currency='SAR', exchange_rate=1, amount_sar=2000, method='Transfer',

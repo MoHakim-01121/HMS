@@ -8,10 +8,10 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client
+from hw.models import Client, PaymentAllocation
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, make_payment
 
 
 class PaymentListFilterTests(TestCase):
@@ -35,12 +35,19 @@ class PaymentListFilterTests(TestCase):
         self.p3 = self._pay('PAY-FLT-003', self.beta, date(2026, 3, 10), 3000, 'voided', method='Cash')
 
     def _pay(self, number, client, pay_date, amount, status, invoice=None, reference='', method='Transfer'):
-        return PaymentRecord.objects.create(
+        # "applied" is not a stored status: it is a confirmed payment whose
+        # money is fully allocated to invoice lines.
+        applied = status == 'applied'
+        payment = make_payment(
             payment_number=number, client=client, invoice=invoice,
             payment_date=pay_date, amount=amount, amount_sar=amount,
-            method=method, reference=reference, status=status,
-            period=self.period, created_by=self.user,
+            method=method, reference=reference, status='confirmed' if applied else status,
+            created_by=self.user,
         )
+        if applied:
+            line = make_hotel_line(invoice=make_invoice(client=client))
+            PaymentAllocation.objects.create(payment=payment, invoice_line=line, amount_sar=amount)
+        return payment
 
     def _numbers(self, query=''):
         resp = self.client.get(self.URL + query, HTTP_X_INERTIA='true')
@@ -65,10 +72,20 @@ class PaymentListFilterTests(TestCase):
         self.assertEqual(props['status_list'], ['pending', 'cancelled'])
         self.assertEqual(props['active_filters'], 1)
 
-    def test_allocated_group_includes_legacy_allocated_status(self):
-        self._pay('PAY-FLT-004', self.alpha, date(2026, 4, 1), 700, 'allocated')
-        rows, _ = self._numbers('?status=allocated')
-        self.assertEqual(sorted(rows), ['PAY-FLT-002', 'PAY-FLT-004'])
+    def test_allocation_groups_follow_the_allocation_rows(self):
+        self._pay('PAY-FLT-004', self.alpha, date(2026, 4, 1), 700, 'applied')
+        unallocated = self._pay('PAY-FLT-005', self.alpha, date(2026, 4, 2), 900, 'confirmed')
+        partial = self._pay('PAY-FLT-006', self.alpha, date(2026, 4, 3), 800, 'confirmed')
+        line = make_hotel_line(invoice=make_invoice(client=self.alpha))
+        PaymentAllocation.objects.create(payment=partial, invoice_line=line, amount_sar=300)
+        self.assertEqual(sorted(self._numbers('?status=allocated')[0]), ['PAY-FLT-002', 'PAY-FLT-004'])
+        self.assertEqual(self._numbers('?status=unallocated')[0], [unallocated.payment_number])
+        self.assertEqual(self._numbers('?status=partial')[0], [partial.payment_number])
+        # A link from before the statuses were reduced still lands on its group.
+        rows, props = self._numbers('?status=applied')
+        self.assertEqual((sorted(rows), props['status_list']), (['PAY-FLT-002', 'PAY-FLT-004'], ['allocated']))
+        row = next(p for p in self._numbers()[1]['payments'] if p['payment_number'] == 'PAY-FLT-006')
+        self.assertEqual((row['status'], row['status_group']), ('partially_applied', 'partial'))
 
     def test_raw_status_from_old_link_maps_to_its_group(self):
         rows, props = self._numbers('?status=voided')
@@ -119,8 +136,11 @@ class PaymentListFilterTests(TestCase):
         _, props = self._numbers()
         row = next(p for p in props['payments'] if p['payment_number'] == 'PAY-FLT-003')
         self.assertEqual(row['unallocated_sar'], 0)
-        self.assertEqual(props['stats']['unapplied_total'], 5000)
-        self.assertEqual(props['stats']['unapplied_count'], 1)
+        self.assertEqual(props['stats']['unapplied_total'], 0)     # p2 is fully allocated
+        self.assertEqual(props['stats']['unapplied_count'], 0)
+        self._pay('PAY-FLT-007', self.alpha, date(2026, 4, 5), 700, 'confirmed')
+        _, props = self._numbers()
+        self.assertEqual((props['stats']['unapplied_total'], props['stats']['unapplied_count']), (700, 1))
 
     def test_void_payment_is_not_reported_as_allocated(self):
         resp = self.client.get(f'/finance/payments/{self.p3.pk}/', HTTP_X_INERTIA='true')
@@ -131,8 +151,10 @@ class PaymentListFilterTests(TestCase):
         # _payment_props looks the group up by key: a status added to the model
         # without a group would turn the whole list into a 500.
         from hw.views.payment_views import PAYMENT_STATUS_GROUPS
-        grouped = {st for _, _, _, statuses in PAYMENT_STATUS_GROUPS for st in statuses}
-        self.assertEqual(grouped, {value for value, _ in PaymentRecord.STATUS_CHOICES})
+        from hw.views.payment_views import _group_of
+        keys = {key for key, _, _ in PAYMENT_STATUS_GROUPS}
+        for value, _label in PaymentRecord.STATUS_CHOICES:
+            self.assertIn(_group_of(PaymentRecord(status=value, amount_sar=1)), keys, value)
 
     def test_partial_reload_skips_dialog_and_stats_props(self):
         resp = self.client.get(

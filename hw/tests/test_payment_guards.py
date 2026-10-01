@@ -26,7 +26,7 @@ from hw.models import Client, ConfirmationLetter, Invoice
 from hw.models.journal import JournalEntry
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_invoice, make_priced_cl
+from hw.tests.factories import make_invoice, make_payment, make_priced_cl
 
 
 class PaymentGuardBase(TestCase):
@@ -183,11 +183,11 @@ class PaymentApplyBodyGuardTest(PaymentGuardBase):
             invoice_type='hotel', client=self.client_obj,
             invoice_number='INV-APPLY-GUARD', customer_name='PT Guard',
         )
-        payment = PaymentRecord.objects.create(
+        payment = make_payment(
             payment_number='PAY-GUARD-001', invoice=invoice, client=self.client_obj,
             payment_date=date(2026, 1, 10), amount=5000, currency='SAR',
             exchange_rate=1, amount_sar=5000, method='Transfer',
-            status=PaymentRecord.STATUS_RECEIVED,
+            status=PaymentRecord.STATUS_CONFIRMED,
             period=FinancialPeriod.objects.first(), created_by=self.user,
         )
         # Django's test client posts a dict as multipart, so request.POST

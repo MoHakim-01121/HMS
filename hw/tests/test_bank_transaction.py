@@ -35,22 +35,17 @@ class PaymentBankTransactionTest(BankTransactionBase):
         self.assertEqual(tx.direction, 'in')
         self.assertEqual(tx.amount_sar, 5000)
 
-    def test_legacy_payment_without_receiving_account_records_nothing(self):
-        # A genuinely legacy row -- created directly (bypassing
-        # create_payment_record's auto-derivation of cash_account from
-        # received_in) to simulate data from before FASE C existed.
+    def test_payment_needs_a_receiving_account(self):
+        # Schema v2: the receiving account is required, so every payment leaves
+        # a bank/cash movement; there is no account-less legacy row any more.
+        from django.db import IntegrityError, transaction
         from hw.models.payment import PaymentRecord
-        from hw.models.period import FinancialPeriod as FP
         client_obj = Client.objects.create( name='PT BT2')
-        inv = make_invoice(invoice_number='INV-BT-2', customer_name='PT BT2', client=client_obj)
-        pr = PaymentRecord.objects.create(
-            payment_number='PAY-BT-2', invoice=inv, client=client_obj,
-            payment_date=date(2026, 7, 1), amount=5000, amount_sar=5000,
-            method='Transfer', received_in='jkt', status=PaymentRecord.STATUS_PENDING,
- created_by=self.user, period=FP.objects.first(),
-        )
-        confirm_payment(pr, self.user)
-        self.assertFalse(BankTransaction.objects.filter(source_type='PaymentRecord', source_id=pr.pk).exists())
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            PaymentRecord.objects.create(
+                payment_number='PAY-BT-2', client=client_obj, payment_date=date(2026, 7, 1),
+                amount=5000, amount_sar=5000, method='Transfer', created_by=self.user,
+            )
 
     def test_reconfirm_does_not_duplicate_transaction(self):
         client_obj = Client.objects.create( name='PT BT3')
@@ -226,9 +221,10 @@ class AccountCurrencyTest(BankTransactionBase):
 
     def test_idr_payment_without_idr_account_is_not_put_in_the_sar_till(self):
         inv, client_obj = self._inv('INV-CUR-2')
-        pr = create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
-                                   method='Transfer', received_in='sby', created_by=self.user)
-        self.assertIsNone(pr.receiving_account_id)
+        from hw.finance.errors import FinanceError
+        with self.assertRaises(FinanceError):
+            create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
+                                  method='Transfer', received_in='sby', created_by=self.user)
 
     def test_explicit_account_in_another_currency_is_refused(self):
         from hw.finance.errors import FinanceError

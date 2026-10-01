@@ -13,7 +13,7 @@ from hw.models import Client
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice, set_line_total
+from hw.tests.factories import make_hotel_line, make_invoice, make_payment, set_line_total
 
 
 class CheckFinanceTest(TestCase):
@@ -36,7 +36,7 @@ class CheckFinanceTest(TestCase):
             amount=60000, method="transfer", created_by=self.user, reservation=self.res,
         )
         posting.post_payment(pr, created_by=self.user)
-        pr.status = PaymentRecord.STATUS_ALLOCATED
+        pr.status = PaymentRecord.STATUS_CONFIRMED
         pr.save(update_fields=["status"])
 
     def _run(self):
@@ -74,7 +74,7 @@ class CheckFinanceTest(TestCase):
 
     def test_payment_record_mismatch_is_flagged(self):
         # PaymentRecord confirmed tanpa jejak jurnal → cek #6 gagal.
-        PaymentRecord.objects.create(
+        make_payment(
             payment_number="PAY-9999", invoice=self.invoice, client=self.client_obj,
             payment_date=date(2046, 3, 1), amount=5000, amount_sar=5000,
             method="cash", status=PaymentRecord.STATUS_CONFIRMED,

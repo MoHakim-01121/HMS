@@ -112,8 +112,6 @@ def create_payment_record(
     currency='SAR',
     exchange_rate=1,
     method='',
-    bank_name='',
-    account_number='',
     reference='',
     note='',
     proof=None,
@@ -127,8 +125,9 @@ def create_payment_record(
 
     Lifecycle: pending → confirmed (via confirm_payment)
 
-    `received_in`: kas mana uangnya diterima ('sby'/'jkt'/'pusat') —
-    menentukan wallet mengendap dan akun kas di jurnal.
+    `receiving_account`: rekening (bank/kas) penerima uangnya. Bila tidak
+    diberikan, dipakai rekening bawaan cabang `received_in` dalam `currency`.
+    Mata uang pembayaran selalu mata uang rekening penerimanya.
     """
     from .utils import convert_to_sar
 
@@ -143,16 +142,17 @@ def create_payment_record(
     # Calculate SAR
     amount_sar = int(round(convert_to_sar(amount, currency, float(exchange_rate))))
 
-    # Get period
-    period = get_period_for_date(payment_date)
+    # Tanggalnya harus jatuh di periode yang ada (periode pembayaran tidak
+    # disimpan: selalu periode tempat tanggalnya jatuh).
+    get_period_for_date(payment_date)
 
     received_in = received_in if received_in in ('sby', 'jkt', 'pusat') else 'sby'
-    # Kalau pemanggil tidak memberi akun konkret, turunkan kas cabang dari
-    # received_in (v2.0 FASE C). Rekening bank riil harus eksplisit.
     from .finance.bank_ledger import default_account, ensure_account_currency, ensure_hq_receives_sar
     ensure_hq_receives_sar(receiving_account.branch_id if receiving_account else received_in, currency)
     if receiving_account is None:
         receiving_account = default_account(received_in, currency)
+    if receiving_account is None:
+        raise FinanceError(f'Cabang {received_in} belum punya rekening {currency} untuk menerima pembayaran ini.')
     ensure_account_currency(receiving_account, currency)
 
     # Create PaymentRecord
@@ -162,20 +162,15 @@ def create_payment_record(
         client=client,
         payment_date=payment_date,
         amount=amount,
-        currency=currency,
         exchange_rate=exchange_rate,
         amount_sar=amount_sar,
-        received_in=received_in,
         receiving_account=receiving_account,
         method=method,
-        bank_name=bank_name,
-        account_number=account_number,
         reference=reference,
         note=note,
         proof=proof,
         status=PaymentRecord.STATUS_PENDING,
         created_by=created_by,
-        period=period,
     )
 
     # A payment made for one reservation or service is allocated to it in
@@ -183,7 +178,9 @@ def create_payment_record(
     # of link on the payment itself.
     target = reservation or service_item
     if target is not None:
+        from .finance.posting import check_allocation
         from .models.payment import PaymentAllocation
+        check_allocation(payment, target)
         PaymentAllocation.objects.create(payment=payment, invoice_line_id=target.pk, amount_sar=amount_sar)
 
     # Create initial log
@@ -242,12 +239,12 @@ def confirm_payment(payment, confirmed_by, note=''):
 
 @transaction.atomic
 def allocate_payment(payment, allocation_date, created_by, note=''):
-    """Tandai payment ALLOCATED + sinkron status invoice.
+    """Catat di log bahwa payment sudah dialokasikan.
 
     Jurnal (DR Kas / CR Piutang, dipecah per PaymentAllocation) sudah
-    diposting di confirm_payment. PaymentAllocation rows sendiri dibuat
-    pemanggil (posting.allocate_payment) sebelum confirm. Fungsi ini
-    tinggal transisi status (status bayar invoice diturunkan dari jurnal).
+    diposting di confirm_payment, dan baris PaymentAllocation dibuat pemanggil
+    (posting.allocate_payment). Keadaan alokasi tidak disimpan di payment:
+    ia dihitung dari baris alokasinya (PaymentRecord.allocation_state).
     """
     if payment.status != PaymentRecord.STATUS_CONFIRMED:
         raise PaymentAlreadyProcessedError(
@@ -255,9 +252,6 @@ def allocate_payment(payment, allocation_date, created_by, note=''):
         )
 
     old_state = _payment_snapshot(payment)
-
-    payment.status = PaymentRecord.STATUS_ALLOCATED
-    payment.save(update_fields=['status'])
 
     # Create log
     PaymentLog.objects.create(
@@ -276,7 +270,7 @@ def _payment_snapshot(payment):
     """Create a JSON-serializable snapshot of payment state."""
     return {
         'payment_number': payment.payment_number,
-        'status': payment.status,
+        'status': payment.display_status,
         'amount_sar': payment.amount_sar,
         'invoice_id': payment.invoice_id,
         'client_id': payment.client_id,

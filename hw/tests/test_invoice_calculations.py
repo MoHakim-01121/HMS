@@ -46,6 +46,8 @@ class InvoiceTotalsTest(TestCase):
 
     def test_total_paid_sar_converts_non_sar_currency(self):
         # 100 USD @ exchange rate 3.75 == 375 SAR
+        from hw.tests.factories import make_account
+        make_account('sby', 'USD')
         self._pay(100, currency='USD', exchange_rate=3.75)
         self.assertEqual(self.invoice.total_paid_sar, 375)
 

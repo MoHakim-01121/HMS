@@ -367,6 +367,8 @@ def invoice_detail(request, pk):
             "payment_state": invoice.financial_state,
         },
         "reservations": reservations,
+        # Overpaid on its reservations: shown with a "move to deposit" action.
+        "excess_sar": sum(-r["remaining_int"] for r in reservations if r["remaining_int"] < 0),
         "payments": payments,
         "due_alert": due_alert,
         "logs": logs,

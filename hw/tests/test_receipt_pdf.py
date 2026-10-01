@@ -17,7 +17,7 @@ from hw.models import Client, Receipt
 from hw.models.payment import PaymentRecord, PaymentAllocation
 from hw.models.period import FinancialPeriod
 from hw.views.receipt_views import _allocation_rows, _stay_label, _number_in_words
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, make_payment
 
 
 class ReceiptPdfBase(TestCase):
@@ -48,11 +48,11 @@ class ReceiptPdfBase(TestCase):
         )
 
     def _payment(self, amount_sar=48750, number='PAY-RCP-001', **kw):
-        return PaymentRecord.objects.create(
+        return make_payment(
             payment_number=number, invoice=self.invoice, client=self.client_obj,
             payment_date=date(2026, 9, 17), amount=amount_sar, currency='SAR',
             exchange_rate=1, amount_sar=amount_sar, method='Bank Transfer',
-            status=PaymentRecord.STATUS_RECEIVED, period=self.period,
+            status=PaymentRecord.STATUS_CONFIRMED, period=self.period,
             created_by=self.user, **kw
         )
 
@@ -177,22 +177,22 @@ class ReceiptPdfRenderTest(ReceiptPdfBase):
         self._render(receipt)
 
     def test_foreign_currency_receipt_renders(self):
-        payment = PaymentRecord.objects.create(
+        payment = make_payment(
             payment_number='PAY-RCP-IDR', invoice=self.invoice, client=self.client_obj,
             payment_date=date(2026, 9, 17), amount=204750000, currency='IDR',
             exchange_rate=4200, amount_sar=48750, method='Bank Transfer',
-            status=PaymentRecord.STATUS_RECEIVED, period=self.period, created_by=self.user,
+            status=PaymentRecord.STATUS_CONFIRMED, period=self.period, created_by=self.user,
         )
         self._render(self._receipt(payment, number='RCP-0005'))
 
     def test_deposit_receipt_without_invoice_renders(self):
         """Kwitansi deposit (invoice None) harus bisa dicetak — blok 'Paid for'
         menampilkan keterangan deposit, tanpa rincian alokasi."""
-        payment = PaymentRecord.objects.create(
+        payment = make_payment(
             payment_number='PAY-RCP-DPT', invoice=None, client=self.client_obj,
             payment_date=date(2026, 9, 17), amount=7000, currency='SAR',
             exchange_rate=1, amount_sar=7000, method='Bank Transfer',
-            status=PaymentRecord.STATUS_RECEIVED, period=self.period, created_by=self.user,
+            status=PaymentRecord.STATUS_CONFIRMED, period=self.period, created_by=self.user,
         )
         receipt = Receipt.objects.create(
             receipt_number='RCP-0006', receipt_date=payment.payment_date,
@@ -206,11 +206,11 @@ class ReceiptPdfRenderTest(ReceiptPdfBase):
         """Confirm flow (ensure_receipt) membuat kwitansi untuk deposit:
         invoice None, client & amount sesuai payment, idempotent (1 aktif)."""
         from hw.finance.receipt_service import ensure_receipt
-        payment = PaymentRecord.objects.create(
+        payment = make_payment(
             payment_number='PAY-RCP-DPT2', invoice=None, client=self.client_obj,
             payment_date=date(2026, 9, 17), amount=7000, currency='SAR',
             exchange_rate=1, amount_sar=7000, method='Bank Transfer',
-            status=PaymentRecord.STATUS_RECEIVED, period=self.period, created_by=self.user,
+            status=PaymentRecord.STATUS_CONFIRMED, period=self.period, created_by=self.user,
         )
         self.assertIsNone(payment.invoice_id)
 

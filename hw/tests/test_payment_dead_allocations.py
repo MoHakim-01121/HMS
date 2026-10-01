@@ -58,8 +58,6 @@ class DeadPaymentAllocationTests(TestCase):
             posting.allocate_payment(pr, [(self.res, amount)], created_by=self.user)
         if confirm:
             confirm_payment(pr, confirmed_by=self.user)
-            pr.status = pr.derive_status()
-            pr.save(update_fields=['status'])
         return pr
 
     # -- 1 + 2: reverse ------------------------------------------------------
@@ -111,4 +109,4 @@ class DeadPaymentAllocationTests(TestCase):
 
         deposit.refresh_from_db()
         self.assertEqual(deposit.invoice_id, self.invoice.pk)
-        self.assertEqual(deposit.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(deposit.display_status, 'applied')

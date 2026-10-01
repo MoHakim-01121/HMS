@@ -102,6 +102,18 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
     };
   }
   const canReject = canEdit && payment.status === "pending";
+  // Excess stays on the payment until someone moves it to the client's
+  // deposit: an explicit step, because deposit money can then leave the
+  // client's invoices (refund, transfer to another client).
+  const canDeposit = canEdit && allocatable && unallocated;
+  const handleDeposit = () => {
+    confirm({
+      title: t("Move {n} SAR to deposit?", { n: fmt(payment.unallocated_sar) }),
+      message: t("The unallocated part of this payment becomes {client}'s deposit. It can then pay other invoices, be transferred, or be refunded.", { client: payment.client_name || "" }),
+      confirmLabel: t("Move to deposit"),
+      onConfirm: () => router.post(`/finance/payments/${payment.id}/to-deposit/`),
+    });
+  };
 
   const allocations = payment.allocations || [];
   // The design closes the allocation table with a muted "Unallocated — held on
@@ -184,7 +196,6 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
   const foreign = payment.currency && payment.currency !== "SAR";
   const receivedInto =
     payment.receiving_account_label
-    || [payment.bank_name, payment.account_number].filter(Boolean).join(" ")
     || payment.received_in_display;
 
   const meta = [
@@ -286,7 +297,15 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
             {primary ? (
               <button type="button" className="hms-pd-primary" onClick={primary.onClick}>{primary.label}</button>
             ) : null}
+            {canDeposit ? (
+              <button type="button" className="hms-rv-btn" onClick={handleDeposit}>{t("Move to deposit")}</button>
+            ) : null}
           </div>
+          {payment.deposited_sar > 0 ? (
+            <div className="hms-rv-railtext" style={{ marginTop: 8 }}>
+              {t("{n} SAR of this payment was moved to the client's deposit.", { n: fmt(payment.deposited_sar) })}
+            </div>
+          ) : null}
 
           <div className="hms-pd-tabs" role="tablist" aria-label={t("Payment records")} onKeyDown={onTabKey}>
             {tabs.map((x) => (

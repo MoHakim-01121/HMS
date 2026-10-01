@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from hw.models import (
-    Client, ConfirmationLetter, Hotel, Invoice, MealPlan, Reservation, Room, RoomType, ServiceItem,
+    Client, ConfirmationLetter, Hotel, Invoice, MealPlan, PaymentRecord, Reservation, Room, RoomType, ServiceItem,
 )
 from hw.models.client import client_name_key
 from hw.signals import invoice_sync_suspended
@@ -84,6 +84,35 @@ def _priced_room(cl, total):
     cl = ConfirmationLetter.objects.get(pk=cl.pk)
     if not cl.is_cancelled and reservation_total_for_cl(cl) != total:
         raise ValueError(f'total {total} tidak bisa dicapai dengan {nights} malam')
+
+
+def make_account(branch='sby', currency='SAR'):
+    """Rekening bank cabang `branch` dalam `currency` (dibuat bila belum ada)."""
+    from hw.finance.bank_ledger import default_account
+    from hw.models import BankAccount
+    from hw.models.journal import LedgerAccount
+    existing = default_account(branch, currency)
+    if existing:
+        return existing
+    return BankAccount.objects.create(
+        branch_id=branch, name=f'Test {currency}', currency=currency, bank_name='Bank Uji',
+        account_identifier=f'UJI-{branch}-{currency}',
+        ledger_account=LedgerAccount.objects.get(code=f'1000-KAS-{branch.upper()}'),
+    )
+
+
+def make_payment(**kwargs):
+    """PaymentRecord langsung (tanpa jurnal), untuk test yang menyiapkan
+    keadaan tertentu. Rekening penerima wajib sejak skema v2: bila tidak
+    disebut, dipakai rekening bawaan cabang `received_in` (sby) dalam
+    `currency` (SAR). `currency`, `received_in`, dan `period` bukan kolom lagi."""
+    from hw.finance.bank_ledger import default_account
+    currency = kwargs.pop('currency', 'SAR')
+    branch = kwargs.pop('received_in', 'sby')
+    kwargs.pop('period', None)
+    if kwargs.get('receiving_account') is None:
+        kwargs['receiving_account'] = default_account(branch, currency) or make_account(branch, currency)
+    return PaymentRecord.objects.create(**kwargs)
 
 
 def make_priced_cl(client, confirmation_number, total_sar, **kwargs):

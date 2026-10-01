@@ -58,7 +58,7 @@ class InvoiceEditPreservesLinksTest(TestCase):
         )
         posting.allocate_payment(pr, [(self.res, 2000)], created_by=self.user)
         posting.post_payment(pr, created_by=self.user)
-        pr.status = pr.STATUS_ALLOCATED
+        pr.status = pr.STATUS_CONFIRMED
         pr.save(update_fields=['status'])
         self.payment = pr
 

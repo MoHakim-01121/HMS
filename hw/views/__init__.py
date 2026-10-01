@@ -55,7 +55,7 @@ from .remittance_views import (
 )
 from .exchange_views import exchange_list, exchange_new, exchange_void
 from .credit_note_views import (
-    invoice_void, credit_note_new, credit_note_list, credit_note_void, credit_note_pdf,
+    invoice_void, invoice_excess_to_deposit, credit_note_new, credit_note_list, credit_note_void, credit_note_pdf,
 )
 from .settlement_views import (
     remittance_record_receipt, remittance_receipt_allocation, remittance_receipt_delete,
@@ -84,7 +84,7 @@ from .receipt_views import (
 from .payment_views import (
     payment_list, payment_detail, payment_record,
     payment_confirm, payment_reject, payment_reverse, payment_reallocate,
-    payment_apply, payment_void, payment_export_csv,
+    payment_apply, payment_void, payment_to_deposit, payment_export_csv,
 )
 from .expense_views import (
     expense_list, expense_detail, expense_record, expense_pay, expense_void,

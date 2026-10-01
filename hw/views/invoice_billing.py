@@ -108,7 +108,7 @@ def _save_payments(invoice, request, default_currency):
                 received_in=received_in, proof=proof or keep or None,
             )
             post_payment(pr, created_by=request.user)
-            pr.status = pr.STATUS_ALLOCATED
+            pr.status = pr.STATUS_CONFIRMED
             pr.save(update_fields=['status'])
 
     logger.info(

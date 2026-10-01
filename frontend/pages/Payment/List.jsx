@@ -102,7 +102,6 @@ export default function List({ payments = [], invoice_choices = [], client_choic
     exchange_rate: "1",
     method: "",
     account: account_choices.find((a) => a.currency === "SAR")?.value || "",
-    bank_name: "",
     reference: "",
     note: "",
   });

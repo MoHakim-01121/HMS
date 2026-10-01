@@ -1,47 +1,67 @@
-"""PaymentRecord — finance-redesign payment model.
-
-Convention: amount/amount_sar are IntegerField (minor units). See invoice.py docstring.
-"""
+"""Pembayaran client: PaymentRecord, alokasinya, dan log perubahannya (skema target 3.5)."""
 from django.db import models
 from django.urls import reverse
 
 
 
-class PaymentRecord(models.Model):
-    """Satu-satunya sumber truth untuk pembayaran. Append-only.
+class PaymentQuerySet(models.QuerySet):
+    def with_allocated(self):
+        """Annotate `allocated` = Σ allocation rows + the part moved to client deposit."""
+        from django.db.models.functions import Coalesce
+        return self.annotate(
+            allocated=Coalesce(models.Sum('allocations__amount_sar'), models.Value(0)) + models.F('deposited_sar'),
+        )
 
-    Tidak ada DELETE atau UPDATE pada baris ini. Koreksi dilakukan via
-    PaymentLog + reversing entry di JournalEntry.
+    def in_allocation_state(self, state):
+        """Effective payments whose allocation state is `state`
+        (unallocated / partial / allocated)."""
+        qs = self.with_allocated().filter(status=PaymentRecord.STATUS_CONFIRMED)
+        if state == PaymentRecord.ALLOCATION_NONE:
+            return qs.filter(allocated=0)
+        if state == PaymentRecord.ALLOCATION_PARTIAL:
+            return qs.filter(allocated__gt=0, allocated__lt=models.F('amount_sar'))
+        return qs.filter(allocated__gte=models.F('amount_sar'))
+
+
+class PaymentRecord(models.Model):
+    """Satu penerimaan uang dari client: X di rekening penerima, kurs Y, nilai Z.
+
+    `amount` adalah X dalam mata uang rekening penerima, `exchange_rate` Y,
+    dan `amount_sar` Z: nilai yang mengurangi utang client. Satu pembayaran
+    satu kurs. Bagian Z yang belum punya alokasi adalah kelebihan bayar.
+
+    Append-only: tidak ada DELETE, dan koreksi dilakukan lewat PaymentLog +
+    jurnal pembalik.
     """
 
-    STATUS_PENDING          = 'pending'
-    STATUS_RECEIVED         = 'received'
-    STATUS_CONFIRMED        = 'confirmed'
-    STATUS_ALLOCATED        = 'allocated'
-    STATUS_PARTIALLY_APPLIED = 'partially_applied'
-    STATUS_APPLIED          = 'applied'
-    STATUS_REJECTED         = 'rejected'
-    STATUS_REVERSED         = 'reversed'
-    STATUS_VOIDED           = 'voided'
+    # ── Siklus hidup (disimpan) ───────────────────────────────
+    STATUS_PENDING   = 'pending'
+    STATUS_CONFIRMED = 'confirmed'
+    STATUS_REJECTED  = 'rejected'
+    STATUS_REVERSED  = 'reversed'
+    STATUS_VOIDED    = 'voided'
     STATUS_CHOICES = [
-        (STATUS_PENDING,          'Pending'),
-        (STATUS_RECEIVED,         'Received'),
-        (STATUS_CONFIRMED,        'Confirmed'),
-        (STATUS_ALLOCATED,        'Allocated'),
-        (STATUS_PARTIALLY_APPLIED, 'Partially Applied'),
-        (STATUS_APPLIED,          'Applied'),
-        (STATUS_REJECTED,         'Rejected'),
-        (STATUS_REVERSED,         'Reversed'),
-        (STATUS_VOIDED,           'Voided'),
+        (STATUS_PENDING,   'Pending'),
+        (STATUS_CONFIRMED, 'Confirmed'),
+        (STATUS_REJECTED,  'Rejected'),
+        (STATUS_REVERSED,  'Reversed'),
+        (STATUS_VOIDED,    'Voided'),
     ]
 
     # Status yang punya efek jurnal (uang benar-benar masuk). Semua derivasi
-    # angka pembayaran — footer invoice, riwayat, avg-days-to-pay — menyaring
-    # ke daftar ini. Satu definisi, dipakai queries + model property.
-    EFFECTIVE_STATUSES = (
-        STATUS_RECEIVED, STATUS_CONFIRMED, STATUS_ALLOCATED,
-        STATUS_PARTIALLY_APPLIED, STATUS_APPLIED,
-    )
+    # angka pembayaran menyaring ke daftar ini.
+    EFFECTIVE_STATUSES = (STATUS_CONFIRMED,)
+
+    # ── Keadaan alokasi (diturunkan dari baris alokasi, tidak disimpan) ──
+    ALLOCATION_NONE    = 'unallocated'
+    ALLOCATION_PARTIAL = 'partial'
+    ALLOCATION_FULL    = 'allocated'
+    # Nama yang dipakai layar untuk pembayaran efektif, per keadaan alokasi.
+    _DISPLAY = {
+        ALLOCATION_NONE:    ('received', 'Received'),
+        ALLOCATION_PARTIAL: ('partially_applied', 'Partially Applied'),
+        ALLOCATION_FULL:    ('applied', 'Applied'),
+    }
 
     # Identitas
     payment_number = models.CharField(max_length=50, unique=True, db_index=True)
@@ -50,31 +70,22 @@ class PaymentRecord(models.Model):
 
     # Data pembayaran
     payment_date   = models.DateField()
-    amount         = models.PositiveIntegerField()
-    currency       = models.CharField(max_length=10, default='SAR')
-    exchange_rate  = models.DecimalField(max_digits=14, decimal_places=4, default=1)
-    amount_sar     = models.PositiveIntegerField()
+    amount         = models.PositiveIntegerField()                                       # X
+    exchange_rate  = models.DecimalField(max_digits=14, decimal_places=4, default=1)     # Y
+    amount_sar     = models.PositiveIntegerField()                                       # Z
+    # Bagian Z yang sudah dipindahkan ke deposit client (tindakan eksplisit).
+    # Z − Σ alokasi − deposited_sar = kelebihan bayar yang masih menempel di sini.
+    deposited_sar  = models.PositiveIntegerField(default=0)
 
-    # Di kas mana uangnya diterima — menentukan wallet ledger & akun jurnal.
-    # 'pusat' = client bayar langsung ke rekening pusat (tidak mengendap).
-    RECEIVED_IN_CHOICES = [
-        ('sby',   'Surabaya'),
-        ('jkt',   'Jakarta'),
-        ('pusat', 'Pusat (Direct)'),
-    ]
-    received_in    = models.CharField(max_length=10, choices=RECEIVED_IN_CHOICES, default='sby')
-
-    # Akun uang penerima (rekening bank atau kas). Kosong hanya untuk baris
-    # historis — `received_in` tetap jadi fallback routing. Cabang penerima
-    # diturunkan dari sini (bisa berbeda dari cabang pemilik client).
+    # Rekening (bank atau kas) yang menerima uangnya. Menentukan mata uang X,
+    # cabang penerima, dan akun kas di jurnal; ketiganya tidak disimpan lagi
+    # di pembayaran.
     receiving_account = models.ForeignKey(
-        'MoneyAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='payments_received',
+        'MoneyAccount', on_delete=models.PROTECT, related_name='payments_received',
     )
 
     # Metadata
     method         = models.CharField(max_length=50)
-    bank_name      = models.CharField(max_length=100, blank=True)
-    account_number = models.CharField(max_length=100, blank=True)
     reference      = models.CharField(max_length=200, blank=True, db_index=True)
     note           = models.TextField(blank=True)
     proof          = models.FileField(upload_to='payments/proof/', null=True, blank=True)
@@ -85,10 +96,11 @@ class PaymentRecord(models.Model):
     confirmed_at    = models.DateTimeField(null=True, blank=True)
     rejected_reason = models.TextField(blank=True)
 
-    # Period & Audit
-    period     = models.ForeignKey('FinancialPeriod', on_delete=models.PROTECT, related_name='payments')
+    # Audit
     created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = PaymentQuerySet.as_manager()
 
     class Meta:
         ordering            = ['-created_at']
@@ -99,6 +111,18 @@ class PaymentRecord(models.Model):
             models.Index(fields=['client', 'status'], name='payrec_client_status_idx'),
             models.Index(fields=['invoice', 'status'], name='payrec_invoice_status_idx'),
         ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=['pending', 'confirmed', 'rejected', 'reversed', 'voided']),
+                name='payment_status_valid',
+            ),
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='payment_amount_positive'),
+            models.CheckConstraint(condition=models.Q(amount_sar__gt=0), name='payment_amount_sar_positive'),
+            models.CheckConstraint(condition=models.Q(exchange_rate__gt=0), name='payment_rate_positive'),
+            models.CheckConstraint(
+                condition=models.Q(deposited_sar__lte=models.F('amount_sar')), name='payment_deposited_within_amount',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.payment_number} | {self.amount} {self.currency} | {self.get_status_display()}"
@@ -106,12 +130,33 @@ class PaymentRecord(models.Model):
     def get_absolute_url(self):
         return reverse('payment_detail', args=[self.pk])
 
+    # ── Dibaca dari rekening penerima ─────────────────────────
+
+    @property
+    def currency(self):
+        """Mata uang X = mata uang rekening penerima."""
+        return self.receiving_account.currency
+
     @property
     def receiving_branch_code(self):
-        """Kode cabang penerima uang — dari receiving_account, fallback received_in.
-        v2.0 §4: bisa berbeda dari owner_branch reservasi."""
-        acc = self.receiving_account
-        return acc.branch_id if acc else self.received_in
+        """Cabang penerima uang (bisa berbeda dari cabang pemilik client)."""
+        return self.receiving_account.branch_id
+
+    # Nama lama kolom yang dulu disimpan terpisah dari rekeningnya.
+    received_in = receiving_branch_code
+
+    def get_received_in_display(self):
+        return self.receiving_account.branch.name
+
+    @property
+    def period(self):
+        """Periode keuangan tempat tanggal pembayaran ini jatuh."""
+        from .period import FinancialPeriod
+        return FinancialPeriod.objects.filter(
+            date_from__lte=self.payment_date, date_to__gte=self.payment_date,
+        ).first()
+
+    # ── Keadaan ───────────────────────────────────────────────
 
     @property
     def is_confirmed(self):
@@ -121,20 +166,43 @@ class PaymentRecord(models.Model):
     def is_editable(self):
         return self.status == self.STATUS_PENDING
 
-    def derive_status(self):
-        """Compute derived status from allocation sum vs amount.
+    @property
+    def allocated_sar(self):
+        """Bagian Z yang sudah punya tempat: alokasi ke baris invoice + yang
+        dipindah ke deposit."""
+        annotated = getattr(self, 'allocated', None)
+        if annotated is not None:
+            return int(annotated)
+        if not self.pk:
+            return int(self.deposited_sar or 0)
+        return int(self.allocations.aggregate(t=models.Sum('amount_sar'))['t'] or 0) + int(self.deposited_sar or 0)
 
-        Call after allocations are created/updated to set the correct
-        status: applied (fully allocated), partially_applied, or received.
-        """
-        total_alloc = self.allocations.aggregate(
-            total=models.Sum('amount_sar')
-        )['total'] or 0
-        if total_alloc >= self.amount_sar:
-            return self.STATUS_APPLIED
-        if total_alloc > 0:
-            return self.STATUS_PARTIALLY_APPLIED
-        return self.STATUS_RECEIVED
+    @property
+    def unallocated_sar(self):
+        """Kelebihan bayar yang masih menempel di pembayaran ini."""
+        return max(0, int(self.amount_sar) - self.allocated_sar)
+
+    @property
+    def allocation_state(self):
+        """unallocated / partial / allocated — None bila pembayaran tidak efektif."""
+        if self.status not in self.EFFECTIVE_STATUSES:
+            return None
+        allocated = self.allocated_sar
+        if allocated >= self.amount_sar:
+            return self.ALLOCATION_FULL
+        return self.ALLOCATION_PARTIAL if allocated > 0 else self.ALLOCATION_NONE
+
+    @property
+    def display_status(self):
+        """Status yang dibaca layar: siklus hidup, dan untuk pembayaran efektif
+        keadaan alokasinya (received / partially_applied / applied)."""
+        state = self.allocation_state
+        return self._DISPLAY[state][0] if state else self.status
+
+    @property
+    def display_status_label(self):
+        state = self.allocation_state
+        return self._DISPLAY[state][1] if state else self.get_status_display()
 
     @staticmethod
     def generate_number():
@@ -209,6 +277,7 @@ class PaymentLog(models.Model):
     ACTION_UPDATED   = 'updated'
     ACTION_REVERSED  = 'reversed'
     ACTION_VOIDED    = 'voided'
+    ACTION_DEPOSITED = 'deposited'
     ACTION_CHOICES = [
         (ACTION_CREATED,   'Created'),
         (ACTION_RECEIVED,  'Received'),
@@ -219,6 +288,7 @@ class PaymentLog(models.Model):
         (ACTION_UPDATED,   'Updated'),
         (ACTION_REVERSED,  'Reversed'),
         (ACTION_VOIDED,    'Voided'),
+        (ACTION_DEPOSITED, 'Moved to deposit'),
     ]
 
     payment        = models.ForeignKey(PaymentRecord, on_delete=models.CASCADE, related_name='logs')

@@ -122,7 +122,7 @@ class RecordPendingFlowTest(ReceiveApplyFlowTest):
         self.client.post(f'/finance/payments/{payment.pk}/confirm/')
         payment.refresh_from_db()
         # Fully allocated → applied after confirm.
-        self.assertEqual(payment.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(payment.display_status, 'applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 0)
 
 
@@ -132,12 +132,12 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
         payment = PaymentRecord.objects.get(invoice=self.invoice)
         self._confirm(payment)
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
         return payment
 
     def test_apply_received_payment_to_reservation(self):
         payment = self._record_unallocated(7000)
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
 
         self.client.post(
             f'/finance/payments/{payment.pk}/apply/',
@@ -148,7 +148,7 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
         )
 
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(payment.display_status, 'applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 0)
 
         # Journal CR AR carries reservation dimensions now.
@@ -169,7 +169,7 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
             ])},
         )
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_PARTIALLY_APPLIED)
+        self.assertEqual(payment.display_status, 'partially_applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 4000)
 
     def test_apply_via_json_body(self):
@@ -184,14 +184,14 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
             content_type='application/json',
         )
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(payment.display_status, 'applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 0)
 
     def test_apply_allocated_legacy_payment(self):
         """A legacy confirmed/allocated payment can still be applied —
         same status set reallocate_payment accepts."""
         payment = self._record_unallocated(5000)
-        payment.status = PaymentRecord.STATUS_ALLOCATED
+        payment.status = PaymentRecord.STATUS_CONFIRMED
         payment.save(update_fields=['status'])
         self.client.post(
             f'/finance/payments/{payment.pk}/apply/',
@@ -200,7 +200,7 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
             ])},
         )
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(payment.display_status, 'applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 0)
 
     def test_apply_over_payment_rejected(self):
@@ -213,7 +213,7 @@ class ApplyEndpointTest(ReceiveApplyFlowTest):
         )
         payment.refresh_from_db()
         # Unchanged — still received, no allocations.
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
         self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 0)
 
 
@@ -305,7 +305,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
         self.client.post(f'/finance/payments/{payment.pk}/confirm/')
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
 
         line = JournalLine.objects.filter(
             journal_entry__reference_type='PaymentRecord',
@@ -333,7 +333,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
         self.client.post(f'/finance/payments/{payment.pk}/confirm/')
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
 
         self.client.post(
             f'/finance/payments/{payment.pk}/apply/',
@@ -345,7 +345,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
 
         payment.refresh_from_db()
         self.assertEqual(payment.invoice_id, self.invoice.pk)
-        self.assertEqual(payment.status, PaymentRecord.STATUS_APPLIED)
+        self.assertEqual(payment.display_status, 'applied')
         self.assertEqual(fq.payment_unallocated_sar(payment.pk), 0)
         self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 2)
 
@@ -364,7 +364,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
         self.client.post(f'/finance/payments/{payment.pk}/confirm/')
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
 
         self.client.post(
             f'/finance/payments/{payment.pk}/apply/',
@@ -374,5 +374,5 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         )
         payment.refresh_from_db()
         self.assertIsNone(payment.invoice_id)
-        self.assertEqual(payment.status, PaymentRecord.STATUS_RECEIVED)
+        self.assertEqual(payment.display_status, 'received')
         self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 0)

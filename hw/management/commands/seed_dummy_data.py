@@ -297,8 +297,6 @@ class Command(BaseCommand):
             left -= amt
         posting.allocate_payment(p, [a for a in allocs if a[1] > 0], created_by=self.user)
         confirm_payment(p, confirmed_by=self.user)
-        p.status = p.derive_status()
-        p.save(update_fields=['status'])
         ensure_receipt(p, created_by=self.user)
         PaymentRecord.objects.filter(pk=p.pk).update(created_at=_dt(day))
         return p

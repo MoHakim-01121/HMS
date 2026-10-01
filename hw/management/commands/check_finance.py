@@ -88,7 +88,7 @@ class Command(BaseCommand):
         return [
             f'{p.payment_number}: {p.amount:,} {p.currency} diterima di Pusat'
             for p in PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
-            .exclude(currency='SAR').select_related('receiving_account')
+            .exclude(receiving_account__currency='SAR').select_related('receiving_account')
             if p.receiving_branch_code == HQ_BRANCH
         ]
 

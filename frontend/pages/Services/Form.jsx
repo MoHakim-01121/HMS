@@ -181,7 +181,7 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
                           <td className="c-idx">{i + 1}</td>
                           <td><input className="c-in c-strong" type="text" placeholder={t("Service name")} required value={it.name} onChange={(e) => setItem(i, "name", e.target.value)} /></td>
                           <td><input className="c-in c-num" type="number" min="1" required value={it.qty} onChange={(e) => setItem(i, "qty", e.target.value)} /></td>
-                          <td><input className="c-in c-num" type="number" min="0" step="0.01" placeholder="0.00" required value={it.price} onChange={(e) => setItem(i, "price", e.target.value)} /></td>
+                          <td><input className="c-in c-num" type="number" min="0" step="1" placeholder="0" required value={it.price} onChange={(e) => setItem(i, "price", e.target.value)} /></td>
                           {/* Amount is qty × price — derived, so it is read as a
                               cell rather than offered as a fourth input. */}
                           <td className="c-calc">{fmt(lineTotal(it))}</td>
@@ -208,7 +208,7 @@ export default function Form({ invoice, edit, suggested_number, clients = [], in
                       placeholder={t("Qty")} value={it.qty} onChange={(e) => setItem(i, "qty", e.target.value)} />
                   </CardField>
                   <CardField name={`svc-${i}-price`} cell="f-price">
-                    <input id={`svc-${i}-price`} type="number" min="0" step="0.01" className="svc-num" aria-label={t("Price")}
+                    <input id={`svc-${i}-price`} type="number" min="0" step="1" className="svc-num" aria-label={t("Price")}
                       placeholder={t("Price")} value={it.price} onChange={(e) => setItem(i, "price", e.target.value)} />
                   </CardField>
                   <div className="svc-calc f-amount" aria-label={t("Line total {currency}", { currency })}>{fmt(lineTotal(it))}</div>
