@@ -324,7 +324,7 @@ def cl_detail(request, pk):
     ).select_related('user').order_by('-timestamp')
     logs = [{
         "action": l.get_action_display(),
-        "by": l.user.get_full_name() or l.user.username,
+        "by": l.actor_display,
         "changes": l.changes,
         "timestamp": l.timestamp.strftime("%d %b %Y %H:%M"),
     } for l in log_qs]

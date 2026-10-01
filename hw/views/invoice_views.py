@@ -323,7 +323,7 @@ def invoice_detail(request, pk):
     logs = [{
         "action": l.action,
         "action_label": l.get_action_display(),
-        "by": (l.user.get_full_name() or l.user.username) if l.user else None,
+        "by": l.actor_display,
         "changes": l.changes,
         "timestamp": l.timestamp.strftime("%d %b %Y %H:%M"),
         "date": l.timestamp.date().isoformat(),

@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Branch, Client
+from hw.models import Branch, Client, UserBranchAccess
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance.hashing import verify_chain
@@ -27,14 +27,15 @@ class BranchSeedTest(TestCase):
 class BranchAccessTest(TestCase):
     def test_all_returns_every_active_branch(self):
         u = User.objects.create_user('a', password='pw12345')
-        self.assertEqual(u.profile.branch_access, 'all')
+        self.assertTrue(u.profile.all_branches)
         self.assertCountEqual(u.profile.branches, ['sby', 'pusat'])
         self.assertTrue(u.profile.has_all_branches)
 
     def test_scoped_profile_sees_one_branch(self):
         u = User.objects.create_user('b', password='pw12345')
-        u.profile.branch_access = 'sby'
-        u.profile.save(update_fields=['branch_access'])
+        u.profile.all_branches = False
+        u.profile.save(update_fields=['all_branches'])
+        UserBranchAccess.objects.create(profile=u.profile, branch_id='sby')
         self.assertEqual(u.profile.branches, ['sby'])
         self.assertFalse(u.profile.has_all_branches)
 

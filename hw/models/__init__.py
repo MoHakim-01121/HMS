@@ -1,6 +1,6 @@
 from .choices import Company, HotelCity, InvoiceType
 from .branch import Branch
-from .user import BranchAccess, Language, Role, UserProfile
+from .user import Language, Role, UserBranchAccess, UserProfile
 from .role import RoleDefinition
 from .activity import ActivityLog, log_activity
 from .client import Client
@@ -42,7 +42,7 @@ __all__ = [
     # Branch
     'Branch',
     # User
-    'UserProfile', 'Role', 'BranchAccess', 'Language', 'RoleDefinition',
+    'UserProfile', 'UserBranchAccess', 'Role', 'Language', 'RoleDefinition',
     # Activity
     'ActivityLog', 'log_activity',
     # Core

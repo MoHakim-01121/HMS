@@ -10,13 +10,15 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.db import transaction
+from django.db.models import ProtectedError
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, RoleDefinition, UserProfile
+from ..models import ActivityLog, RoleDefinition, UserProfile, log_activity
 from ..models.user import Role
 from ..permissions import (
     get_role, is_valid_role, require_perm,
@@ -146,6 +148,7 @@ def user_new(request):
         UserProfile.objects.update_or_create(
             user=user, defaults={'role': role},
         )
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'User', user.username, [{'field': 'role', 'new': role}])
         messages.success(request, f"User '{user.username}' created successfully.")
         return redirect('user_list')
 
@@ -171,10 +174,14 @@ def user_edit(request, pk):
             elif edit_user.is_superuser and not request.user.is_superuser:
                 messages.error(request, "Only a superuser can change a superuser's access.")
             else:
+                old_role = get_role(edit_user)
                 UserProfile.objects.update_or_create(
                     user=edit_user,
                     defaults={'role': role},
                 )
+                if old_role != role:
+                    log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
+                                 [{'field': 'role', 'old': old_role, 'new': role}])
                 edit_user.is_staff = _grants_django_staff(role)
                 edit_user.save(update_fields=['is_staff'])
                 messages.success(
@@ -192,6 +199,8 @@ def user_edit(request, pk):
             else:
                 edit_user.set_password(password)
                 edit_user.save()
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
+                             [{'field': 'password', 'new': 'reset'}])
                 messages.success(request, f"Password for '{edit_user.username}' has been reset.")
                 return redirect('user_list')
 
@@ -201,6 +210,8 @@ def user_edit(request, pk):
             else:
                 edit_user.is_active = not edit_user.is_active
                 edit_user.save()
+                log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
+                             [{'field': 'is_active', 'old': not edit_user.is_active, 'new': edit_user.is_active}])
                 status = "activated" if edit_user.is_active else "deactivated"
                 messages.success(request, f"User '{edit_user.username}' {status} successfully.")
                 return redirect('user_list')
@@ -224,7 +235,17 @@ def user_delete(request, pk):
         return redirect('user_list')
     if request.method == 'POST':
         username = target.username
-        target.delete()
+        try:
+            with transaction.atomic():
+                target.delete()
+        except ProtectedError:
+            # Dokumen keuangan yang dibuatnya menunjuk akun ini; riwayat tidak boleh hilang.
+            messages.error(
+                request,
+                f"User '{username}' sudah membuat dokumen keuangan dan tidak bisa dihapus — nonaktifkan saja.",
+            )
+            return redirect('user_list')
+        log_activity(request.user, ActivityLog.ACTION_DELETE, 'User', username)
         messages.success(request, f"User '{username}' deleted successfully.")
         return redirect('user_list')
     # Confirmation is handled client-side (React modal); GET just bounces back.

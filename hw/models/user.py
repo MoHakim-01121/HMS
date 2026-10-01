@@ -16,11 +16,6 @@ class Role(models.TextChoices):
     VIEWER  = 'viewer',  'Viewer'
 
 
-class BranchAccess(models.TextChoices):
-    """Sentinel untuk akses semua cabang. Nilai lain = satu Branch.code (mis. 'sby')."""
-    ALL = 'all', 'All branches'
-
-
 class Language(models.TextChoices):
     EN = 'en', 'English'
     ID = 'id', 'Indonesian'
@@ -29,11 +24,12 @@ class Language(models.TextChoices):
 class UserProfile(models.Model):
     user   = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
-    # No `choices`: custom roles are created at runtime, so the valid set lives
-    # in RoleDefinition and is enforced by the views, not by the field.
+    # Slug sebuah RoleDefinition. Peran dibuat saat runtime, jadi tanpa
+    # `choices`; di PostgreSQL kolom ini FOREIGN KEY ke hw_roledefinition.slug
+    # (migrasi 0136), di aplikasi dijaga permissions.is_valid_role().
     role   = models.CharField(max_length=32, default=Role.STAFF)
-    # 'all' = semua cabang; selain itu satu Branch.code.
-    branch_access = models.CharField(max_length=10, default=BranchAccess.ALL)
+    # True = semua cabang; False = hanya cabang di UserBranchAccess.
+    all_branches = models.BooleanField(default=True)
     language = models.CharField(max_length=5, choices=Language.choices, default=Language.EN)
 
     class Meta:
@@ -45,13 +41,30 @@ class UserProfile(models.Model):
 
     @property
     def has_all_branches(self):
-        return self.branch_access == BranchAccess.ALL
+        return self.all_branches
 
     @property
     def branches(self):
-        """Branch codes this profile may act in ('all' → every active branch)."""
+        """Branch codes this profile may act in (all_branches → every active branch)."""
         from .branch import Branch
         qs = Branch.objects.filter(is_active=True)
-        if not self.has_all_branches:
-            qs = qs.filter(code=self.branch_access)
+        if not self.all_branches:
+            qs = qs.filter(code__in=self.branch_access.values('branch_id'))
         return list(qs.values_list('code', flat=True))
+
+
+class UserBranchAccess(models.Model):
+    """Cabang yang boleh dipakai profil yang tidak punya akses semua cabang."""
+
+    profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='branch_access')
+    branch  = models.ForeignKey('Branch', on_delete=models.PROTECT, related_name='+')
+
+    class Meta:
+        verbose_name = 'User Branch Access'
+        verbose_name_plural = 'User Branch Access'
+        constraints = [
+            models.UniqueConstraint(fields=['profile', 'branch'], name='user_branch_access_uniq'),
+        ]
+
+    def __str__(self):
+        return f"{self.profile} → {self.branch_id}"

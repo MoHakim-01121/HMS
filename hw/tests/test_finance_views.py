@@ -199,9 +199,11 @@ class FinanceViewsTest(TestCase):
         from django.contrib.auth.models import User
 
         plain = User.objects.create_user('plain', password='x')
-        # Role STAFF default punya akses luas; pakai role tak dikenal agar
-        # matrix lookup kosong dan can() False (lihat hw/permissions.py).
-        plain.profile.role = 'no_such_role'
+        # Role STAFF default punya akses luas; pakai role tanpa izin apa pun
+        # agar can() False (lihat hw/permissions.py).
+        from hw.models import RoleDefinition
+        RoleDefinition.objects.create(slug='no_access', label='No access', permissions={})
+        plain.profile.role = 'no_access'
         plain.profile.save()
         self.client.force_login(plain)
         for url in (
