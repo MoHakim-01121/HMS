@@ -4,6 +4,7 @@ from django.test import TestCase
 
 from hw.db_pg import pg_only
 from hw.models import BankAccount, Branch, CashAccount, MoneyAccount
+from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import LedgerAccount
 from hw.views.helpers import money_account_choices, resolve_money_account
 
@@ -14,7 +15,7 @@ class MoneyAccountTest(TestCase):
         self.ledger = LedgerAccount.objects.get(code='1000-KAS-SBY')
 
     def _bank(self, **kw):
-        defaults = dict(branch=self.sby, name='Ops', currency='IDR', ledger_account=self.ledger,
+        defaults = dict(branch=self.sby, name='Ops', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
                         bank_name='Mandiri', account_identifier='111')
         defaults.update(kw)
         return BankAccount.objects.create(**defaults)
@@ -53,7 +54,7 @@ class MoneyAccountTest(TestCase):
 
     def test_currency_and_kind_are_checked(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
-            self._bank(currency='EUR', account_identifier='222')
+            self._bank(currency='EUR', account_identifier='222', ledger_account_id=cash_ledger_for('sby', 'EUR'))
         with self.assertRaises(IntegrityError), transaction.atomic():
             MoneyAccount.objects.create(kind='card', branch=self.sby, name='X', currency='SAR',
                                         ledger_account=self.ledger, bank_name='B')
@@ -73,7 +74,7 @@ class MoneyAccountTest(TestCase):
 class MoneyAccountPostgresRuleTest(TestCase):
     def test_head_office_account_must_be_sar(self):
         pusat = Branch.objects.get(code='pusat')
-        ledger = LedgerAccount.objects.get(code='1000-KAS-SBY')
         with self.assertRaises(IntegrityError), transaction.atomic():
-            BankAccount.objects.create(branch=pusat, name='IDR HQ', currency='IDR', ledger_account=ledger,
+            BankAccount.objects.create(branch=pusat, name='IDR HQ', currency='IDR',
+                                       ledger_account_id=cash_ledger_for('sby', 'IDR'),
                                        bank_name='Mandiri', account_identifier='999')

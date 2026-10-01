@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import Invoice, Client, Remittance
+from hw.finance.accounts import cash_ledger_for
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
@@ -146,7 +147,7 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         from hw.models import BankAccount, LedgerAccount
         return BankAccount.objects.create(
             branch_id="sby", name="Ops IDR", currency="IDR", bank_name="Mandiri",
-            account_identifier="1400", ledger_account=LedgerAccount.objects.get(code="1000-KAS-SBY"),
+            account_identifier="1400", ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
 
     def test_new_remittance_is_lump_sum_send_leg(self):

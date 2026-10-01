@@ -11,6 +11,7 @@ from hw.finance.bank_ledger import sync_opening_balance
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import BankAccount, BankStatement, Client, LedgerAccount
+from hw.finance.accounts import cash_ledger_for
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
@@ -75,7 +76,7 @@ class IdrReconciliationTest(TestCase):
         self.user = User.objects.create_superuser('rec', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
         self.idr = BankAccount.objects.create(
-            branch_id='sby', name='Mandiri IDR', currency='IDR', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
+            branch_id='sby', name='Mandiri IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
             bank_name='Mandiri', account_identifier='1400012345678', opening_balance=35_000_000, opening_date=date(2026, 9, 1))
         sync_opening_balance(self.idr)
         client = Client.objects.create(name='PT Alpha')

@@ -9,6 +9,7 @@ from django.test import TestCase
 from hw.finance import exchange_service, expense_service, fund_flow
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import BankAccount, Client, ExpenseCategory, LedgerAccount
+from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
 
@@ -20,12 +21,12 @@ class FundFlowScenario(TestCase):
         self.user = User.objects.create_superuser('ff', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
         la = LedgerAccount.objects.get(code='1000-KAS-SBY')
-        self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account=la,
+        self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
                                               bank_name='Mandiri', account_identifier='1', opening_balance=1_000_000,
                                               opening_date=date(2026, 9, 1))
         from hw.finance.bank_ledger import sync_opening_balance
         sync_opening_balance(self.idr)
-        self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account=la,
+        self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
                                               bank_name='Mandiri', account_identifier='2')
         client = Client.objects.create(name='PT Scenario')
         inv = make_invoice(invoice_number='INV-FF', customer_name='PT Scenario', client=client)

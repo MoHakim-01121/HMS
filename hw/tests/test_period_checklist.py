@@ -8,6 +8,7 @@ from hw.finance import period_checklist as pc
 from hw.finance import reconciliation_service as rs
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import BankAccount, Client, LedgerAccount
+from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
 
@@ -17,7 +18,7 @@ class PeriodChecklistTest(TestCase):
         self.user = User.objects.create_superuser('pc', password='pw12345')
         self.sep = FinancialPeriod.objects.create(name='2026-09', date_from=date(2026, 9, 1), date_to=date(2026, 9, 30))
         self.idr = BankAccount.objects.create(
-            branch_id='sby', name='IDR', currency='IDR', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
+            branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
             bank_name='Mandiri', account_identifier='1')
         self.cl = Client.objects.create(name='PT Close')
         self.inv = make_invoice(invoice_number='INV-PC', customer_name='x', client=self.cl)

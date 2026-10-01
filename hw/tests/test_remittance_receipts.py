@@ -8,7 +8,7 @@ berstatus received. Skenario memakai AllocationBase (a/b/c, 50.000 SAR).
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.db.models import Sum
+from django.db.models import Q, Sum
 
 from hw.finance import accounts as coa
 from hw.finance import remittance_allocation as ra
@@ -24,7 +24,10 @@ from hw.views.remittance_views import _compute_recap_data, _compute_stats
 
 
 def _net(account_id):
-    agg = JournalLine.objects.filter(account_id=account_id).aggregate(d=Sum('debit'), c=Sum('credit'))
+    # Kas cabang = akun induk + akun anak per mata uang.
+    agg = JournalLine.objects.filter(
+        Q(account_id=account_id) | Q(account__parent_id=account_id),
+    ).aggregate(d=Sum('debit'), c=Sum('credit'))
     return (agg['d'] or 0) - (agg['c'] or 0)
 
 

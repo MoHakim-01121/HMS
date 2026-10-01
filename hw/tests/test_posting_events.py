@@ -3,7 +3,7 @@ from hw.tests.factories import make_account, make_cl, make_hotel_line, make_invo
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.test import TestCase
 
 from hw.finance import accounts as coa
@@ -18,7 +18,11 @@ from hw.models.period import FinancialPeriod
 
 
 def _net(**f):
-    agg = JournalLine.objects.filter(**f).aggregate(d=Sum("debit"), c=Sum("credit"))
+    qs = JournalLine.objects.all()
+    if "account_id" in f:  # kas cabang = akun induk + akun anak per mata uang
+        code = f.pop("account_id")
+        qs = qs.filter(Q(account_id=code) | Q(account__parent_id=code))
+    agg = qs.filter(**f).aggregate(d=Sum("debit"), c=Sum("credit"))
     return (agg["d"] or 0) - (agg["c"] or 0)
 
 

@@ -350,15 +350,13 @@ def _bank_form_props(acc=None, data=None, errors=None):
     }
 
 
-def _default_ledger_for_branch(branch_code):
-    """The branch's cash ledger (1000-KAS-<BRANCH>) — the same account its
-    CashAccount posts to — when the form leaves the mapping blank."""
-    from ..models.bank import CashAccount
-    code = (
-        CashAccount.objects.filter(branch_id=branch_code).values_list('ledger_account_id', flat=True).first()
-        or f'1000-KAS-{branch_code.upper()}'
-    )
-    return code if LedgerAccount.objects.filter(code=code).exists() else None
+def _default_ledger_for_branch(branch_code, currency):
+    """The branch's cash ledger in this currency (1000-KAS-<BRANCH> for SAR,
+    1000-KAS-<BRANCH>-<CUR> otherwise) when the form leaves the mapping blank."""
+    from ..finance.accounts import cash_ledger_for
+    if not LedgerAccount.objects.filter(code=f'1000-KAS-{branch_code.upper()}').exists():
+        return None
+    return cash_ledger_for(branch_code, currency)
 
 
 def _save_bank_account(request, acc):
@@ -397,8 +395,8 @@ def _save_bank_account(request, acc):
         errors['currency'] = 'Pick a currency.'
     elif data['branch'] == 'pusat' and data['currency'] != 'SAR':
         errors['currency'] = 'HQ only receives SAR — rupiah and dollar accounts belong to a branch.'
-    if not data['ledger_account'] and not errors.get('branch'):
-        data['ledger_account'] = _default_ledger_for_branch(data['branch']) or ''
+    if not data['ledger_account'] and not errors.get('branch') and not errors.get('currency'):
+        data['ledger_account'] = _default_ledger_for_branch(data['branch'], data['currency']) or ''
     # Without a valid branch the automatic ledger can't be resolved — the
     # branch error already says what to fix, so don't pile a second one on.
     if not errors.get('branch') and not LedgerAccount.objects.filter(
@@ -406,6 +404,13 @@ def _save_bank_account(request, acc):
         type='asset', is_postable=True, is_active=True,
     ).exists():
         errors['ledger_account'] = 'Pick a ledger account.'
+    elif not errors.get('currency'):
+        from ..finance.bank_ledger import ledger_currency_conflict
+        other = ledger_currency_conflict(data['ledger_account'], data['currency'], exclude_pk=acc.pk)
+        if other:
+            errors['ledger_account'] = (
+                f'{data["ledger_account"]} already holds {other} accounts — one ledger account, one currency.'
+            )
     dup = BankAccount.objects.filter(
         bank_name__iexact=data['bank_name'], account_identifier=data['account_identifier'], currency=data['currency'],
     ).exclude(pk=acc.pk)

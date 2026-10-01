@@ -44,6 +44,27 @@ EXP_SVC_VENDOR    = "5500-EXP-SVC-VENDOR"
 
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
+# Kas cabang (1000-KAS-<CABANG>) dicatat dalam SAR. Rekening rupiah/dolar
+# punya akun anaknya sendiri, 1000-KAS-<CABANG>-<MATA UANG> — satu akun buku
+# besar satu mata uang (T4). Saldo kas cabang = akun induk + anak-anaknya.
+CASH_ROOTS = (CASH_SBY, CASH_JKT, CASH_PUSAT)
+
+
+def cash_ledger_for(branch_code, currency):
+    """Kode akun buku besar untuk rekening cabang `branch_code` dalam
+    `currency`; akun anak mata uang asing dibuat bila belum ada."""
+    from ..models.journal import LedgerAccount
+    base = f"1000-KAS-{branch_code.upper()}"
+    if currency == "SAR":
+        return base
+    parent = LedgerAccount.objects.get(code=base)
+    code = f"{base}-{currency}"
+    LedgerAccount.objects.get_or_create(
+        code=code,
+        defaults={"name": f"{parent.name} {currency}", "type": parent.type, "normal_balance": parent.normal_balance,
+                  "parent": parent, "is_postable": True, "is_active": True},
+    )
+    return code
 
 # HQ owns hotel revenue: a branch books the sale and collects the money as an
 # agent, then must remit the full SAR value (IFRS 15 principal vs agent). Its

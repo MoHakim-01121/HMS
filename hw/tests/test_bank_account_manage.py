@@ -1,7 +1,9 @@
 """Bank accounts managed from the UI (Bank Balances) + invoice branch "Pay to"."""
 from datetime import date
+from unittest import skipUnless
 
 from django.contrib.auth.models import User
+from django.db import DatabaseError, connection, transaction
 from django.test import TestCase
 
 from hw.models import Invoice
@@ -45,9 +47,17 @@ class BankAccountManageTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         acc = BankAccount.objects.get(account_identifier='1400550011119')
         self.assertEqual(acc.branch_id, 'sby')
-        self.assertEqual(acc.ledger_account_id, '1000-KAS-SBY')
+        # Rupiah has its own child of the branch cash account (one ledger account, one currency).
+        self.assertEqual(acc.ledger_account_id, '1000-KAS-SBY-IDR')
+        self.assertEqual(acc.ledger_account.parent_id, '1000-KAS-SBY')
         self.assertTrue(acc.show_on_invoice)
         self.assertEqual(str(acc), 'Bank Mandiri 1400550011119 (IDR)')
+
+    def test_ledger_account_with_another_currency_is_refused(self):
+        self.client.force_login(self.admin)
+        resp = self.client.post('/finance/bank-accounts/new/', post_data(ledger_account='1000-KAS-SBY'), HTTP_X_INERTIA='true')
+        self.assertIn('ledger_account', resp.json()['props']['errors'])
+        self.assertFalse(BankAccount.objects.filter(account_identifier='1400550011119').exists())
 
     def test_duplicate_account_is_rejected(self):
         self.client.force_login(self.admin)
@@ -227,3 +237,12 @@ class OpeningBalanceTests(TestCase):
         acc = BankAccount.objects.get()
         props = self.client.get(f'/finance/bank-accounts/{acc.pk}/edit/', HTTP_X_INERTIA='true').json()['props']
         self.assertFalse(props['locked'])
+
+
+@skipUnless(connection.vendor == 'postgresql', 'trigger satu mata uang per akun hanya di PostgreSQL')
+class LedgerCurrencyTriggerTest(TestCase):
+    def test_database_refuses_mixed_currencies_on_one_ledger_account(self):
+        from hw.tests.factories import make_account
+        idr = make_account('sby', 'IDR')
+        with self.assertRaises(DatabaseError), transaction.atomic():
+            BankAccount.objects.filter(pk=idr.pk).update(ledger_account_id='1000-KAS-SBY')

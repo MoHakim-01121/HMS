@@ -6,6 +6,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 
 from hw.models import BankAccount, Branch, CashAccount, Client
+from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import LedgerAccount
 from hw.models.period import FinancialPeriod
 from hw.finance import posting
@@ -24,12 +25,12 @@ class MoneyAccountConstraintTest(TestCase):
         la = LedgerAccount.objects.get(code='1000-KAS-SBY')
         sby = Branch.objects.get(code='sby')
         BankAccount.objects.create(
-            branch=sby, name='Ops', currency='USD', ledger_account=la,
+            branch=sby, name='Ops', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
             bank_name='BCA', account_identifier='123',
         )
         with self.assertRaises(IntegrityError):
             BankAccount.objects.create(
-                branch=sby, name='Ops 2', currency='USD', ledger_account=la,
+                branch=sby, name='Ops 2', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
                 bank_name='BCA', account_identifier='123',
             )
 
@@ -37,9 +38,9 @@ class MoneyAccountConstraintTest(TestCase):
         la = LedgerAccount.objects.get(code='1000-KAS-JKT')
         jkt = Branch.objects.get(code='jkt')
         BankAccount.objects.create(branch=jkt, name='IDR', currency='IDR',
-                                   ledger_account=la, bank_name='BCA', account_identifier='999')
+                                   ledger_account_id=cash_ledger_for('sby', 'IDR'), bank_name='BCA', account_identifier='999')
         BankAccount.objects.create(branch=jkt, name='USD', currency='USD',
-                                   ledger_account=la, bank_name='BCA', account_identifier='999')
+                                   ledger_account_id=cash_ledger_for('sby', 'USD'), bank_name='BCA', account_identifier='999')
         self.assertEqual(BankAccount.objects.filter(account_identifier='999').count(), 2)
 
 

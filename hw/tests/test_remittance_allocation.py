@@ -16,7 +16,7 @@ import json
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.test import TestCase
 
 from hw.finance import accounts as coa
@@ -34,7 +34,10 @@ from hw.tests.factories import make_hotel_line, make_invoice, make_remittance
 
 
 def _net(account_id):
-    agg = JournalLine.objects.filter(account_id=account_id).aggregate(d=Sum('debit'), c=Sum('credit'))
+    # Kas cabang = akun induk + akun anak per mata uang.
+    agg = JournalLine.objects.filter(
+        Q(account_id=account_id) | Q(account__parent_id=account_id),
+    ).aggregate(d=Sum('debit'), c=Sum('credit'))
     return (agg['d'] or 0) - (agg['c'] or 0)
 
 

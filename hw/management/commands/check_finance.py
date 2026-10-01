@@ -175,7 +175,7 @@ class Command(BaseCommand):
                 JournalLine.objects.filter(
                     journal_entry__entry_type=JournalEntry.TYPE_ALLOCATE,
                     journal_entry__source_remittance_settlement__isnull=False,
-                    remittance_id=rem.id, account_id=coa.CASH_SBY,
+                    remittance_id=rem.id, account_id=rem.from_account.ledger_account_id,
                     invoice_line__isnull=False,
                 ).exclude(journal_entry_id__in=reversed_ids)
                 .aggregate(c=Sum('credit'))['c'] or 0

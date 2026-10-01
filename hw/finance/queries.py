@@ -28,6 +28,15 @@ _HOTEL = "hotel"
 REMITTANCE_TYPES = (JournalEntry.TYPE_REMITTANCE, JournalEntry.TYPE_ALLOCATE, JournalEntry.TYPE_REMITTANCE_DIFF)
 
 
+def _in_accounts(*codes):
+    """Baris pada akun-akun ini atau akun anaknya (kas per mata uang)."""
+    return Q(account_id__in=codes) | Q(account__parent_id__in=codes)
+
+
+def _root(account_id, parent_id):
+    return parent_id or account_id
+
+
 def _ar_qs(**f):
     return JournalLine.objects.filter(account_id=coa.AR, **f)
 
@@ -243,14 +252,14 @@ def total_charged(invoice_ids=None):
 def paid_into(account_code, invoice_ids=None):
     """Total kas yang masuk ke akun ini dari pembayaran invoice-invoice ini."""
     return _invoice_scoped(invoice_ids).filter(
-        account_id=account_code, debit__gt=0,
+        _in_accounts(account_code), debit__gt=0,
         journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
     ).aggregate(d=Sum("debit"))["d"] or 0
 
 
 def mengendap(invoice_ids=None):
     """Kas Surabaya bersih untuk invoice-invoice ini (bisa negatif)."""
-    return _net(_invoice_scoped(invoice_ids).filter(account_id=coa.CASH_SBY))
+    return _net(_invoice_scoped(invoice_ids).filter(_in_accounts(coa.CASH_SBY)))
 
 
 # ── Client ─────────────────────────────────────────────────────
@@ -328,8 +337,8 @@ def client_paid_sar(client_id):
     dobel-hitung)."""
     return _net(
         JournalLine.objects.filter(
+            _in_accounts(*coa.CASH_ROOTS),
             client_id=client_id,
-            account_id__in=[coa.CASH_SBY, coa.CASH_JKT, coa.CASH_PUSAT],
             debit__gt=0,
             journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
         ).exclude(journal_entry_id__in=_reversed_entry_ids())
@@ -740,16 +749,21 @@ def account_balance(account_code, *, as_of=None):
     ))
 
 
+def cash_balance(root_code, *, as_of=None):
+    """Saldo kas cabang dalam SAR: akun induk + akun anak per mata uang."""
+    return _net(_scoped(JournalLine.objects.filter(_in_accounts(root_code)), as_of=as_of))
+
+
 def kas_surabaya():
-    return account_balance(coa.CASH_SBY)
+    return cash_balance(coa.CASH_SBY)
 
 
 def kas_jakarta():
-    return account_balance(coa.CASH_JKT)
+    return cash_balance(coa.CASH_JKT)
 
 
 def kas_pusat():
-    return account_balance(coa.CASH_PUSAT)
+    return cash_balance(coa.CASH_PUSAT)
 
 
 def transit():
@@ -948,7 +962,7 @@ def vendor_payables():
 
 def mengendap_per_reservation(line_id):
     """Kas Surabaya yang menempel pada reservasi ini (belum diremit)."""
-    return _net(JournalLine.objects.filter(invoice_line_id=line_id, account_id=coa.CASH_SBY))
+    return _net(JournalLine.objects.filter(_in_accounts(coa.CASH_SBY), invoice_line_id=line_id))
 
 
 def total_allocated():
@@ -1042,28 +1056,28 @@ def reservation_cash_breakdown():
     )
 
     pay = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_PAYMENT, debit__gt=0)
-           .values("invoice_line_id", "account_id").annotate(d=Sum("debit")))
+           .values("invoice_line_id", "account_id", "account__parent_id").annotate(d=Sum("debit")))
     # Uang reservasi yang sudah sampai di Pusat: alokasi penerimaan transfer.
     send = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_ALLOCATE)
-            .values("invoice_line_id", "account_id").annotate(c=Sum("credit")))
+            .values("invoice_line_id", "account_id", "account__parent_id").annotate(c=Sum("credit")))
 
     out = defaultdict(lambda: {
         "terbayar_sby": 0, "terbayar_jkt": 0, "terbayar_direct": 0,
         "sent_from_sby": 0, "sent_from_jkt": 0,
     })
     for r in pay:
-        rid = r["invoice_line_id"]
-        if r["account_id"] == coa.CASH_SBY:
+        rid, root = r["invoice_line_id"], _root(r["account_id"], r["account__parent_id"])
+        if root == coa.CASH_SBY:
             out[rid]["terbayar_sby"] += r["d"]
-        elif r["account_id"] == coa.CASH_JKT:
+        elif root == coa.CASH_JKT:
             out[rid]["terbayar_jkt"] += r["d"]
-        elif r["account_id"] == coa.CASH_PUSAT:
+        elif root == coa.CASH_PUSAT:
             out[rid]["terbayar_direct"] += r["d"]
     for r in send:
-        rid = r["invoice_line_id"]
-        if r["account_id"] == coa.CASH_SBY:
+        rid, root = r["invoice_line_id"], _root(r["account_id"], r["account__parent_id"])
+        if root == coa.CASH_SBY:
             out[rid]["sent_from_sby"] += r["c"]
-        elif r["account_id"] == coa.CASH_JKT:
+        elif root == coa.CASH_JKT:
             out[rid]["sent_from_jkt"] += r["c"]
 
     return {
@@ -1122,8 +1136,8 @@ def client_paid_map(client_ids):
     """{client_id: gross cash masuk dari client} — satu query agregat."""
     rows = (
         JournalLine.objects.filter(
+            _in_accounts(*coa.CASH_ROOTS),
             client_id__in=client_ids,
-            account_id__in=[coa.CASH_SBY, coa.CASH_JKT, coa.CASH_PUSAT],
             debit__gt=0, journal_entry__entry_type=JournalEntry.TYPE_PAYMENT,
         ).exclude(journal_entry_id__in=_reversed_entry_ids())
         .values("client_id").annotate(d=Sum("debit"))

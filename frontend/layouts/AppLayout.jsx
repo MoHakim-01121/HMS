@@ -95,6 +95,7 @@ const PAGE_TITLES = {
   credit_notes: "Credit Notes",
   fund_flow: "Fund Flow",
   ar_aging: "AR Aging",
+  service_margin: "Service Margin",
   reconciliation: "Reconciliation",
   penalties: "Penalties",
   journal: "Journal",

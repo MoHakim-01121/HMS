@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import BankTransaction, Branch, CashAccount, Client
+from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
 from hw.finance_helpers import create_payment_record, confirm_payment
@@ -95,7 +96,7 @@ class OriginalAmountTest(BankTransactionBase):
     def _idr_account(self):
         from hw.models import BankAccount, LedgerAccount
         return BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
-                                          account_identifier='901', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'))
+                                          account_identifier='901', ledger_account_id=cash_ledger_for('sby', 'IDR'))
 
     def test_idr_payment_keeps_rupiah_amount(self):
         client_obj = Client.objects.create(name='PT BT IDR')
@@ -206,7 +207,7 @@ class AccountCurrencyTest(BankTransactionBase):
     def _idr_bank(self):
         from hw.models import BankAccount, LedgerAccount
         return BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
-                                          account_identifier='900', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'))
+                                          account_identifier='900', ledger_account_id=cash_ledger_for('sby', 'IDR'))
 
     def _inv(self, number):
         client_obj = Client.objects.create(name=f'PT {number}')

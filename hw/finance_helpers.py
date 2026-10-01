@@ -298,9 +298,11 @@ def invoice_paid_sar_jl(invoice_id):
 
 
 def kas_saldo(account):
-    """Saldo kas/akun (debit - credit) dari baris jurnal."""
-    qs = JournalLine.objects.filter(account_id=resolve_account_code(str(account)))
-    return _net(qs)
+    """Saldo kas/akun (debit - credit) dari baris jurnal, termasuk akun anaknya
+    (kas per mata uang)."""
+    from django.db.models import Q
+    code = resolve_account_code(str(account))
+    return _net(JournalLine.objects.filter(Q(account_id=code) | Q(account__parent_id=code)))
 
 
 def client_statement(client, date_from=None, date_to=None):

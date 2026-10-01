@@ -128,3 +128,13 @@ def ensure_account_currency(account, currency):
             f'Rekening {account} memakai {account.currency}, bukan {currency} — '
             f'pilih rekening {currency}.'
         )
+
+
+def ledger_currency_conflict(ledger_code, currency, *, exclude_pk=None):
+    """Mata uang lain yang sudah dipakai rekening pada akun buku besar ini
+    (None bila tidak ada). Satu akun buku besar satu mata uang (T4)."""
+    from ..models.bank import MoneyAccount
+    return (
+        MoneyAccount.objects.filter(ledger_account_id=ledger_code).exclude(currency=currency)
+        .exclude(pk=exclude_pk).values_list('currency', flat=True).first()
+    )

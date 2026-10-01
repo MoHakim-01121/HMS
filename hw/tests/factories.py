@@ -90,14 +90,14 @@ def make_account(branch='sby', currency='SAR'):
     """Rekening bank cabang `branch` dalam `currency` (dibuat bila belum ada)."""
     from hw.finance.bank_ledger import default_account
     from hw.models import BankAccount
-    from hw.models.journal import LedgerAccount
+    from hw.finance.accounts import cash_ledger_for
     existing = default_account(branch, currency)
     if existing:
         return existing
     return BankAccount.objects.create(
         branch_id=branch, name=f'Test {currency}', currency=currency, bank_name='Bank Uji',
         account_identifier=f'UJI-{branch}-{currency}',
-        ledger_account=LedgerAccount.objects.get(code=f'1000-KAS-{branch.upper()}'),
+        ledger_account_id=cash_ledger_for(branch, currency),
     )
 
 

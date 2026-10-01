@@ -8,6 +8,7 @@ from django.test import TestCase
 from hw.finance import exchange_service as fx
 from hw.finance.errors import FinanceError
 from hw.models import BankAccount, BankTransaction, CurrencyExchange, LedgerAccount
+from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry
 from hw.models.period import FinancialPeriod
 
@@ -17,9 +18,9 @@ class ExchangeBase(TestCase):
         self.user = User.objects.create_superuser('fx', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
         la = LedgerAccount.objects.get(code='1000-KAS-SBY')
-        self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account=la,
+        self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
                                               bank_name='Mandiri', account_identifier='111')
-        self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account=la,
+        self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
                                               bank_name='Mandiri', account_identifier='222')
 
     def _exchange(self, out=2750, inn=48_125_000, day=date(2026, 9, 10)):

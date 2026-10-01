@@ -10,6 +10,7 @@ from hw.finance import credit_note_service as cns
 from hw.finance import posting, queries
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
+from hw.finance.accounts import cash_ledger_for
 from hw.models import (
     BankAccount, Client, CreditNote, Invoice, JournalLine, LedgerAccount,
 )
@@ -23,7 +24,7 @@ class CreditNoteTest(TestCase):
         self.user = User.objects.create_superuser('cn', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
         self.idr = BankAccount.objects.create(
-            branch_id='sby', name='IDR', currency='IDR', ledger_account=LedgerAccount.objects.get(code='1000-KAS-SBY'),
+            branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
             bank_name='Mandiri', account_identifier='1')
         self.client_obj = Client.objects.create(name='PT Credit')
         self.inv = make_invoice(invoice_number='INV-CN-1', customer_name='x', client=self.client_obj,

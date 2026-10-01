@@ -119,19 +119,19 @@ class Command(BaseCommand):
             FinancialPeriod.objects.create(name=month.strftime('%B %Y'), date_from=month, date_to=nxt - timedelta(days=1))
             month = nxt
 
-        la_sby = LedgerAccount.objects.get(code='1000-KAS-SBY')
+        from hw.finance.accounts import cash_ledger_for
         la_pusat = LedgerAccount.objects.get(code='1000-KAS-PUSAT')
         self.idr = BankAccount.objects.create(
             branch_id='sby', name='1400017736512', currency='IDR', bank_name='Bank Mandiri',
             account_identifier='1400017736512', account_name='PT Konoz United Indonesia',
-            ledger_account=la_sby, show_on_invoice=True,
+            ledger_account_id=cash_ledger_for('sby', 'IDR'), show_on_invoice=True,
             opening_balance=35_000_000, opening_date=self.start,
         )
         sync_opening_balance(self.idr)
         self.usd = BankAccount.objects.create(
             branch_id='sby', name='1400017736520', currency='USD', bank_name='Bank Mandiri',
             account_identifier='1400017736520', account_name='PT Konoz United Indonesia',
-            ledger_account=la_sby, show_on_invoice=True,
+            ledger_account_id=cash_ledger_for('sby', 'USD'), show_on_invoice=True,
         )
         BankAccount.objects.create(
             branch_id='pusat', name='SA4180000123608010456789', currency='SAR', bank_name='Al Rajhi Bank',

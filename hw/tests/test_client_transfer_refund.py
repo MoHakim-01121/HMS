@@ -8,20 +8,25 @@ from datetime import date
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.test import TestCase
 from django.urls import reverse
 
 from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.models import Client
+from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_hotel_line, make_invoice
 
 
 def _net(**f):
-    agg = JournalLine.objects.filter(**f).aggregate(d=Sum("debit"), c=Sum("credit"))
+    qs = JournalLine.objects.all()
+    if "account_id" in f:  # kas cabang = akun induk + akun anak per mata uang
+        code = f.pop("account_id")
+        qs = qs.filter(Q(account_id=code) | Q(account__parent_id=code))
+    agg = qs.filter(**f).aggregate(d=Sum("debit"), c=Sum("credit"))
     return (agg["d"] or 0) - (agg["c"] or 0)
 
 
@@ -66,7 +71,7 @@ class RefundTransferViewTest(TestCase):
         from hw.models import BankAccount, LedgerAccount
         return BankAccount.objects.create(
             branch_id="sby", name="IDR", currency="IDR", bank_name="Mandiri", account_identifier="555",
-            ledger_account=LedgerAccount.objects.get(code="1000-KAS-SBY"),
+            ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
 
     def test_idr_refund_records_rupiah_in_cash_book(self):
