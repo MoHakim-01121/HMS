@@ -132,9 +132,11 @@ class KasMovementTests(PostingTestBase):
             ],
             description="setoran titipan", entry_date=date(2045, 1, 3), created_by=self.user,
         )
-        posting.post_refund(
-            self.client_obj, from_location="pusat", amount_sar=20000,
-            created_by=self.user, entry_date=date(2045, 1, 10),
+        from hw.finance.deposit import refund_deposit
+        from hw.models import CashAccount
+        refund_deposit(
+            self.client_obj, account=CashAccount.objects.get(branch_id="pusat", currency="SAR"),
+            amount_sar=20000, amount_paid=20000, created_by=self.user, refund_date=date(2045, 1, 10),
         )
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)

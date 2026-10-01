@@ -3,7 +3,6 @@ from datetime import date, datetime, time as dt_time
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -425,34 +424,69 @@ def client_refund(request, pk):
             errors['proof'] = proof_error
 
     if not errors:
-        # Journal: DR Titipan / CR Kas cabang rekening. Cash book: the real
-        # amount out of that account. Refund berulang bisa sah → tanpa
-        # idempotency_key; PRG + tombol disable melindungi dari double-submit.
-        from ..finance.bank_ledger import record_bank_transaction
+        # A numbered refund document: DR Titipan / CR the account's ledger,
+        # plus the cash-book movement. Only the client's deposit can be
+        # refunded (refused beyond its balance). Repeated refunds are legal →
+        # no idempotency key; PRG + a disabled button guard double submits.
+        from ..finance.deposit import refund_deposit
         try:
-            with transaction.atomic():
-                entry = posting.post_refund(
-                    client_obj, from_location=account.branch_id, amount_sar=amount,
-                    created_by=request.user, entry_date=date.today(), proof=proof,
-                )
-                record_bank_transaction(
-                    account=account, direction='out', amount_sar=amount,
-                    currency=account.currency, amount=paid, source_type='Refund', source_id=entry.pk,
-                    transaction_date=entry.entry_date, reference=note[:200],
-                )
+            refund = refund_deposit(
+                client_obj, account=account, amount_sar=amount, amount_paid=paid,
+                refund_date=date.today(), created_by=request.user, note=note, proof=proof,
+            )
         except FinanceError as e:
-            errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
+            errors['amount_sar'] = str(e)
         else:
             logger.info("ledger: refund %s SAR (%s %s) to client %s from %s",
                         amount, paid, account.currency, client_obj.pk, account)
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
-            messages.success(request, f'Refunded {amount} SAR to {client_obj.name}.')
+            messages.success(request, f'Refund {refund.refund_number}: {amount} SAR to {client_obj.name}.')
             return redirect('client_finance_statement', pk=pk)
 
     return page(errors, {
         'from_account': P.get('from_account', ''), 'amount_sar': P.get('amount_sar', ''),
         'amount_paid': P.get('amount_paid', ''), 'note': note,
     })
+
+
+@require_perm('payments', 'edit')
+def client_deposit_transfer(request, pk):
+    """Move part of a client's deposit to another client (a numbered document)."""
+    from ..finance.deposit import transfer_deposit
+    client_obj = get_object_or_404(Client, pk=pk)
+
+    def page(errors=None, initial=None):
+        return inertia_render(request, 'Finance/DepositTransfer', props={
+            'client': {'pk': client_obj.pk, 'name': client_obj.name,
+                       'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
+            'clients': [{'id': c.pk, 'name': c.name} for c in Client.objects.filter(is_active=True)
+                        .exclude(pk=client_obj.pk).order_by('name')],
+            'errors': errors or {},
+            'initial': initial or {},
+        })
+
+    if request.method != 'POST':
+        return page()
+    P = request.POST
+    note = (P.get('note') or '').strip()
+    amount = int(round(_to_float(P.get('amount_sar'))))
+    to_client = Client.objects.filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
+    errors = {}
+    if to_client is None:
+        errors['to_client'] = 'Choose the client that receives the deposit.'
+    if amount <= 0:
+        errors['amount_sar'] = 'Enter an amount greater than zero.'
+    if not errors:
+        try:
+            transfer = transfer_deposit(client_obj, to_client, amount_sar=amount, transfer_date=date.today(),
+                                        created_by=request.user, note=note)
+        except FinanceError as e:
+            errors['amount_sar'] = str(e)
+        else:
+            log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Deposit Transfer', transfer.transfer_number)
+            messages.success(request, f'{transfer.transfer_number}: {amount} SAR moved to {to_client.name}.')
+            return redirect('client_finance_statement', pk=pk)
+    return page(errors, {'to_client': P.get('to_client', ''), 'amount_sar': P.get('amount_sar', ''), 'note': note})
 
 
 @require_perm('statements', 'export')

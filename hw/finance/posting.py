@@ -832,33 +832,6 @@ def resync_remittance(remittance, *, created_by, send_segments=None,
 
 
 @transaction.atomic
-def post_refund(client, *, from_location, amount_sar, created_by, entry_date,
-                use_credit=True, idempotency_key=None, proof=None):
-    """Refund ke client: DR Titipan (atau Piutang) / CR Kas.
-
-    `idempotency_key` opsional: kasus baris event tunggal (dua kaki REFUND
-    punya source yang sama) biar pemanggilan ulang tidak dobel-posting.
-    `proof` (FileField value) opsional: bukti transfer yang dibawa entry ini.
-    """
-    src = _CASH_BY_LOCATION.get(from_location, coa.CASH_PUSAT)
-    debit_acc = coa.CUST_CREDIT if use_credit else coa.AR
-    return post_entry(
-        entry_type=JournalEntry.TYPE_REFUND,
-        description=f"Refund ke {client}",
-        entry_date=entry_date,
-        lines=[
-            {"account": debit_acc, "debit": amount_sar, "client": client.pk, "branch": from_location},
-            {"account": src, "credit": amount_sar, "client": client.pk, "branch": from_location},
-        ],
-        source_type="Client",
-        source_id=client.pk,
-        idempotency_key=idempotency_key,
-        created_by=created_by,
-        proof=proof,
-    )
-
-
-@transaction.atomic
 def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
                        created_by, entry_date, idempotency_key=None):
     """Pindah piutang antar reservasi (re-tag), total piutang klien tetap."""

@@ -102,7 +102,10 @@ class CreditNoteTest(TestCase):
     def test_void_credit_note_refused_when_deposit_spent(self):
         self._pay(12_000)
         cn = self._cn(8_000)
-        posting.post_refund(self.client_obj, from_location='sby', amount_sar=1_500, created_by=self.user, entry_date=DAY)
+        from hw.finance.deposit import refund_deposit
+        from hw.tests.factories import make_account
+        refund_deposit(self.client_obj, account=make_account('sby', 'SAR'), amount_sar=1_500, amount_paid=1_500,
+                       refund_date=DAY, created_by=self.user)
         with self.assertRaises(FinanceError):
             cns.void_credit_note(cn, reason='x', created_by=self.user)
 

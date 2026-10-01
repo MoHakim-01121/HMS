@@ -208,6 +208,7 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
               <span style={{ display: "inline-flex", gap: 6, marginLeft: "auto" }}>
                 <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/transfer/`)}>{t("Move Funds")}</button>
                 <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/refund/`)}>{t("Refund")}</button>
+                <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/deposit-transfer/`)}>{t("Transfer deposit")}</button>
               </span>
             )}
           </div>
