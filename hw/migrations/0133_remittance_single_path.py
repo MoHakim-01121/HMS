@@ -15,6 +15,8 @@ berhenti dengan nomor RMT bila ada transfer yang tidak bisa dipetakan.
 import django.db.models.deletion
 from django.db import migrations, models
 
+from hw.migrations import _cutover
+
 from hw.db_pg import settle_constraints
 
 
@@ -92,6 +94,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Keputusan data produksi (F11), lihat hw/migrations/_cutover.py.
+        migrations.RunPython(_cutover.step(_cutover.map_legacy_remittances), migrations.RunPython.noop),
         migrations.AddField(
             model_name='remittance', name='to_account',
             field=models.ForeignKey(

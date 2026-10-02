@@ -2,6 +2,8 @@
 
 from django.db import migrations
 
+from hw.migrations import _cutover
+
 
 class Migration(migrations.Migration):
 
@@ -10,6 +12,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Keputusan data produksi (F11), lihat hw/migrations/_cutover.py.
+        migrations.RunPython(_cutover.step(_cutover.link_cl_clients), migrations.RunPython.noop),
+        migrations.RunPython(_cutover.step(_cutover.move_legacy_payments), migrations.RunPython.noop),
         migrations.RemoveConstraint(
             model_name='allocation',
             name='ledger_allocation_exactly_one_target',

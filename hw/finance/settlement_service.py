@@ -62,33 +62,38 @@ def add_settlement(remittance, *, received_amount_sar, received_date, created_by
         received_date=received_date, reference=reference, note=note,
         created_by=created_by,
     )
+    post_receipt(settlement, created_by=created_by)
+    remittance_allocation.create_lines(settlement, validated)
+    remittance_allocation.post_allocation(
+        settlement, validated, entry_date=received_date, created_by=created_by,
+    )
+    return settlement
+
+
+def post_receipt(settlement, *, created_by=None):
+    """Jurnal dan buku kas satu penerimaan: Dr rekening SAR Pusat / Cr Transit."""
+    remittance, amount = settlement.remittance, settlement.received_amount_sar
     post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
-        description=f"Settlement {remittance.remittance_number} — {received_amount_sar:,} SAR",
-        entry_date=received_date,
+        description=f"Settlement {remittance.remittance_number} — {amount:,} SAR",
+        entry_date=settlement.received_date,
         lines=[
-            {'account': remittance.to_account.ledger_account_id, 'debit': received_amount_sar,
+            {'account': remittance.to_account.ledger_account_id, 'debit': amount,
              'branch': remittance.to_account.branch_id, 'remittance': remittance.pk},
-            {'account': coa.TRANSIT, 'credit': received_amount_sar, 'remittance': remittance.pk},
+            {'account': coa.TRANSIT, 'credit': amount, 'remittance': remittance.pk},
         ],
         source_type='RemittanceSettlement',
         source_id=settlement.pk,
         idempotency_key=f"settlement:{settlement.pk}:receive",
         created_by=created_by,
     )
-
     from .bank_ledger import record_bank_transaction
     record_bank_transaction(
         account=remittance.to_account,
-        direction='in', amount_sar=received_amount_sar, currency='SAR', amount=received_amount_sar,
+        direction='in', amount_sar=amount, currency='SAR', amount=amount,
         source_type='RemittanceSettlement', source_id=settlement.pk,
-        transaction_date=received_date, reference=reference,
+        transaction_date=settlement.received_date, reference=settlement.reference,
     )
-    remittance_allocation.create_lines(settlement, validated)
-    remittance_allocation.post_allocation(
-        settlement, validated, entry_date=received_date, created_by=created_by,
-    )
-    return settlement
 
 
 @transaction.atomic

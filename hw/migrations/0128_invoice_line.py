@@ -24,6 +24,8 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+from hw.migrations import _cutover
+
 from hw.db_pg import pg_sql, settle_constraints, user_triggers_disabled
 
 INVOICE_TYPES = ['hotel', 'visa']
@@ -378,6 +380,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Keputusan data produksi (F11), lihat hw/migrations/_cutover.py.
+        migrations.RunPython(_cutover.step(_cutover.fix_due_dates), migrations.RunPython.noop),
         migrations.RunPython(normalise_invoices, migrations.RunPython.noop),
 
         # ── hw_reservation → hw_invoiceline ───────────────────────────────

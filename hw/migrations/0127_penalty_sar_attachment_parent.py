@@ -3,6 +3,8 @@
 import django.db.models.deletion
 from django.db import migrations, models
 
+from hw.migrations import _cutover
+
 from hw.db_pg import settle_constraints
 
 
@@ -39,6 +41,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Keputusan data produksi (F11), lihat hw/migrations/_cutover.py.
+        migrations.RunPython(_cutover.step(_cutover.drop_zero_penalties), migrations.RunPython.noop),
         migrations.RunPython(penalties_to_sar, migrations.RunPython.noop),
         migrations.RunPython(attachments_have_one_parent, migrations.RunPython.noop),
         migrations.RemoveField(

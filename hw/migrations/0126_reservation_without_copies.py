@@ -13,6 +13,7 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 from hw.db_pg import settle_constraints
+from hw.migrations import _cutover
 
 STATUSES = ['TENTATIVE', 'DEFINITE', 'CANCELLED']
 CAPACITY_BY_TEXT = {'single': 1, 'double': 2, 'twin': 2, 'triple': 3, 'quad': 4, 'quint': 5}
@@ -118,6 +119,7 @@ class Migration(migrations.Migration):
 
     operations = [
         # ── CL ────────────────────────────────────────────────────────────
+        migrations.RunPython(_cutover.step(_cutover.add_missing_hotels), migrations.RunPython.noop),
         migrations.RunPython(link_cl_to_masters, migrations.RunPython.noop),
         migrations.RunPython(check_and_normalise_cl, migrations.RunPython.noop),
         migrations.RemoveConstraint(model_name='confirmationletter', name='cl_check_out_after_check_in'),

@@ -3,6 +3,8 @@
 from django.conf import settings
 from django.db import migrations, models
 
+from hw.migrations import _cutover
+
 
 class Migration(migrations.Migration):
 
@@ -12,6 +14,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Keputusan data produksi (F11), lihat hw/migrations/_cutover.py.
+        migrations.RunPython(_cutover.step(_cutover.purge_ijabah), migrations.RunPython.noop),
         migrations.RemoveConstraint(
             model_name='confirmationletter',
             name='uniq_confirmation_number_per_company',
