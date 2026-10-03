@@ -39,10 +39,14 @@ def _payment_props(p):
     proof_url = p.proof.url if p.proof else None
     proofs = []
     if p.proof:
+        try:
+            size = p.proof.size or 0
+        except OSError:  # file missing from storage; the record still shows its name
+            size = 0
         proofs.append({
             'url': proof_url,
             'name': PurePosixPath(p.proof.name).name,
-            'size': p.proof.size or 0,
+            'size': size,
         })
     from ..finance import queries as fq
     # Void/reversed/pending/rejected money never landed (or was taken back),
