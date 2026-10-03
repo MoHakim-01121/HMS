@@ -34,6 +34,30 @@ def record_bank_transaction(*, account, direction, amount_sar, source_type, sour
     return tx
 
 
+def sync_bank_transaction(*, account, direction, amount_sar, source_type, source_id,
+                          transaction_date, currency='SAR', amount=None, reference=''):
+    """Like record_bank_transaction, but an existing row follows the document
+    when it changed (an edited transfer). A row already matched to a bank
+    statement is not rewritten."""
+    from .errors import FinanceError
+    tx = BankTransaction.objects.filter(source_type=source_type, source_id=source_id).first()
+    if tx is None:
+        return record_bank_transaction(
+            account=account, direction=direction, amount_sar=amount_sar, source_type=source_type,
+            source_id=source_id, transaction_date=transaction_date, currency=currency, amount=amount,
+            reference=reference,
+        )
+    wanted = dict(account=account, direction=direction, amount_sar=amount_sar, currency=currency,
+                  amount=amount if amount is not None else amount_sar, transaction_date=transaction_date,
+                  reference=reference)
+    if all(getattr(tx, k) == v for k, v in wanted.items()):
+        return tx
+    if tx.status == BankTransaction.STATUS_RECONCILED or tx.statement_lines.exists():
+        raise FinanceError('Transaksi ini sudah dicocokkan dengan mutasi bank — batalkan pencocokannya dulu.')
+    BankTransaction.objects.filter(pk=tx.pk).update(**wanted)
+    return tx
+
+
 def void_bank_transactions(source_type, source_ids):
     """Void the cash-log rows of reversed/voided source documents so they stop
     counting as money that moved. Refuses rows already matched to a bank

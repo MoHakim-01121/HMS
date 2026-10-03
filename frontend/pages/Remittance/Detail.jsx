@@ -115,8 +115,11 @@ export default function Detail({ rem, lines, fx }) {
     rem.amount_idr != null ? { k: t("Amount IDR"), v: `${fmt(rem.amount_idr)} IDR` } : null,
     rem.exchange_rate != null ? { k: t("Exchange rate"), v: fmt(rem.exchange_rate) } : null,
     rem.expected_sar != null ? { k: t("Expected in SAR"), v: `${fmt(rem.expected_sar)} SAR` } : null,
-    fx?.avg_rate != null ? { k: t("Average rate"), v: fmt(fx.avg_rate) } : null,
+    fx?.original_amount != null ? { k: t("Original amount (IDR)"), v: `${fmt(fx.original_amount)} IDR` } : null,
+    fx?.avg_rate != null && !(fx.is_legacy && fx.original_amount == null)
+      ? { k: fx.is_legacy ? t("Original rate") : t("Average rate"), v: fmt(fx.avg_rate) } : null,
     fx?.profit_idr != null ? { k: t("FX profit (IDR)"), v: `${fmt(fx.profit_idr)} IDR${fx.fully_covered ? "" : " *"}` } : null,
+    fx?.is_legacy && fx.original_amount == null ? { k: t("FX profit (IDR)"), v: t("— fill in the original amount (Edit)") } : null,
     pos
       ? { k: t("Not allocated"), v: `${fmt(pos.unallocated)} SAR` }
       : { k: t("Reservations"), v: lines.length === 1 ? t("1 line") : t("{n} lines", { n: lines.length }) },

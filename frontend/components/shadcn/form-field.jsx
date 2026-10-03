@@ -7,7 +7,7 @@ import { Input } from "./ui/input.jsx";
 // `children` (e.g. a <select> or <textarea> passed in by a page).
 export default function FormField({
   label, name, error, required, hint, type = "text",
-  value, onChange, placeholder, autoFocus, span, inputMode, step, className, children,
+  value, onChange, placeholder, autoFocus, span, inputMode, step, min, disabled, className, children,
 }) {
   const describedBy = error ? `${name}-error` : hint ? `${name}-hint` : undefined;
   return (
@@ -20,7 +20,7 @@ export default function FormField({
             id={name} name={name} type={type} value={value ?? ""}
             onChange={(e) => onChange?.(e.target.value)}
             placeholder={placeholder} autoFocus={autoFocus}
-            inputMode={inputMode} step={step}
+            inputMode={inputMode} step={step} min={min} disabled={disabled}
             aria-invalid={error ? "true" : undefined}
             aria-describedby={describedBy}
           />

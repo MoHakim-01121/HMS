@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from hw.finance import exchange_service, expense_service, fund_flow
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, Client, ExpenseCategory, LedgerAccount
+from hw.models import BankAccount, BankTransaction, Client, ExpenseCategory, LedgerAccount, Remittance
 from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
@@ -99,3 +99,35 @@ class FundFlowScenario(TestCase):
         self._send(95_000_000)
         stats = self.client.get('/remittance/', HTTP_X_INERTIA='true').json()['props']['stats']
         self.assertEqual((stats['fx_profit_idr'], stats['client_idr_held']), (2_125_000, 0))
+
+
+class RemittanceFormFxTest(FundFlowScenario):
+    """Laba kurs di form setoran: posisi uang client + setoran lama yang diisi user."""
+
+    def test_new_form_shows_client_money_and_original_rate(self):
+        props = self.client.get('/remittance/new/', HTTP_X_INERTIA='true').json()['props']
+        # 49,000,000 IDR + USD exchanged to 48,125,000 IDR, owing 20,000 SAR.
+        self.assertEqual(props['fx_pool'], {'amount': 97_125_000, 'sar': 20_000, 'rate': 4856.25})
+
+    def test_edit_form_uses_position_before_the_transfer(self):
+        self._send(95_000_000)
+        rem = Remittance.objects.get()
+        props = self.client.get(f'/remittance/{rem.pk}/edit/', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual(props['fx_pool']['sar'], 20_000)
+        self.assertEqual(props['rem']['amount_idr'], 95_000_000)
+
+    def test_legacy_transfer_profit_comes_from_the_original_amount(self):
+        self._send(95_000_000)
+        rem = Remittance.objects.get()
+        Remittance.objects.filter(pk=rem.pk).update(is_legacy=True)
+        self.assertIsNone(fund_flow.fx_profit(branch='sby')['transfers'][0]['profit_idr'])
+        self.client.post(f'/remittance/{rem.pk}/edit/', {
+            'date': '2026-09-10', 'amount_idr': '94000000', 'original_amount': '97000000',
+        })
+        rem.refresh_from_db()
+        self.assertEqual((rem.amount_sent, rem.original_amount, rem.expected_sar), (94_000_000, 97_000_000, 20_000))
+        row = fund_flow.fx_profit(branch='sby')['transfers'][0]
+        self.assertEqual((row['profit_idr'], row['avg_rate']), (3_000_000, 4850.0))
+        # The cash book follows the corrected rupiah.
+        tx = BankTransaction.objects.get(source_type='Remittance', source_id=rem.pk)
+        self.assertEqual(tx.amount, 94_000_000)

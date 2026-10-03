@@ -13,12 +13,20 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import Remittance, RemittanceLine
-from ..finance import posting, remittance_allocation
+from ..finance import fund_flow, posting, remittance_allocation
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
 from .helpers import validate_proof_file, period_label as _period_label, csv_export_response
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_int(raw):
+    raw = (raw or '').strip().replace(',', '').replace('.', '')
+    try:
+        return int(raw) if raw else None
+    except ValueError:
+        return None
 
 
 def _parse_transfer_fields(request):
@@ -184,6 +192,8 @@ def remittance_new(request):
             'open_transfers': remittance_allocation.open_transfers(),
             'error': error,
             'today': str(date.today()),
+            # Uang client rupiah yang belum disetor + kurs asalnya (laba kurs di form).
+            'fx_pool': fund_flow.idr_pool('sby'),
             'from_accounts': [{
                 'value': str(a.pk),
                 'label': f"{a.bank_name} {a.account_identifier} · {a.branch.name}".strip(),
@@ -289,6 +299,7 @@ def remittance_detail(request, pk):
 
     return inertia_render(request, "Remittance/Detail", props={
         "fx": fx_row,
+        "is_legacy": rem.is_legacy,
         "rem": {
             "id": rem.id,
             "remittance_number": rem.remittance_number,
@@ -375,11 +386,23 @@ def remittance_edit(request, pk):
         rem.date = request.POST.get('date') or rem.date
         rem.receipt_reference = request.POST.get('receipt_reference', '').strip()
         rem.note = request.POST.get('note', '').strip()
-        # The amount and planned rate of the transfer can be corrected while
-        # HQ has recorded nothing against it yet.
         amount_sent, exchange_rate, _ignored = _parse_transfer_fields(request)
         update_fields = ['date', 'receipt_reference', 'note']
-        if amount_sent and exchange_rate and not rem.settlements.exists():
+        if rem.is_legacy:
+            # Setoran lama: SAR-nya sudah diterima Pusat dan tetap. User mengisi
+            # rupiah yang benar-benar dikirim (kurs kirim mengikutinya) dan
+            # rupiah yang dulu dibayar client (nominal original).
+            sar = rem.expected_sar
+            if amount_sent and sar:
+                rem.amount_sent = amount_sent
+                rem.exchange_rate = (Decimal(amount_sent) / Decimal(sar)).quantize(Decimal('0.0001'))
+                update_fields += ['amount_sent', 'exchange_rate']
+            original = _parse_int(request.POST.get('original_amount'))
+            rem.original_amount = original if original and original > 0 else None
+            update_fields.append('original_amount')
+        elif amount_sent and exchange_rate and not rem.settlements.exists():
+            # The amount and planned rate of the transfer can be corrected while
+            # HQ has recorded nothing against it yet.
             rem.amount_sent, rem.exchange_rate = amount_sent, exchange_rate
             update_fields += ['amount_sent', 'exchange_rate']
         if request.POST.get('remove_proof'):
@@ -393,11 +416,18 @@ def remittance_edit(request, pk):
             update_fields.append('proof')
         rem.save(update_fields=update_fields)
 
-        # The journal's send leg follows the transfer (date, amount, rate).
+        # The cash book and the journal's send leg follow the transfer.
+        from ..finance.bank_ledger import sync_bank_transaction
         try:
+            sync_bank_transaction(
+                account=rem.from_account, direction='out', amount_sar=rem.expected_sar,
+                currency=rem.from_account.currency, amount=rem.amount_sent, source_type='Remittance',
+                source_id=rem.pk, transaction_date=rem.date, reference=rem.receipt_reference,
+            )
             posting.resync_remittance(rem, created_by=request.user)
         except FinanceError as e:
-            logger.warning("remittance %s: journal send resync gagal: %s", rem.remittance_number, e)
+            logger.warning("remittance %s: buku kas / jurnal kirim gagal disamakan: %s", rem.remittance_number, e)
+            messages.warning(request, f'Tersimpan, tapi buku kas/jurnal belum ikut berubah: {e}')
         return redirect('remittance_detail', pk=rem.pk)
 
     # Allocations are made per receipt (Record Receipt / change allocation).
@@ -413,7 +443,14 @@ def remittance_edit(request, pk):
             "has_receipts": rem.settlements.exists(),
             "note": rem.note or "",
             "proof_url": rem.proof.url if rem.proof else None,
+            "amount_idr": rem.amount_sent,
+            "exchange_rate": float(rem.exchange_rate) if rem.exchange_rate else None,
+            "expected_sar": rem.expected_sar,
+            "is_legacy": rem.is_legacy,
+            "original_amount": rem.original_amount,
         },
+        # Posisi uang client tepat sebelum setoran ini (kurs asalnya).
+        "fx_pool": fund_flow.idr_pool(rem.from_account.branch_id, before=rem.pk),
         "lines": [{
             "line_id": l.pk,
             "linked_number": l.linked_number,

@@ -704,8 +704,9 @@ def resync_remittance(remittance, *, created_by):
     want = int(remittance.expected_sar or 0)
     source = remittance.from_account.ledger_account_id
     live = _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE)
-    posted = [(ln.account_id, int(ln.credit)) for e in live for ln in e.lines.all() if ln.credit]
-    if posted == ([(source, want)] if want else []):
+    posted = [(ln.account_id, int(ln.credit), ln.amount_txn) for e in live for ln in e.lines.all() if ln.credit]
+    native_sent = native(remittance.from_account, remittance.amount_sent).get("amount_txn")
+    if posted == ([(source, want, native_sent)] if want else []):
         return
     for e in live:
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)

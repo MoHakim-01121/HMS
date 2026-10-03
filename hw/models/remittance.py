@@ -36,6 +36,12 @@ class Remittance(models.Model):
     amount_sent   = models.BigIntegerField()
     # Kurs rencana (mata uang asal per 1 SAR); 1 untuk rekening SAR.
     exchange_rate = models.DecimalField(max_digits=14, decimal_places=4)
+    # Setoran dari masa sebelum sistem (dipetakan saat cutover). Uang client
+    # di baliknya tidak tercatat per kurs, jadi laba kurs dihitung dari
+    # `original_amount` yang diisi user; selama kosong, labanya tidak dihitung.
+    is_legacy       = models.BooleanField(default=False)
+    # Rupiah yang dulu dibayar client untuk SAR setoran ini (hanya setoran lama).
+    original_amount = models.BigIntegerField(null=True, blank=True)
 
     note       = models.TextField(blank=True)
     proof      = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
@@ -49,6 +55,10 @@ class Remittance(models.Model):
         verbose_name_plural = 'Remittances'
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_sent__gt=0), name='remittance_amount_positive'),
+            models.CheckConstraint(
+                condition=models.Q(original_amount__isnull=True) | models.Q(original_amount__gt=0),
+                name='remittance_original_amount_positive',
+            ),
             models.CheckConstraint(condition=models.Q(exchange_rate__gt=0), name='remittance_rate_positive'),
             models.CheckConstraint(
                 condition=~models.Q(from_account=models.F('to_account')), name='remittance_two_accounts',

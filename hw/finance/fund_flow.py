@@ -200,20 +200,15 @@ def _take(pool, sar):
     return covered, cost
 
 
-def fx_profit(*, branch='sby', date_from=None, date_to=None):
-    """Realized FX profit per transfer to HQ (IDR) for `branch`.
-
-    Pools per currency hold client money at cost with the SAR it owes. A client
-    payment adds to its currency's pool; an exchange moves the matching share
-    of obligation from one pool to another at the exchanged amount; a refund
-    removes money and obligation; a transfer to HQ consumes SAR from the IDR
-    pool at its average rate — profit = that cost − rupiah actually sent."""
+def _replay(branch, *, date_from=None, date_to=None, stop_before=None):
+    """Putar ulang uang client cabang menurut urutan waktu. Mengembalikan
+    (pools, transfers). `stop_before`: id setoran — berhenti tepat sebelum
+    setoran itu (posisi uang client yang dipakai setoran tersebut)."""
     from . import queries
     pools = defaultdict(_Pool)
     transfers = []
     events = _branch_events(branch, date_to)
-    # SAR actually sent per transfer, in one query (legacy transfers have no
-    # IDR amount/rate, so their SAR comes from the journal).
+    # SAR actually sent per transfer, in one query.
     sent_map = queries.remittance_sent_map([o.pk for *_x, k, o in events if k == 'remittance'])
     for _d, _o, _pk, kind, obj in events:
         if kind == 'payment':
@@ -233,18 +228,29 @@ def fx_profit(*, branch='sby', date_from=None, date_to=None):
             pool.amount = max(pool.amount - Decimal(obj.amount), Decimal(0))
             pool.sar = max(pool.sar - Decimal(obj.amount_sar), Decimal(0))
         elif kind == 'remittance':
+            if stop_before is not None and obj.pk == stop_before:
+                break
             sar = obj.expected_sar or int(sent_map.get(obj.pk, 0))
             if not sar:
                 continue
             pool = pools['IDR']
             rate = pool.rate
-            covered, cost = _take(pool, sar)
-            in_period = not date_from or obj.date >= date_from
-            if not in_period:
+            if obj.is_legacy and obj.original_amount:
+                # Setoran lama: rupiah client di baliknya diisi user.
+                covered = min(Decimal(sar), pool.sar)
+                pool.sar -= covered
+                pool.amount = max(pool.amount - Decimal(obj.original_amount), Decimal(0))
+                cost, covered = Decimal(obj.original_amount), Decimal(sar)
+                rate = cost / Decimal(sar)
+            else:
+                covered, cost = _take(pool, sar)
+            if date_from and obj.date < date_from:
                 continue
             idr_sent = obj.amount_idr
             profit = None
-            if idr_sent is not None and covered > 0:
+            if obj.is_legacy and not obj.original_amount:
+                pass  # tidak dihitung sampai nominal original diisi
+            elif idr_sent is not None and covered > 0:
                 sent_for_covered = Decimal(idr_sent) * covered / Decimal(sar)
                 profit = int((cost - sent_for_covered).quantize(Decimal('1')))
             transfers.append({
@@ -255,7 +261,36 @@ def fx_profit(*, branch='sby', date_from=None, date_to=None):
                 'cost_idr': int(cost.quantize(Decimal('1'))),
                 'profit_idr': profit,
                 'fully_covered': covered == Decimal(sar),
+                'is_legacy': obj.is_legacy,
+                'original_amount': obj.original_amount,
             })
+    return pools, transfers
+
+
+def idr_pool(branch='sby', *, before=None):
+    """Uang client rupiah cabang yang belum disetor, dan kurs asalnya:
+    {'amount', 'sar', 'rate'}. `before`: id setoran — posisi tepat sebelum
+    setoran itu (untuk form edit); tanpa itu, posisi sekarang."""
+    pools, _ = _replay(branch, stop_before=before)
+    pool = pools['IDR']
+    return {
+        'amount': int(pool.amount.quantize(Decimal('1'))),
+        'sar': int(pool.sar.quantize(Decimal('1'))),
+        'rate': float(pool.rate.quantize(Decimal('0.0001'))) if pool.rate else None,
+    }
+
+
+def fx_profit(*, branch='sby', date_from=None, date_to=None):
+    """Realized FX profit per transfer to HQ (IDR) for `branch`.
+
+    Pools per currency hold client money at cost with the SAR it owes. A client
+    payment adds to its currency's pool; an exchange moves the matching share
+    of obligation from one pool to another at the exchanged amount; a refund
+    removes money and obligation; a transfer to HQ consumes SAR from the IDR
+    pool at its average rate — profit = that cost − rupiah actually sent.
+    Setoran lama dihitung dari nominal original yang diisi user, atau tidak
+    dihitung (profit None) selama kosong."""
+    pools, transfers = _replay(branch, date_from=date_from, date_to=date_to)
     held = {c: {'amount': int(p.amount.quantize(Decimal('1'))), 'sar': int(p.sar.quantize(Decimal('1')))}
             for c, p in pools.items() if p.amount or p.sar}
     return {

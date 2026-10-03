@@ -11,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Icon } from "../../components/icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
+import FxPanel, { FX_CSS } from "./FxPanel.jsx";
 
 // Transfer ke Pusat = lump-sum (IDR + kurs). Reservasi tidak dipilih di sini:
 // alokasi dilakukan saat Pusat mencatat penerimaan (Receipt.jsx), karena baru
 // saat itu jelas uang reservasi mana yang didahulukan.
-function FormBody({ open_transfers = [], today, error, from_accounts = [] }) {
+function FormBody({ open_transfers = [], today, error, from_accounts = [], fx_pool = null }) {
   const { t } = useI18n();
   const form = useForm({
     date: today || "",
@@ -40,7 +41,7 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [] }) {
 
   return (
     <div className="page rem-form shadcn-root">
-      <style>{CSS}</style>
+      <style>{CSS + FX_CSS}</style>
       <PageBack href="/remittance/" />
       <FormHeader
         kicker={t("Remittance")}
@@ -96,6 +97,7 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [] }) {
             <p className={"rem-estimate" + (estimate == null ? " is-hint" : "")} aria-live="polite">
               {estimate != null ? t("≈ {n} SAR", { n: fmt(estimate) }) : t("Enter the IDR amount and rate to see the SAR estimate.")}
             </p>
+            <FxPanel pool={fx_pool} sentIdr={idr} sar={estimate} />
             <div className="fg-2">
               <FormField
                 name="proof" label={t("Receipt")} hint={t("Optional — image or PDF")}
