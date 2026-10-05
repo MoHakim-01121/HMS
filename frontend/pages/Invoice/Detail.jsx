@@ -71,6 +71,7 @@ function PayToAccount({ t, acc }) {
 
 export default function Detail({
   invoice, reservations, payments, due_alert, wa_send, logs = [], pay_to = [], excess_sar = 0,
+  overpaid = [], overpaid_payments = [],
   void: voidInfo = null, credit_notes = [], credited_sar = 0, can_void = false,
 }) {
   const openForm = useFormModal();
@@ -121,20 +122,17 @@ export default function Detail({
 
   const canEdit = perms.can("invoice", "edit") && !isVoid;
   const canCredit = perms.can("invoice", "delete");
+  const canMoveMoney = perms.can("payments", "edit");
+  const moveExcessToDeposit = () =>
+    confirm({
+      title: t("Move {n} SAR to deposit?", { n: fmt(excess_sar) }),
+      message: t("What {client} paid beyond this invoice becomes their deposit. It can then pay other invoices, be transferred, or be refunded.", { client: invoice.customer_name }),
+      confirmLabel: t("Move to deposit"),
+      onConfirm: () => router.post(`/finance/invoices/${invoice.pk}/excess-to-deposit/`),
+    });
   const menuItems = [
     canEdit && { label: t("Edit"), icon: "edit", onClick: () => openForm(`/invoice/${invoice.pk}/edit/`) },
     canCredit && !isVoid && { label: t("Credit note…"), icon: "file-text", onClick: () => openForm(`/finance/invoices/${invoice.pk}/credit-notes/new/`) },
-    canCredit && !isVoid && excess_sar > 0 && {
-      label: t("Move {n} SAR overpayment to deposit…", { n: fmt(excess_sar) }),
-      icon: "file-text",
-      onClick: () =>
-        confirm({
-          title: t("Move {n} SAR to deposit?", { n: fmt(excess_sar) }),
-          message: t("What {client} paid beyond this invoice becomes their deposit. It can then pay other invoices, be transferred, or be refunded.", { client: invoice.customer_name }),
-          confirmLabel: t("Move to deposit"),
-          onConfirm: () => router.post(`/finance/invoices/${invoice.pk}/excess-to-deposit/`),
-        }),
-    },
     canCredit && can_void && { label: t("Void invoice…"), icon: "close", danger: true, separator: true, onClick: () => openForm(`/finance/invoices/${invoice.pk}/void/`) },
     perms.can("invoice", "delete") && {
       label: t("Delete invoice…"),
@@ -239,6 +237,31 @@ export default function Detail({
             </div>
           </div>
         </div>
+
+        {!isVoid && overpaid.length > 0 && (
+          <div className="hms-cl-note hms-iv-note">
+            <div className="l">
+              <span className="hms-cl-note-ico tone-yellow">!</span>
+              <p>
+                <strong>{t("Overpaid {n} SAR.", { n: fmt(excess_sar) })}</strong>{" "}
+                {overpaid.map((o) => `${o.number}: ${fmt(o.excess_sar)} SAR`).join(" · ")}.{" "}
+                {t("Allocate it to another reservation of this client, or move it to their deposit.")}
+              </p>
+            </div>
+            {canMoveMoney && (
+              <div className="hms-cl-actions">
+                {overpaid_payments.map((p) => (
+                  <a key={p.id} className="hms-rv-btn" href={`/finance/payments/${p.id}/?apply=1`}>
+                    {overpaid_payments.length > 1
+                      ? t("Reallocate {number}", { number: p.number })
+                      : t("Allocate to another reservation")}
+                  </a>
+                ))}
+                <button type="button" className="hms-rv-btn" onClick={moveExcessToDeposit}>{t("Move to deposit")}</button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="hms-cl-note hms-iv-note">
           <div className="l">

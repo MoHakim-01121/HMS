@@ -6,12 +6,12 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from hw.finance import posting, queries as fq
-from hw.finance.deposit import refund_deposit, transfer_deposit
+from hw.finance.deposit import request_refund, request_transfer
 from hw.finance.errors import FinanceError
 from hw.models import ClientRefund, ClientTransfer, Client
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account
+from hw.tests.factories import make_account, refund_now as refund_deposit, transfer_now as transfer_deposit
 
 
 class _Base(TestCase):
@@ -42,13 +42,13 @@ class RefundDocumentTest(_Base):
 
     def test_refund_cannot_exceed_the_deposit(self):
         with self.assertRaisesMessage(FinanceError, 'hanya 5,000'):
-            refund_deposit(self.a, account=make_account('sby', 'SAR'), amount_sar=6_000, amount_paid=6_000,
+            request_refund(self.a, account=make_account('sby', 'SAR'), amount_sar=6_000, amount_paid=6_000,
                            refund_date=date(2026, 3, 10), created_by=self.user)
         self.assertFalse(ClientRefund.objects.exists())
 
     def test_sar_account_pays_the_same_amount(self):
         with self.assertRaises(FinanceError):
-            refund_deposit(self.a, account=make_account('sby', 'SAR'), amount_sar=1_000, amount_paid=900,
+            request_refund(self.a, account=make_account('sby', 'SAR'), amount_sar=1_000, amount_paid=900,
                            refund_date=date(2026, 3, 10), created_by=self.user)
 
 
@@ -60,13 +60,17 @@ class DepositTransferTest(_Base):
         self.assertEqual(resp.status_code, 302)
         transfer = ClientTransfer.objects.get()
         self.assertEqual((transfer.transfer_number, transfer.amount_sar), ('DTR-' + date.today().strftime('%Y%m') + '-001', 1_500))
+        # Recorded, not yet moved: a second person (or an admin) approves it.
+        self.assertEqual(transfer.status, 'pending')
+        self.assertEqual((fq.client_credit_balance(self.a.pk), fq.client_credit_balance(self.b.pk)), (5_000, 0))
+        self.client.post(f'/finance/deposit-transfers/{transfer.pk}/confirm/')
         self.assertEqual((fq.client_credit_balance(self.a.pk), fq.client_credit_balance(self.b.pk)), (3_500, 1_500))
 
     def test_transfer_cannot_exceed_the_deposit_or_go_to_itself(self):
         with self.assertRaises(FinanceError):
-            transfer_deposit(self.a, self.b, amount_sar=9_000, transfer_date=date(2026, 3, 10), created_by=self.user)
+            request_transfer(self.a, self.b, amount_sar=9_000, transfer_date=date(2026, 3, 10), created_by=self.user)
         with self.assertRaises(FinanceError):
-            transfer_deposit(self.a, self.a, amount_sar=100, transfer_date=date(2026, 3, 10), created_by=self.user)
+            request_transfer(self.a, self.a, amount_sar=100, transfer_date=date(2026, 3, 10), created_by=self.user)
         self.assertFalse(ClientTransfer.objects.exists())
 
     def test_database_refuses_a_transfer_to_the_same_client(self):

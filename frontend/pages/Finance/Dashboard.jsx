@@ -4,6 +4,7 @@ import { fmt, fmtDateShort } from "../../utils/format.js";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { Icon } from "../../components/icons.jsx";
+import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
 
 // Finance Hub — control-room screen. One page answers the daily finance
 // questions: where is the cash, who owes us, what needs review, what still
@@ -176,6 +177,17 @@ export default function FinanceDashboard(props) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {payments?.pending_out?.length > 0 && (
+        <div className="hms-dv-card fh-card" style={{ marginBottom: 16 }}>
+          <div className="hms-dv-body">
+            <div className="hms-dv-sech">
+              <span className="hms-dv-sec-title">{t("Refunds & Transfers Awaiting Approval")} <span className="hms-dv-count">{payments.pending_out.length}</span></span>
+            </div>
+            <PendingOutTable rows={payments.pending_out} showClient />
+          </div>
         </div>
       )}
 

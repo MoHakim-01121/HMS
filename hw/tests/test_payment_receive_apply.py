@@ -22,7 +22,7 @@ from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
 from hw.finance import queries as fq
 from hw.finance import posting
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, ensure_current_period
 
 
 class ReceiveApplyFlowTest(TestCase):
@@ -51,18 +51,10 @@ class ReceiveApplyFlowTest(TestCase):
             name='2026-08', date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
         )
 
-        posting.post_entry(
-            entry_type=JournalEntry.TYPE_CHARGE,
-            description='Charge INV-APPLY-001',
-            entry_date=date(2026, 8, 10),
-            lines=[
-                {"account": coa.AR, "debit": 23000, "client": self.client_obj.pk, "invoice": self.invoice.pk},
-                {"account": coa.INC_HOTEL, "credit": 23000, "client": self.client_obj.pk, "invoice": self.invoice.pk},
-            ],
-            source_type='Invoice', source_id=self.invoice.pk,
-            idempotency_key='charge:INV-APPLY-001',
-            created_by=u,
-        )
+        # The real per-line charge, as issuing the invoice posts it: payments
+        # are capped per reservation by what its line still owes.
+        posting.post_invoice_charge(self.invoice, created_by=u, entry_date=date(2026, 8, 10))
+        ensure_current_period()  # reallocation posts its correction today
 
     def _post(self, amount, allocations=None):
         payload = {
@@ -371,8 +363,9 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         self.assertEqual(line.invoice_id, self.invoice.pk)
         self.assertEqual(line.credit, 4000)
 
-    def test_apply_deposit_requires_invoice(self):
-        """Deposit tanpa invoice_id di payload apply → ditolak."""
+    def test_apply_deposit_without_invoice_id_binds_the_reservations_invoice(self):
+        """Deposit tanpa invoice_id di payload apply → dilekatkan ke invoice
+        reservasi yang dipilih (lembar alokasi tidak lagi punya picker invoice)."""
         self._post_deposit(7000, client_id=self.client_obj.pk)
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
         self._confirm(payment)
@@ -386,6 +379,6 @@ class DepositFlowTest(ReceiveApplyFlowTest):
             ])},
         )
         payment.refresh_from_db()
-        self.assertIsNone(payment.invoice_id)
-        self.assertEqual(payment.display_status, 'received')
-        self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 0)
+        self.assertEqual(payment.invoice_id, self.invoice.pk)
+        self.assertEqual(payment.display_status, 'partially_applied')
+        self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 1)

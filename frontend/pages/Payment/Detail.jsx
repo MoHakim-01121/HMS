@@ -20,7 +20,7 @@ const extLabel = (name) => {
 
 const stayRange = (a) => fmtStay(a.check_in, a.check_out);
 
-export default function Detail({ payment = {}, reservations = [], invoice_choices = [], logs = [], journal_entries = [], receipts = [] }) {
+export default function Detail({ payment = {}, reservations = [], logs = [], journal_entries = [], receipts = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("payments", "edit");
@@ -31,7 +31,10 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
   const [confirm, confirmDialog] = useConfirm();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [applyOpen, setApplyOpen] = useState(false);
+  // Linked from an invoice's overpayment banner (?apply=1): open the sheet.
+  const [applyOpen, setApplyOpen] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("apply") === "1",
+  );
   const [tab, setTab] = useState("allocation");
   const tabRefs = useRef({});
 
@@ -132,7 +135,12 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
       header: t("Reservation"),
       render: (a) => (a.unallocatedRow
         ? muted(t("Unallocated"))
-        : <span className="hms-pd-mono">{a.reservation_number || a.service_item_name || `#${a.reservation_id || a.service_item_id}`}</span>),
+        : (
+          <span className="hms-pd-mono">
+            {a.reservation_number || a.service_item_name || `#${a.reservation_id || a.service_item_id}`}
+            {a.invoice_number && a.invoice_number !== payment.invoice_number ? muted(` · ${a.invoice_number}`) : null}
+          </span>
+        )),
     },
     {
       header: t("Hotel"),
@@ -454,7 +462,6 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
         onOpenChange={setApplyOpen}
         payment={{ id: payment.id, payment_number: payment.payment_number, amount_sar: payment.amount_sar, invoice_id: payment.invoice_id }}
         reservations={reservations}
-        invoiceChoices={invoice_choices}
         initialAllocations={payment.allocations || []}
         onApplied={() => undefined}
       />

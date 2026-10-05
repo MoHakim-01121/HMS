@@ -12,11 +12,10 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..models import (
-    ActivityLog, Client, ConfirmationLetter, Reservation, log_activity,
+    ActivityLog, Client, ConfirmationLetter, log_activity,
 )
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
-from ..finance import posting
 from ..finance_helpers import FinanceError
 from ..utils import round_half_up
 from .helpers import (
@@ -298,90 +297,6 @@ def _save_client(c, data):
     c.save()
 
 
-def _client_reservation_options(client_obj):
-    """Reservations for this client's from/to transfer pickers.
-
-    Sourced from the journal's client+reservation dimensions via
-    finance_queries.client_reservation_ids rather than Invoice.client/CL.client
-    (frequently unpopulated) or the legacy Charge table (no longer written by
-    the billing flow since the journal became the system of record).
-    """
-    reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
-    reservations = Reservation.objects.filter(pk__in=reservation_ids).select_related('invoice').order_by('-confirmation_letter__check_in')
-    return [{
-        'id': r.id,
-        'label': f'{r.reservation_number} — {r.invoice.invoice_number}',
-        'piutang': finance_queries.piutang(r.id),
-    } for r in reservations]
-
-
-@require_perm('payments', 'edit')
-def client_transfer(request, pk):
-    client_obj = get_object_or_404(Client, pk=pk)
-
-    if request.method == 'POST':
-        try:
-            from_id = int(request.POST.get('from_reservation') or 0)
-            to_id = int(request.POST.get('to_reservation') or 0)
-        except (ValueError, TypeError):
-            from_id = to_id = 0
-        amount = round_half_up(_to_float(request.POST.get('amount_sar')))
-        note = (request.POST.get('note') or '').strip()
-
-        errors = {}
-        if not from_id or not to_id:
-            errors['from_reservation'] = 'Choose both reservations.'
-        elif from_id == to_id:
-            errors['to_reservation'] = 'Choose a different reservation to move to.'
-        if amount <= 0:
-            errors['amount_sar'] = 'Enter an amount greater than zero.'
-
-        # Scoped to this client's own reservations (sumber sama dengan
-        # _client_reservation_options: dimensi jurnal client+reservation)
-        # supaya id reservasi tamper-an milik client lain tidak ikut ter-tag
-        # ke client ini.
-        client_reservation_ids = finance_queries.client_reservation_ids(client_obj.pk)
-        from_res = Reservation.objects.filter(pk=from_id).first() if from_id in client_reservation_ids else None
-        to_res = Reservation.objects.filter(pk=to_id).first() if to_id in client_reservation_ids else None
-        if from_id and not from_res:
-            errors['from_reservation'] = 'Reservation not found.'
-        if to_id and not to_res:
-            errors['to_reservation'] = 'Reservation not found.'
-
-        if not errors:
-            # Journal (Fase 5+): piutang di-re-tag antar reservasi. Shadow
-            # Allocation tidak lagi ditulis (Fase 7). Transfer berulang bisa
-            # sah, jadi tidak ada idempotency_key; POST-redirect-GET + tombol
-            # yang men-disable diri melindungi dari double-submit.
-            try:
-                posting.post_fund_transfer(
-                    client_obj, from_reservation=from_res, to_reservation=to_res,
-                    amount_sar=amount, created_by=request.user, entry_date=date.today(),
-                )
-            except FinanceError as e:
-                errors['amount_sar'] = f'Jurnal gagal dicatat: {e}'
-            else:
-                logger.info(
-                    "ledger: transfer %s SAR from reservation %s to %s (client %s)",
-                    amount, from_res.reservation_number, to_res.reservation_number, client_obj.pk,
-                )
-                log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Fund Transfer', client_obj.name)
-                messages.success(request, f'Moved {amount} SAR from {from_res.reservation_number} to {to_res.reservation_number}.')
-                return redirect('client_finance_statement', pk=pk)
-
-        return inertia_render(request, 'Finance/ClientTransfer', props={
-            'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-            'reservations': _client_reservation_options(client_obj),
-            'errors': errors,
-            'initial': {'from_reservation': from_id or '', 'to_reservation': to_id or '', 'amount_sar': request.POST.get('amount_sar', ''), 'note': note},
-        })
-
-    return inertia_render(request, 'Finance/ClientTransfer', props={
-        'client': {'pk': client_obj.pk, 'name': client_obj.name, 'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-        'reservations': _client_reservation_options(client_obj),
-    })
-
-
 @require_perm('payments', 'edit')
 def client_refund(request, pk):
     """Pay a client's fund back out of a concrete account.
@@ -425,13 +340,14 @@ def client_refund(request, pk):
             errors['proof'] = proof_error
 
     if not errors:
-        # A numbered refund document: DR Titipan / CR the account's ledger,
-        # plus the cash-book movement. Only the client's deposit can be
-        # refunded (refused beyond its balance). Repeated refunds are legal →
+        # A numbered refund document, pending: another user approves it and
+        # only then is the journal (DR Titipan / CR the account) and the
+        # cash-book movement posted. Only the client's deposit can be refunded
+        # (checked now and again on approval). Repeated refunds are legal →
         # no idempotency key; PRG + a disabled button guard double submits.
-        from ..finance.deposit import refund_deposit
+        from ..finance.deposit import request_refund
         try:
-            refund = refund_deposit(
+            refund = request_refund(
                 client_obj, account=account, amount_sar=amount, amount_paid=paid,
                 refund_date=date.today(), created_by=request.user, note=note, proof=proof,
             )
@@ -441,7 +357,7 @@ def client_refund(request, pk):
             logger.info("ledger: refund %s SAR (%s %s) to client %s from %s",
                         amount, paid, account.currency, client_obj.pk, account)
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
-            messages.success(request, f'Refund {refund.refund_number}: {amount} SAR to {client_obj.name}.')
+            messages.success(request, f'Refund {refund.refund_number}: {amount} SAR to {client_obj.name} — menunggu persetujuan user lain.')
             return redirect('client_finance_statement', pk=pk)
 
     return page(errors, {
@@ -453,7 +369,7 @@ def client_refund(request, pk):
 @require_perm('payments', 'edit')
 def client_deposit_transfer(request, pk):
     """Move part of a client's deposit to another client (a numbered document)."""
-    from ..finance.deposit import transfer_deposit
+    from ..finance.deposit import request_transfer
     client_obj = get_object_or_404(Client, pk=pk)
 
     def page(errors=None, initial=None):
@@ -479,15 +395,61 @@ def client_deposit_transfer(request, pk):
         errors['amount_sar'] = 'Enter an amount greater than zero.'
     if not errors:
         try:
-            transfer = transfer_deposit(client_obj, to_client, amount_sar=amount, transfer_date=date.today(),
+            transfer = request_transfer(client_obj, to_client, amount_sar=amount, transfer_date=date.today(),
                                         created_by=request.user, note=note)
         except FinanceError as e:
             errors['amount_sar'] = str(e)
         else:
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Deposit Transfer', transfer.transfer_number)
-            messages.success(request, f'{transfer.transfer_number}: {amount} SAR moved to {to_client.name}.')
+            messages.success(request, f'{transfer.transfer_number}: {amount} SAR to {to_client.name} — menunggu persetujuan user lain.')
             return redirect('client_finance_statement', pk=pk)
     return page(errors, {'to_client': P.get('to_client', ''), 'amount_sar': P.get('amount_sar', ''), 'note': note})
+
+
+def _decide_deposit_out(request, kind, pk, decision):
+    """Setujui / tolak refund atau transfer deposit yang pending (POST)."""
+    from ..finance import deposit
+    from ..models import ClientRefund, ClientTransfer
+    model = ClientRefund if kind == 'refund' else ClientTransfer
+    doc = get_object_or_404(model, pk=pk)
+    client_pk = doc.client_id if kind == 'refund' else doc.from_client_id
+    if request.method != 'POST':
+        return redirect('client_finance_statement', pk=client_pk)
+    number = doc.refund_number if kind == 'refund' else doc.transfer_number
+    try:
+        if decision == 'confirm':
+            (deposit.confirm_refund if kind == 'refund' else deposit.confirm_transfer)(doc, confirmed_by=request.user)
+        else:
+            (deposit.reject_refund if kind == 'refund' else deposit.reject_transfer)(
+                doc, rejected_by=request.user, reason=request.POST.get('reason', ''),
+            )
+    except FinanceError as e:
+        messages.error(request, str(e))
+    else:
+        log_activity(request.user, ActivityLog.ACTION_EDIT,
+                     'Client Refund' if kind == 'refund' else 'Client Deposit Transfer', f'{number} {decision}')
+        messages.success(request, f'{number} {"disetujui" if decision == "confirm" else "ditolak"}.')
+    return redirect('client_finance_statement', pk=client_pk)
+
+
+@require_perm('payments', 'edit')
+def client_refund_confirm(request, pk):
+    return _decide_deposit_out(request, 'refund', pk, 'confirm')
+
+
+@require_perm('payments', 'edit')
+def client_refund_reject(request, pk):
+    return _decide_deposit_out(request, 'refund', pk, 'reject')
+
+
+@require_perm('payments', 'edit')
+def client_deposit_transfer_confirm(request, pk):
+    return _decide_deposit_out(request, 'transfer', pk, 'confirm')
+
+
+@require_perm('payments', 'edit')
+def client_deposit_transfer_reject(request, pk):
+    return _decide_deposit_out(request, 'transfer', pk, 'reject')
 
 
 @require_perm('statements', 'export')

@@ -4,11 +4,36 @@ Deposit client (akun Titipan) bertambah ketika kelebihan bayar dipindahkan ke
 sana. Ia berkurang lewat dua dokumen bernomor di sini, masing-masing dengan
 satu entry jurnalnya: refund (uang dikembalikan dari sebuah rekening) dan
 transfer (deposit pindah ke client lain).
+
+Keduanya butuh dua orang: dokumen dicatat `pending` tanpa jurnal, lalu
+dikonfirmasi user lain (admin boleh menyetujui catatannya sendiri) -- baru
+saat itu jurnal diposting. Lihat hw.finance.deposit.
 """
 from django.db import models
 
 
-class ClientRefund(models.Model):
+class ApprovalStatus(models.TextChoices):
+    PENDING   = 'pending', 'Awaiting approval'
+    CONFIRMED = 'confirmed', 'Confirmed'
+    REJECTED  = 'rejected', 'Rejected'
+
+
+class Approvable(models.Model):
+    """Status persetujuan dokumen uang keluar. Jurnal hanya ada bila confirmed."""
+    status          = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+    confirmed_by    = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    confirmed_at    = models.DateTimeField(null=True, blank=True)
+    rejected_reason = models.TextField(blank=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def is_pending(self):
+        return self.status == ApprovalStatus.PENDING
+
+
+class ClientRefund(Approvable):
     refund_number = models.CharField(max_length=30, unique=True)
     client        = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='refunds')
     # Rekening yang mengeluarkan uangnya; mata uang `amount_paid` = mata uangnya.
@@ -28,6 +53,7 @@ class ClientRefund(models.Model):
         constraints = [
             models.CheckConstraint(condition=models.Q(amount_sar__gt=0), name='client_refund_amount_positive'),
             models.CheckConstraint(condition=models.Q(amount_paid__gt=0), name='client_refund_paid_positive'),
+            models.CheckConstraint(condition=models.Q(status__in=ApprovalStatus.values), name='client_refund_status_valid'),
         ]
 
     def __str__(self):
@@ -39,7 +65,7 @@ class ClientRefund(models.Model):
         return generate_sequential_number(cls, f'RFD-{on_date:%Y%m}', field='refund_number', padding=3)
 
 
-class ClientTransfer(models.Model):
+class ClientTransfer(Approvable):
     """Deposit satu client dipindahkan ke client lain."""
     transfer_number = models.CharField(max_length=30, unique=True)
     from_client     = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='deposit_transfers_out')
@@ -59,6 +85,7 @@ class ClientTransfer(models.Model):
             models.CheckConstraint(
                 condition=~models.Q(from_client=models.F('to_client')), name='client_transfer_two_clients',
             ),
+            models.CheckConstraint(condition=models.Q(status__in=ApprovalStatus.values), name='client_transfer_status_valid'),
         ]
 
     def __str__(self):

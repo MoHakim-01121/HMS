@@ -75,7 +75,6 @@ class ClientDetailViewTest(TestCase):
     def test_old_client_money_urls_redirect_to_finance(self):
         pk = self.client_obj.pk
         for old, new in (
-            (f"/clients/{pk}/transfer/", f"/finance/clients/{pk}/transfer/"),
             (f"/clients/{pk}/refund/", f"/finance/clients/{pk}/refund/"),
             (f"/clients/{pk}/statement/pdf/?mode=open", f"/finance/clients/{pk}/statement/pdf/?mode=open"),
         ):

@@ -1037,14 +1037,6 @@ def selisih_kurs():
     return _net(JournalLine.objects.filter(account_id=coa.FX_CLEARING))
 
 
-def piutang(line_id):
-    """Sisa piutang satu baris invoice = net baris Piutang ber-dimensi baris
-    itu (charge debit - payment credit) yang masih hidup."""
-    return _net(_ar_qs(invoice_line_id=line_id).exclude(
-        journal_entry_id__in=_reversed_entry_ids(),
-    ))
-
-
 def reservation_cash_breakdown():
     """Bulk per-reservation cash breakdown untuk dashboard remittance:
     {reservation_id: {terbayar_sby, terbayar_jkt, terbayar_direct,

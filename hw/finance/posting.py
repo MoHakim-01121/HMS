@@ -487,8 +487,10 @@ def _pk(v):
 
 
 def _allocation_dim(allocation):
-    """Dimensi jurnal sebuah alokasi: baris invoice yang dibayarnya."""
-    return {"invoice_line": allocation.invoice_line_id}
+    """Dimensi jurnal sebuah alokasi: baris invoice yang dibayarnya, dan
+    invoice baris itu -- yang bisa invoice lain milik client yang sama dengan
+    invoice utama pembayaran (realokasi lintas invoice)."""
+    return {"invoice_line": allocation.invoice_line_id, "invoice": allocation.invoice_line.invoice_id}
 
 
 def _payment_segments(payment):
@@ -532,7 +534,7 @@ def _payment_targets(payment):
 
 
 @transaction.atomic
-def post_payment(payment, *, created_by, idempotency_key=None):
+def post_payment(payment, *, created_by, idempotency_key=None, entry_date=None):
     """DR Kas (sesuai received_in) / CR Piutang. Idempotent per payment.
 
     Kalau payment punya PaymentAllocation → CR Piutang dipecah per alokasi
@@ -542,6 +544,8 @@ def post_payment(payment, *, created_by, idempotency_key=None):
 
     `idempotency_key` (opsional) meng-override key default. Dipakai realokasi,
     di mana jurnal lama sudah di-reverse (key default sudah terpakai & unik).
+    `entry_date` (opsional, bawaan tanggal pembayaran): realokasi memposting
+    ulang pada tanggal koreksinya.
     """
     if idempotency_key is None:
         default_key = f"payment:{payment.payment_number}:confirm"
@@ -578,7 +582,7 @@ def post_payment(payment, *, created_by, idempotency_key=None):
     entry = post_entry(
         entry_type=JournalEntry.TYPE_PAYMENT,
         description=f"Payment {payment.payment_number} - {', '.join(_payment_targets(payment)) or 'unallocated'}",
-        entry_date=payment.payment_date,
+        entry_date=entry_date or payment.payment_date,
         lines=lines,
         source_type="PaymentRecord",
         source_id=payment.pk,
@@ -685,25 +689,6 @@ def resync_remittance(remittance, *, created_by):
         post_remittance_send(remittance, amount_sar=want, created_by=created_by, entry_date=entry_date)
 
 
-@transaction.atomic
-def post_fund_transfer(client, *, from_reservation, to_reservation, amount_sar,
-                       created_by, entry_date, idempotency_key=None):
-    """Pindah piutang antar reservasi (re-tag), total piutang klien tetap."""
-    return post_entry(
-        entry_type=JournalEntry.TYPE_TRANSFER,
-        description=f"Transfer dana {from_reservation} → {to_reservation}",
-        entry_date=entry_date,
-        lines=[
-            {"account": coa.AR, "debit": amount_sar, "client": client.pk,
-             "invoice_line": getattr(to_reservation, "pk", to_reservation)},
-            {"account": coa.AR, "credit": amount_sar, "client": client.pk,
-             "invoice_line": getattr(from_reservation, "pk", from_reservation)},
-        ],
-        idempotency_key=idempotency_key,
-        created_by=created_by,
-    )
-
-
 def _allocation_target(target, payment=None):
     """Kolom PaymentAllocation untuk `target`: satu baris invoice (hotel atau
     service). Denda dibayar lewat baris hotel reservasinya, bukan sendiri."""
@@ -746,11 +731,75 @@ def allocate_payment(payment, allocations, *, created_by=None):
         raise FinanceError(
             f"Alokasi {total:,} melebihi pembayaran {payment.amount_sar:,}"
         )
+    check_allocation_caps(payment, allocations)
     rows = []
     for target, amt in allocations:
         rows.append(PaymentAllocation(payment=payment, amount_sar=int(amt), **_allocation_target(target, payment)))
     PaymentAllocation.objects.bulk_create(rows)
     return rows
+
+
+def _own_settled_by_line(payment):
+    """{pk baris invoice: yang sudah dilunasi `payment` ke baris itu} dari
+    jurnal pembayarannya yang masih hidup (kosong bila belum dikonfirmasi)."""
+    entries = _live_entries("PaymentRecord", payment.pk, JournalEntry.TYPE_PAYMENT)
+    if not entries:
+        return {}
+    rows = (
+        JournalLine.objects.filter(journal_entry__in=entries, account_id=coa.AR, invoice_line__isnull=False)
+        .values("invoice_line_id").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+    )
+    return {r["invoice_line_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
+
+
+def allocation_caps(payment, line_ids):
+    """{pk baris invoice: maksimum yang boleh dialokasikan `payment` ke baris itu}.
+
+    = sisa tagihan baris -- net seluruh baris Piutang ber-dimensi baris itu:
+    charge + denda - nota kredit - semua pembayaran/pemindahan, pembalik ikut
+    sehingga saling hapus -- ditambah yang sudah dilunasi payment ini sendiri
+    ke baris itu (alokasinya sendiri bukan "pembayaran lain")."""
+    ids = list(set(line_ids))
+    if not ids:
+        return {}
+    net = {
+        r["invoice_line_id"]: (r["d"] or 0) - (r["c"] or 0)
+        for r in JournalLine.objects.filter(account_id=coa.AR, invoice_line_id__in=ids)
+        .values("invoice_line_id").annotate(d=models.Sum("debit"), c=models.Sum("credit"))
+    }
+    own = _own_settled_by_line(payment)
+    return {pk: net.get(pk, 0) + own.get(pk, 0) for pk in ids}
+
+
+def check_allocation_caps(payment, allocations):
+    """Alokasi ke satu baris tidak boleh melebihi sisa tagihannya -- kelebihan
+    bayar tidak bisa dibuat lewat alokasi. `allocations`: [(baris, nominal)]."""
+    per_line, lines = {}, {}
+    for target, amt in allocations:
+        per_line[target.pk] = per_line.get(target.pk, 0) + int(amt)
+        lines[target.pk] = target
+    caps = allocation_caps(payment, per_line)
+    for pk, amt in per_line.items():
+        cap = caps[pk]
+        if amt > cap:
+            raise FinanceError(
+                f"Alokasi {amt:,} SAR ke {lines[pk].label} melebihi sisa tagihannya ({max(cap, 0):,} SAR)."
+            )
+
+
+def allocation_snapshot(payment):
+    """Isi alokasi payment untuk PaymentLog (jejak sebelum/sesudah)."""
+    return [
+        {
+            "invoice_line_id": a.invoice_line_id,
+            "label": a.invoice_line.label,
+            "invoice": a.invoice_line.invoice.invoice_number,
+            "amount_sar": a.amount_sar,
+        }
+        for a in payment.allocations.select_related(
+            "invoice_line__invoice", "invoice_line__confirmation_letter__hotel", "invoice_line__penalty",
+        ).order_by("pk")
+    ]
 
 
 # ── Kelebihan bayar → deposit client ───────────────────────────
@@ -861,17 +910,29 @@ def post_adjustment(*, lines, description, entry_date, created_by,
 
 
 @transaction.atomic
-def reallocate_payment(payment, allocations, *, created_by):
+def reallocate_payment(payment, allocations, *, created_by, log_action=None, note=""):
     """Ubah alokasi payment yang sudah efektif (confirmed/allocated).
 
     Append-only ledger: jurnal payment yang live di-reverse, PaymentAllocation
     lama diganti, lalu diposting ulang dengan dimensi baru supaya baris CR
-    Piutang menempel ke reservasi/service yang benar.
+    Piutang menempel ke baris invoice yang benar -- boleh baris dari invoice
+    lain milik client yang sama.
 
-    `allocations`: iterable (target, amount_sar) — lihat allocate_payment.
-    Total alokasi baru tidak boleh melebihi amount_sar payment.
+    Koreksi bertanggal hari ini (pembalik dan posting ulang), bukan tanggal
+    pembayaran: realokasi pembayaran di bulan yang sudah ditutup tetap bisa,
+    dan angka bulan lalu tidak berubah diam-diam. Kas tidak bergerak karena
+    nilainya sama; yang pindah hanya piutang antar baris. Baris buku bank
+    pembayaran tetap satu (record_bank_transaction unik per sumber).
+
+    `allocations`: iterable (target, amount_sar) -- lihat allocate_payment.
+    Total alokasi baru tidak boleh melebihi amount_sar payment, dan alokasi
+    ke satu baris tidak melebihi sisa tagihannya (check_allocation_caps).
+    Mengembalikan payment yang sudah dimuat ulang.
     """
     from .errors import PaymentAlreadyProcessedError
+    # Kunci baris pembayaran: Reallocate dan Move to deposit yang berjalan
+    # bersamaan tidak boleh sama-sama membaca deposited_sar yang basi.
+    payment = PaymentRecord.objects.select_for_update().get(pk=payment.pk)
     if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
         raise PaymentAlreadyProcessedError(
             f"Payment {payment.payment_number} harus efektif dulu "
@@ -885,12 +946,15 @@ def reallocate_payment(payment, allocations, *, created_by):
             f"Alokasi {total:,} melebihi pembayaran {payment.amount_sar:,}"
             + (f" (sudah {payment.deposited_sar:,} dipindah ke deposit)" if payment.deposited_sar else "")
         )
+    check_allocation_caps(payment, allocations)
+
+    today = timezone.now().date()
+    before = allocation_snapshot(payment)
 
     # Reverse live payment journal entry(ies).
     for entry in _live_entries("PaymentRecord", payment.pk, JournalEntry.TYPE_PAYMENT):
         reverse_entry(
-            entry, reversal_date=payment.payment_date or timezone.now().date(),
-            created_by=created_by,
+            entry, reversal_date=today, created_by=created_by,
             note=f"Reallocation of {payment.payment_number}",
         )
 
@@ -904,12 +968,14 @@ def reallocate_payment(payment, allocations, *, created_by):
     # default key (payment:...:confirm) is still held by the now-reversed
     # original entry, and idempotency_key is unique.
     repost_key = f"payment:{payment.payment_number}:realloc:{timezone.now().timestamp()}"
-    post_payment(payment, created_by=created_by, idempotency_key=repost_key)
+    post_payment(payment, created_by=created_by, idempotency_key=repost_key, entry_date=today)
 
     PaymentLog.objects.create(
         payment=payment,
-        action=PaymentLog.ACTION_ALLOCATED,
+        action=log_action or PaymentLog.ACTION_ALLOCATED,
+        before_state={"allocations": before},
+        after_state={"allocations": allocation_snapshot(payment)},
         performed_by=created_by,
-        note=f"Reallocated {payment.payment_number}",
+        note=note or f"Reallocated {payment.payment_number}",
     )
     return payment

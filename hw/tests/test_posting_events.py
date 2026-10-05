@@ -114,6 +114,7 @@ class PaymentPostingTests(PostingTestBase):
             posting.post_payment_from_credit(p, created_by=self.user)
 
     def test_allocate_payment_writes_rows_no_journal(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
         p = self._payment()
         before = JournalEntry.objects.count()
         posting.allocate_payment(p, [(self.res, 100000)], created_by=self.user)
@@ -136,27 +137,14 @@ class KasMovementTests(PostingTestBase):
             ],
             description="setoran titipan", entry_date=date(2045, 1, 3), created_by=self.user,
         )
-        from hw.finance.deposit import refund_deposit
         from hw.models import CashAccount
-        refund_deposit(
+        from hw.tests.factories import refund_now
+        refund_now(
             self.client_obj, account=CashAccount.objects.get(branch_id="pusat", currency="SAR"),
             amount_sar=20000, amount_paid=20000, created_by=self.user, refund_date=date(2045, 1, 10),
         )
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 0)
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 0)
-
-    def test_fund_transfer_keeps_client_receivable_total(self):
-        r2 = make_hotel_line(
-            invoice=self.invoice, reservation_number="R-P2", total_sar=0,
-        )
-        posting.post_invoice_charge(self.invoice, created_by=self.user)
-        before = _net(account_id=coa.AR, client_id=self.client_obj.pk)
-        posting.post_fund_transfer(
-            self.client_obj, from_reservation=self.res, to_reservation=r2,
-            amount_sar=30000, created_by=self.user, entry_date=date(2045, 4, 1),
-        )
-        self.assertEqual(_net(account_id=coa.AR, client_id=self.client_obj.pk), before)
-        self.assertEqual(_net(account_id=coa.AR, invoice_line=r2), 30000)
 
     def test_remittance_send_then_receive_with_fee(self):
         from hw.finance import settlement_service

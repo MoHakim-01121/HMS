@@ -47,6 +47,9 @@ class DeadPaymentAllocationTests(TestCase):
         self.foreign_res = make_hotel_line(
             invoice=other_invoice, reservation_number='DEAD-R9', total_sar=5000,
         )
+        # Issued invoices carry their per-line charge; allocations are capped by it.
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        posting.post_invoice_charge(other_invoice, created_by=self.user)
 
     def _payment(self, invoice, amount=6000, allocate=True, confirm=True):
         pr = create_payment_record(
@@ -87,12 +90,17 @@ class DeadPaymentAllocationTests(TestCase):
     # -- 3: deposit apply ----------------------------------------------------
 
     def test_refused_deposit_apply_leaves_deposit_unbound(self):
+        # A reservation of another client is refused (the same client's other
+        # invoices are allowed: a payment may be applied across them).
         deposit = self._payment(None, allocate=False)
         self.assertIsNone(deposit.invoice_id)
+        stranger_invoice = make_invoice(invoice_type='hotel', invoice_number='INV-DEAD-X', customer_name='PT Stranger')
+        stranger_res = make_hotel_line(invoice=stranger_invoice, reservation_number='DEAD-X1', total_sar=5000)
+        posting.post_invoice_charge(stranger_invoice, created_by=self.user)
 
         self.client.post(f'/finance/payments/{deposit.pk}/apply/', {
             'invoice_id': str(self.invoice.pk),
-            'allocations': json.dumps([{'reservation_id': self.foreign_res.pk, 'amount': 3000}]),
+            'allocations': json.dumps([{'reservation_id': stranger_res.pk, 'amount': 3000}]),
         })
 
         deposit.refresh_from_db()

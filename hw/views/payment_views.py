@@ -79,8 +79,9 @@ def _payment_props(p):
             'check_out': a.reservation.check_out.isoformat() if a.reservation and a.reservation.check_out else None,
             'service_item_id': a.service_item_id,
             'service_item_name': a.service_item.name if a.service_item else None,
+            'invoice_number': a.invoice_line.invoice.invoice_number,
             'amount_sar': a.amount_sar,
-        } for a in p.allocations.select_related('invoice_line__confirmation_letter__hotel')],
+        } for a in p.allocations.select_related('invoice_line__confirmation_letter__hotel', 'invoice_line__invoice')],
         'unallocated_sar': unallocated,
         'allocated_sar': allocated,
         'deposited_sar': p.deposited_sar,
@@ -173,19 +174,22 @@ def _invoice_choices(queryset):
     return out
 
 
-def _resolve_target_invoice(payment, data, request):
-    """Deposit (pembayaran tanpa invoice): cari invoice tujuan alokasi.
+def _resolve_target_invoice(payment, data, request, targets=()):
+    """Deposit (pembayaran tanpa invoice): invoice utama yang dilekatkan.
 
-    Mengembalikan Invoice target, atau None (pesan error sudah dipasang).
-    TIDAK menyimpan apa pun -- pemanggil melekatkan invoice lewat
-    _attach_invoice di dalam transaksi yang sama dengan alokasinya. Dulu
-    invoice disimpan di sini, sebelum reservasi divalidasi: request yang
-    kemudian ditolak meninggalkan deposit menempel permanen ke invoice itu.
+    `invoice_id` yang dikirim dipakai bila ada (harus milik client
+    pembayaran ini); tanpa itu, invoice dari alokasi terbesarnya. Mengembalikan
+    Invoice, atau None (pesan error sudah dipasang). TIDAK menyimpan apa pun --
+    pemanggil melekatkan lewat _attach_invoice di dalam transaksi yang sama
+    dengan alokasinya, supaya permintaan yang ditolak tidak meninggalkan
+    deposit menempel ke invoice itu.
     """
     if payment.invoice_id:
         return payment.invoice
     invoice_id = data.get('invoice_id')
     if not invoice_id:
+        if targets:
+            return max(targets, key=lambda t: t[1])[0].invoice
         messages.error(
             request,
             'Pilih invoice tujuan untuk pembayaran deposit ini.',
@@ -405,6 +409,40 @@ def payment_list(request):
     })
 
 
+def _allocatable_reservations(payment):
+    """Baris hotel yang bisa menerima alokasi pembayaran ini, per invoice:
+    invoice utamanya, invoice yang sudah ia alokasikan, lalu invoice lain
+    milik client yang masih terbuka (maks. 30). Invoice void dilewati.
+
+    `max_sar` tiap baris = batas untuk pembayaran ini (posting.allocation_caps):
+    sisa tagihan baris ditambah yang sudah dibayar pembayaran ini sendiri ke
+    baris itu. `remaining_int` (sisa tagihan sekarang) bisa negatif =
+    kelebihan bayar."""
+    from .context import _build_reservation_context
+    invoices, seen = [], set()
+
+    def add(inv):
+        if inv is not None and inv.pk not in seen and not inv.is_void:
+            seen.add(inv.pk)
+            invoices.append(inv)
+
+    add(payment.invoice)
+    allocated = payment.allocations.values_list('invoice_line__invoice_id', flat=True)
+    for inv in Invoice.objects.filter(pk__in=list(allocated)).order_by('-created_at'):
+        add(inv)
+    for inv in _open_invoices(Invoice.objects.filter(client_id=payment.client_id), limit=30):
+        add(inv)
+
+    rows = []
+    for inv in invoices:
+        for row in _build_reservation_context(inv):
+            rows.append({**row, 'invoice_id': inv.pk, 'invoice_number': inv.invoice_number})
+    caps = posting.allocation_caps(payment, [r['id'] for r in rows])
+    for row in rows:
+        row['max_sar'] = max(caps.get(row['id'], 0), 0)
+    return rows
+
+
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
     payment = get_object_or_404(
@@ -416,19 +454,7 @@ def payment_detail(request, pk):
     # Get related journal entries
     journal_entries = JournalEntry.objects.for_source('PaymentRecord', payment.pk).order_by('-entry_date')
 
-    # Reservations for post-hoc allocation (unallocated payment). Filter to the
-    # payment's own invoice only, so a user can't allocate a payment to a
-    # reservation on another invoice.
-    from .context import _build_reservation_context
-    reservations = []
-    invoice_choices = []
-    if payment.invoice_id:
-        reservations = _build_reservation_context(payment.invoice)
-    else:
-        # Deposit (tanpa invoice): tawarkan invoice milik client ini sebagai
-        # target distribusi nanti — tersaring ke draft/sent/partial supaya
-        # daftarnya pendek dan hanya invoice yang masih punya saldo.
-        invoice_choices = _invoice_choices(_open_invoices(Invoice.objects.filter(client=payment.client)))
+    reservations = _allocatable_reservations(payment)
 
     # Receipts (kwitansi) auto-generated for this payment.
     from ..models import Receipt
@@ -443,7 +469,6 @@ def payment_detail(request, pk):
     return inertia_render(request, 'Payment/Detail', props={
         'payment': _payment_props(payment),
         'reservations': reservations,
-        'invoice_choices': invoice_choices,
         'receipts': receipts,
         'logs': [{
             'action': l.action,
@@ -789,13 +814,73 @@ def payment_reject(request, pk):
     return redirect('payment_detail', pk=pk)
 
 
-@require_perm('payments', 'edit')
-def payment_reallocate(request, pk):
-    """Reallokasi alokasi payment yang sudah efektif (confirmed/allocated).
+def _request_allocations(request):
+    """(data, allocations) dari body permintaan alokasi.
 
-    Body (JSON or form): allocations = [{"reservation_id": 1, "amount": 5000}, ...]
-    Sisa yang tidak dialokasikan tetap mengambang (unallocated).
-    """
+    Inertia/axios mengirim JSON (request.POST kosong); multipart/urlencoded
+    lewat request.POST. Pada POST multipart request.body sudah habis dibaca
+    oleh request.POST dan melempar RawPostDataException -- bukan ValueError --
+    jadi harus ditangkap supaya tidak jadi 500. `allocations` None berarti
+    formatnya tidak valid."""
+    data = request.POST
+    if not data.get('allocations'):
+        try:
+            body = json.loads(request.body) if request.body else None
+            if isinstance(body, dict):
+                data = body
+        except (json.JSONDecodeError, ValueError, RawPostDataException):
+            pass
+    raw = data.get('allocations', '')
+    try:
+        allocations = json.loads(raw) if isinstance(raw, str) and raw else (raw or [])
+    except (json.JSONDecodeError, ValueError):
+        allocations = None
+    return data, allocations
+
+
+def _allocation_targets(payment, allocations, request):
+    """[(baris hotel, nominal)] dari isian alokasi.
+
+    Baris boleh dari invoice mana pun milik client pembayaran ini, selama
+    invoice dan barisnya tidak void (realokasi lintas invoice). Baris yang
+    tidak dikenal ditolak, bukan dibuang diam-diam -- selisihnya akan
+    mengambang tanpa peringatan. Mengembalikan None bila ditolak (pesan
+    error sudah dipasang)."""
+    from ..models import Reservation
+    targets, unknown = [], []
+    for alloc in allocations:
+        amount = round_half_up(_to_float(alloc.get('amount', 0)))
+        if amount <= 0:
+            continue
+        try:
+            line_id = int(alloc.get('reservation_id'))
+        except (TypeError, ValueError):
+            line_id = None
+        line = None
+        if line_id:
+            line = (
+                Reservation.objects.select_related('invoice', 'confirmation_letter')
+                .filter(pk=line_id, voided_at__isnull=True, invoice__client_id=payment.client_id)
+                .exclude(invoice__status=Invoice.STATUS_VOID)
+                .first()
+            )
+        if line is None:
+            unknown.append(str(alloc.get('reservation_id')))
+            continue
+        targets.append((line, amount))
+    if unknown:
+        messages.error(
+            request,
+            f'Reservasi berikut bukan milik client pembayaran ini: {", ".join(unknown)}.',
+        )
+        return None
+    return targets
+
+
+def _save_allocations(request, pk, *, require_targets, log_action, success):
+    """Apply / Reallocate: ganti alokasi pembayaran efektif lewat
+    posting.reallocate_payment (pembalik + posting ulang bertanggal hari ini,
+    batas per baris, log sebelum/sesudah)."""
     payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
@@ -805,66 +890,65 @@ def payment_reallocate(request, pk):
             request,
             f'Payment {payment.payment_number} berstatus '
             f'{payment.display_status_label}. Hanya payment efektif yang bisa '
-            'direalokasi.',
+            'dialokasikan.',
         )
         return redirect('payment_detail', pk=pk)
 
-    if request.content_type and 'multipart/form-data' in request.content_type:
-        data = request.POST
-    else:
-        try:
-            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-        except (json.JSONDecodeError, ValueError):
-            data = request.POST
-
-    raw = data.get('allocations', '')
-    try:
-        allocations = json.loads(raw) if isinstance(raw, str) else raw or []
-    except (json.JSONDecodeError, ValueError):
-        allocations = []
-
-    from ..models import Reservation
-    from ..finance import posting
-
-    # Deposit (tanpa invoice): lekatkan dulu ke invoice tujuan.
-    target_invoice = _resolve_target_invoice(payment, data, request)
-    if target_invoice is None:
+    data, allocations = _request_allocations(request)
+    if allocations is None:
+        messages.error(request, 'Format alokasi tidak valid.')
+        return redirect('payment_detail', pk=pk)
+    if require_targets and not allocations:
+        messages.error(request, 'Alokasi tidak boleh kosong.')
         return redirect('payment_detail', pk=pk)
 
-    # See payment_record: a mismatched reservation is refused, not dropped.
-    targets = []
-    unknown = []
-    for alloc in allocations:
-        amt = _to_float(alloc.get('amount', 0))
-        if not amt or amt <= 0:
-            continue
-        reservation = Reservation.objects.filter(
-            pk=alloc.get('reservation_id'), invoice=target_invoice, voided_at__isnull=True,
-        ).first()
-        if reservation is None:
-            unknown.append(str(alloc.get('reservation_id')))
-            continue
-        targets.append((reservation, round_half_up(_to_float(alloc.get('amount', 0)))))
-    if unknown:
+    targets = _allocation_targets(payment, allocations, request)
+    if targets is None:
+        return redirect('payment_detail', pk=pk)
+    if require_targets and not targets:
+        messages.error(request, 'Tidak ada alokasi yang valid.')
+        return redirect('payment_detail', pk=pk)
+
+    total = sum(amount for _, amount in targets)
+    if total > payment.amount_sar:
         messages.error(
             request,
-            f'Reservasi berikut bukan milik invoice payment ini: {", ".join(unknown)}.',
+            f'Total alokasi ({total:,}) melebihi jumlah pembayaran ({payment.amount_sar:,}).',
         )
         return redirect('payment_detail', pk=pk)
+
+    # Deposit (tanpa invoice): lekatkan ke invoice utama di transaksi yang sama.
+    header = payment.invoice
+    if header is None and (targets or data.get('invoice_id')):
+        header = _resolve_target_invoice(payment, data, request, targets)
+        if header is None:
+            return redirect('payment_detail', pk=pk)
 
     from django.db import transaction
     try:
         with transaction.atomic():
-            _attach_invoice(payment, target_invoice)
-            posting.reallocate_payment(payment, targets, created_by=request.user)
-        messages.success(
-            request,
-            f'Payment {payment.payment_number} berhasil direalokasi.',
-        )
+            if header is not None:
+                _attach_invoice(payment, header)
+            posting.reallocate_payment(
+                payment, targets, created_by=request.user,
+                log_action=log_action,
+                note=f'{len(targets)} reservation(s), {total:,} SAR',
+            )
     except FinanceError as e:
         messages.error(request, str(e))
-
+    else:
+        messages.success(request, success.format(number=payment.payment_number))
     return redirect('payment_detail', pk=pk)
+
+
+@require_perm('payments', 'edit')
+def payment_reallocate(request, pk):
+    """Realokasi payment efektif. Body: allocations = [{"reservation_id", "amount"}].
+    Daftar kosong boleh: semua jadi belum teralokasi (lalu bisa ke deposit)."""
+    return _save_allocations(
+        request, pk, require_targets=False, log_action=PaymentLog.ACTION_ALLOCATED,
+        success='Payment {number} berhasil direalokasi.',
+    )
 
 
 def _retire_payment(payment, *, status, action, reversal_date, journal_note, user):
@@ -952,133 +1036,12 @@ def payment_reverse(request, pk):
 
 @require_perm('payments', 'edit')
 def payment_apply(request, pk):
-    """Apply / allocate an existing payment to reservations.
-
-    POST only. Accepts ``allocations`` JSON: ``[{"reservation_id": N, "amount": M}]``.
-
-    Validates:
-    - payment is in an effective (journal-posted) status — any of
-      received / confirmed / allocated / partially_applied / applied
-    - reservations belong to the payment's invoice
-    - total allocations <= payment amount_sar
-
-    Then reverses the old journal, replaces allocations, and reposts with
-    new reservation dims via ``reallocate_payment``.
-    """
-    if request.method != 'POST':
-        return redirect('payment_detail', pk=pk)
-
-    payment = get_object_or_404(PaymentRecord, pk=pk)
-
-    # Any effective status can be (re-)applied — matches reallocate_payment,
-    # so a legacy confirmed/allocated payment (which the UI lets the user
-    # re-apply) is accepted here instead of being silently refused.
-    if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
-        messages.error(
-            request,
-            f'Payment {payment.payment_number} berstatus '
-            f'{payment.display_status_label} dan tidak bisa dialokasi.',
-        )
-        return redirect('payment_detail', pk=pk)
-
-    # Parse body — Inertia/axios sends JSON (request.POST is then empty), so
-    # fall back to request.body when POST carries no allocations. This covers
-    # multipart (proof uploads), urlencoded (tests/curl), and JSON regardless
-    # of charset parameters. On a multipart POST request.POST has already
-    # consumed the stream, so request.body raises RawPostDataException -- an
-    # Exception, not a ValueError, so it escapes an except that lists only
-    # ValueError and turns a missing-allocations request into a 500.
-    data = request.POST
-    if not data.get('allocations'):
-        try:
-            body = json.loads(request.body) if request.body else None
-            if isinstance(body, dict):
-                data = body
-        except (json.JSONDecodeError, ValueError, RawPostDataException):
-            pass
-
-    raw = data.get('allocations', '')
-    if not raw:
-        messages.error(request, 'Alokasi tidak boleh kosong.')
-        return redirect('payment_detail', pk=pk)
-    try:
-        allocs = json.loads(raw) if isinstance(raw, str) else raw
-    except (json.JSONDecodeError, ValueError):
-        messages.error(request, 'Format alokasi tidak valid.')
-        return redirect('payment_detail', pk=pk)
-
-    valid_allocs = [
-        a for a in allocs
-        if _to_float(a.get('amount', 0)) and _to_float(a.get('amount', 0)) > 0
-    ]
-    if not valid_allocs:
-        messages.error(request, 'Tidak ada alokasi yang valid.')
-        return redirect('payment_detail', pk=pk)
-
-    total_alloc = sum(round_half_up(_to_float(a['amount'])) for a in valid_allocs)
-    if total_alloc > payment.amount_sar:
-        messages.error(
-            request,
-            f'Total alokasi ({total_alloc:,}) melebihi jumlah pembayaran '
-            f'({payment.amount_sar:,}).',
-        )
-        return redirect('payment_detail', pk=pk)
-
-    # Resolve Reservation objects — must belong to the same invoice.
-    from ..models import Reservation
-    # Deposit (tanpa invoice): lekatkan dulu ke invoice tujuan sebelum
-    # alokasi, supaya reservasi difilter terhadap invoice yang benar.
-    target_invoice = _resolve_target_invoice(payment, data, request)
-    if target_invoice is None:
-        return redirect('payment_detail', pk=pk)
-    # See payment_record: total_alloc above was validated against the
-    # unfiltered list, so silently dropping a row here would leave the
-    # difference floating with no warning.
-    targets = []
-    unknown = []
-    for a in valid_allocs:
-        res = Reservation.objects.filter(
-            pk=a.get('reservation_id'), invoice=target_invoice, voided_at__isnull=True,
-        ).first()
-        if res is None:
-            unknown.append(str(a.get('reservation_id')))
-            continue
-        targets.append((res, round_half_up(_to_float(a['amount']))))
-
-    if unknown:
-        messages.error(
-            request,
-            f'Reservasi berikut bukan milik invoice payment ini: {", ".join(unknown)}.',
-        )
-        return redirect('payment_detail', pk=pk)
-
-    if not targets:
-        messages.error(request, 'Tidak ada reservasi yang valid untuk alokasi ini.')
-        return redirect('payment_detail', pk=pk)
-
-    from django.db import transaction
-    try:
-        old_state = _payment_snapshot(payment)
-        with transaction.atomic():
-            _attach_invoice(payment, target_invoice)
-            posting.reallocate_payment(
-                payment, targets, created_by=request.user,
-            )
-
-        PaymentLog.objects.create(
-            payment=payment,
-            action=PaymentLog.ACTION_APPLIED,
-            before_state=old_state,
-            after_state=_payment_snapshot(payment),
-            performed_by=request.user,
-            note=f'Applied to {len(targets)} reservation(s)',
-        )
-
-
-    except FinanceError as e:
-        messages.error(request, str(e))
-
-    return redirect('payment_detail', pk=pk)
+    """Alokasikan payment efektif ke reservasi (minimal satu). Body sama dengan
+    payment_reallocate; reservasi boleh dari invoice lain milik client yang sama."""
+    return _save_allocations(
+        request, pk, require_targets=True, log_action=PaymentLog.ACTION_APPLIED,
+        success='Payment {number} berhasil dialokasikan.',
+    )
 
 
 @require_perm('payments', 'edit')

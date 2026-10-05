@@ -17,7 +17,7 @@ from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
 from hw.finance import queries as fq
 from hw.finance import posting
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import make_hotel_line, make_invoice, ensure_current_period
 
 
 class PaymentReallocateTest(TestCase):
@@ -47,18 +47,10 @@ class PaymentReallocateTest(TestCase):
         )
 
         # Charge invoice so AR + paid math works
-        posting.post_entry(
-            entry_type=JournalEntry.TYPE_CHARGE,
-            description='Charge INV-REALLOC-001',
-            entry_date=date(2026, 8, 10),
-            lines=[
-                {"account": coa.AR, "debit": 23000, "client": c.pk, "invoice": self.invoice.pk},
-                {"account": coa.INC_HOTEL, "credit": 23000, "client": c.pk, "invoice": self.invoice.pk},
-            ],
-            source_type='Invoice', source_id=self.invoice.pk,
-            idempotency_key='charge:INV-REALLOC-001',
-            created_by=u,
-        )
+        # The real per-line charge, as issuing the invoice posts it: payments
+        # are capped per reservation by what its line still owes.
+        posting.post_invoice_charge(self.invoice, created_by=u, entry_date=date(2026, 8, 10))
+        ensure_current_period()  # reallocation posts its correction today
 
     def _record_unallocated(self, amount_sar=20000):
         """Create an effective (confirmed+allocated) payment with NO allocations."""

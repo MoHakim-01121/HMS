@@ -41,6 +41,9 @@ class MultiAllocationSaveTest(TestCase):
         FinancialPeriod.objects.create(
             name='2026-08', date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
         )
+        # Issued invoices carry their per-line charge; allocations are capped by it.
+        from hw.finance import posting
+        posting.post_invoice_charge(self.invoice, created_by=u, entry_date=date(2026, 8, 10))
 
     def _post(self, amount, allocations, currency='SAR', exchange_rate='1'):
         payload = {
@@ -88,28 +91,28 @@ class MultiAllocationSaveTest(TestCase):
     def test_non_sar_amount_keeps_original_currency_and_rate_for_analysis(self):
         from hw.tests.factories import make_account
         make_account('sby', 'IDR')
-        # 48,000,000 IDR @ 4800 == 10,000 SAR (riyal patokan), split in SAR.
+        # 14,400,000 IDR @ 4800 == 3,000 SAR (riyal patokan), split in SAR.
         # This is the regression case: allocation is in SAR (patokan riyal),
         # while the payment record keeps the IDR amount + rate for analysis.
-        resp = self._post(48_000_000, [
-            {'reservation_id': self.r1.pk, 'amount': 6000},
-            {'reservation_id': self.r2.pk, 'amount': 4000},
+        resp = self._post(14_400_000, [
+            {'reservation_id': self.r1.pk, 'amount': 1000},
+            {'reservation_id': self.r2.pk, 'amount': 2000},
         ], currency='IDR', exchange_rate='4800')
 
         payments = list(PaymentRecord.objects.filter(invoice=self.invoice))
         self.assertEqual(len(payments), 1)
         p = payments[0]
         # Kurs & nominal asli dipertahankan untuk analisis...
-        self.assertEqual(p.amount, 48_000_000)
+        self.assertEqual(p.amount, 14_400_000)
         self.assertEqual(p.currency, 'IDR')
         self.assertEqual(float(p.exchange_rate), 4800.0)
         # ...sementara nilai SAR (riyal patokan) dihitung via convert_to_sar.
-        self.assertEqual(p.amount_sar, 10000)
+        self.assertEqual(p.amount_sar, 3000)
 
         allocs = list(PaymentAllocation.objects.filter(payment=p).order_by('invoice_line_id'))
         self.assertEqual(
             [(a.reservation_id, a.amount_sar) for a in allocs],
-            [(self.r1.pk, 6000), (self.r2.pk, 4000)],
+            [(self.r1.pk, 1000), (self.r2.pk, 2000)],
         )
         self.assertTrue(all(a.amount_sar <= p.amount_sar for a in allocs))
         self.assertEqual(sum(a.amount_sar for a in allocs), p.amount_sar)

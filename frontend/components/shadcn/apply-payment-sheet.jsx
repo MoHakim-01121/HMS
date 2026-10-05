@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { router } from "@inertiajs/react";
 import {
   Dialog, DialogCloseButton, DialogContent, DialogTitle,
 } from "./ui/dialog.jsx";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "./ui/select.jsx";
 import { showToast } from "./toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -31,9 +28,6 @@ const CSS = `
 
 .apply-summary { display:flex; flex-direction:column; gap:13px; }
 
-.apply-inv { display:flex; flex-direction:column; gap:6px; margin:0 0 20px; }
-.apply-inv label { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--muted-foreground); }
-.apply-inv-hint { margin:0; font-size:12px; color:var(--muted-foreground); }
 
 .apply-track { height:8px; border-radius:999px; background:color-mix(in oklch, var(--muted) 70%, transparent); overflow:hidden; }
 .apply-track-fill { height:100%; border-radius:999px; background:var(--primary); transition:width 200ms ease; }
@@ -70,7 +64,13 @@ const CSS = `
 
 .apply-list { border:1px solid var(--border); border-radius:14px; background:var(--card); overflow:hidden; }
 .apply-row { display:flex; align-items:center; gap:14px; padding:11px 14px; }
-.apply-row + .apply-row { border-top:1px solid var(--border); }
+.apply-row + .apply-row, .apply-group + .apply-row { border-top:1px solid var(--border); }
+.apply-group {
+  padding:8px 14px; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted-foreground); background:color-mix(in oklch, var(--muted) 45%, var(--card));
+}
+.apply-row + .apply-group { border-top:1px solid var(--border); }
+.apply-row-rem.is-over strong { color:var(--red); }
 .apply-row-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .apply-row-no { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--foreground); }
 .apply-row-sub { font-size:11.5px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -107,39 +107,32 @@ const CSS = `
  * Props:
  *  - open / onOpenChange
  *  - payment: { id, amount_sar, payment_number, invoice_id }
- *  - reservations: [{ id, number, hotel, remaining_int }]
- *  - invoiceChoices: [{ id, label, client_id, remaining, reservations }] —
- *    only for deposit payments (payment.invoice_id is falsy): the sheet shows
- *    a target-invoice picker, and `invoice_id` is sent with the apply payload.
+ *  - reservations: [{ id, number, hotel, remaining_int, max_sar, invoice_id,
+ *    invoice_number }] — hotel lines across the client's invoices (the
+ *    payment's own first, see payment_views._allocatable_reservations).
+ *    `max_sar` is this payment's cap on the line: what is still owed plus
+ *    what this payment already put there, so a reservation amended down
+ *    (15,000 → 13,000) can still keep 13,000 and send the rest elsewhere.
+ *    `remaining_int` < 0 is an overpayment.
  *  - initialAllocations: [{ reservation_id, amount_sar }] to prefill when
  *    re-applying an already-allocated payment
  *  - onApplied: callback after a successful apply
  */
 export default function ApplyPaymentSheet({
-  open, onOpenChange, payment, reservations, initialAllocations = [], invoiceChoices = [], onApplied,
+  open, onOpenChange, payment, reservations = [], initialAllocations = [], onApplied,
 }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("payments", "edit");
 
   const [amounts, setAmounts] = useState({});
-  const [invId, setInvId] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const total = payment?.amount_sar ?? 0;
-  const isDeposit = !payment?.invoice_id;
-  const chosenInvoice = isDeposit
-    ? (invoiceChoices || []).find((i) => String(i.id) === String(invId))
-    : null;
-  const resRows = isDeposit ? (chosenInvoice?.reservations || []) : reservations;
+  const resRows = reservations || [];
+  const capOf = (res) => res.max_sar ?? res.remaining_int;
 
-  // Reset the target-invoice picker each time the sheet opens.
-  useEffect(() => {
-    if (open) setInvId(null);
-  }, [open]);
-
-  // Seed allocations each time the sheet opens — or, for a deposit, each time
-  // a target invoice is chosen, since the allocatable rows change with it.
+  // Seed allocations each time the sheet opens.
   useEffect(() => {
     if (!open) return;
     const init = {};
@@ -151,11 +144,11 @@ export default function ApplyPaymentSheet({
     } else if (resRows.length === 1) {
       // Auto-apply: single reservation → fill the full payment.
       const only = resRows[0];
-      init[only.id] = String(Math.min(total, only.remaining_int ?? total));
+      init[only.id] = String(Math.min(total, capOf(only) ?? total));
     }
     setAmounts(init);
     setBusy(false);
-  }, [open, isDeposit, invId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const parse = (v) => {
     if (v == null || v === "") return 0;
@@ -171,7 +164,7 @@ export default function ApplyPaymentSheet({
 
   const rowOver = (res) => {
     const v = parse(amounts[res.id]);
-    const max = res.remaining_int;
+    const max = capOf(res);
     return max != null && v > max ? max : null;
   };
   const err = allocated > total ? t("Allocation exceeds payment amount") : null;
@@ -182,7 +175,7 @@ export default function ApplyPaymentSheet({
     const next = {};
     for (const res of resRows) {
       if (left <= 0) break;
-      const take = Math.min(res.remaining_int ?? 0, left);
+      const take = Math.min(capOf(res) ?? 0, left);
       if (take > 0) next[res.id] = String(take);
       left -= take;
     }
@@ -207,10 +200,7 @@ export default function ApplyPaymentSheet({
     setBusy(true);
     router.post(
       `/finance/payments/${payment.id}/apply/`,
-      {
-        allocations: JSON.stringify(allocs),
-        ...(isDeposit ? { invoice_id: invId } : {}),
-      },
+      { allocations: JSON.stringify(allocs) },
       {
         onSuccess: () => {
           setBusy(false);
@@ -252,25 +242,6 @@ export default function ApplyPaymentSheet({
           </div>
 
           <div className="hms-modal-body">
-            {isDeposit && (
-              <div className="apply-inv">
-                <label htmlFor="apply-inv">{t("Target invoice")}</label>
-                <Select value={invId || ""} onValueChange={setInvId} disabled={busy || !canEdit}>
-                  <SelectTrigger id="apply-inv" className="w-full">
-                    <SelectValue placeholder={t("Select an invoice...")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(invoiceChoices || []).map((inv) => (
-                      <SelectItem key={inv.id} value={String(inv.id)}>
-                        {inv.label} ({inv.remaining?.toLocaleString("en-US")} SAR)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="apply-inv-hint">{t("Pick the invoice this deposit will cover.")}</p>
-              </div>
-            )}
-
             <div className="apply-summary">
               <div className="apply-track" aria-hidden="true">
                 <div className={cn("apply-track-fill", err && "is-err")} style={{ width: `${pct}%` }} />
@@ -313,15 +284,21 @@ export default function ApplyPaymentSheet({
                 </div>
 
                 <div className="apply-list">
-                  {resRows.map((res) => {
+                  {resRows.map((res, i) => {
                     const over = rowOver(res);
+                    const overpaid = (res.remaining_int ?? 0) < 0;
+                    const newGroup = res.invoice_number && res.invoice_number !== resRows[i - 1]?.invoice_number;
                     return (
-                      <div className="apply-row" key={res.id}>
+                      <Fragment key={res.id}>
+                        {newGroup && <div className="apply-group">{res.invoice_number}</div>}
+                      <div className="apply-row">
                         <div className="apply-row-meta">
                           <span className="apply-row-no">{res.number}</span>
                           <span className="apply-row-sub">{res.hotel}</span>
-                          <span className="apply-row-rem">
-                            {t("Remaining")}: <strong>{fmt(res.remaining_int ?? 0)} SAR</strong>
+                          <span className={cn("apply-row-rem", overpaid && "is-over")}>
+                            {overpaid
+                              ? <>{t("Overpaid")}: <strong>{fmt(-res.remaining_int)} SAR</strong></>
+                              : <>{t("Remaining")}: <strong>{fmt(res.remaining_int ?? 0)} SAR</strong></>}
                           </span>
                         </div>
                         <div className="apply-row-in">
@@ -329,7 +306,7 @@ export default function ApplyPaymentSheet({
                             className="aps-input"
                             type="number"
                             min="0"
-                            max={res.remaining_int ?? undefined}
+                            max={capOf(res) ?? undefined}
                             step="1"
                             inputMode="numeric"
                             value={amounts[res.id] ?? ""}
@@ -344,14 +321,11 @@ export default function ApplyPaymentSheet({
                           )}
                         </div>
                       </div>
+                      </Fragment>
                     );
                   })}
                 </div>
               </section>
-            ) : isDeposit && !invId ? (
-              <p className="apply-note is-muted" style={{ marginTop: "22px" }}>
-                {t("Pick a target invoice to see its reservations.")}
-              </p>
             ) : (
               <p className="apply-note is-muted" style={{ marginTop: "22px" }}>
                 {t("This payment has no reservations to allocate to.")}
@@ -363,7 +337,7 @@ export default function ApplyPaymentSheet({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               {t("Cancel")}
             </Button>
-            <Button onClick={submit} disabled={busy || !!err || anyRowOver || !canEdit || resRows.length === 0 || (isDeposit && !invId)}>
+            <Button onClick={submit} disabled={busy || !!err || anyRowOver || !canEdit || resRows.length === 0}>
               {busy ? t("Saving…") : t("Apply")}
             </Button>
           </div>

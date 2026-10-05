@@ -10,6 +10,7 @@ import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { fmt } from "../../utils/format.js";
+import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
 
 const TYPE_TONE = {
   charge: "badge-blue",
@@ -34,7 +35,7 @@ const AR_CONTACT = {
   email: "konozsurabaya@gmail.com",
 };
 
-export default function ClientStatement({ client = {}, statement = {}, aging = {}, mode = "balance", date_from, date_to }) {
+export default function ClientStatement({ client = {}, statement = {}, aging = {}, mode = "balance", date_from, date_to, pending_out = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canExportPdf = perms.can("statements", "export");
@@ -206,13 +207,17 @@ export default function ClientStatement({ client = {}, statement = {}, aging = {
             <a href={`/invoice/?client=${client.id}`} style={{ color: "var(--foreground)" }}>{t("All invoices")}</a>
             {canMoveMoney && (
               <span style={{ display: "inline-flex", gap: 6, marginLeft: "auto" }}>
-                <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/transfer/`)}>{t("Move Funds")}</button>
                 <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/refund/`)}>{t("Refund")}</button>
                 <button type="button" className="hms-dv-act" onClick={() => openForm(`/finance/clients/${client.id}/deposit-transfer/`)}>{t("Transfer deposit")}</button>
               </span>
             )}
           </div>
         </Section>
+        {pending_out.length > 0 && (
+          <Section label={t("Awaiting Approval")} count={pending_out.length}>
+            <PendingOutTable rows={pending_out} />
+          </Section>
+        )}
         {!isOpen && (
           <Section label={t("Account Summary")}>
             <div

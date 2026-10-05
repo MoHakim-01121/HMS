@@ -275,3 +275,34 @@ def make_room(**kwargs):
         else:
             kwargs.setdefault('note', meals)
     return Room.objects.create(**kwargs)
+
+
+def ensure_current_period():
+    """Periode yang memuat hari ini. Koreksi seperti realokasi diposting pada
+    tanggal hari ini, jadi test yang hanya membuat periode lampau butuh ini."""
+    from hw.models.period import FinancialPeriod
+    today = date.today()
+    if FinancialPeriod.objects.filter(date_from__lte=today, date_to__gte=today).exists():
+        return
+    start = today.replace(day=1)
+    end = (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    FinancialPeriod.objects.create(name=f'{start:%Y-%m} (test current)', date_from=start, date_to=end)
+
+
+def _checker():
+    """Penyetuju terpisah untuk dokumen uang keluar (pencatat != penyetuju)."""
+    from django.contrib.auth.models import User
+    user, _ = User.objects.get_or_create(username='factory-checker')
+    return user
+
+
+def refund_now(client, **kwargs):
+    """Refund deposit yang dicatat lalu langsung disetujui user lain."""
+    from hw.finance.deposit import confirm_refund, request_refund
+    return confirm_refund(request_refund(client, **kwargs), confirmed_by=_checker())
+
+
+def transfer_now(from_client, to_client, **kwargs):
+    """Transfer deposit yang dicatat lalu langsung disetujui user lain."""
+    from hw.finance.deposit import confirm_transfer, request_transfer
+    return confirm_transfer(request_transfer(from_client, to_client, **kwargs), confirmed_by=_checker())

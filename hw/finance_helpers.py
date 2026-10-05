@@ -213,6 +213,14 @@ def confirm_payment(payment, confirmed_by, note=''):
             f"Payment {payment.payment_number} sudah {payment.get_status_display()}"
         )
 
+    # Alokasi yang dicatat saat pending dicek ulang: di antara pencatatan dan
+    # konfirmasi bisa ada pembayaran lain, atau CL di-amend turun.
+    from .finance.posting import check_allocation_caps
+    check_allocation_caps(payment, [
+        (a.invoice_line, a.amount_sar)
+        for a in payment.allocations.select_related('invoice_line__confirmation_letter', 'invoice_line__penalty')
+    ])
+
     journal = post_payment(payment, created_by=confirmed_by)
 
     # Update payment status

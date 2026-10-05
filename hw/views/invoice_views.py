@@ -265,6 +265,28 @@ def invoice_new(request):
     })
 
 
+def _overpaid_props(reservations):
+    """Reservasi yang kelebihan bayar dan pembayaran yang uangnya ada di sana,
+    untuk dua jalan keluarnya di layar: realokasi pembayaran itu ke reservasi
+    lain, atau pindahkan kelebihannya ke deposit client."""
+    from ..models.payment import PaymentAllocation, PaymentRecord
+    overpaid = [
+        {"line_id": r["id"], "number": r["number"], "excess_sar": -r["remaining_int"]}
+        for r in reservations if r["remaining_int"] < 0
+    ]
+    rows = (
+        PaymentAllocation.objects.filter(
+            invoice_line_id__in=[o["line_id"] for o in overpaid],
+            payment__status__in=PaymentRecord.EFFECTIVE_STATUSES,
+        )
+        .values("payment_id", "payment__payment_number").distinct().order_by("payment_id")
+    ) if overpaid else []
+    return {
+        "overpaid": overpaid,
+        "overpaid_payments": [{"id": r["payment_id"], "number": r["payment__payment_number"]} for r in rows],
+    }
+
+
 @require_perm('invoice', 'view')
 def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
@@ -368,6 +390,7 @@ def invoice_detail(request, pk):
         "reservations": reservations,
         # Overpaid on its reservations: shown with a "move to deposit" action.
         "excess_sar": sum(-r["remaining_int"] for r in reservations if r["remaining_int"] < 0),
+        **_overpaid_props(reservations),
         "payments": payments,
         "due_alert": due_alert,
         "logs": logs,

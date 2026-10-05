@@ -40,7 +40,8 @@ from .role_views import role_delete, role_edit, role_list, role_new
 from .client_views import (
     client_list, client_new, client_edit, client_delete,
     client_detail, client_map, client_map_data,
-    client_transfer, client_refund, client_deposit_transfer, client_statement_pdf,
+    client_refund, client_deposit_transfer,
+    client_refund_confirm, client_refund_reject, client_deposit_transfer_confirm, client_deposit_transfer_reject, client_statement_pdf,
 )
 from .hotel_views import (
     hotel_list, hotel_new, hotel_edit, hotel_delete,

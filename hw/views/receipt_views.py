@@ -104,20 +104,23 @@ def _allocation_rows(payment):
 
     rows = []
     for a in payment.allocations.select_related(
-        'invoice_line__confirmation_letter__hotel',
+        'invoice_line__confirmation_letter__hotel', 'invoice_line__invoice',
     ).order_by('pk'):
         line = a.invoice_line
+        # A reallocation can apply the payment to another invoice of the same
+        # client; name that invoice so the receipt reads unambiguously.
+        other_invoice = line.invoice.invoice_number if line.invoice_id != payment.invoice_id else ''
         if line.kind == line.KIND_HOTEL:
             rows.append({
                 'label': line.reservation_number,
-                'sublabel': line.hotel,
+                'sublabel': ' · '.join(p for p in (line.hotel, other_invoice) if p),
                 'stay': _stay_label(line.check_in, line.check_out),
                 'amount_sar': a.amount_sar,
             })
         else:
             rows.append({
                 'label': line.description,
-                'sublabel': f'Service item x{line.quantity}',
+                'sublabel': ' · '.join(p for p in (f'Service item x{line.quantity}', other_invoice) if p),
                 'stay': '',
                 'amount_sar': a.amount_sar,
             })

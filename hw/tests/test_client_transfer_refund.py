@@ -1,9 +1,8 @@
-"""Alur refund & transfer dana lewat HTTP view (Fase 5+): journal only.
+"""Alur refund deposit lewat HTTP view: journal only.
 
-Sejak Fase 5 view dual-write (shadow legacy CashMovement untuk refund,
-Allocation untuk transfer DAN jurnal). Fase 7 memensiunkan shadow tables:
-sekarang hanya jurnal lewat posting.post_refund / post_fund_transfer. Asersi
-di sini memvalidasi jurnal — dan bahwa tidak ada baris shadow yang tertulis."""
+"Move Funds" (pindah dana antar reservasi lewat jurnal tanpa dokumen) sudah
+dipensiunkan -- uang dipindah antar reservasi lewat realokasi pembayaran
+(test_payment_reallocate_controls). Asersi di sini memvalidasi jurnal refund."""
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -54,6 +53,14 @@ class RefundTransferViewTest(TestCase):
             invoice=self.invoice, reservation_number="R-B", total_sar=40000,
         )
 
+    def _approve_refund(self):
+        """The refund form records a pending document; approving it posts the
+        journal (this superuser is an admin, who may approve their own)."""
+        from hw.models import ClientRefund
+        refund = ClientRefund.objects.get(status='pending')
+        self.assertFalse(JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).exists())
+        self.client.post(reverse("client_refund_confirm", args=[refund.pk]))
+
     def _pusat_cash(self):
         from hw.models import CashAccount
         return f"cash:{CashAccount.objects.get(branch_id='pusat').pk}"
@@ -82,6 +89,7 @@ class RefundTransferViewTest(TestCase):
             "from_account": f"bank:{acc.pk}", "amount_sar": "10000", "amount_paid": "47500000", "note": "refund idr",
         })
         self.assertEqual(resp.status_code, 302)
+        self._approve_refund()
         entry = JournalEntry.objects.get(entry_type=JournalEntry.TYPE_REFUND)
         tx = BankTransaction.objects.get(source_type="Refund", source_id=entry.pk)
         self.assertEqual((tx.account_id, tx.direction, tx.currency, tx.amount, tx.amount_sar),
@@ -112,6 +120,7 @@ class RefundTransferViewTest(TestCase):
             {"from_account": self._pusat_cash(), "amount_sar": "20000", "note": "refund uji"},
         )
         self.assertEqual(resp.status_code, 302)
+        self._approve_refund()
 
         # Journal refund: DR Titipan / CR Kas Pusat.
         entry = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).first()
@@ -136,57 +145,7 @@ class RefundTransferViewTest(TestCase):
             {"from_account": self._pusat_cash(), "amount_sar": "20000", "note": "refund uji", "proof": proof},
         )
         self.assertEqual(resp.status_code, 302)
+        self._approve_refund()
         entry = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_REFUND).first()
         self.assertIsNotNone(entry)
         self.assertTrue(entry.proof)
-
-    def test_transfer_posts_journal(self):
-        posting.post_invoice_charge(self.invoice, created_by=self.user)
-
-        resp = self.client.post(
-            reverse("client_transfer", args=[self.client_obj.pk]),
-            {"from_reservation": str(self.res_a.pk), "to_reservation": str(self.res_b.pk),
-             "amount_sar": "30000", "note": "pindah dana"},
-        )
-        self.assertEqual(resp.status_code, 302)
-
-        # Journal transfer: AR di-re-tag dari res_a (credit) ke res_b (debit);
-        # res_a turun 100000→70000, res_b naik 40000→70000.
-        entries = JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_TRANSFER)
-        self.assertEqual(entries.count(), 1)
-        self.assertEqual(_net(account_id=coa.AR, invoice_line=self.res_a), 70000)
-        self.assertEqual(_net(account_id=coa.AR, invoice_line=self.res_b), 70000)
-        # Total piutang client tidak berubah (tetap 140000 dari charge 100000+40000).
-        self.assertEqual(_net(account_id=coa.AR, client=self.client_obj.pk), 140000)
-
-    def test_transfer_without_open_period_degrades_gracefully(self):
-        # I2: jurnal gagal (tak ada periode utk tanggal hari ini) tidak boleh
-        # 500 — view menampilkan eror form, bukan crash.
-        posting.post_invoice_charge(self.invoice, created_by=self.user)
-        # Persempit periode agar tanggal hari ini tak tercakup (charge Jan tetap ok).
-        FinancialPeriod.objects.update(date_to=date(2026, 1, 31))
-        resp = self.client.post(
-            reverse("client_transfer", args=[self.client_obj.pk]),
-            {"from_reservation": str(self.res_a.pk), "to_reservation": str(self.res_b.pk),
-             "amount_sar": "30000", "note": ""},
-        )
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_TRANSFER).count(), 0)
-
-    def test_transfer_blocks_different_client_reservation(self):
-        posting.post_invoice_charge(self.invoice, created_by=self.user)
-        other_client = Client.objects.create( name="PT Lain")
-        other_invoice = make_invoice(
- invoice_type="hotel", invoice_number="INV-CR-002",
-            customer_name="PT Lain", client=other_client, issued_date=date(2026, 2, 1),
-        )
-        other_res = make_hotel_line(
-            invoice=other_invoice, reservation_number="R-OR", total_sar=5000,
-        )
-        resp = self.client.post(
-            reverse("client_transfer", args=[self.client_obj.pk]),
-            {"from_reservation": str(self.res_a.pk), "to_reservation": str(other_res.pk),
-             "amount_sar": "1000", "note": ""},
-        )
-        self.assertEqual(resp.status_code, 200)  # eror form, bukan redirect
-        self.assertEqual(JournalEntry.objects.filter(entry_type=JournalEntry.TYPE_TRANSFER).count(), 0)

@@ -64,7 +64,7 @@ def invoice_void(request, pk):
     return redirect(_detail_url(invoice))
 
 
-@require_perm('invoice', 'delete')
+@require_perm('payments', 'edit')
 def invoice_excess_to_deposit(request, pk):
     """Move what the client overpaid on this invoice's reservations to their
     deposit (a reservation already paid whose value dropped: the CL changed,
