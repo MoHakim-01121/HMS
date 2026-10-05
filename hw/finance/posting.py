@@ -805,9 +805,10 @@ def allocation_snapshot(payment):
 # ── Kelebihan bayar → deposit client ───────────────────────────
 
 @transaction.atomic
-def move_payment_excess_to_deposit(payment, *, created_by, entry_date=None):
+def move_payment_excess_to_deposit(payment, *, created_by, entry_date=None, amount=None):
     """Pindahkan kelebihan sebuah pembayaran (bagian Z tanpa alokasi) ke
     deposit client: DR Piutang / CR Titipan. Mengembalikan nominalnya.
+    `amount` (opsional) memindahkan sebagian saja; bawaannya seluruh kelebihan.
 
     Selama masih kelebihan, uang itu hanya bisa dialokasikan ke tagihan client
     yang sama; sebagai deposit ia bisa dipakai membayar tagihan lain,
@@ -818,6 +819,12 @@ def move_payment_excess_to_deposit(payment, *, created_by, entry_date=None):
     excess = payment.unallocated_sar
     if excess <= 0:
         raise FinanceError(f"Payment {payment.payment_number} tidak punya kelebihan untuk dipindahkan.")
+    if amount is not None:
+        if not 0 < amount <= excess:
+            raise FinanceError(
+                f"Payment {payment.payment_number}: hanya {excess:,} SAR yang belum dialokasikan."
+            )
+        excess = amount
     dims = {"client": payment.client_id, "invoice": payment.invoice_id}
     post_entry(
         entry_type=JournalEntry.TYPE_TRANSFER,
@@ -862,34 +869,96 @@ def return_payment_deposit(payment, *, created_by, entry_date=None):
     return returned
 
 
+def _shift_excess_to_deposit(excess_by_line, *, created_by, entry_date=None):
+    """Kelebihan bayar per baris invoice -> deposit, lewat pembayaran yang
+    uangnya ada di baris itu, supaya alokasi pembayaran dan buku besar tetap
+    sama: alokasinya dikurangi (realokasi), lalu bagian itu dipindah ke
+    deposit (move_payment_excess_to_deposit). Pembayaran terbaru dikurangi
+    lebih dulu. Satu realokasi per pembayaran, walau ia membayar beberapa
+    baris yang kelebihan.
+
+    `excess_by_line`: {baris: nominal}. Mengembalikan {baris: sisa} yang
+    tidak bisa dikaitkan ke alokasi pembayaran mana pun (uang di baris itu
+    berasal dari luar alokasi, mis. data lama)."""
+    from ..models.payment import PaymentAllocation
+
+    takes = {}            # payment pk -> {allocation pk: nominal}
+    payments = {}
+    leftover = {}
+    for line, excess in excess_by_line.items():
+        left = excess
+        allocs = (
+            PaymentAllocation.objects.filter(
+                invoice_line=line, payment__status__in=PaymentRecord.EFFECTIVE_STATUSES,
+            ).select_related("payment").order_by("-payment__payment_date", "-payment_id")
+        )
+        for alloc in allocs:
+            if left <= 0:
+                break
+            take = min(left, alloc.amount_sar)
+            takes.setdefault(alloc.payment_id, {})[alloc.pk] = take
+            payments[alloc.payment_id] = alloc.payment
+            left -= take
+        if left > 0:
+            leftover[line] = left
+
+    for payment_id, by_alloc in takes.items():
+        payment = payments[payment_id]
+        moved = sum(by_alloc.values())
+        kept = [
+            (a.invoice_line, a.amount_sar - by_alloc.get(a.pk, 0))
+            for a in payment.allocations.select_related("invoice_line__invoice").order_by("pk")
+        ]
+        reallocate_payment(
+            payment, [(line, amt) for line, amt in kept if amt > 0], created_by=created_by,
+            note=f"{moved:,} SAR kelebihan bayar dilepas ke deposit",
+        )
+        move_payment_excess_to_deposit(payment, created_by=created_by, entry_date=entry_date, amount=moved)
+    return leftover
+
+
 @transaction.atomic
 def move_invoice_excess_to_deposit(invoice, *, created_by, entry_date=None):
     """Pindahkan kelebihan bayar per reservasi di sebuah invoice hotel ke
     deposit client. Kelebihan ini muncul ketika reservasi yang sudah dibayar
     nilainya turun (CL berubah, atau dibatalkan dengan denda). Mengembalikan
-    total yang dipindahkan."""
+    total yang dipindahkan.
+
+    Lewat pembayaran yang uangnya ada di reservasi itu (_shift_excess_to_deposit),
+    jadi detail pembayaran dan kwitansinya ikut berubah. Sisa yang tidak
+    berasal dari alokasi pembayaran mana pun dipindah langsung di jurnal."""
     from .penalty_billing import reservation_balances
 
-    lines, total = [], 0
-    for row in reservation_balances(invoice).values():
-        excess = -row["remaining"]
-        if excess <= 0:
-            continue
-        total += excess
-        lines.append({"account": coa.AR, "debit": excess, "client": invoice.client_id,
-                      "invoice": invoice.pk, "invoice_line": row["line"].pk, "branch": invoice.branch_id})
+    excess_by_line = {
+        row["line"]: -row["remaining"]
+        for row in reservation_balances(invoice).values() if row["remaining"] < 0
+    }
+    total = sum(excess_by_line.values())
     if not total:
         raise FinanceError(f"Invoice {invoice.invoice_number} tidak punya kelebihan bayar.")
-    lines.append({"account": coa.CUST_CREDIT, "credit": total, "client": invoice.client_id, "invoice": invoice.pk})
-    post_entry(
-        entry_type=JournalEntry.TYPE_TRANSFER,
-        description=f"Kelebihan bayar {invoice.invoice_number} → deposit client",
-        entry_date=entry_date or timezone.now().date(),
-        lines=lines,
-        source_type="Invoice",
-        source_id=invoice.pk,
-        created_by=created_by,
-    )
+
+    leftover = _shift_excess_to_deposit(excess_by_line, created_by=created_by, entry_date=entry_date)
+    if leftover:
+        rest = sum(leftover.values())
+        lines = [
+            {"account": coa.AR, "debit": amt, "client": invoice.client_id, "invoice": invoice.pk,
+             "invoice_line": line.pk, "branch": invoice.branch_id}
+            for line, amt in leftover.items()
+        ]
+        lines.append({"account": coa.CUST_CREDIT, "credit": rest, "client": invoice.client_id, "invoice": invoice.pk})
+        post_entry(
+            entry_type=JournalEntry.TYPE_TRANSFER,
+            description=f"Kelebihan bayar {invoice.invoice_number} → deposit client",
+            entry_date=entry_date or timezone.now().date(),
+            lines=lines,
+            source_type="Invoice",
+            source_id=invoice.pk,
+            created_by=created_by,
+        )
+        logger.warning(
+            "invoice %s: %s SAR excess not tied to any payment allocation moved by journal only",
+            invoice.invoice_number, rest,
+        )
     return total
 
 

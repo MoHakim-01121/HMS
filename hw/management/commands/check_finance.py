@@ -11,9 +11,14 @@ RemittanceLine):
   3. Trial balance balance.
   4. Baris Piutang / Titipan selalu punya dimensi client.
   5. Total charge hidup per invoice == Invoice.total_sar (charge tak basi).
-  6. Σ PaymentRecord (confirmed/allocated) per invoice == paid_sar jurnal.
+  6. Uang pembayaran per invoice == paid_sar jurnal: alokasi ke baris
+     invoice itu (dari pembayaran mana pun, juga lintas invoice) + sisa
+     tak-teralokasi pembayaran ber-invoice utama itu (di luar deposit).
   7. RemittanceLine vs jurnal kirim + jurnal alokasi penerimaan.
   8. Setiap entry reversal membalik tepat baris-baris entry yang dibaliknya.
+  9. Pusat hanya menerima SAR.
+ 10. Alokasi pembayaran per baris invoice == uang yang melunasi baris itu di
+     jurnal (detail pembayaran & kwitansi sama dengan buku besar).
 
 Exit 1 kalau ada temuan. Tidak pernah menulis apa pun.
 """
@@ -61,6 +66,8 @@ class Command(BaseCommand):
             ('Integritas reversal', self._bad_reversals()),
             # 9. Pusat hanya menerima SAR (IDR/USD diterima & ditukar di cabang)
             ('Penerimaan non-SAR di Pusat', self._non_sar_received_at_hq()),
+            # 10. Alokasi pembayaran per baris == pelunasan baris di jurnal
+            ('Alokasi pembayaran vs jurnal per baris', self._allocation_line_mismatch()),
         ]
 
     def handle(self, *args, **options):
@@ -134,18 +141,49 @@ class Command(BaseCommand):
         return out
 
     def _payment_record_mismatch(self):
-        by_invoice = defaultdict(int)
-        for pr in PaymentRecord.objects.filter(
-            status__in=PaymentRecord.EFFECTIVE_STATUSES,
-        ).values('invoice_id', 'amount_sar'):
-            by_invoice[pr['invoice_id']] += pr['amount_sar']
+        from hw.models.payment import PaymentAllocation
+        effective = PaymentRecord.EFFECTIVE_STATUSES
+        expected = defaultdict(int)
+        for row in PaymentAllocation.objects.filter(payment__status__in=effective).values(
+            'invoice_line__invoice_id', 'amount_sar',
+        ):
+            expected[row['invoice_line__invoice_id']] += row['amount_sar']
+        unallocated = fq.payment_unallocated_map(
+            PaymentRecord.objects.filter(status__in=effective).values_list('pk', flat=True)
+        )
+        for pk, invoice_id in PaymentRecord.objects.filter(status__in=effective).values_list('pk', 'invoice_id'):
+            expected[invoice_id] += unallocated.get(pk, 0)
         out = []
-        for invoice_id, pr_total in by_invoice.items():
+        for invoice_id, money in expected.items():
+            if invoice_id is None:
+                continue  # deposit belum dilekatkan ke invoice
             jl_paid = fq.invoice_paid_sar(invoice_id)
-            if pr_total != jl_paid:
+            if money != jl_paid:
                 inv = Invoice.objects.filter(pk=invoice_id).first()
                 num = inv.invoice_number if inv else f'id={invoice_id}'
-                out.append(f'{num}: Σ PaymentRecord {pr_total:,} ≠ paid_sar jurnal {jl_paid:,}')
+                out.append(f'{num}: uang pembayaran {money:,} ≠ paid_sar jurnal {jl_paid:,}')
+        return out
+
+    def _allocation_line_mismatch(self):
+        from hw.models.invoice import InvoiceLine
+        from hw.models.payment import PaymentAllocation
+        allocated = {
+            r['invoice_line_id']: r['t'] or 0
+            for r in PaymentAllocation.objects.filter(payment__status__in=PaymentRecord.EFFECTIVE_STATUSES)
+            .values('invoice_line_id').annotate(t=Sum('amount_sar'))
+        }
+        settled = {
+            r['invoice_line_id']: (r['c'] or 0) - (r['d'] or 0)
+            for r in fq._settling(invoice_line__isnull=False)
+            .values('invoice_line_id').annotate(d=Sum('debit'), c=Sum('credit'))
+        }
+        out = []
+        for line_id in sorted(set(allocated) | set(settled)):
+            a, s = allocated.get(line_id, 0), settled.get(line_id, 0)
+            if a != s:
+                line = InvoiceLine.objects.select_related('invoice').filter(pk=line_id).first()
+                label = f'{line.invoice.invoice_number} {line.label}' if line else f'baris id={line_id}'
+                out.append(f'{label}: alokasi pembayaran {a:,} ≠ pelunasan di jurnal {s:,}')
         return out
 
     def _remittance_line_mismatch(self):
