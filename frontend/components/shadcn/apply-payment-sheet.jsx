@@ -71,6 +71,9 @@ const CSS = `
 }
 .apply-row + .apply-group { border-top:1px solid var(--border); }
 .apply-row-rem.is-over strong { color:var(--red); }
+.apply-row.is-blocked { opacity:.55; }
+.apply-row-why { font-size:11.5px; color:var(--muted-foreground); text-align:right; max-width:150px; }
+.apply-foot-note { margin:10px 2px 0; font-size:11.5px; line-height:1.5; color:var(--muted-foreground); }
 .apply-row-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .apply-row-no { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--foreground); }
 .apply-row-sub { font-size:11.5px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -114,12 +117,15 @@ const CSS = `
  *    what this payment already put there, so a reservation amended down
  *    (15,000 → 13,000) can still keep 13,000 and send the rest elsewhere.
  *    `remaining_int` < 0 is an overpayment.
+ *  - unbilled: [{ id, number, hotel, check_in, check_out }] — the client's
+ *    bookings not on any invoice yet; shown greyed with the reason, since an
+ *    allocation always lands on an invoice line.
  *  - initialAllocations: [{ reservation_id, amount_sar }] to prefill when
  *    re-applying an already-allocated payment
  *  - onApplied: callback after a successful apply
  */
 export default function ApplyPaymentSheet({
-  open, onOpenChange, payment, reservations = [], initialAllocations = [], onApplied,
+  open, onOpenChange, payment, reservations = [], unbilled = [], initialAllocations = [], onApplied,
 }) {
   const { t } = useI18n();
   const perms = usePerms();
@@ -324,7 +330,18 @@ export default function ApplyPaymentSheet({
                       </Fragment>
                     );
                   })}
+                  {unbilled.length > 0 && <div className="apply-group">{t("Not invoiced yet")}</div>}
+                  {unbilled.map((cl) => (
+                    <div className="apply-row is-blocked" key={`cl-${cl.id}`}>
+                      <div className="apply-row-meta">
+                        <span className="apply-row-no">{cl.number}</span>
+                        <span className="apply-row-sub">{cl.hotel}</span>
+                      </div>
+                      <span className="apply-row-why">{t("Create its invoice first")}</span>
+                    </div>
+                  ))}
                 </div>
+                <p className="apply-foot-note">{t("Fully paid reservations are not listed: they cannot take more money.")}</p>
               </section>
             ) : (
               <p className="apply-note is-muted" style={{ marginTop: "22px" }}>

@@ -443,6 +443,30 @@ def _allocatable_reservations(payment):
     return rows
 
 
+def _unbilled_reservations(payment, limit=20):
+    """CL milik client pembayaran ini yang belum ditagihkan di invoice mana
+    pun (dan tidak batal): belum bisa menerima alokasi. Ditampilkan abu-abu di
+    lembar alokasi dengan alasannya, supaya tidak terlihat seperti hilang."""
+    from ..models import ConfirmationLetter
+    from ..models.invoice import InvoiceLine
+    from ..models.confirmation import ReservationStatus
+    billed = InvoiceLine.objects.filter(
+        kind=InvoiceLine.KIND_HOTEL, voided_at__isnull=True, confirmation_letter__isnull=False,
+    ).values('confirmation_letter_id')
+    letters = (
+        ConfirmationLetter.objects.filter(client_id=payment.client_id)
+        .exclude(pk__in=billed).exclude(reservation_status=ReservationStatus.CANCELLED)
+        .select_related('hotel').order_by('-check_in')[:limit]
+    )
+    return [{
+        'id': cl.pk,
+        'number': cl.confirmation_number,
+        'hotel': cl.hotel_name,
+        'check_in': cl.check_in.isoformat() if cl.check_in else None,
+        'check_out': cl.check_out.isoformat() if cl.check_out else None,
+    } for cl in letters]
+
+
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
     payment = get_object_or_404(
@@ -469,6 +493,7 @@ def payment_detail(request, pk):
     return inertia_render(request, 'Payment/Detail', props={
         'payment': _payment_props(payment),
         'reservations': reservations,
+        'unbilled_reservations': _unbilled_reservations(payment),
         'receipts': receipts,
         'logs': [{
             'action': l.action,

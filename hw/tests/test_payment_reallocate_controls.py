@@ -200,3 +200,18 @@ class OverpaymentBannerTest(ReallocateControlsBase):
         self._login(staff)
         self.client.post(f'/finance/invoices/{self.inv_a.pk}/excess-to-deposit/')
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 2000)
+
+
+class UnbilledBookingTest(ReallocateControlsBase):
+    def test_detail_lists_the_clients_bookings_not_yet_invoiced(self):
+        from hw.tests.factories import make_cl
+        payment = self._paid_r1()
+        make_cl(client=self.client_obj, confirmation_number='AM-NEW', check_in=date(2026, 9, 1),
+                check_out=date(2026, 9, 3))
+        self.client.force_login(self.maker)
+        s = self.client.session
+        s['active_company'] = 'konoz'
+        s.save()
+        props = self.client.get(f'/finance/payments/{payment.pk}/', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual([r['number'] for r in props['unbilled_reservations']], ['AM-NEW'])
+        self.assertNotIn('AM-NEW', [r['number'] for r in props['reservations']])

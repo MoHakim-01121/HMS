@@ -20,7 +20,7 @@ const extLabel = (name) => {
 
 const stayRange = (a) => fmtStay(a.check_in, a.check_out);
 
-export default function Detail({ payment = {}, reservations = [], logs = [], journal_entries = [], receipts = [] }) {
+export default function Detail({ payment = {}, reservations = [], unbilled_reservations = [], logs = [], journal_entries = [], receipts = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("payments", "edit");
@@ -462,6 +462,7 @@ export default function Detail({ payment = {}, reservations = [], logs = [], jou
         onOpenChange={setApplyOpen}
         payment={{ id: payment.id, payment_number: payment.payment_number, amount_sar: payment.amount_sar, invoice_id: payment.invoice_id }}
         reservations={reservations}
+        unbilled={unbilled_reservations}
         initialAllocations={payment.allocations || []}
         onApplied={() => undefined}
       />
