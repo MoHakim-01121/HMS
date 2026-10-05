@@ -28,7 +28,7 @@ from .helpers import (
     snapshot_fields,
     track_changes,
 )
-from .invoice_billing import _billing_props, _save_service_payments
+from .invoice_billing import _billing_props
 from .pdf import _render_services_pdf
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,6 @@ def services_new(request):
                 )
                 Invoice.claim_number("visa", invoice.invoice_number)
                 _save_service_items(invoice, request)
-                _save_service_payments(invoice, request)
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Services', invoice.invoice_number)
@@ -212,7 +211,6 @@ def services_edit(request, pk):
                 invoice.save()
                 Invoice.claim_number("visa", invoice.invoice_number)
                 _save_service_items(invoice, request)
-                _save_service_payments(invoice, request)
         except (FinanceError, ValueError) as e:
             invoice.refresh_from_db()
             return _reject({"finance": str(e)})

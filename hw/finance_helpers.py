@@ -138,7 +138,7 @@ def create_payment_record(
         )
 
     # Calculate SAR
-    amount_sar = int(round(convert_to_sar(amount, currency, float(exchange_rate))))
+    amount_sar = convert_to_sar(amount, currency, exchange_rate)
 
     # Tanggalnya harus jatuh di periode yang ada (periode pembayaran tidak
     # disimpan: selalu periode tempat tanggalnya jatuh).

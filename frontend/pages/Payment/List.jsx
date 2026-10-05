@@ -81,6 +81,8 @@ export default function List({ payments = [], invoice_choices = [], client_choic
   const perms = usePerms();
   const canCreate = perms.can("payments", "create");
   const canEdit = perms.can("payments", "edit");
+  // Pencatat tidak mengonfirmasi pembayarannya sendiri (kecuali admin).
+  const canConfirm = (p) => canEdit && (perms.isAdmin || p.created_by !== perms.user?.username);
   const canExport = perms.can("payments", "export");
   const [panelOpen, setPanelOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -361,7 +363,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
       render: (p) => (
         <RowActions
           actions={[
-            canEdit && p.status === "pending"
+            canConfirm(p) && p.status === "pending"
               && { icon: "check", label: t("Confirm"), onClick: () => setConfirmDialog(p) },
             canEdit && p.status === "pending"
               && { icon: "close", label: t("Reject"), variant: "red", onClick: () => setRejectDialog({ ...p, reason: "" }) },

@@ -18,6 +18,7 @@ from ..permissions import require_perm
 from ..finance import queries as finance_queries
 from ..finance import posting
 from ..finance_helpers import FinanceError
+from ..utils import round_half_up
 from .helpers import (
     _is_mobile,
     _parse_date,
@@ -324,7 +325,7 @@ def client_transfer(request, pk):
             to_id = int(request.POST.get('to_reservation') or 0)
         except (ValueError, TypeError):
             from_id = to_id = 0
-        amount = int(round(_to_float(request.POST.get('amount_sar'))))
+        amount = round_half_up(_to_float(request.POST.get('amount_sar')))
         note = (request.POST.get('note') or '').strip()
 
         errors = {}
@@ -404,7 +405,7 @@ def client_refund(request, pk):
 
     P = request.POST
     account = resolve_money_account(P.get('from_account'))
-    amount = int(round(_to_float(P.get('amount_sar'))))
+    amount = round_half_up(_to_float(P.get('amount_sar')))
     note = (P.get('note') or '').strip()
     proof = request.FILES.get('proof')
 
@@ -415,7 +416,7 @@ def client_refund(request, pk):
         errors['amount_sar'] = 'Enter an amount greater than zero.'
     paid = amount
     if account is not None and account.currency != 'SAR':
-        paid = int(round(_to_float(P.get('amount_paid'))))
+        paid = round_half_up(_to_float(P.get('amount_paid')))
         if paid <= 0:
             errors['amount_paid'] = f'Enter the amount paid in {account.currency}.'
     if proof:
@@ -469,7 +470,7 @@ def client_deposit_transfer(request, pk):
         return page()
     P = request.POST
     note = (P.get('note') or '').strip()
-    amount = int(round(_to_float(P.get('amount_sar'))))
+    amount = round_half_up(_to_float(P.get('amount_sar')))
     to_client = Client.objects.filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
     errors = {}
     if to_client is None:

@@ -25,13 +25,6 @@ from hw.finance import posting
 from hw.finance.penalty_billing import bill_penalty
 from hw.finance import queries as fq
 from hw.finance_helpers import create_payment_record, confirm_payment
-from hw.views.invoice_billing import _save_payments
-
-
-class _Request:
-    user = None
-    POST = {}
-    FILES = {}
 
 
 class PenaltyLedgerSyncTest(TestCase):
@@ -115,13 +108,11 @@ class PenaltyIndependentFromInvoicePaymentTest(TestCase):
 
     def test_payment_save_keeps_penalty_income(self):
         before = fq.account_balance(fq.coa.INC_PENALTY)
-        req = _Request()
-        req.user = self.user
-        req.POST = {
-            'payments': '[{"ref":"R1","date":"2026-08-02","method":"transfer",'
-                        '"amount":"500","currency":"SAR","exchange":"1","note":"","proof_keep":""}]',
-        }
-        _save_payments(self.inv, req, 'SAR')
+        payment = create_payment_record(
+            invoice=self.inv, client=self.cl_obj, payment_date=date(2026, 8, 2),
+            amount=500, method='transfer', created_by=self.user,
+        )
+        confirm_payment(payment, confirmed_by=self.user)
         self.assertEqual(fq.invoice_paid_sar(self.inv.id), 500)
         self.assertEqual(fq.account_balance(fq.coa.INC_PENALTY), before)  # -1000
 

@@ -3,7 +3,8 @@
 Expense = biaya (accrual). ExpensePayment = pergerakan kas. Keduanya terpisah:
 sebuah Expense bisa POSTED tapi belum dibayar (utang / Accounts Payable).
 
-Konvensi: semua nominal IntegerField (minor units). amount_sar via convert_to_sar.
+Konvensi: semua nominal IntegerField dalam satuan utuh mata uangnya (riyal,
+rupiah, dolar). amount_sar via convert_to_sar (Decimal, setengah ke atas).
 Expense BUKAN HQ remittance dan BUKAN obligation pusat.
 """
 from django.db import models

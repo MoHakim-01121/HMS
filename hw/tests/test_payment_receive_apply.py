@@ -86,8 +86,24 @@ class ReceiveApplyFlowTest(TestCase):
         )
         return self.client.post('/finance/payments/record/', payload)
 
+    def _login(self, user):
+        self.client.force_login(user)
+        s = self.client.session
+        s['active_company'] = 'konoz'
+        s.save()
+
     def _confirm(self, payment):
-        return self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        """Dikonfirmasi user lain: pencatat tidak menyetujui pembayarannya sendiri."""
+        checker = User.objects.filter(username='apply-checker').first()
+        if checker is None:
+            checker = User.objects.create_user('apply-checker', password='pw12345')
+            checker.profile.role = 'manager'
+            checker.profile.save(update_fields=['role'])
+        self._login(checker)
+        try:
+            return self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        finally:
+            self._login(self.user)
 
 
 class RecordPendingFlowTest(ReceiveApplyFlowTest):
@@ -119,7 +135,7 @@ class RecordPendingFlowTest(ReceiveApplyFlowTest):
         self.assertEqual(payment.status, PaymentRecord.STATUS_PENDING)
         self.assertEqual(PaymentAllocation.objects.filter(payment=payment).count(), 2)
 
-        self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        self._confirm(payment)
         payment.refresh_from_db()
         # Fully allocated → applied after confirm.
         self.assertEqual(payment.display_status, 'applied')
@@ -302,7 +318,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         dan kwitansi deposit tetap dibuat dengan invoice None."""
         self._post_deposit(7000, client_id=self.client_obj.pk)
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
-        self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        self._confirm(payment)
         payment.refresh_from_db()
         self.assertEqual(payment.display_status, 'received')
 
@@ -329,7 +345,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         re-posted dengan dimensi invoice + reservasi, status applied."""
         self._post_deposit(7000, client_id=self.client_obj.pk)
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
-        self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        self._confirm(payment)
         payment.refresh_from_db()
         self.assertEqual(payment.display_status, 'received')
 
@@ -359,7 +375,7 @@ class DepositFlowTest(ReceiveApplyFlowTest):
         """Deposit tanpa invoice_id di payload apply → ditolak."""
         self._post_deposit(7000, client_id=self.client_obj.pk)
         payment = PaymentRecord.objects.get(client=self.client_obj, invoice__isnull=True)
-        self.client.post(f'/finance/payments/{payment.pk}/confirm/')
+        self._confirm(payment)
         payment.refresh_from_db()
         self.assertEqual(payment.display_status, 'received')
 

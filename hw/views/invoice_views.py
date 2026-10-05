@@ -27,7 +27,7 @@ from .helpers import (
     snapshot_fields,
     track_changes,
 )
-from .invoice_billing import _billing_props, _save_hotel_payments
+from .invoice_billing import _billing_props
 from .credit_note_views import invoice_credit_props
 from .pdf import _logo_file_url, _render_invoice_pdf
 
@@ -242,7 +242,6 @@ def invoice_new(request):
                 )
                 Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
                 _sync_hotel_lines(invoice, cl_ids, request.user)
-                _save_hotel_payments(invoice, request)
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
 
@@ -432,7 +431,6 @@ def invoice_edit(request, pk):
                 invoice.save()
                 Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
                 _sync_hotel_lines(invoice, cl_ids, request.user)
-                _save_hotel_payments(invoice, request)
         except (FinanceError, ValueError) as e:
             # A finance failure (e.g. PeriodLockedError when a payment falls in a
             # closed period) must roll back cleanly and show the user a form error,

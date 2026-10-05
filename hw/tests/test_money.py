@@ -67,3 +67,26 @@ class ConvertTest(SimpleTestCase):
         self.assertEqual(market_quote('USD', 'IDR'), TO_PER_FROM)
         self.assertEqual(market_quote('USD', 'SAR'), TO_PER_FROM)
         self.assertEqual(market_quote('SAR', 'USD'), FROM_PER_TO)
+
+
+class ConvertToSarTest(SimpleTestCase):
+    """hw.utils.convert_to_sar — jalur nilai SAR utuh pembayaran & expense."""
+
+    def test_idr_tie_rounds_half_up(self):
+        from hw.utils import convert_to_sar
+        # round() bawaan (ties-to-even) memberi 0 dan 2.
+        self.assertEqual(convert_to_sar(2450, 'IDR', 4900), 1)
+        self.assertEqual(convert_to_sar(7350, 'IDR', 4900), 2)
+        self.assertEqual(convert_to_sar(12250, 'IDR', 4900), 3)
+
+    def test_exact_and_float_rates(self):
+        from hw.utils import convert_to_sar
+        self.assertEqual(convert_to_sar(35280000, 'IDR', 4900), 7200)
+        self.assertEqual(convert_to_sar(35280000, 'IDR', Decimal('4900.0000')), 7200)
+        self.assertEqual(convert_to_sar(100, 'USD', 3.75), 375)
+        self.assertEqual(convert_to_sar(2, 'USD', Decimal('3.75')), 8)   # 7,5 → 8
+        self.assertEqual(convert_to_sar(500, 'SAR', 1), 500)
+
+    def test_zero_idr_rate_gives_zero(self):
+        from hw.utils import convert_to_sar
+        self.assertEqual(convert_to_sar(1000, 'IDR', 0), 0)

@@ -28,7 +28,9 @@ class DualWriteTestBase(TestCase):
 
 
 class InvoiceNewDualWriteTest(DualWriteTestBase):
-    def test_creating_invoice_posts_charge_and_payment_to_journal(self):
+    def test_creating_invoice_posts_charge_and_ignores_submitted_payments(self):
+        """Pembayaran hanya lewat modul Payment (pencatat ≠ penyetuju). Field
+        `payments` yang dikirim ke form invoice tidak boleh membuat pembayaran."""
         cl = make_priced_cl(self.client_obj, "R1", 5000, check_in=date(2026, 2, 1), check_out=date(2026, 2, 3))
         resp = self.client.post("/invoice/new/", {
             "invoice_number": "INV-DW-001",
@@ -43,25 +45,9 @@ class InvoiceNewDualWriteTest(DualWriteTestBase):
         })
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number="INV-DW-001")
-        self.assertEqual(PaymentRecord.objects.filter(invoice=invoice).count(), 1)
+        self.assertFalse(PaymentRecord.objects.filter(invoice=invoice).exists())
         self.assertEqual(fq.invoice_charged_sar(invoice.id), 5000)
-        self.assertEqual(fq.invoice_paid_sar(invoice.id), 3000)
-
-    def test_direct_payment_routes_to_kas_pusat(self):
-        cl = make_priced_cl(self.client_obj, "R1", 5000)
-        resp = self.client.post("/invoice/new/", {
-            "invoice_number": "INV-DW-002",
-            "customer_name": "PT Dual Write",
-            "client_id": str(self.client_obj.pk),
-            "issued_date": "2026-01-01",
-            "due_date": "",
-            "linked_cl_ids": json.dumps([cl.pk]),
-            "payments": json.dumps([
-                {"ref": "R1", "date": "2026-01-05", "method": "Direct", "amount": "5000", "currency": "SAR", "exchange": "1"},
-            ]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(fq.kas_pusat(), 5000)
+        self.assertEqual(fq.invoice_paid_sar(invoice.id), 0)
 
 
 class InvoiceEditDualWriteTest(DualWriteTestBase):
@@ -101,19 +87,9 @@ class InvoiceEditDualWriteTest(DualWriteTestBase):
         # Charge lama di-reverse, charge baru diposting — net Piutang = 8000.
         self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 8000)
 
-    def test_repeated_payment_edits_leave_one_effective_payment_record(self):
-        res = [{"reservation_number": "R1", "hotel": "Hotel A", "check_in": "", "check_out": "", "reservation_total": "5000"}]
-        for amt in ("1000", "2000", "3000"):
-            self._edit(res, [{"ref": "R1", "date": "2026-01-05", "method": "Cash", "amount": amt, "currency": "SAR", "exchange": "1"}])
-        # PaymentRecord append-only: baris lama ditandai REVERSED, bukan menumpuk.
-        eff = PaymentRecord.objects.filter(invoice=self.invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
-        self.assertEqual(eff.count(), 1)
-        self.assertEqual(fq.invoice_paid_sar(self.invoice.id), 3000)
-        self.assertEqual(len(fq.payment_history_rows(self.invoice)), 1)
-
 
 class ServicesDualWriteTest(DualWriteTestBase):
-    def test_creating_services_invoice_posts_service_income(self):
+    def test_creating_services_invoice_posts_service_income_only(self):
         resp = self.client.post("/services/new/", {
             "invoice_number": "SVC-DW-001",
             "customer_name": "PT Dual Write",
@@ -131,7 +107,8 @@ class ServicesDualWriteTest(DualWriteTestBase):
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number="SVC-DW-001")
         self.assertEqual(fq.invoice_charged_sar(invoice.id), 1000)
-        self.assertEqual(fq.invoice_paid_sar(invoice.id), 600)
+        self.assertEqual(fq.invoice_paid_sar(invoice.id), 0)
+        self.assertFalse(PaymentRecord.objects.filter(invoice=invoice).exists())
 
 
 class RemittanceDualWriteTest(DualWriteTestBase):

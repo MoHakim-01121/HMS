@@ -24,6 +24,9 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
   const { t } = useI18n();
   const perms = usePerms();
   const canEdit = perms.can("payments", "edit");
+  // Pencatat tidak mengonfirmasi pembayarannya sendiri (kecuali admin) --
+  // server menegakkan hal yang sama di payment_confirm.
+  const canConfirm = canEdit && (perms.isAdmin || payment.created_by !== perms.user?.username);
   const canVoidReceipt = perms.can("invoice", "delete");
   const [confirm, confirmDialog] = useConfirm();
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -90,7 +93,7 @@ export default function Detail({ payment = {}, reservations = [], invoice_choice
   // column.
   let primary = null;
   if (canEdit && payment.status === "pending") {
-    primary = { label: t("Confirm"), onClick: handleConfirm };
+    primary = canConfirm ? { label: t("Confirm"), onClick: handleConfirm } : null;
   } else if (canEdit && (allocatable || reallocatable)) {
     primary = {
       label: unallocated

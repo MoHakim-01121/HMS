@@ -14,6 +14,7 @@ from ..models import CancellationPenalty, ConfirmationLetter
 from ..finance.penalty_billing import bill_penalty, penalty_state, unbill_penalty
 from ..finance_helpers import FinanceError
 from ..permissions import require_perm
+from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
 from .pdf import _logo_file_url
 
@@ -31,7 +32,7 @@ def _billing_notice(cl):
 
 def _penalty_amount(request):
     """Nominal denda (SAR, bilangan bulat > 0) dari form, atau None bila tidak sah."""
-    amount = int(round(_to_float(request.POST.get('penalty_amount')) or 0))
+    amount = round_half_up(_to_float(request.POST.get('penalty_amount')) or 0)
     return amount if amount > 0 else None
 
 

@@ -291,8 +291,8 @@ class JournalLine(AppendOnlyModel):
     line_no       = models.PositiveSmallIntegerField(default=1)
     account       = models.ForeignKey('LedgerAccount', on_delete=models.PROTECT, related_name='+')
 
-    debit         = models.BigIntegerField(default=0)   # SAR minor units, >= 0
-    credit        = models.BigIntegerField(default=0)   # SAR minor units, >= 0
+    debit         = models.BigIntegerField(default=0)   # SAR utuh (riyal), >= 0
+    credit        = models.BigIntegerField(default=0)   # SAR utuh (riyal), >= 0
     currency      = models.CharField(max_length=3, default='SAR')   # mata uang transaksi
 
     # Nominal asli dalam `currency` dan kursnya (baris kas/bank non-SAR).

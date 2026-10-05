@@ -27,13 +27,24 @@ CURRENCIES = ('SAR', 'IDR', 'USD')
 
 
 def convert_to_sar(amount, currency, exchange_rate):
+    """Nilai SAR utuh dari `amount` (satuan utuh `currency`).
+
+    Dihitung dengan Decimal dan dibulatkan setengah ke atas — bukan float dan
+    bukan round() bawaan (ties-to-even: IDR 2.450 / 4.900 = 0,5 → 0, harusnya 1).
+    Rupiah dikutip per 1 SAR (dibagi), mata uang lain dalam SAR per unit (dikali).
+    """
+    amount = Decimal(str(amount))
+    rate = Decimal(str(exchange_rate))
     if currency == "SAR":
-        return amount
+        value = amount
     elif currency == "IDR":
-        return amount / exchange_rate if exchange_rate != 0 else 0
+        if rate == 0:
+            return 0
+        value = amount / rate
     else:  # USD or others
-        return amount * exchange_rate
+        value = amount * rate
+    return round_half_up(value)
 
 
 def format_currency(amount):
-    return f"{int(round(amount)):,}"
+    return f"{round_half_up(amount):,}"

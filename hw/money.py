@@ -1,6 +1,10 @@
-"""Uang: satuan terkecil, konversi, dan pembulatan — satu tempat untuk semua.
+"""Uang dalam satuan terkecil (halala/sen) — BELUM dipakai kode produksi.
 
-Konvensi skema target (spec §2 K3–K4):
+Spec K3 direvisi 2026-10-05: nominal disimpan dalam satuan utuh, dan konversi
+ke SAR lewat `hw.utils.convert_to_sar`. Modul ini disimpan untuk bila kelak
+satuan terkecil diadopsi; jangan dipakai untuk kolom yang ada sekarang.
+
+Konvensi modul ini (rancangan awal K3–K4):
 
 * Nominal disimpan sebagai ``int`` dalam satuan terkecil mata uangnya
   (SAR → halala, USD → sen, IDR → rupiah). Jumlah digit desimal tiap mata

@@ -8,9 +8,10 @@ class FinancialPeriod(models.Model):
 
     Status lifecycle: open → soft_close → closed → locked
     - open: semua transaksi boleh masuk
-    - soft_close: auto-posting masih boleh, manual JE perlu approval
-    - closed: tidak ada posting baru kecuali prior-period adjustment
-    - locked: fiscal year closed, tidak ada perubahan sama sekali
+    - soft_close: posting masih boleh (sama seperti open; belum ada alur
+      approval jurnal manual — aplikasi tidak punya jurnal manual)
+    - closed: tidak ada posting baru
+    - locked: closed + final, tidak bisa diubah lagi
     """
 
     STATUS_OPEN       = 'open'
@@ -124,16 +125,26 @@ class FinancialPeriod(models.Model):
 
     def lock(self, user):
         """Lock periode. Irreversible."""
-        if self.status != self.STATUS_CLOSED:
-            raise ValueError("Periode harus closed dulu sebelum di-lock")
-        
-        # Validate no pending payments in this period
-        from .payment import PaymentRecord
-        pending = self.payments.filter(status=PaymentRecord.STATUS_PENDING)
-        if pending.exists():
-            raise ValueError(f"Ada {pending.count()} pembayaran pending. Harus di-confirm/reject dulu.")
-        
-        self.status = self.STATUS_LOCKED
-        self.locked_by = user
-        self.locked_at = timezone.now()
-        self.save(update_fields=['status', 'locked_by', 'locked_at'])
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Kunci baris periode seperti close(): status dibaca ulang di bawah
+            # kunci, jadi dua lock paralel tidak sama-sama lolos pemeriksaan.
+            locked = type(self).objects.select_for_update().get(pk=self.pk)
+            if locked.status != self.STATUS_CLOSED:
+                raise ValueError("Periode harus closed dulu sebelum di-lock")
+
+            # Validate no pending payments in this period
+            from .payment import PaymentRecord
+            pending = locked.payments.filter(status=PaymentRecord.STATUS_PENDING)
+            if pending.exists():
+                raise ValueError(f"Ada {pending.count()} pembayaran pending. Harus di-confirm/reject dulu.")
+
+            locked.status = self.STATUS_LOCKED
+            locked.locked_by = user
+            locked.locked_at = timezone.now()
+            locked.save(update_fields=['status', 'locked_by', 'locked_at'])
+
+            self.status = locked.status
+            self.locked_by = locked.locked_by
+            self.locked_at = locked.locked_at

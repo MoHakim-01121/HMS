@@ -25,6 +25,7 @@ from ..finance import reconciliation_service as rs
 from ..finance import statement_import as si
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
+from ..utils import round_half_up
 from .helpers import _parse_date, _to_float, money_account_choices, request_data, resolve_money_account
 
 # Cash-book source → page that explains the movement.
@@ -127,7 +128,7 @@ def reconciliation_new(request):
         if not amt or amt <= 0 or not line_date or row.get('direction') not in ('in', 'out'):
             continue
         lines.append({
-            'line_date': line_date, 'direction': row['direction'], 'amount': int(round(amt)),
+            'line_date': line_date, 'direction': row['direction'], 'amount': round_half_up(amt),
             'description': row.get('description', ''), 'reference': row.get('reference', ''),
         })
 
@@ -135,8 +136,8 @@ def reconciliation_new(request):
         statement = rs.create_statement(
             account=account, period_start=_parse_date(data.get('period_start')),
             period_end=_parse_date(data.get('period_end')),
-            opening_balance=int(round(_to_float(data.get('opening_balance', 0)))),
-            closing_balance=int(round(_to_float(data.get('closing_balance', 0)))),
+            opening_balance=round_half_up(_to_float(data.get('opening_balance', 0))),
+            closing_balance=round_half_up(_to_float(data.get('closing_balance', 0))),
             lines=lines, created_by=request.user, note=data.get('note', ''),
         )
     except FinanceError as e:
@@ -210,8 +211,8 @@ def reconciliation_import(request):
     try:
         statement = rs.create_statement(
             account=account, period_start=period_start, period_end=period_end,
-            opening_balance=int(round(_to_float(form['opening_balance']))),
-            closing_balance=int(round(_to_float(form['closing_balance']))),
+            opening_balance=round_half_up(_to_float(form['opening_balance'])),
+            closing_balance=round_half_up(_to_float(form['closing_balance'])),
             lines=lines, created_by=request.user, note=form['note'],
             source_filename=form['filename'][:255],
         )

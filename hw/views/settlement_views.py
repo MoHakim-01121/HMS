@@ -24,6 +24,7 @@ from ..models.settlement import RemittanceSettlement
 from ..finance import remittance_allocation, settlement_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
+from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
 
 
@@ -155,7 +156,7 @@ def remittance_record_receipt(request, pk):
         ))
 
     data = _request_data(request)
-    amount = int(round(_to_float(data.get('received_amount_sar')) or 0))
+    amount = round_half_up(_to_float(data.get('received_amount_sar')) or 0)
     if not amount:
         return _receipt_failed(request, data, remittance, 'Nominal diterima harus diisi.', fallback=fallback)
     raw_date = data.get('received_date')

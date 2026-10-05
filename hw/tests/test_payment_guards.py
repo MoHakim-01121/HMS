@@ -60,14 +60,16 @@ class PaymentGuardBase(TestCase):
             'issued_date': '2026-01-01',
             'due_date': '',
             'linked_cl_ids': self.linked_cl_ids,
-            'payments': json.dumps([{
-                'ref': 'G-1', 'date': '2026-01-05', 'method': 'Cash',
-                'amount': '3000', 'currency': 'SAR', 'exchange': '1',
-            }]),
         })
         self.assertEqual(resp.status_code, 302)
         invoice = Invoice.objects.get(invoice_number=number)
-        payment = PaymentRecord.objects.get(invoice=invoice, reference='invoice-form')
+        from hw.finance_helpers import confirm_payment, create_payment_record
+        payment = create_payment_record(
+            invoice=invoice, client=self.client_obj, payment_date=date(2026, 1, 5),
+            amount=3000, method='Cash', created_by=self.user,
+        )
+        confirm_payment(payment, confirmed_by=self.user)
+        payment.refresh_from_db()
         self.assertIn(payment.status, PaymentRecord.EFFECTIVE_STATUSES)
         return invoice, payment
 
@@ -99,17 +101,22 @@ class InvoiceSaveDoesNotWipePaymentsTest(PaymentGuardBase):
             'an edit that submits no payment list must post no reversal',
         )
 
-    def test_edit_with_explicit_empty_payments_still_resyncs(self):
-        """An explicitly submitted empty list is still a resync instruction."""
+    def test_edit_with_payments_list_is_ignored(self):
+        """Pembayaran hanya masuk lewat modul Payment. Daftar `payments` yang
+        dikirim ke form invoice -- kosong atau berisi -- tidak membalik
+        pembayaran yang ada dan tidak membuat pembayaran terkonfirmasi baru."""
         invoice, payment = self._create_invoice_with_payment('INV-GUARD-002')
 
-        payload = self._edit_payload(invoice)
-        payload['payments'] = json.dumps([])
-        resp = self.client.post(f'/invoice/{invoice.pk}/edit/', payload)
-        self.assertEqual(resp.status_code, 302)
+        for rows in ([], [{'ref': 'G-1', 'date': '2026-01-06', 'method': 'Cash',
+                           'amount': '9000', 'currency': 'SAR', 'exchange': '1'}]):
+            payload = self._edit_payload(invoice)
+            payload['payments'] = json.dumps(rows)
+            resp = self.client.post(f'/invoice/{invoice.pk}/edit/', payload)
+            self.assertEqual(resp.status_code, 302)
 
         payment.refresh_from_db()
-        self.assertEqual(payment.status, PaymentRecord.STATUS_REVERSED)
+        self.assertEqual(payment.status, PaymentRecord.STATUS_CONFIRMED)
+        self.assertEqual(PaymentRecord.objects.filter(invoice=invoice).count(), 1)
 
 
 class PaymentAmountGuardTest(PaymentGuardBase):

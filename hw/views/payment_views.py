@@ -22,10 +22,11 @@ from ..finance_helpers import (
     reverse_journal_entry, _payment_snapshot,
     FinanceError,
 )
-from ..permissions import require_perm
+from ..models.role import ADMIN_SLUG
+from ..permissions import get_role, require_perm
 from ..i18n import tr
 from ..finance import posting
-from ..utils import CURRENCIES
+from ..utils import CURRENCIES, round_half_up
 from .helpers import (
     serialize_journal_entry, _parse_date, _parse_search_tokens, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
@@ -324,7 +325,7 @@ def _apply_payment_filters(qs, f):
 
 @require_perm('payments', 'view')
 def payment_list(request):
-    base_qs = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by')
+    base_qs = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'created_by')
     f = _payment_filter_params(request)
     payments = _apply_payment_filters(base_qs, f)
 
@@ -407,7 +408,7 @@ def payment_list(request):
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
     payment = get_object_or_404(
-        PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'receiving_account__branch'),
+        PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'created_by', 'receiving_account__branch'),
         pk=pk,
     )
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
@@ -602,7 +603,7 @@ def payment_record(request):
             if reservation is None:
                 unknown.append(str(alloc.get('reservation_id')))
                 continue
-            targets.append((reservation, int(_to_float(alloc.get('amount', 0)))))
+            targets.append((reservation, round_half_up(_to_float(alloc.get('amount', 0)))))
         if unknown:
             messages.error(
                 request,
@@ -617,7 +618,7 @@ def payment_record(request):
         # Nilai SAR pembayaran (riyal patokan), untuk memvalidasi total alokasi
         # SEBELUM record dibuat -- jangan sisakan PaymentRecord yatim bila over.
         from ..utils import convert_to_sar
-        sar_amount = int(round(convert_to_sar(amount, currency, exchange_rate)))
+        sar_amount = convert_to_sar(amount, currency, exchange_rate)
         if sum(a for _, a in targets) > sar_amount:
             messages.error(
                 request,
@@ -704,11 +705,24 @@ def payment_confirm(request, pk):
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            confirm_payment(payment, confirmed_by=request.user, note=note)
+            # Pemisahan tugas: pencatat pembayaran tidak mengonfirmasi uangnya
+            # sendiri. Admin boleh (break-glass), dan itu tercatat di log.
+            if payment.created_by_id == request.user.pk:
+                if get_role(request.user) != ADMIN_SLUG:
+                    messages.error(
+                        request,
+                        'Pembayaran ini Anda catat sendiri — konfirmasi harus oleh user lain.',
+                    )
+                    return redirect('payment_detail', pk=pk)
+                note = ('[Dikonfirmasi oleh pencatatnya sendiri (admin)] ' + note).strip()
 
-            # Auto-generate the payment receipt (kwitansi) on confirmation.
+            # Konfirmasi dan kwitansinya satu transaksi: tidak ada pembayaran
+            # terkonfirmasi tanpa kwitansi bila pembuatan kwitansi gagal.
+            from django.db import transaction
             from ..finance.receipt_service import ensure_receipt
-            ensure_receipt(payment, created_by=request.user)
+            with transaction.atomic():
+                confirm_payment(payment, confirmed_by=request.user, note=note)
+                ensure_receipt(payment, created_by=request.user)
 
             messages.success(request, f'Payment {payment.payment_number} berhasil dikonfirmasi.')
         except FinanceError as e:
@@ -830,7 +844,7 @@ def payment_reallocate(request, pk):
         if reservation is None:
             unknown.append(str(alloc.get('reservation_id')))
             continue
-        targets.append((reservation, int(_to_float(alloc.get('amount', 0)))))
+        targets.append((reservation, round_half_up(_to_float(alloc.get('amount', 0)))))
     if unknown:
         messages.error(
             request,
@@ -1001,7 +1015,7 @@ def payment_apply(request, pk):
         messages.error(request, 'Tidak ada alokasi yang valid.')
         return redirect('payment_detail', pk=pk)
 
-    total_alloc = sum(int(_to_float(a['amount'])) for a in valid_allocs)
+    total_alloc = sum(round_half_up(_to_float(a['amount'])) for a in valid_allocs)
     if total_alloc > payment.amount_sar:
         messages.error(
             request,
@@ -1029,7 +1043,7 @@ def payment_apply(request, pk):
         if res is None:
             unknown.append(str(a.get('reservation_id')))
             continue
-        targets.append((res, int(_to_float(a['amount']))))
+        targets.append((res, round_half_up(_to_float(a['amount']))))
 
     if unknown:
         messages.error(

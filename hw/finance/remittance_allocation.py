@@ -22,6 +22,7 @@ from datetime import date
 from django.db.models import Sum
 
 from ..models.journal import JournalEntry
+from ..utils import round_half_up
 from .errors import FinanceError
 
 ALLOCATION_SOURCE = 'RemittanceAllocation'
@@ -314,8 +315,8 @@ def validate(remittance, allocations, settlement=None):
     for item in allocations or []:
         number = str(item.get('linked_number') or '').strip()
         try:
-            amount = int(round(float(item.get('amount_sar') or 0)))
-        except (TypeError, ValueError):
+            amount = round_half_up(item.get('amount_sar') or 0)
+        except (TypeError, ValueError, ArithmeticError):
             raise FinanceError(f'Nominal alokasi {number or "?"} tidak valid') from None
         if amount < 0:
             raise FinanceError(f'Nominal alokasi {number} tidak boleh negatif')

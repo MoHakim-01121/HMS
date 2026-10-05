@@ -18,7 +18,7 @@ from .posting import native, get_period_for_date, post_entry, reverse_entry
 
 
 def _sar(amount, currency, rate):
-    return int(round(convert_to_sar(amount, currency, float(rate))))
+    return convert_to_sar(amount, currency, rate)
 
 
 def _live_entries(source_type, source_id):

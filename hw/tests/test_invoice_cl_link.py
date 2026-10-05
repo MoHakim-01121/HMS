@@ -60,7 +60,7 @@ class InvoiceChargeClientResolutionTests(TestCase):
     """Regression: linking a CL to a hotel invoice must resolve the billing
     client immediately, not one save behind. _billing_client() reads
     invoice.confirmation_letters, so the CL link has to land before
-    _save_reservations/_save_hotel_payments run (see invoice_views.py). The
+    _save_reservations runs (see invoice_views.py). The
     resolved client then lands on invoice.client + the journal charge lines
     (client_receivable/client_billed read the journal's client dimension)."""
 

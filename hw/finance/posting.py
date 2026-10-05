@@ -20,6 +20,7 @@ from .errors import (
 from . import accounts as coa
 from .accounts import resolve_account_code
 from .hashing import entry_hash
+from ..utils import round_half_up
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,7 @@ def _split_native(total_native, parts):
         return [0 for _ in parts]
     out, used = [], 0
     for i, p in enumerate(parts):
-        share = total_native - used if i == len(parts) - 1 else int(round(total_native * p / total))
+        share = total_native - used if i == len(parts) - 1 else round_half_up(Decimal(total_native) * p / total)
         out.append(share)
         used += share
     return out
@@ -223,6 +224,13 @@ def post_entry(
     # (Versi lama mengunci baris entry terakhir lalu "retry" saat bentrok —
     # retry di transaksi PostgreSQL yang sudah gagal tidak pernah berhasil.)
     seq_row = _lock_journal_sequence()
+    if idempotency_key:
+        # Cek ulang di bawah kunci: panggilan paralel dengan key yang sama
+        # menunggu kunci di atas, lalu melihat entry yang baru commit di sini
+        # — bukan menabrak UNIQUE dan berakhir 500.
+        existing = JournalEntry.objects.filter(idempotency_key=idempotency_key).live().first()
+        if existing:
+            return existing
     seq = seq_row.last_value + 1
     last = JournalEntry.objects.filter(seq__isnull=False).order_by("-seq").first()
     prev_hash = last.entry_hash if last else ""
@@ -458,43 +466,6 @@ def clear_payment_allocations(payment):
     if rows:
         payment.allocations.all().delete()
     return rows
-
-
-@transaction.atomic
-def reverse_invoice_payments(invoice, *, created_by, entry_date=None):
-    """Reverse journal entry payment dari PaymentRecord ber-reference
-    'invoice-form' milik invoice ini, DAN tandai PaymentRecord-nya REVERSED.
-
-    Form invoice full delete-recreate daftar pembayaran; PaymentRecord
-    append-only jadi baris lama tak dihapus — kalau statusnya tidak di-flip,
-    baris pembayaran basi ikut tampil di riwayat & bikin
-    Σ PaymentRecord ≠ paid_sar jurnal."""
-    entry_date = entry_date or timezone.now().date()
-    old_prs = list(
-        invoice.payment_records.filter(
-            reference="invoice-form",
-            status__in=PaymentRecord.EFFECTIVE_STATUSES,
-        )
-    )
-    for e in JournalEntry.objects.for_source("PaymentRecord", [p.pk for p in old_prs]).filter(
-        entry_type=JournalEntry.TYPE_PAYMENT,
-    ).live():
-        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
-
-    from .bank_ledger import void_bank_transactions
-    for pr in old_prs:
-        pr.status = PaymentRecord.STATUS_REVERSED
-        pr.save(update_fields=["status"])
-        void_bank_transactions("PaymentRecord", pr.pk)
-        dropped = clear_payment_allocations(pr)
-        PaymentLog.objects.create(
-            payment=pr,
-            action=PaymentLog.ACTION_REVERSED,
-            before_state={"status": PaymentRecord.STATUS_CONFIRMED, "allocations": dropped},
-            after_state={"status": PaymentRecord.STATUS_REVERSED},
-            performed_by=created_by,
-            note="Superseded by invoice-form payment re-sync",
-        )
 
 
 @transaction.atomic
