@@ -8,6 +8,7 @@ import SearchBox from "../../components/shadcn/search-box.jsx";
 import FilterPanel from "../../components/shadcn/filter-panel.jsx";
 import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
+import useDismiss from "../../hooks/useDismiss.js";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
@@ -86,6 +87,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
   const canExport = perms.can("payments", "export");
   const [panelOpen, setPanelOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useDismiss(sortOpen, () => setSortOpen(false));
   const [sel, setSel] = useState(status_list);
   const [from, setFrom] = useState(date_from);
   const [to, setTo] = useState(date_to);
@@ -423,7 +425,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
         <SearchBox value={query} onChange={setQuery} placeholder="Search payment #, client, invoice, reference…" />
 
         <div className="fbar-actions">
-          <div className="sort-wrap" onClick={(e) => e.stopPropagation()}>
+          <div className="sort-wrap" ref={sortRef} onClick={(e) => e.stopPropagation()}>
             <button type="button" className="fbar-btn" onClick={() => { setSortOpen((v) => !v); setPanelOpen(false); }}>
               <Icon name="sort" size={13} /> {sort_label}
             </button>

@@ -69,8 +69,8 @@ export default function List({ invoices, total_count, q, pagination }) {
           <>
             <ExportMenu
               items={[
-                { href: `/services/export/csv/${qs}`, label: "CSV", icon: "invoice" },
-                { href: `/services/export/pdf/${qs}`, label: "PDF", icon: "cl", external: true },
+                { href: `/services/export/csv/${qs}`, label: "CSV" },
+                { href: `/services/export/pdf/${qs}`, label: "PDF", external: true },
               ]}
             />
             {perms.can("services", "create") && (

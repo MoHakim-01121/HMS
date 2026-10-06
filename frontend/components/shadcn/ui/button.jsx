@@ -15,8 +15,11 @@ import { cn } from "@/lib/utils"
 // rgb(0,0,238) with an underline. Variants that do set a text color
 // (default/destructive/secondary/link) still win, since cva emits them after
 // the base and twMerge keeps the last of a conflicting pair.
+//
+// Press feedback: every Button scales to 0.96 while held. Pass `static` to
+// opt out where the motion would distract (dense toolbars, drag handles).
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-transparent text-sm font-medium whitespace-nowrap no-underline text-current transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-transparent text-sm font-medium whitespace-nowrap no-underline text-current transition-[color,background-color,border-color,box-shadow,opacity,scale] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -35,6 +38,10 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+      },
+      static: {
+        false: "active:scale-[0.96]",
+        true: "",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -56,6 +63,7 @@ const buttonVariants = cva(
     defaultVariants: {
       variant: "default",
       size: "default",
+      static: false,
     },
   }
 )
@@ -69,6 +77,7 @@ const Button = React.forwardRef(function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  static: isStatic = false,
   ...props
 }, ref) {
   const Comp = asChild ? Slot.Root : "button"
@@ -79,7 +88,7 @@ const Button = React.forwardRef(function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, static: isStatic, className }))}
       {...props} />
   );
 });

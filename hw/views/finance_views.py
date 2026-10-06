@@ -13,7 +13,7 @@ from ..finance import queries as finance_queries
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..permissions import can, require_perm, _deny
-from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension
+from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension, pagination_props
 
 
 _FINANCE_MODULES = ('payments', 'statements', 'remittance', 'expenses', 'journal', 'periods', 'penalty')
@@ -284,7 +284,30 @@ def trial_balance(request):
 
 @require_perm('statements', 'view')
 def statements_list(request):
-    return inertia_render(request, 'Finance/Statements', props={'clients': finance_queries.clients_overview()})
+    """Daftar ledger per klien: pencarian + filter outstanding + sort, dengan
+    total footer dihitung dari seluruh baris yang lolos filter (bukan hanya
+    halaman ini)."""
+    q = request.GET.get('q', '').strip()
+    outstanding = request.GET.get('outstanding', '') == '1'
+    sort = request.GET.get('sort', '')
+    if sort not in finance_queries.OVERVIEW_SORTS:
+        sort = 'receivable'
+
+    rows = finance_queries.clients_overview(q=q, outstanding_only=outstanding, sort=sort)
+    totals = finance_queries.clients_overview_totals(rows)
+
+    paginator = Paginator(rows, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return inertia_render(request, 'Finance/Statements', props={
+        'clients': list(page_obj),
+        'totals': totals,
+        'total_count': paginator.count,
+        'pagination': pagination_props(page_obj),
+        'q': q,
+        'outstanding': outstanding,
+        'sort': sort,
+    })
 
 
 @require_perm('statements', 'view')
@@ -533,6 +556,8 @@ def _pending_out_rows(user, client=None):
     return sorted(rows, key=lambda r: r['date'], reverse=True)
 
 
+STATEMENT_PAGE_SIZE = 50
+
 @require_perm('statements', 'view')
 def client_finance_statement(request, pk):
     """Client finance statement from JournalEntries (unified query path).
@@ -555,7 +580,22 @@ def client_finance_statement(request, pk):
     if date_to:
         date_to = _parse_date(date_to)
 
-    aging = finance_queries.client_aging(client.pk)
+    from django.utils import timezone as _tz
+    # A statement opens on the last three calendar months: the opening balance
+    # carries everything before it, so nothing is lost, and the page stays
+    # short for a client with years of history. Only a bare URL gets the
+    # default; an explicit empty `from` (the "All time" choice) means all time.
+    if mode == 'balance' and 'from' not in request.GET and 'to' not in request.GET:
+        today = _tz.localdate()
+        month = today.month - 2
+        date_from = date(today.year + (month - 1) // 12, (month - 1) % 12 + 1, 1)
+
+    # The aging must speak about the same period as the statement below it,
+    # otherwise a filtered statement and its aging disagree about what is owed.
+    # "Today" for the overdue buckets follows the selected end date, so a
+    # period-scoped statement ages its invoices as of that period's end.
+    aging_as_of = date_to or _tz.localdate()
+    aging = finance_queries.client_aging(client.pk, date_to=date_to)
 
     if mode == 'open':
         open_items = finance_queries.open_items(
@@ -565,6 +605,7 @@ def client_finance_statement(request, pk):
             "mode": "open",
             "transactions": [],
             "open_items": open_items["rows"],
+            "count": len(open_items["rows"]),
             "total_open": open_items["total_remaining"],
             "opening_balance": 0,
             "closing_balance": open_items["total_remaining"],
@@ -572,9 +613,16 @@ def client_finance_statement(request, pk):
             "total_credit": 0,
         }
     else:
-        statement = finance_queries.client_statement_with_opening(
+        # Reversed pairs are hidden unless asked for, with the running balance
+        # recomputed without them (see client_ledger). Search narrows the rows
+        # only; balances and totals stay the period's.
+        show_voided = request.GET.get('voided') == '1'
+        q = (request.GET.get('q') or '').strip()
+        ledger = finance_queries.client_ledger(
             client.pk, date_from=date_from, date_to=date_to,
+            hide_voided=not show_voided, q=q,
         )
+        page_obj = Paginator(ledger["rows"], STATEMENT_PAGE_SIZE).get_page(request.GET.get('page'))
         transactions = [{
             "date": r["date"].isoformat() if r["date"] else None,
             "entry_number": r["entry_number"],
@@ -586,16 +634,22 @@ def client_finance_statement(request, pk):
             "invoice_number": r["invoice_number"],
             "amount_sar": r["debit"] - r["credit"],
             "balance": r["balance"],
-        } for r in statement["rows"]]
+            "is_voided": r["is_voided"],
+        } for r in page_obj.object_list]
         statement_payload = {
             "mode": "balance",
             "transactions": transactions,
             "open_items": [],
+            "count": ledger["period_count"],
             "total_open": 0,
-            "opening_balance": statement["opening_balance"],
-            "closing_balance": statement["closing_balance"],
-            "total_debit": statement["total_debit"],
-            "total_credit": statement["total_credit"],
+            "opening_balance": ledger["opening_balance"],
+            "closing_balance": ledger["closing_balance"],
+            "total_debit": ledger["total_debit"],
+            "total_credit": ledger["total_credit"],
+            "months": ledger["months"],
+            "hidden_voided": ledger["hidden_voided"],
+            "show_voided": show_voided,
+            "q": q,
         }
 
     return inertia_render(request, 'Finance/ClientStatement', props={
@@ -610,6 +664,8 @@ def client_finance_statement(request, pk):
         },
         'statement': statement_payload,
         'aging': aging,
+        'aging_as_of': aging_as_of.isoformat() if aging_as_of else None,
+        'pagination': pagination_props(page_obj) if mode == 'balance' else None,
         'mode': mode,
         'date_from': date_from.isoformat() if date_from else None,
         'date_to': date_to.isoformat() if date_to else None,

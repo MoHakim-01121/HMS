@@ -132,8 +132,8 @@ export default function List({ invoices, total_count, q, status_filter, date_fro
           <>
             <ExportMenu
               items={[
-                { href: `/invoice/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
-                { href: `/invoice/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
+                { href: `/invoice/export/csv/${exportQs}`, label: "CSV" },
+                { href: `/invoice/export/pdf/${exportQs}`, label: "PDF", external: true },
               ]}
             />
             {perms.can("invoice", "create") && (

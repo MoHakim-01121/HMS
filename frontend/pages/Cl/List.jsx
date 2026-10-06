@@ -14,6 +14,7 @@ import FilterChips from "../../components/shadcn/filter-chips.jsx";
 import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
+import useDismiss from "../../hooks/useDismiss.js";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmtDateShort } from "../../utils/format.js";
@@ -50,6 +51,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
   const { t } = useI18n();
   const [panelOpen, setPanelOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useDismiss(sortOpen, () => setSortOpen(false));
   const [sel, setSel] = useState(status_list || []);
   const [from, setFrom] = useState(date_from || "");
   const [to, setTo] = useState(date_to || "");
@@ -164,9 +166,9 @@ export default function List({ letters, total_count, q, status_list, date_from, 
           <>
             <ExportMenu
               items={[
-                { href: `/cl/export/csv/${exportQs}`, label: "CSV", icon: "invoice" },
-                { href: `/cl/export/pdf/${exportQs}`, label: "PDF", icon: "cl", external: true },
-                { href: `/cl/export/pdf-v2/${exportQs}`, label: "PDF v2", icon: "cl", external: true },
+                { href: `/cl/export/csv/${exportQs}`, label: "CSV" },
+                { href: `/cl/export/pdf/${exportQs}`, label: t("Payment Check"), hint: t("Total, paid and remaining per reservation"), external: true },
+                { href: `/cl/export/pdf-v2/${exportQs}`, label: t("Room Formation"), hint: t("Room types and meals per reservation"), external: true },
               ]}
             />
             {perms.can("cl", "create") && (
@@ -180,7 +182,7 @@ export default function List({ letters, total_count, q, status_list, date_from, 
         <SearchBox value={query} onChange={setQuery} placeholder="Search guest, hotel, confirmation number…" />
 
         <div className="fbar-actions">
-          <div className="sort-wrap" onClick={(e) => e.stopPropagation()}>
+          <div className="sort-wrap" ref={sortRef} onClick={(e) => e.stopPropagation()}>
             <button type="button" className="fbar-btn" onClick={() => { setSortOpen((v) => !v); setPanelOpen(false); }}>
               <Icon name="sort" size={13} /> {sort_label}
             </button>

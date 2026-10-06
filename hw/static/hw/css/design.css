@@ -1090,22 +1090,6 @@ input:-webkit-autofill:focus {
 
 /* ── Draft restore banner ── */
 
-/* ── Export dropdown ── */
-.export-dropdown { position: relative; }
-.export-menu {
-  position: absolute; right: 0; top: calc(100% + 4px);
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 4px; width: 100%;
-  display: none; z-index: var(--z-dropdown); box-shadow: var(--shadow-md);
-}
-.export-dropdown.open .export-menu { display: block; }
-.export-menu a {
-  display: flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 10px; font-size: 12.5px;
-  border-radius: var(--r); color: var(--text); text-decoration: none;
-}
-.export-menu a:hover { background: var(--surface-3); }
-
 /* ── Sortable columns ── */
 th[data-col] { cursor: pointer; user-select: none; }
 th[data-col]:hover { color: var(--text-2); }
@@ -1367,7 +1351,6 @@ th[data-col][data-sort="desc"]::after { content: " ↓"; color: var(--accent); }
   .table-wrap table.rem-table th,
   .table-wrap table.rem-table td { display: table-cell; white-space: nowrap; }
 
-  .export-menu { border-radius: 12px; }
 }
 
 /* ── Action sheet (mobile row actions) ── */

@@ -216,12 +216,14 @@
    AlertDialogAction/Cancel (Button asChild + Primitive.Action) comes out as
    `data-slot="alert-dialog-action"`, never `"button"`. Keying on
    `[data-slot="button"]` alone therefore skipped every alert-dialog footer
-   button, which is why they rendered as bare circles. `data-size` survives
+   button, which is why they rendered as bare circles. The same happens to a
+   Button used as a DropdownMenuTrigger (ExportMenu). `data-size` survives
    because only Button sets it. */
 :is(
   [data-slot="button"],
   [data-slot="alert-dialog-action"],
-  [data-slot="alert-dialog-cancel"]
+  [data-slot="alert-dialog-cancel"],
+  [data-slot="dropdown-menu-trigger"]
 ) {
   &[data-size="default"] { padding-inline: 16px; }
   &[data-size="default"]:has(> svg) { padding-inline: 12px; }
@@ -2011,8 +2013,10 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 /* Non-table section bodies (plain text, badges, file rows) get no padding of
    their own — without this they sit flush against the card edge instead of
    lining up under the 22px-indented section title. */
-.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-dv-table-wrap):not(.hms-rv-links) { padding-left:22px; padding-right:22px; }
-.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-rv-links):last-child { padding-bottom:20px; }
+/* `.hms-pag` and `.hms-rv-links` are full-bleed closing bands of a section —
+   they bring their own padding and must not be inset by the rule below. */
+.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-dv-table-wrap):not(.hms-rv-links):not(.hms-pag) { padding-left:22px; padding-right:22px; }
+.hms-rv-sec > *:not(.hms-rv-sech):not(.hms-rv-links):not(.hms-pag):last-child { padding-bottom:20px; }
 
 /* Related-documents chip row, closing the content card */
 .hms-rv-links { margin-top:auto; padding:14px 22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }

@@ -64,7 +64,8 @@ class ClientDetailViewTest(TestCase):
 
     def test_finance_statement_carries_the_client_money(self):
         # Bayar 6000 utk tagihan 5000 → lebihan 1000; mutasi 2 baris.
-        resp = self.client.get(f"/finance/clients/{self.client_obj.pk}/statement/", HTTP_X_INERTIA="true")
+        # "All time": statement default hanya 3 bulan terakhir, data uji Januari 2026.
+        resp = self.client.get(f"/finance/clients/{self.client_obj.pk}/statement/?from=", HTTP_X_INERTIA="true")
         self.assertEqual(resp.status_code, 200)
         props = resp.json()["props"]
         self.assertEqual(props["client"]["total_billed"], 5000)

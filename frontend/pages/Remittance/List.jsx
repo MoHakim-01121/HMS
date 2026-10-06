@@ -132,8 +132,8 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
           <>
             <ExportMenu
               items={[
-                { href: "/remittance/export/ledger/", label: t("Ledger PDF"), icon: "invoice", external: true },
-                { href: "/remittance/export/csv/", label: t("Export CSV"), icon: "invoice" },
+                { href: "/remittance/export/ledger/", label: t("Ledger PDF"), external: true },
+                { href: "/remittance/export/csv/", label: t("Export CSV") },
               ]}
             />
             {perms.can("remittance", "create") && (

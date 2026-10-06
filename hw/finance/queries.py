@@ -375,9 +375,12 @@ def client_reservation_ids(client_id):
     )
 
 
-def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
-    """Baris jurnal ber-dimensi client, urut kronologis, dengan running
-    balance (debit - credit; positif = client berutang)."""
+def client_statement_qs(client_id, *, date_from=None, date_to=None, as_of=None):
+    """Queryset baris Piutang + titipan milik satu client, kronologis.
+
+    Dipisah dari client_statement() supaya view bisa menghitung jumlah baris
+    (untuk Paginator) tanpa membangun dict untuk seluruh riwayat lebih dulu.
+    """
     qs = _scoped(
         JournalLine.objects.filter(
             client_id=client_id, account_id__in=[coa.AR, coa.CUST_CREDIT],
@@ -388,6 +391,22 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
         qs = qs.filter(journal_entry__entry_date__gte=date_from)
     if date_to:
         qs = qs.filter(journal_entry__entry_date__lte=date_to)
+    return qs
+
+
+def client_statement(
+    client_id, *, date_from=None, date_to=None, as_of=None, offset=0, limit=None,
+):
+    """Baris jurnal ber-dimensi client, urut kronologis, dengan running
+    balance (debit - credit; positif = client berutang).
+
+    `offset`/`limit` memotong baris yang dikembalikan untuk paginasi, tapi
+    TIDAK memotong perhitungan: running balance, total_debit/total_credit dan
+    closing_balance dihitung dari seluruh baris periode. Kalau tidak, saldo
+    baris pertama halaman 2 akan salah (mulai dari nol, bukan saldo sebenarnya
+    sebelum halaman itu). `count` selalu jumlah baris seluruh periode.
+    """
+    qs = client_statement_qs(client_id, date_from=date_from, date_to=date_to, as_of=as_of)
 
     rows, balance = [], 0
     reversed_ids = set(_reversed_entry_ids())
@@ -416,15 +435,23 @@ def client_statement(client_id, *, date_from=None, date_to=None, as_of=None):
             # tapi rollup harus bisa membuang pasangan itu karena net-nya nol.
             "is_voided": e.is_reversal or e.pk in reversed_ids,
         })
-    return {
-        "rows": rows,
+    totals = {
+        "count": len(rows),
         "closing_balance": balance,
         "total_debit": sum(r["debit"] for r in rows),
         "total_credit": sum(r["credit"] for r in rows),
     }
+    # Slice only after every total is computed — see the docstring.
+    if offset:
+        rows = rows[offset:]
+    if limit is not None:
+        rows = rows[:limit]
+    return {"rows": rows, **totals}
 
 
-def client_statement_with_opening(client_id, *, date_from=None, date_to=None, as_of=None):
+def client_statement_with_opening(
+    client_id, *, date_from=None, date_to=None, as_of=None, offset=0, limit=None,
+):
     """client_statement() + saldo awal yang benar untuk periode yang mulai di
     tengah riwayat (bukan reset ke nol). Konsisten dengan versi legacy."""
     from datetime import timedelta
@@ -437,16 +464,76 @@ def client_statement_with_opening(client_id, *, date_from=None, date_to=None, as
 
     st = client_statement(
         client_id, date_from=date_from, date_to=date_to, as_of=as_of,
+        offset=offset, limit=limit,
     )
     for r in st["rows"]:
         r["balance"] += opening_balance
-    closing_balance = st["rows"][-1]["balance"] if st["rows"] else opening_balance
+    # NOT st["rows"][-1]: with a paginated slice that is the last row on this
+    # page, not the last row of the period. The period closing balance only
+    # means anything once the opening balance is added back.
+    closing_balance = st["closing_balance"] + opening_balance
     return {
         "rows": st["rows"],
+        "count": st["count"],
         "opening_balance": opening_balance,
         "closing_balance": closing_balance,
         "total_debit": st["total_debit"],
         "total_credit": st["total_credit"],
+    }
+
+
+def client_ledger(client_id, *, date_from=None, date_to=None, hide_voided=True, q=""):
+    """Buku besar client untuk halaman detail: baris periode + saldo awal/akhir,
+    total, dan subtotal per bulan.
+
+    `hide_voided` membuang pasangan batal (entry yang di-reverse DAN reversal-nya)
+    dari tampilan. Saldo berjalan lalu dihitung ulang tanpa pasangan itu dari awal
+    riwayat — bukan sekadar menyembunyikan barisnya — supaya saldo tiap baris yang
+    tampil tetap bisa dijelaskan oleh baris di atasnya. Karena setiap pasangan
+    netonya nol, saldo akhir sama persis dengan versi lengkapnya.
+
+    `q` hanya menyaring baris yang dikembalikan; saldo, total dan subtotal bulan
+    tetap milik seluruh periode.
+    """
+    st = client_statement(client_id, date_to=date_to)
+    balance = opening = 0
+    period, hidden = [], 0
+    for r in st["rows"]:
+        in_period = not date_from or r["date"] >= date_from
+        if hide_voided and r["is_voided"]:
+            hidden += in_period
+            continue
+        balance += r["debit"] - r["credit"]
+        if in_period:
+            period.append({**r, "balance": balance})
+        else:
+            opening = balance
+
+    months = {}
+    for r in period:
+        m = months.setdefault(r["date"].strftime("%Y-%m"), {"debit": 0, "credit": 0, "closing": 0, "n": 0})
+        m["n"] += 1
+        m["debit"] += r["debit"]
+        m["credit"] += r["credit"]
+        m["closing"] = r["balance"]
+
+    rows = period
+    if q:
+        needle = q.casefold()
+        rows = [
+            r for r in period
+            if any(needle in (r.get(k) or "").casefold()
+                   for k in ("invoice_number", "entry_number", "description", "reservation_number"))
+        ]
+    return {
+        "rows": rows,
+        "period_count": len(period),
+        "hidden_voided": hidden,
+        "opening_balance": opening,
+        "closing_balance": balance,
+        "total_debit": sum(r["debit"] for r in period),
+        "total_credit": sum(r["credit"] for r in period),
+        "months": months,
     }
 
 
@@ -538,72 +625,8 @@ def client_statement_by_reservation(
         "unallocated_debits": unallocated_debits,
         "unallocated_credits": unallocated_credits,
         "reservations": reservations,
-        "aging": client_aging(client_id, as_of=as_of),
+        "aging": client_aging(client_id, as_of=as_of, date_to=date_to),
     }
-
-
-def client_aging(client_id, *, as_of=None):
-    """Aging summary per invoice — berapa lama piutang belum dibayar.
-
-    Returns {buckets: {0_30, 31_60, 61_90, 90_plus}, total, invoices: [...]}."""
-    from datetime import date as _date
-
-    today = as_of.date() if as_of else _date.today()
-
-    # Net AR lines per invoice (charge - payment/reversal)
-    ar_lines = _scoped(_ar_qs(client_id=client_id), as_of=as_of)
-    invoice_nets = (
-        ar_lines
-        .values("invoice_id")
-        .annotate(d=Sum("debit"), c=Sum("credit"))
-    )
-
-    # Fetch invoices with due_date
-    from ..models.invoice import Invoice
-    inv_map = {
-        inv["id"]: inv
-        for inv in Invoice.objects.filter(
-            id__in=[r["invoice_id"] for r in invoice_nets if r["invoice_id"]]
-        ).values("id", "invoice_number", "due_date", "issued_date")
-    }
-
-    buckets = {"0_30": 0, "31_60": 0, "61_90": 0, "90_plus": 0}
-    total = 0
-    invoices = []
-
-    for row in invoice_nets:
-        net = (row["d"] or 0) - (row["c"] or 0)
-        if net <= 0:
-            continue  # fully paid or credit
-        inv = inv_map.get(row["invoice_id"])
-        if not inv:
-            continue
-
-        due = inv.get("due_date") or inv.get("issued_date")
-        if due:
-            age_days = (today - due).days
-        else:
-            age_days = 0
-
-        if age_days <= 30:
-            buckets["0_30"] += net
-        elif age_days <= 60:
-            buckets["31_60"] += net
-        elif age_days <= 90:
-            buckets["61_90"] += net
-        else:
-            buckets["90_plus"] += net
-
-        total += net
-        invoices.append({
-            "invoice_number": inv["invoice_number"],
-            "amount": net,
-            "due_date": inv["due_date"].isoformat() if inv.get("due_date") else None,
-            "age_days": max(age_days, 0),
-        })
-
-    invoices.sort(key=lambda x: -x["age_days"])
-    return {"buckets": buckets, "total": total, "invoices": invoices}
 
 
 AGING_BUCKETS = ("current", "1_30", "31_60", "61_90", "90_plus")
@@ -619,6 +642,87 @@ def _aging_bucket(days_overdue):
     if days_overdue <= 90:
         return "61_90"
     return "90_plus"
+
+
+def client_aging(client_id, *, as_of=None, date_to=None):
+    """Aging summary per invoice — berapa lama piutang belum dibayar.
+
+    `date_to` membatasi invoice mana yang dihitung: hanya journal pada atau sebelum
+    tanggal itu yang masuk, jadi aging memakai periode yang sama dengan
+    statement-nya. `as_of` membatasi histori jurnal — untuk data historis, bukan
+    cutoff tanggal invoice.
+
+    Bucket dihitung relatif terhadap `date_to` bila ada, karena itulah tanggal
+    yang dipakai pengguna untuk memblok baris jurnal: statement yang difilter
+    sampai 31 Jan tidak bolehsays "3 bulan terlambat" untuk invoice yang tempo
+    temponya baru jatuh tempo bulan lalu.
+
+    Returns {buckets: {current, 1_30, 31_60, 61_90, 90_plus}, total, invoices:
+    [...]} — bucket yang sama dengan AGING_BUCKETS, jadi klien ini dan AR
+    Aging page selalu bisa dibandingkan langsung.
+    """
+    from datetime import date as _date
+
+    today = date_to or (as_of.date() if as_of else _date.today())
+
+    # Net AR lines per invoice (charge - payment/reversal)
+    ar_lines = _scoped(_ar_qs(client_id=client_id), as_of=as_of)
+    if date_to:
+        ar_lines = ar_lines.filter(journal_entry__entry_date__lte=date_to)
+    invoice_nets = (
+        ar_lines
+        .values("invoice_id")
+        .annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+
+    # Fetch invoices with due_date
+    from ..models.invoice import Invoice
+    inv_map = {
+        inv["id"]: inv
+        for inv in Invoice.objects.filter(
+            id__in=[r["invoice_id"] for r in invoice_nets if r["invoice_id"]]
+        ).values("id", "invoice_number", "due_date", "issued_date")
+    }
+
+    buckets = {b: 0 for b in AGING_BUCKETS}
+    total = 0
+    invoices = []
+
+    for row in invoice_nets:
+        net = (row["d"] or 0) - (row["c"] or 0)
+        if net <= 0:
+            continue  # fully paid or credit
+        if not row["invoice_id"]:
+            # Piutang tanpa invoice (mis. charge manual) tidak punya due date,
+            # jadi tidak bisa dihitungkan umurnya. ar_aging() memang menjumlahkan
+            # sisa seperti ini ke 'current' — doing the same here is what makes
+            # the two pages add up to the same total.
+            buckets["current"] += net
+            total += net
+            continue
+        inv = inv_map.get(row["invoice_id"])
+        if not inv:
+            continue
+
+        due = inv.get("due_date") or inv.get("issued_date")
+        # Not yet due is a bucket of its own, not "age 0": an invoice due in
+        # three weeks is not in the same state as one due today.
+        days_overdue = (today - due).days if due else 0
+
+        buckets[_aging_bucket(days_overdue)] += net
+
+        total += net
+        invoices.append({
+            "invoice_number": inv["invoice_number"],
+            "amount": net,
+            "due_date": inv["due_date"].isoformat() if inv.get("due_date") else None,
+            "age_days": max(days_overdue, 0),
+            "days_overdue": max(days_overdue, 0),
+            "bucket": _aging_bucket(days_overdue),
+        })
+
+    invoices.sort(key=lambda x: -x["age_days"])
+    return {"buckets": buckets, "total": total, "invoices": invoices}
 
 
 def ar_aging(*, as_of=None):
@@ -689,7 +793,10 @@ def open_items(client_id, *, date_to=None, as_of=None):
     JournalLine), jadi kedua mode selalu reconciled."""
     from datetime import date as _date
 
-    today = _date.today()
+    # Sama seperti client_aging(): "overdue" berarti lewat tanggal yang sedang
+    # dipakai, bukan lewat hari ini — kalau statement-nya di-lock ke periode
+    # lama, daftar open item-nya harus Seasam itu juga.
+    today = date_to or (as_of.date() if as_of else _date.today())
 
     ar_net = _scoped(_ar_qs(client_id=client_id), as_of=as_of).values(
         "invoice_id",
@@ -725,6 +832,7 @@ def open_items(client_id, *, date_to=None, as_of=None):
         billed = charged_map.get(inv_id, 0)
         paid = max(0, billed - remaining) if billed else 0
         due = inv.get("due_date")
+        aged_from = due or inv.get("issued_date")
         rows.append({
             "invoice_number": inv["invoice_number"],
             "invoice_type": inv["invoice_type"],
@@ -734,6 +842,13 @@ def open_items(client_id, *, date_to=None, as_of=None):
             "paid": paid,
             "remaining": remaining,
             "overdue": bool(due and (today - due).days > 0),
+            # "38d late" beats a red date: how late is the question a bookkeeper
+            # actually asks, and it sorts the list for them.
+            "days_overdue": max((today - due).days, 0) if due else 0,
+            # Same bucket the client's aging puts this invoice in (it ages from
+            # the issue date when there is no due date), so a click on an aging
+            # segment filters this list to exactly that segment's invoices.
+            "bucket": _aging_bucket((today - aged_from).days) if aged_from else "current",
         })
 
     rows.sort(key=lambda x: (x["overdue"], x["due_date"] or "9999-12-31"))
@@ -1137,11 +1252,34 @@ def client_paid_map(client_ids):
     return {r["client_id"]: r["d"] or 0 for r in rows}
 
 
-def clients_overview():
+OVERVIEW_SORTS = {
+    # Biggest debtor first is what a collections list is read for; the rest
+    # are alphabetical / biggest-first for reconciliation walks.
+    "receivable": lambda r: (-r["piutang"], r["client_id"]),
+    "billed": lambda r: (-r["tagihan"], r["client_id"]),
+    "paid": lambda r: (-r["terbayar"], r["client_id"]),
+    "credit": lambda r: (-r["saldo_dana"], r["client_id"]),
+    "name": lambda r: (r["name"].lower(), r["client_id"]),
+}
+
+
+def clients_overview(*, q="", outstanding_only=False, sort="receivable"):
     """Agregat bulk per-client untuk halaman daftar statement. Derivasinya
-    konsisten dengan properti Client (billed/payable/credit) dari jurnal."""
-    clients = {c.id: c for c in Client.objects.all()}
-    cids = list(clients)
+    konsisten dengan properti Client (billed/payable/credit) dari jurnal.
+
+    Hanya klien yang punya jejak di jurnal yang dikembalikan: daftar ini
+    adalah ledger, bukan direktori, jadi klien tanpa tagihan/pembayaran/
+    titipan tidak muncul sebagai baris nol.
+
+    `q` menyaring nama di level Client (sebelum agregasi), jadi pencarian
+    tidak menyapu seluruh jurnal. `outstanding_only` menyisakan yang masih
+    punya piutang. `sort` kunci dari OVERVIEW_SORTS.
+    """
+    qs = Client.objects.all()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    names = dict(qs.values_list("id", "name"))
+    cids = list(names)
 
     billed = {
         r["client_id"]: (r["d"] or 0) - (r["c"] or 0)
@@ -1160,17 +1298,34 @@ def clients_overview():
         .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
     }
 
-    overview = [{
-        "client_id": cid,
-        "name": clients[cid].name,
-        "tagihan": billed.get(cid, 0),
-        "terbayar": paid.get(cid, 0),
-        "allocated": billed.get(cid, 0) - receivable.get(cid, 0),
-        "piutang": receivable.get(cid, 0),
-        "saldo_dana": credit.get(cid, 0),
-    } for cid in cids]
-    overview.sort(key=lambda r: (-r["piutang"], r["client_id"]))
+    overview = []
+    for cid in cids:
+        row = {
+            "client_id": cid,
+            "name": names[cid],
+            "tagihan": billed.get(cid, 0),
+            "terbayar": paid.get(cid, 0),
+            "piutang": receivable.get(cid, 0),
+            "saldo_dana": credit.get(cid, 0),
+        }
+        if outstanding_only and row["piutang"] <= 0:
+            continue
+        # No ledger footprint at all → not a statement row.
+        if not (row["tagihan"] or row["terbayar"] or row["piutang"] or row["saldo_dana"]):
+            continue
+        overview.append(row)
+
+    overview.sort(key=OVERVIEW_SORTS.get(sort, OVERVIEW_SORTS["receivable"]))
     return overview
+
+
+def clients_overview_totals(rows):
+    """Total per kolom untuk footer daftar statement. Dijumlahkan di server
+    dari seluruh baris yang lolos filter, bukan hanya halaman yang tampil."""
+    return {
+        k: sum(r[k] for r in rows)
+        for k in ("tagihan", "terbayar", "piutang", "saldo_dana")
+    }
 
 
 # ── Trial balance ──────────────────────────────────────────────

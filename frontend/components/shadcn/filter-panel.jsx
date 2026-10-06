@@ -1,6 +1,7 @@
 import { Icon } from "../icons.jsx";
 import { Button } from "./ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import useDismiss from "../../hooks/useDismiss.js";
 
 // The list pages' filter dropdown: one trigger `.fbar-btn` (with the active
 // count badge) that toggles the `.filter-panel` popup. All panels share the
@@ -17,8 +18,10 @@ import { useI18n } from "../../utils/i18n.jsx";
 //   children   `.fp-section` blocks (label + reset + control)
 export default function FilterPanel({ count = 0, open, onToggle, dirty, onApply, onResetAll, children }) {
   const { t } = useI18n();
+  // onToggle only fires while open here, so it acts as "close".
+  const wrapRef = useDismiss(open, onToggle);
   return (
-    <div className="filter-panel-wrap" onClick={(e) => e.stopPropagation()}>
+    <div className="filter-panel-wrap" ref={wrapRef} onClick={(e) => e.stopPropagation()}>
       <button type="button" className="fbar-btn" onClick={onToggle}>
         <Icon name="filter" size={13} /> {t("Filter")}
         {count > 0 && <span className="fbar-count">{count}</span>}

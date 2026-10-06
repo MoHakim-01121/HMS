@@ -142,6 +142,254 @@ class FinanceViewsTest(TestCase):
         self.assertEqual(row['piutang'], 40000)
         self.assertEqual(row['saldo_dana'], 0)
 
+    def test_statements_omit_clients_without_ledger_activity(self):
+        """The list is a ledger, not a directory: a client that never appears
+        in the journal must not render as an all-zero row."""
+        Client.objects.create(name='PT Hening')
+        r = self.client.get(reverse('statements_list'))
+        rows = _props(r)['clients']
+        self.assertEqual(rows, [])
+        self.assertEqual(_props(r)['total_count'], 0)
+
+    def test_statements_outstanding_filter_and_totals(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        paid = create_payment_record(
+            invoice=self.invoice, client=self.konoz_client,
+            payment_date=date(2026, 3, 2), amount=100000, method='transfer',
+            created_by=self.user, received_in='sby', reservation=self.res,
+        )
+        posting.post_payment(paid, created_by=self.user)
+
+        # Fully settled → filtered out of the outstanding-only view, but the
+        # footer totals still cover the unfiltered set.
+        r = self.client.get(reverse('statements_list'), {'outstanding': '1'})
+        self.assertEqual(_props(r)['clients'], [])
+
+        r = self.client.get(reverse('statements_list'))
+        props = _props(r)
+        self.assertEqual(props['totals']['tagihan'], 100000)
+        self.assertEqual(props['totals']['terbayar'], 100000)
+        self.assertEqual(props['totals']['piutang'], 0)
+
+    def test_statements_search_narrows_by_name(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        Client.objects.create(name='PT Alfa')
+
+        self.assertEqual(_props(self.client.get(reverse('statements_list'), {'q': 'Alfa'}))['clients'], [])
+
+        rows = _props(self.client.get(reverse('statements_list'), {'q': 'Uji'}))['clients']
+        self.assertEqual([x['name'] for x in rows], ['PT Uji'])
+
+    def test_statements_sort_key_is_validated(self):
+        r = self.client.get(reverse('statements_list'), {'sort': 'piutang; drop table'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(_props(r)['sort'], 'receivable')
+
+    # â”€â”€ Client statement detail â”€â”€
+
+    def _statement(self, params=None):
+        return _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]), {'from': '', **(params or {})},
+        ))['statement']
+
+    def test_client_statement_pagination_keeps_running_balance(self):
+        """A page slice must not restart the balance at zero — each row's
+        balance still walks the whole period, and the totals cover it too.
+
+        Asserted on the query function directly: the view's page size is 50,
+        far above this fixture's row count, so there is no page 2 to fetch."""
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        p = create_payment_record(
+            invoice=self.invoice, client=self.konoz_client,
+            payment_date=date(2026, 3, 2), amount=40000, method='transfer',
+            created_by=self.user, received_in='sby', reservation=self.res,
+        )
+        posting.post_payment(p, created_by=self.user)
+
+        full = q.client_statement_with_opening(self.konoz_client.pk)
+        self.assertGreater(full['count'], 1)
+
+        tail = q.client_statement_with_opening(
+            self.konoz_client.pk, offset=1, limit=1,
+        )
+        self.assertEqual(len(tail['rows']), 1)
+        # Period-wide totals and closing balance are unaffected by the slice.
+        self.assertEqual(tail['count'], full['count'])
+        self.assertEqual(tail['closing_balance'], full['closing_balance'])
+        self.assertEqual(tail['total_debit'], full['total_debit'])
+        # And the sliced row keeps the balance it had in the full walk.
+        self.assertEqual(tail['rows'][0]['balance'], full['rows'][1]['balance'])
+        self.assertEqual(tail['closing_balance'], 60000)
+
+    def _void_pair(self):
+        """A charge that was reversed: both legs land on the ledger."""
+        entry = posting.post_invoice_charge(self.invoice, created_by=self.user)
+        posting.reverse_entry(entry, reversal_date=entry.entry_date, created_by=self.user)
+        return entry
+
+    def test_client_ledger_hides_reversed_pairs_with_a_true_running_balance(self):
+        """Hidden reversed pairs leave no trace in the visible balances: each
+        shown row's balance follows from the shown row above it, and the
+        closing balance equals the full ledger's."""
+        self._void_pair()
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+
+        full = q.client_ledger(self.konoz_client.pk, hide_voided=False)
+        lean = q.client_ledger(self.konoz_client.pk)
+        self.assertEqual(lean['hidden_voided'], 2)
+        self.assertEqual(len(lean['rows']), len(full['rows']) - 2)
+        self.assertEqual(lean['closing_balance'], full['closing_balance'])
+        running = lean['opening_balance']
+        for r in lean['rows']:
+            running += r['debit'] - r['credit']
+            self.assertEqual(r['balance'], running)
+        self.assertEqual(
+            sum(m['debit'] for m in lean['months'].values()), lean['total_debit'],
+        )
+
+    def test_client_ledger_search_narrows_rows_not_totals(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        p = create_payment_record(
+            invoice=self.invoice, client=self.konoz_client,
+            payment_date=date(2026, 3, 2), amount=40000, method='transfer',
+            created_by=self.user, received_in='sby', reservation=self.res,
+        )
+        posting.post_payment(p, created_by=self.user)
+
+        every = q.client_ledger(self.konoz_client.pk)
+        hit = q.client_ledger(self.konoz_client.pk, q=every['rows'][-1]['entry_number'].lower())
+        self.assertEqual(len(hit['rows']), 1)
+        self.assertEqual(hit['rows'][0]['balance'], every['rows'][-1]['balance'])
+        self.assertEqual(hit['total_debit'], every['total_debit'])
+        self.assertEqual(hit['period_count'], every['period_count'])
+
+    def test_client_statement_defaults_to_the_last_three_months(self):
+        """A bare URL opens on three calendar months; an explicit empty `from`
+        is the "All time" choice and is honoured."""
+        from unittest import mock
+        posting.post_invoice_charge(self.invoice, created_by=self.user, entry_date=date(2026, 3, 1))
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 12, 15)):
+            bare = _props(self.client.get(
+                reverse('client_finance_statement', args=[self.konoz_client.pk]),
+            ))
+        self.assertEqual(bare['date_from'], '2026-10-01')
+        self.assertEqual(bare['statement']['count'], 0)  # March is outside it
+        self.assertEqual(self._statement()['count'], 1)
+
+    def test_client_statement_aging_uses_ar_aging_buckets(self):
+        """One aging implementation for both pages: the detail's buckets are
+        the AGING_BUCKETS keys, so a client's aging adds up to the AR Aging row."""
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        props = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]),
+        ))
+        self.assertEqual(
+            set(props['aging']['buckets']), set(q.AGING_BUCKETS),
+        )
+        self.assertEqual(
+            sum(props['aging']['buckets'].values()), props['aging']['total'],
+        )
+
+    def test_client_statement_aging_honours_period_filter(self):
+        """A filtered statement must not show aging for invoices outside it."""
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        self.invoice.due_date = date(2026, 6, 1)
+        self.invoice.save()
+
+        unfiltered = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]),
+        ))['aging']['total']
+        self.assertEqual(unfiltered, 100000)
+
+        # A period that ends before the invoice was ever billed owes nothing.
+        filtered = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]),
+            {'to': '2026-01-31'},
+        ))['aging']
+        self.assertEqual(filtered['total'], 0)
+
+    def test_client_statement_aging_ages_as_of_period_end(self):
+        """"Overdue" must be measured from the period the statement is showing.
+        Unfiltered, this invoice has been late for months; locked to a period
+        that ended before its due date it is simply not due yet."""
+        posting.post_invoice_charge(self.invoice, created_by=self.user, entry_date=date(2026, 3, 1))
+        self.invoice.due_date = date(2026, 3, 10)
+        self.invoice.save()
+
+        def aging(params):
+            return _props(self.client.get(
+                reverse('client_finance_statement', args=[self.konoz_client.pk]), params,
+            ))['aging']
+
+        before = aging({'to': '2026-03-05'})
+        self.assertEqual(before['buckets']['current'], 100000)
+        self.assertEqual(before['buckets']['1_30'], 0)
+
+        after = aging({'to': '2026-03-20'})
+        self.assertEqual(after['buckets']['current'], 0)
+        self.assertEqual(after['buckets']['1_30'], 100000)
+        self.assertEqual(after['invoices'][0]['days_overdue'], 10)
+
+        # And the page says which day it judged, instead of implying today.
+        props = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]), {'to': '2026-03-20'},
+        ))
+        self.assertEqual(props['aging_as_of'], '2026-03-20')
+
+    def test_client_statement_aging_counts_unlinked_receivable_as_current(self):
+        """A receivable with no invoice has no due date, so it cannot be aged.
+        ar_aging() parks it in 'current'; the detail must agree or the two
+        pages report different outstanding totals for the same client."""
+        self._je(9, legs=(('receivable', 12345), ('income_hotel', -12345)))
+        JournalLine.objects.filter(journal_entry__entry_number='JE-T000009', account_id=coa.AR).update(
+            client=self.konoz_client,
+        )
+        aging = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]),
+        ))['aging']
+        self.assertEqual(aging['buckets']['current'], 12345)
+        self.assertEqual(aging['total'], 12345)
+
+    def test_client_statement_view_exposes_pagination(self):
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        props = _props(self.client.get(
+            reverse('client_finance_statement', args=[self.konoz_client.pk]),
+        ))
+        pag = props['pagination']
+        self.assertEqual(pag['number'], 1)
+        self.assertEqual(pag['count'], props['statement']['count'])
+        self.assertEqual(len(props['statement']['transactions']), props['statement']['count'])
+        # One page of 50 is not enough for this fixture, so no nav is offered.
+        self.assertFalse(pag['has_other_pages'])
+
+    def test_statement_rows_carry_what_the_page_renders(self):
+        """The statement page reads these keys directly; a rename here would
+        silently blank a column rather than fail loudly."""
+        posting.post_invoice_charge(self.invoice, created_by=self.user)
+        self.invoice.due_date = date(2026, 3, 10)
+        self.invoice.save()
+
+        balance = self._statement()
+        self.assertEqual(
+            set(balance['transactions'][0]),
+            {'date', 'entry_number', 'entry_type', 'entry_type_display',
+             'description', 'account', 'account_display', 'invoice_number',
+             'amount_sar', 'balance', 'is_voided'},
+        )
+        self.assertFalse(balance['transactions'][0]['is_voided'])
+
+        open_mode = self._statement({'mode': 'open'})
+        self.assertEqual(
+            set(open_mode['open_items'][0]),
+            {'invoice_number', 'invoice_type', 'issued_date', 'due_date',
+             'billed', 'paid', 'remaining', 'overdue', 'days_overdue', 'bucket'},
+        )
+        # Open items sort worst-first, and each line says how late it is.
+        self.assertGreaterEqual(
+            open_mode['open_items'][0]['days_overdue'],
+            open_mode['open_items'][-1]['days_overdue'],
+        )
+
     def test_statement_pdf_by_reservation_mode(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
         p = create_payment_record(
