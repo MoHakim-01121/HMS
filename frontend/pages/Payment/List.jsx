@@ -12,7 +12,6 @@ import useDismiss from "../../hooks/useDismiss.js";
 import RowActions from "../../components/shadcn/row-actions.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
@@ -92,7 +91,6 @@ export default function List({ payments = [], invoice_choices = [], client_choic
   const [from, setFrom] = useState(date_from);
   const [to, setTo] = useState(date_to);
   const { query, setQuery } = useDebouncedSearch(q, (qq) => go({ q: qq }));
-  const [askConfirm, askConfirmUi] = useConfirm();
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [rejectDialog, setRejectDialog] = useState(null);
   const [recordDialog, setRecordDialog] = useState(false);
@@ -238,32 +236,6 @@ export default function List({ payments = [], invoice_choices = [], client_choic
     setRejectDialog(null);
   };
 
-  // Reverse and Void both write to the ledger, so each states its consequence
-  // in writing before it runs -- same wording the detail page used to carry.
-  const reversePayment = (p) => {
-    askConfirm({
-      title: t("Reverse Payment"),
-      message: t("Are you sure you want to reverse this payment? This will create a reversing journal entry."),
-      confirmLabel: "Reverse",
-      icon: "swap",
-      danger: true,
-      onConfirm: () => router.post(`/finance/payments/${p.id}/reverse/`),
-    });
-  };
-
-  const voidPayment = (p) => {
-    askConfirm({
-      title: t("Void Payment"),
-      message: t("Void payment {number}? This posts a reversal journal entry and marks it voided.", {
-        number: p.payment_number,
-      }),
-      confirmLabel: "Void",
-      icon: "close",
-      danger: true,
-      onConfirm: () => router.post(`/finance/payments/${p.id}/void/`),
-    });
-  };
-
   const submitRecord = () => {
     if (recordForm.proof && recordForm.proof.size > MAX_PROOF_BYTES) {
       showToast(t("File too large. Maximum upload size is 3 MB."), "error");
@@ -371,10 +343,6 @@ export default function List({ payments = [], invoice_choices = [], client_choic
               && { icon: "close", label: t("Reject"), variant: "red", onClick: () => setRejectDialog({ ...p, reason: "" }) },
             canEdit && ["received", "partially_applied"].includes(p.status)
               && { icon: "arrow-right", label: t("Apply"), href: `/finance/payments/${p.id}/` },
-            canEdit && ["confirmed", "allocated", "applied"].includes(p.status)
-              && { icon: "swap", label: t("Reverse"), variant: "red", onClick: () => reversePayment(p) },
-            canEdit && ["received", "partially_applied", "applied"].includes(p.status)
-              && { icon: "trash", label: t("Void"), variant: "red", onClick: () => voidPayment(p) },
           ]}
         />
       ),
@@ -410,7 +378,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
         {/* The warning lives in this card, not a separate banner: one number,
             one place. Yellow + the foot only appear when something is left. */}
         <KpiCard
-          label={t("Unapplied")}
+          label={t("Unallocated")}
           value={(stats.unapplied_total ?? 0).toLocaleString("en-US")}
           unit="SAR"
           tone={(stats.unapplied_total ?? 0) > 0 ? "yellow" : undefined}
@@ -630,8 +598,6 @@ export default function List({ payments = [], invoice_choices = [], client_choic
         </Dialog>
       )}
 
-      {/* Confirm Dialog */}
-      {askConfirmUi}
 
       {confirmDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setConfirmDialog(null); }}>

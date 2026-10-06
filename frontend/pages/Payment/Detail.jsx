@@ -78,22 +78,41 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
   // the red tint.
   const dead = ["rejected", "reversed", "voided"].includes(payment.status);
 
+  // Same words as the list: a live payment reads by its group (Awaiting
+  // confirmation / Unallocated / Partially allocated / Allocated); a dead one
+  // keeps the exact way it ended.
   const pill = {
-    pending: { label: t("Pending"), tone: "yellow" },
-    received: { label: t("Received"), tone: "blue" },
-    confirmed: { label: t("Confirmed"), tone: "blue" },
-    allocated: { label: t("Allocated"), tone: "green" },
-    partially_applied: { label: t("Partially Applied"), tone: "yellow" },
-    applied: { label: t("Applied"), tone: "green" },
     rejected: { label: t("Rejected"), tone: "red" },
     reversed: { label: t("Reversed"), tone: "gray" },
     voided: { label: t("Voided"), tone: "gray" },
-  }[payment.status] || { label: payment.status_display, tone: "gray" };
+  }[payment.status] || {
+    label: t(payment.status_group_label || payment.status_display),
+    tone: payment.status_group_tone || "gray",
+  };
 
   // One primary action per state, plus Reject in the top bar exactly as the
-  // mockup has it (backend accepts reject on PENDING only). Reverse and Void
-  // are not offered here -- payment-level actions live in the list's action
-  // column.
+  // mockup has it (backend accepts reject on PENDING only). Void and Reverse
+  // take a received payment back out; they sit here, next to the allocation
+  // and journal they undo, and need payments.delete like every other void.
+  const canRetire = perms.can("payments", "delete") && !dead && payment.status !== "pending";
+  const retire = (action) => {
+    const isVoid = action === "void";
+    confirm({
+      title: isVoid ? t("Void Payment") : t("Reverse Payment"),
+      message: isVoid
+        ? t("Void payment {number}? Its journal is reversed on the payment date ({date}), as if it was never received. Use this for a payment recorded by mistake.", {
+          number: payment.payment_number, date: fmtDate(payment.payment_date),
+        })
+        : t("Reverse payment {number}? Its journal is reversed today; the original receipt stays in its own month. Use this when the money went back after it was received.", {
+          number: payment.payment_number,
+        }),
+      confirmLabel: isVoid ? "Void" : "Reverse",
+      icon: isVoid ? "close" : "swap",
+      danger: true,
+      onConfirm: () => router.post(`/finance/payments/${payment.id}/${action}/`),
+    });
+  };
+
   let primary = null;
   if (canEdit && payment.status === "pending") {
     primary = canConfirm ? { label: t("Confirm"), onClick: handleConfirm } : null;
@@ -249,6 +268,16 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
               {t("Reject")}
             </button>
           ) : null}
+          {canRetire ? (
+            <>
+              <button type="button" className="hms-rv-btn danger" onClick={() => retire("reverse")}>
+                {t("Reverse")}
+              </button>
+              <button type="button" className="hms-rv-btn danger" onClick={() => retire("void")}>
+                {t("Void")}
+              </button>
+            </>
+          ) : null}
         </span>
       </div>
 
@@ -387,7 +416,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
                 </span>
                 <span style={{ minWidth: 0 }}>
                   <span className="n">{proof.name || payment.payment_number}</span>
-                  <span className="s">{extLabel(proof.name)}, {fmtSize(proof.size)}</span>
+                  <span className="s">{[extLabel(proof.name), fmtSize(proof.size)].filter(Boolean).join(", ")}</span>
                 </span>
               </a>
             ) : null}

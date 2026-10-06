@@ -296,5 +296,8 @@ def fx_profit(*, branch='sby', date_from=None, date_to=None):
     return {
         'transfers': transfers,
         'total_profit_idr': sum(t['profit_idr'] or 0 for t in transfers),
+        # Transfers whose profit cannot be computed yet (old deposit with no
+        # original amount): the total leaves them out, so say how many.
+        'unpriced': sum(1 for t in transfers if t['profit_idr'] is None),
         'client_money_held': held,
     }

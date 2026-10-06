@@ -38,7 +38,9 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
       render: (l) => {
         const v = l.values[c] || 0;
         const drillable = v !== 0 && !["opening", "closing"].includes(l.key);
-        const text = <span className="col-nowrap" style={{ color: v < 0 ? "var(--red)" : undefined, fontWeight: l.key === "closing" ? 600 : undefined }}>{fmt(v)}</span>;
+        // Mobile stacks the row into a card without column headers, so the
+        // currency rides along with the figure there.
+        const text = <span className="col-nowrap" style={{ color: v < 0 ? "var(--red)" : undefined, fontWeight: l.key === "closing" ? 600 : undefined }}>{fmt(v)}<span className="ff-cur"> {c}</span></span>;
         return drillable ? (
           <button type="button" className="ff-cell" onClick={() => setPicked({ line: l.key, currency: c })}>{text}</button>
         ) : text;
@@ -115,7 +117,11 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
       </div>
 
       <div className="hms-kpi-row ff-kpis">
-        <KpiCard label={t("FX profit in period")} value={fmt(fx.total_profit_idr)} unit="IDR" foot={t("{n} transfers to HQ", { n: fx.transfers.length })} />
+        <KpiCard label={t("FX profit in period")}
+          value={fx.unpriced && fx.unpriced === fx.transfers.length ? "—" : fmt(fx.total_profit_idr)} unit="IDR"
+          foot={fx.unpriced
+            ? t("{n} transfers to HQ · {u} without original amount, not counted", { n: fx.transfers.length, u: fx.unpriced })
+            : t("{n} transfers to HQ", { n: fx.transfers.length })} />
         <KpiCard label={t("Sent to HQ")} value={fmt(-lineValue("sent_hq", "IDR"))} unit="IDR" foot={t("in this period")} />
         <KpiCard label={t("Client rupiah not yet sent")} value={fmt(heldIdr)} unit="IDR"
           foot={heldUsd ? t("+ {n} USD not yet exchanged", { n: fmt(heldUsd) }) : t("{n} SAR still owed to HQ", { n: fmt(fx.client_money_held.IDR?.sar || 0) })} />
@@ -158,8 +164,14 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
 }
 
 const CSS = `
-.ff-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shadcn-root .ff-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ff-filters input[type="date"] { width: auto; flex: none; height: 40px; }
+.ff-cur { display: none; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
+@media (max-width: 640px) {
+  .shadcn-root .ff-filters > :first-child { flex: 1 1 100%; width: 100%; }
+  .ff-filters input[type="date"] { flex: 1 1 0; min-width: 0; }
+  .ff-cur { display: inline; }
+}
 .ff-kpis { margin-bottom: 18px; }
 .ff-h { display: flex; align-items: center; gap: 10px; margin: 22px 0 10px; font-size: 14px; font-weight: 600; }
 .ff-cell { background: none; border: none; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }

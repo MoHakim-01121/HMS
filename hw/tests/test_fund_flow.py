@@ -121,6 +121,7 @@ class RemittanceFormFxTest(FundFlowScenario):
         rem = Remittance.objects.get()
         Remittance.objects.filter(pk=rem.pk).update(is_legacy=True)
         self.assertIsNone(fund_flow.fx_profit(branch='sby')['transfers'][0]['profit_idr'])
+        self.assertEqual(fund_flow.fx_profit(branch='sby')['unpriced'], 1)
         self.client.post(f'/remittance/{rem.pk}/edit/', {
             'date': '2026-09-10', 'amount_idr': '94000000', 'original_amount': '97000000',
         })

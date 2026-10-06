@@ -1867,4 +1867,8 @@ export const id = {
   "{k} of {n} on this page": "{k} dari {n} di halaman ini",
   "No entries match “{q}”.": "Tidak ada entri yang cocok dengan “{q}”.",
   "Custom range": "Rentang tanggal",
+  "({n} transfers without original amount, not counted)": "({n} transfer tanpa nominal asli, belum dihitung)",
+  "{n} transfers to HQ · {u} without original amount, not counted": "{n} transfer ke Pusat · {u} tanpa nominal asli, belum dihitung",
+  "Void payment {number}? Its journal is reversed on the payment date ({date}), as if it was never received. Use this for a payment recorded by mistake.": "Batalkan pembayaran {number}? Jurnalnya dibalik pada tanggal pembayaran ({date}), seolah tidak pernah diterima. Pakai ini untuk pembayaran yang salah catat.",
+  "Reverse payment {number}? Its journal is reversed today; the original receipt stays in its own month. Use this when the money went back after it was received.": "Revers pembayaran {number}? Jurnalnya dibalik hari ini; penerimaan aslinya tetap di bulannya. Pakai ini bila uangnya kembali setelah diterima.",
 };

@@ -80,6 +80,8 @@ def _fx_stats():
     held = fx['client_money_held']
     return {
         'fx_profit_idr': fx['total_profit_idr'],
+        'fx_unpriced': fx['unpriced'],
+        'fx_priced': len(fx['transfers']) - fx['unpriced'],
         'client_idr_held': held.get('IDR', {}).get('amount', 0),
         'client_usd_held': held.get('USD', {}).get('amount', 0),
     }

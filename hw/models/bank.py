@@ -80,9 +80,14 @@ class MoneyAccount(models.Model):
         ]
 
     def __str__(self):
-        if self.kind == self.KIND_BANK:
-            return f"{self.bank_name} {self.name} ({self.currency})"
-        return f"{self.name} ({self.currency})"
+        # Names often already carry the bank and the currency ("Rekening
+        # Surabaya IDR"); repeating them reads as a typo.
+        label = self.name
+        if self.kind == self.KIND_BANK and self.bank_name and not label.startswith(self.bank_name):
+            label = f"{self.bank_name} {label}"
+        if label.split()[-1:] == [self.currency]:
+            return label
+        return f"{label} ({self.currency})"
 
     @property
     def is_bank(self):

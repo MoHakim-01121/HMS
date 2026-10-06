@@ -201,7 +201,16 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
             ) : null}
             <div>
               <dt>{stats.fx_profit_idr < 0 ? t("Branch FX loss") : t("Branch FX profit")}</dt>
-              <dd><a href="/finance/fund-flow/" style={{ color: "inherit" }}>{fmt(Math.abs(stats.fx_profit_idr))} IDR</a></dd>
+              <dd>
+                <a href="/finance/fund-flow/" style={{ color: "inherit" }}>
+                  {stats.fx_priced ? `${fmt(Math.abs(stats.fx_profit_idr))} IDR` : "—"}
+                </a>
+                {stats.fx_unpriced ? (
+                  <span style={{ fontWeight: 400, color: "var(--muted-foreground)" }}>
+                    {" "}{t("({n} transfers without original amount, not counted)", { n: stats.fx_unpriced })}
+                  </span>
+                ) : null}
+              </dd>
             </div>
           </dl>
 
