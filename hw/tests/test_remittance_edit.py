@@ -51,3 +51,38 @@ class RemittanceEditViewTest(TestCase):
         self.rem.refresh_from_db()
         self.assertEqual(self.rem.amount_sent, 4_750_000)
         self.assertEqual([l.linked_number for l in self.rem.lines], ['R1'])
+
+    def _send_entry_dates(self):
+        from hw.models.journal import JournalEntry
+        return [e.entry_date for e in JournalEntry.objects.for_source('Remittance', self.rem.pk)
+                .filter(entry_type=JournalEntry.TYPE_REMITTANCE).live()]
+
+    def test_a_corrected_date_moves_the_send_leg(self):
+        self.client.post(f'/remittance/{self.rem.pk}/edit/', {
+            'date': '2026-02-03', 'receipt_reference': '', 'note': '',
+        })
+        self.assertEqual(self._send_entry_dates(), [date(2026, 2, 3)])
+
+    def test_edit_is_refused_whole_when_the_ledger_cannot_follow(self):
+        # Januari ditutup: jurnal kirim lama tidak bisa dibalik, jadi
+        # dokumennya juga tidak boleh berubah sendirian.
+        FinancialPeriod.objects.filter(name="2026").update(
+            date_to=date(2026, 1, 31), status=FinancialPeriod.STATUS_CLOSED)
+        FinancialPeriod.objects.create(name="Feb-Des", date_from=date(2026, 2, 1), date_to=date(2026, 12, 31))
+        resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
+            'date': '2026-02-03', 'receipt_reference': 'REF-X', 'note': '',
+        })
+        self.assertRedirects(resp, f'/remittance/{self.rem.pk}/edit/', fetch_redirect_response=False)
+        self.rem.refresh_from_db()
+        self.assertEqual((self.rem.date, self.rem.receipt_reference), (date(2026, 1, 10), ''))
+        self.assertEqual(self._send_entry_dates(), [date(2026, 1, 10)])
+
+    def test_an_invalid_proof_is_a_message_not_a_server_error(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        bad = SimpleUploadedFile('virus.exe', b'MZ', content_type='application/octet-stream')
+        for url in (f'/remittance/{self.rem.pk}/edit/', f'/remittance/{self.rem.pk}/upload-proof/'):
+            resp = self.client.post(url, {'date': '2026-01-10', 'proof': bad})
+            self.assertEqual(resp.status_code, 302, url)
+            bad.seek(0)
+        self.rem.refresh_from_db()
+        self.assertFalse(self.rem.proof)

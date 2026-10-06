@@ -1030,7 +1030,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
         )
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def payment_reverse(request, pk):
     payment = get_object_or_404(PaymentRecord, pk=pk)
     if request.method == 'POST':
@@ -1069,7 +1069,7 @@ def payment_apply(request, pk):
     )
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def payment_void(request, pk):
     """Void a payment — posts a reversal journal entry and marks status voided.
 

@@ -600,6 +600,18 @@ def post_payment(payment, *, created_by, idempotency_key=None, entry_date=None):
     return entry
 
 
+def lock_client_deposit(client_id):
+    """Kunci baris Client sampai transaksi ini selesai: setiap pengeluaran
+    dari deposit client berbaris di sini, jadi dua pengeluaran paralel tidak
+    sama-sama lolos cek saldo yang sama.
+
+    Bukan select_for_update() + aggregate() atas baris jurnal: Django
+    membuang FOR UPDATE pada query agregat, sehingga cara itu tidak mengunci
+    apa pun. exists() mempertahankannya."""
+    from ..models.client import Client
+    Client.objects.select_for_update().filter(pk=client_id).exists()
+
+
 def client_credit_balance(client_id):
     agg = JournalLine.objects.filter(
         client_id=client_id, account_id=coa.CUST_CREDIT,
@@ -615,18 +627,13 @@ class InsufficientCreditError(FinanceError):
 def post_payment_from_credit(payment, *, created_by):
     """Bayar invoice pakai saldo titipan: DR Titipan / CR Piutang.
 
-    Mengunci baris titipan terkait (via client_credit_balance dengan select_
-    for_update) supaya dua pembayaran dari-titipan paralel tidak double-spend
-    saldo yang sama (lost update).
+    Mengunci client (lock_client_deposit) supaya dua pembayaran dari-titipan
+    paralel tidak double-spend saldo yang sama (lost update).
     """
     amt = int(payment.amount_sar)
     if not amt:
         raise FinanceError("Jumlah pembayaran harus > 0")
-    # Lock the client's titipan rows inside the transaction so two concurrent
-    # from-credit payments serialize on the current balance.
-    JournalLine.objects.select_for_update().filter(
-        client_id=payment.client_id, account_id=coa.CUST_CREDIT,
-    ).aggregate(d=models.Sum("debit"), c=models.Sum("credit"))
+    lock_client_deposit(payment.client_id)
     balance = client_credit_balance(payment.client_id)
     if balance < amt:
         raise InsufficientCreditError(
@@ -673,18 +680,24 @@ def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None)
 @transaction.atomic
 def resync_remittance(remittance, *, created_by):
     """Samakan jurnal kirim remittance dengan transfernya sekarang: satu entry
-    Transit / rekening asal sebesar expected_sar. Idempotent-by-content: bila
-    nominal dan rekeningnya sudah cocok, tidak ada yang diposting."""
+    Transit / rekening asal sebesar expected_sar pada tanggal transfer.
+    Idempotent-by-content: bila nominal, rekening, dan tanggalnya sudah cocok,
+    tidak ada yang diposting.
+
+    Entry lama dibalik pada tanggalnya sendiri, supaya tanggal yang dikoreksi
+    benar-benar memindahkan uangnya; periode lama yang sudah ditutup menolak
+    koreksi itu (PeriodLockedError)."""
     entry_date = remittance.date or timezone.now().date()
     want = int(remittance.expected_sar or 0)
     source = remittance.from_account.ledger_account_id
     live = _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE)
-    posted = [(ln.account_id, int(ln.credit), ln.amount_txn) for e in live for ln in e.lines.all() if ln.credit]
+    posted = [(e.entry_date, ln.account_id, int(ln.credit), ln.amount_txn)
+              for e in live for ln in e.lines.all() if ln.credit]
     native_sent = native(remittance.from_account, remittance.amount_sent).get("amount_txn")
-    if posted == ([(source, want, native_sent)] if want else []):
+    if posted == ([(entry_date, source, want, native_sent)] if want else []):
         return
     for e in live:
-        reverse_entry(e, reversal_date=entry_date, created_by=created_by)
+        reverse_entry(e, reversal_date=e.entry_date, created_by=created_by)
     if want:
         post_remittance_send(remittance, amount_sar=want, created_by=created_by, entry_date=entry_date)
 
@@ -856,6 +869,7 @@ def return_payment_deposit(payment, *, created_by, entry_date=None):
     pembayarannya di-void / di-reverse). Ditolak bila depositnya sudah dipakai."""
     if not payment.deposited_sar:
         return 0
+    lock_client_deposit(payment.client_id)
     if client_credit_balance(payment.client_id) < payment.deposited_sar:
         raise FinanceError(
             f"{payment.deposited_sar:,} SAR dari payment {payment.payment_number} sudah dipindah ke deposit "

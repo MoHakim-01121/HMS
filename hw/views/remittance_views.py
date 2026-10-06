@@ -383,7 +383,17 @@ def remittance_edit(request, pk):
     # ketahuan setelah HQ menandai diterima
     rem = get_object_or_404(Remittance, pk=pk)
     if request.method == 'POST':
-        rem.date = request.POST.get('date') or rem.date
+        proof = None if request.POST.get('remove_proof') else request.FILES.get('proof')
+        proof_error = validate_proof_file(proof) if proof else None
+        if proof_error:
+            messages.error(request, f'Bukti transfer: {proof_error}')
+            return redirect('remittance_edit', pk=rem.pk)
+        if request.POST.get('date'):
+            try:
+                rem.date = date.fromisoformat(request.POST['date'])
+            except ValueError:
+                messages.error(request, 'Tanggal transfer tidak valid.')
+                return redirect('remittance_edit', pk=rem.pk)
         rem.receipt_reference = request.POST.get('receipt_reference', '').strip()
         rem.note = request.POST.get('note', '').strip()
         amount_sent, exchange_rate, _ignored = _parse_transfer_fields(request)
@@ -408,26 +418,27 @@ def remittance_edit(request, pk):
         if request.POST.get('remove_proof'):
             rem.proof = None
             update_fields.append('proof')
-        elif request.FILES.get('proof'):
-            proof_error = validate_proof_file(request.FILES['proof'])
-            if proof_error:
-                raise ValueError(f"Remittance proof: {proof_error}")
-            rem.proof = request.FILES['proof']
+        elif proof:
+            rem.proof = proof
             update_fields.append('proof')
-        rem.save(update_fields=update_fields)
 
-        # The cash book and the journal's send leg follow the transfer.
+        # The transfer, its cash book row and the journal's send leg are one
+        # fact: when the ledger cannot follow (e.g. a closed period), nothing
+        # is saved, rather than leaving the document and the books apart.
         from ..finance.bank_ledger import sync_bank_transaction
         try:
-            sync_bank_transaction(
-                account=rem.from_account, direction='out', amount_sar=rem.expected_sar,
-                currency=rem.from_account.currency, amount=rem.amount_sent, source_type='Remittance',
-                source_id=rem.pk, transaction_date=rem.date, reference=rem.receipt_reference,
-            )
-            posting.resync_remittance(rem, created_by=request.user)
+            with transaction.atomic():
+                rem.save(update_fields=update_fields)
+                sync_bank_transaction(
+                    account=rem.from_account, direction='out', amount_sar=rem.expected_sar,
+                    currency=rem.from_account.currency, amount=rem.amount_sent, source_type='Remittance',
+                    source_id=rem.pk, transaction_date=rem.date, reference=rem.receipt_reference,
+                )
+                posting.resync_remittance(rem, created_by=request.user)
         except FinanceError as e:
-            logger.warning("remittance %s: buku kas / jurnal kirim gagal disamakan: %s", rem.remittance_number, e)
-            messages.warning(request, f'Tersimpan, tapi buku kas/jurnal belum ikut berubah: {e}')
+            logger.warning("remittance %s: edit refused, ledger cannot follow: %s", rem.remittance_number, e)
+            messages.error(request, f'Tidak tersimpan — buku kas/jurnal tidak bisa ikut berubah: {e}')
+            return redirect('remittance_edit', pk=rem.pk)
         return redirect('remittance_detail', pk=rem.pk)
 
     # Allocations are made per receipt (Record Receipt / change allocation).
@@ -504,7 +515,8 @@ def remittance_upload_proof(request, pk):
     if proof:
         proof_error = validate_proof_file(proof)
         if proof_error:
-            raise ValueError(f"Remittance proof: {proof_error}")
+            messages.error(request, f'Bukti transfer: {proof_error}')
+            return redirect('remittance_detail', pk=rem.pk)
         rem.proof = proof
         rem.save(update_fields=['proof'])
     return redirect('remittance_detail', pk=rem.pk)

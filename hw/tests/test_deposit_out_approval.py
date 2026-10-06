@@ -138,3 +138,22 @@ class ApprovalScreenTest(_Base):
         self.client.post(f'/finance/refunds/{refund.pk}/reject/', {'reason': 'dobel'})
         refund.refresh_from_db()
         self.assertEqual(refund.status, 'rejected')
+
+
+class DepositLockTest(_Base):
+    """Pengeluaran deposit berbaris di baris Client. Kunci lama (FOR UPDATE +
+    aggregate atas baris jurnal) dibuang diam-diam oleh Django, jadi dua
+    persetujuan paralel bisa sama-sama lolos cek saldo."""
+
+    def test_approval_locks_the_client_row(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        if not connection.features.has_select_for_update:
+            self.skipTest('database tanpa SELECT ... FOR UPDATE')
+        refund = self._refund()
+        table = Client._meta.db_table
+        with CaptureQueriesContext(connection) as ctx:
+            confirm_refund(refund, confirmed_by=self.checker)
+        self.assertTrue(any(
+            'FOR UPDATE' in q['sql'] and f'"{table}"' in q['sql'] for q in ctx.captured_queries
+        ))

@@ -10,29 +10,21 @@ bawah kunci lalu memposting jurnalnya pada tanggal dokumen; `reject_*` menolak
 dengan alasan. Pencatat tidak menyetujui catatannya sendiri, kecuali admin
 (terbaca dari confirmed_by == created_by).
 """
-from django.db import models, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from ..models.client_money import ApprovalStatus, ClientRefund, ClientTransfer
-from ..models.journal import JournalEntry, JournalLine
+from ..models.journal import JournalEntry
 from . import accounts as coa
 from .bank_ledger import record_bank_transaction
 from .errors import FinanceError
-from .posting import client_credit_balance, native, post_entry
-
-
-def _lock_deposit(client_id):
-    """Kunci baris Titipan client supaya dua pengeluaran paralel tidak
-    memakai saldo yang sama."""
-    JournalLine.objects.select_for_update().filter(
-        client_id=client_id, account_id=coa.CUST_CREDIT,
-    ).aggregate(d=models.Sum('debit'))
+from .posting import client_credit_balance, lock_client_deposit, native, post_entry
 
 
 def _check_balance(client, amount):
     if amount <= 0:
         raise FinanceError('Nominal harus lebih besar dari nol.')
-    _lock_deposit(client.pk)
+    lock_client_deposit(client.pk)
     balance = client_credit_balance(client.pk)
     if amount > balance:
         raise FinanceError(

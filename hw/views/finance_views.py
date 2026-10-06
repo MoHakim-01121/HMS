@@ -536,22 +536,22 @@ def bank_account_transactions(request, kind, pk):
 def _pending_out_rows(user, client=None):
     """Refund / transfer deposit yang menunggu persetujuan, untuk layar.
     `can_decide`: user ini boleh menyetujui/menolaknya (bukan pencatatnya,
-    kecuali admin, dan punya hak payments.edit)."""
+    kecuali admin, dan punya hak payments.delete: keputusan uang keluar)."""
     from ..finance.deposit import can_approve, pending_out
-    may_edit = can(user, 'payments', 'edit')
+    may_decide = can(user, 'payments', 'delete')
     refunds, transfers = pending_out(client)
     rows = [{
         'kind': 'refund', 'id': r.pk, 'number': r.refund_number, 'date': r.refund_date.isoformat(),
         'client': r.client.name, 'client_id': r.client_id,
         'detail': f'{r.money_account}' + (f' · {r.amount_paid:,} {r.money_account.currency}' if r.money_account.currency != 'SAR' else ''),
         'amount_sar': r.amount_sar, 'note': r.note, 'created_by': r.created_by.username,
-        'can_decide': may_edit and can_approve(r, user),
+        'can_decide': may_decide and can_approve(r, user),
     } for r in refunds] + [{
         'kind': 'transfer', 'id': t.pk, 'number': t.transfer_number, 'date': t.transfer_date.isoformat(),
         'client': t.from_client.name, 'client_id': t.from_client_id,
         'detail': f'→ {t.to_client.name}',
         'amount_sar': t.amount_sar, 'note': t.note, 'created_by': t.created_by.username,
-        'can_decide': may_edit and can_approve(t, user),
+        'can_decide': may_decide and can_approve(t, user),
     } for t in transfers]
     return sorted(rows, key=lambda r: r['date'], reverse=True)
 

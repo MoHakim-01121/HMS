@@ -432,22 +432,22 @@ def _decide_deposit_out(request, kind, pk, decision):
     return redirect('client_finance_statement', pk=client_pk)
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def client_refund_confirm(request, pk):
     return _decide_deposit_out(request, 'refund', pk, 'confirm')
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def client_refund_reject(request, pk):
     return _decide_deposit_out(request, 'refund', pk, 'reject')
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def client_deposit_transfer_confirm(request, pk):
     return _decide_deposit_out(request, 'transfer', pk, 'confirm')
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'delete')
 def client_deposit_transfer_reject(request, pk):
     return _decide_deposit_out(request, 'transfer', pk, 'reject')
 
