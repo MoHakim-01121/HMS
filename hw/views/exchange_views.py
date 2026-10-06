@@ -94,7 +94,9 @@ def exchange_new(request):
 def exchange_void(request, pk):
     ex = get_object_or_404(CurrencyExchange, pk=pk)
     try:
-        exchange_service.void_exchange(ex, reason=(request.POST.get('reason') or '').strip())
+        exchange_service.void_exchange(
+            ex, reason=(request.POST.get('reason') or '').strip(), voided_by=request.user,
+        )
         messages.success(request, f'{ex.exchange_number} dibatalkan.')
     except FinanceError as e:
         messages.error(request, str(e))

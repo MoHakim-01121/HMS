@@ -5,11 +5,13 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import exchange_service as fx
-from hw.finance.errors import FinanceError
+from hw.finance import accounts as coa, exchange_service as fx, posting
+from hw.finance.bank_ledger import record_bank_transaction
+from hw.finance.errors import FinanceError, InsufficientFundsError
+from hw.finance.hashing import verify_chain
 from hw.models import BankAccount, BankTransaction, CurrencyExchange, LedgerAccount
 from hw.finance.accounts import cash_ledger_for
-from hw.models.journal import JournalEntry
+from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 
 
@@ -22,6 +24,28 @@ class ExchangeBase(TestCase):
                                               bank_name='Mandiri', account_identifier='111')
         self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
                                               bank_name='Mandiri', account_identifier='222')
+        # 5,000 client dollars held, worth 18,750 SAR in the ledger.
+        self._fund(self.usd, 5_000, 18_750)
+
+    def _fund(self, account, amount, sar, day=date(2026, 9, 1)):
+        posting.post_adjustment(
+            lines=[{'account': account.ledger_account_id, 'debit': sar, 'branch': account.branch_id,
+                    **posting.native(account, amount)},
+                   {'account': coa.OPENING_EQUITY, 'credit': sar, 'branch': account.branch_id}],
+            description=f'dana awal {account}', entry_date=day, created_by=self.user,
+        )
+        record_bank_transaction(account=account, direction='in', amount_sar=sar, currency=account.currency,
+                                amount=amount, source_type='TestFunding', source_id=account.pk, transaction_date=day)
+
+    def _ledger(self, account):
+        """(saldo asli, saldo SAR) akun buku besar rekening."""
+        lines = JournalLine.objects.filter(account_id=account.ledger_account_id)
+        native = sum((l.amount_txn or 0) * (1 if l.debit else -1) for l in lines)
+        return native, sum(l.debit - l.credit for l in lines)
+
+    def _cash_book(self, account):
+        rows = BankTransaction.objects.filter(account=account).exclude(status=BankTransaction.STATUS_VOIDED)
+        return sum(r.amount if r.direction == 'in' else -r.amount for r in rows)
 
     def _exchange(self, out=2750, inn=48_125_000, day=date(2026, 9, 10)):
         return fx.record_exchange(from_account=self.usd, amount_out=out, to_account=self.idr,
@@ -29,14 +53,44 @@ class ExchangeBase(TestCase):
 
 
 class RecordExchangeTest(ExchangeBase):
-    def test_records_two_cash_rows_in_real_currencies_and_no_journal(self):
+    def test_records_two_cash_rows_in_real_currencies(self):
         ex = self._exchange()
         self.assertEqual(ex.rate, Decimal('17500.0000'))
         out = BankTransaction.objects.get(source_type=fx.SOURCE_OUT, source_id=ex.pk)
         inn = BankTransaction.objects.get(source_type=fx.SOURCE_IN, source_id=ex.pk)
         self.assertEqual((out.account_id, out.direction, out.currency, out.amount), (self.usd.pk, 'out', 'USD', 2750))
         self.assertEqual((inn.account_id, inn.direction, inn.currency, inn.amount), (self.idr.pk, 'in', 'IDR', 48_125_000))
-        self.assertFalse(JournalEntry.objects.exists())  # SAR owed to HQ is unchanged
+
+    def test_journal_moves_the_carrying_value_between_currency_accounts(self):
+        # 2,750 of 5,000 dollars carried at 18,750 SAR -> 10,313 SAR moves to rupiah;
+        # the SAR value held (and owed to HQ) does not change.
+        ex = self._exchange()
+        entry = JournalEntry.objects.get(source_currency_exchange=ex)
+        self.assertEqual(entry.entry_type, JournalEntry.TYPE_EXCHANGE)
+        self.assertEqual(self._ledger(self.usd), (2_250, 8_437))
+        self.assertEqual(self._ledger(self.idr), (48_125_000, 10_313))
+        self.assertEqual(verify_chain(), [])
+
+    def test_ledger_and_cash_book_agree_after_an_exchange(self):
+        self._exchange()
+        for account in (self.usd, self.idr):
+            self.assertEqual(self._ledger(account)[0], self._cash_book(account), str(account))
+
+    def test_exchange_into_riyal_books_the_difference_as_fx_result(self):
+        sar = BankAccount.objects.create(branch_id='sby', name='SAR', currency='SAR', bank_name='Mandiri',
+                                         account_identifier='444', ledger_account_id=cash_ledger_for('sby', 'SAR'))
+        self._fund(self.idr, 47_000_000, 10_000)
+        # 4,700,000 rupiah carried at 1,000 SAR bring 1,050 real riyal: 50 SAR gain.
+        fx.record_exchange(from_account=self.idr, amount_out=4_700_000, to_account=sar, amount_in=1_050,
+                           exchange_date=date(2026, 9, 10), created_by=self.user)
+        self.assertEqual(self._ledger(sar), (0, 1_050))
+        gain = JournalLine.objects.filter(account_id=coa.INC_FX_GAIN).values_list('credit', flat=True)
+        self.assertEqual(list(gain), [50])
+
+    def test_cannot_exchange_money_the_account_does_not_hold(self):
+        with self.assertRaises(InsufficientFundsError):
+            self._exchange(out=6_000)
+        self.assertFalse(CurrencyExchange.objects.exists())
 
     def test_rejects_same_currency_same_account_and_zero(self):
         with self.assertRaises(FinanceError):
@@ -54,7 +108,10 @@ class RecordExchangeTest(ExchangeBase):
     def test_void_voids_both_rows_once(self):
         ex = self._exchange()
         fx.void_exchange(ex, reason='typo')
-        self.assertEqual(set(BankTransaction.objects.values_list('status', flat=True)), {BankTransaction.STATUS_VOIDED})
+        rows = BankTransaction.objects.filter(source_type__in=(fx.SOURCE_OUT, fx.SOURCE_IN))
+        self.assertEqual(set(rows.values_list('status', flat=True)), {BankTransaction.STATUS_VOIDED})
+        self.assertEqual(self._ledger(self.usd), (5_000, 18_750))
+        self.assertEqual(self._ledger(self.idr), (0, 0))
         with self.assertRaises(FinanceError):
             fx.void_exchange(ex)
 

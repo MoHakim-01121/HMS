@@ -9,7 +9,7 @@ from hw.finance.accounts import cash_ledger_for
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
-from hw.tests.factories import make_hotel_line, make_invoice, make_priced_cl, set_line_total
+from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_priced_cl, set_line_total
 
 
 class DualWriteTestBase(TestCase):
@@ -122,10 +122,12 @@ class RemittanceDualWriteTest(DualWriteTestBase):
 
     def _idr_account(self):
         from hw.models import BankAccount, LedgerAccount
-        return BankAccount.objects.create(
+        acc = BankAccount.objects.create(
             branch_id="sby", name="Ops IDR", currency="IDR", bank_name="Mandiri",
             account_identifier="1400", ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
+        fund_cash(acc, 1_000_000_000)
+        return acc
 
     def test_new_remittance_is_lump_sum_send_leg(self):
         # Transfer baru tidak memilih reservasi (alokasi saat Pusat menerima,

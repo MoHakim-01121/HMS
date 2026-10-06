@@ -234,34 +234,38 @@ def remittance_new(request):
     to_account = default_account('pusat', 'SAR')
     if to_account is None:
         return form_page('Add an HQ SAR account in Bank Balances first.')
-    rem = Remittance.objects.create(
-        remittance_number=Remittance.generate_number(),
-        date=remittance_date,
-        receipt_reference=receipt_reference,
-        amount_sent=amount_idr,
-        exchange_rate=exchange_rate,
-        from_account=from_account,
-        to_account=to_account,
-        note=note,
-    )
-    # Cash book: the rupiah that left the branch account (fund-flow report).
+    # The transfer, its cash book row (the rupiah that left the branch account)
+    # and its send journal (SBY -> Transit, not yet any reservation's money)
+    # are one fact: when the account does not hold the rupiah or the period is
+    # closed, nothing is saved and the form says why.
     from ..finance.bank_ledger import record_bank_transaction
-    record_bank_transaction(
-        account=from_account, direction='out', amount_sar=rem.expected_sar,
-        currency='IDR', amount=amount_idr, source_type='Remittance', source_id=rem.pk,
-        transaction_date=rem.date, reference=receipt_reference,
-    )
-    if proof:
-        rem.proof = proof
-        rem.save()
-
-    # Uang sudah keluar bank tapi belum milik reservasi mana pun. Posting
-    # aggregate SBY->Transit via jurnal (Fase 7: tanpa shadow CashMovement).
     try:
-        posting.resync_remittance(rem, created_by=request.user)
+        remittance_date = date.fromisoformat(remittance_date)
+    except ValueError:
+        return form_page('Tanggal transfer tidak valid.')
+    try:
+        with transaction.atomic():
+            rem = Remittance.objects.create(
+                remittance_number=Remittance.generate_number(),
+                date=remittance_date,
+                receipt_reference=receipt_reference,
+                amount_sent=amount_idr,
+                exchange_rate=exchange_rate,
+                from_account=from_account,
+                to_account=to_account,
+                note=note,
+            )
+            record_bank_transaction(
+                account=from_account, direction='out', amount_sar=rem.expected_sar,
+                currency='IDR', amount=amount_idr, source_type='Remittance', source_id=rem.pk,
+                transaction_date=rem.date, reference=receipt_reference,
+            )
+            if proof:
+                rem.proof = proof
+                rem.save()
+            posting.resync_remittance(rem, created_by=request.user)
     except FinanceError as e:
-        logger.warning("remittance %s: journal send resync gagal: %s", rem.remittance_number, e)
-        messages.warning(request, f'Remittance dibuat, tapi jurnal belum tercatat: {e}')
+        return form_page(f'Tidak tersimpan: {e}')
 
     return redirect('remittance_detail', pk=rem.pk)
 

@@ -17,7 +17,7 @@ from hw.models import Client
 from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import fund_cash, make_hotel_line, make_invoice
 
 
 def _net(**f):
@@ -73,13 +73,17 @@ class RefundTransferViewTest(TestCase):
             ],
             description="setoran titipan", entry_date=date(2026, 1, 3), created_by=self.user,
         )
+        from hw.models import CashAccount
+        fund_cash(CashAccount.objects.get(branch_id='pusat'), amount)
 
     def _idr_account(self):
         from hw.models import BankAccount, LedgerAccount
-        return BankAccount.objects.create(
+        acc = BankAccount.objects.create(
             branch_id="sby", name="IDR", currency="IDR", bank_name="Mandiri", account_identifier="555",
             ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
+        fund_cash(acc, 100_000_000)
+        return acc
 
     def test_idr_refund_records_rupiah_in_cash_book(self):
         from hw.models import BankTransaction
@@ -107,13 +111,7 @@ class RefundTransferViewTest(TestCase):
 
     def test_refund_posts_journal(self):
         # Beri client titipan (CUST_CREDIT) via adjustment dulu.
-        posting.post_adjustment(
-            lines=[
-                {"account": coa.CASH_PUSAT, "debit": 20000},
-                {"account": coa.CUST_CREDIT, "credit": 20000, "client": self.client_obj.pk},
-            ],
-            description="setoran titipan", entry_date=date(2026, 1, 3), created_by=self.user,
-        )
+        self._fund()
 
         resp = self.client.post(
             reverse("client_refund", args=[self.client_obj.pk]),
@@ -132,13 +130,7 @@ class RefundTransferViewTest(TestCase):
     def test_refund_keeps_uploaded_proof_on_journal_entry(self):
         # Fase 7: proof refund dibawa JournalEntry (bukan shadow CashMovement
         # yang sudah dipensiunkan dari alur penulisan).
-        posting.post_adjustment(
-            lines=[
-                {"account": coa.CASH_PUSAT, "debit": 20000},
-                {"account": coa.CUST_CREDIT, "credit": 20000, "client": self.client_obj.pk},
-            ],
-            description="setoran titipan", entry_date=date(2026, 1, 3), created_by=self.user,
-        )
+        self._fund()
         proof = SimpleUploadedFile("refund.pdf", b"%PDF-1.4 test", content_type="application/pdf")
         resp = self.client.post(
             reverse("client_refund", args=[self.client_obj.pk]),

@@ -16,7 +16,7 @@ from hw.models import Client, Remittance
 from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice
+from hw.tests.factories import fund_cash, make_hotel_line, make_invoice
 
 
 def _net(**f):
@@ -65,6 +65,7 @@ class LumpSumRemittanceTest(TestCase):
             branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri', account_identifier='777',
             ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
+        fund_cash(self.idr_account, 1_000_000_000)
 
     def _login(self):
         self.client.force_login(self.user)

@@ -17,6 +17,10 @@ _ENTRY_FIELDS = (
     "source_expense_payment_id", "source_client_refund_id", "source_client_transfer_id",
     "description",
 )
+# Kolom sumber yang ditambahkan setelah rantai hash berjalan: ikut di-hash
+# hanya bila terisi, supaya hash entry lama (yang tidak punya kolom ini)
+# tetap sama persis.
+_LATER_ENTRY_FIELDS = ("source_currency_exchange_id",)
 # `branch_id` sengaja TIDAK di sini: branch adalah dimensi analitik/pelaporan
 # yang boleh dikoreksi tanpa reversal (sama alasannya dgn JournalEntry.proof).
 # Memasukkannya akan membatalkan semua entry_hash historis.
@@ -28,7 +32,10 @@ _LINE_FIELDS = (
 
 def _entry_payload(entry, line_dicts, prev_hash):
     return {
-        "entry": {f: _s(getattr(entry, f, None)) for f in _ENTRY_FIELDS},
+        "entry": {
+            **{f: _s(getattr(entry, f, None)) for f in _ENTRY_FIELDS},
+            **{f: _s(v) for f in _LATER_ENTRY_FIELDS if (v := getattr(entry, f, None)) is not None},
+        },
         "lines": [
             {f: _s(d.get(f)) for f in _LINE_FIELDS}
             for d in sorted(line_dicts, key=lambda d: d.get("line_no") or 0)

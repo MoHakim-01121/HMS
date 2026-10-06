@@ -11,6 +11,10 @@ class FinanceError(Exception):
     pass
 
 
+class InsufficientFundsError(FinanceError):
+    """Uang keluar melebihi saldo rekening dalam mata uang aslinya."""
+
+
 class PeriodLockedError(FinanceError):
     """Posting to a locked period."""
     pass

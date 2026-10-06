@@ -4,12 +4,55 @@ One call site per event that moves cash through a concrete MoneyAccount.
 Idempotent per (source_type, source_id): safe to call again for
 an already-recorded event (e.g. a retried request) without doubling it.
 """
+from django.db import transaction
+
 from ..models.bank import BankAccount, CashAccount
 from ..models.bank_transaction import BankTransaction
 
 
+def ensure_funds(account, amount, on_date, *, exclude_pk=None):
+    """Uang keluar `amount` (mata uang rekening) tidak boleh membuat saldo
+    buku kas rekening itu minus -- pada `on_date` maupun sesudahnya, karena
+    pengeluaran bertanggal mundur ikut mengurangi semua saldo setelahnya.
+
+    Kas dan bank tidak bisa minus: saldo yang tidak cukup berarti ada uang
+    masuk yang belum dicatat (penerimaan, penukaran valas, saldo awal), dan
+    itu harus dicatat dulu -- bukan ditemukan berbulan-bulan kemudian.
+    Rekening dikunci sampai transaksi selesai supaya dua pengeluaran paralel
+    tidak sama-sama lolos."""
+    from django.db.models import Case, F, Sum, When
+    from ..models.bank import MoneyAccount
+    from .errors import InsufficientFundsError
+
+    MoneyAccount.objects.select_for_update().filter(pk=account.pk).exists()
+    rows = (
+        BankTransaction.objects.filter(account_id=account.pk)
+        .exclude(status=BankTransaction.STATUS_VOIDED).exclude(pk=exclude_pk)
+        .values('transaction_date')
+        .annotate(net=Sum(Case(When(direction='in', then=F('amount')), default=-F('amount'))))
+        .order_by('transaction_date')
+    )
+    balance = lowest = None
+    running = 0
+    for r in rows:
+        running += r['net'] or 0
+        if r['transaction_date'] <= on_date:
+            balance = running
+        elif lowest is None or running < lowest:
+            lowest = running
+    available = min(x for x in (balance or 0, lowest) if x is not None)
+    if amount > available:
+        raise InsufficientFundsError(
+            f"Saldo {account} hanya {max(available, 0):,} {account.currency}"
+            f"{'' if lowest is None or lowest >= (balance or 0) else ' (setelah transaksi sesudahnya)'}"
+            f" per {on_date:%d/%m/%Y}; transaksi ini mengeluarkan {amount:,} {account.currency}. "
+            "Catat dulu uang yang membiayainya (penerimaan, penukaran valas, atau saldo awal)."
+        )
+
+
 def record_bank_transaction(*, account, direction, amount_sar, source_type, source_id,
-                            transaction_date, currency='SAR', amount=None, reference=''):
+                            transaction_date, currency='SAR', amount=None, reference='',
+                            check_funds=True):
     """Log a cash movement against a concrete account. No-op if `account` is
     None (legacy/unlinked event with no resolvable MoneyAccount —
     the movement is still correct in the journal, just not in this log).
@@ -23,14 +66,20 @@ def record_bank_transaction(*, account, direction, amount_sar, source_type, sour
         amount = amount_sar
     if account is None:
         return None
-    tx, _created = BankTransaction.objects.get_or_create(
-        source_type=source_type, source_id=source_id,
-        defaults={
-            'transaction_date': transaction_date, 'direction': direction,
-            'amount_sar': amount_sar, 'currency': currency, 'amount': amount, 'reference': reference,
-            'account': account,
-        },
-    )
+    with transaction.atomic():
+        # A repeat call for an already-recorded event moves no new money.
+        if check_funds and direction == 'out' and not BankTransaction.objects.filter(
+            source_type=source_type, source_id=source_id,
+        ).exists():
+            ensure_funds(account, amount, _as_date(transaction_date))
+        tx, _created = BankTransaction.objects.get_or_create(
+            source_type=source_type, source_id=source_id,
+            defaults={
+                'transaction_date': transaction_date, 'direction': direction,
+                'amount_sar': amount_sar, 'currency': currency, 'amount': amount, 'reference': reference,
+                'account': account,
+            },
+        )
     return tx
 
 
@@ -54,8 +103,18 @@ def sync_bank_transaction(*, account, direction, amount_sar, source_type, source
         return tx
     if tx.status == BankTransaction.STATUS_RECONCILED or tx.statement_lines.exists():
         raise FinanceError('Transaksi ini sudah dicocokkan dengan mutasi bank — batalkan pencocokannya dulu.')
-    BankTransaction.objects.filter(pk=tx.pk).update(**wanted)
+    with transaction.atomic():
+        if direction == 'out':
+            # The edited row replaces the old one: check the account without it.
+            ensure_funds(account, wanted['amount'], _as_date(transaction_date), exclude_pk=tx.pk)
+        BankTransaction.objects.filter(pk=tx.pk).update(**wanted)
     return tx
+
+
+def _as_date(value):
+    """Tanggal transaksi kadang masih string ISO dari form."""
+    from datetime import date
+    return date.fromisoformat(value) if isinstance(value, str) else value
 
 
 def void_bank_transactions(source_type, source_ids):
@@ -120,7 +179,7 @@ def sync_opening_balance(account):
         account=account, direction='in' if account.opening_balance > 0 else 'out', amount_sar=0,
         currency=account.currency, amount=abs(account.opening_balance),
         source_type=source_type, source_id=account.pk,
-        transaction_date=account.opening_date, reference='Opening balance',
+        transaction_date=account.opening_date, reference='Opening balance', check_funds=False,
     )
 
 

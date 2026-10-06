@@ -8,7 +8,7 @@ from hw.finance import expense_service, posting
 from hw.finance import queries as fq
 from hw.models import Branch, CashAccount, ExpenseCategory, InvoiceLine
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_invoice, make_service_line
+from hw.tests.factories import fund_cash, make_invoice, make_service_line
 
 
 class ServiceMarginTest(TestCase):
@@ -21,6 +21,7 @@ class ServiceMarginTest(TestCase):
         self.visa = InvoiceLine.objects.get(pk=make_service_line(self.invoice, 'Visa', qty=10, price=500).pk)
         self.bus = InvoiceLine.objects.get(pk=make_service_line(self.invoice, 'Bus', qty=1, price=800).pk)
         posting.post_invoice_charge(self.invoice, created_by=self.user, entry_date=date(2026, 3, 1))
+        fund_cash(CashAccount.objects.get(branch_id='sby'), 1_000_000)
 
     def _cost(self, line, amount, vendor='Muassasah', pay=False):
         return expense_service.record_expense(

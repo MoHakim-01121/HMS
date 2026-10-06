@@ -656,6 +656,68 @@ def post_payment_from_credit(payment, *, created_by):
     )
 
 
+def carrying_sar(account, amount, on_date):
+    """Nilai SAR tercatat dari `amount` (mata uang asli rekening `account`)
+    pada `on_date`: rata-rata saldo SAR / saldo asli akun buku besarnya.
+
+    Pembalik ikut dijumlah sehingga saling hapus. Saldo asli yang kosong atau
+    tidak sejalan dengan saldo SAR-nya tidak punya rata-rata yang jujur --
+    ditolak, bukan ditebak."""
+    if account.currency == "SAR":
+        return int(amount)
+    lines = JournalLine.objects.filter(account_id=account.ledger_account_id, journal_entry__entry_date__lte=on_date)
+    agg = lines.aggregate(
+        d=models.Sum("debit"), c=models.Sum("credit"),
+        nd=models.Sum("amount_txn", filter=models.Q(debit__gt=0)),
+        nc=models.Sum("amount_txn", filter=models.Q(credit__gt=0)),
+    )
+    sar = (agg["d"] or 0) - (agg["c"] or 0)
+    held = (agg["nd"] or 0) - (agg["nc"] or 0)
+    if held < amount or sar <= 0:
+        raise FinanceError(
+            f"{account} per {on_date:%d/%m/%Y} tercatat {held:,} {account.currency} senilai {sar:,} SAR — "
+            f"tidak cukup untuk menukar {int(amount):,} {account.currency}. Catat dulu uang yang masuk ke rekening itu."
+        )
+    return round_half_up(Decimal(sar) * Decimal(int(amount)) / Decimal(held))
+
+
+@transaction.atomic
+def post_exchange(exchange, *, created_by):
+    """Jurnal penukaran valas: nilai SAR pindah dari rekening asal ke rekening
+    tujuan, masing-masing dengan nominal aslinya.
+
+    Rekening asal dikredit sebesar nilai tercatatnya (carrying_sar). Penukaran
+    antar valas (USD → IDR) memindahkan nilai itu apa adanya -- nilai yang
+    dipegang cabang tidak berubah, hanya mata uangnya. Penukaran KE SAR
+    menghasilkan riyal sungguhan: rekening SAR didebit sebesar yang diterima,
+    selisihnya laba/rugi kurs cabang. Idempotent per penukaran."""
+    src, dst = exchange.from_account, exchange.to_account
+    day = exchange.exchange_date
+    value = carrying_sar(src, exchange.amount_out, day)
+    received = int(exchange.amount_in) if dst.currency == "SAR" else value
+    lines = [
+        {"account": dst.ledger_account_id, "debit": received, "branch": dst.branch_id,
+         **native(dst, exchange.amount_in)},
+        {"account": src.ledger_account_id, "credit": value, "branch": src.branch_id,
+         **native(src, exchange.amount_out)},
+    ]
+    if received > value:
+        lines.append({"account": coa.INC_FX_GAIN, "credit": received - value, "branch": src.branch_id})
+    elif received < value:
+        lines.append({"account": coa.EXP_FX_LOSS, "debit": value - received, "branch": src.branch_id})
+    return post_entry(
+        entry_type=JournalEntry.TYPE_EXCHANGE,
+        description=(f"Penukaran {exchange.exchange_number}: {int(exchange.amount_out):,} {src.currency} → "
+                     f"{int(exchange.amount_in):,} {dst.currency}"),
+        entry_date=day,
+        lines=lines,
+        source_type="CurrencyExchange",
+        source_id=exchange.pk,
+        idempotency_key=f"exchange:{exchange.exchange_number}",
+        created_by=created_by,
+    )
+
+
 @transaction.atomic
 def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None):
     """Uang keluar dari rekening cabang asal → Kas Dalam Perjalanan (Transit)."""

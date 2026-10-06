@@ -13,7 +13,7 @@ from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import Client
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account
+from hw.tests.factories import fund_cash, make_account
 
 
 def _user(username, role):
@@ -69,8 +69,10 @@ class MoneyControlPermissionTest(TestCase):
                    {"account": posting.coa.CUST_CREDIT, "credit": 5_000, "client": self.client_obj.pk}],
             description='deposit awal', entry_date=date(2026, 3, 1), created_by=self.manager,
         )
+        account = make_account('sby', 'SAR')
+        fund_cash(account, 2_000)
         return request_refund(
-            self.client_obj, account=make_account('sby', 'SAR'), amount_sar=2_000, amount_paid=2_000,
+            self.client_obj, account=account, amount_sar=2_000, amount_paid=2_000,
             refund_date=date(2026, 3, 10), created_by=self.staff,
         )
 

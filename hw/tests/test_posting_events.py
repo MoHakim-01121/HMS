@@ -1,5 +1,5 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
-from hw.tests.factories import make_account, make_cl, make_hotel_line, make_invoice, make_remittance, make_service_line, set_line_total
+from hw.tests.factories import fund_cash, make_account, make_cl, make_hotel_line, make_invoice, make_remittance, make_service_line, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -139,8 +139,10 @@ class KasMovementTests(PostingTestBase):
         )
         from hw.models import CashAccount
         from hw.tests.factories import refund_now
+        pusat = CashAccount.objects.get(branch_id="pusat", currency="SAR")
+        fund_cash(pusat, 20000)
         refund_now(
-            self.client_obj, account=CashAccount.objects.get(branch_id="pusat", currency="SAR"),
+            self.client_obj, account=pusat,
             amount_sar=20000, amount_paid=20000, created_by=self.user, refund_date=date(2045, 1, 10),
         )
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 0)

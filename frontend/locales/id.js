@@ -1832,6 +1832,7 @@ export const id = {
   "Reversal": "Pembalikan",
   "Remittance": "Remitansi",
   "Remittance difference": "Selisih remitansi",
+  "Currency exchange": "Penukaran valas",
   "Expense": "Beban",
   "Adjustment": "Penyesuaian",
   "No entries in this period.": "Tidak ada entri di periode ini.",

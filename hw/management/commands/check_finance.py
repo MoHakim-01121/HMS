@@ -68,6 +68,8 @@ class Command(BaseCommand):
             ('Penerimaan non-SAR di Pusat', self._non_sar_received_at_hq()),
             # 10. Alokasi pembayaran per baris == pelunasan baris di jurnal
             ('Alokasi pembayaran vs jurnal per baris', self._allocation_line_mismatch()),
+            # 11. Kas/bank tidak bisa minus dalam mata uang aslinya
+            ('Saldo asli rekening minus', self._negative_cash()),
         ]
 
     def handle(self, *args, **options):
@@ -88,6 +90,35 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('Semua cek lolos. Jurnal konsisten.'))
 
     # ── cek individual ────────────────────────────────────────
+
+    def _negative_cash(self):
+        """Rekening kas/bank yang saldo aslinya minus di buku kas atau di buku
+        besar: ada uang masuk yang belum tercatat (penerimaan, penukaran valas,
+        saldo awal). Satu akun buku besar bisa dipakai beberapa rekening, jadi
+        buku besar dicek per akun."""
+        from django.db.models import Case, F, Q, When
+        from hw.models.bank import MoneyAccount
+        from hw.models.bank_transaction import BankTransaction
+
+        out, ledgers = [], {}
+        for acc in MoneyAccount.objects.all().order_by('pk'):
+            book = BankTransaction.objects.filter(account_id=acc.pk).exclude(
+                status=BankTransaction.STATUS_VOIDED,
+            ).aggregate(t=Sum(Case(When(direction='in', then=F('amount')), default=-F('amount'))))['t'] or 0
+            if book < 0:
+                out.append(f'{acc}: buku kas {book:,} {acc.currency}')
+            ledgers.setdefault(acc.ledger_account_id, acc)
+        for code, acc in ledgers.items():
+            if acc.currency == 'SAR':
+                agg = JournalLine.objects.filter(account_id=code).aggregate(d=Sum('debit'), c=Sum('credit'))
+                held = (agg['d'] or 0) - (agg['c'] or 0)
+            else:
+                agg = JournalLine.objects.filter(account_id=code).aggregate(
+                    d=Sum('amount_txn', filter=Q(debit__gt=0)), c=Sum('amount_txn', filter=Q(credit__gt=0)))
+                held = (agg['d'] or 0) - (agg['c'] or 0)
+            if held < 0:
+                out.append(f'{code}: buku besar {held:,} {acc.currency}')
+        return out
 
     def _non_sar_received_at_hq(self):
         from hw.finance.accounts import HQ_BRANCH

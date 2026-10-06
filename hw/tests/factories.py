@@ -101,6 +101,18 @@ def make_account(branch='sby', currency='SAR'):
     )
 
 
+def fund_cash(account, amount, day=date(2020, 1, 1)):
+    """Isi buku kas `account` dengan `amount` (mata uang rekening) supaya test
+    boleh mengeluarkan uang darinya: kas tidak bisa minus (bank_ledger.
+    ensure_funds). Hanya baris buku kas -- buku besar tidak disentuh, jadi
+    jurnal dan neraca yang diuji test tetap seperti semula."""
+    from hw.finance.bank_ledger import record_bank_transaction
+    return record_bank_transaction(
+        account=account, direction='in', amount_sar=0, currency=account.currency, amount=amount,
+        source_type='TestFunding', source_id=next(_numbers), transaction_date=day,
+    )
+
+
 def make_remittance(**kwargs):
     """Remittance dengan nilai bawaan yang sah: dari rekening IDR Surabaya ke
     rekening SAR Pusat. Nama lama diterima: `amount_idr` → amount_sent;

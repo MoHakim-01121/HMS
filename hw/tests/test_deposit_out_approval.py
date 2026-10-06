@@ -15,7 +15,7 @@ from hw.models import Client
 from hw.models.bank_transaction import BankTransaction
 from hw.models.journal import JournalEntry
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account
+from hw.tests.factories import fund_cash, make_account
 
 
 def _user(name, role=None, superuser=False):
@@ -35,6 +35,7 @@ class _Base(TestCase):
         self.a = Client.objects.create(name='PT Deposit A')
         self.b = Client.objects.create(name='PT Deposit B')
         self.sar = make_account('sby', 'SAR')
+        fund_cash(self.sar, 5_000)
         posting.post_adjustment(
             lines=[{"account": posting.coa.CASH_SBY, "debit": 5_000},
                    {"account": posting.coa.CUST_CREDIT, "credit": 5_000, "client": self.a.pk}],

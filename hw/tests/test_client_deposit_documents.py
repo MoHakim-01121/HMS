@@ -11,7 +11,7 @@ from hw.finance.errors import FinanceError
 from hw.models import ClientRefund, ClientTransfer, Client
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account, refund_now as refund_deposit, transfer_now as transfer_deposit
+from hw.tests.factories import fund_cash, make_account, refund_now as refund_deposit, transfer_now as transfer_deposit
 
 
 class _Base(TestCase):
@@ -31,6 +31,7 @@ class _Base(TestCase):
 class RefundDocumentTest(_Base):
     def test_refund_is_a_numbered_document_with_its_entry(self):
         idr = make_account('sby', 'IDR')
+        fund_cash(idr, 9_800_000)
         refund = refund_deposit(self.a, account=idr, amount_sar=2_000, amount_paid=9_800_000,
                                 refund_date=date(2026, 3, 10), created_by=self.user)
         self.assertEqual(refund.refund_number, 'RFD-202603-001')

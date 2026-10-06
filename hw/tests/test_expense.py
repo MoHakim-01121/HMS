@@ -12,7 +12,7 @@ from hw.models.journal import JournalEntry, LedgerAccount
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, queries as fq
 from hw.finance.errors import FinanceError
-from hw.tests.factories import make_hotel_line, make_invoice, make_service_line
+from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_service_line
 
 
 class ExpenseBase(TestCase):
@@ -24,6 +24,7 @@ class ExpenseBase(TestCase):
         self.sby = Branch.objects.get(code='sby')
         self.cash = CashAccount.objects.get(branch_id='sby')
         self.util = ExpenseCategory.objects.get(code='UTIL')
+        fund_cash(self.cash, 1_000_000)  # cash cannot go negative (ensure_funds)
 
 
 class ExpenseSeedTest(ExpenseBase):

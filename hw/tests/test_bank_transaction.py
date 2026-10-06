@@ -9,7 +9,7 @@ from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
 from hw.finance_helpers import create_payment_record, confirm_payment
-from hw.tests.factories import make_invoice, make_remittance
+from hw.tests.factories import fund_cash, make_invoice, make_remittance
 
 
 class BankTransactionBase(TestCase):
@@ -68,6 +68,7 @@ class ExpensePaymentBankTransactionTest(BankTransactionBase):
             branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
             lines=[{'category': util, 'amount': 1500}],
         )
+        fund_cash(self.cash_sby, 1500)
         ep = expense_service.add_expense_payment(
             exp, amount=1500, payment_date=date(2026, 7, 3),
             account=self.cash_sby, created_by=self.user,
@@ -115,9 +116,11 @@ class OriginalAmountTest(BankTransactionBase):
             branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
             lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 100}],
         )
+        idr = self._idr_account()
+        fund_cash(idr, 475_000)
         ep = expense_service.add_expense_payment(
             exp, amount=475_000, currency='IDR', exchange_rate=4750, payment_date=date(2026, 7, 3),
-            account=self._idr_account(), created_by=self.user,
+            account=idr, created_by=self.user,
         )
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual((tx.direction, tx.currency, tx.amount, tx.amount_sar), ('out', 'IDR', 475_000, 100))
@@ -193,6 +196,7 @@ class VoidedCashRowTest(BankTransactionBase):
             branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
             lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 700}],
         )
+        fund_cash(self.cash_sby, 700)
         ep = expense_service.add_expense_payment(
             exp, amount=700, payment_date=date(2026, 7, 3), account=self.cash_sby, created_by=self.user,
         )

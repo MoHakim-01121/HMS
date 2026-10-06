@@ -33,17 +33,18 @@ from hw.finance import accounts as coa
 from hw.finance.bank_ledger import record_bank_transaction
 from hw.finance.penalty_billing import reservation_balances
 from hw.finance.posting import (
-    move_invoice_excess_to_deposit, post_invoice_charge, post_payment, resync_remittance,
+    move_invoice_excess_to_deposit, post_exchange, post_invoice_charge, post_payment, resync_remittance,
 )
 from hw.finance.remittance_allocation import live_allocation_entries, post_allocation
 from hw.finance.settlement_service import post_receipt
 from hw.models import (
-    BankTransaction, FinancialPeriod, Invoice, JournalEntry, PaymentRecord, Remittance,
+    BankTransaction, CurrencyExchange, FinancialPeriod, Invoice, JournalEntry, PaymentRecord, Remittance,
     RemittanceSettlement,
 )
 
 SYSTEM_USERNAME = 'system.cutover'
-CHARGE, PAYMENT, SEND, RECEIVE = range(4)
+# Urutan dalam satu hari: uang masuk dan ditukar dulu, baru dikirim.
+CHARGE, PAYMENT, EXCHANGE, SEND, RECEIVE = range(5)
 
 
 def _live(source_type, source_id, entry_type):
@@ -82,6 +83,10 @@ class Command(BaseCommand):
             events.append((inv.issued_date or inv.created_at.date(), CHARGE, inv.pk, inv))
         for p in PaymentRecord.objects.filter(status=PaymentRecord.STATUS_CONFIRMED).select_related('receiving_account'):
             events.append((p.payment_date, PAYMENT, p.pk, p))
+        for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).select_related(
+            'from_account', 'to_account',
+        ):
+            events.append((ex.exchange_date, EXCHANGE, ex.pk, ex))
         for rem in Remittance.objects.select_related('from_account', 'to_account'):
             events.append((rem.date, SEND, rem.pk, rem))
         for s in RemittanceSettlement.objects.select_related('remittance__from_account', 'remittance__to_account'):
@@ -97,7 +102,7 @@ class Command(BaseCommand):
     def _replay(self):
         events = self._events()
         self._ensure_periods([e[0] for e in events] + [date.today()])
-        stats = {'charge': 0, 'payment': 0, 'send': 0, 'receive': 0, 'allocate': 0, 'deposit': 0}
+        stats = {'charge': 0, 'payment': 0, 'exchange': 0, 'send': 0, 'receive': 0, 'allocate': 0, 'deposit': 0}
         for day, kind, _, obj in events:
             if kind == CHARGE:
                 if not _live('Invoice', obj.pk, JournalEntry.TYPE_CHARGE) and post_invoice_charge(
@@ -108,6 +113,10 @@ class Command(BaseCommand):
                 if not _live('PaymentRecord', obj.pk, JournalEntry.TYPE_PAYMENT):
                     post_payment(obj, created_by=self.user)
                     stats['payment'] += 1
+            elif kind == EXCHANGE:
+                if not _live('CurrencyExchange', obj.pk, JournalEntry.TYPE_EXCHANGE):
+                    post_exchange(obj, created_by=self.user)
+                    stats['exchange'] += 1
             elif kind == SEND:
                 if not _live('Remittance', obj.pk, JournalEntry.TYPE_REMITTANCE):
                     resync_remittance(obj, created_by=self.user)
@@ -117,7 +126,7 @@ class Command(BaseCommand):
                         account=obj.from_account, direction='out', amount_sar=obj.expected_sar,
                         currency=obj.from_account.currency, amount=obj.amount_sent,
                         source_type='Remittance', source_id=obj.pk, transaction_date=obj.date,
-                        reference=obj.receipt_reference,
+                        reference=obj.receipt_reference, check_funds=False,  # history, as it happened
                     )
             else:
                 if not _live('RemittanceSettlement', obj.pk, JournalEntry.TYPE_REMITTANCE):
@@ -181,7 +190,7 @@ class Command(BaseCommand):
         record_bank_transaction(
             account=account, direction=direction, amount_sar=abs(diff_sar), currency=account.currency,
             amount=abs(diff), source_type='CutoverAdjustment', source_id=account.pk,
-            transaction_date=day, reference='Penyesuaian saldo cutover',
+            transaction_date=day, reference='Penyesuaian saldo cutover', check_funds=False,
         )
         if diff_sar:
             side = 'debit' if diff_sar > 0 else 'credit'
@@ -203,7 +212,8 @@ class Command(BaseCommand):
         from hw.management.commands.check_finance import Command as Check
 
         self.stdout.write(
-            f"Entry dibuat: charge {stats['charge']}, pembayaran {stats['payment']}, kirim setoran {stats['send']}, "
+            f"Entry dibuat: charge {stats['charge']}, pembayaran {stats['payment']}, penukaran {stats['exchange']}, "
+            f"kirim setoran {stats['send']}, "
             f"terima {stats['receive']}, alokasi penerimaan {stats['allocate']}; "
             f"kelebihan bayar CL batal ke deposit {stats['deposit']:,} SAR"
         )

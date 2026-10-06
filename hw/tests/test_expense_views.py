@@ -5,6 +5,7 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.tests.factories import fund_cash
 from hw.models import Branch, CashAccount, Expense, ExpenseCategory
 from hw.models.period import FinancialPeriod
 
@@ -27,6 +28,7 @@ class ExpenseViewsBase(TestCase):
         self.sby = Branch.objects.get(code='sby')
         self.cash = CashAccount.objects.get(branch_id='sby')
         self.util = ExpenseCategory.objects.get(code='UTIL')
+        fund_cash(self.cash, 1_000_000)  # cash cannot go negative (ensure_funds)
 
 
 class ExpenseListViewTest(ExpenseViewsBase):

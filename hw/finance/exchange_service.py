@@ -1,8 +1,12 @@
 """Currency exchange (Penukaran Valas) — see hw/models/currency_exchange.py.
 
-No journal entry: the exchange stays inside the organisation and does not
-change what the branch owes HQ in SAR. What it changes is which currency the
-branch holds, recorded as two cash-book rows with their real amounts.
+The exchange stays inside the organisation and does not change what the
+branch owes HQ in SAR; it changes which currency the branch holds. Each
+currency has its own ledger account (0137), so the exchange is two cash-book
+rows with their real amounts AND one journal entry moving the SAR value from
+the source account to the target (posting.post_exchange). Without that
+journal the ledger kept the money in the old currency while the cash book
+had already moved it.
 """
 from decimal import Decimal
 
@@ -11,7 +15,7 @@ from django.db import transaction
 from ..models.currency_exchange import CurrencyExchange
 from .bank_ledger import record_bank_transaction, void_bank_transactions
 from .errors import FinanceError
-from .posting import check_period_postable, get_period_for_date
+from .posting import check_period_postable, get_period_for_date, post_exchange, reverse_entry
 
 SOURCE_OUT = 'CurrencyExchangeOut'
 SOURCE_IN = 'CurrencyExchangeIn'
@@ -74,17 +78,23 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
         amount=amount_in, source_type=SOURCE_IN, source_id=ex.pk,
         transaction_date=exchange_date, reference=reference or ex.exchange_number,
     )
+    post_exchange(ex, created_by=created_by)
     return ex
 
 
 @transaction.atomic
-def void_exchange(ex, *, reason=''):
+def void_exchange(ex, *, reason='', voided_by=None):
+    from ..models.journal import JournalEntry
     ex = CurrencyExchange.objects.select_for_update().get(pk=ex.pk)
     if ex.status == CurrencyExchange.STATUS_VOIDED:
         raise FinanceError(f'{ex.exchange_number} sudah dibatalkan.')
     check_period_postable(get_period_for_date(ex.exchange_date))
     void_bank_transactions(SOURCE_OUT, ex.pk)
     void_bank_transactions(SOURCE_IN, ex.pk)
+    # As if it never happened: the journal is reversed on the exchange date.
+    for entry in JournalEntry.objects.for_source('CurrencyExchange', ex.pk).live():
+        reverse_entry(entry, reversal_date=ex.exchange_date, created_by=voided_by,
+                      note=f'Void {ex.exchange_number}')
     ex.status = CurrencyExchange.STATUS_VOIDED
     ex.voided_reason = reason
     ex.save(update_fields=['status', 'voided_reason'])
