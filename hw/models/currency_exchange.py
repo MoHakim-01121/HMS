@@ -17,6 +17,8 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import models
 
+from .uploads import RandomFileName
+
 
 class CurrencyExchange(models.Model):
     STATUS_ACTIVE = 'active'
@@ -36,7 +38,7 @@ class CurrencyExchange(models.Model):
 
     reference = models.CharField(max_length=200, blank=True)
     note = models.TextField(blank=True)
-    proof = models.FileField(upload_to='exchange/proof/', null=True, blank=True)
+    proof = models.FileField(upload_to=RandomFileName('exchange/proof/'), null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
     voided_reason = models.TextField(blank=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')

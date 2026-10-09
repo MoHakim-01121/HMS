@@ -14,7 +14,7 @@ from django.urls import reverse
 
 from hw.models import RoleDefinition, UserProfile
 from hw.models.user import Role
-from hw.permissions import ACTIONS, MODULES, can, perms_payload, role_matrix
+from hw.permissions import ACTIONS, GRANTABLE_MODULES, MODULES, can, perms_payload, role_matrix
 
 # Inertia only serialises props to JSON when the client announces itself;
 # without this header the same view renders the HTML bootstrap page.
@@ -119,7 +119,8 @@ class RoleViewAccessTests(TestCase):
         self.assertEqual(response.status_code, 200)
         props = response.json()['props']
         self.assertEqual(len(props['roles']), 4)
-        self.assertEqual([m['key'] for m in props['modules']], list(MODULES))
+        # User management is admin-only, so the matrix does not offer it.
+        self.assertEqual([m['key'] for m in props['modules']], list(GRANTABLE_MODULES))
         self.assertEqual([a['key'] for a in props['actions']], list(ACTIONS))
 
     def test_creating_a_role_through_the_form(self):
@@ -187,8 +188,9 @@ class LockoutGuardTests(TestCase):
         self.client.post(reverse('role_delete', args=['viewer']))
         self.assertTrue(RoleDefinition.objects.filter(slug='viewer').exists())
 
-    def test_you_cannot_edit_your_own_role(self):
-        # A non-superuser standing on a custom role that grants user management.
+    def test_a_custom_role_cannot_reach_role_editing(self):
+        # A custom role that claims user management: the claim is dropped
+        # (ADMIN_ONLY_MODULES), so its holder cannot even open the editor.
         RoleDefinition.objects.create(
             slug='ops-lead', label='Ops Lead',
             permissions={m: list(ACTIONS) for m in MODULES},
@@ -200,7 +202,7 @@ class LockoutGuardTests(TestCase):
         response = self.client.post(reverse('role_edit', args=['ops-lead']), {
             'label': 'Ops Lead', 'permissions': ['cl:view'],
         })
-        self.assertRedirects(response, reverse('role_list'), fetch_redirect_response=False)
+        self.assertRedirects(response, '/dashboard/', fetch_redirect_response=False)
         self.assertEqual(
             RoleDefinition.objects.get(slug='ops-lead').permissions,
             {m: list(ACTIONS) for m in MODULES},

@@ -1,3 +1,5 @@
+import logging
+
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
@@ -5,6 +7,8 @@ from django.http import JsonResponse
 from inertia import render as inertia_render
 
 from ..permissions import hide_unless
+
+logger = logging.getLogger(__name__)
 
 
 # Internal-only design-system preview. `hide_unless` answers 404 rather than a
@@ -59,12 +63,11 @@ def health_check(request):
         "cache": "ok" if cache_ok else "unreachable",
         "migrations_pending": pending,
     }
-    if db_err:
-        payload["db_error"] = db_err
-    if cache_err:
-        payload["cache_error"] = cache_err
-    if mig_err:
-        payload["migrations_error"] = mig_err
+    # The probe is public: error details (hosts, users, paths) go to the log,
+    # never into the response.
+    for name, err in (('db', db_err), ('cache', cache_err), ('migrations', mig_err)):
+        if err:
+            logger.error('health_check %s: %s', name, err)
 
     status = 200 if payload["status"] == "ok" else 500
     return JsonResponse(payload, status=status)

@@ -9,6 +9,8 @@ Expense BUKAN HQ remittance dan BUKAN obligation pusat.
 """
 from django.db import models
 
+from .uploads import RandomFileName
+
 from .currency import CURRENCY_CODES
 
 
@@ -65,7 +67,7 @@ class Expense(models.Model):
 
     status     = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
     note       = models.TextField(blank=True)
-    proof      = models.FileField(upload_to='expenses/proof/', null=True, blank=True)
+    proof      = models.FileField(upload_to=RandomFileName('expenses/proof/'), null=True, blank=True)
     created_by = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

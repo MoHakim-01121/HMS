@@ -2,6 +2,8 @@
 from django.db import models
 from django.urls import reverse
 
+from .uploads import RandomFileName
+
 
 
 class PaymentQuerySet(models.QuerySet):
@@ -88,7 +90,7 @@ class PaymentRecord(models.Model):
     method         = models.CharField(max_length=50)
     reference      = models.CharField(max_length=200, blank=True, db_index=True)
     note           = models.TextField(blank=True)
-    proof          = models.FileField(upload_to='payments/proof/', null=True, blank=True)
+    proof          = models.FileField(upload_to=RandomFileName('payments/proof/'), null=True, blank=True)
 
     # Lifecycle
     status          = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)

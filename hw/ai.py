@@ -146,21 +146,28 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     return "\n".join(parts)
 
 
+CHAT_MODULES = ('invoice', 'services', 'cl')
+
+
 def get_chat_reply(
     message: str,
     history: list | None = None,
+    *,
+    modules=CHAT_MODULES,
 ) -> str | None:
+    """Answer from recent invoices, services and CLs. `modules` is what the
+    asking user may view: data of any other module is not even read, so it
+    can reach neither the answer nor the model provider."""
     today = timezone.now().date()
     month = today.month
     year  = today.year
 
-    inv_qs = Invoice.objects.filter(invoice_type="hotel").with_lines()
-    svc_qs = Invoice.objects.filter(invoice_type="visa").with_lines()
-    cl_qs  = ConfirmationLetter.objects.all().prefetch_related('rooms')
-
-    invoices = list(inv_qs.order_by("-created_at")[:20])
-    services = list(svc_qs.order_by("-created_at")[:20])
-    cls      = list(cl_qs.order_by("-created_at")[:20])
+    invoices = list(Invoice.objects.filter(invoice_type="hotel").with_lines()
+                    .order_by("-created_at")[:20]) if 'invoice' in modules else []
+    services = list(Invoice.objects.filter(invoice_type="visa").with_lines()
+                    .order_by("-created_at")[:20]) if 'services' in modules else []
+    cls      = list(ConfirmationLetter.objects.all().prefetch_related('rooms')
+                    .order_by("-created_at")[:20]) if 'cl' in modules else []
 
     inv_total       = sum(i.total_sar for i in invoices)
     inv_remaining   = sum(i.remaining_sar for i in invoices)
@@ -182,18 +189,29 @@ def get_chat_reply(
     ])
     if not (needs_inv or needs_svc or needs_cl):
         needs_inv = needs_svc = needs_cl = True
+    needs_inv = needs_inv and 'invoice' in modules
+    needs_svc = needs_svc and 'services' in modules
+    needs_cl = needs_cl and 'cl' in modules
+
+    summary = []
+    if 'invoice' in modules:
+        summary.append(
+            f"Invoice Hotel: {len(invoices)} total | {inv_total:,.0f} SAR | Sisa: {inv_remaining:,.0f} SAR | {inv_unpaid} belum lunas\n"
+            f"Bulan ini: {len(inv_this_month)} invoice | {inv_month_total:,.0f} SAR"
+        )
+    if 'services' in modules:
+        summary.append(f"Invoice Services: {len(services)} total")
+    if 'cl' in modules:
+        summary.append(f"Confirmation Letter: {len(cls)} total")
 
     system_parts = [
         f"Kamu adalah asisten HMS (Hotel Management System). Jawab berdasarkan data berikut.\n"
         f"Jawab dalam Bahasa Indonesia, singkat dan padat. "
         f"Gunakan bullet point (- item) untuk daftar biasa. "
         f"Untuk daftar invoice hotel gunakan: [inv: nomor | nama | total SAR | sisa SAR | Lunas/Belum lunas] satu per baris. "
+        f"Jika ditanya data yang tidak ada di bawah, jawab bahwa pengguna tidak punya akses ke data itu. "
         f"Jangan ulangi info yang tidak perlu. Data milik: Konoz United. Hari ini: {today}.\n\n"
-        f"=== RINGKASAN ===\n"
-        f"Invoice Hotel: {len(invoices)} total | {inv_total:,.0f} SAR | Sisa: {inv_remaining:,.0f} SAR | {inv_unpaid} belum lunas\n"
-        f"Bulan ini: {len(inv_this_month)} invoice | {inv_month_total:,.0f} SAR\n"
-        f"Invoice Services: {len(services)} total\n"
-        f"Confirmation Letter: {len(cls)} total"
+        f"=== RINGKASAN ===\n" + "\n".join(summary)
     ]
 
     if needs_inv:

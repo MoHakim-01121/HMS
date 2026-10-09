@@ -13,6 +13,8 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import models
 
+from .uploads import RandomFileName
+
 
 class RemittanceQuerySet(models.QuerySet):
     def pending(self):
@@ -44,7 +46,7 @@ class Remittance(models.Model):
     original_amount = models.BigIntegerField(null=True, blank=True)
 
     note       = models.TextField(blank=True)
-    proof      = models.FileField(upload_to='remittance/proof/', null=True, blank=True)
+    proof      = models.FileField(upload_to=RandomFileName('remittance/proof/'), null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = RemittanceQuerySet.as_manager()

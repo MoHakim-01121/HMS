@@ -1,5 +1,7 @@
 from django.db import models
 
+from .uploads import RandomFileName
+
 from .currency import CURRENCY_CODES
 
 
@@ -213,7 +215,7 @@ class JournalEntry(AppendOnlyModel):
 
     # Lampiran dokumen sumber (mis. bukti transfer refund). Metadata saja --
     # tidak ikut entry_hash, jadi append-only tetap berlaku.
-    proof = models.FileField(upload_to='ledger/proof/', null=True, blank=True)
+    proof = models.FileField(upload_to=RandomFileName('ledger/proof/'), null=True, blank=True)
 
     objects = JournalEntryQuerySet.as_manager()
 

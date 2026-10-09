@@ -1,10 +1,11 @@
 """Role management screens.
 
 The permission matrix used to be a constant; these views put it behind a form.
-Guarded by the ``users`` module — editing a role *is* account administration,
+Guarded by the ``users`` module, which only the admin role holds
+(permissions.ADMIN_ONLY_MODULES) — editing a role *is* account administration,
 and splitting it into its own module would let someone hand out the power to
 grant permissions without the power to assign them, which is the same power
-with an extra step.
+with an extra step. The matrix offers only the grantable modules.
 
 Every write goes through :func:`_read_permissions`, so a posted matrix can only
 ever contain modules and actions this build actually guards.
@@ -17,9 +18,10 @@ from django.utils.text import slugify
 
 from inertia import render as inertia_render
 
+from ..models import ActivityLog, log_activity
 from ..models.role import RoleDefinition
 from ..models.user import Role, UserProfile
-from ..permissions import ACTIONS, MODULES, get_role, require_perm
+from ..permissions import ACTIONS, GRANTABLE_MODULES, get_role, require_perm
 
 # Human labels for the matrix header. Keys must stay in sync with MODULES.
 MODULE_LABELS = {
@@ -47,7 +49,7 @@ ACTION_LABELS = {
 def _matrix_meta():
     """Shape of the grid, shared by the list and the form."""
     return {
-        "modules": [{"key": m, "label": MODULE_LABELS.get(m, m)} for m in MODULES],
+        "modules": [{"key": m, "label": MODULE_LABELS.get(m, m)} for m in GRANTABLE_MODULES],
         "actions": [{"key": a, "label": ACTION_LABELS.get(a, a)} for a in ACTIONS],
     }
 
@@ -56,13 +58,13 @@ def _read_permissions(request):
     """Turn posted 'module:action' checkboxes into {module: [actions]}.
 
     Unknown pairs are dropped rather than rejected: the form is generated from
-    MODULES/ACTIONS, so anything else is a stale tab or a hand-crafted POST and
+    GRANTABLE_MODULES/ACTIONS, so anything else is a stale tab or a hand-crafted POST and
     silently ignoring it is the safe reading.
     """
     result = {}
     for token in request.POST.getlist('permissions'):
         module, _, action = token.partition(':')
-        if module in MODULES and action in ACTIONS:
+        if module in GRANTABLE_MODULES and action in ACTIONS:
             result.setdefault(module, []).append(action)
     return {m: sorted(set(a)) for m, a in result.items()}
 
@@ -72,7 +74,7 @@ def _serialise(role, user_counts):
         "slug": role.slug,
         "label": role.label,
         "description": role.description,
-        "permissions": role.permissions or {},
+        "permissions": {m: a for m, a in (role.permissions or {}).items() if m in GRANTABLE_MODULES},
         "grants_django_staff": role.grants_django_staff,
         "is_system": role.is_system,
         "locked": role.locked,
@@ -143,6 +145,8 @@ def role_new(request):
             is_system=False,
             order=100,
         )
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'Role', role.slug,
+                     [{'field': 'permissions', 'new': permissions}])
         messages.success(request, f"Role '{role.label}' created successfully.")
         return redirect('role_list')
 
@@ -187,6 +191,7 @@ def role_edit(request, slug):
                 "role": payload, "errors": errors, **_matrix_meta(),
             })
 
+        old_permissions = role.permissions
         role.label = label
         role.description = request.POST.get('description', '').strip()
         role.permissions = permissions
@@ -199,6 +204,8 @@ def role_edit(request, slug):
             is_staff=role.grants_django_staff
         )
 
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'Role', role.slug,
+                     [{'field': 'permissions', 'old': old_permissions, 'new': permissions}])
         messages.success(request, f"Role '{role.label}' updated successfully.")
         return redirect('role_list')
 
@@ -233,6 +240,8 @@ def role_delete(request, slug):
 
     label = role.label
     role.delete()
+    log_activity(request.user, ActivityLog.ACTION_DELETE, 'Role', role.slug,
+                 [{'field': 'reassigned_to', 'new': fallback}])
 
     if moved:
         messages.success(

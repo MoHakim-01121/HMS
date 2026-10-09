@@ -242,6 +242,10 @@ GEMINI_API_KEY = get_env_variable('GEMINI_API_KEY', '')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Uploads are served by hw/views/media_views.py after a permission check. Behind
+# nginx set this to its internal location (e.g. /protected-media/) so nginx
+# sends the file; empty = Django streams it itself (development).
+MEDIA_ACCEL_REDIRECT = get_env_variable('MEDIA_ACCEL_REDIRECT', '')
 
 
 # Security Settings

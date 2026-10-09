@@ -11,8 +11,9 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
-from ..ai import generate_draft_message, get_chat_reply
+from ..ai import CHAT_MODULES, generate_draft_message, get_chat_reply
 from ..models import ActivityLog, Invoice, log_activity
+from ..permissions import can
 
 
 @login_required
@@ -27,7 +28,10 @@ def ai_draft_message(request):
         return JsonResponse({"error": "Invalid request."}, status=400)
 
     invoice = Invoice.objects.filter(pk=pk).first()
-    if not invoice:
+    # A user who may not view this kind of invoice gets the same answer as for
+    # one that does not exist.
+    module = 'services' if invoice and invoice.invoice_type == 'visa' else 'invoice'
+    if not invoice or not can(request.user, module, 'view'):
         return JsonResponse({"error": "Invoice not found."}, status=404)
 
     result = generate_draft_message(invoice_type, invoice)
@@ -48,9 +52,14 @@ def ai_chat(request):
     if not message:
         return JsonResponse({"reply": "Question cannot be empty."})
 
+    # The assistant only reads modules the user may view.
+    modules = tuple(m for m in CHAT_MODULES if can(request.user, m, 'view'))
+    if not modules:
+        return JsonResponse({"reply": "You have no access to the data this assistant answers from."}, status=403)
+
     history = request.session.get("ai_history", [])
 
-    reply = get_chat_reply(message, history=history)
+    reply = get_chat_reply(message, history=history, modules=modules)
 
     if reply:
         history = history + [

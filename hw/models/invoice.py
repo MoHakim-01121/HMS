@@ -19,6 +19,7 @@ from django.utils import timezone
 
 from .choices import InvoiceType
 from .currency import CURRENCY_CODES
+from .uploads import random_name
 
 
 class InvoiceQuerySet(models.QuerySet):
@@ -620,9 +621,10 @@ class InvoiceRevision(models.Model):
 
 
 def _attachment_path(instance, filename):
+    # Random stored name; the uploaded name stays in Attachment.name.
     if instance.invoice_id:
-        return f"attachments/invoice/{instance.invoice_id}/{filename}"
-    return f"attachments/cl/{instance.cl_id}/{filename}"
+        return f"attachments/invoice/{instance.invoice_id}/{random_name(filename)}"
+    return f"attachments/cl/{instance.cl_id}/{random_name(filename)}"
 
 
 class Attachment(models.Model):

@@ -11,6 +11,8 @@ saat itu jurnal diposting. Lihat hw.finance.deposit.
 """
 from django.db import models
 
+from .uploads import RandomFileName
+
 
 class ApprovalStatus(models.TextChoices):
     PENDING   = 'pending', 'Awaiting approval'
@@ -42,7 +44,7 @@ class ClientRefund(Approvable):
     amount_sar    = models.PositiveIntegerField()      # yang diambil dari deposit client
     amount_paid   = models.PositiveIntegerField()      # yang benar-benar keluar dari rekening
     note          = models.TextField(blank=True)
-    proof         = models.FileField(upload_to='refunds/proof/', null=True, blank=True)
+    proof         = models.FileField(upload_to=RandomFileName('refunds/proof/'), null=True, blank=True)
     created_by    = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
     created_at    = models.DateTimeField(auto_now_add=True)
 

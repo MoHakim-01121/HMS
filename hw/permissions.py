@@ -41,6 +41,15 @@ MODULES = (
 
 ACTIONS = ('view', 'create', 'edit', 'delete', 'export')
 
+# Modules only the admin role ever holds, whatever a role row says. Account and
+# role management decide who may do everything else: handing any part of it to
+# another role lets that role make itself admin (create an admin account, reset
+# an admin's password, widen its own permissions through a second role).
+ADMIN_ONLY_MODULES = ('users',)
+
+# Modules a role row may grant — what the role editor offers.
+GRANTABLE_MODULES = tuple(m for m in MODULES if m not in ADMIN_ONLY_MODULES)
+
 _ALL = set(ACTIONS)
 _READ = {'view', 'export'}
 _NO_DELETE = {'view', 'create', 'edit', 'export'}
@@ -142,15 +151,17 @@ DEFAULT_ROLE_META = {
 # ---------------------------------------------------------------------------
 
 def _sanitise(permissions):
-    """Keep only modules and actions this build actually guards.
+    """Keep only modules and actions this build actually guards, minus the
+    admin-only modules.
 
     A role row can outlive the module it referenced (a feature gets removed, a
     slug gets renamed). Dropping unknown keys on read means a stale row grants
-    nothing rather than silently carrying dead permissions forward.
+    nothing rather than silently carrying dead permissions forward. The admin
+    role gets the admin-only modules back in role_matrix().
     """
     clean = {}
     for module, actions in (permissions or {}).items():
-        if module not in MODULES:
+        if module not in GRANTABLE_MODULES:
             continue
         kept = {a for a in actions if a in ACTIONS}
         if kept:
@@ -286,6 +297,7 @@ def require_perm(module, action):
             if not can(request.user, module, action):
                 return _deny(request)
             return view_func(request, *args, **kwargs)
+        wrapper.access_guard = ('perm', module, action)
         return wrapper
     return decorator
 
@@ -301,6 +313,7 @@ def require_role(*roles):
             if get_role(request.user) not in allowed:
                 return _deny(request)
             return view_func(request, *args, **kwargs)
+        wrapper.access_guard = ('role', tuple(sorted(allowed)))
         return wrapper
     return decorator
 
@@ -318,5 +331,6 @@ def hide_unless(module, action):
             if not can(request.user, module, action):
                 raise Http404
             return view_func(request, *args, **kwargs)
+        wrapper.access_guard = ('perm', module, action)
         return wrapper
     return decorator

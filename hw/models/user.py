@@ -1,6 +1,8 @@
 from django.contrib.auth.models import User
 from django.db import models
 
+from .uploads import RandomFileName
+
 
 class Role(models.TextChoices):
     """The four seeded roles.
@@ -23,7 +25,7 @@ class Language(models.TextChoices):
 
 class UserProfile(models.Model):
     user   = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    avatar = models.ImageField(upload_to=RandomFileName('avatars/'), null=True, blank=True)
     # Slug sebuah RoleDefinition. Peran dibuat saat runtime, jadi tanpa
     # `choices`; di PostgreSQL kolom ini FOREIGN KEY ke hw_roledefinition.slug
     # (migrasi 0136), di aplikasi dijaga permissions.is_valid_role().

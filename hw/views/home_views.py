@@ -182,67 +182,72 @@ def _home_finance_summary():
 
 @login_required
 def home(request):
+    """Dashboard. Each panel is computed only for a user who may view the
+    module it comes from; the rest arrive as None and are not drawn."""
+    user = request.user
+    can_cl = can(user, 'cl', 'view')
+    can_invoice = can(user, 'invoice', 'view')
     today = date.today()
     week_ahead = today + timedelta(days=7)
     month_start = today.replace(day=1)
     prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
     next_month_start = (month_start + timedelta(days=31)).replace(day=1)
 
-    cl_month_count = ConfirmationLetter.objects.filter(
-        created_at__year=today.year, created_at__month=today.month,
-    ).count()
+    deltas = {}
+    cl_month_count = upcoming_checkins = None
+    cl_trend = cl_daily = recent_cls = None
+    top_hotels = top_hotels_total = region_data = reservation_funnel = None
+    if can_cl:
+        cl_month_count = ConfirmationLetter.objects.filter(
+            created_at__year=today.year, created_at__month=today.month,
+        ).count()
+        upcoming_checkins = ConfirmationLetter.objects.filter(
+            check_in__gte=today, check_in__lte=week_ahead,
+        ).count()
+        # Prior 7-day window (actual check-ins) — the reference for the
+        # "Check-ins Next 7 Days" MoM-style delta.
+        prev_checkins = ConfirmationLetter.objects.filter(
+            check_in__gte=today - timedelta(days=7), check_in__lt=today,
+        ).count()
+        counts_by_month, cl_trend, cl_daily = _home_cl_trends(today)
+        deltas["cl_month"] = _pct(cl_month_count, counts_by_month.get(prev_month_start.strftime("%Y-%m"), 0))
+        deltas["checkins"] = _pct(upcoming_checkins, prev_checkins)
+        # Third-row widgets — Homlu "Top countries" becomes top hotels by total CL
+        # volume (all-time), "World map" becomes an Indonesia client-region heat
+        # map, and "Conversion funnel" becomes the reservation lifecycle. All are
+        # honest to current data: quiet panels simply show their empty state and
+        # light up as hotels/provinces/statuses get recorded.
+        top_hotels, top_hotels_total, region_data, reservation_funnel, recent_cls = _home_widgets(today)
 
-    upcoming_checkins = ConfirmationLetter.objects.filter(
-        check_in__gte=today, check_in__lte=week_ahead,
-    ).count()
+    unpaid_invoices = unpaid_total = payment_snapshot = None
+    if can_invoice:
+        invoice_totals = _home_invoice_totals(month_start)
+        unpaid_invoices = invoice_totals["unpaid_count"]
+        unpaid_total = invoice_totals["unpaid_total"]
+        deltas["unpaid"] = _pct(invoice_totals["unpaid_total"], invoice_totals["prev_unpaid_total"])
+        payment_snapshot = {
+            "billed": invoice_totals["billed"],
+            "collected": invoice_totals["paid"],
+            "outstanding": max(invoice_totals["billed"] - invoice_totals["paid"], 0),
+        }
 
-    # Prior 7-day window (actual check-ins) — the reference for the
-    # "Check-ins Next 7 Days" MoM-style delta.
-    prev_checkins = ConfirmationLetter.objects.filter(
-        check_in__gte=today - timedelta(days=7), check_in__lt=today,
-    ).count()
+    remittance_pending = None
+    if can(user, 'remittance', 'view'):
+        remittance_pending = len(Remittance.objects.pending())
+        # Remittance MoM: pending remittances dated this month vs last month.
+        rem_pending_this = len(Remittance.objects.filter(date__gte=month_start, date__lt=next_month_start).pending())
+        rem_pending_prev = len(Remittance.objects.filter(date__gte=prev_month_start, date__lt=month_start).pending())
+        deltas["remittance"] = _pct(rem_pending_this, rem_pending_prev)
 
-    invoice_totals = _home_invoice_totals(month_start)
-
-    remittance_pending = (
-        len(Remittance.objects.pending())
-        if can(request.user, 'remittance', 'view') else None
-    )
-
-    # Remittance MoM: pending remittances dated this month vs last month.
-    rem_pending_this = len(Remittance.objects.filter(date__gte=month_start, date__lt=next_month_start).pending())
-    rem_pending_prev = len(Remittance.objects.filter(date__gte=prev_month_start, date__lt=month_start).pending())
-
-    counts_by_month, cl_trend, cl_daily = _home_cl_trends(today)
-
-    deltas = {
-        "cl_month": _pct(cl_month_count, counts_by_month.get(prev_month_start.strftime("%Y-%m"), 0)),
-        "checkins": _pct(upcoming_checkins, prev_checkins),
-        "unpaid": _pct(invoice_totals["unpaid_total"], invoice_totals["prev_unpaid_total"]),
-        "remittance": _pct(rem_pending_this, rem_pending_prev) if remittance_pending is not None else None,
-    }
-
-    # Third-row widgets — Homlu "Top countries" becomes top hotels by total CL
-    # volume (all-time), "World map" becomes an Indonesia client-region heat
-    # map, and "Conversion funnel" becomes the reservation lifecycle. All are
-    # honest to current data: quiet panels simply show their empty state and
-    # light up as hotels/provinces/statuses get recorded.
-    top_hotels, top_hotels_total, region_data, reservation_funnel, recent_cls = _home_widgets(today)
-
-    payment_snapshot = {
-        "billed": invoice_totals["billed"],
-        "collected": invoice_totals["paid"],
-        "outstanding": max(invoice_totals["billed"] - invoice_totals["paid"], 0),
-    }
-
-    finance_summary = _home_finance_summary()
+    # Cash balances and receivables are what the Bank Balances page shows.
+    finance_summary = _home_finance_summary() if can(user, 'statements', 'view') else None
 
     return inertia_render(request, "Home/Index", props={
         "kpis": {
             "cl_month": cl_month_count,
             "upcoming_checkins": upcoming_checkins,
-            "unpaid_invoices": invoice_totals["unpaid_count"],
-            "unpaid_total": invoice_totals["unpaid_total"],
+            "unpaid_invoices": unpaid_invoices,
+            "unpaid_total": unpaid_total,
             "remittance_pending": remittance_pending,
             "deltas": deltas,
         },

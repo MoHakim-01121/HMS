@@ -3,6 +3,7 @@ import { usePage } from "@inertiajs/react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from "recharts";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { usePerms } from "../../utils/perms.js";
 import { fmt as fmtNum, fmtDateShort } from "../../utils/format.js";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
 import StatusPill from "../../components/shadcn/status-pill.jsx";
@@ -399,11 +400,20 @@ function CashTile({ label, value, meta, plain }) {
   );
 }
 
+// Panels arrive as null when the user may not view their module (the server
+// does not compute them); a null panel is not drawn.
 function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, financeSummary, topHotels, topHotelsTotal, regionData, reservationFunnel }) {
   const { t } = useI18n();
+  const perms = usePerms();
+  const showCl = clTrend != null;
+  const showInvoice = paymentSnapshot != null;
+  recentCls = recentCls || [];
+  topHotels = topHotels || [];
+  reservationFunnel = reservationFunnel || [];
   const [period, setPeriod] = useState("6M");
   const today = new Date().toLocaleDateString("en-GB", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const remittance = kpis?.remittance_pending != null;
+  const showPending = financeSummary != null || remittance;
   const monthly = clTrend || [];
   const daily = clDaily || [];
   const series = period === "7D" ? daily.slice(-7)
@@ -433,41 +443,53 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
           <div className="hms-home-date">{today}</div>
         </div>
         <div className="hms-home-head-actions">
-          <a className="hms-btn-outline" href="/cl/export/csv/">{t("Export recap")}</a>
-          <a className="hms-btn-primary" href="/cl/new/">
-            <Icon name="plus" size={15} strokeWidth={1.9} />{t("New CL")}
-          </a>
+          {perms.can("cl", "export") && <a className="hms-btn-outline" href="/cl/export/csv/">{t("Export recap")}</a>}
+          {perms.can("cl", "create") && (
+            <a className="hms-btn-primary" href="/cl/new/">
+              <Icon name="plus" size={15} strokeWidth={1.9} />{t("New CL")}
+            </a>
+          )}
         </div>
       </div>
 
-      <div className="hms-kpi-row">
-        <KpiCard
-          label={t("CL This Month")}
-          value={fmtNum(kpis?.cl_month)}
-          trend={deltas.cl_month}
-          foot={t("{n} last month", { n: fmtNum(deltas.cl_month?.prev ?? 0) })}
-        />
-        <KpiCard
-          label={t("Check-ins Next 7 Days")}
-          value={fmtNum(kpis?.upcoming_checkins)}
-          trend={deltas.checkins}
-          foot={t("{n} last 7 days", { n: fmtNum(deltas.checkins?.prev ?? 0) })}
-        />
-        <KpiCard
-          label={t("Unpaid Invoices")}
-          value={fmtNum(kpis?.unpaid_invoices)}
-          trend={deltas.unpaid}
-          trendGood={false}
-          foot={t("{amount} SAR outstanding", { amount: fmtNum(kpis?.unpaid_total) })}
-        />
-        <KpiCard
-          label={t("Payments Pending")}
-          value={fmtNum(financeSummary?.payments_pending ?? kpis?.remittance_pending ?? 0)}
-          trend={remittance ? deltas.remittance : undefined}
-          trendGood={false}
-          foot={t("needs review")}
-        />
-      </div>
+      {(showCl || showInvoice || showPending) && (
+        <div className="hms-kpi-row">
+          {showCl && (
+            <KpiCard
+              label={t("CL This Month")}
+              value={fmtNum(kpis?.cl_month)}
+              trend={deltas.cl_month}
+              foot={t("{n} last month", { n: fmtNum(deltas.cl_month?.prev ?? 0) })}
+            />
+          )}
+          {showCl && (
+            <KpiCard
+              label={t("Check-ins Next 7 Days")}
+              value={fmtNum(kpis?.upcoming_checkins)}
+              trend={deltas.checkins}
+              foot={t("{n} last 7 days", { n: fmtNum(deltas.checkins?.prev ?? 0) })}
+            />
+          )}
+          {showInvoice && (
+            <KpiCard
+              label={t("Unpaid Invoices")}
+              value={fmtNum(kpis?.unpaid_invoices)}
+              trend={deltas.unpaid}
+              trendGood={false}
+              foot={t("{amount} SAR outstanding", { amount: fmtNum(kpis?.unpaid_total) })}
+            />
+          )}
+          {showPending && (
+            <KpiCard
+              label={t("Payments Pending")}
+              value={fmtNum(financeSummary?.payments_pending ?? kpis?.remittance_pending ?? 0)}
+              trend={remittance ? deltas.remittance : undefined}
+              trendGood={false}
+              foot={t("needs review")}
+            />
+          )}
+        </div>
+      )}
 
       {financeSummary && (
         <div className="hms-kpi-row hms-cash-row">
@@ -483,7 +505,7 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
         </div>
       )}
 
-      <div className="hms-home-grid">
+      {showCl && <div className="hms-home-grid">
         <div className="hms-dv-card hms-home-chart">
           <div className="hms-dv-body">
             <div className="hms-chart-legend">
@@ -560,10 +582,10 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
             )}
           </div>
         </div>
-      </div>
+      </div>}
 
-      <div className="hms-home-grid2 cols-3">
-        <div className="hms-dv-card hms-home-donut">
+      {(showCl || showInvoice) && <div className="hms-home-grid2 cols-3">
+        {showInvoice && <div className="hms-dv-card hms-home-donut">
           <div className="hms-dv-body">
             <div className="hms-dv-sech">
               <span className="hms-dv-sec-title">{t("Payment Collection")}</span>
@@ -599,9 +621,9 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
               </div>
             </div>
           </div>
-        </div>
+        </div>}
 
-        <div className="hms-dv-card hms-home-hotels">
+        {showCl && <div className="hms-dv-card hms-home-hotels">
           <div className="hms-dv-body">
             <div className="hms-dv-sech">
               <span className="hms-dv-sec-title">{t("Top Hotels")} <span className="hms-dv-count">{fmtNum(topHotelsTotal)} {t("total")}</span></span>
@@ -625,9 +647,9 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
             )}
             <div className="hms-hotel-foot">{t("{n} reservations", { n: fmtNum(topHotelsTotal) })}</div>
           </div>
-        </div>
+        </div>}
 
-        <div className="hms-dv-card hms-home-funnel">
+        {showCl && <div className="hms-dv-card hms-home-funnel">
           <div className="hms-dv-body">
             <div className="hms-dv-sech">
               <span className="hms-dv-sec-title">{t("Reservation Funnel")}</span>
@@ -657,8 +679,8 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
               </div>
             )}
           </div>
-        </div>
-      </div>
+        </div>}
+      </div>}
     </>
   );
 }
@@ -666,9 +688,10 @@ function Dashboard({ kpis, clTrend, clDaily, recentCls, paymentSnapshot, finance
 export default function Home() {
   const { props } = usePage();
   const kpis = props.kpis || {};
-  const clTrend = props.cl_trend || [];
-  const recentCls = props.recent_cls || [];
   const { t } = useI18n();
+  const perms = usePerms();
+  // The assistant answers from invoices, services and CLs (hw/ai.py).
+  const canAsk = ["invoice", "services", "cl"].some((m) => perms.can(m, "view"));
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState(false);
@@ -705,66 +728,68 @@ export default function Home() {
     <div className="page shadcn-root hms-home">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
 
-      <Dashboard kpis={kpis} clTrend={clTrend} clDaily={props.cl_daily || []} recentCls={recentCls} paymentSnapshot={props.payment_snapshot} financeSummary={props.finance_summary} topHotels={props.top_hotels || []} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel || []} />
+      <Dashboard kpis={kpis} clTrend={props.cl_trend} clDaily={props.cl_daily} recentCls={props.recent_cls} paymentSnapshot={props.payment_snapshot} financeSummary={props.finance_summary} topHotels={props.top_hotels} topHotelsTotal={props.top_hotels_total || 0} regionData={props.region_data || []} reservationFunnel={props.reservation_funnel} />
 
-      <button className={"ai-fab" + (open ? " open" : "")} title={t("Ask AI")} aria-label={t("Ask AI")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>
-        <svg className="fab-ic-close" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-        <span>{t("Ask AI")}</span>
-      </button>
+      {canAsk && (<>
+        <button className={"ai-fab" + (open ? " open" : "")} title={t("Ask AI")} aria-label={t("Ask AI")} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <svg className="fab-ic-spark" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg>
+          <svg className="fab-ic-close" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          <span>{t("Ask AI")}</span>
+        </button>
 
-      <div className={"ai-panel" + (open ? " open" : "")}>
-        <div className="ai-panel-head">
-          <div className="ai-head-icon"><svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
-          <div className="ai-head-text">
-            <div className="ai-panel-title">{t("Ask AI")}</div>
-            <div className="ai-panel-sub">{t("Reads only the data you're allowed to see")}</div>
-          </div>
-          <button className="ai-panel-close" onClick={() => setOpen(false)}>
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-        <div className="chat-messages" ref={msgRef} aria-live="polite">
-          {messages.length === 0 && !typing && (
-            <div className="chat-empty">
-              <div className="chat-empty-title">{t("Ask anything about today's data")}</div>
-              <div className="chat-empty-sub">{t("Every answer carries the figures and links to the source records, so you can check it yourself.")}</div>
-              <div className="chat-sugs">
-                {SUGGESTIONS.map((s) => (
-                  <button key={s} type="button" className="chat-sug" onClick={() => send(t(s))}>{t(s)}</button>
-                ))}
-              </div>
+        <div className={"ai-panel" + (open ? " open" : "")}>
+          <div className="ai-panel-head">
+            <div className="ai-head-icon"><svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">{SPARK}</svg></div>
+            <div className="ai-head-text">
+              <div className="ai-panel-title">{t("Ask AI")}</div>
+              <div className="ai-panel-sub">{t("Reads only the data you're allowed to see")}</div>
             </div>
-          )}
-          {messages.map((m, i) => (
-            m.type === "user"
-              ? <div key={i} className="chat-bubble bubble-user">{m.text}</div>
-              : <div key={i} className="chat-bubble bubble-ai" dangerouslySetInnerHTML={{ __html: m.html }} />
-          ))}
-          {typing && (
-            <div className="chat-typing-row">
-              <div className="chat-bubble bubble-ai bubble-typing"><span></span><span></span><span></span></div>
-              <span className="chat-typing-note">{t("Reading your records…")}</span>
-            </div>
-          )}
-        </div>
-        <div className="chat-foot">
-          {messages.length > 0 && (
-            <div className="chat-sugs">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} type="button" className="chat-sug" disabled={typing} onClick={() => send(t(s))}>{t(s)}</button>
-              ))}
-            </div>
-          )}
-          <div className="chat-input-pill">
-            <input ref={inputRef} type="text" className="chat-input" placeholder={t("Ask about invoices, rooms, or remittances")} autoComplete="off"
-              value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
-            <button className="chat-send" title={t("Send")} disabled={typing || !input.trim()} onClick={() => send()}>
-              <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h13M12 6l6 6-6 6" /></svg>
+            <button className="ai-panel-close" onClick={() => setOpen(false)}>
+              <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
+          <div className="chat-messages" ref={msgRef} aria-live="polite">
+            {messages.length === 0 && !typing && (
+              <div className="chat-empty">
+                <div className="chat-empty-title">{t("Ask anything about today's data")}</div>
+                <div className="chat-empty-sub">{t("Every answer carries the figures and links to the source records, so you can check it yourself.")}</div>
+                <div className="chat-sugs">
+                  {SUGGESTIONS.map((s) => (
+                    <button key={s} type="button" className="chat-sug" onClick={() => send(t(s))}>{t(s)}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {messages.map((m, i) => (
+              m.type === "user"
+                ? <div key={i} className="chat-bubble bubble-user">{m.text}</div>
+                : <div key={i} className="chat-bubble bubble-ai" dangerouslySetInnerHTML={{ __html: m.html }} />
+            ))}
+            {typing && (
+              <div className="chat-typing-row">
+                <div className="chat-bubble bubble-ai bubble-typing"><span></span><span></span><span></span></div>
+                <span className="chat-typing-note">{t("Reading your records…")}</span>
+              </div>
+            )}
+          </div>
+          <div className="chat-foot">
+            {messages.length > 0 && (
+              <div className="chat-sugs">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} type="button" className="chat-sug" disabled={typing} onClick={() => send(t(s))}>{t(s)}</button>
+                ))}
+              </div>
+            )}
+            <div className="chat-input-pill">
+              <input ref={inputRef} type="text" className="chat-input" placeholder={t("Ask about invoices, rooms, or remittances")} autoComplete="off"
+                value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+              <button className="chat-send" title={t("Send")} disabled={typing || !input.trim()} onClick={() => send()}>
+                <svg fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h13M12 6l6 6-6 6" /></svg>
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      </>)}
     </div>
   );
 }
