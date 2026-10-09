@@ -78,6 +78,7 @@ from .finance_views import (
 )
 from .period_views import (
     period_list, period_detail, period_close, period_lock, period_create,
+    season_save, season_delete,
 )
 from .receipt_views import (
     receipt_void, receipt_pdf,

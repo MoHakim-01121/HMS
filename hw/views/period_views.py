@@ -1,20 +1,18 @@
-"""Period management views -- list, detail, close, lock, create."""
+"""Period management views -- list, detail, close, lock, create; seasons."""
 import logging
 from datetime import date
 
-from dateutil.relativedelta import relativedelta
-
 from django.contrib import messages
-from django.db import IntegrityError
+from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
-from ..finance import period_checklist
-from ..models.period import FinancialPeriod
+from ..finance import period_checklist, seasons
+from ..models.period import FinancialPeriod, Season
 from ..permissions import require_perm
-from .helpers import serialize_journal_entry
+from .helpers import _parse_date, serialize_journal_entry
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +41,7 @@ def period_list(request):
     periods = FinancialPeriod.objects.all()
     return inertia_render(request, 'Period/List', props={
         'periods': [_period_props(p) for p in periods],
+        'seasons': seasons.season_choices(),
     })
 
 
@@ -122,48 +121,54 @@ def period_lock(request, pk):
     return redirect('period_detail', pk=pk)
 
 
+def _post_data(request):
+    import json
+    if request.content_type == 'application/json':
+        try:
+            return json.loads(request.body)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return request.POST
+
+
 @require_perm('periods', 'edit')
 def period_create(request):
-    """Create 12 monthly periods for the given year."""
+    """Create the monthly periods of a year that do not exist yet."""
     if request.method == 'POST':
-        import json
         try:
-            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-        except (json.JSONDecodeError, ValueError):
-            data = request.POST
-
-        try:
-            year = int(data.get('year', date.today().year))
+            year = int(_post_data(request).get('year', date.today().year))
+            if not 2000 <= year <= 2100:
+                raise ValueError
         except (TypeError, ValueError):
             messages.error(request, 'Tahun tidak valid.')
             return redirect('period_list')
+        created = seasons.ensure_monthly_periods(date(year, 1, 1), date(year, 12, 31))
+        messages.success(request, f'{len(created)} periode untuk tahun {year} berhasil dibuat.')
+    return redirect('period_list')
 
-        created = 0
+
+@require_perm('periods', 'edit')
+def season_save(request, pk=None):
+    """Create a season (no pk) or change one; adds the months it needs."""
+    season = get_object_or_404(Season, pk=pk) if pk else None
+    if request.method == 'POST':
+        data = _post_data(request)
         try:
-            for m in range(1, 13):
-                date_from = date(year, m, 1)
-                if m == 12:
-                    date_to = date(year + 1, 1, 1) - relativedelta(days=1)
-                else:
-                    date_to = date(year, m + 1, 1) - relativedelta(days=1)
-                name = f'{year}-{m:02d}'
-                try:
-                    _, was_created = FinancialPeriod.objects.get_or_create(
-                        name=name,
-                        defaults={'date_from': date_from, 'date_to': date_to},
-                    )
-                except IntegrityError:
-                    # name ber-constraint unique: jika ada race, jangan 500 —
-                    # anggap sudah ada.
-                    logger.warning('Periode %s ditandai sudah ada', name)
-                    was_created = False
-                if was_created:
-                    created += 1
-        except (ValueError, TypeError) as e:
-            messages.error(request, f'Gagal membuat periode: {e}')
-            return redirect('period_list')
+            saved = seasons.save_season(
+                season, name=data.get('name'),
+                date_from=_parse_date(data.get('date_from')), date_to=_parse_date(data.get('date_to')),
+            )
+            messages.success(request, f'Musim {saved.name} tersimpan.')
+        except ValidationError as e:
+            messages.error(request, ' '.join(e.messages))
+    return redirect('period_list')
 
-        messages.success(request, f'{created} periode untuk tahun {year} berhasil dibuat.')
-        return redirect('period_list')
 
+@require_perm('periods', 'edit')
+def season_delete(request, pk):
+    """A season only names a date range: deleting it leaves periods and journal as they are."""
+    season = get_object_or_404(Season, pk=pk)
+    if request.method == 'POST':
+        season.delete()
+        messages.success(request, f'Musim {season.name} dihapus.')
     return redirect('period_list')

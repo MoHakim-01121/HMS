@@ -41,8 +41,9 @@ const iso = (d) => {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
-// Calendar presets, matching the backend's default (three calendar months).
-const presets = () => {
+// Calendar presets, matching the backend's default (three calendar months),
+// then the umrah seasons (named by the user, so not translated).
+const presets = (seasons = []) => {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -51,6 +52,7 @@ const presets = () => {
     { key: "3m", label: "Last 3 months", from: iso(new Date(y, m - 2, 1)), to: "" },
     { key: "year", label: "This year", from: iso(new Date(y, 0, 1)), to: "" },
     { key: "all", label: "All time", from: "", to: "" },
+    ...seasons.map((s) => ({ key: `season-${s.id}`, label: s.name, raw: true, from: s.date_from, to: s.date_to })),
   ];
 };
 
@@ -58,7 +60,7 @@ const balanceTone = (n) => (n < 0 ? "is-credit" : "");
 
 export default function ClientStatement({
   client = {}, statement = {}, aging = {}, pagination = null,
-  mode = "balance", date_from, date_to, pending_out = [],
+  mode = "balance", date_from, date_to, seasons = [], pending_out = [],
 }) {
   const { t, locale } = useI18n();
   const perms = usePerms();
@@ -123,12 +125,12 @@ export default function ClientStatement({
   }
 
   // ── Period control ──
-  const presetList = presets();
+  const presetList = presets(seasons);
   const activePreset = presetList.find((p) => p.from === (date_from || "") && p.to === (date_to || ""));
   const periodLabel = isOpen
     ? (date_to ? t("As of {d}", { d: fmtDate(date_to) }) : t("Today"))
     : activePreset
-      ? t(activePreset.label)
+      ? (activePreset.raw ? activePreset.label : t(activePreset.label))
       : `${date_from ? fmtDate(date_from) : "…"} – ${date_to ? fmtDate(date_to) : t("today")}`;
   const qs = () => {
     const p = new URLSearchParams();
@@ -380,7 +382,7 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
           <div className="cl-presets" role="group" aria-label={t("Period")}>
             {presets.map((p) => (
               <button key={p.key} type="button" className={`cl-preset${active === p.key ? " is-on" : ""}`} aria-pressed={active === p.key} onClick={() => apply(p.from, p.to)}>
-                {t(p.label)}
+                {p.raw ? p.label : t(p.label)}
                 {active === p.key ? <Icon name="check" size={14} /> : null}
               </button>
             ))}

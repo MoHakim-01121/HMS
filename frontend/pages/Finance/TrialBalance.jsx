@@ -4,8 +4,10 @@ import StatusPill from "../../components/shadcn/status-pill.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
+import SeasonSelect from "../../components/shadcn/season-select.jsx";
 import useFilterState from "../../hooks/useFilterState.js";
 import { TableRow, TableCell } from "../../components/shadcn/ui/table.jsx";
+import { router } from "@inertiajs/react";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -15,7 +17,7 @@ import { fmt } from "../../utils/format.js";
 // SAR utuh — KPI di atas tabel membawa ringkasan (debit, kredit, selisih)
 // supaya status seimbang/tidak terbaca sebelum masuk tabel.
 export default function TrialBalance({
-  groups = [], total_debit = 0, total_credit = 0, balanced = true, filters = {},
+  groups = [], total_debit = 0, total_credit = 0, balanced = true, seasons = [], filters = {},
 }) {
   const { t } = useI18n();
   const { vals, setVal, apply } = useFilterState(
@@ -72,6 +74,8 @@ export default function TrialBalance({
       />
 
       <div className="filter-bar tb-filters">
+        <SeasonSelect seasons={seasons} dateFrom={filters.date_from} dateTo={filters.date_to}
+          onPick={(f, tt) => router.get("/finance/trial-balance/", { date_from: f, date_to: tt })} />
         <input
           type="date"
           className="hms-dv-date"

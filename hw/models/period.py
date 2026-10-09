@@ -148,3 +148,49 @@ class FinancialPeriod(models.Model):
             self.status = locked.status
             self.locked_by = locked.locked_by
             self.locked_at = locked.locked_at
+
+
+class Season(models.Model):
+    """Musim umrah — rentang laporan, bukan unit tutup buku.
+
+    Buku tetap ditutup per bulan (FinancialPeriod); musim hanya menamai
+    rentang tanggal, mis. "Musim 1448H", supaya laporan (Trial Balance, Arus
+    Dana, Statement) bisa dibaca satu musim penuh. Membuat musim melengkapi
+    periode bulanan yang dibutuhkannya — lihat hw/finance/seasons.py.
+    """
+
+    name       = models.CharField(max_length=50, unique=True)
+    # Rentang inklusif [date_from, date_to]; tidak boleh tumpang tindih
+    # dengan musim lain — ditegakkan di save().
+    date_from  = models.DateField()
+    date_to    = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date_from']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(date_from__lt=models.F('date_to')),
+                name='season_from_before_to',
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def _assert_no_overlap(self):
+        if self.date_from is None or self.date_to is None:
+            return
+        clash = Season.objects.filter(
+            date_from__lte=self.date_to,
+            date_to__gte=self.date_from,
+        ).exclude(pk=self.pk).first()
+        if clash:
+            raise ValidationError(
+                f"Musim {self.date_from}–{self.date_to} tumpang tindih dengan "
+                f"{clash.name} ({clash.date_from}–{clash.date_to})."
+            )
+
+    def save(self, *args, **kwargs):
+        self._assert_no_overlap()
+        super().save(*args, **kwargs)

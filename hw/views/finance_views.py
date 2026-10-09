@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404
 from inertia import render as inertia_render
 
 from ..finance import queries as finance_queries
+from ..finance.seasons import season_choices
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
 from ..permissions import can, require_perm, _deny
@@ -275,6 +276,7 @@ def trial_balance(request):
         'total_debit': total_debit,
         'total_credit': total_credit,
         'balanced': total_debit == total_credit,
+        'seasons': season_choices(),
         'filters': {
             'date_from': date_from.isoformat() if date_from else '',
             'date_to': date_to.isoformat() if date_to else '',
@@ -669,6 +671,7 @@ def client_finance_statement(request, pk):
         'mode': mode,
         'date_from': date_from.isoformat() if date_from else None,
         'date_to': date_to.isoformat() if date_to else None,
+        'seasons': season_choices(),
     })
 
 
@@ -697,6 +700,7 @@ def fund_flow_report(request):
         'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.order_by('code')],
         'date_from': date_from.isoformat(),
         'date_to': date_to.isoformat(),
+        'seasons': season_choices(),
         'flow': flow,
         'fx': fx,
     })

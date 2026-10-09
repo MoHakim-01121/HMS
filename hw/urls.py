@@ -201,6 +201,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/periods/<int:pk>/', views.period_detail, name='period_detail'),
     path('finance/periods/<int:pk>/close/', views.period_close, name='period_close'),
     path('finance/periods/<int:pk>/lock/', views.period_lock, name='period_lock'),
+    path('finance/seasons/create/', views.season_save, name='season_create'),
+    path('finance/seasons/<int:pk>/edit/', views.season_save, name='season_edit'),
+    path('finance/seasons/<int:pk>/delete/', views.season_delete, name='season_delete'),
 
     # ── Finance: Journal & Reports (read-only) ──
     path('finance/journal/', views.journal_list, name='journal_list'),

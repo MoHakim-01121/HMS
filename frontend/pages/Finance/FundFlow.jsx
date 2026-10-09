@@ -3,6 +3,7 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import KpiCard from "../../components/shadcn/kpi-card.jsx";
+import SeasonSelect from "../../components/shadcn/season-select.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -13,7 +14,7 @@ import { listVisit } from "../../utils/listVisit.js";
 // Arus Dana: how much a branch received from clients, exchanged, sent to HQ,
 // spent and refunded — per currency, as the banks hold it — and what its
 // transfers to HQ earned on the exchange spread (its only income).
-export default function FundFlow({ branch, branch_choices = [], date_from, date_to, flow, fx }) {
+export default function FundFlow({ branch, branch_choices = [], date_from, date_to, seasons = [], flow, fx }) {
   const { t } = useI18n();
   const perms = usePerms();
   const [from, setFrom] = useState(date_from);
@@ -110,6 +111,8 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
             {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        <SeasonSelect seasons={seasons} dateFrom={date_from} dateTo={date_to}
+          onPick={(f, tt) => { setFrom(f); setTo(tt); go({ from: f, to: tt }); }} />
         <input type="date" className="hms-dv-date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} />
         <span style={{ color: "var(--muted-foreground)" }}>–</span>
         <input type="date" className="hms-dv-date" value={to} min={from} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} />

@@ -27,7 +27,7 @@ from .landing import Pricelist, TeamMember
 from .receipt import Receipt
 
 # ── Finance Redesign (new models) ──────────────────────────────
-from .period import FinancialPeriod
+from .period import FinancialPeriod, Season
 from .payment import PaymentRecord, PaymentLog, PaymentAllocation
 from .journal import AccountType, LedgerAccount, JournalEntry, JournalLine
 
@@ -72,7 +72,7 @@ __all__ = [
     # Receipt
     'Receipt',
     # ── Finance Redesign ──
-    'FinancialPeriod',
+    'FinancialPeriod', 'Season',
     'PaymentRecord', 'PaymentLog', 'PaymentAllocation',
     'AccountType', 'LedgerAccount', 'JournalEntry', 'JournalLine',
     # ── Schema v2 foundation ──
