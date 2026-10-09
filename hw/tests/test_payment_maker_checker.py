@@ -29,8 +29,9 @@ class PaymentMakerCheckerTest(TestCase):
             name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
         self.client_obj = Client.objects.create(name='PT Maker Checker')
-        self.staff = _user('mc_staff', role='staff')
-        self.manager = _user('mc_manager', role='manager')
+        # Two Finance users (money is Finance's since 2026-10-09).
+        self.maker = _user('mc_maker', role='finance')
+        self.checker = _user('mc_checker', role='finance')
         self.admin = _user('mc_admin', superuser=True)
 
     def _payment(self, created_by):
@@ -51,8 +52,8 @@ class PaymentMakerCheckerTest(TestCase):
         return payment.status
 
     def test_recorder_cannot_confirm_own_payment(self):
-        payment = self._payment(self.manager)
-        resp = self._confirm_as(self.manager, payment)
+        payment = self._payment(self.checker)
+        resp = self._confirm_as(self.checker, payment)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(self._status(payment), PaymentRecord.STATUS_PENDING)
         self.assertFalse(
@@ -61,10 +62,10 @@ class PaymentMakerCheckerTest(TestCase):
         )
 
     def test_another_user_can_confirm(self):
-        payment = self._payment(self.staff)
-        self._confirm_as(self.manager, payment)
+        payment = self._payment(self.maker)
+        self._confirm_as(self.checker, payment)
         self.assertEqual(self._status(payment), PaymentRecord.STATUS_CONFIRMED)
-        self.assertEqual(payment.confirmed_by, self.manager)
+        self.assertEqual(payment.confirmed_by, self.checker)
 
     def test_admin_self_confirm_is_allowed_and_logged(self):
         payment = self._payment(self.admin)

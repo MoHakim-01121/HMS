@@ -9,7 +9,7 @@ from datetime import date
 from django.conf import settings
 from django.contrib import messages
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
@@ -22,6 +22,7 @@ from ..models import ActivityLog, log_activity
 from ..models.choices import InvoiceType
 from ..models.credit_note import CreditNote
 from ..models.invoice import Invoice
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from .helpers import _parse_date, request_data
 
@@ -39,9 +40,9 @@ def _void_props(*, kicker, title, number, sub, action, cancel, blockers=(), erro
     }
 
 
-@require_perm('invoice', 'delete')
+@require_perm('payments', 'approve')
 def invoice_void(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=pk)
     props = dict(
         kicker='Invoice', title='Void Invoice', number=invoice.invoice_number,
         sub='The charge is reversed and the invoice stays on record as void, with its number. '
@@ -70,7 +71,7 @@ def invoice_excess_to_deposit(request, pk):
     deposit (a reservation already paid whose value dropped: the CL changed,
     or it was cancelled with a penalty smaller than what was paid)."""
     from ..finance.posting import move_invoice_excess_to_deposit
-    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect(_detail_url(invoice))
     try:
@@ -97,9 +98,9 @@ def _cn_form_props(invoice, data=None, error=None):
     }
 
 
-@require_perm('invoice', 'delete')
+@require_perm('payments', 'approve')
 def credit_note_new(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=pk)
     if invoice.is_void:
         messages.error(request, 'Invoice void tidak bisa diberi nota kredit.')
         return redirect(_detail_url(invoice))
@@ -156,13 +157,13 @@ def credit_note_rows(qs):
 
 @require_perm('invoice', 'view')
 def credit_note_list(request):
-    qs = CreditNote.objects.select_related('invoice', 'client').prefetch_related('lines')
+    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice', 'client').prefetch_related('lines')
     return inertia_render(request, 'Finance/CreditNotes', props={'credit_notes': credit_note_rows(qs)})
 
 
-@require_perm('invoice', 'delete')
+@require_perm('payments', 'approve')
 def credit_note_void(request, pk):
-    cn = get_object_or_404(CreditNote.objects.select_related('invoice'), pk=pk)
+    cn = get_in_scope_or_404(CreditNote.objects.select_related('invoice'), request.user, pk=pk)
     props = dict(
         kicker='Credit Note', title='Void Credit Note', number=cn.credit_note_number,
         sub=f'{cn.invoice.invoice_number} goes back to billing the credited amount.',
@@ -186,7 +187,7 @@ def credit_note_pdf(request, pk):
     from weasyprint import HTML
     from .pdf import _logo_file_url
     from .receipt_views import _number_in_words
-    cn = get_object_or_404(CreditNote.objects.select_related('invoice', 'client', 'created_by'), pk=pk)
+    cn = get_in_scope_or_404(CreditNote.objects.select_related('invoice', 'client', 'created_by'), request.user, pk=pk)
     invoice = cn.invoice
     lines = list(cn.lines.all())
     amount = sum(line.amount_sar for line in lines)

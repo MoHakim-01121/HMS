@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import F, Q
 from django.http.request import RawPostDataException
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.utils import timezone
 
 from inertia import render as inertia_render
@@ -23,6 +23,7 @@ from ..finance_helpers import (
     FinanceError,
 )
 from ..models.role import ADMIN_SLUG
+from ..branch_scope import get_in_scope_or_404, scope, with_head_office
 from ..permissions import get_role, require_perm
 from ..i18n import tr
 from ..finance import posting
@@ -327,9 +328,15 @@ def _apply_payment_filters(qs, f):
     return qs.order_by(*_PAYMENT_SORT_MAP.get(f['sort'], _PAYMENT_SORT_MAP['-created_at']))
 
 
+def _payments(request):
+    """Payments of the user's branches: received into their accounts, or
+    paid by their clients (also when head office received them)."""
+    return scope(PaymentRecord.objects.all(), request.user)
+
+
 @require_perm('payments', 'view')
 def payment_list(request):
-    base_qs = PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'created_by')
+    base_qs = _payments(request).select_related('client', 'invoice', 'confirmed_by', 'created_by')
     f = _payment_filter_params(request)
     payments = _apply_payment_filters(base_qs, f)
 
@@ -344,7 +351,7 @@ def payment_list(request):
     # statuses are one group, a date range is one more.
     active_filters = bool(f['status_list']) + bool(f['date_from'] or f['date_to'])
     group_counts = {key: 0 for key, _, _ in PAYMENT_STATUS_GROUPS}
-    for p in PaymentRecord.objects.with_allocated().only('status', 'amount_sar'):
+    for p in _payments(request).with_allocated().only('status', 'amount_sar'):
         group_counts[_group_of(p)] += 1
     status_groups = [
         {'key': key, 'label': label, 'count': group_counts[key]}
@@ -364,19 +371,19 @@ def payment_list(request):
     # (reservation context per invoice), which used to run on every keystroke
     # of the search box.
     def invoice_choices():
-        return _invoice_choices(_open_invoices(Invoice.objects.all(), limit=50))
+        return _invoice_choices(_open_invoices(scope(Invoice.objects.all(), request.user), limit=50))
 
     # Client choices for the record dialog — deposit (tanpa invoice) butuh
     # client eksplisit, dan client-first memendekkan daftar invoice.
     def client_choices():
         return [
             {'id': c.pk, 'name': c.name, 'city': c.city}
-            for c in Client.objects.filter(is_active=True).order_by('name')
+            for c in scope(Client.objects.filter(is_active=True), request.user).order_by('name')
         ]
 
     def stats():
         from ..finance import queries as fq
-        effective = PaymentRecord.objects.filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
+        effective = _payments(request).filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
         # One aggregate pair for the whole set instead of two queries per
         # payment -- the same bulk pattern as fq.invoice_paid_map.
         unapplied_map = fq.payment_unallocated_map(effective.values_list('pk', flat=True))
@@ -393,7 +400,7 @@ def payment_list(request):
         'payments': [_payment_props(p) for p in page_payments],
         'invoice_choices': invoice_choices,
         'client_choices': client_choices,
-        'account_choices': money_account_choices,
+        'account_choices': lambda: money_account_choices(branches=with_head_office(request.user)),
         'stats': stats,
         'q': f['q'],
         'status_list': f['status_list'],
@@ -469,9 +476,9 @@ def _unbilled_reservations(payment, limit=20):
 
 @require_perm('payments', 'view')
 def payment_detail(request, pk):
-    payment = get_object_or_404(
+    payment = get_in_scope_or_404(
         PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by', 'created_by', 'receiving_account__branch'),
-        pk=pk,
+        request.user, pk=pk,
     )
     logs = payment.logs.select_related('performed_by').order_by('-performed_at')
 
@@ -538,7 +545,7 @@ def payment_record(request):
     invoice = None
     client = None
     if invoice_id:
-        invoice = get_object_or_404(Invoice, pk=invoice_id)
+        invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=invoice_id)
         client = invoice.client
     else:
         # Deposit: invoice opsional — client wajib dipilih eksplisit.
@@ -546,7 +553,7 @@ def payment_record(request):
         if not client_id:
             messages.error(request, 'Pilih client untuk pembayaran tanpa invoice (deposit).')
             return redirect('payment_list')
-        client = get_object_or_404(Client, pk=client_id)
+        client = get_in_scope_or_404(Client.objects.all(), request.user, pk=client_id)
     amount = _to_float(data.get('amount'))
     exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
     currency = (data.get('currency') or 'SAR').upper()
@@ -564,6 +571,10 @@ def payment_record(request):
         received_in = data.get('received_in', 'sby')
         if received_in not in ('sby', 'jkt', 'pusat'):
             received_in = 'sby'
+    allowed = with_head_office(request.user)
+    if allowed is not None and received_in not in allowed:
+        messages.error(request, 'Rekening penerima di luar cabang Anda.')
+        return redirect('payment_list')
 
     # amount/amount_sar are PositiveIntegerField. A negative value passes a
     # bare truthiness check, survives convert_to_sar, and only fails at the
@@ -742,9 +753,9 @@ def payment_record(request):
         return redirect('payment_detail', pk=payment.pk)
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'approve')
 def payment_confirm(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
     if request.method == 'POST':
         try:
             note = ''
@@ -781,9 +792,9 @@ def payment_confirm(request, pk):
     return redirect('payment_detail', pk=pk)
 
 
-@require_perm('payments', 'edit')
+@require_perm('payments', 'approve')
 def payment_reject(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
     if request.method == 'POST':
         # Only a PENDING payment may be rejected. A confirmed/allocated payment
         # has already touched the ledger (DR Kas / CR Piutang); flipping it to
@@ -906,7 +917,7 @@ def _save_allocations(request, pk, *, require_targets, log_action, success):
     """Apply / Reallocate: ganti alokasi pembayaran efektif lewat
     posting.reallocate_payment (pembalik + posting ulang bertanggal hari ini,
     batas per baris, log sebelum/sesudah)."""
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
 
@@ -1032,7 +1043,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
 
 @require_perm('payments', 'delete')
 def payment_reverse(request, pk):
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
     if request.method == 'POST':
         # Pending money was never received: there is no journal to reverse,
         # so it must go through Reject instead.
@@ -1079,7 +1090,7 @@ def payment_void(request, pk):
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
 
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
 
     voidable = PaymentRecord.EFFECTIVE_STATUSES
     if payment.status not in voidable:
@@ -1110,7 +1121,7 @@ def payment_to_deposit(request, pk):
     """Move a payment's excess (the part not allocated to any invoice line)
     to the client's deposit. An explicit step: until then the money stays on
     the payment and can only be allocated to that client's invoices."""
-    payment = get_object_or_404(PaymentRecord, pk=pk)
+    payment = get_in_scope_or_404(PaymentRecord.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('payment_detail', pk=pk)
     try:
@@ -1128,7 +1139,7 @@ def payment_export_csv(request):
     # Same filters as payment_list: exporting from a filtered list must not
     # hand back every payment in the system.
     payments = _apply_payment_filters(
-        PaymentRecord.objects.select_related('client', 'invoice', 'confirmed_by'),
+        _payments(request).select_related('client', 'invoice', 'confirmed_by'),
         _payment_filter_params(request),
     )
 

@@ -725,14 +725,14 @@ def client_aging(client_id, *, as_of=None, date_to=None):
     return {"buckets": buckets, "total": total, "invoices": invoices}
 
 
-def ar_aging(*, as_of=None):
+def ar_aging(*, as_of=None, clients=None):
     """Aging piutang semua client per tanggal `as_of` (date; default hari ini).
 
     Sisa per invoice = net baris Piutang dengan entry_date <= as_of (charge −
     pembayaran − nota kredit ± reversal), dikelompokkan menurut hari lewat
     jatuh tempo (due_date, atau issued_date bila kosong). Invoice yang sudah
     lunas/lebih bayar tidak ikut. Baris Piutang tanpa invoice dijumlahkan ke
-    'current' klien tersebut.
+    'current' klien tersebut. `clients` membatasi ke queryset Client tertentu.
 
     Returns {as_of, buckets: {...}, total, clients: [{client_id, name, buckets,
     total, oldest_days, invoices: [...]}]} — clients diurutkan dari total
@@ -741,8 +741,11 @@ def ar_aging(*, as_of=None):
     from ..models.invoice import Invoice
 
     as_of = as_of or _date.today()
+    nets = _ar_qs(journal_entry__entry_date__lte=as_of, client_id__isnull=False)
+    if clients is not None:
+        nets = nets.filter(client_id__in=clients.values("id"))
     nets = (
-        _ar_qs(journal_entry__entry_date__lte=as_of, client_id__isnull=False)
+        nets
         .values("client_id", "invoice_id")
         .annotate(d=Sum("debit"), c=Sum("credit"))
     )
@@ -885,7 +888,7 @@ def transit():
     return account_balance(coa.TRANSIT)
 
 
-def money_accounts_overview(branch=None, include_inactive=False):
+def money_accounts_overview(branch=None, include_inactive=False, branches=None):
     """Daftar rekening bank + kas dengan book_balance masing-masing.
     Data-layer untuk halaman saldo bank (v2.0 §78). `include_inactive`
     ikut menampilkan rekening bank nonaktif (halaman kelola rekening)."""
@@ -897,6 +900,9 @@ def money_accounts_overview(branch=None, include_inactive=False):
     if branch:
         bank_qs = bank_qs.filter(branch_id=branch)
         cash_qs = cash_qs.filter(branch_id=branch)
+    if branches is not None:
+        bank_qs = bank_qs.filter(branch_id__in=branches)
+        cash_qs = cash_qs.filter(branch_id__in=branches)
     # book_balance is the ledger's balance (journal is SAR-only). Several money
     # accounts may post to one ledger (e.g. a bank account on the branch cash
     # ledger); flag those so the page doesn't pass a shared figure off as one
@@ -1044,21 +1050,27 @@ def service_margins(*, branch=None, date_from=None, date_to=None):
     }
 
 
-def vendor_payables():
-    """Utang per vendor (spec §5): Σ beban diposting − Σ pembayarannya."""
+def vendor_payables(branches=None):
+    """Utang per vendor (spec §5): Σ beban diposting − Σ pembayarannya.
+    `branches` membatasi ke beban cabang-cabang itu (None = semua)."""
     from ..models.expense import Expense, ExpenseLine, ExpensePayment
     from ..models.vendor import Vendor
 
+    lines = ExpenseLine.objects.filter(expense__status=Expense.STATUS_POSTED)
+    payments = ExpensePayment.objects.filter(
+        status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_POSTED,
+    )
+    if branches is not None:
+        lines = lines.filter(expense__branch__in=branches)
+        payments = payments.filter(expense__branch__in=branches)
     billed = {
         r["expense__vendor_id"]: r["t"] or 0
-        for r in ExpenseLine.objects.filter(expense__status=Expense.STATUS_POSTED)
+        for r in lines
         .values("expense__vendor_id").annotate(t=Sum("amount_sar"))
     }
     paid = {
         r["expense__vendor_id"]: r["t"] or 0
-        for r in ExpensePayment.objects.filter(
-            status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_POSTED,
-        ).values("expense__vendor_id").annotate(t=Sum("amount_sar"))
+        for r in payments.values("expense__vendor_id").annotate(t=Sum("amount_sar"))
     }
     names = dict(Vendor.objects.filter(pk__in=[k for k in billed if k]).values_list("pk", "name"))
     rows = [
@@ -1263,7 +1275,7 @@ OVERVIEW_SORTS = {
 }
 
 
-def clients_overview(*, q="", outstanding_only=False, sort="receivable"):
+def clients_overview(*, q="", outstanding_only=False, sort="receivable", clients=None):
     """Agregat bulk per-client untuk halaman daftar statement. Derivasinya
     konsisten dengan properti Client (billed/payable/credit) dari jurnal.
 
@@ -1273,9 +1285,10 @@ def clients_overview(*, q="", outstanding_only=False, sort="receivable"):
 
     `q` menyaring nama di level Client (sebelum agregasi), jadi pencarian
     tidak menyapu seluruh jurnal. `outstanding_only` menyisakan yang masih
-    punya piutang. `sort` kunci dari OVERVIEW_SORTS.
+    punya piutang. `sort` kunci dari OVERVIEW_SORTS. `clients` membatasi ke
+    queryset Client tertentu (mis. client cabang user).
     """
-    qs = Client.objects.all()
+    qs = clients if clients is not None else Client.objects.all()
     if q:
         qs = qs.filter(name__icontains=q)
     names = dict(qs.values_list("id", "name"))

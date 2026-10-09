@@ -29,8 +29,10 @@ def _user(name, role=None, superuser=False):
 class _Base(TestCase):
     def setUp(self):
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
-        self.maker = _user('dep_maker', role='staff')
-        self.checker = _user('dep_checker', role='manager')
+        # Two Finance users: the maker-checker rule, not a missing permission,
+        # is what stops the maker.
+        self.maker = _user('dep_maker', role='finance')
+        self.checker = _user('dep_checker', role='finance')
         self.admin = _user('dep_admin', superuser=True)
         self.a = Client.objects.create(name='PT Deposit A')
         self.b = Client.objects.create(name='PT Deposit B')

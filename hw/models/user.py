@@ -5,7 +5,7 @@ from .uploads import RandomFileName
 
 
 class Role(models.TextChoices):
-    """The four seeded roles.
+    """The seeded roles.
 
     Roles are editable rows now (see ``hw.models.role.RoleDefinition``), so this
     is no longer the full list — it names the built-ins that code refers to by
@@ -13,6 +13,7 @@ class Role(models.TextChoices):
     validate a submitted role; use ``permissions.is_valid_role()``.
     """
     ADMIN   = 'admin',   'Administrator'
+    FINANCE = 'finance', 'Finance'
     MANAGER = 'manager', 'Manager'
     STAFF   = 'staff',   'Staff'
     VIEWER  = 'viewer',  'Viewer'

@@ -116,14 +116,17 @@ def period_label(date_from=None, date_to=None):
     return 'Semua transaksi'
 
 
-def money_account_choices(branch=None):
+def money_account_choices(branch=None, branches=None):
     """[{value, label, branch, currency}] for a receiving/paying-account
     picker — value is "cash:<id>" or "bank:<id>", parsed back by
-    resolve_money_account(). Shared by payment_views and expense_views."""
+    resolve_money_account(). Shared by payment_views and expense_views.
+    `branch` keeps one branch's accounts, `branches` those of several."""
     from ..models.bank import MoneyAccount
     qs = MoneyAccount.objects.filter(is_active=True)
     if branch:
         qs = qs.filter(branch_id=branch)
+    if branches is not None:
+        qs = qs.filter(branch_id__in=branches)
     # Kas dulu, lalu bank — urutan yang sama seperti sebelum digabung.
     accounts = sorted(qs, key=lambda a: (a.kind != MoneyAccount.KIND_CASH, a.bank_name, a.name, a.pk))
     return [
@@ -147,11 +150,13 @@ def resolve_money_account(value):
     return MoneyAccount.objects.filter(pk=pk, kind=kind, is_active=True).first()
 
 
-def _client_options():
-    """Active clients as [{id, name}] options for form dropdowns."""
+def _client_options(user):
+    """Active clients of the user's branches as [{id, name}] options for form
+    dropdowns."""
+    from ..branch_scope import scope
     from ..models import Client
     return list(
-        Client.objects.filter(is_active=True)
+        scope(Client.objects.filter(is_active=True), user)
         .order_by('name').values('id', 'name')
     )
 

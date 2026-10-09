@@ -23,6 +23,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils._os import safe_join
 
+from ..branch_scope import covers_all, scope
 from ..permissions import can
 
 PUBLIC = 'public'
@@ -33,18 +34,46 @@ def _any_view(*modules):
     return lambda user, path: any(can(user, m, 'view') for m in modules)
 
 
-def _invoice_attachment(user, path):
-    """attachments/invoice/<id>/… — hotel invoices need invoice.view, services
-    invoices (type visa) services.view."""
-    from ..models import Invoice
+def _proof_of(model_name, *modules):
+    """A proof file: the user views one of `modules` and the record holding
+    the file belongs to the user's branches."""
+    def rule(user, path):
+        from django.apps import apps
+        model = apps.get_model('hw', model_name)
+        return (any(can(user, m, 'view') for m in modules)
+                and scope(model.objects.filter(proof=path), user).exists())
+    return rule
+
+
+def _ledger_proof(user, path):
+    """Proof attached to a journal entry: head office's ledger."""
+    return covers_all(user) and any(can(user, m, 'view') for m in ('journal', 'statements'))
+
+
+def _owner_pk(path):
+    """<id> of attachments/<kind>/<id>/…, or None."""
     try:
-        pk = int(path.split('/')[2])
+        return int(path.split('/')[2])
     except (IndexError, ValueError):
-        return False
-    invoice_type = Invoice.objects.filter(pk=pk).values_list('invoice_type', flat=True).first()
+        return None
+
+
+def _invoice_attachment(user, path):
+    """attachments/invoice/<id>/… — an invoice of the user's branches; hotel
+    invoices need invoice.view, services invoices (type visa) services.view."""
+    from ..models import Invoice
+    invoice_type = (scope(Invoice.objects.filter(pk=_owner_pk(path)), user)
+                    .values_list('invoice_type', flat=True).first())
     if invoice_type is None:
         return False
     return can(user, 'services' if invoice_type == 'visa' else 'invoice', 'view')
+
+
+def _cl_attachment(user, path):
+    """attachments/cl/<id>/… — a CL of the user's branches, with cl.view."""
+    from ..models import ConfirmationLetter
+    return (can(user, 'cl', 'view')
+            and scope(ConfirmationLetter.objects.filter(pk=_owner_pk(path)), user).exists())
 
 
 # Folder prefix → who may read it. A proof is readable from every screen that
@@ -53,13 +82,13 @@ MEDIA_RULES = (
     ('landing/', PUBLIC),                       # public landing page images
     ('avatars/', LOGGED_IN),
     ('attachments/invoice/', _invoice_attachment),
-    ('attachments/cl/', _any_view('cl')),
-    ('payments/proof/', _any_view('payments', 'invoice', 'services', 'statements')),
-    ('refunds/proof/', _any_view('payments', 'statements')),
-    ('exchange/proof/', _any_view('payments')),
-    ('expenses/proof/', _any_view('expenses')),
-    ('remittance/proof/', _any_view('remittance')),
-    ('ledger/proof/', _any_view('journal', 'statements')),
+    ('attachments/cl/', _cl_attachment),
+    ('payments/proof/', _proof_of('PaymentRecord', 'payments', 'invoice', 'services', 'statements')),
+    ('refunds/proof/', _proof_of('ClientRefund', 'payments', 'statements')),
+    ('exchange/proof/', _proof_of('CurrencyExchange', 'payments')),
+    ('expenses/proof/', _proof_of('Expense', 'expenses')),
+    ('remittance/proof/', _proof_of('Remittance', 'remittance')),
+    ('ledger/proof/', _ledger_proof),
     ('visits/', _any_view('clients')),
 )
 

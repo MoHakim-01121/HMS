@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from django.db import transaction
 
+from ..branch_scope import in_scope
 from ..models.currency_exchange import CurrencyExchange
 from .bank_ledger import record_bank_transaction, void_bank_transactions
 from .errors import FinanceError
@@ -55,6 +56,8 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
     # Between branches the money is owed to HQ in transit — that is a Remittance.
     if from_account.branch_id != to_account.branch_id:
         raise FinanceError('Rekening asal dan tujuan harus satu cabang. Kirim uang ke cabang lain lewat Remittance.')
+    if not in_scope(created_by, from_account.branch_id):
+        raise FinanceError('Rekening ini milik cabang di luar akses Anda.')
     same_currency = from_account.currency == to_account.currency
     if same_currency:
         amount_in = amount_out
@@ -93,6 +96,8 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
 def void_exchange(ex, *, reason='', voided_by=None):
     from ..models.journal import JournalEntry
     ex = CurrencyExchange.objects.select_for_update().get(pk=ex.pk)
+    if voided_by is not None and not in_scope(voided_by, ex.from_account.branch_id):
+        raise FinanceError('Transfer ini milik cabang di luar akses Anda.')
     if ex.status == CurrencyExchange.STATUS_VOIDED:
         raise FinanceError(f'{ex.exchange_number} sudah dibatalkan.')
     check_period_postable(get_period_for_date(ex.exchange_date))

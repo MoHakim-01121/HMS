@@ -2,13 +2,13 @@
 from datetime import date, timedelta
 
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
 from django.urls import reverse
 
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice
 from ..models.confirmation import guest_name_expr
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from ..i18n import tr, user_language
 from .pdf import _render_checkin_pdf
@@ -25,11 +25,11 @@ _CL_COLORS = {
 }
 
 
-def _get_upcoming_checkins():
+def _get_upcoming_checkins(user):
     today = date.today()
     week_end = today + timedelta(days=6)
     qs = (
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), user)
         .filter(check_in__gte=today, check_in__lte=week_end)
         .exclude(reservation_status='CANCELLED')
         .select_related('client', 'hotel')
@@ -92,7 +92,7 @@ def calendar_view(request):
     hotel_map = {}
 
     cl_qs = (
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), request.user)
         .filter(check_in__lte=month_end, check_out__gt=month_start)
         .exclude(check_in=None).exclude(check_out=None)
         .select_related('client', 'hotel')
@@ -169,7 +169,7 @@ def calendar_view(request):
         "checkouts_today": checkouts_today,
         "tentative_count": tentative_count,
         "active_today": active_today,
-        "upcoming_checkins": _get_upcoming_checkins(),
+        "upcoming_checkins": _get_upcoming_checkins(request.user),
     })
 
 
@@ -177,7 +177,7 @@ def calendar_view(request):
 def cl_estimasi_save(request, pk):
     if request.method != 'POST':
         return JsonResponse({'ok': False}, status=405)
-    cl = get_object_or_404(ConfirmationLetter, pk=pk)
+    cl = get_in_scope_or_404(ConfirmationLetter.objects.all(), request.user, pk=pk)
     estimasi_str = request.POST.get('estimasi_tiba', '').strip()
     cl.pic_name  = request.POST.get('pic_name', '').strip()
     cl.pic_phone = request.POST.get('pic_phone', '').strip()
@@ -218,7 +218,7 @@ def calendar_checkin_pdf(request):
         filename = f"checkin-rekap-{today.isoformat()}.pdf"
 
     qs = (
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), request.user)
         .filter(**date_filter)
         .exclude(reservation_status='CANCELLED')
         .with_parties().prefetch_related('rooms__room_type_ref')

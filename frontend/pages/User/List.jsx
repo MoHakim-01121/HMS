@@ -18,6 +18,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import BranchField from "./BranchField.jsx";
 
 function action(userId, fields) {
   router.post(`/users/${userId}/edit/`, fields, { forceFormData: true });
@@ -30,11 +31,12 @@ const ROLE_TONE = {
   viewer: "yellow",
 };
 
-// The role decides what this account can reach; the server applies it in the
-// 'set_access' action.
-function AccessDialog({ user, roleChoices, onClose }) {
+// The role decides what this account can do, the branch on whose records;
+// the server applies both in the 'set_access' action.
+function AccessDialog({ user, roleChoices, branchChoices, onClose }) {
   const { t } = useI18n();
   const [role, setRole] = useState(user?.role ?? "staff");
+  const [branch, setBranch] = useState(user?.branch || "all");
   if (!user) return null;
 
   // The hint under the role picker is the role's own description, so a custom
@@ -42,7 +44,7 @@ function AccessDialog({ user, roleChoices, onClose }) {
   const roleHint = roleChoices.find((c) => c.value === role)?.description || "";
 
   const save = () => {
-    action(user.id, { action: "set_access", role });
+    action(user.id, { action: "set_access", role, branch: role === "admin" ? "all" : branch });
     onClose();
   };
 
@@ -69,6 +71,7 @@ function AccessDialog({ user, roleChoices, onClose }) {
               </SelectContent>
             </Select>
           </FormField>
+          <BranchField role={role} value={branch} onChange={setBranch} choices={branchChoices} />
         </div>
 
         <DialogFooter>
@@ -239,7 +242,7 @@ function CredentialCardDialog({ user, onClose }) {
   );
 }
 
-export default function List({ users, role_choices = [] }) {
+export default function List({ users, role_choices = [], branch_choices = [] }) {
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
   const del = (u) => confirm({ title: t("Delete user"), message: t("Delete user {name}?", { name: u.username }), onConfirm: () => router.post(`/users/${u.id}/delete/`) });
@@ -247,6 +250,7 @@ export default function List({ users, role_choices = [] }) {
   const [accessUser, setAccessUser] = useState(null);
   const [resetUser, setResetUser] = useState(null);
   const [cardUser, setCardUser] = useState(null);
+  const branchLabel = Object.fromEntries(branch_choices.map((c) => [c.value, c.label]));
 
   return (
     <div className="page shadcn-root">
@@ -292,6 +296,13 @@ export default function List({ users, role_choices = [] }) {
               ),
             },
             {
+              header: t("Branch"),
+              className: "col-m-secondary",
+              render: (u) => u.branch === "all"
+                ? t("All branches")
+                : u.branch.split(",").map((code) => branchLabel[code] || code).join(", "),
+            },
+            {
               header: "",
               className: "col-m-actions",
               render: (u) => (
@@ -312,8 +323,10 @@ export default function List({ users, role_choices = [] }) {
         />
       </div>
       <AccessDialog
+        key={accessUser?.id ?? "none"}
         user={accessUser}
         roleChoices={role_choices}
+        branchChoices={branch_choices}
         onClose={() => setAccessUser(null)}
       />
       <ResetPasswordDialog user={resetUser} onClose={() => setResetUser(null)} />

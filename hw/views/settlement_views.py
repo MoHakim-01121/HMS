@@ -23,6 +23,7 @@ from ..models.remittance import Remittance
 from ..models.settlement import RemittanceSettlement
 from ..finance import remittance_allocation, settlement_service
 from ..finance.errors import FinanceError
+from ..branch_scope import head_office_only
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
@@ -142,6 +143,7 @@ def _receipt_failed(request, data, remittance, error, *, settlement=None, fallba
 
 
 @require_perm('remittance', 'edit')
+@head_office_only
 def remittance_record_receipt(request, pk):
     from .remittance_views import _can_record_receipt
 
@@ -181,6 +183,7 @@ def remittance_record_receipt(request, pk):
 
 
 @require_perm('remittance', 'edit')
+@head_office_only
 def remittance_receipt_allocation(request, pk, sid):
     """Ubah alokasi satu penerimaan: koreksi, atau alokasi susulan untuk uang
     yang sudah diterima tapi belum dibagikan ke reservasi."""
@@ -206,6 +209,7 @@ def remittance_receipt_allocation(request, pk, sid):
 
 @require_perm('remittance', 'delete')
 @require_POST
+@head_office_only
 def remittance_receipt_delete(request, pk, sid):
     """Hapus penerimaan yang salah catat (lihat settlement_service.delete_settlement)."""
     remittance = get_object_or_404(Remittance, pk=pk)
@@ -219,6 +223,7 @@ def remittance_receipt_delete(request, pk, sid):
 
 
 @require_perm('remittance', 'edit')
+@head_office_only
 def remittance_close_diff(request, pk):
     """Book the basis-vs-received difference (bank fee/FX) once no further
     receipt is expected, and mark the remittance received."""
@@ -237,6 +242,7 @@ def remittance_close_diff(request, pk):
 
 @require_perm('remittance', 'edit')
 @require_POST
+@head_office_only
 def remittance_reopen_diff(request, pk):
     """Undo a closed difference (reverse its entry) so receipts can be
     corrected again; the remittance drops back to pending if it is short."""

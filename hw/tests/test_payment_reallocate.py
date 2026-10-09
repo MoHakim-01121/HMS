@@ -23,7 +23,7 @@ from hw.tests.factories import make_hotel_line, make_invoice, ensure_current_per
 class PaymentReallocateTest(TestCase):
     def setUp(self):
         u = User.objects.create_user('realloc', password='pw12345')
-        u.profile.role = 'manager'
+        u.profile.role = 'finance'  # money is Finance's (2026-10-09)
         u.profile.save(update_fields=['role'])
         self.user = u
         self.client.force_login(u)

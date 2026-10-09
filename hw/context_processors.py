@@ -4,12 +4,13 @@ from django.core.cache import cache
 from django.urls import reverse
 
 from .models import ConfirmationLetter, Invoice
+from .branch_scope import scope
 from .permissions import can
 
 
-def _cl_notifs(kind, field, today, threshold, limit):
+def _cl_notifs(user, kind, field, today, threshold, limit):
     qs = (
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), user)
         .filter(**{f"{field}__lte": threshold, f"{field}__gte": today})
         .exclude(reservation_status='CANCELLED')
         .order_by(field)
@@ -29,8 +30,9 @@ def _cl_notifs(kind, field, today, threshold, limit):
     return notifs
 
 
-def _invoice_notifs(today, threshold, limit, invoice_types):
-    qs = Invoice.objects.filter(due_date__lte=threshold, due_date__gte=today, invoice_type__in=invoice_types)
+def _invoice_notifs(user, today, threshold, limit, invoice_types):
+    qs = scope(Invoice.objects.all(), user).filter(
+        due_date__lte=threshold, due_date__gte=today, invoice_type__in=invoice_types)
 
     notifs = []
     for inv in qs.with_lines().order_by("due_date")[:limit]:
@@ -61,14 +63,14 @@ def due_soon(request):
     limit = 20
 
     # Only what the user may view: hotel invoices (invoice), services
-    # invoices (services), CL check-ins (cl).
+    # invoices (services), CL check-ins (cl) — of the user's branches.
     user = request.user
     invoice_types = [t for t, module in (('hotel', 'invoice'), ('visa', 'services')) if can(user, module, 'view')]
     notifs = []
     if invoice_types:
-        notifs += _invoice_notifs(today, threshold, limit, invoice_types)
+        notifs += _invoice_notifs(user, today, threshold, limit, invoice_types)
     if can(user, 'cl', 'view'):
-        notifs += _cl_notifs('check_in', 'check_in', today, threshold, limit)
+        notifs += _cl_notifs(user, 'check_in', 'check_in', today, threshold, limit)
     notifs.sort(key=lambda n: n["days"])
 
     result = {

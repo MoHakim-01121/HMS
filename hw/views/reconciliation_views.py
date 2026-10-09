@@ -14,7 +14,7 @@ import json
 from datetime import date
 
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -24,6 +24,7 @@ from ..models.reconciliation import BankStatement, BankStatementLine
 from ..finance import reconciliation_service as rs
 from ..finance import statement_import as si
 from ..finance.errors import FinanceError
+from ..branch_scope import branch_codes, get_in_scope_or_404, in_scope, scope
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float, money_account_choices, request_data, resolve_money_account
@@ -89,16 +90,22 @@ def _statement_props(statement, with_lines=False):
     return props
 
 
-def _account_choices():
-    return money_account_choices()
+def _account_choices(user):
+    return money_account_choices(branches=branch_codes(user))
+
+
+def _resolve_account(request, value):
+    """An active account of the user's branches, or None."""
+    account = resolve_money_account(value)
+    return account if account is not None and in_scope(request.user, account.branch_id) else None
 
 
 @require_perm('statements', 'view')
 def reconciliation_list(request):
-    statements = BankStatement.objects.select_related('account').all()
+    statements = scope(BankStatement.objects.all(), request.user).select_related('account')
     return inertia_render(request, 'Reconciliation/List', props={
         'statements': [_statement_props(s) for s in statements],
-        'account_choices': _account_choices(),
+        'account_choices': _account_choices(request.user),
     })
 
 
@@ -109,12 +116,12 @@ def _payload(request):
         return request.POST
 
 
-@require_perm('remittance', 'edit')
+@require_perm('payments', 'edit')
 def reconciliation_new(request):
     if request.method != 'POST':
         return redirect('reconciliation_list')
     data = _payload(request)
-    account = resolve_money_account(data.get('account'))
+    account = _resolve_account(request, data.get('account'))
 
     raw_lines = data.get('lines', '')
     try:
@@ -148,9 +155,9 @@ def reconciliation_new(request):
     return redirect('reconciliation_detail', pk=statement.pk)
 
 
-def _import_props(form=None, preview=None, error=None):
+def _import_props(user, form=None, preview=None, error=None):
     return {
-        'account_choices': _account_choices(),
+        'account_choices': _account_choices(user),
         'fields': list(si.FIELDS),
         'form': form or {},
         'preview': preview,
@@ -171,13 +178,13 @@ def _preview_props(result):
     }
 
 
-@require_perm('remittance', 'edit')
+@require_perm('payments', 'edit')
 def reconciliation_import(request):
     """Import a bank CSV. Two steps on one page: `preview` parses the text
     (with the user's column mapping, if any) and shows what would be saved;
     `save` creates the statement from the same text and mapping."""
     if request.method != 'POST':
-        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props())
+        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user))
     P = request_data(request)
     form = {k: str(P.get(k) or '') for k in ('account', 'csv_text', 'filename', 'mapping', 'period_start',
                                        'period_end', 'opening_balance', 'closing_balance', 'note')}
@@ -192,9 +199,9 @@ def reconciliation_import(request):
     try:
         result = si.parse(form['csv_text'], mapping=mapping, default_year=hint.year)
     except si.ImportError_ as e:
-        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(form, error=str(e)))
+        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user, form, error=str(e)))
     except (ValueError, TypeError):
-        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(form, error='Pemetaan kolom tidak valid.'))
+        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user, form, error='Pemetaan kolom tidak valid.'))
     preview = _preview_props(result)
     form['mapping'] = json.dumps(result['mapping'])
 
@@ -203,9 +210,9 @@ def reconciliation_import(request):
         for key in ('period_start', 'period_end', 'opening_balance', 'closing_balance'):
             if not form[key] and preview[key] is not None:
                 form[key] = str(preview[key])
-        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(form, preview))
+        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user, form, preview))
 
-    account = resolve_money_account(form['account'])
+    account = _resolve_account(request, form['account'])
     period_start, period_end = _parse_date(form['period_start']), _parse_date(form['period_end'])
     lines = [l for l in result['lines'] if period_start and period_end and period_start <= l['line_date'] <= period_end]
     try:
@@ -217,7 +224,7 @@ def reconciliation_import(request):
             source_filename=form['filename'][:255],
         )
     except FinanceError as e:
-        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(form, preview, str(e)))
+        return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user, form, preview, str(e)))
     left_out = len(result['lines']) - len(lines)
     msg = f'{len(lines)} baris diimpor dari {form["filename"] or "CSV"}.'
     if left_out:
@@ -228,15 +235,15 @@ def reconciliation_import(request):
 
 @require_perm('statements', 'view')
 def reconciliation_detail(request, pk):
-    statement = get_object_or_404(BankStatement, pk=pk)
+    statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
     return inertia_render(request, 'Reconciliation/Detail', props={
         'statement': _statement_props(statement, with_lines=True),
     })
 
 
-@require_perm('remittance', 'edit')
+@require_perm('payments', 'edit')
 def reconciliation_match(request, pk):
-    line = get_object_or_404(BankStatementLine, pk=pk)
+    line = get_in_scope_or_404(BankStatementLine.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('reconciliation_detail', pk=line.statement_id)
     data = _payload(request)
@@ -256,10 +263,10 @@ def reconciliation_match(request, pk):
     return redirect('reconciliation_detail', pk=line.statement_id)
 
 
-@require_perm('remittance', 'edit')
+@require_perm('payments', 'edit')
 @require_POST
 def reconciliation_match_suggested(request, pk):
-    statement = get_object_or_404(BankStatement, pk=pk)
+    statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
     try:
         n = rs.match_suggested(statement)
         messages.success(request, f'{n} baris dicocokkan sesuai saran.')
@@ -268,9 +275,9 @@ def reconciliation_match_suggested(request, pk):
     return redirect('reconciliation_detail', pk=pk)
 
 
-@require_perm('remittance', 'edit')
+@require_perm('payments', 'edit')
 def reconciliation_unmatch(request, pk):
-    line = get_object_or_404(BankStatementLine, pk=pk)
+    line = get_in_scope_or_404(BankStatementLine.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('reconciliation_detail', pk=line.statement_id)
     rs.unmatch_line(line)

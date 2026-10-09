@@ -6,12 +6,13 @@ from django.contrib import messages
 from django.db import transaction
 from django.db.models import F
 from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, InvoiceLine, log_activity
 from ..models.choices import InvoiceType
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from ..finance import queries as fq
 from ..finance.errors import FinanceError
@@ -39,34 +40,38 @@ def _resolve_client_from_post(request):
     client_id = request.POST.get("client_id")
     if client_id:
         try:
-            return Client.objects.get(pk=client_id, is_active=True)
+            return scope(Client.objects.all(), request.user).get(pk=client_id, is_active=True)
         except (Client.DoesNotExist, ValueError):
             pass
     # Fallback: resolve from linked CLs
     cl_ids = _parse_cl_ids(request)
     if cl_ids:
         cl_clients = set(
-            ConfirmationLetter.objects.filter(pk__in=cl_ids).values_list('client_id', flat=True)
+            scope(ConfirmationLetter.objects.filter(pk__in=cl_ids), request.user).values_list('client_id', flat=True)
         )
         if len(cl_clients) == 1:
             try:
-                return Client.objects.get(pk=next(iter(cl_clients)))
+                return scope(Client.objects.all(), request.user).get(pk=next(iter(cl_clients)))
             except Client.DoesNotExist:
                 pass
     return None
 
 
-def _branch_choices():
+def _issuing_branches(user):
     from ..models.branch import Branch
-    return [{"value": b.code, "label": b.name} for b in Branch.objects.filter(is_active=True).order_by("name")]
+    return scope(Branch.objects.filter(is_active=True), user).order_by("name")
+
+
+def _branch_choices(user):
+    return [{"value": b.code, "label": b.name} for b in _issuing_branches(user)]
 
 
 def _posted_branch(request, client, current=None):
-    """Issuing branch for the invoice: the form's pick, otherwise the branch it
-    already has, otherwise ("Automatic" on a new invoice) the client's owner branch."""
-    from ..models.branch import Branch
+    """Issuing branch for the invoice: the form's pick (one of the user's
+    branches), otherwise the branch it already has, otherwise ("Automatic" on a
+    new invoice) the client's owner branch."""
     code = (request.POST.get("branch") or "").strip()
-    if code and Branch.objects.filter(code=code, is_active=True).exists():
+    if code and _issuing_branches(request.user).filter(code=code).exists():
         return code
     return current or client.owner_branch_id
 
@@ -126,9 +131,14 @@ def _filter_invoice_qs(base_qs, request, apply_status=True, order=True):
     return qs, {'q': q, 'status': status, 'date_from': date_from, 'date_to': date_to}
 
 
+def _hotel_invoices(request):
+    """Hotel invoices issued by the user's branches."""
+    return scope(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user)
+
+
 @require_perm('invoice', 'view')
 def invoice_list(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
+    base_qs = _hotel_invoices(request).with_lines()
 
     qs, filters = _filter_invoice_qs(base_qs, request)
     q, status, date_from, date_to = filters['q'], filters['status'], filters['date_from'], filters['date_to']
@@ -212,9 +222,9 @@ def invoice_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": invoice_number or suggested_number,
-                "cl_data": _cl_data_for_form(),
-                "clients": _client_options(),
-                "branch_choices": _branch_choices(),
+                "cl_data": _cl_data_for_form(request.user),
+                "clients": _client_options(request.user),
+                "branch_choices": _branch_choices(request.user),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -250,7 +260,7 @@ def invoice_new(request):
         return redirect("invoice_detail", pk=invoice.pk)
 
     initial = None
-    preselect_cl = ConfirmationLetter.objects.uninvoiced().filter(pk=request.GET.get("cl") or 0).first()
+    preselect_cl = scope(ConfirmationLetter.objects.uninvoiced(), request.user).filter(pk=request.GET.get("cl") or 0).first()
     if preselect_cl:
         initial = {"linked_cl_ids": [preselect_cl.pk]}
 
@@ -258,9 +268,9 @@ def invoice_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
-        "cl_data": _cl_data_for_form(),
-        "clients": _client_options(),
-        "branch_choices": _branch_choices(),
+        "cl_data": _cl_data_for_form(request.user),
+        "clients": _client_options(request.user),
+        "branch_choices": _branch_choices(request.user),
         "initial": initial,
     })
 
@@ -289,7 +299,7 @@ def _overpaid_props(reservations):
 
 @require_perm('invoice', 'view')
 def invoice_detail(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
+    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
         "id": r["id"],
@@ -402,7 +412,7 @@ def invoice_detail(request, pk):
 
 @require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
+    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
     if invoice.is_void:
         messages.error(request, f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.')
         return redirect('invoice_detail', pk=pk)
@@ -423,9 +433,9 @@ def invoice_edit(request, pk):
             return inertia_render(request, "Invoice/Form", props={
                 "edit": True,
                 "invoice": _serialize_hotel_invoice(invoice),
-                "cl_data": _cl_data_for_form(),
-                "clients": _client_options(),
-                "branch_choices": _branch_choices(),
+                "cl_data": _cl_data_for_form(request.user),
+                "clients": _client_options(request.user),
+                "branch_choices": _branch_choices(request.user),
                 "initial": _invoice_echo(request),
                 "errors": errors,
             })
@@ -473,15 +483,15 @@ def invoice_edit(request, pk):
     return inertia_render(request, "Invoice/Form", props={
         "edit": True,
         "invoice": _serialize_hotel_invoice(invoice),
-        "cl_data": _cl_data_for_form(),
-        "clients": _client_options(),
-        "branch_choices": _branch_choices(),
+        "cl_data": _cl_data_for_form(request.user),
+        "clients": _client_options(request.user),
+        "branch_choices": _branch_choices(request.user),
     })
 
 
 @require_perm('invoice', 'delete')
 def invoice_delete(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
+    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
     if request.method == "POST":
         num = invoice.invoice_number
         # System of record: invoice yang sudah menyentuh general ledger
@@ -515,13 +525,13 @@ def invoice_delete(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk, invoice_type=InvoiceType.HOTEL)
+    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
     return _render_invoice_pdf(invoice)
 
 
 @require_perm('invoice', 'export')
 def invoice_list_pdf(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
+    base_qs = _hotel_invoices(request).with_lines()
     qs, _ = _filter_invoice_qs(base_qs, request)
     inv_list = list(qs)
     total_sar = sum(i.total_sar for i in inv_list)
@@ -542,7 +552,7 @@ def invoice_list_pdf(request):
 
 @require_perm('invoice', 'export')
 def invoice_export_csv(request):
-    base_qs = Invoice.objects.filter(invoice_type=InvoiceType.HOTEL).with_lines()
+    base_qs = _hotel_invoices(request).with_lines()
     qs, _ = _filter_invoice_qs(base_qs, request)
     headers = ['Invoice #', 'Customer', 'Issued Date', 'Due Date', 'Total SAR', 'Paid SAR', 'Sisa SAR']
     rows = ([
@@ -709,7 +719,7 @@ def _billable_cl_ids(request, invoice=None):
     ids = _parse_cl_ids(request)
     if not ids:
         return []
-    free = ConfirmationLetter.objects.uninvoiced().filter(pk__in=ids)
+    free = scope(ConfirmationLetter.objects.uninvoiced(), request.user).filter(pk__in=ids)
     allowed = set(free.values_list("pk", flat=True))
     if invoice is not None:
         allowed |= set(invoice.confirmation_letters.filter(pk__in=ids).values_list("pk", flat=True))
@@ -734,7 +744,7 @@ def _validate_hotel_invoice(request, cl_ids, client):
     return {}
 
 
-def _cl_data_for_form():
+def _cl_data_for_form(user):
     # prefetch_related("rooms"): `total` below reads cl.total_price, which sums
     # cl.rooms.all() — one extra query per CL without this, i.e. up to 100 on
     # the [:100] slice. It made /invoice/new/ and /invoice/<pk>/edit/ issue 56
@@ -742,7 +752,7 @@ def _cl_data_for_form():
     # form endpoints in the app by roughly 10x. Room.subtotal also walks back to
     # room.cl for num_nights; a reverse-FK prefetch populates that back
     # reference, so it stays free.
-    cl_qs = (ConfirmationLetter.objects
+    cl_qs = (scope(ConfirmationLetter.objects.all(), user)
              .select_related("client", "hotel")
              .with_invoice()
              .prefetch_related("rooms"))

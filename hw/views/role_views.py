@@ -35,6 +35,12 @@ MODULE_LABELS = {
     'penalty': 'Cancellation Penalty',
     'users': 'Users & Roles',
     'dev': 'Dev / Style Guide',
+    'landing': 'Landing Page',
+    'payments': 'Payments, Refunds & Transfers',
+    'expenses': 'Expenses',
+    'statements': 'Finance Reports & Accounts',
+    'journal': 'Journal & Trial Balance',
+    'periods': 'Periods & Seasons',
 }
 
 ACTION_LABELS = {
@@ -43,6 +49,9 @@ ACTION_LABELS = {
     'edit': 'Edit',
     'delete': 'Delete',
     'export': 'Export / PDF',
+    # Confirming a payment, approving a refund or transfer, voiding an
+    # invoice, a credit note — the second person's decision on money.
+    'approve': 'Approve',
 }
 
 

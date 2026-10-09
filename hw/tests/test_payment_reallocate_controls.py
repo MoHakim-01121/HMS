@@ -28,7 +28,7 @@ class ReallocateControlsBase(TestCase):
         self.maker = User.objects.create_user('rc_maker', password='pw12345')
         self.checker = User.objects.create_user('rc_checker', password='pw12345')
         for u in (self.maker, self.checker):
-            u.profile.role = 'manager'
+            u.profile.role = 'finance'  # money is Finance's (2026-10-09)
             u.profile.save(update_fields=['role'])
         self.period = FinancialPeriod.objects.create(
             name='2026-08', date_from=date(2026, 8, 1), date_to=date(2026, 8, 31),
@@ -193,10 +193,13 @@ class OverpaymentBannerTest(ReallocateControlsBase):
         self.assertEqual(props['overpaid'], [{'line_id': self.r1.pk, 'number': 'AM-1', 'excess_sar': 2000}])
         self.assertEqual(props['overpaid_payments'], [{'id': payment.pk, 'number': payment.payment_number}])
 
-    def test_staff_with_payment_rights_moves_the_excess_to_deposit(self):
+    def test_finance_without_invoice_delete_moves_the_excess_to_deposit(self):
         self._paid_r1()
         self._amend_r1(13000)
-        staff = User.objects.create_user('rc_staff', password='pw12345')  # role staff: payments edit, no invoice delete
+        # Finance: payments edit, no invoice delete.
+        staff = User.objects.create_user('rc_staff', password='pw12345')
+        staff.profile.role = 'finance'
+        staff.profile.save(update_fields=['role'])
         self._login(staff)
         self.client.post(f'/finance/invoices/{self.inv_a.pk}/excess-to-deposit/')
         self.assertEqual(posting.client_credit_balance(self.client_obj.pk), 2000)

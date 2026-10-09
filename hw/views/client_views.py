@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
@@ -14,6 +14,7 @@ from inertia import render as inertia_render
 from ..models import (
     ActivityLog, Client, ConfirmationLetter, log_activity,
 )
+from ..branch_scope import get_in_scope_or_404, scope, with_head_office
 from ..permissions import require_perm
 from ..finance import queries as finance_queries
 from ..finance_helpers import FinanceError
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 @require_perm('clients', 'view')
 def client_list(request):
-    qs = Client.objects.all()
+    qs = scope(Client.objects.all(), request.user)
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -88,14 +89,31 @@ def client_list(request):
     })
 
 
-def _branch_choices():
+def _owner_branches(user):
+    """Branches the user may give a client to: the ones they cover."""
     from ..models.branch import Branch
-    return [{"value": b.code, "label": b.name} for b in Branch.objects.filter(is_active=True).order_by("name")]
+    return scope(Branch.objects.filter(is_active=True), user).order_by("name")
 
 
-def _validate_client(data, instance=None):
-    from ..models.branch import Branch
-    from ..models.client import DEFAULT_OWNER_BRANCH, client_name_key
+def _branch_choices(user):
+    return [{"value": b.code, "label": b.name} for b in _owner_branches(user)]
+
+
+def _owner_branch(data, user, instance=None):
+    """The owner branch posted, else the client's current one, else the user's
+    only branch, else the default."""
+    from ..models.client import DEFAULT_OWNER_BRANCH
+    posted = (data.get("owner_branch") or "").strip()
+    if posted:
+        return posted
+    if instance is not None and instance.owner_branch_id:
+        return instance.owner_branch_id
+    branches = list(_owner_branches(user).values_list("code", flat=True))
+    return branches[0] if len(branches) == 1 else DEFAULT_OWNER_BRANCH
+
+
+def _validate_client(data, user, instance=None):
+    from ..models.client import client_name_key
     errors = {}
     name = data.get("name", "").strip()
     if not name:
@@ -108,8 +126,7 @@ def _validate_client(data, instance=None):
         other = clash.first()
         if other:
             errors["name"] = f'A client named "{other.name}" already exists.'
-    branch = (data.get("owner_branch") or DEFAULT_OWNER_BRANCH).strip()
-    if not Branch.objects.filter(code=branch, is_active=True).exists():
+    if not _owner_branches(user).filter(code=_owner_branch(data, user, instance)).exists():
         errors["owner_branch"] = "Choose the branch that owns this client."
     return errors
 
@@ -132,35 +149,35 @@ def _client_echo(data):
 @require_perm('clients', 'create')
 def client_new(request):
     if request.method == 'POST':
-        errors = _validate_client(request.POST)
+        errors = _validate_client(request.POST, request.user)
         if errors:
             return inertia_render(request, "Client/Form", props={
                 "client": _client_echo(request.POST), "edit": False, "errors": errors,
-                "branch_choices": _branch_choices(),
+                "branch_choices": _branch_choices(request.user),
             })
         c = Client()
-        _save_client(c, request.POST)
+        _save_client(c, request.POST, _owner_branch(request.POST, request.user))
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name)
         messages.success(request, f'Client "{c.name}" added successfully.')
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
-        "client": None, "edit": False, "branch_choices": _branch_choices(),
+        "client": None, "edit": False, "branch_choices": _branch_choices(request.user),
     })
 
 
 @require_perm('clients', 'edit')
 def client_edit(request, pk):
-    c = get_object_or_404(Client, pk=pk)
+    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
     if request.method == 'POST':
-        errors = _validate_client(request.POST, instance=c)
+        errors = _validate_client(request.POST, request.user, instance=c)
         if errors:
             echo = _client_echo(request.POST); echo["id"] = c.pk
             return inertia_render(request, "Client/Form", props={
                 "client": echo, "edit": True, "errors": errors,
-                "branch_choices": _branch_choices(),
+                "branch_choices": _branch_choices(request.user),
             })
         _before = snapshot_fields(c, ['name', 'brand', 'city', 'province', 'address', 'pic', 'wa', 'email'])
-        _save_client(c, request.POST)
+        _save_client(c, request.POST, _owner_branch(request.POST, request.user, c))
         _after = snapshot_fields(c, ['name', 'brand', 'city', 'province', 'address', 'pic', 'wa', 'email'])
         changes = track_changes(
             _before, _after,
@@ -179,14 +196,14 @@ def client_edit(request, pk):
             "lat": c.lat, "lng": c.lng, "is_active": c.is_active,
         },
         "edit": True,
-        "branch_choices": _branch_choices(),
+        "branch_choices": _branch_choices(request.user),
     })
 
 
 @require_perm('clients', 'delete')
 @require_POST
 def client_delete(request, pk):
-    c = get_object_or_404(Client, pk=pk)
+    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
     name = c.name
     try:
         c.delete()
@@ -212,7 +229,7 @@ def client_detail(request, pk):
     """Client information only. Money (invoices, balances, fund activity,
     transfer/refund, statement) lives under Finance → Client Ledger."""
     from django.utils import timezone
-    c = get_object_or_404(Client, pk=pk)
+    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
     cls = list(c.cls.order_by('-created_at'))
     cls_data = [{
         "pk": cl.pk,
@@ -246,13 +263,13 @@ def client_detail(request, pk):
 
 @require_perm('clients', 'view')
 def client_map(request):
-    qs = Client.objects.filter(lat__isnull=False, lng__isnull=False)
+    qs = scope(Client.objects.filter(lat__isnull=False, lng__isnull=False), request.user)
     return inertia_render(request, "Client/Map", props={"clients_count": qs.count()})
 
 
 @require_perm('clients', 'view')
 def client_map_data(request):
-    qs = Client.objects.filter(lat__isnull=False, lng__isnull=False)
+    qs = scope(Client.objects.filter(lat__isnull=False, lng__isnull=False), request.user)
 
     data = [
         {
@@ -273,12 +290,10 @@ def client_map_data(request):
     return JsonResponse({'clients': data})
 
 
-def _save_client(c, data):
+def _save_client(c, data, owner_branch):
     c.name      = data.get('name', '').strip()
     c.brand     = data.get('brand', '').strip()
-    branch = (data.get('owner_branch') or '').strip()
-    if branch:
-        c.owner_branch_id = branch
+    c.owner_branch_id = owner_branch
     c.city      = data.get('city', '').strip()
     c.province  = data.get('province', '').strip()
     c.address   = data.get('address', '').strip()
@@ -304,8 +319,8 @@ def client_refund(request, pk):
     Two amounts: the SAR taken from the client's fund (journal) and what the
     account actually paid in its own currency (cash book). They are the same
     number for a SAR account; for an IDR/USD account both are entered."""
-    client_obj = get_object_or_404(Client, pk=pk)
-    accounts = money_account_choices()
+    client_obj = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
+    accounts = money_account_choices(branches=with_head_office(request.user))
 
     def page(errors=None, initial=None):
         return inertia_render(request, 'Finance/ClientRefund', props={
@@ -325,6 +340,9 @@ def client_refund(request, pk):
     proof = request.FILES.get('proof')
 
     errors = {}
+    allowed = with_head_office(request.user)
+    if account is not None and allowed is not None and account.branch_id not in allowed:
+        account = None
     if account is None:
         errors['from_account'] = 'Choose the account the refund is paid from.'
     if amount <= 0:
@@ -370,13 +388,13 @@ def client_refund(request, pk):
 def client_deposit_transfer(request, pk):
     """Move part of a client's deposit to another client (a numbered document)."""
     from ..finance.deposit import request_transfer
-    client_obj = get_object_or_404(Client, pk=pk)
+    client_obj = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
 
     def page(errors=None, initial=None):
         return inertia_render(request, 'Finance/DepositTransfer', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name,
                        'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-            'clients': [{'id': c.pk, 'name': c.name} for c in Client.objects.filter(is_active=True)
+            'clients': [{'id': c.pk, 'name': c.name} for c in scope(Client.objects.filter(is_active=True), request.user)
                         .exclude(pk=client_obj.pk).order_by('name')],
             'errors': errors or {},
             'initial': initial or {},
@@ -387,7 +405,7 @@ def client_deposit_transfer(request, pk):
     P = request.POST
     note = (P.get('note') or '').strip()
     amount = round_half_up(_to_float(P.get('amount_sar')))
-    to_client = Client.objects.filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
+    to_client = scope(Client.objects.all(), request.user).filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
     errors = {}
     if to_client is None:
         errors['to_client'] = 'Choose the client that receives the deposit.'
@@ -411,7 +429,7 @@ def _decide_deposit_out(request, kind, pk, decision):
     from ..finance import deposit
     from ..models import ClientRefund, ClientTransfer
     model = ClientRefund if kind == 'refund' else ClientTransfer
-    doc = get_object_or_404(model, pk=pk)
+    doc = get_in_scope_or_404(model.objects.all(), request.user, pk=pk)
     client_pk = doc.client_id if kind == 'refund' else doc.from_client_id
     if request.method != 'POST':
         return redirect('client_finance_statement', pk=client_pk)
@@ -432,22 +450,22 @@ def _decide_deposit_out(request, kind, pk, decision):
     return redirect('client_finance_statement', pk=client_pk)
 
 
-@require_perm('payments', 'delete')
+@require_perm('payments', 'approve')
 def client_refund_confirm(request, pk):
     return _decide_deposit_out(request, 'refund', pk, 'confirm')
 
 
-@require_perm('payments', 'delete')
+@require_perm('payments', 'approve')
 def client_refund_reject(request, pk):
     return _decide_deposit_out(request, 'refund', pk, 'reject')
 
 
-@require_perm('payments', 'delete')
+@require_perm('payments', 'approve')
 def client_deposit_transfer_confirm(request, pk):
     return _decide_deposit_out(request, 'transfer', pk, 'confirm')
 
 
-@require_perm('payments', 'delete')
+@require_perm('payments', 'approve')
 def client_deposit_transfer_reject(request, pk):
     return _decide_deposit_out(request, 'transfer', pk, 'reject')
 
@@ -468,7 +486,7 @@ def client_statement_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
 
-    c = get_object_or_404(Client, pk=pk)
+    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
 
     mode = request.GET.get('mode', 'balance')
     if mode not in ('balance', 'open', 'byres'):

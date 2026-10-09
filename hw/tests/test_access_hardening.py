@@ -23,7 +23,7 @@ from hw.models.role import RoleDefinition
 from hw.models.uploads import RandomFileName
 from hw.models.user import Role
 from hw.permissions import can, perms_payload
-from hw.tests.factories import make_cl, make_invoice
+from hw.tests.factories import make_cl, make_invoice, make_payment
 
 # URLs without a module/role guard, each with the reason it is safe.
 PUBLIC_URLS = {
@@ -142,19 +142,29 @@ class ProtectedMediaTest(TestCase):
             f.write(data)
         return '/media/' + rel
 
-    def test_anonymous_visitor_is_sent_to_login(self):
+    def _proof(self):
+        """A transfer proof on disk, held by a payment (a proof without its
+        record is never served)."""
         url = self._file('payments/proof/a.pdf')
+        inv = make_invoice()
+        make_payment(payment_number='PAY-PROOF', payment_date=date(2026, 6, 5), amount=1, amount_sar=1,
+                     exchange_rate=1, method='Transfer', client=inv.client, created_by=self.staff,
+                     proof='payments/proof/a.pdf')
+        return url
+
+    def test_anonymous_visitor_is_sent_to_login(self):
+        url = self._proof()
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 302)
         self.assertIn('/login/', resp['Location'])
 
     def test_user_without_the_module_gets_404(self):
-        url = self._file('payments/proof/a.pdf')
+        url = self._proof()
         self.client.force_login(self.hotelier)
         self.assertEqual(self.client.get(url).status_code, 404)
 
     def test_permitted_user_gets_the_file_inline(self):
-        url = self._file('payments/proof/a.pdf')
+        url = self._proof()
         self.client.force_login(self.staff)
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
@@ -164,12 +174,12 @@ class ProtectedMediaTest(TestCase):
         self.assertEqual(b''.join(resp.streaming_content), b'%PDF-1.4 proof')
 
     def test_spreadsheets_are_downloaded_not_shown(self):
-        url = self._file('attachments/cl/7/sheet.xlsx', b'PK')
+        url = self._file(f'attachments/cl/{make_cl().pk}/sheet.xlsx', b'PK')
         self.client.force_login(self.staff)
         self.assertTrue(self.client.get(url)['Content-Disposition'].startswith('attachment'))
 
     def test_behind_nginx_the_file_is_handed_over_by_x_accel(self):
-        url = self._file('payments/proof/a.pdf')
+        url = self._proof()
         self.client.force_login(self.staff)
         with override_settings(MEDIA_ACCEL_REDIRECT='/protected-media/'):
             resp = self.client.get(url)
@@ -226,7 +236,7 @@ class ModuleScopedViewsTest(TestCase):
     def test_assistant_reads_only_permitted_modules(self):
         from hw import ai
         with mock.patch.object(ai, '_call_groq', return_value='ok') as call:
-            ai.get_chat_reply('siapa tamu yang check in?', modules=('invoice',))
+            ai.get_chat_reply('siapa tamu yang check in?', user=self.staff, modules=('invoice',))
         context = call.call_args.args[0][0]['content']
         self.assertNotIn('Zubair', context)
         self.assertNotIn('Confirmation Letter', context)

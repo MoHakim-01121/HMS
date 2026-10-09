@@ -1557,6 +1557,8 @@ export const id = {
   "{m} modules · {grants} permissions": "{m} modul · {grants} izin",
   "Edit permissions": "Edit izin",
   "Access for {name}": "Akses untuk {name}",
+  "Administrators cover every branch.": "Administrator mencakup semua cabang.",
+  "Branch staff see only their branch's records; head office works across all branches.": "Staf cabang hanya melihat data cabangnya; kantor pusat bekerja lintas semua cabang.",
   "Choose what {name} may reach across the system.": "Tentukan apa saja yang bisa diakses {name} di sistem.",
   "Save access": "Simpan akses",
   "Reset password": "Reset kata sandi",

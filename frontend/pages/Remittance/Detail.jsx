@@ -18,6 +18,8 @@ export default function Detail({ rem, lines, fx }) {
   const perms = usePerms();
   const canEdit = perms.can("remittance", "edit");
   const canDelete = perms.can("remittance", "delete");
+  // Receipts are head office's: a branch sends, head office records what came in.
+  const canReceive = canEdit && perms.headOffice;
   const [confirm, confirmDialog] = useConfirm();
 
   // Satu status: rem.status. Untuk remittance dengan penerimaan tercatat,
@@ -132,9 +134,9 @@ export default function Detail({ rem, lines, fx }) {
         : undefined)
     : t("{n} receipt(s)", { n: rem.settlements.length });
 
-  const showRecord = canEdit && rem.can_record_receipt;
-  const showCloseDiff = canEdit && rem.can_close_diff;
-  const showReopenDiff = canEdit && rem.can_reopen_diff;
+  const showRecord = canReceive && rem.can_record_receipt;
+  const showCloseDiff = canReceive && rem.can_close_diff;
+  const showReopenDiff = canReceive && rem.can_reopen_diff;
 
   return (
     <div className="page shadcn-root hms-rv-page">
@@ -246,12 +248,12 @@ export default function Detail({ rem, lines, fx }) {
                           {s.reference ? <span className="rmt-receipt-ref"> · {t("ref")} {s.reference}</span> : null}
                         </span>
                         <span className="rmt-receipt-acts">
-                          {canEdit && rem.can_allocate && (
+                          {canReceive && rem.can_allocate && (
                             <button type="button" className="hms-rv-linkbtn" onClick={() => openForm(allocationUrl(s))}>
                               {t("Change allocation")}
                             </button>
                           )}
-                          {canDelete && s.can_delete && (
+                          {canDelete && perms.headOffice && s.can_delete && (
                             <button type="button" className="hms-rv-linkbtn rmt-receipt-del" onClick={() => deleteReceipt(s)}>
                               {t("Delete")}
                             </button>

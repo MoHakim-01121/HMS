@@ -9,6 +9,7 @@ from django.contrib.messages import get_messages
 from inertia import share
 
 from .context_processors import due_soon
+from .branch_scope import covers_all
 from .permissions import get_role, perms_payload, role_label
 
 
@@ -58,6 +59,9 @@ class InertiaShareMiddleware:
                         "role": get_role(user),
                         "role_label": role_label(user),
                         "perms": perms_payload(user),
+                        # Head office (every branch): its own steps — e.g.
+                        # recording a remittance receipt — show only then.
+                        "all_branches": covers_all(user),
                     }
                 },
                 locale=_language(user),

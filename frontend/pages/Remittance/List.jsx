@@ -108,7 +108,7 @@ export default function List({ tab = "transfers", remittances, stats, status_fil
       className: "col-m-actions",
       render: (rem) => (
         <RowActions actions={[
-          rem.can_record_receipt && perms.can("remittance", "edit") && { icon: "check", label: t("Record Receipt"), variant: "green", strokeWidth: 2.5, onClick: () => openForm(receiptUrl(rem)) },
+          rem.can_record_receipt && perms.can("remittance", "edit") && perms.headOffice && { icon: "check", label: t("Record Receipt"), variant: "green", strokeWidth: 2.5, onClick: () => openForm(receiptUrl(rem)) },
           { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
           perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
           rem.status === "pending" && !rem.settled_sar && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },

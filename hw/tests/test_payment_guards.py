@@ -26,13 +26,13 @@ from hw.models import Client, ConfirmationLetter, Invoice
 from hw.models.journal import JournalEntry
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_invoice, make_payment, make_priced_cl
+from hw.tests.factories import make_invoice, make_payment, make_priced_cl, ops_and_money_role
 
 
 class PaymentGuardBase(TestCase):
     def setUp(self):
         user = User.objects.create_user('guard', password='pw12345')
-        user.profile.role = 'manager'
+        user.profile.role = ops_and_money_role()  # invoices and their money, one user
         user.profile.save(update_fields=['role'])
         self.user = user
         self.client.force_login(user)

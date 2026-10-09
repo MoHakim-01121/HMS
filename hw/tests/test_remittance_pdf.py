@@ -74,7 +74,9 @@ class RemittancePdfOrderingTest(TestCase):
         original = helpers._render_list_pdf
         helpers._render_list_pdf = fake_render
         try:
-            request = type('R', (), {'GET': {}, 'user': None})()
+            # A head office user: the view only opens remittances of the user's branches.
+            hq = type('U', (), {'is_authenticated': True, 'is_superuser': True})()
+            request = type('R', (), {'GET': {}, 'user': hq})()
             remittance_views.remittance_pdf.__wrapped__(request, self.rem.pk)
         finally:
             helpers._render_list_pdf = original

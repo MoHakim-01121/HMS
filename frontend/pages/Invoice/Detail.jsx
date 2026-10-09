@@ -121,7 +121,8 @@ export default function Detail({
     : invoice.due_date ? { k: t("Due"), v: invoice.due_date } : null;
 
   const canEdit = perms.can("invoice", "edit") && !isVoid;
-  const canCredit = perms.can("invoice", "delete");
+  // Voiding and credit notes change what the client owes: a money decision.
+  const canCredit = perms.can("payments", "approve");
   const canMoveMoney = perms.can("payments", "edit");
   const moveExcessToDeposit = () =>
     confirm({

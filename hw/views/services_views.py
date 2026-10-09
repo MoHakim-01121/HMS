@@ -5,11 +5,12 @@ from datetime import date, timedelta
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, Invoice, InvoiceLine, log_activity
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from ..finance import queries as fq
 from ..finance.errors import FinanceError
@@ -39,20 +40,25 @@ def _resolve_client_from_post(request):
     client_id = request.POST.get("client_id")
     if client_id:
         try:
-            return Client.objects.get(pk=client_id, is_active=True)
+            return scope(Client.objects.all(), request.user).get(pk=client_id, is_active=True)
         except (Client.DoesNotExist, ValueError):
             pass
     return None
 
 
+def _service_invoices(request):
+    """Services (visa) invoices issued by the user's branches."""
+    return scope(Invoice.objects.filter(invoice_type='visa'), request.user)
+
+
 def _get_service_invoice(request, pk):
-    """Fetch a visa invoice."""
-    return get_object_or_404(Invoice, pk=pk, invoice_type='visa')
+    """Fetch a visa invoice of the user's branches (404 otherwise)."""
+    return get_in_scope_or_404(_service_invoices(request), request.user, pk=pk)
 
 
 @require_perm('services', 'view')
 def services_list(request):
-    qs = Invoice.objects.filter(invoice_type="visa").with_lines()
+    qs = _service_invoices(request).with_lines()
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Invoice.objects.name_matches(q))
@@ -88,7 +94,7 @@ def services_new(request):
                 "edit": False,
                 "invoice": None,
                 "suggested_number": suggested_number,
-                "clients": _client_options(),
+                "clients": _client_options(request.user),
                 "initial": _services_echo(request),
                 "errors": errors,
             })
@@ -125,7 +131,7 @@ def services_new(request):
         "edit": False,
         "invoice": None,
         "suggested_number": suggested_number,
-        "clients": _client_options(),
+        "clients": _client_options(request.user),
     })
 
 
@@ -189,7 +195,7 @@ def services_edit(request, pk):
             return inertia_render(request, "Services/Form", props={
                 "edit": True,
                 "invoice": _serialize_service_invoice(invoice),
-                "clients": _client_options(),
+                "clients": _client_options(request.user),
                 "initial": echo,
                 "errors": errors,
             })
@@ -226,7 +232,7 @@ def services_edit(request, pk):
     return inertia_render(request, "Services/Form", props={
         "edit": True,
         "invoice": _serialize_service_invoice(invoice),
-        "clients": _client_options(),
+        "clients": _client_options(request.user),
     })
 
 
@@ -259,7 +265,7 @@ def services_pdf(request, pk):
 
 @require_perm('services', 'export')
 def services_list_pdf(request):
-    qs = Invoice.objects.filter(invoice_type="visa")
+    qs = _service_invoices(request)
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Invoice.objects.name_matches(q))
@@ -273,7 +279,7 @@ def services_list_pdf(request):
 
 @require_perm('services', 'export')
 def services_export_csv(request):
-    qs = Invoice.objects.filter(invoice_type="visa")
+    qs = _service_invoices(request)
     q = request.GET.get('q', '').strip()
     if q:
         qs = qs.filter(Invoice.objects.name_matches(q))

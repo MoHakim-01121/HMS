@@ -25,7 +25,7 @@ def _props(response):
 class PaymentHygieneBase(TestCase):
     def setUp(self):
         user = User.objects.create_user('hygiene', password='pw12345')
-        user.profile.role = 'manager'
+        user.profile.role = 'finance'  # money is Finance's (2026-10-09)
         user.profile.save(update_fields=['role'])
         self.user = user
         self.client.force_login(user)

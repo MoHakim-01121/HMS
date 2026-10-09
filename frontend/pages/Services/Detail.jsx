@@ -36,7 +36,8 @@ export default function Detail({
   const dueTotal = isVoid ? 0 : servicesTotal - credited_sar;
   const hero = isVoid ? { label: "Void", tone: "gray" } : heroPill(dueTotal, services_remaining);
   const canEdit = perms.can("services", "edit") && !isVoid;
-  const canCredit = perms.can("invoice", "delete");
+  // Voiding and credit notes change what the client owes: a money decision.
+  const canCredit = perms.can("payments", "approve");
 
   const actions = (
     <>

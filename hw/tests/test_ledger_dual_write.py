@@ -9,13 +9,13 @@ from hw.finance.accounts import cash_ledger_for
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
-from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_priced_cl, set_line_total
+from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_priced_cl, set_line_total, ops_and_money_role
 
 
 class DualWriteTestBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("tester", password="pw12345")
-        self.user.profile.role = 'manager'  # staff role is remittance-read-only
+        self.user.profile.role = ops_and_money_role()  # invoices and their money, one user
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         s = self.client.session

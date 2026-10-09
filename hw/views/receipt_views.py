@@ -19,18 +19,19 @@ re-applies the money, so it carries an "as at" date and says so.
 import logging
 
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.utils import timezone
 
 from ..models import Receipt
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 
 logger = logging.getLogger(__name__)
 
 
-@require_perm('invoice', 'delete')
+@require_perm('payments', 'delete')
 def receipt_void(request, pk):
-    receipt = get_object_or_404(Receipt, pk=pk)
+    receipt = get_in_scope_or_404(Receipt.objects.all(), request.user, pk=pk)
     if request.method == "POST":
         reason = request.POST.get("reason", "").strip()
         receipt.status = Receipt.STATUS_VOIDED
@@ -132,11 +133,11 @@ def _allocation_rows(payment):
 
 @require_perm('invoice', 'export')
 def receipt_pdf(request, pk):
-    receipt = get_object_or_404(
+    receipt = get_in_scope_or_404(
         Receipt.objects.select_related(
             'client', 'invoice', 'payment', 'confirmation_letter',
         ),
-        pk=pk,
+        request.user, pk=pk,
     )
     from .pdf import _logo_file_url
     from django.conf import settings

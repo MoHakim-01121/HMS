@@ -9,6 +9,7 @@ Koreksi = reversal, bukan delete.
 from django.db import transaction
 from django.utils import timezone
 
+from ..branch_scope import in_scope
 from ..models.expense import Expense, ExpenseLine, ExpensePayment
 from ..models.journal import JournalEntry
 from ..utils import convert_to_sar
@@ -44,6 +45,13 @@ def resolve_vendor(vendor):
     return Vendor.objects.filter(name_key=client_name_key(name)).first() or Vendor.objects.create(name=name)
 
 
+def _check_branch(branch_code, user):
+    """Pengeluaran dicatat, dibayar dan dibatalkan hanya oleh user yang
+    memegang cabangnya."""
+    if not in_scope(user, branch_code):
+        raise FinanceError('Pengeluaran ini milik cabang di luar akses Anda.')
+
+
 def _check_service_line(line, branch):
     """Biaya vendor hanya untuk baris Services yang dijual cabang ini (B12/B13)."""
     if line.kind != line.KIND_SERVICE or line.voided_at is not None:
@@ -67,6 +75,10 @@ def record_expense(*, branch, expense_date, lines, created_by, vendor=None,
     lines = list(lines)
     if not lines:
         raise FinanceError('Expense butuh minimal satu baris')
+    # Pengeluaran milik cabang; Pusat tidak mencatat pengeluaran (keputusan bisnis).
+    if branch.is_hq:
+        raise FinanceError('Pusat tidak mencatat pengeluaran — pengeluaran milik cabang.')
+    _check_branch(branch.pk, created_by)
     get_period_for_date(expense_date)
     total = sum(int(l['amount']) for l in lines)
     for l in lines:
@@ -131,6 +143,7 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
     """Bayar (sebagian/penuh) sebuah Expense: Dr AP / Cr Bank/Kas."""
     if expense.status == Expense.STATUS_VOIDED:
         raise FinanceError('Expense sudah void')
+    _check_branch(expense.branch_id, created_by)
     if account is None:
         raise FinanceError('Pilih rekening atau kas yang membayar.')
     from .bank_ledger import ensure_account_currency
@@ -181,6 +194,7 @@ def add_expense_payment(expense, *, amount, payment_date, created_by,
 def void_expense(expense, *, created_by, date=None):
     """Batalkan Expense: reverse semua jurnal accrual + pembayaran yang hidup,
     set status VOIDED. Baris/pembayaran tidak dihapus (audit)."""
+    _check_branch(expense.branch_id, created_by)
     date = date or timezone.now().date()
     from .bank_ledger import void_bank_transactions
     for ep in expense.payments.filter(status=ExpensePayment.STATUS_PAID):

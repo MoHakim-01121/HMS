@@ -2,13 +2,14 @@
 from datetime import date
 
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..finance import exchange_service
 from ..finance.errors import FinanceError
 from ..models.currency_exchange import CurrencyExchange
+from ..branch_scope import branch_codes, get_in_scope_or_404, scope
 from ..permissions import require_perm
 from .helpers import _parse_date, money_account_choices, resolve_money_account, validate_proof_file
 
@@ -40,15 +41,16 @@ def _row(ex):
 
 @require_perm('payments', 'view')
 def exchange_list(request):
-    qs = CurrencyExchange.objects.select_related('from_account', 'to_account')
+    qs = scope(CurrencyExchange.objects.all(), request.user).select_related('from_account', 'to_account')
     return inertia_render(request, 'Finance/Exchanges', props={'exchanges': [_row(ex) for ex in qs]})
 
 
-def _form_props(data=None, error=None):
-    choices = money_account_choices()
+def _form_props(user, data=None, error=None):
+    # A transfer stays inside one branch: the user's own accounts.
+    choices = money_account_choices(branches=branch_codes(user))
     # Last active rate per pair, so the form can warn about a likely typo live.
     last_rates = {}
-    for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).order_by('-exchange_date', '-pk').select_related('from_account', 'to_account')[:50]:
+    for ex in scope(CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE), user).order_by('-exchange_date', '-pk').select_related('from_account', 'to_account')[:50]:
         last_rates.setdefault(f'{ex.from_currency}>{ex.to_currency}', float(ex.rate))
     return {
         'account_choices': choices,
@@ -62,7 +64,7 @@ def _form_props(data=None, error=None):
 @require_perm('payments', 'create')
 def exchange_new(request):
     if request.method != 'POST':
-        return inertia_render(request, 'Finance/ExchangeForm', props=_form_props())
+        return inertia_render(request, 'Finance/ExchangeForm', props=_form_props(request.user))
 
     P = request.POST
     data = {k: P.get(k, '') for k in ('from_account', 'amount_out', 'to_account', 'amount_in', 'exchange_date', 'reference', 'note')}
@@ -84,7 +86,7 @@ def exchange_new(request):
         except FinanceError as e:
             error = str(e)
     if error:
-        return inertia_render(request, 'Finance/ExchangeForm', props=_form_props(data, error))
+        return inertia_render(request, 'Finance/ExchangeForm', props=_form_props(request.user, data, error))
     messages.success(request, f'{ex.exchange_number} tercatat: {ex.amount_out:,} {ex.from_currency} → {ex.amount_in:,} {ex.to_currency}.')
     return redirect('exchange_list')
 
@@ -92,7 +94,7 @@ def exchange_new(request):
 @require_perm('payments', 'delete')
 @require_POST
 def exchange_void(request, pk):
-    ex = get_object_or_404(CurrencyExchange, pk=pk)
+    ex = get_in_scope_or_404(CurrencyExchange.objects.all(), request.user, pk=pk)
     try:
         exchange_service.void_exchange(
             ex, reason=(request.POST.get('reason') or '').strip(), voided_by=request.user,

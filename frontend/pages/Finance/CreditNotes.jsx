@@ -58,7 +58,7 @@ export default function CreditNotes({ credit_notes = [] }) {
         ? <StatusPill small tone="gray" label={t("Voided")} />
         : <StatusPill small tone="green" label={t("Active")} />,
     },
-    perms.can("invoice", "delete") && {
+    perms.can("payments", "approve") && {
       header: "",
       className: "col-m-actions",
       render: (cn) => cn.status === "active" ? (

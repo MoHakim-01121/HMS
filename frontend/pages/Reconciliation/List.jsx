@@ -32,7 +32,7 @@ const EMPTY_LINE = { line_date: new Date().toISOString().split("T")[0], directio
 export default function List({ statements = [], account_choices = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const canEdit = perms.can("remittance", "edit");
+  const canEdit = perms.can("payments", "edit");
   const openForm = useFormModal();
 
   const [newOpen, setNewOpen] = useState(false);

@@ -3,30 +3,31 @@ from django.http import JsonResponse
 from django.urls import reverse
 
 from ..models import ConfirmationLetter, Invoice
+from ..branch_scope import scope
 from ..permissions import can
 
 
 @login_required
 def global_search(request):
     """Search across CLs, hotel invoices and services — each only for a user
-    who may view that module."""
+    who may view that module, and only the user's branches' records."""
     q = request.GET.get("q", "").strip()
     if not q or len(q) < 2:
         return JsonResponse({"results": [], "q": q})
 
     user = request.user
-    cl_qs = ConfirmationLetter.objects.with_parties().filter(
+    cl_qs = scope(ConfirmationLetter.objects.with_parties(), user).filter(
         ConfirmationLetter.objects.name_matches(q)
     )[:8] if can(user, "cl", "view") else []
 
     inv_qs = (
-        Invoice.objects.filter(invoice_type="hotel")
+        scope(Invoice.objects.all(), user).filter(invoice_type="hotel")
         .filter(Invoice.objects.name_matches(q))
         .with_lines()
     )[:8] if can(user, "invoice", "view") else []
 
     svc_qs = (
-        Invoice.objects.filter(invoice_type="visa")
+        scope(Invoice.objects.all(), user).filter(invoice_type="visa")
         .filter(Invoice.objects.name_matches(q))
         .with_lines()
     )[:8] if can(user, "services", "view") else []

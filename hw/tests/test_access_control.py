@@ -182,8 +182,9 @@ class UserManagementTests(TestCase):
         self.assertEqual(profile.role, Role.VIEWER.value)
 
     def test_is_staff_follows_the_role(self):
+        # Django admin is the administrator's alone (2026-10-09).
         self.client.post(f"/users/{self.target.pk}/edit/", {
-            "action": "set_access", "role": Role.MANAGER.value,
+            "action": "set_access", "role": Role.ADMIN.value,
         })
         self.target.refresh_from_db()
         self.assertTrue(self.target.is_staff)

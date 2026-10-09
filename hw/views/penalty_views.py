@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
 
 from inertia import render as inertia_render
@@ -13,6 +13,7 @@ from inertia import render as inertia_render
 from ..models import CancellationPenalty, ConfirmationLetter
 from ..finance.penalty_billing import bill_penalty, penalty_state, unbill_penalty
 from ..finance_helpers import FinanceError
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
@@ -37,14 +38,14 @@ def _penalty_amount(request):
 
 
 def _get_cl(request, cl_pk):
-    """Fetch a CL by pk."""
-    return get_object_or_404(ConfirmationLetter, pk=cl_pk)
+    """Fetch a CL of the user's branches by pk (404 otherwise)."""
+    return get_in_scope_or_404(ConfirmationLetter.objects.all(), request.user, pk=cl_pk)
 
 
 def _get_penalty(request, pk, qs=None):
-    """Fetch a penalty by pk."""
+    """Fetch a penalty of the user's branches by pk (404 otherwise)."""
     qs = qs if qs is not None else CancellationPenalty.objects.all()
-    return get_object_or_404(qs, pk=pk)
+    return get_in_scope_or_404(qs, request.user, pk=pk)
 
 
 def _state_props(penalty):
@@ -236,7 +237,7 @@ def penalty_pdf(request, pk):
 
 @require_perm('penalty', 'view')
 def penalty_list(request):
-    qs = CancellationPenalty.objects.select_related('cl', 'cl__client')
+    qs = scope(CancellationPenalty.objects.select_related('cl', 'cl__client'), request.user)
 
     q = (request.GET.get('q') or '').strip()
     if q:

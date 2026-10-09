@@ -7,7 +7,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -17,6 +17,7 @@ from ..models import (
     RoomType, log_activity,
 )
 from ..models.confirmation import guest_name_expr
+from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from ..i18n import tr
 from .helpers import _is_mobile, _parse_date, _parse_search_tokens, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
@@ -28,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 
 def _get_cl(request, pk, qs=None):
-    """Fetch a ConfirmationLetter by pk."""
+    """Fetch a ConfirmationLetter of the user's branches by pk (404 otherwise)."""
     qs = qs if qs is not None else ConfirmationLetter.objects.all()
-    return get_object_or_404(qs, pk=pk)
+    return get_in_scope_or_404(qs, request.user, pk=pk)
 
 
 _SORT_MAP = {
@@ -74,6 +75,8 @@ def _apply_cl_filters(qs, q, status_list, date_from, date_to):
 
 
 def _filter_cl_qs(qs, request):
+    """`qs` narrowed to the user's branches and the list filters, ordered."""
+    qs = scope(qs, request.user)
     q, status_list, date_from, date_to = _cl_filter_params(request)
     sort = request.GET.get('sort', '-check_in')
     qs = _apply_cl_filters(qs, q, status_list, date_from, date_to)
@@ -83,7 +86,7 @@ def _filter_cl_qs(qs, request):
 @require_perm('cl', 'view')
 def cl_list(request):
     base_qs = (
-        ConfirmationLetter.objects.all()
+        scope(ConfirmationLetter.objects.all(), request.user)
         .defer('note').select_related('client', 'hotel').with_invoice()
         .prefetch_related('rooms__room_type_ref')
     )
@@ -583,7 +586,7 @@ def invoice_from_cls(request):
         messages.error(request, "Select at least one CL.")
         return redirect("cl_list")
 
-    cls = ConfirmationLetter.objects.filter(pk__in=cl_ids).select_related('client', 'hotel').with_invoice()
+    cls = scope(ConfirmationLetter.objects.filter(pk__in=cl_ids), request.user).select_related('client', 'hotel').with_invoice()
     if not cls.exists():
         messages.error(request, "CL not found.")
         return redirect("cl_list")

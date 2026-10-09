@@ -71,7 +71,7 @@ class FinancePagePaymentTest(TestCase):
 class PaymentReverseTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('ledger_reverse', password='pw12345')
-        self.user.profile.role = 'manager'
+        self.user.profile.role = 'finance'  # money is Finance's (2026-10-09)
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         s = self.client.session

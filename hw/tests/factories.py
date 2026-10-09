@@ -318,3 +318,18 @@ def transfer_now(from_client, to_client, **kwargs):
     """Transfer deposit yang dicatat lalu langsung disetujui user lain."""
     from hw.finance.deposit import confirm_transfer, request_transfer
     return confirm_transfer(request_transfer(from_client, to_client, **kwargs), confirmed_by=_checker())
+
+
+def ops_and_money_role():
+    """Slug of a test role holding both the operational side (CL, invoices,
+    services) and money. Since 2026-10-09 these belong to two people (Manager
+    and Finance); tests that drive an invoice and its payments with one user,
+    to check the ledger rather than who may do what, use this role."""
+    from hw.models.role import RoleDefinition
+    every = ['view', 'create', 'edit', 'delete', 'export', 'approve']
+    modules = ('cl', 'invoice', 'services', 'hotels', 'clients', 'calendar', 'penalty',
+               'payments', 'expenses', 'remittance', 'statements', 'journal', 'periods')
+    RoleDefinition.objects.get_or_create(
+        slug='ops-money', defaults={'label': 'Ops & Money (test)', 'permissions': {m: every for m in modules}},
+    )
+    return 'ops-money'

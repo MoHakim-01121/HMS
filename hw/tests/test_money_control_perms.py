@@ -30,6 +30,8 @@ class MoneyControlPermissionTest(TestCase):
         self.staff = _user('mcp_staff', 'staff')
         self.staff2 = _user('mcp_staff2', 'staff')
         self.manager = _user('mcp_manager', 'manager')
+        # Money is Finance's; Manager and Staff read it (2026-10-09).
+        self.finance = _user('mcp_finance', 'finance')
 
     def _post_as(self, user, url):
         self.client.force_login(user)
@@ -40,34 +42,35 @@ class MoneyControlPermissionTest(TestCase):
             invoice=None, client=self.client_obj, payment_date=date(2026, 1, 5),
             amount=1000, method='Cash', created_by=self.staff,
         )
-        confirm_payment(payment, confirmed_by=self.manager)
+        confirm_payment(payment, confirmed_by=self.finance)
         return payment
 
     def _status(self, obj):
         obj.refresh_from_db()
         return obj.status
 
-    def test_staff_cannot_void_or_reverse_a_payment(self):
+    def test_staff_and_manager_cannot_void_or_reverse_a_payment(self):
         payment = self._confirmed_payment()
-        for action in ('void', 'reverse'):
-            self._post_as(self.staff, f'/finance/payments/{payment.pk}/{action}/')
-            self.assertEqual(self._status(payment), PaymentRecord.STATUS_CONFIRMED, action)
+        for user in (self.staff, self.manager):
+            for action in ('void', 'reverse'):
+                self._post_as(user, f'/finance/payments/{payment.pk}/{action}/')
+                self.assertEqual(self._status(payment), PaymentRecord.STATUS_CONFIRMED, (user, action))
 
-    def test_manager_can_void_a_payment(self):
+    def test_finance_can_void_a_payment(self):
         payment = self._confirmed_payment()
-        self._post_as(self.manager, f'/finance/payments/{payment.pk}/void/')
+        self._post_as(self.finance, f'/finance/payments/{payment.pk}/void/')
         self.assertEqual(self._status(payment), PaymentRecord.STATUS_VOIDED)
 
-    def test_manager_can_reverse_a_payment(self):
+    def test_finance_can_reverse_a_payment(self):
         payment = self._confirmed_payment()
-        self._post_as(self.manager, f'/finance/payments/{payment.pk}/reverse/')
+        self._post_as(self.finance, f'/finance/payments/{payment.pk}/reverse/')
         self.assertEqual(self._status(payment), PaymentRecord.STATUS_REVERSED)
 
     def _pending_refund(self):
         posting.post_adjustment(
             lines=[{"account": posting.coa.CASH_SBY, "debit": 5_000},
                    {"account": posting.coa.CUST_CREDIT, "credit": 5_000, "client": self.client_obj.pk}],
-            description='deposit awal', entry_date=date(2026, 3, 1), created_by=self.manager,
+            description='deposit awal', entry_date=date(2026, 3, 1), created_by=self.finance,
         )
         account = make_account('sby', 'SAR')
         fund_cash(account, 2_000)
@@ -81,7 +84,12 @@ class MoneyControlPermissionTest(TestCase):
         self._post_as(self.staff2, f'/finance/refunds/{refund.pk}/confirm/')
         self.assertEqual(self._status(refund), 'pending')
 
-    def test_manager_approves_a_refund(self):
+    def test_manager_cannot_approve_a_refund(self):
         refund = self._pending_refund()
         self._post_as(self.manager, f'/finance/refunds/{refund.pk}/confirm/')
+        self.assertEqual(self._status(refund), 'pending')
+
+    def test_finance_approves_a_refund(self):
+        refund = self._pending_refund()
+        self._post_as(self.finance, f'/finance/refunds/{refund.pk}/confirm/')
         self.assertEqual(self._status(refund), 'confirmed')

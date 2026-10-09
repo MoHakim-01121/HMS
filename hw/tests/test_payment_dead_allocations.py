@@ -26,7 +26,7 @@ from hw.tests.factories import make_hotel_line, make_invoice
 class DeadPaymentAllocationTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user('deadalloc', password='pw12345')
-        self.user.profile.role = 'manager'
+        self.user.profile.role = 'finance'  # money is Finance's (2026-10-09)
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         FinancialPeriod.objects.create(

@@ -51,7 +51,8 @@ class RecapTest(AllocationBase):
         self._transfer(9_600_000, 4800, date(2026, 10, 2), number='RMT-ALC-2')
         self._receive(40000, date(2026, 9, 12), None)
 
-        months = {m['period']: m for m in _compute_recap_data()}
+        request = type('R', (), {'user': self.user})()  # covers every branch
+        months = {m['period']: m for m in _compute_recap_data(request)}
         self.assertEqual(list(months), ['2026-10', '2026-09'])
         sept = months['2026-09']
         self.assertEqual(

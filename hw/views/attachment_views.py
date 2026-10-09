@@ -2,10 +2,10 @@ import os
 import magic
 
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
 from ..models import Attachment, ConfirmationLetter, Invoice
+from ..branch_scope import get_in_scope_or_404
 from ..permissions import require_perm
 
 _ALLOWED_MIME = {
@@ -55,10 +55,11 @@ def attachment_upload(request):
         return JsonResponse({"error": f"File extension {ext} does not match content type {detected_mime}."}, status=400)
 
     att = Attachment(name=f.name, size=f.size)
+    # Only on an invoice or CL of the user's branches.
     if invoice_id:
-        att.invoice = get_object_or_404(Invoice, pk=invoice_id)
+        att.invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=invoice_id)
     else:
-        att.cl = get_object_or_404(ConfirmationLetter, pk=cl_id)
+        att.cl = get_in_scope_or_404(ConfirmationLetter.objects.all(), request.user, pk=cl_id)
     att.file = f
     att.save()
 
@@ -75,7 +76,7 @@ def attachment_upload(request):
 @require_perm('invoice', 'edit')
 @require_POST
 def attachment_delete(request, pk):
-    att = get_object_or_404(Attachment, pk=pk)
+    att = get_in_scope_or_404(Attachment.objects.all(), request.user, pk=pk)
     try:
         if att.file and os.path.isfile(att.file.path):
             os.remove(att.file.path)

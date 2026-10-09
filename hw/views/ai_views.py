@@ -13,6 +13,7 @@ from django_ratelimit.decorators import ratelimit
 
 from ..ai import CHAT_MODULES, generate_draft_message, get_chat_reply
 from ..models import ActivityLog, Invoice, log_activity
+from ..branch_scope import scope
 from ..permissions import can
 
 
@@ -27,9 +28,9 @@ def ai_draft_message(request):
     except Exception:
         return JsonResponse({"error": "Invalid request."}, status=400)
 
-    invoice = Invoice.objects.filter(pk=pk).first()
-    # A user who may not view this kind of invoice gets the same answer as for
-    # one that does not exist.
+    invoice = scope(Invoice.objects.all(), request.user).filter(pk=pk).first()
+    # A user who may not view this kind of invoice, or another branch's, gets
+    # the same answer as for one that does not exist.
     module = 'services' if invoice and invoice.invoice_type == 'visa' else 'invoice'
     if not invoice or not can(request.user, module, 'view'):
         return JsonResponse({"error": "Invoice not found."}, status=404)
@@ -59,7 +60,7 @@ def ai_chat(request):
 
     history = request.session.get("ai_history", [])
 
-    reply = get_chat_reply(message, history=history, modules=modules)
+    reply = get_chat_reply(message, history=history, user=request.user, modules=modules)
 
     if reply:
         history = history + [

@@ -7,7 +7,8 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import F, Q, Sum
-from django.shortcuts import get_object_or_404, redirect
+from django.http import Http404
+from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 
 from inertia import render as inertia_render
@@ -15,6 +16,7 @@ from inertia import render as inertia_render
 from ..models import Remittance, RemittanceLine
 from ..finance import fund_flow, posting, remittance_allocation
 from ..finance_helpers import FinanceError
+from ..branch_scope import get_in_scope_or_404, in_scope, scope
 from ..permissions import require_perm
 from .helpers import validate_proof_file, period_label as _period_label, csv_export_response
 
@@ -117,6 +119,21 @@ def _compute_stats():
 _build_reservasi_mengendap = remittance_allocation.build_reservasi_mengendap
 
 
+# The remittance figures (obligation to send, FX profit, tracking, ledger) are
+# built for Surabaya -> head office, today's only operating branch. Only a user
+# covering Surabaya sees them; a branch without its own figures yet sees none.
+REMITTING_BRANCH = 'sby'
+
+
+def _sees_remittance_figures(user):
+    return in_scope(user, REMITTING_BRANCH)
+
+
+def _remittances(request):
+    """Transfers sent from the user's branches' accounts."""
+    return scope(Remittance.objects.all(), request.user)
+
+
 def _can_record_receipt(rem):
     """Record Receipt terbuka selama Pusat belum menerima penuh -- aturan yang
     sama ditegakkan di settlement_service.add_settlement."""
@@ -135,7 +152,7 @@ def remittance_list(request):
 
     remittances, stats = [], None
     if tab == 'transfers':
-        qs = Remittance.objects.all().prefetch_related('settlements__allocations').order_by('-date')
+        qs = _remittances(request).prefetch_related('settlements__allocations').order_by('-date')
         if q:
             qs = qs.filter(
                 Q(remittance_number__icontains=q) |
@@ -149,7 +166,7 @@ def remittance_list(request):
         if status_filter in ('pending', 'received'):
             qs = [rem for rem in qs if rem.status == status_filter]
         sent_map = finance_queries.remittance_sent_map([rem.pk for rem in qs])
-        stats = _compute_stats()
+        stats = _compute_stats() if _sees_remittance_figures(request.user) else None
         remittances = [{
             "id": rem.id,
             "remittance_number": rem.remittance_number,
@@ -169,9 +186,9 @@ def remittance_list(request):
         "stats": stats,
         "status_filter": status_filter,
         "q": q,
-        "total_count": Remittance.objects.all().count(),
-        "tracking": _compute_tracking_data() if tab == 'tracking' else None,
-        "monthly": _compute_recap_data() if tab == 'recap' else None,
+        "total_count": _remittances(request).count(),
+        "tracking": _compute_tracking_data() if tab == 'tracking' and _sees_remittance_figures(request.user) else None,
+        "monthly": _compute_recap_data(request) if tab == 'recap' else None,
     })
 
 
@@ -183,10 +200,12 @@ def remittance_new(request):
     Pusat mencatat penerimaan (hw/finance/remittance_allocation.py), karena
     baru saat itu jelas uang siapa yang didahulukan."""
     from ..models.bank import BankAccount
-    # Transfers leave a branch's IDR bank account (never HQ's own).
+    if not _sees_remittance_figures(request.user):
+        raise Http404  # the form shows Surabaya's rupiah pool and open transfers
+    # Transfers leave an IDR bank account of the user's branch (never HQ's own).
     from_accounts = list(
-        BankAccount.objects.filter(is_active=True, currency='IDR')
-        .exclude(branch_id='pusat').select_related('branch').order_by('bank_name', 'account_identifier')
+        scope(BankAccount.objects.filter(is_active=True, currency='IDR'), request.user)
+        .exclude(branch__is_hq=True).select_related('branch').order_by('bank_name', 'account_identifier')
     )
 
     def form_page(error=None):
@@ -273,7 +292,7 @@ def remittance_new(request):
 @require_perm('remittance', 'view')
 def remittance_detail(request, pk):
     from ..models import Reservation
-    rem = get_object_or_404(Remittance.objects.select_related('from_account', 'to_account'), pk=pk)
+    rem = get_in_scope_or_404(Remittance.objects.select_related('from_account', 'to_account'), request.user, pk=pk)
 
     from ..finance.settlement_service import diff_is_closed
     settlements = list(
@@ -361,7 +380,7 @@ def remittance_detail(request, pk):
 
 @require_perm('remittance', 'export')
 def remittance_export_csv(request):
-    remittances = Remittance.objects.all().prefetch_related(
+    remittances = _remittances(request).prefetch_related(
         'settlements__allocations__invoice_line__invoice', 'settlements__allocations__invoice_line__confirmation_letter',
     )
     headers = ['Tanggal', 'Total SAR', 'Note', 'Res#', 'Invoice', 'Amount SAR']
@@ -387,7 +406,7 @@ def remittance_export_csv(request):
 def remittance_edit(request, pk):
     # remittance yang sudah Received tetap boleh diedit: koreksi kadang baru
     # ketahuan setelah HQ menandai diterima
-    rem = get_object_or_404(Remittance, pk=pk)
+    rem = get_in_scope_or_404(Remittance.objects.all(), request.user, pk=pk)
     if request.method == 'POST':
         proof = None if request.POST.get('remove_proof') else request.FILES.get('proof')
         proof_error = validate_proof_file(proof) if proof else None
@@ -488,7 +507,7 @@ def remittance_pdf(request, pk):
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
     from ..models import Reservation
-    rem = get_object_or_404(Remittance, pk=pk)
+    rem = get_in_scope_or_404(Remittance.objects.all(), request.user, pk=pk)
     raw_lines = list(
         rem.lines.select_related('invoice_line__invoice__client', 'invoice_line__confirmation_letter', 'settlement')
         .order_by('invoice_line__confirmation_letter__confirmation_number')
@@ -516,7 +535,7 @@ def remittance_pdf(request, pk):
 @require_perm('remittance', 'edit')
 @require_POST
 def remittance_upload_proof(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk)
+    rem = get_in_scope_or_404(Remittance.objects.all(), request.user, pk=pk)
     proof = request.FILES.get('proof')
     if proof:
         proof_error = validate_proof_file(proof)
@@ -531,7 +550,7 @@ def remittance_upload_proof(request, pk):
 @require_perm('remittance', 'delete')
 @require_POST
 def remittance_delete(request, pk):
-    rem = get_object_or_404(Remittance, pk=pk)
+    rem = get_in_scope_or_404(Remittance.objects.all(), request.user, pk=pk)
     # System of record (Fase 7): jurnal REMITTANCE hidup merepresentasikan
     # perpindahan kas SBY->PUSAT. Remittance yang sudah menyentuh jurnal --
     # langsung atau lewat baris -- tidak boleh hilang diam-diam.
@@ -574,7 +593,7 @@ def _recap_totals(figures):
     return totals
 
 
-def _compute_recap_data():
+def _compute_recap_data(request):
     """Rangkuman remittance per bulan transfer (tab Recap).
 
     "Diterima" = nominal yang benar-benar masuk Kas Pusat
@@ -582,7 +601,7 @@ def _compute_recap_data():
     berstatus received. Penerimaan dihitung di bulan transfernya, bukan bulan
     diterima."""
     remittances = (
-        Remittance.objects.all().prefetch_related('settlements__allocations').order_by('-date', '-created_at')
+        _remittances(request).prefetch_related('settlements__allocations').order_by('-date', '-created_at')
     )
     months = {}
     for rem, fig in remittance_allocation.figures_for(remittances):
@@ -828,6 +847,8 @@ def _build_ledger_rows(date_from=None, date_to=None):
 def remittance_ledger_pdf(request):
     from .helpers import _parse_date, _render_list_pdf
     from .pdf import _logo_file_url
+    if not _sees_remittance_figures(request.user):
+        raise Http404
 
     date_from = _parse_date(request.GET.get('from', ''))
     date_to = _parse_date(request.GET.get('to', ''))
@@ -859,7 +880,7 @@ def remittance_period_pdf(request):
     except ValueError:
         return redirect('remittance_recap')
 
-    remittances = Remittance.objects.filter(
+    remittances = _remittances(request).filter(
         date__year=period_dt.year,
         date__month=period_dt.month,
     ).prefetch_related('settlements__allocations').order_by('date')

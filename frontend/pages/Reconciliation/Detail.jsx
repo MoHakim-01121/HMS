@@ -20,7 +20,7 @@ import { fmt } from "../../utils/format.js";
 export default function Detail({ statement = {} }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const canEdit = perms.can("remittance", "edit");
+  const canEdit = perms.can("payments", "edit");
   const [picks, setPicks] = useState({});
   const [forceLine, setForceLine] = useState({});
   const cur = statement.currency;

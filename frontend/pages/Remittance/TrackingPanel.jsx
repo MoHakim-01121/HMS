@@ -101,7 +101,7 @@ export default function TrackingPanel({ tracking }) {
         <div className="tq-callout" key={p.settlement_id} role="status">
           <Icon name="alert-circle" size={15} />
           <span>{t("{number}: {n} SAR received {date} but not allocated", { number: p.remittance_number, n: fmt(p.amount_sar), date: p.received_date })}</span>
-          {perms.can("remittance", "edit") && (
+          {perms.can("remittance", "edit") && perms.headOffice && (
             <button type="button" className="tq-callout-act" onClick={() => openForm(allocationUrl(p))}>
               {t("Allocate")}<Icon name="arrow-right" size={13} />
             </button>

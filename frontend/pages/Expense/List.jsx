@@ -59,11 +59,15 @@ export default function List({
   const canCreate = perms.can("expenses", "create");
   const canExport = perms.can("expenses", "export");
 
+  // Branches the user records expenses for (never head office). With only one,
+  // it is filled in and no branch picker or filter is shown.
+  const soleBranch = branch_choices.length === 1 ? branch_choices[0].value : "";
+  const pickBranch = branch_choices.length > 1;
   const [branchFilter, setBranchFilter] = useState(branch_filter || "all");
   const [statusFilter, setStatusFilter] = useState(status_filter || "all");
   const [newOpen, setNewOpen] = useState(false);
   const [form, setForm] = useState({
-    branch: "", expense_date: new Date().toISOString().split("T")[0],
+    branch: soleBranch, expense_date: new Date().toISOString().split("T")[0],
     vendor: "", description: "", currency: "SAR", exchange_rate: "1", note: "",
     pay_now: false, pay_now_account: "", pay_now_reference: "",
   });
@@ -88,7 +92,7 @@ export default function List({
 
   const resetForm = () => {
     setForm({
-      branch: "", expense_date: new Date().toISOString().split("T")[0],
+      branch: soleBranch, expense_date: new Date().toISOString().split("T")[0],
       vendor: "", description: "", currency: "SAR", exchange_rate: "1", note: "",
       pay_now: false, pay_now_account: "", pay_now_reference: "",
     });
@@ -132,7 +136,8 @@ export default function List({
       className: "col-m-badge",
       render: (e) => <StatusPill tone={STATUS_TONE[e.status] || "gray"} label={e.status_display} />,
     },
-    {
+    // One branch only: every row is that branch, so no column for it.
+    pickBranch && {
       header: t("Branch"),
       className: "col-m-meta",
       render: (e) => e.branch_name || "—",
@@ -203,15 +208,17 @@ export default function List({
       </div>
 
       <div className="filter-bar">
-        <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); applyFilters({ branch: v }); }}>
-          <SelectTrigger className="w-44" style={{ height: 40 }}>
-            <SelectValue placeholder={t("All Branches")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("All Branches")}</SelectItem>
-            {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {pickBranch && (
+          <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); applyFilters({ branch: v }); }}>
+            <SelectTrigger className="w-44" style={{ height: 40 }}>
+              <SelectValue placeholder={t("All Branches")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("All Branches")}</SelectItem>
+              {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); applyFilters({ status: v }); }}>
           <SelectTrigger className="w-44" style={{ height: 40 }}>
             <SelectValue placeholder={t("All Status")} />
@@ -229,7 +236,7 @@ export default function List({
         {expenses.length > 0 ? (
           <>
             <Table
-              columns={columns}
+              columns={columns.filter(Boolean)}
               rows={expenses}
               rowKey={(e) => e.id}
               onRowClick={(e) => router.visit(`/finance/expenses/${e.id}/`)}
@@ -262,14 +269,16 @@ export default function List({
               <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 <FormSection label={t("Expense Details")}>
                   <div className="fg-3">
-                    <FormField label={t("Branch")} name="branch" required>
-                      <Select value={form.branch} onValueChange={(v) => setForm({ ...form, branch: v, pay_now_account: "" })}>
-                        <SelectTrigger className="w-full"><SelectValue placeholder={t("Select branch...")} /></SelectTrigger>
-                        <SelectContent>
-                          {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </FormField>
+                    {pickBranch && (
+                      <FormField label={t("Branch")} name="branch" required>
+                        <Select value={form.branch} onValueChange={(v) => setForm({ ...form, branch: v, pay_now_account: "" })}>
+                          <SelectTrigger className="w-full"><SelectValue placeholder={t("Select branch...")} /></SelectTrigger>
+                          <SelectContent>
+                            {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </FormField>
+                    )}
                     <FormField label={t("Date")} name="expense_date" type="date" required
                       value={form.expense_date} onChange={(v) => setForm({ ...form, expense_date: v })} />
                     <FormField label={t("Vendor")} name="vendor">

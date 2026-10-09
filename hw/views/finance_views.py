@@ -13,6 +13,7 @@ from ..finance import queries as finance_queries
 from ..finance.seasons import season_choices
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
+from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_scope, scope
 from ..permissions import can, require_perm, _deny
 from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension, pagination_props
 
@@ -46,20 +47,22 @@ def finance_hub(request):
         # The KPI counts every pending payment; pending_prs is only the
         # preview list. Deriving the count from the sliced list capped
         # "menunggu review" at 6 and summed only those 6 amounts.
-        pending_qs = PaymentRecord.objects.filter(status=PaymentRecord.STATUS_PENDING)
+        payments = scope(PaymentRecord.objects.all(), request.user)
+        pending_qs = payments.filter(status=PaymentRecord.STATUS_PENDING)
         pending_prs = list(
             pending_qs.select_related('client').order_by('-created_at')[:6]
         )
-        this_month = PaymentRecord.objects.filter(
+        this_month = payments.filter(
             payment_date__year=today.year, payment_date__month=today.month,
             status__in=PaymentRecord.EFFECTIVE_STATUSES,
         )
+        # Every branch's cash side by side: head office's view.
         data['cash'] = {
             'sby': finance_queries.kas_surabaya(),
             'jkt': finance_queries.kas_jakarta(),
             'pusat': finance_queries.kas_pusat(),
             'transit': finance_queries.transit(),
-        }
+        } if covers_all(request.user) else None
         data['payments'] = {
             # Refund / transfer deposit awaiting a second person.
             'pending_out': _pending_out_rows(request.user),
@@ -82,7 +85,7 @@ def finance_hub(request):
 
     # ── Piutang & Statement ───────────────────────────────────────
     if has('statements'):
-        overview = finance_queries.clients_overview()
+        overview = finance_queries.clients_overview(clients=scope(Client.objects.all(), request.user))
         debtors = [r for r in overview if r['piutang'] > 0]
         data['receivables'] = {
             'total': sum(r['piutang'] for r in overview),
@@ -94,14 +97,16 @@ def finance_hub(request):
 
     # ── Remittance ────────────────────────────────────────────────
     if has('remittance'):
-        pending_remits = Remittance.objects.order_by('-date', '-created_at').pending()
+        remits = scope(Remittance.objects.all(), request.user)
+        pending_remits = remits.order_by('-date', '-created_at').pending()
         sent_map = finance_queries.remittance_sent_map([r.id for r in pending_remits])
-        recent = list(Remittance.objects.order_by('-date', '-created_at')[:6])
+        recent = list(remits.order_by('-date', '-created_at')[:6])
         recent_map = finance_queries.remittance_sent_map([r.id for r in recent])
         data['remittance'] = {
             'pending_count': len(pending_remits),
             'pending_sar': sum(sent_map.get(r.id, 0) for r in pending_remits),
-            'kewajiban_kirim': finance_queries.kewajiban_kirim_sby(),
+            # Surabaya's obligation to head office (the only remitting branch).
+            'kewajiban_kirim': finance_queries.kewajiban_kirim_sby() if in_scope(request.user, 'sby') else 0,
             'recent': [{
                 'id': r.id,
                 'number': r.remittance_number,
@@ -116,7 +121,8 @@ def finance_hub(request):
 
     # ── Expenses ──────────────────────────────────────────────────
     if has('expenses'):
-        month_exp = Expense.objects.filter(
+        expenses = scope(Expense.objects.all(), request.user)
+        month_exp = expenses.filter(
             expense_date__year=today.year, expense_date__month=today.month,
             status=Expense.STATUS_POSTED,
         )
@@ -134,7 +140,7 @@ def finance_hub(request):
                 'date': e.expense_date.isoformat(),
                 'amount_sar': e.total_amount_sar,
                 'status': e.display_status,
-            } for e in Expense.objects.select_related('branch', 'vendor').prefetch_related('lines')
+            } for e in expenses.select_related('branch', 'vendor').prefetch_related('lines')
                 .order_by('-expense_date')[:6]],
         }
     else:
@@ -295,7 +301,8 @@ def statements_list(request):
     if sort not in finance_queries.OVERVIEW_SORTS:
         sort = 'receivable'
 
-    rows = finance_queries.clients_overview(q=q, outstanding_only=outstanding, sort=sort)
+    rows = finance_queries.clients_overview(q=q, outstanding_only=outstanding, sort=sort,
+                                            clients=scope(Client.objects.all(), request.user))
     totals = finance_queries.clients_overview_totals(rows)
 
     paginator = Paginator(rows, 25)
@@ -320,10 +327,12 @@ def bank_account_list(request):
     from ..models.branch import Branch
 
     branch = request.GET.get('branch')
-    rows = finance_queries.money_accounts_overview(branch=branch or None, include_inactive=True)
+    rows = finance_queries.money_accounts_overview(branch=branch or None, include_inactive=True,
+                                                   branches=branch_codes(request.user))
     return inertia_render(request, 'Finance/BankAccounts', props={
         'accounts': rows,
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        'branch_choices': [{'value': b.code, 'label': b.name}
+                           for b in scope(Branch.objects.filter(is_active=True), request.user)],
         # Every branch, inactive included: an account can still belong to one.
         'branch_names': dict(Branch.objects.values_list('code', 'name')),
         'branch_filter': branch or '',
@@ -521,6 +530,9 @@ def bank_account_transactions(request, kind, pk):
 
     date_from = _parse_date(request.GET.get('date_from'))
     date_to = _parse_date(request.GET.get('date_to'))
+    from ..models.bank import MoneyAccount
+    if not scope(MoneyAccount.objects.filter(pk=pk, kind=kind), request.user).exists():
+        raise Http404
     data = finance_queries.account_transactions(kind, pk, date_from=date_from, date_to=date_to)
     if data is None:
         raise Http404
@@ -538,10 +550,14 @@ def bank_account_transactions(request, kind, pk):
 def _pending_out_rows(user, client=None):
     """Refund / transfer deposit yang menunggu persetujuan, untuk layar.
     `can_decide`: user ini boleh menyetujui/menolaknya (bukan pencatatnya,
-    kecuali admin, dan punya hak payments.delete: keputusan uang keluar)."""
+    kecuali admin, dan punya hak payments.approve: keputusan uang keluar)."""
     from ..finance.deposit import can_approve, pending_out
-    may_decide = can(user, 'payments', 'delete')
+    may_decide = can(user, 'payments', 'approve')
     refunds, transfers = pending_out(client)
+    # Only the user's branches' clients.
+    refunds = [r for r in refunds if in_scope(user, r.client.owner_branch_id)]
+    transfers = [t for t in transfers if in_scope(user, t.from_client.owner_branch_id)
+                 or in_scope(user, t.to_client.owner_branch_id)]
     rows = [{
         'kind': 'refund', 'id': r.pk, 'number': r.refund_number, 'date': r.refund_date.isoformat(),
         'client': r.client.name, 'client_id': r.client_id,
@@ -568,7 +584,7 @@ def client_finance_statement(request, pk):
       - `balance` (default): Balance Forward — opening + running balance rows.
       - `open`: Open Item — daftar invoice yang belum lunas per client.
     """
-    client = get_object_or_404(Client, pk=pk)
+    client = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
 
     mode = request.GET.get('mode', 'balance')
     if mode not in ('balance', 'open'):
@@ -676,14 +692,24 @@ def client_finance_statement(request, pk):
 
 
 
-def _fund_flow_params(request):
+def _report_branches(request):
     from ..models.branch import Branch
+    return scope(Branch.objects.all(), request.user)
+
+
+def _fund_flow_params(request):
+    """(branch, from, to). The branch is one the user covers: Surabaya by
+    default, otherwise the user's first branch."""
     today = date.today()
     date_from = _parse_date(request.GET.get('from')) or today.replace(day=1)
     date_to = _parse_date(request.GET.get('to')) or today
+    branches = _report_branches(request)
     branch = request.GET.get('branch') or 'sby'
-    if not Branch.objects.filter(code=branch).exists():
-        branch = 'sby'
+    if not branches.filter(code=branch).exists():
+        fallback = 'sby' if branches.filter(code='sby').exists() else None
+        branch = fallback or branches.order_by('code').values_list('code', flat=True).first()
+    if branch is None:
+        raise Http404
     return branch, date_from, date_to
 
 
@@ -691,13 +717,12 @@ def _fund_flow_params(request):
 def fund_flow_report(request):
     """Arus Dana: per-currency money in/out of a branch + realized FX profit."""
     from ..finance import fund_flow
-    from ..models.branch import Branch
     branch, date_from, date_to = _fund_flow_params(request)
     flow = fund_flow.fund_flow(branch=branch, date_from=date_from, date_to=date_to)
     fx = fund_flow.fx_profit(branch=branch, date_from=date_from, date_to=date_to)
     return inertia_render(request, 'Finance/FundFlow', props={
         'branch': branch,
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.order_by('code')],
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in _report_branches(request).order_by('code')],
         'date_from': date_from.isoformat(),
         'date_to': date_to.isoformat(),
         'seasons': season_choices(),
@@ -732,21 +757,26 @@ def _aging_as_of(request):
 def ar_aging_report(request):
     """Aging piutang semua client, per tanggal."""
     return inertia_render(request, 'Finance/ArAging', props={
-        'aging': finance_queries.ar_aging(as_of=_aging_as_of(request)),
+        'aging': finance_queries.ar_aging(as_of=_aging_as_of(request),
+                                          clients=scope(Client.objects.all(), request.user)),
     })
 
 
 @require_perm('statements', 'view')
 def service_margin_report(request):
     """Margin baris Services terhadap biaya vendornya, dan utang per vendor."""
-    from ..models.branch import Branch
+    branches = _report_branches(request).filter(is_active=True).order_by('name')
+    codes = branch_codes(request.user)
     branch = request.GET.get('branch') or ''
+    if codes is not None and branch not in codes:
+        # A branch's own figures only; with one branch it is that branch.
+        branch = branches.values_list('code', flat=True).first() or ''
     date_from = _parse_date(request.GET.get('date_from'))
     date_to = _parse_date(request.GET.get('date_to'))
     return inertia_render(request, 'Finance/ServiceMargin', props={
         'margins': finance_queries.service_margins(branch=branch or None, date_from=date_from, date_to=date_to),
-        'payables': finance_queries.vendor_payables(),
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True).order_by('name')],
+        'payables': finance_queries.vendor_payables(branches=codes),
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
         'filters': {
             'branch': branch,
             'date_from': date_from.isoformat() if date_from else '',
@@ -758,7 +788,7 @@ def service_margin_report(request):
 @require_perm('statements', 'export')
 def ar_aging_csv(request):
     from .helpers import csv_export_response
-    aging = finance_queries.ar_aging(as_of=_aging_as_of(request))
+    aging = finance_queries.ar_aging(as_of=_aging_as_of(request), clients=scope(Client.objects.all(), request.user))
     buckets = finance_queries.AGING_BUCKETS
     header = ['Client', 'Invoice', 'Due date', 'Days overdue', 'Not yet due', '1-30', '31-60', '61-90', '>90', 'Total (SAR)']
     rows = []

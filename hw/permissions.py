@@ -25,6 +25,7 @@ from django.db import DatabaseError
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 
+from .branch_scope import covers_all, is_head_office_only
 from .models.role import ADMIN_SLUG, MATRIX_CACHE_KEY, RoleDefinition
 from .models.user import Role
 
@@ -39,7 +40,11 @@ MODULES = (
     'payments', 'journal', 'statements', 'periods', 'expenses',
 )
 
-ACTIONS = ('view', 'create', 'edit', 'delete', 'export')
+# 'approve' is the second person's decision on money: confirming a payment,
+# approving a refund or deposit transfer, voiding an invoice or issuing a
+# credit note. Kept apart from 'delete' so the power to decide can be granted
+# on its own.
+ACTIONS = ('view', 'create', 'edit', 'delete', 'export', 'approve')
 
 # Modules only the admin role ever holds, whatever a role row says. Account and
 # role management decide who may do everything else: handing any part of it to
@@ -51,74 +56,63 @@ ADMIN_ONLY_MODULES = ('users',)
 GRANTABLE_MODULES = tuple(m for m in MODULES if m not in ADMIN_ONLY_MODULES)
 
 _ALL = set(ACTIONS)
+_CRUD = {'view', 'create', 'edit', 'delete', 'export'}
 _READ = {'view', 'export'}
 _NO_DELETE = {'view', 'create', 'edit', 'export'}
+
+# The operational modules (bookings, billing, clients, catalogue) and the money
+# modules. Only Admin and Finance work on money; Manager and Staff read it
+# (decided 2026-10-09).
+OPERATIONAL_MODULES = ('cl', 'invoice', 'services', 'hotels', 'clients', 'calendar', 'penalty')
+MONEY_MODULES = ('payments', 'expenses', 'remittance')
 
 # role -> module -> allowed actions. A module missing from a role's dict means
 # no access at all (not even 'view').
 #
-# This is the *seed*, not the live matrix. Migration 0037 copies it into
-# RoleDefinition rows; after that, edits happen in the UI. It stays here as the
-# fallback for a database that has no roles yet (fresh install mid-migration).
+# This is the *seed*, not the live matrix. Migrations 0037 and 0143 copy it
+# into RoleDefinition rows; after that, edits happen in the UI (/roles/), where
+# any role can be widened or narrowed. It stays here as the fallback for a
+# database that has no roles yet (fresh install mid-migration).
 DEFAULT_ROLE_MATRIX = {
     Role.ADMIN.value: {m: set(_ALL) for m in MODULES},
 
-    # Runs the business: full CRUD on operational data, but cannot manage
-    # accounts or reach the dev-only style guide.
-    Role.MANAGER.value: {
-        **{m: set(_ALL) for m in MODULES if m not in ('users', 'dev', 'journal', 'statements')},
-        # Journal and statements are system-generated ledgers — managers read
-        # and export them, never hand-edit. Periods keep create/edit (open,
-        # close, lock) but stop short of deletion.
-        'journal':    set(_READ),
+    # Works on money: records and approves payments, refunds, transfers,
+    # expenses and remittances, reconciles accounts, closes periods (head
+    # office only). Reads the operational side to do so.
+    Role.FINANCE.value: {
+        **{m: set(_ALL) for m in MONEY_MODULES},
         'statements': set(_READ),
+        'journal':    set(_READ),
         'periods':    set(_NO_DELETE),
+        **{m: set(_READ) for m in OPERATIONAL_MODULES},
     },
 
-    # Day-to-day operators: create and edit their work, never delete it, and
-    # remittance (money movement) stays read-only.
+    # Runs the operation: full CRUD on bookings, billing, clients and the
+    # catalogue; reads money and the books, never moves or approves money.
+    Role.MANAGER.value: {
+        **{m: set(_CRUD) for m in OPERATIONAL_MODULES + ('landing',)},
+        **{m: set(_READ) for m in MONEY_MODULES + ('statements', 'journal', 'periods')},
+    },
+
+    # Day-to-day operators: create and edit their work, never delete it. Money
+    # is read-only (a payment's status, a remittance); the books and finance
+    # reports are not theirs.
     Role.STAFF.value: {
-        'cl':       set(_NO_DELETE),
-        'invoice':  set(_NO_DELETE),
-        'services': set(_NO_DELETE),
-        'hotels':   set(_NO_DELETE),
-        'clients':  set(_NO_DELETE),
-        'calendar': set(_NO_DELETE),
-        'penalty':  set(_NO_DELETE),
-        'landing':  set(_NO_DELETE),
-        'remittance': set(_READ),
-        # Staff record and amend payments, but financial reporting and
-        # period control stay read-only — closing/locking a period is a
-        # control decision, not a day-to-day operator action.
-        'payments':    set(_NO_DELETE),
-        'journal':     set(_READ),
-        'statements':  set(_READ),
-        'periods':     set(_READ),
-        'expenses':    set(_NO_DELETE),
+        **{m: set(_NO_DELETE) for m in OPERATIONAL_MODULES + ('landing',)},
+        **{m: set(_READ) for m in MONEY_MODULES},
     },
 
     # Read-only account: reporting, exports, PDF — nothing that mutates.
     Role.VIEWER.value: {
-        'cl':         set(_READ),
-        'invoice':    set(_READ),
-        'services':   set(_READ),
-        'hotels':     set(_READ),
-        'clients':    set(_READ),
-        'calendar':   set(_READ),
-        'penalty':    set(_READ),
-        'landing':    set(_READ),
-        'remittance': set(_READ),
-        'payments':   set(_READ),
-        'journal':    set(_READ),
-        'statements': set(_READ),
-        'periods':    set(_READ),
-        'expenses':   set(_READ),
+        m: set(_READ)
+        for m in OPERATIONAL_MODULES + ('landing',) + MONEY_MODULES + ('statements', 'journal', 'periods')
     },
 }
 
 
-# Presentation metadata for the seeded roles. Only used by migration 0037 and by
-# a fallback matrix; once the rows exist these live in the database too.
+# Presentation metadata for the seeded roles. Only used by the seeding
+# migrations and by a fallback matrix; once the rows exist these live in the
+# database too.
 DEFAULT_ROLE_META = {
     Role.ADMIN.value: {
         'label': 'Administrator',
@@ -126,15 +120,21 @@ DEFAULT_ROLE_META = {
         'grants_django_staff': True,
         'order': 10,
     },
+    Role.FINANCE.value: {
+        'label': 'Finance',
+        'description': 'Records and approves money: payments, refunds, transfers, expenses, remittances, reconciliation. Reads the rest.',
+        'grants_django_staff': False,
+        'order': 15,
+    },
     Role.MANAGER.value: {
         'label': 'Manager',
-        'description': 'Full access to all operational modules; cannot manage users.',
-        'grants_django_staff': True,
+        'description': 'Full access to bookings, billing and clients; reads money and the books.',
+        'grants_django_staff': False,
         'order': 20,
     },
     Role.STAFF.value: {
         'label': 'Staff',
-        'description': 'Create and edit operational records; no deleting, remittance read-only.',
+        'description': 'Create and edit operational records; no deleting; money read-only.',
         'grants_django_staff': False,
         'order': 30,
     },
@@ -250,22 +250,28 @@ def role_label(user):
 
 
 def can(user, module, action):
-    """True when ``user`` may perform ``action`` on ``module``."""
+    """True when ``user`` may perform ``action`` on ``module``: the role grants
+    it, and for head office's own work the user covers every branch
+    (branch_scope.HEAD_OFFICE)."""
     role = get_role(user)
     if role is None:
         return False
-    return action in role_matrix().get(role, {}).get(module, ())
+    if action not in role_matrix().get(role, {}).get(module, ()):
+        return False
+    return not is_head_office_only(module, action) or covers_all(user)
 
 
 def perms_payload(user):
-    """Serialise the user's matrix for Inertia props: {module: [actions]}."""
+    """Serialise what ``user`` may do for Inertia props: {module: [actions]},
+    the same answer can() gives."""
     role = get_role(user)
     matrix = role_matrix().get(role, {})
-    return {
-        module: sorted(actions)
+    everywhere = covers_all(user)
+    payload = {
+        module: sorted(a for a in actions if everywhere or not is_head_office_only(module, a))
         for module, actions in matrix.items()
-        if actions
     }
+    return {module: actions for module, actions in payload.items() if actions}
 
 
 def _deny(request, message="Access denied."):

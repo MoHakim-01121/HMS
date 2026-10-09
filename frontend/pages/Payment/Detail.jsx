@@ -26,8 +26,9 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
   const canEdit = perms.can("payments", "edit");
   // Pencatat tidak mengonfirmasi pembayarannya sendiri (kecuali admin) --
   // server menegakkan hal yang sama di payment_confirm.
-  const canConfirm = canEdit && (perms.isAdmin || payment.created_by !== perms.user?.username);
-  const canVoidReceipt = perms.can("invoice", "delete");
+  const canApprove = perms.can("payments", "approve");
+  const canConfirm = canApprove && (perms.isAdmin || payment.created_by !== perms.user?.username);
+  const canVoidReceipt = perms.can("payments", "delete");
   const [confirm, confirmDialog] = useConfirm();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -114,7 +115,8 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
   };
 
   let primary = null;
-  if (canEdit && payment.status === "pending") {
+  if (payment.status === "pending") {
+    // Confirming is an approval (payments.approve), not an edit.
     primary = canConfirm ? { label: t("Confirm"), onClick: handleConfirm } : null;
   } else if (canEdit && (allocatable || reallocatable)) {
     primary = {
@@ -126,7 +128,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
       onClick: () => setApplyOpen(true),
     };
   }
-  const canReject = canEdit && payment.status === "pending";
+  const canReject = canApprove && payment.status === "pending";
   // Excess stays on the payment until someone moves it to the client's
   // deposit: an explicit step, because deposit money can then leave the
   // client's invoices (refund, transfer to another client).

@@ -8,8 +8,9 @@ import FormField from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import BranchField from "./BranchField.jsx";
 
-function FormBody({ form_data, errors: serverErrors, role_choices = [] }) {
+function FormBody({ form_data, errors: serverErrors, role_choices = [], branch_choices = [] }) {
   const { t } = useI18n();
   // The hint under the picker is the role's own description, edited at /roles/,
   // so a custom role explains itself here without a second copy in the client.
@@ -19,6 +20,7 @@ function FormBody({ form_data, errors: serverErrors, role_choices = [] }) {
     username: fd.username || "", full_name: fd.full_name || "",
     password: "", password_confirm: "",
     role: fd.role || "staff",
+    branch: fd.branch || "all",
   });
   const errors = { ...serverErrors, ...form.errors };
   const set = (k) => (v) => form.setData(k, v);
@@ -54,6 +56,7 @@ function FormBody({ form_data, errors: serverErrors, role_choices = [] }) {
                 </SelectContent>
               </Select>
             </FormField>
+            <BranchField role={form.data.role} value={form.data.branch} onChange={set("branch")} choices={branch_choices} error={errors.branch} />
           </FormSection>
 
           <FormActions cancelHref="/users/" submitLabel={t("Create User")} processing={form.processing} />

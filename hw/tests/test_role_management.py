@@ -36,9 +36,9 @@ def make_user(username, role=Role.STAFF.value, superuser=False):
 
 
 class SeedTests(TestCase):
-    def test_migration_seeded_the_four_builtin_roles(self):
+    def test_migrations_seeded_the_builtin_roles(self):
         slugs = set(RoleDefinition.objects.values_list('slug', flat=True))
-        self.assertEqual(slugs, {'admin', 'manager', 'staff', 'viewer'})
+        self.assertEqual(slugs, {'admin', 'finance', 'manager', 'staff', 'viewer'})
         self.assertTrue(all(RoleDefinition.objects.values_list('is_system', flat=True)))
 
     def test_seeded_matrix_matches_the_behaviour_it_replaced(self):
@@ -118,7 +118,7 @@ class RoleViewAccessTests(TestCase):
         response = self.client.get(reverse('role_list'), **INERTIA)
         self.assertEqual(response.status_code, 200)
         props = response.json()['props']
-        self.assertEqual(len(props['roles']), 4)
+        self.assertEqual(len(props['roles']), 5)
         # User management is admin-only, so the matrix does not offer it.
         self.assertEqual([m['key'] for m in props['modules']], list(GRANTABLE_MODULES))
         self.assertEqual([a['key'] for a in props['actions']], list(ACTIONS))

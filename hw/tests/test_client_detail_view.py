@@ -63,6 +63,9 @@ class ClientDetailViewTest(TestCase):
         self.assertNotIn("total_billed", pins[0])
 
     def test_finance_statement_carries_the_client_money(self):
+        # The client ledger is Finance's (staff no longer read the books).
+        self.user.profile.role = 'finance'
+        self.user.profile.save(update_fields=['role'])
         # Bayar 6000 utk tagihan 5000 → lebihan 1000; mutasi 2 baris.
         # "All time": statement default hanya 3 bulan terakhir, data uji Januari 2026.
         resp = self.client.get(f"/finance/clients/{self.client_obj.pk}/statement/?from=", HTTP_X_INERTIA="true")

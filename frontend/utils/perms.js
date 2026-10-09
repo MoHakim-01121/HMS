@@ -30,6 +30,8 @@ export function usePerms() {
     companies: user?.companies ?? [],
     can: (module, action) => can(user, module, action),
     canAny: (module, ...actions) => actions.some((a) => can(user, module, a)),
+    /** Head office: the user covers every branch (head office's own steps). */
+    headOffice: Boolean(user?.all_branches),
     /** True when the module is visible at all (any permission on it). */
     sees: (module) => Boolean(user?.perms?.[module]?.length),
     isAdmin: user?.role === "admin",

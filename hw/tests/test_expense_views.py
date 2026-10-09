@@ -22,6 +22,8 @@ class ExpenseViewsBase(TestCase):
         FinancialPeriod.objects.create(
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
+        # Money is Finance's; Manager and Staff read it (2026-10-09).
+        self.finance = make_user('exp_fin', 'finance')
         self.manager = make_user('exp_mgr', 'manager')
         self.staff = make_user('exp_staff', 'staff')
         self.viewer = make_user('exp_viewer', 'viewer')
@@ -43,8 +45,8 @@ class ExpenseListViewTest(ExpenseViewsBase):
 
 
 class ExpenseRecordViewTest(ExpenseViewsBase):
-    def test_manager_can_record_expense(self):
-        self.client.force_login(self.manager)
+    def test_finance_can_record_expense(self):
+        self.client.force_login(self.finance)
         resp = self.client.post('/finance/expenses/record/', {
             'branch': 'sby', 'expense_date': '2026-05-01', 'vendor': 'PLN',
             'currency': 'SAR', 'exchange_rate': '1',
@@ -56,7 +58,7 @@ class ExpenseRecordViewTest(ExpenseViewsBase):
         self.assertEqual(exp.total_amount_sar, 1200)
 
     def test_pay_now_settles_immediately(self):
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         self.client.post('/finance/expenses/record/', {
             'branch': 'sby', 'expense_date': '2026-05-02', 'vendor': 'PDAM',
             'currency': 'SAR', 'exchange_rate': '1',
@@ -67,14 +69,16 @@ class ExpenseRecordViewTest(ExpenseViewsBase):
         self.assertEqual(exp.display_status, Expense.STATUS_PAID)
         self.assertEqual(exp.outstanding_sar, 0)
 
-    def test_staff_can_record_expense(self):
-        self.client.force_login(self.staff)
-        resp = self.client.post('/finance/expenses/record/', {
-            'branch': 'sby', 'expense_date': '2026-05-03', 'vendor': 'Telkom',
-            'currency': 'SAR', 'exchange_rate': '1',
-            'lines': json.dumps([{'category': 'TELECOM', 'amount': 300}]),
-        })
-        self.assertEqual(resp.status_code, 302)
+    def test_manager_and_staff_do_not_record_expenses(self):
+        for user in (self.manager, self.staff):
+            self.client.force_login(user)
+            resp = self.client.post('/finance/expenses/record/', {
+                'branch': 'sby', 'expense_date': '2026-05-03', 'vendor': 'Telkom',
+                'currency': 'SAR', 'exchange_rate': '1',
+                'lines': json.dumps([{'category': 'TELECOM', 'amount': 300}]),
+            })
+            self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Expense.objects.filter(expense_date='2026-05-03').exists())
 
     def test_viewer_cannot_record_expense(self):
         self.client.force_login(self.viewer)
@@ -100,8 +104,8 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         resp = self.client.get(f'/finance/expenses/{self.exp.pk}/')
         self.assertEqual(resp.status_code, 200)
 
-    def test_manager_can_pay(self):
-        self.client.force_login(self.manager)
+    def test_finance_can_pay(self):
+        self.client.force_login(self.finance)
         resp = self.client.post(f'/finance/expenses/{self.exp.pk}/pay/', {
             'amount': '2000', 'payment_date': '2026-05-06',
             'account': f'cash:{self.cash.pk}',
@@ -111,7 +115,7 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         self.assertEqual(self.exp.display_status, Expense.STATUS_PAID)
 
     def test_pay_with_unknown_currency_is_rejected(self):
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.post(f'/finance/expenses/{self.exp.pk}/pay/', {
             'amount': '2000', 'payment_date': '2026-05-06', 'currency': 'XYZ',
             'account': f'cash:{self.cash.pk}',
@@ -120,7 +124,7 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         self.assertFalse(self.exp.payments.exists())
 
     def test_pay_with_malformed_account_is_not_a_server_error(self):
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.post(f'/finance/expenses/{self.exp.pk}/pay/', {
             'amount': '2000', 'payment_date': '2026-05-06', 'account': 'cash:abc',
         })
@@ -134,8 +138,14 @@ class ExpenseDetailPayVoidTest(ExpenseViewsBase):
         self.exp.refresh_from_db()
         self.assertNotEqual(self.exp.status, Expense.STATUS_VOIDED)
 
-    def test_manager_can_void(self):
+    def test_manager_cannot_void(self):
         self.client.force_login(self.manager)
+        self.client.post(f'/finance/expenses/{self.exp.pk}/void/')
+        self.exp.refresh_from_db()
+        self.assertNotEqual(self.exp.status, Expense.STATUS_VOIDED)
+
+    def test_finance_can_void(self):
+        self.client.force_login(self.finance)
         resp = self.client.post(f'/finance/expenses/{self.exp.pk}/void/')
         self.assertEqual(resp.status_code, 302)
         self.exp.refresh_from_db()

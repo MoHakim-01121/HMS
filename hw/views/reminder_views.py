@@ -18,6 +18,7 @@ from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, WATarget, MessageTemplate
 from ..models.confirmation import guest_name_expr
+from ..branch_scope import scope
 from ..permissions import require_perm
 from ..i18n import tr
 from ..services.recap import (
@@ -59,7 +60,7 @@ def calendar_send_recap(request):
         date_filter = {'check_in__gte': today, 'check_in__lte': today + timedelta(days=6)}
         err_label = tr(request, 'next 7 days', '7 hari ke depan')
     qs = (
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), request.user)
         .filter(**date_filter)
         .exclude(reservation_status='CANCELLED')
         .with_parties().prefetch_related('rooms__room_type_ref')
@@ -80,7 +81,7 @@ def calendar_send_reminder_group(request):
     if not cl_ids:
         return JsonResponse({'ok': False, 'message': tr(request, 'No bookings selected', 'Tidak ada booking dipilih')})
     cls = list(
-        ConfirmationLetter.objects
+        scope(ConfirmationLetter.objects.all(), request.user)
         .filter(pk__in=cl_ids)
         .exclude(reservation_status='CANCELLED')
         .select_related('client')

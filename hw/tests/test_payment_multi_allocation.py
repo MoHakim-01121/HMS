@@ -24,7 +24,7 @@ from hw.tests.factories import make_hotel_line, make_invoice
 class MultiAllocationSaveTest(TestCase):
     def setUp(self):
         u = User.objects.create_user('multi_alloc', password='pw12345')
-        u.profile.role = 'manager'
+        u.profile.role = 'finance'  # money is Finance's (2026-10-09)
         u.profile.save(update_fields=['role'])
         self.client.force_login(u)
         s = self.client.session

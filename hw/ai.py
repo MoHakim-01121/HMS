@@ -153,20 +153,22 @@ def get_chat_reply(
     message: str,
     history: list | None = None,
     *,
+    user,
     modules=CHAT_MODULES,
 ) -> str | None:
-    """Answer from recent invoices, services and CLs. `modules` is what the
-    asking user may view: data of any other module is not even read, so it
-    can reach neither the answer nor the model provider."""
+    """Answer from recent invoices, services and CLs of `user`'s branches.
+    `modules` is what the user may view: data of any other module or branch is
+    not even read, so it can reach neither the answer nor the model provider."""
+    from .branch_scope import scope
     today = timezone.now().date()
     month = today.month
     year  = today.year
 
-    invoices = list(Invoice.objects.filter(invoice_type="hotel").with_lines()
+    invoices = list(scope(Invoice.objects.filter(invoice_type="hotel"), user).with_lines()
                     .order_by("-created_at")[:20]) if 'invoice' in modules else []
-    services = list(Invoice.objects.filter(invoice_type="visa").with_lines()
+    services = list(scope(Invoice.objects.filter(invoice_type="visa"), user).with_lines()
                     .order_by("-created_at")[:20]) if 'services' in modules else []
-    cls      = list(ConfirmationLetter.objects.all().prefetch_related('rooms')
+    cls      = list(scope(ConfirmationLetter.objects.all(), user).prefetch_related('rooms')
                     .order_by("-created_at")[:20]) if 'cl' in modules else []
 
     inv_total       = sum(i.total_sar for i in invoices)

@@ -21,6 +21,8 @@ class SettlementViewsBase(TestCase):
         FinancialPeriod.objects.create(
             name='2020-2030',            date_from=date(2020, 1, 1), date_to=date(2030, 12, 31),
         )
+        # Recording what head office received is Finance's (2026-10-09).
+        self.finance = make_user('stl_fin', 'finance')
         self.manager = make_user('stl_mgr', 'manager')
         self.staff = make_user('stl_staff', 'staff')
         self.sby = Branch.objects.get(code='sby')
@@ -34,12 +36,12 @@ class RecordReceiptViewTest(SettlementViewsBase):
         return f'/remittance/{self.rmt.pk}/receipt/'
 
     def test_settlement_list_page_is_gone(self):
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.get('/remittance/settlement/')
         self.assertEqual(resp.status_code, 404)
 
-    def test_manager_can_record_receipt(self):
-        self.client.force_login(self.manager)
+    def test_finance_can_record_receipt(self):
+        self.client.force_login(self.finance)
         resp = self.client.post(self._url(), {
             'received_amount_sar': '10000', 'received_date': '2026-06-05',
         })
@@ -50,7 +52,7 @@ class RecordReceiptViewTest(SettlementViewsBase):
     def test_json_next_is_honoured(self):
         # Inertia router.post mengirim JSON -- `next` harus dibaca dari body,
         # bukan request.POST (yang kosong untuk JSON).
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.post(
             self._url(),
             data='{"received_amount_sar": "10000", "received_date": "2026-06-05", "next": "/remittance/"}',
@@ -58,12 +60,13 @@ class RecordReceiptViewTest(SettlementViewsBase):
         )
         self.assertRedirects(resp, '/remittance/', fetch_redirect_response=False)
 
-    def test_staff_cannot_record_receipt_remittance_readonly(self):
-        self.client.force_login(self.staff)
-        resp = self.client.post(self._url(), {
-            'received_amount_sar': '10000', 'received_date': '2026-06-05',
-        })
-        self.assertEqual(resp.status_code, 302)
+    def test_staff_and_manager_cannot_record_receipt(self):
+        for user in (self.staff, self.manager):
+            self.client.force_login(user)
+            resp = self.client.post(self._url(), {
+                'received_amount_sar': '10000', 'received_date': '2026-06-05',
+            })
+            self.assertEqual(resp.status_code, 302)
         self.assertFalse(self.rmt.settlements.exists())
 
 class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
@@ -83,7 +86,7 @@ class RemittanceDetailSettlementPropsTest(SettlementViewsBase):
         svc.add_settlement(self.rmt, received_amount_sar=40000, received_date=date(2026, 6, 5),
                             created_by=self.manager)
 
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
         rem_props = resp.json()['props']['rem']
         self.assertEqual(rem_props['settlement_status'], 'partially_settled')
@@ -96,13 +99,13 @@ class RemittanceCloseDiffViewTest(SettlementViewsBase):
         super().setUp()
         from hw.finance import posting
         posting.post_remittance_send(self.rmt, amount_sar=10000, created_by=self.manager)
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         self.client.post(f'/remittance/{self.rmt.pk}/receipt/', {
             'received_amount_sar': '9500', 'received_date': '2026-06-10',
         })
 
     def _props(self):
-        self.client.force_login(self.manager)
+        self.client.force_login(self.finance)
         resp = self.client.get(f'/remittance/{self.rmt.pk}/', HTTP_X_INERTIA='true')
         return resp.json()['props']['rem']
 
@@ -113,7 +116,7 @@ class RemittanceCloseDiffViewTest(SettlementViewsBase):
         self.assertTrue(rem['can_record_receipt'])
         self.assertEqual(rem['status'], 'pending')
 
-    def test_manager_can_close_diff(self):
+    def test_finance_can_close_diff(self):
         resp = self.client.post(f'/remittance/{self.rmt.pk}/close-diff/')
         self.assertRedirects(resp, f'/remittance/{self.rmt.pk}/', fetch_redirect_response=False)
         rem = self._props()

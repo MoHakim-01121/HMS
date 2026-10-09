@@ -23,7 +23,7 @@ class CashFundsGuardTest(TestCase):
     def setUp(self):
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
         self.user = User.objects.create_user('guard_mgr', password='pw12345')
-        self.user.profile.role = 'manager'
+        self.user.profile.role = 'finance'  # money is Finance's (2026-10-09)
         self.user.profile.save(update_fields=['role'])
         self.client.force_login(self.user)
         self.idr = make_account('sby', 'IDR')

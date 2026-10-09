@@ -22,8 +22,36 @@ class SuperuserOnlyAdminSite(admin.AdminSite):
 admin.site.__class__ = SuperuserOnlyAdminSite
 
 
+class ReadOnlyAdmin(admin.ModelAdmin):
+    """Money and audit records change only through the app — journal, cash
+    book, maker-checker, period lock, activity log. Here they are read, never
+    added, edited or deleted, not even by a superuser."""
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class ReadOnlyInline(admin.TabularInline):
+    extra = 0
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Invoice)
-class InvoiceAdmin(admin.ModelAdmin):
+class InvoiceAdmin(ReadOnlyAdmin):
     list_display  = ('invoice_number', 'customer_name', 'invoice_type', 'issued_date', 'due_date')
     list_filter   = ('invoice_type',)
     search_fields = ('invoice_number', 'client__name', 'client__brand')
@@ -87,7 +115,7 @@ class DocumentSequenceAdmin(admin.ModelAdmin):
 
 
 @admin.register(ActivityLog)
-class ActivityLogAdmin(admin.ModelAdmin):
+class ActivityLogAdmin(ReadOnlyAdmin):
     list_display  = ('user', 'action', 'model_name', 'object_ref', 'timestamp')
     list_filter   = ('action',)
     search_fields = ('user__username', 'object_ref')
@@ -103,7 +131,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(Remittance)
-class RemittanceAdmin(admin.ModelAdmin):
+class RemittanceAdmin(ReadOnlyAdmin):
     list_display  = ('remittance_number', 'date', 'total_sar', 'note', 'has_proof')
     search_fields = ('note',)
     date_hierarchy = 'date'
@@ -129,47 +157,47 @@ class BranchAdmin(admin.ModelAdmin):
 
 
 @admin.register(BankAccount)
-class BankAccountAdmin(admin.ModelAdmin):
+class BankAccountAdmin(ReadOnlyAdmin):
     list_display = ('bank_name', 'name', 'branch', 'currency', 'is_active')
     list_filter = ('branch', 'currency', 'is_active')
 
 
 @admin.register(CashAccount)
-class CashAccountAdmin(admin.ModelAdmin):
+class CashAccountAdmin(ReadOnlyAdmin):
     list_display = ('name', 'branch', 'currency', 'is_active')
     list_filter = ('branch', 'currency', 'is_active')
 
 
 @admin.register(BankTransaction)
-class BankTransactionAdmin(admin.ModelAdmin):
+class BankTransactionAdmin(ReadOnlyAdmin):
     list_display = ('transaction_date', 'account', 'direction', 'amount_sar', 'source_type', 'source_id', 'status')
     list_filter = ('direction', 'status', 'source_type')
     date_hierarchy = 'transaction_date'
 
 
-class BankStatementLineInline(admin.TabularInline):
+class BankStatementLineInline(ReadOnlyInline):
     model = BankStatementLine
     extra = 0
 
 
 @admin.register(BankStatement)
-class BankStatementAdmin(admin.ModelAdmin):
+class BankStatementAdmin(ReadOnlyAdmin):
     list_display = ('account', 'currency', 'period_start', 'period_end', 'opening_balance', 'closing_balance')
     inlines = [BankStatementLineInline]
 
 
-class ExpenseLineInline(admin.TabularInline):
+class ExpenseLineInline(ReadOnlyInline):
     model = ExpenseLine
     extra = 0
 
 
-class ExpensePaymentInline(admin.TabularInline):
+class ExpensePaymentInline(ReadOnlyInline):
     model = ExpensePayment
     extra = 0
 
 
 @admin.register(Expense)
-class ExpenseAdmin(admin.ModelAdmin):
+class ExpenseAdmin(ReadOnlyAdmin):
     list_display = ('expense_number', 'branch', 'expense_date', 'vendor',
                     'total_amount_sar', 'status')
     list_filter = ('branch', 'status', 'expense_date')
@@ -184,12 +212,12 @@ class ExpenseCategoryAdmin(admin.ModelAdmin):
 
 
 @admin.register(RemittanceSettlement)
-class RemittanceSettlementAdmin(admin.ModelAdmin):
+class RemittanceSettlementAdmin(ReadOnlyAdmin):
     list_display = ('remittance', 'received_amount_sar', 'received_date')
 
 
-admin.site.register(InvoiceLine)
-admin.site.register(InvoiceRevision)
+admin.site.register(InvoiceLine, ReadOnlyAdmin)
+admin.site.register(InvoiceRevision, ReadOnlyAdmin)
 admin.site.register(Room)
 admin.site.register(Attachment)
 admin.site.register(TeamMember)

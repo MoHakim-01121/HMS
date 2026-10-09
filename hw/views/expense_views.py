@@ -11,11 +11,11 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import redirect
 
 from inertia import render as inertia_render
 
-from ..models.branch import Branch
+from ..branch_scope import get_in_scope_or_404, operating_branches, scope
 from ..models.expense import Expense, ExpenseCategory
 from ..models.journal import JournalEntry
 from ..models.vendor import Vendor
@@ -37,11 +37,13 @@ def _service_line_label(line):
             f"· {line.quantity} pax · {line.invoice.customer_name}")
 
 
-def _service_line_choices():
-    """Baris Services yang masih berlaku, untuk menautkan biaya vendornya."""
+def _service_line_choices(branches):
+    """Baris Services yang masih berlaku dari cabang-cabang `branches`, untuk
+    menautkan biaya vendornya."""
     from ..models import InvoiceLine
     lines = (
-        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True)
+        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True,
+                                   invoice__branch__in=branches)
         .exclude(invoice__status='void')
         .select_related('invoice__client').order_by('-invoice__issued_date', 'invoice_id', 'line_no')[:200]
     )
@@ -89,9 +91,14 @@ def _expense_props(e):
     }
 
 
+def _visible(request):
+    """Expenses of the branches the user covers."""
+    return scope(Expense.objects.all(), request.user)
+
+
 @require_perm('expenses', 'view')
 def expense_list(request):
-    expenses = Expense.objects.select_related('branch', 'created_by', 'vendor')
+    expenses = _visible(request).select_related('branch', 'created_by', 'vendor')
 
     branch = request.GET.get('branch')
     if branch:
@@ -106,7 +113,7 @@ def expense_list(request):
     page_obj = paginator.get_page(request.GET.get('page'))
     page_expenses = list(page_obj)
 
-    all_expenses = list(Expense.objects.exclude(status=Expense.STATUS_VOIDED).prefetch_related('lines', 'payments'))
+    all_expenses = list(_visible(request).exclude(status=Expense.STATUS_VOIDED).prefetch_related('lines', 'payments'))
     stats = {
         'total': len(all_expenses),
         'total_sar': sum(e.total_amount_sar for e in all_expenses),
@@ -114,14 +121,18 @@ def expense_list(request):
         'unpaid_count': sum(1 for e in all_expenses if e.display_status != Expense.STATUS_PAID),
     }
 
+    # Expenses belong to a branch, never to head office; with one branch to
+    # choose from the form fills it in and shows no picker.
+    branches = list(operating_branches(request.user))
+    codes = [b.code for b in branches]
     return inertia_render(request, 'Expense/List', props={
         'expenses': [_expense_props(e) for e in page_expenses],
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
         'category_choices': [{'value': c.code, 'label': c.name} for c in ExpenseCategory.objects.filter(is_active=True)],
         'status_choices': Expense.DISPLAY_CHOICES,
         'vendor_choices': [v.name for v in Vendor.objects.filter(is_active=True).order_by('name')],
-        'service_line_choices': _service_line_choices(),
-        'account_choices': _account_choices(),
+        'service_line_choices': _service_line_choices(codes),
+        'account_choices': _account_choices(branches=codes),
         'stats': stats,
         'branch_filter': branch or '',
         'status_filter': status or '',
@@ -131,8 +142,9 @@ def expense_list(request):
 
 @require_perm('expenses', 'view')
 def expense_detail(request, pk):
-    expense = get_object_or_404(
-        Expense.objects.select_related('branch', 'created_by', 'vendor').prefetch_related(*_PROPS_PREFETCH), pk=pk,
+    expense = get_in_scope_or_404(
+        Expense.objects.select_related('branch', 'created_by', 'vendor').prefetch_related(*_PROPS_PREFETCH),
+        request.user, pk=pk,
     )
     journal_entries = (
         JournalEntry.objects.for_source('Expense', expense.pk)
@@ -159,9 +171,12 @@ def expense_record(request):
     except (json.JSONDecodeError, ValueError):
         data = request.POST
 
-    branch = Branch.objects.filter(pk=data.get('branch'), is_active=True).first()
+    branches = operating_branches(request.user)
+    branch = branches.filter(pk=data.get('branch')).first() if data.get('branch') else None
+    if branch is None and not data.get('branch') and branches.count() == 1:
+        branch = branches.first()
     if branch is None:
-        messages.error(request, 'Cabang harus dipilih.')
+        messages.error(request, 'Pilih cabang pengeluaran — pengeluaran milik cabang, bukan Pusat.')
         return redirect('expense_list')
 
     expense_date_val = _parse_date(data.get('expense_date')) or date.today()
@@ -221,7 +236,7 @@ def expense_record(request):
 
 @require_perm('expenses', 'edit')
 def expense_pay(request, pk):
-    expense = get_object_or_404(Expense, pk=pk)
+    expense = get_in_scope_or_404(Expense.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('expense_detail', pk=pk)
 
@@ -262,7 +277,7 @@ def expense_pay(request, pk):
 
 @require_perm('expenses', 'delete')
 def expense_void(request, pk):
-    expense = get_object_or_404(Expense, pk=pk)
+    expense = get_in_scope_or_404(Expense.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
         return redirect('expense_detail', pk=pk)
 
@@ -277,7 +292,7 @@ def expense_void(request, pk):
 
 @require_perm('expenses', 'export')
 def expense_export_csv(request):
-    expenses = Expense.objects.select_related('branch').order_by('-expense_date')
+    expenses = _visible(request).select_related('branch').order_by('-expense_date')
 
     branch = request.GET.get('branch')
     if branch:

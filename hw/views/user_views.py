@@ -19,7 +19,9 @@ from django_ratelimit.decorators import ratelimit
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, RoleDefinition, UserProfile, log_activity
-from ..models.user import Role
+from ..models.branch import Branch
+from ..models.role import ADMIN_SLUG
+from ..models.user import Role, UserBranchAccess
 from ..permissions import (
     get_role, is_valid_role, require_perm,
     role_choices, role_label, role_labels,
@@ -52,6 +54,45 @@ def _role_choices():
 
 def _clean_role(value, fallback=Role.STAFF.value):
     return value if is_valid_role(value) else fallback
+
+
+ALL_BRANCHES = 'all'
+
+
+def _branch_choices():
+    """Every branch, or one branch other than head office: head office staff
+    work for every branch, so they get 'all'."""
+    return [{'value': ALL_BRANCHES, 'label': 'All branches'}] + [
+        {'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True, is_hq=False)
+    ]
+
+
+def _branch_value(user):
+    """The branch picker's value for `user`: 'all' or one branch code."""
+    profile = getattr(user, 'profile', None)
+    if user.is_superuser or profile is None or profile.all_branches or profile.role == ADMIN_SLUG:
+        return ALL_BRANCHES
+    codes = sorted(profile.branch_access.values_list('branch_id', flat=True))
+    return ','.join(codes)
+
+
+def _clean_branch(value, role):
+    """(branch code or 'all', error). The admin role always covers every
+    branch, so it can never lock itself out of user management."""
+    if role == ADMIN_SLUG or not value or value == ALL_BRANCHES:
+        return ALL_BRANCHES, None
+    if not Branch.objects.filter(code=value, is_active=True, is_hq=False).exists():
+        return None, "Choose all branches or one active branch."
+    return value, None
+
+
+def _save_branch(user, value):
+    profile = user.profile
+    profile.all_branches = value == ALL_BRANCHES
+    profile.save(update_fields=['all_branches'])
+    profile.branch_access.exclude(branch_id=value).delete()
+    if value != ALL_BRANCHES:
+        UserBranchAccess.objects.get_or_create(profile=profile, branch_id=value)
 
 
 def _grants_django_staff(role_slug):
@@ -90,11 +131,13 @@ def user_list(request):
         "is_self": u.pk == request.user.pk,
         "role": get_role(u),
         "role_label": role_label(u),
+        "branch": _branch_value(u),
     } for u in users]
     return inertia_render(request, "User/List", props={
         "users": data,
         "role_choices": _role_choices(),
         "role_labels": labels,
+        "branch_choices": _branch_choices(),
     })
 
 
@@ -106,11 +149,14 @@ def user_new(request):
         password = request.POST.get('password', '')
         confirm  = request.POST.get('password_confirm', '')
         role = _clean_role(request.POST.get('role'))
+        branch, branch_error = _clean_branch(request.POST.get('branch'), role)
         # is_staff is kept in sync with the role so Django admin access lines up
         # with what HMS itself grants.
         is_staff = _grants_django_staff(role)
 
         errors = {}
+        if branch_error:
+            errors['branch'] = branch_error
         if not username:
             errors['username'] = "Username is required."
         else:
@@ -132,10 +178,11 @@ def user_new(request):
             return inertia_render(request, "User/Form", props={
                 "form_data": {
                     "username": username, "full_name": full_name,
-                    "role": role,
+                    "role": role, "branch": request.POST.get('branch') or ALL_BRANCHES,
                 },
                 "errors": errors,
                 "role_choices": _role_choices(),
+                "branch_choices": _branch_choices(),
             })
 
         parts = full_name.split(None, 1)
@@ -148,13 +195,17 @@ def user_new(request):
         UserProfile.objects.update_or_create(
             user=user, defaults={'role': role},
         )
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'User', user.username, [{'field': 'role', 'new': role}])
+        user.refresh_from_db()
+        _save_branch(user, branch)
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'User', user.username,
+                     [{'field': 'role', 'new': role}, {'field': 'branch', 'new': branch}])
         messages.success(request, f"User '{user.username}' created successfully.")
         return redirect('user_list')
 
     return inertia_render(request, "User/Form", props={
         "form_data": None,
         "role_choices": _role_choices(),
+        "branch_choices": _branch_choices(),
     })
 
 
@@ -167,21 +218,27 @@ def user_edit(request, pk):
 
         if action == 'set_access':
             role = _clean_role(request.POST.get('role'), get_role(edit_user))
-            if edit_user == request.user:
+            branch, branch_error = _clean_branch(request.POST.get('branch', _branch_value(edit_user)), role)
+            if branch_error:
+                messages.error(request, branch_error)
+            elif edit_user == request.user:
                 # Demoting yourself would revoke the very permission needed to
                 # undo it — the only way back would be a shell.
                 messages.error(request, "You cannot change your own role.")
             elif edit_user.is_superuser and not request.user.is_superuser:
                 messages.error(request, "Only a superuser can change a superuser's access.")
             else:
-                old_role = get_role(edit_user)
+                old_role, old_branch = get_role(edit_user), _branch_value(edit_user)
                 UserProfile.objects.update_or_create(
                     user=edit_user,
                     defaults={'role': role},
                 )
-                if old_role != role:
-                    log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
-                                 [{'field': 'role', 'old': old_role, 'new': role}])
+                edit_user.refresh_from_db()
+                _save_branch(edit_user, branch)
+                changes = [{'field': f, 'old': o, 'new': n}
+                           for f, o, n in (('role', old_role, role), ('branch', old_branch, branch)) if o != n]
+                if changes:
+                    log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username, changes)
                 edit_user.is_staff = _grants_django_staff(role)
                 edit_user.save(update_fields=['is_staff'])
                 messages.success(
