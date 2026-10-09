@@ -133,7 +133,6 @@
     <tr>
       <th class="idx">#</th>
       <th>RSV</th>
-      <th>Company</th>
       <th>Guest</th>
       <th>Hotel</th>
       <th class="c">Status</th>
@@ -151,7 +150,6 @@
     <tr>
       <td class="idx">{{ forloop.counter }}</td>
       <td class="mono nowrap">{{ cl.confirmation_number }}</td>
-      <td class="nowrap">{{ cl.company|capfirst }}</td>
       <td>{{ cl.guest_name }}</td>
       <td>{{ cl.hotel_name }}</td>
       <td class="c">
@@ -180,11 +178,11 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="13" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
+    <tr><td colspan="12" style="text-align:center;color:#999;padding:24px;">Tidak ada data</td></tr>
     {% endfor %}
     {% if letters %}
     <tr class="total-row">
-      <td colspan="8" class="label">Total</td>
+      <td colspan="7" class="label">Total</td>
       <td class="r">{{ total_nights }}</td>
       <td class="r">{{ total_rooms }}</td>
       <td class="r mono">{{ total_sar|floatformat:0|intcomma }}</td>
