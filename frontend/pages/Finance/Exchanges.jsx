@@ -12,9 +12,10 @@ import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-// Penukaran Valas: money moved between our own accounts in different
-// currencies (USD from a client sold for IDR). No journal entry — only the
-// currency the branch holds changes, recorded as two cash-book rows.
+// Transfer & Penukaran Valas: money moved between our own accounts in one
+// branch, in the same currency or exchanged (USD from a client sold for IDR).
+// Recorded as two cash-book rows; an exchange also moves the SAR value in
+// the ledger.
 export default function Exchanges({ exchanges = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
@@ -22,7 +23,7 @@ export default function Exchanges({ exchanges = [] }) {
   const [confirm, confirmDialog] = useConfirm();
 
   const voidEx = (ex) => confirm({
-    title: t("Void Exchange"),
+    title: t("Void Transfer"),
     message: t("Void {number}? Both cash-book rows stop counting; the record stays for audit.", { number: ex.exchange_number }),
     confirmLabel: "Void",
     onConfirm: () => router.post(`/finance/exchanges/${ex.id}/void/`),
@@ -30,7 +31,7 @@ export default function Exchanges({ exchanges = [] }) {
 
   const columns = [
     {
-      header: t("Exchange #"),
+      header: t("Transfer #"),
       className: "col-m-primary",
       render: (ex) => <span className="col-bold col-nowrap" style={{ opacity: ex.status === "voided" ? 0.55 : 1 }}>{ex.exchange_number}</span>,
     },
@@ -58,7 +59,7 @@ export default function Exchanges({ exchanges = [] }) {
     {
       header: t("Rate"),
       className: "col-m-amount text-right",
-      render: (ex) => <span className="col-nowrap">{ex.rate.toLocaleString("en-US", { maximumFractionDigits: 4 })} {ex.to_currency}/{ex.from_currency}</span>,
+      render: (ex) => ex.from_currency === ex.to_currency ? <span style={{ color: "var(--muted-foreground)" }}>—</span> : <span className="col-nowrap">{ex.rate.toLocaleString("en-US", { maximumFractionDigits: 4 })} {ex.to_currency}/{ex.from_currency}</span>,
     },
     {
       header: t("Status"),
@@ -80,17 +81,17 @@ export default function Exchanges({ exchanges = [] }) {
     <div className="page shadcn-root">
       <PageBack label={t("Back")} />
       <PageHeader
-        title={t("Currency Exchange")}
-        sub={t("Money exchanged between our own accounts, e.g. a client's USD sold for IDR before sending to HQ.")}
+        title={t("Transfer & Exchange")}
+        sub={t("Money moved between our own accounts in one branch — same currency, or exchanged, e.g. a client's USD sold for IDR.")}
         actions={perms.can("payments", "create") ? (
-          <Button size="lg" onClick={() => openForm("/finance/exchanges/new/")}>+ {t("New Exchange")}</Button>
+          <Button size="lg" onClick={() => openForm("/finance/exchanges/new/")}>+ {t("New Transfer")}</Button>
         ) : null}
       />
       <div className="hms-list-card">
         {exchanges.length > 0 ? (
           <Table columns={columns.filter(Boolean)} rows={exchanges} rowKey={(ex) => ex.id} />
         ) : (
-          <EmptyState iconName="globe" title={t("No exchanges yet")} sub={t("Record one when a client's foreign currency is exchanged.")} />
+          <EmptyState iconName="globe" title={t("No transfers yet")} sub={t("Record one when money moves between your accounts or is exchanged.")} />
         )}
       </div>
       {confirmDialog}

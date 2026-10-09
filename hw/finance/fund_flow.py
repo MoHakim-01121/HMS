@@ -177,6 +177,9 @@ def _branch_events(branch, date_to):
         if p.receiving_branch_code == branch and (not date_to or p.payment_date <= date_to):
             events.append((p.payment_date, 0, p.pk, 'payment', p))
     for ex in CurrencyExchange.objects.filter(status=CurrencyExchange.STATUS_ACTIVE).select_related('from_account', 'to_account'):
+        # A same-currency transfer leaves the currency pools as they were.
+        if ex.from_currency == ex.to_currency:
+            continue
         if ex.from_account.branch_id == branch and (not date_to or ex.exchange_date <= date_to):
             events.append((ex.exchange_date, 1, ex.pk, 'exchange', ex))
     for tx in BankTransaction.objects.filter(source_type='Refund').exclude(status=BankTransaction.STATUS_VOIDED).select_related('account'):

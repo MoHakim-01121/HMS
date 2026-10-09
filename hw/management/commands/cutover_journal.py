@@ -114,8 +114,10 @@ class Command(BaseCommand):
                     post_payment(obj, created_by=self.user)
                     stats['payment'] += 1
             elif kind == EXCHANGE:
-                if not _live('CurrencyExchange', obj.pk, JournalEntry.TYPE_EXCHANGE):
-                    post_exchange(obj, created_by=self.user)
+                # A same-currency transfer has no journal: post_exchange returns None.
+                if not _live('CurrencyExchange', obj.pk, JournalEntry.TYPE_EXCHANGE) and post_exchange(
+                    obj, created_by=self.user,
+                ):
                     stats['exchange'] += 1
             elif kind == SEND:
                 if not _live('Remittance', obj.pk, JournalEntry.TYPE_REMITTANCE):

@@ -10,8 +10,9 @@ import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
-// Enter the two real amounts from the bank (out and in); the rate is derived,
-// never typed, and flagged when it strays from the last exchange of the pair.
+// Same currency: one amount, a plain transfer. Different currencies: enter the
+// two real amounts from the bank (out and in); the rate is derived, never
+// typed, and flagged when it strays from the last exchange of the pair.
 function ExchangeFormBody({ account_choices = [], last_rates = {}, warning_pct = 3, form: initial = {}, error }) {
   const { t } = useI18n();
   const form = useForm({
@@ -30,10 +31,10 @@ function ExchangeFormBody({ account_choices = [], last_rates = {}, warning_pct =
   const to = account_choices.find((a) => a.value === form.data.to_account);
   const out = Number(form.data.amount_out) || 0;
   const inn = Number(form.data.amount_in) || 0;
-  const rate = from && to && out > 0 && inn > 0 ? inn / out : null;
-  const prev = from && to ? last_rates[`${from.currency}>${to.currency}`] : null;
-  const deviation = rate && prev ? (Math.abs(rate - prev) / prev) * 100 : null;
   const sameCurrency = from && to && from.currency === to.currency;
+  const rate = from && to && !sameCurrency && out > 0 && inn > 0 ? inn / out : null;
+  const prev = rate ? last_rates[`${from.currency}>${to.currency}`] : null;
+  const deviation = rate && prev ? (Math.abs(rate - prev) / prev) * 100 : null;
 
   const submit = (e) => {
     e.preventDefault();
@@ -53,9 +54,11 @@ function ExchangeFormBody({ account_choices = [], last_rates = {}, warning_pct =
     <div className="form-page shadcn-root">
       <PageBack href="/finance/exchanges/" label={t("Back")} />
       <FormHeader
-        kicker={t("Currency Exchange")}
-        title={t("New Exchange")}
-        sub={t("Enter the two amounts exactly as the bank shows them. The rate is calculated.")}
+        kicker={t("Transfer & Exchange")}
+        title={t("New Transfer")}
+        sub={sameCurrency
+          ? t("Enter the amount exactly as the bank shows it.")
+          : t("Enter the two amounts exactly as the bank shows them. The rate is calculated.")}
       />
       {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{t(error)}</div>}
       <form method="post" onSubmit={submit}>
@@ -69,15 +72,17 @@ function ExchangeFormBody({ account_choices = [], last_rates = {}, warning_pct =
                 value={form.data.amount_out} onChange={set("amount_out")}
               />
               <FormField label={t("To Account")} name="to_account" required>{accountSelect("to_account", t("Choose account"))}</FormField>
-              <FormField
-                label={to ? t("Amount in ({currency})", { currency: to.currency }) : t("Amount in")}
-                name="amount_in" type="number" min="1" required
-                value={form.data.amount_in} onChange={set("amount_in")}
-              />
+              {!sameCurrency && (
+                <FormField
+                  label={to ? t("Amount in ({currency})", { currency: to.currency }) : t("Amount in")}
+                  name="amount_in" type="number" min="1" required
+                  value={form.data.amount_in} onChange={set("amount_in")}
+                />
+              )}
             </div>
             <p className="fx-rate" aria-live="polite">
               {sameCurrency
-                ? t("Both accounts are in {currency} — an exchange needs two different currencies.", { currency: from.currency })
+                ? t("Both accounts are in {currency} — a plain transfer, no rate.", { currency: from.currency })
                 : rate
                   ? t("Rate: {rate} {to} per {from}", { rate: rate.toLocaleString("en-US", { maximumFractionDigits: 4 }), to: to.currency, from: from.currency })
                   : t("Choose both accounts and enter both amounts to see the rate.")}
@@ -101,8 +106,8 @@ function ExchangeFormBody({ account_choices = [], last_rates = {}, warning_pct =
           </FormSection>
           <FormActions
             cancelHref="/finance/exchanges/"
-            submitLabel={form.processing ? t("Saving…") : t("Save Exchange")}
-            processing={form.processing || sameCurrency}
+            submitLabel={form.processing ? t("Saving…") : t("Save Transfer")}
+            processing={form.processing}
           />
         </FormPanel>
       </form>

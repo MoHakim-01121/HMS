@@ -1,4 +1,4 @@
-"""Currency exchange (Penukaran Valas) pages — hw/finance/exchange_service.py."""
+"""Transfer & currency exchange (Penukaran Valas) pages — hw/finance/exchange_service.py."""
 from datetime import date
 
 from django.contrib import messages
@@ -70,7 +70,7 @@ def exchange_new(request):
     error = validate_proof_file(proof) if proof else None
     exchange_date = _parse_date(data['exchange_date'])
     if not error and exchange_date is None:
-        error = 'Tanggal penukaran tidak valid.'
+        error = 'Tanggal transfer tidak valid.'
     if not error:
         try:
             ex = exchange_service.record_exchange(

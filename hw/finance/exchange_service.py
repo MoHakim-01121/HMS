@@ -1,12 +1,13 @@
-"""Currency exchange (Penukaran Valas) — see hw/models/currency_exchange.py.
+"""Transfer between two accounts of one branch, in the same currency or
+exchanged into another (Penukaran Valas) — see hw/models/currency_exchange.py.
 
-The exchange stays inside the organisation and does not change what the
-branch owes HQ in SAR; it changes which currency the branch holds. Each
-currency has its own ledger account (0137), so the exchange is two cash-book
-rows with their real amounts AND one journal entry moving the SAR value from
-the source account to the target (posting.post_exchange). Without that
-journal the ledger kept the money in the old currency while the cash book
-had already moved it.
+The transfer stays inside the organisation and does not change what the
+branch owes HQ in SAR. Every transfer is two cash-book rows with their real
+amounts. An exchange also changes which currency the branch holds; each
+currency has its own ledger account (0137), so it gets one journal entry
+moving the SAR value from the source account to the target
+(posting.post_exchange). A same-currency transfer stays in one ledger account
+and gets no journal.
 """
 from decimal import Decimal
 
@@ -51,8 +52,12 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
         raise FinanceError('Pilih rekening asal dan rekening tujuan.')
     if from_account == to_account:
         raise FinanceError('Rekening asal dan tujuan harus berbeda.')
-    if from_account.currency == to_account.currency:
-        raise FinanceError('Penukaran valas harus antar mata uang yang berbeda.')
+    # Between branches the money is owed to HQ in transit — that is a Remittance.
+    if from_account.branch_id != to_account.branch_id:
+        raise FinanceError('Rekening asal dan tujuan harus satu cabang. Kirim uang ke cabang lain lewat Remittance.')
+    same_currency = from_account.currency == to_account.currency
+    if same_currency:
+        amount_in = amount_out
     if not amount_out or amount_out <= 0 or not amount_in or amount_in <= 0:
         raise FinanceError('Nominal keluar dan masuk harus lebih dari 0.')
     check_period_postable(get_period_for_date(exchange_date))
@@ -78,6 +83,8 @@ def record_exchange(*, from_account, amount_out, to_account, amount_in, exchange
         amount=amount_in, source_type=SOURCE_IN, source_id=ex.pk,
         transaction_date=exchange_date, reference=reference or ex.exchange_number,
     )
+    # No journal for a same-currency transfer (post_exchange skips it); the
+    # cash-book guard above still refuses money the account lacks.
     post_exchange(ex, created_by=created_by)
     return ex
 

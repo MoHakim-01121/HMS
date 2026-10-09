@@ -690,8 +690,14 @@ def post_exchange(exchange, *, created_by):
     antar valas (USD → IDR) memindahkan nilai itu apa adanya -- nilai yang
     dipegang cabang tidak berubah, hanya mata uangnya. Penukaran KE SAR
     menghasilkan riyal sungguhan: rekening SAR didebit sebesar yang diterima,
-    selisihnya laba/rugi kurs cabang. Idempotent per penukaran."""
+    selisihnya laba/rugi kurs cabang. Idempotent per penukaran.
+
+    Transfer sesama mata uang dalam satu cabang memakai akun buku besar yang
+    sama: tidak ada nilai yang pindah, jadi tidak ada jurnal (None) -- baik
+    saat dicatat harian maupun saat cutover memutar ulang riwayat."""
     src, dst = exchange.from_account, exchange.to_account
+    if src.ledger_account_id == dst.ledger_account_id:
+        return None
     day = exchange.exchange_date
     value = carrying_sar(src, exchange.amount_out, day)
     received = int(exchange.amount_in) if dst.currency == "SAR" else value

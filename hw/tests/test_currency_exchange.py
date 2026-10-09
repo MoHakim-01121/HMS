@@ -92,18 +92,59 @@ class RecordExchangeTest(ExchangeBase):
             self._exchange(out=6_000)
         self.assertFalse(CurrencyExchange.objects.exists())
 
-    def test_rejects_same_currency_same_account_and_zero(self):
+    def test_rejects_same_account_other_branch_and_zero(self):
         with self.assertRaises(FinanceError):
             fx.record_exchange(from_account=self.idr, amount_out=1, to_account=self.idr, amount_in=1,
                                exchange_date=date(2026, 9, 10), created_by=self.user)
-        other_idr = BankAccount.objects.create(branch_id='sby', name='IDR2', currency='IDR',
-                                               ledger_account=self.idr.ledger_account, bank_name='BCA', account_identifier='333')
-        with self.assertRaises(FinanceError):
-            fx.record_exchange(from_account=self.idr, amount_out=1, to_account=other_idr, amount_in=1,
+        # Money for another branch travels as a Remittance, not a transfer.
+        hq_usd = BankAccount.objects.create(branch_id='pusat', name='USD HQ', currency='USD', bank_name='BCA',
+                                            account_identifier='555', ledger_account_id=cash_ledger_for('pusat', 'USD'))
+        with self.assertRaisesMessage(FinanceError, 'Remittance'):
+            fx.record_exchange(from_account=self.usd, amount_out=100, to_account=hq_usd, amount_in=100,
                                exchange_date=date(2026, 9, 10), created_by=self.user)
         with self.assertRaises(FinanceError):
             self._exchange(out=0)
         self.assertFalse(CurrencyExchange.objects.exists())
+
+    def _other_usd(self):
+        return BankAccount.objects.create(branch_id='sby', name='USD2', currency='USD', bank_name='BCA',
+                                          account_identifier='333', ledger_account=self.usd.ledger_account)
+
+    def test_same_currency_transfer_moves_cash_only(self):
+        other_usd = self._other_usd()
+        # amount_in follows amount_out whatever the form sent.
+        ex = fx.record_exchange(from_account=self.usd, amount_out=1_350, to_account=other_usd, amount_in=None,
+                                exchange_date=date(2026, 9, 10), created_by=self.user)
+        self.assertEqual((ex.amount_out, ex.amount_in, ex.rate), (1_350, 1_350, Decimal('1.0000')))
+        self.assertEqual((self._cash_book(self.usd), self._cash_book(other_usd)), (3_650, 1_350))
+        # One ledger account per branch and currency: nothing to journal, value unchanged.
+        self.assertFalse(JournalEntry.objects.for_source('CurrencyExchange', ex.pk).exists())
+        self.assertEqual(self._ledger(self.usd), (5_000, 18_750))
+        fx.void_exchange(ex, reason='typo')
+        self.assertEqual((self._cash_book(self.usd), self._cash_book(other_usd)), (5_000, 0))
+
+    def test_same_currency_transfer_cannot_overdraw(self):
+        with self.assertRaises(InsufficientFundsError):
+            fx.record_exchange(from_account=self.usd, amount_out=6_000, to_account=self._other_usd(), amount_in=6_000,
+                               exchange_date=date(2026, 9, 10), created_by=self.user)
+        self.assertFalse(CurrencyExchange.objects.exists())
+
+    def test_cutover_replay_books_no_journal_for_same_currency_transfer(self):
+        from io import StringIO
+        from django.core.management import call_command
+        same = fx.record_exchange(from_account=self.usd, amount_out=100, to_account=self._other_usd(), amount_in=100,
+                                  exchange_date=date(2026, 9, 10), created_by=self.user)
+        call_command('cutover_journal', '--commit', stdout=StringIO())
+        self.assertFalse(JournalEntry.objects.for_source('CurrencyExchange', same.pk).exists())
+        self.assertEqual(self._ledger(self.usd), (5_000, 18_750))
+
+    def test_fund_flow_ignores_same_currency_transfer(self):
+        from hw.finance.fund_flow import _branch_events
+        fx.record_exchange(from_account=self.usd, amount_out=100, to_account=self._other_usd(), amount_in=100,
+                           exchange_date=date(2026, 9, 10), created_by=self.user)
+        ex = self._exchange()
+        kinds = [(e[3], e[2]) for e in _branch_events('sby', None)]
+        self.assertEqual(kinds, [('exchange', ex.pk)])
 
     def test_void_voids_both_rows_once(self):
         ex = self._exchange()

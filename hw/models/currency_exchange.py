@@ -1,9 +1,14 @@
-"""Currency exchange between the organisation's own accounts (Penukaran Valas).
+"""Transfer between the organisation's own accounts of one branch — in the
+same currency (Kas IDR → Bank IDR), or exchanged (Penukaran Valas).
 
-A client pays in USD; the branch sells those dollars for rupiah into an IDR
-account and later remits the rupiah to HQ. The exchange moves money between
-two of our own accounts in different currencies, so it changes nothing in the
-SAR journal (what the branch owes HQ is unchanged). It is recorded as two
+A same-currency transfer only moves the cash book: both accounts share the
+branch's ledger account for that currency, so amount_in = amount_out and no
+journal is posted. Money for another branch is a Remittance, not a transfer.
+
+An exchange: a client pays in USD; the branch sells those dollars for rupiah
+into an IDR account and later remits the rupiah to HQ. What the branch owes HQ
+in SAR is unchanged; a journal moves the SAR value from the USD ledger account
+to the IDR one (posting.post_exchange). Both kinds are recorded as two
 cash-book rows (BankTransaction): out of the source account and into the
 target account, each in its own currency — the fund-flow report and the
 branch's realized FX profit read them from there.
