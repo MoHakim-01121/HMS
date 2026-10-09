@@ -760,6 +760,25 @@ thead th.text-right { text-align: right; }
 
   .hms-table-v2 tbody tr:hover td { background: var(--surface-hover); }
 
+  /* Grouping band (optional `section` prop on the shared Table): opens a
+     group with the firmer --input rule instead of the row hairline, quiet
+     uppercase muted label, and no hover tint of its own — it is structure,
+     not a data row. The band that opens the body drops the rule entirely;
+     the header hairline already separates it. */
+  .hms-table-v2 tbody tr.hms-tsec td {
+    padding-top: 15px;
+    padding-bottom: 5px;
+    border-top: 1px solid var(--input);
+    background: var(--card);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .hms-table-v2 tbody tr.hms-tsec:hover td { background: var(--card); }
+  .hms-table-v2 tbody tr.hms-tsec:first-child td { border-top: none; }
+
   /* Total row: firmer rule, one step above the row hairline. */
   .hms-table-v2 tfoot td {
     padding: 12px;
@@ -1118,6 +1137,16 @@ thead th.text-right { text-align: right; }
   .shadcn-root .m-card-total-group { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: 0; }
   .shadcn-root .m-card-total-group > span:first-child { font-size: 11px !important; color: var(--muted-foreground) !important; letter-spacing: 0 !important; font-weight: 500 !important; text-transform: none !important; }
   .shadcn-root .m-card-total-group > span:last-child { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+  /* Grouping band for grouped card lists (Table's `section` prop): the
+     desktop table's uppercase band, restated as a list header. */
+  .shadcn-root .m-card-section {
+    padding: 4px 2px 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
 }
 
 :root { --hms-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L19 7'/%3E%3C/svg%3E"); }

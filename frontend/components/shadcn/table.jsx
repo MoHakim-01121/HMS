@@ -1,4 +1,4 @@
-import { useState, useEffect, isValidElement } from "react";
+import { useState, useEffect, isValidElement, Fragment } from "react";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -66,7 +66,12 @@ function extractStub(node) {
 // colored strip carries the row's status, read off its badge column). Off
 // by default — every list gets the plain rounded card; CL passes this prop
 // explicitly since it's the one page this was designed for.
-export default function Table({ columns, rows, rowKey, onRowClick, empty, footer, bulkActions, mobileStub }) {
+//
+// `section`: optional row => label. When the label changes between rows a
+// grouping band opens the new section — a full-width muted row above the
+// table (a card-list header on mobile) — for lists grouped by a key such as
+// the Trial Balance's account type. The label may be a string or a node.
+export default function Table({ columns, rows, rowKey, onRowClick, empty, footer, bulkActions, mobileStub, section }) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState(() => new Set());
@@ -87,6 +92,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
 
   /* ── Mobile card list ─────────────────────────────────────────────────── */
   if (isMobile) {
+    let lastSection;
     return (
       <div className="m-card-list">
         {rows.length ? rows.map((row, i) => {
@@ -116,33 +122,39 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
           const stub = mobileStub && badgeRaw.length === 1 ? extractStub(badgeRaw[0]) : null;
           const inlineBadges = stub ? [] : badgeRaw;
 
+          const sec = section ? section(row, i) : null;
+          const showSection = sec != null && sec !== lastSection;
+          lastSection = sec;
+
           return (
-            <div
-              key={key}
-              className={"m-card" + (stub ? "" : " m-card--no-stub")}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-              role={onRowClick ? "button" : undefined}
-              tabIndex={onRowClick ? 0 : undefined}
-              onKeyDown={onRowClick ? (e) => {
-                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
-              } : undefined}
-            >
-              {stub && (
-                <div className={`m-card-stub st-${stub.tone}`}>
-                  <span className="m-card-stub-label">{stub.label}</span>
+            <Fragment key={key}>
+              {showSection && <div className="m-card-section">{sec}</div>}
+              <div
+                className={"m-card" + (stub ? "" : " m-card--no-stub")}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                role={onRowClick ? "button" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
+                } : undefined}
+              >
+                {stub && (
+                  <div className={`m-card-stub st-${stub.tone}`}>
+                    <span className="m-card-stub-label">{stub.label}</span>
+                  </div>
+                )}
+                <div className="m-card-main">
+                  <div className="m-card-head">
+                    <div className="m-card-primary">{primary}</div>
+                    {inlineBadges.length > 0 && <div className="m-card-badge">{inlineBadges.map((b, bi) => <span key={bi}>{b}</span>)}</div>}
+                    {actions && <div className="m-card-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>}
+                  </div>
+                  {secondary.length > 0 && <div className="m-card-secondary">{secondary}</div>}
+                  {meta.length > 0 && <div className="m-card-meta">{meta}</div>}
+                  {amount.length > 0 && <div className="m-card-amount">{amount}</div>}
                 </div>
-              )}
-              <div className="m-card-main">
-                <div className="m-card-head">
-                  <div className="m-card-primary">{primary}</div>
-                  {inlineBadges.length > 0 && <div className="m-card-badge">{inlineBadges.map((b, bi) => <span key={bi}>{b}</span>)}</div>}
-                  {actions && <div className="m-card-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>}
-                </div>
-                {secondary.length > 0 && <div className="m-card-secondary">{secondary}</div>}
-                {meta.length > 0 && <div className="m-card-meta">{meta}</div>}
-                {amount.length > 0 && <div className="m-card-amount">{amount}</div>}
               </div>
-            </div>
+            </Fragment>
           );
         }) : (
           <div className="m-card-empty">{empty || t("No data")}</div>
@@ -152,6 +164,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
   }
 
   /* ── Desktop table ────────────────────────────────────────────────────── */
+  let lastSection;
   return (
     <div className="table-wrap hms-table-v2">
       <ShadcnTable>
@@ -185,32 +198,41 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
         <TableBody>
           {rows.length ? rows.map((row, i) => {
             const key = rowKey(row, i);
+            const sec = section ? section(row, i) : null;
+            const showSection = sec != null && sec !== lastSection;
+            lastSection = sec;
             return (
-              <TableRow
-                key={key}
-                style={onRowClick ? { cursor: "pointer" } : undefined}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                onKeyDown={onRowClick ? (e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
-                } : undefined}
-              >
-                {selectable && (
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Checkbox checked={selected.has(key)} onCheckedChange={() => toggleOne(key)} aria-label={t("Select row")} />
-                  </TableCell>
+              <Fragment key={key}>
+                {showSection && (
+                  <TableRow className="hms-tsec">
+                    <TableCell colSpan={columns.length + (selectable ? 1 : 0)}>{sec}</TableCell>
+                  </TableRow>
                 )}
-                {columns.map((col, ci) => {
-                  const cls = typeof col.className === "function" ? col.className(row) : col.className;
-                  const content = col.render(row, i);
-                  return (
-                    <TableCell key={ci} className={cls} style={col.style} data-label={col.header || undefined}>
-                      {col.hoverReveal ? <span className="hms-row-reveal">{content}</span> : content}
+                <TableRow
+                  style={onRowClick ? { cursor: "pointer" } : undefined}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={onRowClick ? (e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
+                  } : undefined}
+                >
+                  {selectable && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox checked={selected.has(key)} onCheckedChange={() => toggleOne(key)} aria-label={t("Select row")} />
                     </TableCell>
-                  );
-                })}
-              </TableRow>
+                  )}
+                  {columns.map((col, ci) => {
+                    const cls = typeof col.className === "function" ? col.className(row) : col.className;
+                    const content = col.render(row, i);
+                    return (
+                      <TableCell key={ci} className={cls} style={col.style} data-label={col.header || undefined}>
+                        {col.hoverReveal ? <span className="hms-row-reveal">{content}</span> : content}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              </Fragment>
             );
           }) : (
             <TableRow>
