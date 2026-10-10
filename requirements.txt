@@ -29,6 +29,9 @@ dj-database-url==2.3.0
 # Environment
 python-dotenv==1.2.2
 
+# Dates (relativedelta: periods and umrah seasons)
+python-dateutil==2.9.0.post0
+
 # Security
 django-axes==7.0.1
 django-ratelimit==4.1.0
