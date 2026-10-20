@@ -14,7 +14,7 @@ The SAR journal stays the system of record for what is owed; this module only
 reads source documents and the cash book.
 """
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 
 from ..models.bank_transaction import BankTransaction
@@ -160,11 +160,6 @@ class _Pool:
         return self.amount / self.sar if self.sar > 0 else None
 
 
-@dataclass
-class _Pools:
-    by_currency: dict = field(default_factory=lambda: defaultdict(_Pool))
-
-
 def _branch_events(branch, date_to):
     """Chronological client-money events of one branch that move the pools."""
     from ..models.currency_exchange import CurrencyExchange
@@ -281,6 +276,33 @@ def idr_pool(branch='sby', *, before=None):
         'sar': int(pool.sar.quantize(Decimal('1'))),
         'rate': float(pool.rate.quantize(Decimal('0.0001'))) if pool.rate else None,
     }
+
+
+def branch_expenses_idr(branch, *, date_from=None, date_to=None):
+    """Rupiah the branch paid for its expenses in the period (by payment date)."""
+    from django.db.models import Sum
+    from ..models.expense import Expense, ExpensePayment
+    qs = ExpensePayment.objects.filter(
+        status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_PAID,
+        expense__branch_id=branch, source_account__currency='IDR',
+    )
+    if date_from:
+        qs = qs.filter(payment_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(payment_date__lte=date_to)
+    return int(qs.aggregate(t=Sum('amount'))['t'] or 0)
+
+
+def net_profit(fx):
+    """The branch's profit in rupiah: realized FX profit on transfers to HQ.
+
+    Expenses do not reduce it: the branch fronts them and head office pays
+    them back per claim (user, 2026-10-19; replaces "laba cabang = sisa uang
+    bersih" of 2026-09-29). None while no transfer in the period has a
+    priced FX profit."""
+    if fx['transfers'] and fx['unpriced'] == len(fx['transfers']):
+        return None
+    return fx['total_profit_idr']
 
 
 def fx_profit(*, branch='sby', date_from=None, date_to=None):

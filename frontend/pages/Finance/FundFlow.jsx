@@ -14,7 +14,7 @@ import { listVisit } from "../../utils/listVisit.js";
 // Arus Dana: how much a branch received from clients, exchanged, sent to HQ,
 // spent and refunded — per currency, as the banks hold it — and what its
 // transfers to HQ earned on the exchange spread (its only income).
-export default function FundFlow({ branch, branch_choices = [], date_from, date_to, seasons = [], flow, fx }) {
+export default function FundFlow({ branch, branch_choices = [], date_from, date_to, seasons = [], flow, fx, expenses_idr = 0, net_profit_idr = null }) {
   const { t } = useI18n();
   const perms = usePerms();
   const [from, setFrom] = useState(date_from);
@@ -119,12 +119,16 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
         <Button variant="outline" onClick={() => go()}>{t("Apply")}</Button>
       </div>
 
-      <div className="hms-kpi-row ff-kpis">
+      <div className="hms-kpi-row cols-5 ff-kpis">
         <KpiCard label={t("FX profit in period")}
           value={fx.unpriced && fx.unpriced === fx.transfers.length ? "—" : fmt(fx.total_profit_idr)} unit="IDR"
           foot={fx.unpriced
             ? t("{n} transfers to HQ · {u} without original amount, not counted", { n: fx.transfers.length, u: fx.unpriced })
             : t("{n} transfers to HQ", { n: fx.transfers.length })} />
+        {/* The branch's profit is what is left after its own costs (business rules 2026-09-29). */}
+        <KpiCard label={t("Net branch profit")}
+          value={net_profit_idr == null ? "—" : fmt(net_profit_idr)} unit="IDR"
+          foot={t("after {n} IDR of expenses paid", { n: fmt(expenses_idr) })} />
         <KpiCard label={t("Sent to HQ")} value={fmt(-lineValue("sent_hq", "IDR"))} unit="IDR" foot={t("in this period")} />
         <KpiCard label={t("Client rupiah not yet sent")} value={fmt(heldIdr)} unit="IDR"
           foot={heldUsd ? t("+ {n} USD not yet exchanged", { n: fmt(heldUsd) }) : t("{n} SAR still owed to HQ", { n: fmt(fx.client_money_held.IDR?.sar || 0) })} />

@@ -5,7 +5,8 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404
-from django.shortcuts import get_object_or_404
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
 
 from inertia import render as inertia_render
 
@@ -13,155 +14,9 @@ from ..finance import queries as finance_queries
 from ..finance.seasons import season_choices
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
-from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_scope, scope
+from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_view, scope
 from ..permissions import can, require_perm, _deny
 from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension, pagination_props
-
-
-_FINANCE_MODULES = ('payments', 'statements', 'remittance', 'expenses', 'journal', 'periods', 'penalty')
-
-
-@login_required
-def finance_hub(request):
-    """Finance Hub — satu layar kontrol keuangan (Control Room).
-
-    Setiap blok data dihitung hanya jika user punya izin view modul terkait,
-    jadi dashboard tidak pernah membocorkan angka dari modul yang tak boleh
-    dilihat user (payments/statements/remittance/expenses/journal terpisah).
-    """
-    from ..models import PaymentRecord, Remittance
-    from ..models.expense import Expense, ExpenseLine, ExpensePayment
-
-    today = date.today()
-
-    def has(module):
-        return can(request.user, module, 'view')
-
-    if not any(has(m) for m in _FINANCE_MODULES):
-        return _deny(request)
-
-    data = {'can': {m: has(m) for m in _FINANCE_MODULES}}
-
-    # ── Kas & Payment ─────────────────────────────────────────────
-    if has('payments'):
-        # The KPI counts every pending payment; pending_prs is only the
-        # preview list. Deriving the count from the sliced list capped
-        # "menunggu review" at 6 and summed only those 6 amounts.
-        payments = scope(PaymentRecord.objects.all(), request.user)
-        pending_qs = payments.filter(status=PaymentRecord.STATUS_PENDING)
-        pending_prs = list(
-            pending_qs.select_related('client').order_by('-created_at')[:6]
-        )
-        this_month = payments.filter(
-            payment_date__year=today.year, payment_date__month=today.month,
-            status__in=PaymentRecord.EFFECTIVE_STATUSES,
-        )
-        # Every branch's cash side by side: head office's view.
-        data['cash'] = {
-            'sby': finance_queries.kas_surabaya(),
-            'jkt': finance_queries.kas_jakarta(),
-            'pusat': finance_queries.kas_pusat(),
-            'transit': finance_queries.transit(),
-        } if covers_all(request.user) else None
-        data['payments'] = {
-            # Refund / transfer deposit awaiting a second person.
-            'pending_out': _pending_out_rows(request.user),
-            'pending_review': pending_qs.count(),
-            'pending_review_total': pending_qs.aggregate(t=Sum('amount_sar'))['t'] or 0,
-            'this_month_count': this_month.count(),
-            'this_month_sar': this_month.aggregate(t=Sum('amount_sar'))['t'] or 0,
-            'recent': [{
-                'id': p.pk,
-                'number': p.payment_number,
-                'client': p.client.name if p.client_id else p.reference or p.payment_number,
-                'date': p.payment_date.isoformat(),
-                'amount_sar': p.amount_sar,
-                'status': p.status,
-                'unallocated': finance_queries.payment_unallocated_sar(p.pk),
-            } for p in pending_prs],
-        }
-    else:
-        data['cash'], data['payments'] = None, None
-
-    # ── Piutang & Statement ───────────────────────────────────────
-    if has('statements'):
-        overview = finance_queries.clients_overview(clients=scope(Client.objects.all(), request.user))
-        debtors = [r for r in overview if r['piutang'] > 0]
-        data['receivables'] = {
-            'total': sum(r['piutang'] for r in overview),
-            'count': len(debtors),
-            'top': debtors[:6],
-        }
-    else:
-        data['receivables'] = None
-
-    # ── Remittance ────────────────────────────────────────────────
-    if has('remittance'):
-        remits = scope(Remittance.objects.all(), request.user)
-        pending_remits = remits.order_by('-date', '-created_at').pending()
-        sent_map = finance_queries.remittance_sent_map([r.id for r in pending_remits])
-        recent = list(remits.order_by('-date', '-created_at')[:6])
-        recent_map = finance_queries.remittance_sent_map([r.id for r in recent])
-        data['remittance'] = {
-            'pending_count': len(pending_remits),
-            'pending_sar': sum(sent_map.get(r.id, 0) for r in pending_remits),
-            # Surabaya's obligation to head office (the only remitting branch).
-            'kewajiban_kirim': finance_queries.kewajiban_kirim_sby() if in_scope(request.user, 'sby') else 0,
-            'recent': [{
-                'id': r.id,
-                'number': r.remittance_number,
-                'date': r.date.isoformat(),
-                'status': r.status,
-                'settled_sar': r.settled_sar,
-                'amount_sar': recent_map.get(r.id, 0),
-            } for r in recent],
-        }
-    else:
-        data['remittance'] = None
-
-    # ── Expenses ──────────────────────────────────────────────────
-    if has('expenses'):
-        expenses = scope(Expense.objects.all(), request.user)
-        month_exp = expenses.filter(
-            expense_date__year=today.year, expense_date__month=today.month,
-            status=Expense.STATUS_POSTED,
-        )
-        month_total = ExpenseLine.objects.filter(expense__in=month_exp).aggregate(t=Sum('amount_sar'))['t'] or 0
-        month_paid = ExpensePayment.objects.filter(
-            expense__in=month_exp, status=ExpensePayment.STATUS_PAID,
-        ).aggregate(t=Sum('amount_sar'))['t'] or 0
-        data['expenses'] = {
-            'month_total': month_total,
-            'month_outstanding': max(0, month_total - month_paid),
-            'recent': [{
-                'id': e.id,
-                'number': e.expense_number,
-                'vendor': (e.vendor.name if e.vendor_id else '') or e.description or f"EXP #{e.pk}",
-                'date': e.expense_date.isoformat(),
-                'amount_sar': e.total_amount_sar,
-                'status': e.display_status,
-            } for e in expenses.select_related('branch', 'vendor').prefetch_related('lines')
-                .order_by('-expense_date')[:6]],
-        }
-    else:
-        data['expenses'] = None
-
-    # ── Journal (ledger review) ───────────────────────────────────
-    if has('journal'):
-        data['journal'] = {
-            'recent': [{
-                'id': e.id,
-                'number': e.entry_number,
-                'date': e.entry_date.isoformat(),
-                'entry_type': e.entry_type,
-                'entry_type_display': dict(JournalEntry.TYPE_CHOICES).get(e.entry_type, e.entry_type),
-                'description': e.description,
-            } for e in JournalEntry.objects.order_by('-entry_date', '-id')[:6]],
-        }
-    else:
-        data['journal'] = None
-
-    return inertia_render(request, 'Finance/Dashboard', props=data)
 
 
 @require_perm('journal', 'view')
@@ -292,51 +147,121 @@ def trial_balance(request):
 
 @require_perm('statements', 'view')
 def statements_list(request):
-    """Daftar ledger per klien: pencarian + filter outstanding + sort, dengan
-    total footer dihitung dari seluruh baris yang lolos filter (bukan hanya
-    halaman ini)."""
+    """Client Ledger list (Record View HMS canvas): receivables, what is
+    overdue, customer deposits and what can be offset, then one row per client
+    with its receivable debit, credit, balance and deposit."""
+    from datetime import date as _date
+    from .helpers import list_per_page
     q = request.GET.get('q', '').strip()
-    outstanding = request.GET.get('outstanding', '') == '1'
-    sort = request.GET.get('sort', '')
-    if sort not in finance_queries.OVERVIEW_SORTS:
-        sort = 'receivable'
-
-    rows = finance_queries.clients_overview(q=q, outstanding_only=outstanding, sort=sort,
-                                            clients=scope(Client.objects.all(), request.user))
-    totals = finance_queries.clients_overview_totals(rows)
-
-    paginator = Paginator(rows, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-
+    show = request.GET.get('show', '')
+    sort = request.GET.get('sort', 'receivable')
+    clients = scope(Client.objects.all(), request.user)
+    rows = finance_queries.clients_overview(q=q, sort='receivable', clients=clients)
+    aging = {c['client_id']: c for c in finance_queries.ar_aging(clients=clients)['clients']}
+    for r in rows:
+        a = aging.get(r['client_id'])
+        r['overdue'] = (a['total'] - a['buckets'].get('current', 0)) if a else 0
+        r['oldest_days'] = a['oldest_days'] if a else 0
+        r['offset'] = min(r['piutang'], r['saldo_dana']) if r['piutang'] > 0 and r['saldo_dana'] > 0 else 0
+    pick = {
+        'owe': lambda r: r['piutang'] > 0, 'due': lambda r: r['overdue'] > 0,
+        'dep': lambda r: r['saldo_dana'] > 0, 'off': lambda r: r['offset'] > 0,
+    }
+    counts = {k: sum(1 for r in rows if f(r)) for k, f in pick.items()}
+    counts['all'] = len(rows)
+    owing = [r for r in rows if r['piutang'] > 0]
+    due = [r for r in rows if r['overdue'] > 0]
+    kpis = {
+        'ar': sum(r['piutang'] for r in owing), 'ar_clients': len(owing),
+        'overdue': sum(r['overdue'] for r in due), 'overdue_clients': len(due),
+        'oldest_days': max((r['oldest_days'] for r in due), default=0),
+        'deposits': sum(r['saldo_dana'] for r in rows if r['saldo_dana'] > 0), 'deposit_clients': counts['dep'],
+        'offset': sum(r['offset'] for r in rows), 'offset_clients': counts['off'],
+    }
+    shown = [r for r in rows if show not in pick or pick[show](r)]
+    shown.sort(key={'deposit': lambda r: (-r['saldo_dana'], r['name'].lower()),
+                    'name': lambda r: r['name'].lower()}.get(sort, lambda r: (-r['piutang'], r['name'].lower())))
+    totals = {k: sum(r[k] for r in shown) for k in ('ar_debit', 'ar_credit', 'piutang', 'saldo_dana')}
+    page_obj = Paginator(shown, list_per_page(request)).get_page(request.GET.get('page'))
     return inertia_render(request, 'Finance/Statements', props={
-        'clients': list(page_obj),
-        'totals': totals,
-        'total_count': paginator.count,
+        'clients': list(page_obj), 'totals': totals, 'kpis': kpis, 'counts': counts,
+        'as_of': _date.today().isoformat(),
+        'filters': {'q': q, 'show': show, 'sort': sort, 'per': list_per_page(request)},
         'pagination': pagination_props(page_obj),
-        'q': q,
-        'outstanding': outstanding,
-        'sort': sort,
     })
 
 
-@require_perm('statements', 'view')
-def bank_account_list(request):
-    """Bank/cash balance overview (v2.0 §78). Read-only: accounts themselves
-    are business-managed data (Django admin), balance is a pure projection
-    from the journal (finance.queries.money_accounts_overview)."""
+def _bank_rows(request):
+    """Accounts of the branch looked at, with the balance in the account's own
+    currency (its posted cash-book rows) next to the SAR value on the ledger."""
+    from django.db.models import Case, IntegerField, Max, Sum, When, F
+    from ..models.bank_transaction import BankTransaction
     from ..models.branch import Branch
+    from ..models.reconciliation import BankStatement
+    rows = finance_queries.money_accounts_overview(include_inactive=True, branches=branch_codes(request.user))
+    ids = [r['id'] for r in rows]
+    native = {
+        x['account_id']: x['n'] or 0 for x in BankTransaction.objects.filter(account_id__in=ids)
+        .exclude(status=BankTransaction.STATUS_VOIDED)
+        .values('account_id').annotate(n=Sum(Case(
+            When(direction=BankTransaction.DIRECTION_IN, then=F('amount')),
+            default=-F('amount'), output_field=IntegerField())))
+    }
+    last = dict(BankStatement.objects.filter(account_id__in=ids).values('account_id').annotate(d=Max('period_end')).values_list('account_id', 'd'))
+    names = dict(Branch.objects.values_list('code', 'name'))
+    for r in rows:
+        if r['kind'] == 'staff':  # already in the account's own currency
+            r['branch_name'] = names.get(r['branch'], r['branch'])
+            r['last_reconciled'] = None
+            continue
+        r['native_balance'] = native.get(r['id'], 0) if r['currency'] != 'SAR' else (native.get(r['id']) if r['id'] in native else r['book_balance'])
+        r['branch_name'] = names.get(r['branch'], r['branch'])
+        r['last_reconciled'] = last[r['id']].isoformat() if last.get(r['id']) else None
+    return rows
 
-    branch = request.GET.get('branch')
-    rows = finance_queries.money_accounts_overview(branch=branch or None, include_inactive=True,
-                                                   branches=branch_codes(request.user))
+
+def sets_up_accounts(user):
+    """Adding or changing a bank or cash account: 'bank' edit, and head
+    office's alone (confirmed 2026-10-09). A branch reads its own accounts and
+    may transfer and reconcile on them."""
+    return can(user, 'bank', 'edit') and covers_all(user)
+
+
+@require_perm('bank', 'view')
+def bank_account_list(request):
+    """Bank and Cash (Record View HMS canvas): no KPIs; the accounts in bands
+    per currency, the book balance in the account's currency and its SAR
+    value, and the total."""
+    from datetime import date as _date
+    from .helpers import csv_list
+    q = request.GET.get('q', '').strip().lower()
+    kinds = csv_list(request, 'kind', ['bank', 'cash', 'staff'])
+    currencies = csv_list(request, 'cur', ['IDR', 'USD', 'SAR'])
+    branches = csv_list(request, 'branch')
+    rows = _bank_rows(request)
+    count = lambda key: {v: sum(1 for r in rows if r[key] == v) for v in {r[key] for r in rows}}
+    counts = {'kind': count('kind'), 'cur': count('currency'), 'branch': count('branch_name')}
+    shown = [r for r in rows if (not q or q in (r['name'] + ' ' + (r['account_identifier'] or '')).lower())
+             and (not kinds or r['kind'] in kinds) and (not currencies or r['currency'] in currencies)
+             and (not branches or r['branch_name'] in branches or r['branch'] in branches)]
+    order = {'IDR': 0, 'USD': 1, 'SAR': 2}
+    shown.sort(key=lambda r: (order.get(r['currency'], 9), not r['is_active'], r['kind'], r['name']))
     return inertia_render(request, 'Finance/BankAccounts', props={
-        'accounts': rows,
-        'branch_choices': [{'value': b.code, 'label': b.name}
-                           for b in scope(Branch.objects.filter(is_active=True), request.user)],
-        # Every branch, inactive included: an account can still belong to one.
-        'branch_names': dict(Branch.objects.values_list('code', 'name')),
-        'branch_filter': branch or '',
+        'accounts': shown,
+        'filters': {'q': q, 'kind': kinds, 'cur': currencies, 'branch': branches},
+        'counts': counts,
+        'as_of': _date.today().isoformat(),
+        'can_set_up': sets_up_accounts(request.user),
     })
+
+
+@require_perm('bank', 'export')
+def bank_account_export_csv(request):
+    from .helpers import csv_export_response
+    return csv_export_response('accounts.csv', ['Account', 'Number', 'Type', 'Branch', 'Currency', 'Book balance', 'SAR value', 'Active'], [
+        [r['name'], r['account_identifier'], r['kind'], r['branch_name'], r['currency'], r['native_balance'],
+         r['book_balance'], 'yes' if r['is_active'] else 'no'] for r in _bank_rows(request)
+    ])
 
 
 BANK_CURRENCIES = ('IDR', 'SAR', 'USD')
@@ -368,6 +293,7 @@ def _bank_form_props(acc=None, data=None, errors=None):
     ]
     if acc is not None and data is None:
         data = {
+            'kind': acc.kind, 'name': acc.name if acc.name != acc.account_identifier else '',
             'branch': acc.branch_id, 'bank_name': acc.bank_name,
             'account_identifier': acc.account_identifier, 'account_name': acc.account_name,
             'currency': acc.currency, 'ledger_account': acc.ledger_account_id,
@@ -398,10 +324,13 @@ def _default_ledger_for_branch(branch_code, currency):
 def _save_bank_account(request, acc):
     """Validate the POST and write it onto `acc` (new or existing). Returns an
     errors dict; empty means saved."""
-    from ..models.bank import BankAccount
+    from ..models.bank import MoneyAccount
     from ..models.branch import Branch
     P = request.POST
+    kind = acc.kind if acc.pk else (P.get('kind') if P.get('kind') in ('bank', 'cash') else 'bank')
     data = {
+        'kind': kind,
+        'name': (P.get('name') or '').strip(),
         'branch': (P.get('branch') or '').strip(),
         'bank_name': (P.get('bank_name') or '').strip(),
         'account_identifier': (P.get('account_identifier') or '').strip(),
@@ -423,10 +352,19 @@ def _save_bank_account(request, acc):
     errors = {}
     if not Branch.objects.filter(code=data['branch'], is_active=True).exists():
         errors['branch'] = 'Pick a branch.'
-    if not data['bank_name']:
-        errors['bank_name'] = 'Bank name is required.'
-    if not data['account_identifier']:
-        errors['account_identifier'] = 'Account number is required.'
+    if kind == 'bank':
+        if not data['bank_name']:
+            errors['bank_name'] = 'Bank name is required.'
+        if not data['account_identifier']:
+            errors['account_identifier'] = 'Account number is required.'
+    else:
+        data['bank_name'] = data['account_identifier'] = data['account_name'] = ''
+        data['show_on_invoice'] = False
+        if not data['name']:
+            errors['name'] = 'Name the cash box, for example Kas Surabaya.'
+        elif MoneyAccount.objects.filter(kind='cash', branch_id=data['branch'], name__iexact=data['name'],
+                                         currency=data['currency']).exclude(pk=acc.pk).exists():
+            errors['name'] = 'This branch already has a cash box with this name.'
     if data['currency'] not in BANK_CURRENCIES:
         errors['currency'] = 'Pick a currency.'
     elif data['branch'] == 'pusat' and data['currency'] != 'SAR':
@@ -447,8 +385,8 @@ def _save_bank_account(request, acc):
             errors['ledger_account'] = (
                 f'{data["ledger_account"]} already holds {other} accounts — one ledger account, one currency.'
             )
-    dup = BankAccount.objects.filter(
-        bank_name__iexact=data['bank_name'], account_identifier=data['account_identifier'], currency=data['currency'],
+    dup = MoneyAccount.objects.filter(
+        kind='bank', bank_name__iexact=data['bank_name'], account_identifier=data['account_identifier'], currency=data['currency'],
     ).exclude(pk=acc.pk)
     if data['bank_name'] and data['account_identifier'] and dup.exists():
         errors['account_identifier'] = 'This account is already registered.'
@@ -463,6 +401,7 @@ def _save_bank_account(request, acc):
     if errors:
         return errors, data
 
+    acc.kind = kind
     acc.branch_id = data['branch']
     acc.bank_name = data['bank_name']
     acc.account_identifier = data['account_identifier']
@@ -474,7 +413,8 @@ def _save_bank_account(request, acc):
     acc.note = data['note']
     # name is the account's own label; str(acc) prefixes the bank and
     # suffixes the currency, so storing those here doubled them everywhere.
-    acc.name = data['account_identifier']
+    # A bank account without a label of its own goes by its number.
+    acc.name = data['name'] or data['account_identifier']
     acc.opening_balance = opening_balance
     acc.opening_date = opening_date
     from ..finance.bank_ledger import sync_opening_balance
@@ -488,51 +428,55 @@ def _save_bank_account(request, acc):
     return {}, data
 
 
-@require_perm('statements', 'edit')
+@require_perm('bank', 'edit')
 def bank_account_new(request):
+    if not sets_up_accounts(request.user):
+        return _deny(request)
     from django.contrib import messages
     from django.shortcuts import redirect
-    from ..models.bank import BankAccount
+    from ..models.bank import MoneyAccount
     if request.method == 'POST':
-        acc = BankAccount()
+        acc = MoneyAccount()
         errors, data = _save_bank_account(request, acc)
         if errors:
             return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(None, data, errors))
-        messages.success(request, f'Bank account {acc} added.')
+        messages.success(request, f'Account {acc} added.')
         return redirect('bank_account_list')
     return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(
-        None, {'branch': request.GET.get('branch', ''), 'currency': 'IDR', 'is_active': True},
+        None, {'kind': 'bank', 'branch': request.GET.get('branch', ''), 'currency': 'IDR', 'is_active': True},
     ))
 
 
-@require_perm('statements', 'edit')
+@require_perm('bank', 'edit')
 def bank_account_edit(request, pk):
+    if not sets_up_accounts(request.user):
+        return _deny(request)
     from django.contrib import messages
     from django.shortcuts import redirect
-    from ..models.bank import BankAccount
-    acc = get_object_or_404(BankAccount, pk=pk)
+    from ..models.bank import MoneyAccount
+    acc = get_object_or_404(MoneyAccount.objects.exclude(kind=MoneyAccount.KIND_STAFF), pk=pk)
     if request.method == 'POST':
         errors, data = _save_bank_account(request, acc)
         if errors:
             return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc, data, errors))
-        messages.success(request, f'Bank account {acc} updated.')
+        messages.success(request, f'Account {acc} updated.')
         return redirect('bank_account_list')
     return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc))
 
 
-@require_perm('statements', 'view')
+@require_perm('bank', 'view')
 def bank_account_transactions(request, kind, pk):
     """Drill-down riwayat BankTransaction satu rekening (v2.0 §64 follow-up).
     Saldo berjalan di sini murni kumulatif BankTransaction — beda dari
     book_balance (proyeksi JournalLine) yang dipakai di bank_account_list."""
-    if kind not in ('bank', 'cash'):
+    if kind not in ('bank', 'cash', 'staff'):
         raise Http404
 
     date_from = _parse_date(request.GET.get('date_from'))
     date_to = _parse_date(request.GET.get('date_to'))
     from ..models.bank import MoneyAccount
-    if not scope(MoneyAccount.objects.filter(pk=pk, kind=kind), request.user).exists():
-        raise Http404
+    # Any branch the user covers, not only the one picked: a link still opens.
+    get_in_scope_or_404(MoneyAccount.objects.filter(kind=kind), request.user, pk=pk)
     data = finance_queries.account_transactions(kind, pk, date_from=date_from, date_to=date_to)
     if data is None:
         raise Http404
@@ -555,9 +499,9 @@ def _pending_out_rows(user, client=None):
     may_decide = can(user, 'payments', 'approve')
     refunds, transfers = pending_out(client)
     # Only the user's branches' clients.
-    refunds = [r for r in refunds if in_scope(user, r.client.owner_branch_id)]
-    transfers = [t for t in transfers if in_scope(user, t.from_client.owner_branch_id)
-                 or in_scope(user, t.to_client.owner_branch_id)]
+    refunds = [r for r in refunds if in_view(user, r.client.owner_branch_id)]
+    transfers = [t for t in transfers if in_view(user, t.from_client.owner_branch_id)
+                 or in_view(user, t.to_client.owner_branch_id)]
     rows = [{
         'kind': 'refund', 'id': r.pk, 'number': r.refund_number, 'date': r.refund_date.isoformat(),
         'client': r.client.name, 'client_id': r.client_id,
@@ -720,8 +664,11 @@ def fund_flow_report(request):
     branch, date_from, date_to = _fund_flow_params(request)
     flow = fund_flow.fund_flow(branch=branch, date_from=date_from, date_to=date_to)
     fx = fund_flow.fx_profit(branch=branch, date_from=date_from, date_to=date_to)
+    expenses_idr = fund_flow.branch_expenses_idr(branch, date_from=date_from, date_to=date_to)
     return inertia_render(request, 'Finance/FundFlow', props={
         'branch': branch,
+        'expenses_idr': expenses_idr,
+        'net_profit_idr': fund_flow.net_profit(fx),
         'branch_choices': [{'value': b.code, 'label': b.name} for b in _report_branches(request).order_by('code')],
         'date_from': date_from.isoformat(),
         'date_to': date_to.isoformat(),
@@ -762,29 +709,6 @@ def ar_aging_report(request):
     })
 
 
-@require_perm('statements', 'view')
-def service_margin_report(request):
-    """Margin baris Services terhadap biaya vendornya, dan utang per vendor."""
-    branches = _report_branches(request).filter(is_active=True).order_by('name')
-    codes = branch_codes(request.user)
-    branch = request.GET.get('branch') or ''
-    if codes is not None and branch not in codes:
-        # A branch's own figures only; with one branch it is that branch.
-        branch = branches.values_list('code', flat=True).first() or ''
-    date_from = _parse_date(request.GET.get('date_from'))
-    date_to = _parse_date(request.GET.get('date_to'))
-    return inertia_render(request, 'Finance/ServiceMargin', props={
-        'margins': finance_queries.service_margins(branch=branch or None, date_from=date_from, date_to=date_to),
-        'payables': finance_queries.vendor_payables(branches=codes),
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
-        'filters': {
-            'branch': branch,
-            'date_from': date_from.isoformat() if date_from else '',
-            'date_to': date_to.isoformat() if date_to else '',
-        },
-    })
-
-
 @require_perm('statements', 'export')
 def ar_aging_csv(request):
     from .helpers import csv_export_response
@@ -799,3 +723,81 @@ def ar_aging_csv(request):
                          *[i['amount'] if i['bucket'] == b else '' for b in buckets], i['amount']])
     rows.append(['Total', '', '', '', *[aging['buckets'][b] for b in buckets], aging['total']])
     return csv_export_response(f'ar-aging-{aging["as_of"]}.csv', header, rows)
+
+
+# ── Laporan cabang (Fase 3, 2026-10-19) ───────────────────────────────
+
+def _branch_report_params(request):
+    """(branch code, branches, period). Asking for a branch the user does not
+    cover is a 404; covering none is handled by the views (redirect)."""
+    from ..finance import branch_report as br
+    branches = br.report_branches(request.user)
+    codes = list(branches.values_list('code', flat=True))
+    wanted = request.GET.get('branch')
+    if wanted and wanted not in codes:
+        raise Http404
+    branch = wanted or ('sby' if 'sby' in codes else (codes[0] if codes else None))
+    kind = request.GET.get('kind') if request.GET.get('kind') in br.KINDS else 'month'
+    return branch, branches, br.period_bounds(kind, request.GET.get('value', ''))
+
+
+def _iso_period(p):
+    out = {**p, 'date_from': p['date_from'].isoformat(), 'date_to': p['date_to'].isoformat()}
+    if p['prev']:
+        out['prev'] = {**p['prev'], 'date_from': p['prev']['date_from'].isoformat(),
+                       'date_to': p['prev']['date_to'].isoformat()}
+    return out
+
+
+@require_perm('statements', 'view')
+def branch_report_view(request):
+    """Laporan cabang: laba (= laba kurs), biaya operasional dan
+    penggantiannya, posisi per akhir periode; pembanding periode sebelumnya."""
+    from ..finance import branch_report as br
+    branch, branches, period = _branch_report_params(request)
+    if branch is None:
+        messages.info(request, 'Tidak ada cabang untuk dilaporkan.')
+        return redirect('fund_flow_report')
+    report = br.branch_report(branch, period['date_from'], period['date_to'])
+    previous = br.headline(branch, period['prev']['date_from'], period['prev']['date_to']) if period['prev'] else None
+    delta = br.profit_delta(report['profit']['fx_idr'], previous['fx_idr']) if previous else None
+    return inertia_render(request, 'Finance/BranchReport', props={
+        'branch': branch,
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
+        'period': _iso_period(period),
+        'seasons': season_choices(),
+        'report': report,
+        'previous': previous,
+        'profit_delta': delta,
+    })
+
+
+@require_perm('statements', 'export')
+def branch_report_csv(request):
+    from ..finance import branch_report as br
+    from .helpers import csv_export_response
+    branch, _branches, period = _branch_report_params(request)
+    if branch is None:
+        raise Http404
+    rep = br.branch_report(branch, period['date_from'], period['date_to'])
+    head = ['Branch report', branch, period['label'], period['date_from'].isoformat(), period['date_to'].isoformat()]
+    unpriced = rep['profit']['unpriced']
+    profit = rep['profit']['fx_idr']
+    rows = [['Branch profit (FX, IDR)', f'Not priced ({unpriced} transfers without an original amount)' if profit is None else profit]]
+    if profit is not None and unpriced:
+        rows.append(['Transfers not priced', unpriced])
+    rows += [[], ['Transfer', 'Date', 'SAR', 'IDR sent', 'Average rate', 'Send rate', 'FX profit (IDR)']]
+    rows += [[t['remittance_number'], t['date'], t['sar'], t['idr_sent'], t['avg_rate'], t['send_rate'], t['profit_idr']]
+             if t['profit_idr'] is not None else
+             [t['remittance_number'], t['date'], t['sar'], t['idr_sent'], t['avg_rate'], t['send_rate'], 'Not priced']
+             for t in rep['profit']['transfers']]
+    e = rep['expenses']
+    rows += [[], ['Operating expenses (IDR)', e['total']]]
+    rows += [[c['name'], c['amount']] for c in e['by_category']]
+    rows += [['Reimbursed', e['paid_back']], ['Claimed, waiting', e['claimed']], ['Not claimed yet', e['unclaimed']]]
+    p = rep['position']
+    rows += [[], ['Position as of', p['as_of']], ['Account', 'Kind', 'Currency', 'Balance']]
+    rows += [[a['name'], a['kind'], a['currency'], a['native']] for a in p['accounts']]
+    rows += [['Client receivables (SAR)', p['receivable_sar']], ['Client deposits (SAR)', p['deposits_sar']],
+             ['Owed by head office (IDR)', p['owed_by_hq_idr']]]
+    return csv_export_response(f'branch-report-{branch}-{period["value"]}.csv', head, rows)

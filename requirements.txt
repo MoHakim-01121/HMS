@@ -31,6 +31,7 @@ python-dotenv==1.2.2
 
 # Dates (relativedelta: periods and umrah seasons)
 python-dateutil==2.9.0.post0
+hijridate==2.6.0  # Umm al-Qura calendar: umrah season dates (finance/seasons.py)
 
 # Security
 django-axes==7.0.1

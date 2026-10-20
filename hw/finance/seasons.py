@@ -61,3 +61,37 @@ def season_choices():
         'date_from': s.date_from.isoformat(),
         'date_to': s.date_to.isoformat(),
     } for s in Season.objects.all()]
+
+
+# Musim umrah resmi Saudi dibuka 14 Dzulhijjah, tepat setelah haji (kalender
+# Kementerian Haji dan Umrah: 1448 H mulai 14 Dzulhijjah 1447 = 31 Mei 2026).
+_SEASON_OPENS = (12, 14)   # (bulan Hijriah, tanggal)
+
+
+def _season_start(hijri_year):
+    """Tanggal Masehi musim `hijri_year` H dibuka: 14 Dzulhijjah tahun sebelumnya."""
+    from hijridate import Hijri
+    return date(*Hijri(hijri_year - 1, *_SEASON_OPENS).to_gregorian().datetuple())
+
+
+def suggest_next_season(today=None):
+    """{'name', 'date_from', 'date_to'} untuk musim berikutnya, menurut kalender
+    Umm al-Qura (keputusan user 2026-10-20). Musim bersambung: berakhir sehari
+    sebelum musim berikutnya dibuka, supaya setiap tanggal (termasuk masa haji)
+    jatuh di satu musim. Tanpa musim tersimpan: musim yang sedang berjalan.
+    Hanya saran -- user bisa mengubahnya sebelum menyimpan."""
+    from hijridate import Gregorian
+    last = Season.objects.order_by('-date_to').first()
+    if last is not None:
+        start = last.date_to + relativedelta(days=1)
+        h = Gregorian.fromdate(start).to_hijri()
+        # A season opening from Syawal onwards is next year's season.
+        year = h.year + 1 if h.month >= 10 else h.year
+    else:
+        today = today or date.today()
+        year = Gregorian.fromdate(today).to_hijri().year + 1
+        if today < _season_start(year):
+            year -= 1
+        start = _season_start(year)
+    return {'name': f'Musim {year}H', 'date_from': start,
+            'date_to': _season_start(year + 1) - relativedelta(days=1)}

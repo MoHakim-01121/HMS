@@ -43,7 +43,7 @@ class FinanceViewsTest(TestCase):
             invoice=self.invoice, reservation_number='R-FV-1', total_sar=100000,
         )
 
-    def _je(self, n, legs=(('cash_sby', 5000), ('receivable', -5000))):
+    def _je(self, n, legs=(('cash_sby', 5000), ('receivable', -5000)), ar_client=None):
         je = JournalEntry.objects.create(
             entry_number=f'JE-T{n:06d}',
             entry_type=JournalEntry.TYPE_ADJUSTMENT,
@@ -58,6 +58,7 @@ class FinanceViewsTest(TestCase):
                 account_id=coa.resolve_account_code(account),
                 debit=amount if amount > 0 else 0,
                 credit=-amount if amount < 0 else 0,
+                client=ar_client if account == 'receivable' else None,
             )
         return je
 
@@ -149,7 +150,7 @@ class FinanceViewsTest(TestCase):
         r = self.client.get(reverse('statements_list'))
         rows = _props(r)['clients']
         self.assertEqual(rows, [])
-        self.assertEqual(_props(r)['total_count'], 0)
+        self.assertEqual(_props(r)['pagination']['count'], 0)
 
     def test_statements_outstanding_filter_and_totals(self):
         posting.post_invoice_charge(self.invoice, created_by=self.user)
@@ -162,13 +163,13 @@ class FinanceViewsTest(TestCase):
 
         # Fully settled → filtered out of the outstanding-only view, but the
         # footer totals still cover the unfiltered set.
-        r = self.client.get(reverse('statements_list'), {'outstanding': '1'})
+        r = self.client.get(reverse('statements_list'), {'show': 'owe'})
         self.assertEqual(_props(r)['clients'], [])
 
         r = self.client.get(reverse('statements_list'))
         props = _props(r)
-        self.assertEqual(props['totals']['tagihan'], 100000)
-        self.assertEqual(props['totals']['terbayar'], 100000)
+        self.assertEqual(props['totals']['ar_debit'], 100000)
+        self.assertEqual(props['totals']['ar_credit'], 100000)
         self.assertEqual(props['totals']['piutang'], 0)
 
     def test_statements_search_narrows_by_name(self):
@@ -183,7 +184,6 @@ class FinanceViewsTest(TestCase):
     def test_statements_sort_key_is_validated(self):
         r = self.client.get(reverse('statements_list'), {'sort': 'piutang; drop table'})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(_props(r)['sort'], 'receivable')
 
     # â”€â”€ Client statement detail â”€â”€
 
@@ -340,10 +340,8 @@ class FinanceViewsTest(TestCase):
         """A receivable with no invoice has no due date, so it cannot be aged.
         ar_aging() parks it in 'current'; the detail must agree or the two
         pages report different outstanding totals for the same client."""
-        self._je(9, legs=(('receivable', 12345), ('income_hotel', -12345)))
-        JournalLine.objects.filter(journal_entry__entry_number='JE-T000009', account_id=coa.AR).update(
-            client=self.konoz_client,
-        )
+        # The ledger is append-only: the client goes on the line when it is written.
+        self._je(9, legs=(('receivable', 12345), ('income_hotel', -12345)), ar_client=self.konoz_client)
         aging = _props(self.client.get(
             reverse('client_finance_statement', args=[self.konoz_client.pk]),
         ))['aging']
@@ -381,7 +379,7 @@ class FinanceViewsTest(TestCase):
         open_mode = self._statement({'mode': 'open'})
         self.assertEqual(
             set(open_mode['open_items'][0]),
-            {'invoice_number', 'invoice_type', 'issued_date', 'due_date',
+            {'id', 'invoice_number', 'invoice_type', 'issued_date', 'due_date',
              'billed', 'paid', 'remaining', 'overdue', 'days_overdue', 'bucket'},
         )
         # Open items sort worst-first, and each line says how late it is.

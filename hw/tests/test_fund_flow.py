@@ -6,9 +6,9 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import exchange_service, expense_service, fund_flow
+from hw.finance import exchange_service, fund_flow
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, BankTransaction, Client, ExpenseCategory, LedgerAccount, Remittance
+from hw.models import BankAccount, BankTransaction, Client, LedgerAccount, Remittance
 from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
@@ -48,12 +48,8 @@ class FundFlowScenario(TestCase):
         self.assertEqual(resp.status_code, 302)
 
     def _spend(self, idr):
-        exp = expense_service.record_expense(
-            branch=self.idr.branch, expense_date=date(2026, 9, 12), created_by=self.user,
-            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 105}],
-        )
-        expense_service.add_expense_payment(exp, amount=idr, currency='IDR', exchange_rate=4750,
-                                            payment_date=date(2026, 9, 12), account=self.idr, created_by=self.user)
+        from hw.tests.factories import paid_expense
+        return paid_expense(self.idr.branch, self.idr, idr, date(2026, 9, 12), self.user)
 
     def _line(self, flow, key, cur):
         return next(l for l in flow['lines'] if l['key'] == key)['values'].get(cur, 0)
@@ -97,8 +93,9 @@ class FundFlowScenario(TestCase):
 
     def test_remittance_kpis_show_realized_profit(self):
         self._send(95_000_000)
-        stats = self.client.get('/remittance/', HTTP_X_INERTIA='true').json()['props']['stats']
-        self.assertEqual((stats['fx_profit_idr'], stats['client_idr_held']), (2_125_000, 0))
+        props = self.client.get('/remittance/?month=2026-09', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual(props['kpis']['fx_gain'], 2_125_000)
+        self.assertEqual(props['remittances'][0]['fx_gain_idr'], 2_125_000)
 
 
 class RemittanceFormFxTest(FundFlowScenario):
