@@ -87,7 +87,8 @@ class LedgerAccount(models.Model):
 SOURCE_COLUMNS = (
     'source_invoice', 'source_credit_note', 'source_payment', 'source_remittance',
     'source_remittance_settlement', 'source_expense', 'source_expense_payment',
-    'source_client_refund', 'source_client_transfer', 'source_currency_exchange', 'reverses',
+    'source_client_refund', 'source_client_transfer', 'source_currency_exchange', 'source_expense_claim',
+    'reverses',
 )
 
 
@@ -138,6 +139,7 @@ class JournalEntry(AppendOnlyModel):
     TYPE_CREDIT_NOTE = 'credit_note'
     TYPE_REMITTANCE_DIFF = 'remittance_diff'
     TYPE_EXCHANGE   = 'exchange'
+    TYPE_REIMBURSEMENT = 'reimbursement'
     TYPE_CHOICES = [
         (TYPE_CHARGE,     'Charge'),
         (TYPE_PAYMENT,    'Payment'),
@@ -152,6 +154,7 @@ class JournalEntry(AppendOnlyModel):
         (TYPE_CREDIT_NOTE, 'Credit note'),
         (TYPE_REMITTANCE_DIFF, 'Remittance difference'),
         (TYPE_EXCHANGE,   'Currency exchange'),
+        (TYPE_REIMBURSEMENT, 'Reimbursement'),
     ]
 
     # Dokumen sumber -> kolom FK-nya. Satu entry punya paling banyak satu
@@ -167,6 +170,7 @@ class JournalEntry(AppendOnlyModel):
         'ClientRefund':         'source_client_refund',
         'ClientTransfer':       'source_client_transfer',
         'CurrencyExchange':     'source_currency_exchange',
+        'ExpenseClaim':         'source_expense_claim',
     }
     # Jenis entry yang punya nama sumber sendiri walau dokumennya sama:
     # selisih penerimaan transfer (sumber Remittance) dan alokasi penerimaan
@@ -198,6 +202,8 @@ class JournalEntry(AppendOnlyModel):
     source_client_transfer       = models.OneToOneField('ClientTransfer', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entry')
     # Penukaran valas memindahkan nilai antar rekening mata uang cabang.
     source_currency_exchange     = models.OneToOneField('CurrencyExchange', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entry')
+    # Penggantian beban cabang oleh Pusat (lunas; pembaliknya saat dibatalkan).
+    source_expense_claim         = models.ForeignKey('ExpenseClaim', null=True, blank=True, on_delete=models.PROTECT, related_name='journal_entries')
 
     # Entry pembalik menunjuk entry yang dibaliknya; dibalik paling banyak sekali.
     reverses       = models.OneToOneField('self', null=True, blank=True, on_delete=models.PROTECT, related_name='reversed_by')
@@ -229,6 +235,7 @@ class JournalEntry(AppendOnlyModel):
                 condition=models.Q(entry_type__in=[
                     'charge', 'payment', 'allocate', 'transfer', 'refund', 'penalty', 'remittance',
                     'expense', 'reversal', 'adjustment', 'credit_note', 'remittance_diff', 'exchange',
+                    'reimbursement',
                 ]),
                 name='journal_entry_type_valid',
             ),
@@ -361,11 +368,3 @@ class JournalLine(AppendOnlyModel):
     def amount_sar(self):
         """Signed: +debit / -credit. Kompat dengan pembaca lama."""
         return self.debit - self.credit
-
-    @property
-    def is_debit(self):
-        return self.debit > 0
-
-    @property
-    def is_credit(self):
-        return self.credit > 0

@@ -1,0 +1,77 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Klaim Penggantian — {{ claim.claim_number }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 60px 64px 90px;
+      @bottom-left {
+        content: "Klaim {{ claim.claim_number }}, dicetak {{ printed_at_ts|date:'d M Y H:i' }}";
+        font-size: 10px; color: #666; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+      @bottom-right {
+        content: "Halaman " counter(page) "/" counter(pages);
+        font-size: 10px; color: #666; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #111; font-size: 11.5px; line-height: 1.6; }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+    .doc-title { font-size: 24px; font-weight: 700; line-height: 1.15; }
+    .doc-sub { margin-top: 4px; font-size: 11px; color: #666; }
+    .logo { max-height: 58px; width: auto; }
+    .summary { margin-top: 24px; padding-bottom: 18px; border-bottom: 1px solid #ddd; }
+    .summary p { margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    th { text-align: left; font-size: 10.5px; color: #666; font-weight: 700; padding: 6px 8px; border-bottom: 1px solid #111; }
+    td { padding: 7px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+    .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .mono { font-family: 'SFMono-Regular', Menlo, monospace; font-size: 10.5px; }
+    tfoot td { font-weight: 700; border-top: 1px solid #111; border-bottom: 0; }
+    .sign { margin-top: 48px; display: flex; gap: 64px; }
+    .sign > div { flex: 1; }
+    .sign .line { margin-top: 56px; border-top: 1px solid #111; padding-top: 4px; font-size: 10.5px; color: #444; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <div class="doc-title">Klaim Penggantian Biaya Operasional</div>
+      <div class="doc-sub">{{ claim.claim_number }} · {{ claim.branch.name }} · {{ claim.get_status_display }}</div>
+    </div>
+    {% if logo_rel_path %}<img class="logo" src="{{ logo_rel_path }}" alt="">{% endif %}
+  </div>
+
+  <div class="summary">
+    <p>Cabang {{ claim.branch.name }} mengajukan penggantian {{ items|length }} pengeluaran operasional bertanggal
+      {{ claim.date_from|date:'d M Y' }} sampai {{ claim.date_to|date:'d M Y' }}, sebesar
+      <strong>{{ claim.total_amount|intcomma }} IDR</strong>.</p>
+    <p>Mohon ditransfer dalam rupiah sebesar jumlah tersebut ke rekening rupiah cabang.</p>
+    {% if claim.paid_date %}<p>Sudah diganti pada {{ claim.paid_date|date:'d M Y' }} ke {{ claim.paid_to }}{% if claim.reference %}, referensi {{ claim.reference }}{% endif %}.</p>{% endif %}
+    {% if claim.note %}<p>Catatan: {{ claim.note }}</p>{% endif %}
+  </div>
+
+  <table>
+    <thead><tr><th>No. pengeluaran</th><th>Tanggal</th><th>Kategori</th><th>Keterangan</th><th class="n">Jumlah (IDR)</th></tr></thead>
+    <tbody>
+      {% for r in items %}
+      <tr>
+        <td class="mono">{{ r.expense_number }}</td>
+        <td>{{ r.expense_date }}</td>
+        <td>{{ r.categories|join:", " }}</td>
+        <td>{{ r.description }}</td>
+        <td class="n">{{ r.amount|intcomma }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot><tr><td colspan="4">Total</td><td class="n">{{ claim.total_amount|intcomma }}</td></tr></tfoot>
+  </table>
+
+  <div class="sign">
+    <div>Diajukan oleh<div class="line">{{ prepared_by }}</div></div>
+    <div>Disetujui Pusat<div class="line">&nbsp;</div></div>
+  </div>
+</body>
+</html>

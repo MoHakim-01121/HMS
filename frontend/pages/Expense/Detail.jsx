@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import DetailTable from "../../components/shadcn/detail-table.jsx";
-import KebabMenu from "../../components/shadcn/kebab-menu.jsx";
-import { RvBack, RvHero, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
-import { Icon } from "../../components/icons.jsx";
-import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard } from "../../components/shadcn/detail-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -13,225 +9,211 @@ import {
 } from "../../components/shadcn/ui/select.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmtDate } from "../../utils/format.js";
+import { fmt, fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
 
+const idr = (n) => `${fmt(n)} IDR`;
+const today = () => new Date().toISOString().split("T")[0];
+
+// Expense detail, the "Expense Detail" artboard on the Record View HMS canvas.
+// An expense is recorded by Finance in rupiah, approved by Finance, a Manager
+// or an Admin, then paid by Finance from one of the branch's rupiah accounts;
+// the strip above the card carries the step that is due.
 export default function Detail({ expense = {}, account_choices = [], journal_entries = [] }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const canEdit = perms.can("expenses", "edit");
-  const canDelete = perms.can("expenses", "delete");
-  const [confirm, confirmDialog] = useConfirm();
-  const [payOpen, setPayOpen] = useState(false);
-  const [payForm, setPayForm] = useState({
-    amount: "", payment_date: new Date().toISOString().split("T")[0],
-    account: "", reference: "",
-  });
+  const canApprove = perms.can("expenses", "approve");
+  const canPay = perms.can("expenses", "edit");
+  const canVoid = perms.can("expenses", "delete");
+  const [dialog, setDialog] = useState(null); // "pay" | "reject" | "void"
+  const [payForm, setPayForm] = useState({ account: account_choices.length === 1 ? account_choices[0].value : "", payment_date: today(), reference: "" });
+  const [reason, setReason] = useState("");
+  const close = () => { setDialog(null); setReason(""); };
+  const post = (action, data = {}) => router.post(`/finance/expenses/${expense.id}/${action}/`, data, { onSuccess: close });
 
-  const handleVoid = () => {
-    confirm({
-      title: t("Void Expense"),
-      message: t("Void expense {number}? This reverses every posted entry and cannot be undone.", {
-        number: expense.expense_number,
-      }),
-      danger: true,
-      onConfirm: () => router.post(`/finance/expenses/${expense.id}/void/`),
-    });
-  };
-
-  const submitPay = () => {
-    router.post(`/finance/expenses/${expense.id}/pay/`, payForm, {
-      onSuccess: () => { setPayOpen(false); setPayForm({ amount: "", payment_date: new Date().toISOString().split("T")[0], account: "", reference: "" }); },
-    });
-  };
-
+  const status = expense.status;
   const pill = {
-    draft: { label: t("Draft"), tone: "gray" },
-    posted: { label: t("Posted"), tone: "blue" },
-    partially_paid: { label: t("Partially Paid"), tone: "yellow" },
+    submitted: { label: t("Awaiting approval"), tone: "amber" },
+    approved: { label: t("Approved"), tone: "info" },
     paid: { label: t("Paid"), tone: "green" },
+    rejected: { label: t("Rejected"), tone: "gray" },
     voided: { label: t("Voided"), tone: "gray" },
-  }[expense.status] || { label: expense.status_display, tone: "gray" };
+  }[status] || { label: expense.status_display, tone: "gray" };
 
-  const noteByStatus = {
-    posted: {
-      icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
-      iconBg: "var(--yellow)",
-      title: t("Awaiting payment"),
-      text: t("This expense has not been paid yet."),
-    },
-    partially_paid: {
-      icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
-      iconBg: "var(--yellow)",
-      title: t("Partially paid"),
-      text: t("{n} SAR still outstanding.", { n: expense.outstanding_sar?.toLocaleString("en-US") }),
-    },
-    paid: {
-      icon: <Icon name="check" size={12} strokeWidth={2.4} />,
-      iconBg: "var(--green)",
-      title: t("Paid in full"),
-      text: t("This expense has been fully settled."),
-    },
-    voided: {
-      icon: <Icon name="alert" size={13} strokeWidth={2} />,
-      iconBg: "var(--muted-foreground)",
-      title: t("Voided"),
-      text: t("This expense was voided."),
-    },
-  };
-  const note = noteByStatus[expense.status] || { icon: <Icon name="alert" size={13} strokeWidth={2} />, iconBg: "var(--muted-foreground)", title: pill.label };
-
-  const primaryActions = [];
-  if (canEdit && expense.outstanding_sar > 0 && expense.status !== "voided") {
-    primaryActions.push(
-      <button key="pay" className="hms-rv-btn primary" onClick={() => setPayOpen(true)}>{t("Add Payment")}</button>,
+  let banner = null;
+  if (status === "submitted") {
+    banner = (
+      <DBanner actions={canApprove ? <DBtn primary onClick={() => post("approve")}>{t("Approve")}</DBtn> : null}>
+        <b>{idr(expense.total_amount)}</b>{" "}
+        {expense.paid_with
+          ? t("was paid with {account}. It is booked as soon as it is approved.", { account: expense.paid_with })
+          : t("is waiting for approval by Finance, a manager or an admin.")}
+      </DBanner>
+    );
+  } else if (status === "approved") {
+    banner = (
+      <DBanner actions={canPay ? <DBtn primary onClick={() => setDialog("pay")}>{t("Pay")}</DBtn> : null}>
+        <b>{idr(expense.total_amount)}</b> {t("is approved and waiting to be paid from a branch rupiah account.")}
+      </DBanner>
+    );
+  } else if (status === "rejected" || status === "voided") {
+    banner = (
+      <DBanner tone="gray">
+        <b>{status === "rejected" ? t("Rejected.") : t("Voided.")}</b>{" "}
+        {expense.decision_note || (status === "rejected" ? t("No money moved.") : t("The payment was reversed."))}
+      </DBanner>
     );
   }
 
-  const menuItems = [];
-  if (canDelete && expense.status !== "voided") {
-    menuItems.push({ label: t("Void"), danger: true, onClick: handleVoid });
-  }
-
-  const sections = [
-    {
-      title: t("Lines"),
-      meta: `${expense.lines?.length || 0}`,
-      body: (
-        <DetailTable
-          columns={[
-            { header: t("Category"), render: (l) => l.category_name },
-            { header: t("Description"), render: (l) => l.description || "—" },
-            { header: t("Service line"), render: (l) => l.service_line || "—" },
-            { header: t("Amount (SAR)"), align: "right", render: (l) => l.amount_sar?.toLocaleString("en-US") },
-          ]}
-          rows={expense.lines || []}
-          rowKey={(l) => l.id}
-        />
-      ),
-    },
+  const menu = [
+    (status === "submitted" || status === "approved") && canApprove && { label: t("Reject"), icon: "close", danger: true, onClick: () => setDialog("reject") },
+    status === "paid" && canVoid && { label: t("Void"), icon: "close", danger: true, onClick: () => setDialog("void") },
   ];
-  if (expense.note) {
-    sections.push({ title: t("Note"), body: <div className="hms-rv-railtext">{expense.note}</div> });
-  }
-  if (expense.payments?.length > 0) {
-    sections.push({
-      title: t("Payments"),
-      meta: `${expense.payments.length}`,
-      body: (
-        <DetailTable
-          columns={[
-            { header: t("Date"), render: (p) => p.payment_date },
-            { header: t("Account"), render: (p) => p.account_name || "—" },
-            { header: t("Amount (SAR)"), align: "right", render: (p) => p.amount_sar?.toLocaleString("en-US") },
-            { header: t("Reference"), render: (p) => p.reference || "—" },
-            { header: t("Status"), render: (p) => p.status_display },
-          ]}
-          rows={expense.payments}
-          rowKey={(p) => p.id}
-        />
-      ),
-    });
-  }
-  if (journal_entries.length > 0) {
-    sections.push({
-      title: t("Journal Entries"),
-      meta: `${journal_entries.length}`,
-      body: (
-        <DetailTable
-          columns={[
-            { header: t("Entry #"), render: (e) => <span className="font-mono text-xs">{e.entry_number}</span> },
-            { header: t("Type"), render: (e) => e.entry_type_display },
-            { header: t("Description"), render: (e) => e.description },
-            { header: t("Date"), render: (e) => e.entry_date },
-            { header: t("Debit"), align: "right", render: (e) => e.total_debit?.toLocaleString("en-US") },
-            { header: t("Credit"), align: "right", render: (e) => e.total_credit?.toLocaleString("en-US") },
-          ]}
-          rows={journal_entries}
-          rowKey={(e) => e.id}
-        />
-      ),
-    });
-  }
 
+  const paid = status === "paid" || status === "voided";
   const expenseDate = fmtDate(expense.expense_date) || null;
+  const lines = expense.lines || [];
 
   return (
-    <div className="page shadcn-root hms-rv-page">
-      <RvBack href="/finance/expenses/" label={t("Back")} />
+    <DPage>
+      <DTop href="/finance/expenses/" />
 
-      <RvHero
-        kicker={expense.expense_number}
+      {banner}
+
+      <DHead
+        title={expense.expense_number}
         badge={pill}
-        title={expense.vendor || expense.description || expense.expense_number}
+        menu={menu}
+        chips={expense.proof_url ? [<DChip key="proof" href={expense.proof_url} icon="clip" label={t("Open receipt")}>{decodeURIComponent(expense.proof_url.split("/").pop())}</DChip>] : null}
+        cols={3}
         facts={[
+          { k: t("Vendor"), v: expense.vendor || t("Not set") },
+          { k: t("Total"), v: idr(expense.total_amount), strong: true },
+          { k: t("Cost date"), v: expenseDate || t("Not set") },
           { k: t("Branch"), v: expense.branch_name },
-          ...(expenseDate ? [{ k: t("Date"), v: expenseDate }] : []),
-          { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString("en-US")} SAR` },
+          expense.spent_by && { k: t("Spent by"), v: expense.spent_by },
+          { k: t("Paid with"), v: expense.paid_with || t("The office, after approval") },
+          { k: t("Recorded by"), v: expense.created_by },
+          expense.decided_by && { k: status === "rejected" ? t("Rejected by") : t("Approved by"), v: expense.decided_by },
+          paid && { k: t("Booked"), v: `${fmt(expense.total_amount_sar)} SAR` },
+          expense.payment && { k: t("Paid from"), v: expense.payment.account_name },
+          expense.payment && { k: t("Paid on"), v: fmtDate(expense.payment.payment_date) },
+          expense.payment?.reference && { k: t("Reference"), v: expense.payment.reference },
         ]}
-        note={note}
-        actions={<>{primaryActions}<KebabMenu items={menuItems} /></>}
+        note={expense.note ? { text: expense.note } : null}
       />
 
-      <div className="hms-rv-grid">
-        <div className="hms-rv-col">
-          <RvCard>
-            {sections.map((s, i) => (
-              <RvSection key={s.title} title={s.title} meta={s.meta} first={i === 0}>
-                {s.body}
-              </RvSection>
-            ))}
-          </RvCard>
+      <DCard title={t("Lines")} count={lines.length}>
+        <div className="da-scroll">
+          <table className="da-t">
+            <thead>
+              <tr>
+                <th>{t("Category")}</th><th>{t("Description")}</th><th>{t("Receipt")}</th>
+                <th className="n">{t("Amount (IDR)")}</th>
+                {paid ? <th className="n">{t("Booked (SAR)")}</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l) => (
+                <tr key={l.id}>
+                  <td className="strong">{l.category_name}</td>
+                  <td>{l.description || ""}</td>
+                  <td>
+                    {l.receipts?.length ? l.receipts.map((r) => (
+                      <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>{r.name}</a>
+                    )) : l.no_receipt_reason ? (
+                      <span style={{ color: "var(--warning-text)" }}>{t("No receipt")}<span className="sub">{l.no_receipt_reason}</span></span>
+                    ) : <span className="mut">{expense.proof_url ? t("See the expense receipt") : ""}</span>}
+                  </td>
+                  <td className="n">{fmt(l.amount)}</td>
+                  {paid ? <td className="n mut">{fmt(l.amount_sar)}</td> : null}
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{ paddingBottom: 16 }}>{t("Total")}</td>
+                <td className="n" style={{ paddingBottom: 16 }}>{idr(expense.total_amount)}</td>
+                {paid ? <td className="n" style={{ paddingBottom: 16 }}>{fmt(expense.total_amount_sar)} SAR</td> : null}
+              </tr>
+            </tfoot>
+          </table>
         </div>
+      </DCard>
 
-        <RvRail
-          rows={[
-            { k: t("Branch"), v: expense.branch_name },
-            expense.vendor ? { k: t("Vendor"), v: expense.vendor } : null,
-            expenseDate ? { k: t("Date"), v: expenseDate } : null,
-            { k: t("Currency"), v: expense.currency },
-            { k: t("Total"), v: `${expense.total_amount_sar?.toLocaleString("en-US")} SAR` },
-            { k: t("Paid"), v: `${expense.paid_sar?.toLocaleString("en-US")} SAR` },
-            expense.outstanding_sar > 0 ? { k: t("Outstanding"), v: `${expense.outstanding_sar?.toLocaleString("en-US")} SAR` } : null,
-            { k: t("Created by"), v: expense.created_by },
-          ].filter(Boolean)}
-        />
-      </div>
+      {journal_entries.length ? (
+        <DCard title={t("Journal Entries")} count={journal_entries.length}>
+          <div className="da-scroll">
+            <table className="da-t">
+              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th></tr></thead>
+              <tbody>
+                {journal_entries.map((e) => (
+                  <tr key={e.id}>
+                    <td className="mono">{e.entry_number}</td>
+                    <td className="strong">{e.entry_type_display}</td>
+                    <td className="mut">{e.description}</td>
+                    <td className="nw">{e.entry_date}</td>
+                    <td className="n">{fmt(e.total_debit)}</td>
+                    <td className="n">{fmt(e.total_credit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DCard>
+      ) : null}
 
-      {confirmDialog}
-
-      {payOpen && (
-        <Dialog open onOpenChange={(v) => { if (!v) setPayOpen(false); }}>
+      {dialog === "pay" && (
+        <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
           <DialogContent className="hms-dialog">
-            <DialogHeader>
-              <DialogTitle>{t("Add Payment")}</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>{t("Pay {number}", { number: expense.expense_number })}</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormField label={t("Amount")} name="amount" type="number" required
-                value={payForm.amount} placeholder={String(expense.outstanding_sar || "")}
-                onChange={(v) => setPayForm({ ...payForm, amount: v })}
-                hint={t("Outstanding: {n} SAR", { n: expense.outstanding_sar?.toLocaleString("en-US") })} />
-              <FormField label={t("Date")} name="payment_date" type="date" required
-                value={payForm.payment_date} onChange={(v) => setPayForm({ ...payForm, payment_date: v })} />
-              <FormField label={t("Paid from")} name="account" required>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{idr(expense.total_amount)}</div>
+              <FormField label={t("Paid from")} name="account" required
+                hint={t("The SAR value is taken from the account's own rate; no rate to type.")}>
                 <Select value={payForm.account} onValueChange={(v) => setPayForm({ ...payForm, account: v })}>
                   <SelectTrigger className="w-full"><SelectValue placeholder={t("Select account...")} /></SelectTrigger>
                   <SelectContent>
-                    {account_choices.filter((a) => a.currency === expense.currency).map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+                    {account_choices.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </FormField>
+              <FormField label={t("Transfer date")} name="payment_date" type="date" required
+                value={payForm.payment_date} onChange={(v) => setPayForm({ ...payForm, payment_date: v })} />
               <FormField label={t("Reference")} name="reference"
                 value={payForm.reference} onChange={(v) => setPayForm({ ...payForm, reference: v })} />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setPayOpen(false)}>{t("Cancel")}</Button>
-              <Button onClick={submitPay} disabled={!payForm.amount || !payForm.account}>{t("Record Payment")}</Button>
+              <Button variant="outline" onClick={close}>{t("Cancel")}</Button>
+              <Button onClick={() => post("pay", payForm)} disabled={!payForm.account}>{t("Record Payment")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
-    </div>
+
+      {(dialog === "reject" || dialog === "void") && (
+        <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
+          <DialogContent className="hms-dialog">
+            <DialogHeader>
+              <DialogTitle>{dialog === "reject" ? t("Reject {number}", { number: expense.expense_number }) : t("Void {number}", { number: expense.expense_number })}</DialogTitle>
+            </DialogHeader>
+            <p style={{ fontSize: 13, color: "var(--muted-foreground)", margin: 0 }}>
+              {dialog === "reject"
+                ? t("No money moves. The expense stays on record as rejected.")
+                : t("The payment and its journal are reversed; the rupiah returns to the account.")}
+            </p>
+            <FormField label={t("Reason")} name="reason">
+              <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+            </FormField>
+            <DialogFooter>
+              <Button variant="outline" onClick={close}>{t("Cancel")}</Button>
+              <Button variant="destructive" onClick={() => post(dialog, { reason })}>{dialog === "reject" ? t("Reject") : t("Void")}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </DPage>
   );
 }

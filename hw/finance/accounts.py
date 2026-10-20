@@ -19,9 +19,10 @@ AP = "2000-AP"
 CUST_CREDIT = "2100-CUST-CREDIT"
 
 OPENING_EQUITY = "3000-OPENING"
+# Lawan rupiah yang dikirim Pusat untuk mengganti beban cabang (klaim lunas).
+HO_PUSAT = "3100-HO-PUSAT"
 
 INC_HOTEL = "4100-INC-HOTEL"
-INC_SERVICE = "4200-INC-SVC"
 INC_PENALTY = "4300-INC-PENALTY"
 INC_FX_GAIN = "4900-INC-FXGAIN"
 
@@ -30,6 +31,7 @@ EXP_FX_LOSS = "5200-EXP-FXLOSS"
 EXP_PENALTY = "5300-EXP-PENALTY"
 
 # Beban operasional cabang (FASE D). Kategori Expense memetakan ke sini.
+EXP_SALARY        = "5400-EXP-SALARY"
 EXP_UTILITIES     = "5410-EXP-UTIL"
 EXP_TELECOM       = "5420-EXP-TELECOM"
 EXP_TRANSPORT     = "5430-EXP-TRANSPORT"
@@ -39,8 +41,8 @@ EXP_MEALS         = "5460-EXP-MEALS"
 EXP_MAINTENANCE   = "5470-EXP-MAINT"
 EXP_MARKETING     = "5480-EXP-MKT"
 EXP_MISC          = "5490-EXP-MISC"
-# Biaya vendor untuk Services yang dijual cabang (harga beli per pax).
-EXP_SVC_VENDOR    = "5500-EXP-SVC-VENDOR"
+# Kategori yang ditambah dari layar Kategori Beban mendapat akun 5510, 5520 dst.
+EXP_CUSTOM_FROM   = 5510
 
 # Kas fisik yang wajib diremitkan dari cabang ke pusat.
 CASH_BRANCH_CODES = (CASH_SBY, CASH_JKT)
@@ -66,6 +68,31 @@ def cash_ledger_for(branch_code, currency):
     )
     return code
 
+def advance_ledger_for(branch_code, currency):
+    """Akun buku besar uang muka staf cabang `branch_code` dalam `currency`:
+    1050-ADV-<CABANG> untuk SAR, anaknya 1050-ADV-<CABANG>-<MATA UANG> untuk
+    yang lain. Dibuat bila belum ada. Aset; saldonya boleh kredit (kantor
+    berutang ke staf yang menalangi)."""
+    from ..models.branch import Branch
+    from ..models.journal import LedgerAccount
+    base = f"1050-ADV-{branch_code.upper()}"
+    branch = Branch.objects.filter(code=branch_code).first()
+    parent, _ = LedgerAccount.objects.get_or_create(
+        code=base,
+        defaults={"name": f"Uang Muka Staf {branch.name if branch else branch_code.upper()}",
+                  "type": AccountType.ASSET, "normal_balance": normal_balance_for(AccountType.ASSET),
+                  "is_postable": True, "is_active": True},
+    )
+    if currency == "SAR":
+        return base
+    code = f"{base}-{currency}"
+    LedgerAccount.objects.get_or_create(
+        code=code,
+        defaults={"name": f"{parent.name} {currency}", "type": parent.type, "normal_balance": parent.normal_balance,
+                  "parent": parent, "is_postable": True, "is_active": True},
+    )
+    return code
+
 # HQ owns hotel revenue: a branch books the sale and collects the money as an
 # agent, then must remit the full SAR value (IFRS 15 principal vs agent). Its
 # own income is the exchange spread, not the booking.
@@ -81,13 +108,14 @@ ACCOUNTS = [
     {"code": AP, "name": "Utang Usaha (Accounts Payable)", "type": AccountType.LIABILITY},
     {"code": CUST_CREDIT, "name": "Titipan / Saldo Dana Client", "type": AccountType.LIABILITY},
     {"code": OPENING_EQUITY, "name": "Ekuitas Saldo Awal", "type": AccountType.EQUITY},
+    {"code": HO_PUSAT, "name": "Rekening Antar Kantor – Pusat", "type": AccountType.EQUITY},
     {"code": INC_HOTEL, "name": "Pendapatan Hotel", "type": AccountType.INCOME},
-    {"code": INC_SERVICE, "name": "Pendapatan Visa/Services", "type": AccountType.INCOME},
     {"code": INC_PENALTY, "name": "Pendapatan Penalty", "type": AccountType.INCOME},
     {"code": INC_FX_GAIN, "name": "Laba Selisih Kurs", "type": AccountType.INCOME},
     {"code": EXP_BANKFEE, "name": "Beban Biaya Transfer/Bank", "type": AccountType.EXPENSE},
     {"code": EXP_FX_LOSS, "name": "Rugi Selisih Kurs", "type": AccountType.EXPENSE},
     {"code": EXP_PENALTY, "name": "Beban Penalty", "type": AccountType.EXPENSE},
+    {"code": EXP_SALARY, "name": "Beban Gaji & Honor", "type": AccountType.EXPENSE},
     {"code": EXP_UTILITIES, "name": "Beban Listrik & Air", "type": AccountType.EXPENSE},
     {"code": EXP_TELECOM, "name": "Beban Internet & Telepon", "type": AccountType.EXPENSE},
     {"code": EXP_TRANSPORT, "name": "Beban Transportasi", "type": AccountType.EXPENSE},
@@ -97,12 +125,13 @@ ACCOUNTS = [
     {"code": EXP_MAINTENANCE, "name": "Beban Pemeliharaan", "type": AccountType.EXPENSE},
     {"code": EXP_MARKETING, "name": "Beban Marketing", "type": AccountType.EXPENSE},
     {"code": EXP_MISC, "name": "Beban Lain-lain", "type": AccountType.EXPENSE},
-    {"code": EXP_SVC_VENDOR, "name": "Biaya Vendor Services", "type": AccountType.EXPENSE},
 ]
 
 # Kategori Expense default (code → (nama, ledger account code)). Di-seed ke
-# ExpenseCategory oleh migrasi; bisa ditambah lewat admin.
+# ExpenseCategory oleh migrasi; kategori lain ditambah dari layar Kategori
+# Beban (Finance), masing-masing dengan akun bebannya sendiri.
 DEFAULT_EXPENSE_CATEGORIES = [
+    ("SALARY",    "Gaji & Honor",         EXP_SALARY),
     ("UTIL",      "Listrik & Air",        EXP_UTILITIES),
     ("TELECOM",   "Internet & Telepon",   EXP_TELECOM),
     ("TRANSPORT", "Transportasi",         EXP_TRANSPORT),
@@ -113,7 +142,6 @@ DEFAULT_EXPENSE_CATEGORIES = [
     ("MARKETING", "Marketing",            EXP_MARKETING),
     ("BANKFEE",   "Biaya Bank",           EXP_BANKFEE),
     ("MISC",      "Lain-lain",            EXP_MISC),
-    ("SVC-VENDOR", "Biaya vendor Services", EXP_SVC_VENDOR),
 ]
 
 # Peta kode akun v1 (enum Account lama) → kode v2. Dipakai adapter
@@ -126,7 +154,6 @@ V1_ACCOUNT_MAP = {
     "fx": FX_CLEARING,
     "receivable": AR,
     "income_hotel": INC_HOTEL,
-    "income_service": INC_SERVICE,
     "income_penalty": INC_PENALTY,
     "expense_penalty": EXP_PENALTY,
     "equity": OPENING_EQUITY,

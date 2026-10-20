@@ -6,9 +6,14 @@ keduanya tabel terpisah, sehingga setiap tabel yang menunjuk "sebuah akun"
 perlu sepasang kolom (bank_account, cash_account) dengan CHECK "tepat satu
 terisi". Sekarang cukup satu foreign key ke MoneyAccount.
 
-`BankAccount` dan `CashAccount` adalah proxy: baris yang sama, disaring per
-`kind` — dipakai di tempat yang memang hanya berurusan dengan salah satunya
-(halaman kelola rekening bank, kas default cabang).
+`BankAccount`, `CashAccount` dan `StaffAccount` adalah proxy: baris yang
+sama, disaring per `kind` — dipakai di tempat yang memang hanya berurusan
+dengan salah satunya (halaman kelola rekening bank, kas default cabang).
+
+`staff` adalah uang operasional yang dipegang seorang staf (uang muka). Ia
+punya akun buku besarnya sendiri per cabang dan mata uang ("Uang muka staf",
+accounts.advance_ledger_for), dan saldonya BOLEH minus: minus berarti kantor
+berutang ke staf yang menalangi (keputusan 2026-10-17).
 
 Saldo BUKAN kolom di sini: `book_balance` diturunkan dari JournalLine pada
 `ledger_account`; buku kas per akun ada di BankTransaction.
@@ -21,9 +26,12 @@ from .currency import CURRENCY_CODES  # noqa: E402,F401  (nama lama tetap dieksp
 class MoneyAccount(models.Model):
     KIND_BANK = 'bank'
     KIND_CASH = 'cash'
-    KIND_CHOICES = [(KIND_BANK, 'Bank'), (KIND_CASH, 'Cash')]
+    KIND_STAFF = 'staff'
+    KIND_CHOICES = [(KIND_BANK, 'Bank'), (KIND_CASH, 'Cash'), (KIND_STAFF, 'Held by staff')]
 
-    kind = models.CharField(max_length=4, choices=KIND_CHOICES, default=KIND_BANK)
+    kind = models.CharField(max_length=5, choices=KIND_CHOICES, default=KIND_BANK)
+    # Hanya untuk uang muka staf: siapa yang memegang uangnya.
+    holder = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.PROTECT, related_name='advances')
     branch = models.ForeignKey('Branch', on_delete=models.PROTECT, related_name='money_accounts')
     name = models.CharField(max_length=120)
     # Mata uang akun. Di PostgreSQL kolom ini ber-FOREIGN KEY ke hw_currency
@@ -56,13 +64,23 @@ class MoneyAccount(models.Model):
         verbose_name_plural = 'Money Accounts'
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(kind__in=['bank', 'cash']), name='moneyaccount_kind_valid',
+                condition=models.Q(kind__in=['bank', 'cash', 'staff']), name='moneyaccount_kind_valid',
+            ),
+            # Uang muka selalu punya pemegang; rekening lain tidak.
+            models.CheckConstraint(
+                condition=models.Q(kind='staff', holder__isnull=False) | (~models.Q(kind='staff') & models.Q(holder__isnull=True)),
+                name='moneyaccount_holder_only_for_staff',
+            ),
+            # Satu uang muka per staf, cabang dan mata uang.
+            models.UniqueConstraint(
+                fields=['holder', 'branch', 'currency'], condition=models.Q(kind='staff'),
+                name='uniq_moneyaccount_staff_holder_currency',
             ),
             models.CheckConstraint(
                 condition=models.Q(currency__in=CURRENCY_CODES), name='moneyaccount_currency_valid',
             ),
             models.CheckConstraint(
-                condition=models.Q(kind='cash') | ~models.Q(bank_name=''),
+                condition=~models.Q(kind='bank') | ~models.Q(bank_name=''),
                 name='moneyaccount_bank_needs_bank_name',
             ),
             # Satu nomor rekening satu baris. Hanya berlaku bila nomornya diisi —
@@ -80,6 +98,8 @@ class MoneyAccount(models.Model):
         ]
 
     def __str__(self):
+        if self.kind == self.KIND_STAFF:
+            return f"{self.name} ({self.currency})"
         # Names often already carry the bank and the currency ("Rekening
         # Surabaya IDR"); repeating them reads as a typo.
         label = self.name
@@ -88,10 +108,6 @@ class MoneyAccount(models.Model):
         if label.split()[-1:] == [self.currency]:
             return label
         return f"{label} ({self.currency})"
-
-    @property
-    def is_bank(self):
-        return self.kind == self.KIND_BANK
 
     @property
     def token(self):
@@ -142,4 +158,20 @@ class CashAccount(MoneyAccount):
 
     def save(self, *args, **kwargs):
         self.kind = MoneyAccount.KIND_CASH
+        super().save(*args, **kwargs)
+
+
+class StaffAccount(MoneyAccount):
+    """Uang operasional yang dipegang seorang staf (uang muka)."""
+
+    objects = _KindManager(MoneyAccount.KIND_STAFF)
+
+    class Meta:
+        proxy = True
+        ordering = ['branch', 'name']
+        verbose_name = 'Staff Advance'
+        verbose_name_plural = 'Staff Advances'
+
+    def save(self, *args, **kwargs):
+        self.kind = MoneyAccount.KIND_STAFF
         super().save(*args, **kwargs)

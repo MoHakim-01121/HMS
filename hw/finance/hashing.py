@@ -20,7 +20,7 @@ _ENTRY_FIELDS = (
 # Kolom sumber yang ditambahkan setelah rantai hash berjalan: ikut di-hash
 # hanya bila terisi, supaya hash entry lama (yang tidak punya kolom ini)
 # tetap sama persis.
-_LATER_ENTRY_FIELDS = ("source_currency_exchange_id",)
+_LATER_ENTRY_FIELDS = ("source_currency_exchange_id", "source_expense_claim_id")
 # `branch_id` sengaja TIDAK di sini: branch adalah dimensi analitik/pelaporan
 # yang boleh dikoreksi tanpa reversal (sama alasannya dgn JournalEntry.proof).
 # Memasukkannya akan membatalkan semua entry_hash historis.

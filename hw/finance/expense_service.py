@@ -1,36 +1,31 @@
-"""Expense orchestration (Master Architecture v2.0 §29–31, §63).
+"""Beban cabang: diajukan, disetujui, dibayar (keputusan user 2026-10-11).
 
-Accrual: Dr Beban (per baris) / Cr Utang Usaha (AP).
-Pembayaran: Dr Utang Usaha / Cr Bank/Kas.
+- Selalu rupiah. Dicatat oleh Finance (expenses.create).
+- Disetujui atau ditolak oleh Finance (boleh pencatatnya sendiri), Manager,
+  atau Admin (expenses.approve). Tidak ada aturan "orang kedua" di sini.
+- Dibayar dari rekening IDR cabangnya (expenses.edit). Baru saat itu masuk
+  pembukuan: satu jurnal Dr beban per baris / Cr rekening pembayar, dinilai
+  dengan kurs tercatat rekening itu (posting.carrying_sar). Rata-rata nilai SAR
+  kas rupiah tidak bergeser, dan staf tidak pernah mengetik kurs.
+- Beban yang sudah dibayar dibatalkan dengan membalik jurnal dan baris buku
+  kasnya; yang belum dibayar cukup ditolak.
 
-Semua lewat posting layer (post_entry) — immutable, balanced, idempotent.
-Koreksi = reversal, bukan delete.
+Semua lewat posting layer (post_entry): immutable, balanced, idempotent.
 """
+import re
+from decimal import Decimal
+
 from django.db import transaction
 from django.utils import timezone
 
 from ..branch_scope import in_scope
-from ..models.expense import Expense, ExpenseLine, ExpensePayment
+from ..models.expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment, ExpenseReceipt
 from ..models.journal import JournalEntry
-from ..utils import convert_to_sar
+from ..utils import round_half_up
 from . import accounts as coa
+from .bank_ledger import record_bank_transaction, void_bank_transactions
 from .errors import FinanceError
-from .posting import native, get_period_for_date, post_entry, reverse_entry
-
-
-def _sar(amount, currency, rate):
-    return convert_to_sar(amount, currency, rate)
-
-
-def _live_entries(source_type, source_id):
-    return list(JournalEntry.objects.for_source(source_type, source_id).live())
-
-
-def _txn(expense, amount):
-    """Nominal asli baris beban non-SAR."""
-    if expense.currency == 'SAR':
-        return {}
-    return {'currency': expense.currency, 'amount_txn': int(amount)}
+from .posting import carrying_sar, check_period_postable, get_period_for_date, native, post_entry, reverse_entry
 
 
 def resolve_vendor(vendor):
@@ -46,165 +41,249 @@ def resolve_vendor(vendor):
 
 
 def _check_branch(branch_code, user):
-    """Pengeluaran dicatat, dibayar dan dibatalkan hanya oleh user yang
+    """Beban diajukan, diputuskan, dibayar dan dibatalkan hanya oleh user yang
     memegang cabangnya."""
     if not in_scope(user, branch_code):
         raise FinanceError('Pengeluaran ini milik cabang di luar akses Anda.')
 
 
-def _check_service_line(line, branch):
-    """Biaya vendor hanya untuk baris Services yang dijual cabang ini (B12/B13)."""
-    if line.kind != line.KIND_SERVICE or line.voided_at is not None:
-        raise FinanceError('Biaya vendor hanya bisa ditautkan ke baris Services yang masih berlaku.')
-    if line.invoice.branch_id != branch.pk:
-        raise FinanceError(
-            f'Baris Services {line.invoice.invoice_number} #{line.line_no} dijual cabang lain; '
-            'biaya vendornya dicatat di cabang itu.'
-        )
+def _locked(expense):
+    return Expense.objects.select_for_update().get(pk=expense.pk)
+
+
+def _split(total, parts):
+    """`total` dibagi sebanding dengan `parts`; sisa pembulatan ke bagian terakhir."""
+    whole = sum(parts)
+    out, used = [], 0
+    for i, part in enumerate(parts):
+        share = total - used if i == len(parts) - 1 else round_half_up(Decimal(total) * part / whole)
+        out.append(share)
+        used += share
+    return out
 
 
 @transaction.atomic
-def record_expense(*, branch, expense_date, lines, created_by, vendor=None,
-                   description='', currency='SAR', exchange_rate=1, note='',
-                   proof=None, pay_now=None):
-    """Buat Expense (POSTED) + baris + jurnal accrual. Optional bayar penuh langsung.
-    lines: iterable {category, ledger_account?, description?, amount, service_line?}
-    vendor: nama vendor (dibuat bila belum ada), objek Vendor, atau None.
-    pay_now: None atau {account (MoneyAccount), payment_date?, reference?}
-    """
+def submit_expense(*, branch, expense_date, lines, created_by, vendor=None,
+                   description='', note='', proof=None, spent_by=None, paid_with=None):
+    """Catat beban (rupiah) menunggu persetujuan. Belum ada jurnal.
+    lines: iterable {category, ledger_account?, description?, amount,
+    receipts? (uploaded files), no_receipt_reason?}.
+
+    `spent_by`: staf yang mengeluarkan uangnya. `paid_with`: uang muka staf
+    itu bila dibayar dari sana (dibukukan otomatis saat disetujui); kosong =
+    rekening kantor, dibayar Finance sesudah disetujui."""
     lines = list(lines)
     if not lines:
-        raise FinanceError('Expense butuh minimal satu baris')
-    # Pengeluaran milik cabang; Pusat tidak mencatat pengeluaran (keputusan bisnis).
+        raise FinanceError('Beban butuh minimal satu baris.')
+    # Beban milik cabang; Pusat tidak mencatat beban (keputusan bisnis).
     if branch.is_hq:
         raise FinanceError('Pusat tidak mencatat pengeluaran — pengeluaran milik cabang.')
     _check_branch(branch.pk, created_by)
-    get_period_for_date(expense_date)
-    total = sum(int(l['amount']) for l in lines)
     for l in lines:
-        if l.get('service_line') is not None:
-            _check_service_line(l['service_line'], branch)
+        if int(l['amount']) <= 0:
+            raise FinanceError('Nominal tiap baris harus lebih dari 0.')
+    if paid_with is not None:
+        if paid_with.kind != paid_with.KIND_STAFF:
+            raise FinanceError('Hanya uang muka staf yang bisa dipilih saat mencatat beban; rekening kantor dipilih saat membayar.')
+        if paid_with.branch_id != branch.pk or paid_with.currency != Expense.CURRENCY:
+            raise FinanceError(f'Uang muka {paid_with} bukan uang muka rupiah cabang ini.')
+        if spent_by is not None and paid_with.holder_id != spent_by.pk:
+            raise FinanceError(f'Uang muka {paid_with} dipegang staf lain.')
+        spent_by = spent_by or paid_with.holder
+
     expense = Expense.objects.create(
         expense_number=Expense.generate_number(),
         branch=branch, expense_date=expense_date, vendor=resolve_vendor(vendor),
-        description=description, currency=currency,
-        status=Expense.STATUS_POSTED,
+        description=description, currency=Expense.CURRENCY,
+        status=Expense.STATUS_SUBMITTED,
         note=note, proof=proof, created_by=created_by,
+        spent_by=spent_by, paid_with=paid_with,
     )
     for l in lines:
-        amt = int(l['amount'])
-        ExpenseLine.objects.create(
+        line = ExpenseLine.objects.create(
             expense=expense, category=l['category'],
             ledger_account=l.get('ledger_account'),
-            service_line=l.get('service_line'),
             description=l.get('description', ''),
-            amount=amt, amount_sar=_sar(amt, currency, exchange_rate),
+            no_receipt_reason=(l.get('no_receipt_reason') or '').strip(),
+            amount=int(l['amount']),
         )
-
-    _post_accrual(expense, created_by)
-
-    if pay_now is not None:
-        add_expense_payment(
-            expense,
-            amount=total, currency=currency, exchange_rate=exchange_rate,
-            payment_date=pay_now.get('payment_date') or expense_date,
-            account=pay_now.get('account'),
-            reference=pay_now.get('reference', ''),
-            created_by=created_by,
-        )
+        for f in l.get('receipts') or ():
+            ExpenseReceipt.objects.create(line=line, file=f, name=getattr(f, 'name', '')[:255],
+                                          size=getattr(f, 'size', 0) or 0)
     return expense
 
 
-def _post_accrual(expense, created_by):
-    br = expense.branch_id
-    lines = [
-        {'account': ln.account_code, 'debit': ln.amount_sar, 'branch': br,
-         'note': ln.description or ln.category.name, **_txn(expense, ln.amount)}
-        for ln in expense.lines.all() if ln.amount_sar
-    ]
-    lines.append({'account': coa.AP, 'credit': expense.total_amount_sar, 'branch': br,
-                  **_txn(expense, expense.total_amount)})
-    return post_entry(
-        entry_type=JournalEntry.TYPE_EXPENSE,
-        description=f"Expense {expense.expense_number} — {expense.vendor or expense.description}",
-        entry_date=expense.expense_date,
-        lines=lines,
-        source_type='Expense',
-        source_id=expense.pk,
-        idempotency_key=f"expense:{expense.expense_number}:accrual",
-        created_by=created_by,
-    )
+@transaction.atomic
+def approve_expense(expense, *, approved_by):
+    expense = _locked(expense)
+    if expense.status != Expense.STATUS_SUBMITTED:
+        raise FinanceError(f'{expense.expense_number} tidak sedang menunggu persetujuan.')
+    _check_branch(expense.branch_id, approved_by)
+    expense.status = Expense.STATUS_APPROVED
+    expense.decided_by, expense.decided_at = approved_by, timezone.now()
+    expense.save(update_fields=['status', 'decided_by', 'decided_at', 'updated_at'])
+    # Paid out of a staff advance: the money already left on the expense date.
+    if expense.paid_with_id:
+        pay_expense(expense, account=expense.paid_with, payment_date=expense.expense_date, paid_by=approved_by)
+        expense.refresh_from_db()
+    return expense
 
 
 @transaction.atomic
-def add_expense_payment(expense, *, amount, payment_date, created_by,
-                        account=None, currency='SAR',
-                        exchange_rate=1, reference='', note=''):
-    """Bayar (sebagian/penuh) sebuah Expense: Dr AP / Cr Bank/Kas."""
-    if expense.status == Expense.STATUS_VOIDED:
-        raise FinanceError('Expense sudah void')
-    _check_branch(expense.branch_id, created_by)
-    if account is None:
-        raise FinanceError('Pilih rekening atau kas yang membayar.')
-    from .bank_ledger import ensure_account_currency
-    ensure_account_currency(account, currency)
-    if account.branch_id != expense.branch_id:
-        raise FinanceError(
-            f'Rekening {account} milik cabang lain — expense ini dibayar dari rekening cabangnya sendiri.'
-        )
+def reject_expense(expense, *, rejected_by, reason=''):
+    expense = _locked(expense)
+    if expense.status not in Expense.OPEN_STATUSES:
+        raise FinanceError(f'{expense.expense_number} sudah dibayar atau ditutup; tidak bisa ditolak.')
+    _check_branch(expense.branch_id, rejected_by)
+    expense.status = Expense.STATUS_REJECTED
+    expense.decided_by, expense.decided_at = rejected_by, timezone.now()
+    expense.decision_note = reason
+    expense.save(update_fields=['status', 'decided_by', 'decided_at', 'decision_note', 'updated_at'])
+    return expense
 
-    amt_sar = _sar(amount, currency, exchange_rate)
-    if amt_sar > expense.outstanding_sar:
-        raise FinanceError(
-            f"Pembayaran {amt_sar:,} melebihi sisa utang {expense.outstanding_sar:,}"
-        )
+
+@transaction.atomic
+def pay_expense(expense, *, account, payment_date, paid_by, reference=''):
+    """Bayar beban yang sudah disetujui, penuh, dari rekening IDR cabangnya."""
+    expense = _locked(expense)
+    if expense.status != Expense.STATUS_APPROVED:
+        raise FinanceError(f'{expense.expense_number} belum disetujui atau sudah dibayar.')
+    _check_branch(expense.branch_id, paid_by)
+    if account is None:
+        raise FinanceError('Pilih rekening yang membayar.')
+    if account.currency != Expense.CURRENCY:
+        raise FinanceError('Beban dibayar dari rekening rupiah.')
+    if account.branch_id != expense.branch_id:
+        raise FinanceError(f'Rekening {account} milik cabang lain — beban dibayar dari rekening cabangnya sendiri.')
+    check_period_postable(get_period_for_date(payment_date))
+
+    lines = list(expense.lines.select_related('category'))
+    total = sum(int(l.amount) for l in lines)
+    # Nilai SAR = bagian yang sebanding dari nilai tercatat rekening; menolak
+    # rupiah yang tidak tercatat ada di rekening itu.
+    value = carrying_sar(account, total, payment_date)
+    for line, share in zip(lines, _split(value, [int(l.amount) for l in lines])):
+        line.amount_sar = share
+        line.save(update_fields=['amount_sar'])
 
     ep = ExpensePayment.objects.create(
-        expense=expense, payment_date=payment_date, amount=amount,
-        amount_sar=amt_sar,
-        source_account=account,
-        reference=reference, status=ExpensePayment.STATUS_PAID,
-        note=note, created_by=created_by,
+        expense=expense, payment_date=payment_date, amount=total, amount_sar=value,
+        source_account=account, reference=reference, status=ExpensePayment.STATUS_PAID,
+        created_by=paid_by,
     )
-    src = ep.source_account
+    br = expense.branch_id
+    journal_lines = [
+        {'account': l.account_code, 'debit': l.amount_sar, 'branch': br,
+         'note': l.description or l.category.name, 'currency': Expense.CURRENCY, 'amount_txn': int(l.amount)}
+        for l in lines if l.amount_sar
+    ]
+    journal_lines.append({'account': account.ledger_account_id, 'credit': value, 'branch': account.branch_id,
+                          **native(account, total)})
     post_entry(
         entry_type=JournalEntry.TYPE_EXPENSE,
-        description=f"Bayar expense {expense.expense_number}",
+        description=f"Beban {expense.expense_number} — {expense.vendor or expense.description}",
         entry_date=payment_date,
-        lines=[
-            {'account': coa.AP, 'debit': amt_sar, 'branch': expense.branch_id},
-            {'account': src.ledger_account_id, 'credit': amt_sar, 'branch': src.branch_id,
-             **native(src, amount, exchange_rate)},
-        ],
+        lines=journal_lines,
         source_type='ExpensePayment',
         source_id=ep.pk,
         idempotency_key=f"expensepayment:{ep.pk}:pay",
-        created_by=created_by,
+        created_by=paid_by,
     )
-    from .bank_ledger import record_bank_transaction
     record_bank_transaction(
-        account=src, direction='out', amount_sar=amt_sar,
-        source_type='ExpensePayment', source_id=ep.pk,
-        transaction_date=payment_date, currency=currency, amount=amount, reference=reference,
+        account=account, direction='out', amount_sar=value, currency=account.currency, amount=total,
+        source_type='ExpensePayment', source_id=ep.pk, transaction_date=payment_date,
+        reference=reference or expense.expense_number,
+        # A staff advance may go negative: the staff member fronted the rest.
+        check_funds=account.kind != account.KIND_STAFF,
     )
+    expense.status = Expense.STATUS_PAID
+    expense.save(update_fields=['status', 'updated_at'])
     return ep
 
 
 @transaction.atomic
-def void_expense(expense, *, created_by, date=None):
-    """Batalkan Expense: reverse semua jurnal accrual + pembayaran yang hidup,
-    set status VOIDED. Baris/pembayaran tidak dihapus (audit)."""
-    _check_branch(expense.branch_id, created_by)
+def void_expense(expense, *, voided_by, reason='', date=None):
+    """Batalkan beban yang sudah dibayar: jurnal dan baris buku kasnya dibalik.
+    Baris dan pembayarannya tetap ada untuk audit."""
+    expense = _locked(expense)
+    if expense.status != Expense.STATUS_PAID:
+        raise FinanceError(f'{expense.expense_number} belum dibayar — tolak saja bila tidak jadi.')
+    _check_branch(expense.branch_id, voided_by)
+    from .claim_service import drop_voided_expense
+    drop_voided_expense(expense)
     date = date or timezone.now().date()
-    from .bank_ledger import void_bank_transactions
     for ep in expense.payments.filter(status=ExpensePayment.STATUS_PAID):
-        for e in _live_entries('ExpensePayment', ep.pk):
-            reverse_entry(e, reversal_date=date, created_by=created_by)
+        for entry in JournalEntry.objects.for_source('ExpensePayment', ep.pk).live():
+            reverse_entry(entry, reversal_date=date, created_by=voided_by)
         ep.status = ExpensePayment.STATUS_VOID
         ep.save(update_fields=['status'])
         void_bank_transactions('ExpensePayment', ep.pk)
-    for e in _live_entries('Expense', expense.pk):
-        reverse_entry(e, reversal_date=date, created_by=created_by)
     expense.status = Expense.STATUS_VOIDED
-    expense.save(update_fields=['status', 'updated_at'])
+    expense.decision_note = reason
+    expense.save(update_fields=['status', 'decision_note', 'updated_at'])
     return expense
+
+
+# ── Kategori beban ───────────────────────────────────────────────────
+
+def _category_code(name):
+    """Kode kategori dari namanya: huruf besar dan angka, maks. 11 karakter
+    (akun bukunya <nomor>-EXP-<kode> harus muat 20 karakter)."""
+    base = re.sub(r'[^A-Z0-9]+', '-', name.upper()).strip('-')[:11].strip('-') or 'CAT'
+    code, n = base, 2
+    while ExpenseCategory.objects.filter(pk=code).exists():
+        suffix = f'-{n}'
+        code = base[:11 - len(suffix)] + suffix
+        n += 1
+    return code
+
+
+def _next_ledger_number():
+    from ..models.journal import LedgerAccount
+    taken = {
+        int(m.group(1)) for m in
+        (re.match(r'^(\d{4})-EXP-', c) for c in LedgerAccount.objects.values_list('code', flat=True))
+        if m
+    }
+    n = coa.EXP_CUSTOM_FROM
+    while n in taken:
+        n += 10
+    return n
+
+
+@transaction.atomic
+def create_category(name):
+    """Kategori beban baru dengan akun bebannya sendiri, supaya tampil sebagai
+    baris tersendiri di Trial Balance dan laporan."""
+    from ..models.journal import LedgerAccount
+    name = (name or '').strip()
+    if not name:
+        raise FinanceError('Nama kategori wajib diisi.')
+    if ExpenseCategory.objects.filter(name__iexact=name).exists():
+        raise FinanceError(f'Kategori "{name}" sudah ada.')
+    code = _category_code(name)
+    ledger = LedgerAccount.objects.create(
+        code=f'{_next_ledger_number()}-EXP-{code}', name=f'Beban {name}',
+        type=coa.AccountType.EXPENSE, normal_balance=coa.normal_balance_for(coa.AccountType.EXPENSE),
+        is_postable=True, is_active=True,
+    )
+    return ExpenseCategory.objects.create(code=code, name=name, ledger_account=ledger)
+
+
+@transaction.atomic
+def update_category(category, *, name=None, is_active=None):
+    """Ganti nama (akun bukunya ikut) atau aktif/nonaktifkan. Kategori tidak
+    dihapus: riwayat beban dan laporannya tetap menunjuk ke sana."""
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise FinanceError('Nama kategori wajib diisi.')
+        if ExpenseCategory.objects.filter(name__iexact=name).exclude(pk=category.pk).exists():
+            raise FinanceError(f'Kategori "{name}" sudah ada.')
+        category.name = name
+        category.ledger_account.name = f'Beban {name}'
+        category.ledger_account.save(update_fields=['name'])
+    if is_active is not None:
+        category.is_active = is_active
+    category.save()
+    return category

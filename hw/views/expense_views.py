@@ -1,9 +1,9 @@
-"""Expense views — list, detail, record, pay, void.
+"""Expense views: list, detail, submit, approve, reject, pay, void, categories.
 
-Mirrors the shape of payment_views.py: server-rendered Inertia pages, a
-create-with-lines endpoint, and an action endpoint per lifecycle step. See
-hw/finance/expense_service.py for the actual posting logic — views only
-parse the request and translate FinanceError into a flash message.
+The flow (decided 2026-10-11): Finance records an expense in rupiah; Finance,
+a Manager or an Admin approves or rejects it; Finance pays it from one of the
+branch's IDR accounts. See hw/finance/expense_service.py for the posting —
+views only parse the request and translate FinanceError into a message.
 """
 import json
 
@@ -11,50 +11,31 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db.models import Count, Q, Sum
 from django.shortcuts import redirect
 
 from inertia import render as inertia_render
 
-from ..branch_scope import get_in_scope_or_404, operating_branches, scope
-from ..models.expense import Expense, ExpenseCategory
+from ..branch_scope import get_in_scope_or_404, head_office_only, operating_branches, scope
+from ..models.expense import Expense, ExpenseCategory, ExpensePayment
 from ..models.journal import JournalEntry
 from ..models.vendor import Vendor
 from ..finance import expense_service
 from ..finance.errors import FinanceError
 from ..permissions import require_perm
-from ..utils import CURRENCIES
 from .helpers import (
     serialize_journal_entry, _parse_date, _to_float, _is_mobile,
     pagination_props, csv_export_response, money_account_choices, resolve_money_account,
+    validate_proof_file,
 )
-
-_account_choices = money_account_choices
-_resolve_account = resolve_money_account
-
-
-def _service_line_label(line):
-    return (f"{line.invoice.invoice_number} #{line.line_no} {line.description} "
-            f"· {line.quantity} pax · {line.invoice.customer_name}")
-
-
-def _service_line_choices(branches):
-    """Baris Services yang masih berlaku dari cabang-cabang `branches`, untuk
-    menautkan biaya vendornya."""
-    from ..models import InvoiceLine
-    lines = (
-        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True,
-                                   invoice__branch__in=branches)
-        .exclude(invoice__status='void')
-        .select_related('invoice__client').order_by('-invoice__issued_date', 'invoice_id', 'line_no')[:200]
-    )
-    return [{'value': str(l.pk), 'label': _service_line_label(l), 'branch': l.invoice.branch_id} for l in lines]
 
 
 # What _expense_props reads, fetched once for a page of expenses.
-_PROPS_PREFETCH = ('lines__category', 'lines__service_line__invoice__client', 'payments__source_account')
+_PROPS_PREFETCH = ('lines__category', 'lines__receipts', 'payments__source_account')
 
 
 def _expense_props(e):
+    payment = e.payment
     return {
         'id': e.pk,
         'expense_number': e.expense_number,
@@ -63,32 +44,47 @@ def _expense_props(e):
         'expense_date': e.expense_date.isoformat() if e.expense_date else None,
         'vendor': e.vendor.name if e.vendor_id else '',
         'description': e.description,
-        'currency': e.currency,
         'total_amount': e.total_amount,
         'total_amount_sar': e.total_amount_sar,
-        'paid_sar': e.paid_sar,
-        'outstanding_sar': e.outstanding_sar,
-        # Lifecycle, and for a posted expense its payment state (derived).
-        'status': e.display_status,
-        'status_display': e.display_status_label,
+        'status': e.status,
+        'status_display': e.get_status_display(),
         'note': e.note,
         'proof_url': e.proof.url if e.proof else None,
-        'created_by': e.created_by.username if e.created_by else None,
+        'created_by': e.created_by.username if e.created_by_id else None,
         'created_at': e.created_at.isoformat(),
+        'decided_by': e.decided_by.username if e.decided_by_id else None,
+        'decided_at': e.decided_at.isoformat() if e.decided_at else None,
+        'decision_note': e.decision_note,
+        'spent_by': (e.spent_by.get_full_name() or e.spent_by.username) if e.spent_by_id else None,
+        'paid_with': str(e.paid_with) if e.paid_with_id else None,
         'lines': [{
             'id': l.pk, 'category': l.category_id, 'category_name': l.category.name,
             'description': l.description, 'amount': l.amount, 'amount_sar': l.amount_sar,
-            'service_line': _service_line_label(l.service_line) if l.service_line_id else None,
+            'no_receipt_reason': l.no_receipt_reason,
+            'receipts': [{'name': r.name or r.file.name.rsplit('/', 1)[-1], 'url': r.file.url, 'size': r.size}
+                         for r in l.receipts.all()],
         } for l in e.lines.all()],
-        'payments': [{
-            'id': p.pk,
-            'payment_date': p.payment_date.isoformat() if p.payment_date else None,
-            'amount': p.amount, 'currency': p.currency, 'amount_sar': p.amount_sar,
-            'account_name': str(p.source_account) if p.source_account else None,
-            'reference': p.reference, 'status': p.status,
-            'status_display': p.get_status_display(),
-        } for p in e.payments.all()],
+        'payment': {
+            'payment_date': payment.payment_date.isoformat(),
+            'account_name': str(payment.source_account),
+            'amount': payment.amount, 'amount_sar': payment.amount_sar,
+            'reference': payment.reference,
+        } if payment else None,
     }
+
+
+def _staff_choices(branches):
+    """Who may have spent an expense, per branch, with the rupiah advance
+    they hold (token and balance) when they have one."""
+    from ..finance.staff_advance import advance_account, balances, branch_holders, display_name
+    rows = []
+    for b in branches:
+        for u in branch_holders(b.code):
+            acc = advance_account(u, b.code, Expense.CURRENCY)
+            rows.append({'value': str(u.pk), 'label': display_name(u), 'branch': b.code,
+                         'advance': acc.token if acc else None,
+                         'balance': balances([acc])[acc.pk] if acc else 0})
+    return rows
 
 
 def _visible(request):
@@ -96,46 +92,86 @@ def _visible(request):
     return scope(Expense.objects.all(), request.user)
 
 
+def _data(request):
+    try:
+        return json.loads(request.body) if request.content_type == 'application/json' else request.POST
+    except (json.JSONDecodeError, ValueError):
+        return request.POST
+
+
 @require_perm('expenses', 'view')
 def expense_list(request):
-    expenses = _visible(request).select_related('branch', 'created_by', 'vendor')
+    """Expense list (Record View HMS canvas): spent in the month, awaiting
+    approval and approved not paid (both filter the table), the toolbar and
+    the table. The New Expense dialog is unchanged."""
+    from .helpers import csv_list, list_per_page, list_period, pct_delta, prev_month_range
+    GROUPS = {'submitted': [Expense.STATUS_SUBMITTED], 'approved': [Expense.STATUS_APPROVED],
+              'paid': [Expense.STATUS_PAID], 'off': [Expense.STATUS_REJECTED, Expense.STATUS_VOIDED]}
+    q = request.GET.get('q', '').strip()
+    groups = csv_list(request, 'status', list(GROUPS))
+    people = csv_list(request, 'by')
+    sort = request.GET.get('sort', '-date')
+    date_from, date_to, period = list_period(request)
+    today = date.today()
+    base = _visible(request).select_related('branch', 'created_by', 'vendor', 'decided_by').prefetch_related(*_PROPS_PREFETCH)
+    qs = base
+    if q:
+        qs = qs.filter(Q(expense_number__icontains=q) | Q(description__icontains=q) | Q(note__icontains=q)
+                       | Q(created_by__username__icontains=q) | Q(created_by__first_name__icontains=q)
+                       | Q(vendor__name__icontains=q))
+    # Waiting and approved-not-paid are not tied to a month.
+    if not (groups and set(groups) <= {'submitted', 'approved'}):
+        if date_from:
+            qs = qs.filter(expense_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(expense_date__lte=date_to)
+    who = lambda e: (e.created_by.get_full_name() or e.created_by.username) if e.created_by_id else ''
+    period_rows = list(qs.order_by('expense_date' if sort == 'date' else '-expense_date', '-created_at'))
+    counts = {k: sum(1 for e in period_rows if e.status in v) for k, v in GROUPS.items()}
+    by_n = {}
+    for e in period_rows:
+        by_n[who(e)] = by_n.get(who(e), 0) + 1
+    rows = [e for e in period_rows
+            if (not groups or any(e.status in GROUPS[g] for g in groups)) and (not people or who(e) in people)]
+    page_obj = Paginator(rows, list_per_page(request)).get_page(request.GET.get('page'))
 
-    branch = request.GET.get('branch')
-    if branch:
-        expenses = expenses.filter(branch_id=branch)
-    status = request.GET.get('status')
-    expenses = expenses.prefetch_related(*_PROPS_PREFETCH).order_by('-expense_date', '-created_at')
-    if status:
-        # Paid / partially paid are derived from the payments.
-        expenses = [e for e in expenses if e.display_status == status]
+    kpis = None
+    if period['month']:
+        paid = lambda f, l: (scope(ExpensePayment.objects.filter(status=ExpensePayment.STATUS_PAID, payment_date__gte=f, payment_date__lte=l),
+                                   request.user, 'expense__branch'))
+        spent = paid(date_from, date_to).aggregate(t=Sum('amount'))['t'] or 0
+        pf, pl = prev_month_range(date_from)
+        prev = paid(pf, pl).aggregate(t=Sum('amount'))['t'] or 0
+        by_cat = {}
+        for e in base.filter(pk__in=paid(date_from, date_to).values('expense_id')):
+            for l in e.lines.all():
+                by_cat[l.category.name] = by_cat.get(l.category.name, 0) + int(l.amount)
+        top = max(by_cat.items(), key=lambda x: x[1]) if by_cat else None
+        waiting = list(base.filter(status=Expense.STATUS_SUBMITTED))
+        approved = list(base.filter(status=Expense.STATUS_APPROVED))
+        kpis = {
+            'spent': spent, 'delta': pct_delta(spent, prev), 'prev_month': pf.strftime('%Y-%m'),
+            'top_category': top[0] if top else None,
+            'top_share': round(top[1] * 100 / sum(by_cat.values())) if top else None,
+            'waiting_count': len(waiting), 'waiting_idr': sum(e.total_amount for e in waiting),
+            'waiting_oldest': max(((today - e.created_at.date()).days for e in waiting), default=0),
+            'approved_count': len(approved), 'approved_idr': sum(e.total_amount for e in approved),
+            'approved_oldest': max(((today - e.decided_at.date()).days for e in approved if e.decided_at), default=0),
+        }
 
-    paginator = Paginator(expenses, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    page_expenses = list(page_obj)
-
-    all_expenses = list(_visible(request).exclude(status=Expense.STATUS_VOIDED).prefetch_related('lines', 'payments'))
-    stats = {
-        'total': len(all_expenses),
-        'total_sar': sum(e.total_amount_sar for e in all_expenses),
-        'outstanding_sar': sum(e.outstanding_sar for e in all_expenses),
-        'unpaid_count': sum(1 for e in all_expenses if e.display_status != Expense.STATUS_PAID),
-    }
-
-    # Expenses belong to a branch, never to head office; with one branch to
-    # choose from the form fills it in and shows no picker.
     branches = list(operating_branches(request.user))
-    codes = [b.code for b in branches]
+    years = sorted({d.year for d in _visible(request).dates('expense_date', 'year')} | {today.year})
     return inertia_render(request, 'Expense/List', props={
-        'expenses': [_expense_props(e) for e in page_expenses],
+        'expenses': [{**_expense_props(e), 'recorded_by': who(e)} for e in page_obj],
+        'filters': {'q': q, 'status': groups, 'by': people, 'sort': sort, 'per': list_per_page(request), **period},
+        'years': years, 'counts': counts,
+        'people_counts': [{'name': k, 'count': v} for k, v in sorted(by_n.items()) if k],
+        'kpis': kpis,
         'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
+        'staff_choices': _staff_choices(branches),
+        'me': request.user.pk,
         'category_choices': [{'value': c.code, 'label': c.name} for c in ExpenseCategory.objects.filter(is_active=True)],
-        'status_choices': Expense.DISPLAY_CHOICES,
         'vendor_choices': [v.name for v in Vendor.objects.filter(is_active=True).order_by('name')],
-        'service_line_choices': _service_line_choices(codes),
-        'account_choices': _account_choices(branches=codes),
-        'stats': stats,
-        'branch_filter': branch or '',
-        'status_filter': status or '',
         'pagination': pagination_props(page_obj),
     })
 
@@ -143,17 +179,18 @@ def expense_list(request):
 @require_perm('expenses', 'view')
 def expense_detail(request, pk):
     expense = get_in_scope_or_404(
-        Expense.objects.select_related('branch', 'created_by', 'vendor').prefetch_related(*_PROPS_PREFETCH),
+        Expense.objects.select_related('branch', 'created_by', 'vendor', 'decided_by').prefetch_related(*_PROPS_PREFETCH),
         request.user, pk=pk,
     )
-    journal_entries = (
-        JournalEntry.objects.for_source('Expense', expense.pk)
-        | JournalEntry.objects.for_source('ExpensePayment', list(expense.payments.values_list('pk', flat=True)))
+    journal_entries = JournalEntry.objects.for_source(
+        'ExpensePayment', list(expense.payments.values_list('pk', flat=True)),
     ).order_by('-entry_date')
 
+    # Paid from one of the branch's rupiah accounts.
+    accounts = [a for a in money_account_choices(branch=expense.branch_id) if a['currency'] == Expense.CURRENCY]
     return inertia_render(request, 'Expense/Detail', props={
         'expense': _expense_props(expense),
-        'account_choices': _account_choices(expense.branch_id),
+        'account_choices': accounts,
         'journal_entries': [
             serialize_journal_entry(e, total_debit=e.total_debit, total_credit=e.total_credit)
             for e in journal_entries
@@ -163,13 +200,10 @@ def expense_detail(request, pk):
 
 @require_perm('expenses', 'create')
 def expense_record(request):
+    """Finance records an expense in rupiah; it waits for approval."""
     if request.method != 'POST':
         return redirect('expense_list')
-
-    try:
-        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-    except (json.JSONDecodeError, ValueError):
-        data = request.POST
+    data = _data(request)
 
     branches = operating_branches(request.user)
     branch = branches.filter(pk=data.get('branch')).first() if data.get('branch') else None
@@ -179,12 +213,27 @@ def expense_record(request):
         messages.error(request, 'Pilih cabang pengeluaran — pengeluaran milik cabang, bukan Pusat.')
         return redirect('expense_list')
 
-    expense_date_val = _parse_date(data.get('expense_date')) or date.today()
-    currency = (data.get('currency') or 'SAR').upper()
-    if currency not in CURRENCIES:
-        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
-        return redirect('expense_list')
-    exchange_rate = _to_float(data.get('exchange_rate'), 1) or 1
+    proof = request.FILES.get('proof')
+    if proof:
+        error = validate_proof_file(proof)
+        if error:
+            messages.error(request, error)
+            return redirect('expense_list')
+
+    # Who spent it, and from where: a staff member's advance, or the office.
+    from ..finance.staff_advance import branch_holders
+    spent_by = None
+    if data.get('spent_by'):
+        spent_by = branch_holders(branch.pk).filter(pk=data.get('spent_by')).first()
+        if spent_by is None:
+            messages.error(request, 'Staf yang mengeluarkan uangnya tidak aktif di cabang ini.')
+            return redirect('expense_list')
+    paid_with = None
+    if (data.get('paid_with') or 'office') != 'office':
+        paid_with = resolve_money_account(data.get('paid_with'), staff=True)
+        if paid_with is None:
+            messages.error(request, 'Uang muka yang dipilih tidak ditemukan.')
+            return redirect('expense_list')
 
     raw_lines = data.get('lines', '')
     try:
@@ -193,122 +242,160 @@ def expense_record(request):
         line_rows = []
 
     lines = []
-    for row in line_rows:
+    for i, row in enumerate(line_rows):
         amt = _to_float(row.get('amount', 0))
         if not amt or amt <= 0:
             continue
         category = ExpenseCategory.objects.filter(pk=row.get('category'), is_active=True).first()
         if category is None:
             continue
-        service_line = None
-        if row.get('service_line'):
-            from ..models import InvoiceLine
-            service_line = InvoiceLine.objects.select_related('invoice').filter(pk=row['service_line']).first()
+        # A line's receipts arrive as receipts_<row index>; without one it
+        # needs a reason the approver can check (unless one proof covers all).
+        receipts = request.FILES.getlist(f'receipts_{i}')
+        for f in receipts:
+            error = validate_proof_file(f)
+            if error:
+                messages.error(request, f'{f.name}: {error}')
+                return redirect('expense_list')
+        reason = (row.get('no_receipt_reason') or '').strip()
+        if not receipts and not reason and not proof:
+            messages.error(request, f'Baris {len(lines) + 1}: lampirkan struk, atau tulis kenapa tidak ada struk.')
+            return redirect('expense_list')
         lines.append({'category': category, 'description': row.get('description', ''), 'amount': int(amt),
-                      'service_line': service_line})
+                      'receipts': receipts, 'no_receipt_reason': '' if receipts else reason})
 
     if not lines:
         messages.error(request, 'Minimal satu baris beban dengan kategori dan nominal harus diisi.')
         return redirect('expense_list')
 
-    pay_now = None
-    account_value = data.get('pay_now_account')
-    if account_value:
-        account = _resolve_account(account_value)
-        if account:
-            pay_now = {'account': account, 'reference': data.get('pay_now_reference', '')}
-
     try:
-        expense = expense_service.record_expense(
-            branch=branch, expense_date=expense_date_val, lines=lines,
+        expense = expense_service.submit_expense(
+            branch=branch, expense_date=_parse_date(data.get('expense_date')) or date.today(), lines=lines,
             created_by=request.user, vendor=data.get('vendor', ''),
-            description=data.get('description', ''), currency=currency,
-            exchange_rate=exchange_rate, note=data.get('note', ''),
-            pay_now=pay_now,
+            description=data.get('description', ''), note=data.get('note', ''), proof=proof,
+            spent_by=spent_by or (None if paid_with else request.user), paid_with=paid_with,
         )
     except FinanceError as e:
         messages.error(request, str(e))
         return redirect('expense_list')
 
-    messages.success(request, f'Expense {expense.expense_number} berhasil dicatat.')
+    messages.success(request, f'Beban {expense.expense_number} dicatat, menunggu persetujuan.')
     return redirect('expense_detail', pk=expense.pk)
+
+
+def _decide(request, pk, action):
+    expense = get_in_scope_or_404(Expense.objects.all(), request.user, pk=pk)
+    if request.method != 'POST':
+        return redirect('expense_detail', pk=pk)
+    data = _data(request)
+    try:
+        if action == 'approve':
+            expense_service.approve_expense(expense, approved_by=request.user)
+            messages.success(request, f'{expense.expense_number} disetujui, siap dibayar.')
+        elif action == 'reject':
+            expense_service.reject_expense(expense, rejected_by=request.user, reason=(data.get('reason') or '').strip())
+            messages.success(request, f'{expense.expense_number} ditolak.')
+        elif action == 'pay':
+            account = resolve_money_account(data.get('account'))
+            expense_service.pay_expense(
+                expense, account=account, payment_date=_parse_date(data.get('payment_date')) or date.today(),
+                paid_by=request.user, reference=(data.get('reference') or '').strip(),
+            )
+            messages.success(request, f'{expense.expense_number} dibayar.')
+        else:
+            expense_service.void_expense(expense, voided_by=request.user, reason=(data.get('reason') or '').strip())
+            messages.success(request, f'{expense.expense_number} dibatalkan.')
+    except FinanceError as e:
+        messages.error(request, str(e))
+    return redirect('expense_detail', pk=pk)
+
+
+@require_perm('expenses', 'approve')
+def expense_approve(request, pk):
+    return _decide(request, pk, 'approve')
+
+
+@require_perm('expenses', 'approve')
+def expense_reject(request, pk):
+    return _decide(request, pk, 'reject')
 
 
 @require_perm('expenses', 'edit')
 def expense_pay(request, pk):
-    expense = get_in_scope_or_404(Expense.objects.all(), request.user, pk=pk)
-    if request.method != 'POST':
-        return redirect('expense_detail', pk=pk)
-
-    try:
-        data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
-    except (json.JSONDecodeError, ValueError):
-        data = request.POST
-
-    amount = _to_float(data.get('amount'))
-    if not amount:
-        messages.error(request, 'Jumlah pembayaran harus diisi.')
-        return redirect('expense_detail', pk=pk)
-
-    account = _resolve_account(data.get('account'))
-    if not account:
-        messages.error(request, 'Rekening pembayar harus dipilih.')
-        return redirect('expense_detail', pk=pk)
-    currency = (data.get('currency') or expense.currency).upper()
-    if currency not in CURRENCIES:
-        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
-        return redirect('expense_detail', pk=pk)
-
-    try:
-        expense_service.add_expense_payment(
-            expense, amount=amount, payment_date=_parse_date(data.get('payment_date')) or date.today(),
-            account=account,
-            currency=currency,
-            exchange_rate=_to_float(data.get('exchange_rate'), 1) or 1,
-            reference=data.get('reference', ''), note=data.get('note', ''),
-            created_by=request.user,
-        )
-        messages.success(request, f'Pembayaran untuk {expense.expense_number} tercatat.')
-    except FinanceError as e:
-        messages.error(request, str(e))
-
-    return redirect('expense_detail', pk=pk)
+    return _decide(request, pk, 'pay')
 
 
 @require_perm('expenses', 'delete')
 def expense_void(request, pk):
-    expense = get_in_scope_or_404(Expense.objects.all(), request.user, pk=pk)
-    if request.method != 'POST':
-        return redirect('expense_detail', pk=pk)
-
-    try:
-        expense_service.void_expense(expense, created_by=request.user)
-        messages.success(request, f'Expense {expense.expense_number} di-void.')
-    except FinanceError as e:
-        messages.error(request, str(e))
-
-    return redirect('expense_detail', pk=pk)
+    return _decide(request, pk, 'void')
 
 
 @require_perm('expenses', 'export')
 def expense_export_csv(request):
-    expenses = _visible(request).select_related('branch').order_by('-expense_date')
+    expenses = _visible(request).select_related('branch', 'vendor').order_by('-expense_date')
 
     branch = request.GET.get('branch')
     if branch:
         expenses = expenses.filter(branch_id=branch)
     status = request.GET.get('status')
-    expenses = expenses.prefetch_related('lines', 'payments').select_related('vendor')
     if status:
-        expenses = [e for e in expenses if e.display_status == status]
+        expenses = expenses.filter(status=status)
+    expenses = expenses.prefetch_related('lines', 'payments')
 
     headers = [
-        'Expense #', 'Branch', 'Date', 'Vendor', 'Description', 'Currency',
-        'Total', 'Total SAR', 'Paid SAR', 'Outstanding SAR', 'Status', 'Created At',
+        'Expense #', 'Branch', 'Date', 'Vendor', 'Description',
+        'Total IDR', 'Total SAR', 'Status', 'Paid on', 'Created At',
     ]
     rows = ([
         e.expense_number, e.branch.name if e.branch_id else '', e.expense_date,
-        e.vendor.name if e.vendor_id else '', e.description, e.currency, e.total_amount, e.total_amount_sar,
-        e.paid_sar, e.outstanding_sar, e.display_status, e.created_at,
+        e.vendor.name if e.vendor_id else '', e.description, e.total_amount, e.total_amount_sar,
+        e.get_status_display(), e.payment.payment_date if e.payment else '', e.created_at,
     ] for e in expenses)
     return csv_export_response(f'expenses-{date.today().isoformat()}.csv', headers, rows)
+
+
+# ── Kategori beban (Finance Pusat dan Admin) ─────────────────────────
+
+@require_perm('expenses', 'edit')
+@head_office_only
+def expense_categories(request):
+    """Categories every branch picks from; each has its own ledger account."""
+    from ..models.expense import ExpenseLine
+    used = dict(ExpenseLine.objects.values('category_id').annotate(n=Count('id')).values_list('category_id', 'n'))
+    return inertia_render(request, 'Finance/ExpenseCategories', props={
+        'categories': [{
+            'code': c.code, 'name': c.name, 'ledger_account': c.ledger_account_id,
+            'is_active': c.is_active, 'used': used.get(c.code, 0),
+        } for c in ExpenseCategory.objects.select_related('ledger_account').order_by('ledger_account_id')],
+    })
+
+
+@require_perm('expenses', 'edit')
+@head_office_only
+def expense_category_new(request):
+    if request.method == 'POST':
+        try:
+            cat = expense_service.create_category(_data(request).get('name'))
+            messages.success(request, f'Kategori "{cat.name}" ditambahkan (akun {cat.ledger_account_id}).')
+        except FinanceError as e:
+            messages.error(request, str(e))
+    return redirect('expense_categories')
+
+
+@require_perm('expenses', 'edit')
+@head_office_only
+def expense_category_edit(request, code):
+    category = ExpenseCategory.objects.filter(pk=code).select_related('ledger_account').first()
+    if category is None or request.method != 'POST':
+        return redirect('expense_categories')
+    data = _data(request)
+    active = data.get('is_active')
+    try:
+        expense_service.update_category(
+            category, name=data.get('name') if 'name' in data else None,
+            is_active=None if active in (None, '') else str(active).lower() in ('1', 'true', 'on'),
+        )
+        messages.success(request, f'Kategori "{category.name}" diperbarui.')
+    except FinanceError as e:
+        messages.error(request, str(e))
+    return redirect('expense_categories')
