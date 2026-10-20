@@ -12,7 +12,7 @@ from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.finance.accounts import cash_ledger_for
 from hw.models import (
-    BankAccount, Client, CreditNote, Invoice, JournalLine, LedgerAccount,
+    BankAccount, Client, CreditNote, Invoice, JournalLine,
 )
 from hw.models.period import FinancialPeriod
 
@@ -169,7 +169,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(props['invoice']['remaining_sar'], 16_500)
         self.assertEqual(props['credit_notes'][0]['number'], cn.credit_note_number)
         self.assertFalse(props['can_void'])
-        listed = self.client.get('/finance/credit-notes/', HTTP_X_INERTIA='true').json()['props']['credit_notes']
+        listed = self.client.get('/finance/credit-notes/?year=all', HTTP_X_INERTIA='true').json()['props']['credit_notes']
         self.assertEqual(listed[0]['amount_sar'], 1_500)
         pdf = self.client.get(f'/finance/credit-notes/{cn.pk}/pdf/')
         self.assertEqual(pdf['Content-Type'], 'application/pdf')
@@ -179,7 +179,7 @@ class CreditNoteTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self._refresh()
         self.assertTrue(self.inv.is_void)
-        rows = self.client.get('/invoice/?status=void', HTTP_X_INERTIA='true').json()['props']['invoices']
+        rows = self.client.get('/invoice/?status=void&year=all', HTTP_X_INERTIA='true').json()['props']['invoices']
         self.assertEqual([(r['invoice_number'], r['status']) for r in rows], [('INV-CN-1', 'void')])
         # A void invoice can't be edited any more.
         self.assertEqual(self.client.get(f'/invoice/{self.inv.pk}/edit/').status_code, 302)

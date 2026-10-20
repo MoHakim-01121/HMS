@@ -12,7 +12,7 @@
      nowhere else on the chrome. Status hues (--green/--yellow/--red/--blue)
      stay semantic only. Geometry: card radius 20, control radius 14, button
      pill 999. */
-  --background: oklch(0.972 0.003 250);   /* cool near-white canvas */
+  --background: oklch(0.78 0.012 250);   /* cool light-grey canvas: white cards stand off it */
   --foreground: oklch(0.205 0.012 260);   /* near-black ink */
   --primary: oklch(0.205 0.012 260);      /* near-black primary pill */
   --primary-hover: oklch(0.30 0.012 260);
@@ -50,6 +50,24 @@
   --brand: oklch(0.72 0.15 85);
   --brand-foreground: oklch(1 0 0);
   --brand-deep: var(--foreground);
+  /* Homlu status and elevation tokens (tokens.json): a status reads as its
+     tint behind its text colour; --warning fills a notification count. */
+  --success: oklch(0.62 0.16 152);
+  --success-text: oklch(0.46 0.13 152);
+  --success-tint: oklch(0.965 0.03 152);
+  --warning: oklch(0.72 0.16 62);
+  --on-warning: oklch(0.20 0.012 260);
+  --warning-text: oklch(0.48 0.13 62);
+  --warning-tint: oklch(0.965 0.03 62);
+  --danger: var(--destructive);
+  --danger-text: oklch(0.50 0.19 25);
+  --danger-tint: oklch(0.965 0.03 25);
+  --info: oklch(0.55 0.16 250);
+  --info-text: oklch(0.48 0.15 250);
+  --info-tint: oklch(0.965 0.03 250);
+  --shadow-popover: 0 22px 50px -24px rgba(22,24,29,.28);
+  --shadow-menu: 0 22px 50px -22px rgba(22,24,29,.34);
+  --shadow-palette: 0 30px 60px -26px rgba(22,24,29,.42);
 }
 
 [data-theme="dark"] {
@@ -81,6 +99,15 @@
   --brand: oklch(0.72 0.15 85);
   --brand-foreground: oklch(0.145 0 0);
   --brand-deep: var(--foreground);
+  --success-text: oklch(0.72 0.15 152);
+  --success-tint: oklch(0.24 0.045 152);
+  --warning-text: oklch(0.78 0.14 62);
+  --warning-tint: oklch(0.24 0.045 62);
+  --danger: var(--destructive);
+  --danger-text: oklch(0.70 0.17 25);
+  --danger-tint: oklch(0.24 0.045 25);
+  --info-text: oklch(0.70 0.13 250);
+  --info-tint: oklch(0.24 0.045 250);
 }
 
 @theme inline {
@@ -743,8 +770,8 @@ thead th.text-right { text-align: right; }
   .hms-table-v2 thead th {
     padding: 10px 12px;
     font-size: 11.5px;
-    font-weight: 500;
-    color: var(--muted-foreground);
+    font-weight: 600;
+    color: var(--foreground);
     background: transparent;
     border-bottom: 1px solid var(--hairline);
   }
@@ -1060,7 +1087,7 @@ thead th.text-right { text-align: right; }
 .shadcn-root .fp-status-opt.selected .fp-status-dot::after {
   content: "";
   width: 11px; height: 11px;
-  background: var(--background);
+  background: var(--card);
   -webkit-mask: var(--hms-check) center/contain no-repeat;
   mask: var(--hms-check) center/contain no-repeat;
 }
@@ -1811,7 +1838,7 @@ thead th.text-right { text-align: right; }
    `col-m-*` classes, which is wrong for read-only detail line items. */
 .hms-dv-table-wrap { overflow-x:auto; }
 table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
-.hms-dv-table th { text-align:left; font-weight:500; font-size:12px; color:var(--muted-foreground); padding:0 12px 8px 0; border-bottom:1px solid var(--border); white-space:nowrap; }
+.hms-dv-table th { text-align:left; font-weight:600; font-size:12px; color:var(--foreground); padding:0 12px 8px 0; border-bottom:1px solid var(--border); white-space:nowrap; }
 .hms-dv-table td { padding:11px 12px 11px 0; border-bottom:1px solid var(--border); vertical-align:top; color:var(--foreground); }
 .hms-dv-table th:last-child, .hms-dv-table td:last-child { padding-right:0; }
 .hms-dv-table .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -3095,3 +3122,18 @@ body.public-page {
 .shadcn-root .alert-warning { border-color:color-mix(in oklab, var(--yellow) 45%, transparent); background:color-mix(in oklab, var(--yellow) 9%, transparent); color:var(--foreground); }
 button.hms-iv-chip { background:transparent; font:inherit; font-size:11.5px; cursor:pointer; }
 button.hms-iv-chip:hover { color:var(--red); border-color:color-mix(in oklab, var(--red) 45%, transparent); }
+
+/* Light canvas is a solid grey (0.78), so the card-tuned supporting ink and
+   hover fill wash out where they sit straight on it (page subtitles, month
+   labels, topbar icons). Darken both on the canvas, then hand card surfaces
+   their own values back. Portalled popovers live outside .page-shell and keep
+   the defaults untouched. */
+[data-theme="light"] .page-shell,
+[data-theme="light"] .hms-topbar.ks-tb {
+  --muted-foreground: oklch(0.34 0.012 258);
+  --secondary: oklch(0.72 0.012 250);
+}
+[data-theme="light"] :is(.da-card, .la-card, .la-kpi, .la-tool, .la-pg, .la-menu, .pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .fa-pop, .fa-drop, .ks-sp, .ks-bm, .ks-dd, .ks-cdlg, .bc .tip) {
+  --muted-foreground: oklch(0.52 0.012 258);
+  --secondary: oklch(0.958 0.004 250);
+}

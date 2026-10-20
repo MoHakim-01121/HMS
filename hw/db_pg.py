@@ -64,10 +64,6 @@ def user_triggers_disabled(*tables, using=None):
             cur.execute('SET CONSTRAINTS ALL DEFERRED')
 
 
-def is_postgres():
-    return connection.vendor == 'postgresql'
-
-
 pg_only = unittest.skipUnless(
     connection.vendor == 'postgresql',
     'Aturan ini hanya ada di PostgreSQL — jalankan dengan TEST_DATABASE_URL.',

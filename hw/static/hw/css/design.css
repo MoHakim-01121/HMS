@@ -70,8 +70,8 @@
      --primary), stepped a shade deeper because legacy 2px focus outlines
      need ~3:1 against the ivory canvas. */
   color-scheme: light;
-  --bg:           oklch(0.973 0.008 85);   /* = --background warm ivory canvas */
-  --bg-2:         oklch(0.95 0.009 85);    /* one step darker than the page canvas */
+  --bg:           oklch(0.78 0.012 250);  /* = --background cool light-grey canvas */
+  --bg-2:         oklch(0.75 0.013 250);  /* one step darker than the page canvas */
   --surface:      oklch(1 0 0);            /* = --card pure white */
   --surface-2:    oklch(0.947 0.01 85);
   --surface-3:    oklch(0.911 0.016 85);

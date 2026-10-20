@@ -7,7 +7,6 @@ class Company(models.TextChoices):
 
 class InvoiceType(models.TextChoices):
     HOTEL = 'hotel', 'Hotel'
-    VISA  = 'visa',  'Visa/Services'
 
 
 class HotelCity(models.TextChoices):

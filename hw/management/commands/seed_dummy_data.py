@@ -34,7 +34,7 @@ KEEP_MODELS = {
     # Satu tabel (hw_moneyaccount): kas cabang dipertahankan, rekening bank
     # hasil seed dihapus terpisah di _wipe().
     'MoneyAccount', 'BankAccount', 'CashAccount', 'Currency',
-    'MealPlan', 'Hotel', 'RoomType', 'WATarget', 'MessageTemplate', 'TeamMember', 'Pricelist',
+    'MealPlan', 'Hotel', 'RoomType', 'TeamMember', 'Pricelist',
 }
 
 CLIENTS = [
@@ -155,7 +155,6 @@ class Command(BaseCommand):
         for trip in trips:
             self._book(trip)
         self._cash_flow(trips)
-        self._services()
         self._expenses()
         self._controls()
 
@@ -222,7 +221,6 @@ class Command(BaseCommand):
                 client=client, hotel=hotel,
                 guest_phone=client.wa, check_in=day, check_out=day + timedelta(days=nights),
                 confirmation_number=self._next_cl(), reservation_status=status,
-                pic_name=client.pic, pic_phone=client.wa,
             )
             for r in self._rooms(hotel, trip['pax_groups'], nights):
                 Room.objects.create(cl=cl, **r)
@@ -388,23 +386,6 @@ class Command(BaseCommand):
         )
         settlement_service.close_remittance_diff(rem, created_by=self.user, entry_date=received_day)
 
-    def _services(self):
-        """A few visa invoices (services), paid in IDR."""
-        from hw.finance import posting
-        from hw.models import Invoice
-        for client in self.rng.sample(self.clients, 4):
-            issued = self.today - timedelta(days=self.rng.randint(10, 70))
-            pax = self.rng.randint(12, 45)
-            inv = Invoice.objects.create(
-                invoice_type='visa', invoice_number=self._invoice_number('SVC', issued), client=client,
-                issued_date=issued, due_date=issued + timedelta(days=14),
-                currency='SAR', branch_id='sby', created_by=self.user,
-            )
-            item = inv.add_service_line('Visa Umrah', pax, 550)
-            posting.post_invoice_charge(inv, created_by=self.user, entry_date=issued)
-            Invoice.objects.filter(pk=inv.pk).update(created_at=_dt(issued))
-            self._pay(inv, [item], issued + timedelta(days=self.rng.randint(1, 5)), None, settle=True)
-
     def _expenses(self):
         """Surabaya office running costs, paid in IDR from the branch account."""
         from hw.finance import expense_service
@@ -425,15 +406,13 @@ class Command(BaseCommand):
                 day = month + timedelta(days=self.rng.randint(2, 20))
                 if day > self.today or day < self.start:
                     continue
-                rate = 4750
-                exp = expense_service.record_expense(
+                exp = expense_service.submit_expense(
                     branch=sby, expense_date=day, created_by=self.user, vendor=desc.split(' ')[0],
-                    description=desc, currency='IDR', exchange_rate=rate,
-                    lines=[{'category': cats[code], 'amount': idr, 'description': desc}],
+                    description=desc, lines=[{'category': cats[code], 'amount': idr, 'description': desc}],
                 )
-                expense_service.add_expense_payment(
-                    exp, amount=idr, currency='IDR', exchange_rate=rate, payment_date=day,
-                    account=self.idr, created_by=self.user, reference=f'OUT{day:%y%m%d}',
+                expense_service.approve_expense(exp, approved_by=self.user)
+                expense_service.pay_expense(
+                    exp, account=self.idr, payment_date=day, paid_by=self.user, reference=f'OUT{day:%y%m%d}',
                 )
             month = (month.replace(day=28) + timedelta(days=4)).replace(day=1)
 

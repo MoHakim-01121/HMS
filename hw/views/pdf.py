@@ -1,20 +1,14 @@
 ﻿import base64
-import math
 from datetime import datetime
 from pathlib import Path
 
 from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.utils.translation import override as translation_override
 from weasyprint import HTML
 
 from ..utils import format_currency
-from .context import (
-    _build_reservation_context,
-    _build_visa_payments_context,
-    _build_visa_services_context,
-)
+from .context import _build_reservation_context
 
 
 def _logo_file_url():
@@ -136,113 +130,4 @@ def _render_invoice_pdf(invoice):
     filename = f"{invoice.invoice_number}.pdf"
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return response
-
-
-def _render_services_pdf(invoice):
-    visa_services = _build_visa_services_context(invoice)
-    payments_history = _build_visa_payments_context(invoice)
-    main_currency = invoice.currency
-
-    total_visa = math.floor(sum(s["total"] for s in visa_services))
-    total_payments = math.floor(sum(p["payment_amount_main"] for p in payments_history))
-    remaining_balance = math.floor(total_visa - total_payments)
-
-    issued = datetime.combine(invoice.issued_date, datetime.min.time()) if invoice.issued_date else None
-    due = datetime.combine(invoice.due_date, datetime.min.time()) if invoice.due_date else None
-
-    context = {
-        "customer_name": invoice.customer_name,
-        "invoice_number": invoice.invoice_number,
-        "issued_date": issued,
-        "due_date": due,
-        "visa_services": visa_services,
-        "main_currency": main_currency,
-        "payments_history": payments_history,
-        "total_visa": total_visa,
-        "total_remaining": remaining_balance,
-        "total_payments": total_payments,
-        "remaining_balance": remaining_balance,
-        "logo_rel_path": _logo_file_url(),
-    }
-
-    html = render_to_string("hw/services/invoice_pdf_visa.html", context)
-    pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
-    filename = f"VISA_{invoice.invoice_number}.pdf"
-    response = HttpResponse(pdf, content_type="application/pdf")
-    response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return response
-
-
-_DAYS_EN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-_MONTHS_EN = ['', 'January', 'February', 'March', 'April', 'May', 'June',
-              'July', 'August', 'September', 'October', 'November', 'December']
-
-def _format_date_en(d):
-    return f"{_DAYS_EN[d.weekday()]}, {d.day} {_MONTHS_EN[d.month]} {d.year}"
-
-
-def _format_day_en(d):
-    return f"{d.day} {_MONTHS_EN[d.month]} {d.year}"
-
-
-def _format_date_range_en(start, end):
-    if start is None or end is None:
-        return ''
-    if start == end:
-        return _format_day_en(start)
-    return f"{_format_day_en(start)} – {_format_day_en(end)}"
-
-
-def _build_checkin_groups(qs):
-    from itertools import groupby
-    groups = []
-    for date_val, date_iter in groupby(qs, key=lambda c: c.check_in):
-        date_list = list(date_iter)
-        hotels = []
-        for hotel_name, hotel_iter in groupby(date_list, key=lambda c: c.hotel_name):
-            guests = []
-            for i, cl in enumerate(list(hotel_iter), 1):
-                rooms_str = ', '.join(
-                    f"{r.quantity} {r.room_type}" for r in cl.rooms.all()
-                ) or '—'
-                guests.append({
-                    'no': i,
-                    'guest_name': cl.guest_name,
-                    'confirmation_number': cl.confirmation_number,
-                    'rooms': rooms_str,
-                    'eta': cl.estimasi_tiba.strftime('%H:%M') if cl.estimasi_tiba is not None else '—',
-                    'check_out': cl.check_out,
-                    'num_nights': cl.num_nights,
-                    'pic_name': cl.pic_name or '—',
-                    'pic_phone': cl.pic_phone or '—',
-                })
-            hotels.append({'name': hotel_name, 'guests': guests})
-        groups.append({
-            'date': date_val,
-            'date_label': _format_date_en(date_val),
-            'hotels': hotels,
-            'total': sum(len(h['guests']) for h in hotels),
-        })
-    return groups
-
-
-def _render_checkin_pdf(cls, title, filename='checkin-rekap.pdf',
-                        date_start=None, date_end=None):
-    groups = _build_checkin_groups(cls)
-    hotel_names = {hotel['name'] for group in groups for hotel in group['hotels']}
-    context = {
-        'title': title,
-        'date_range': _format_date_range_en(date_start, date_end),
-        'groups': groups,
-        'total_guests': sum(g['total'] for g in groups),
-        'total_hotels': len(hotel_names),
-        'logo_rel_path': _logo_file_url(),
-        'now': datetime.now(),
-    }
-    with translation_override('en'):
-        html = render_to_string('hw/calendar/checkin_recap_pdf.html', context)
-    pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
-    response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response

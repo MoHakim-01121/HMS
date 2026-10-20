@@ -1,117 +1,110 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import FormHeader from "../../components/shadcn/form-header.jsx";
-import FormPanel from "../../components/shadcn/form-panel.jsx";
-import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
-import FormActions from "../../components/shadcn/form-actions.jsx";
-import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
-import { Input } from "../../components/shadcn/ui/input.jsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
-import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
+import {
+  FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso,
+} from "../../components/shadcn/form-a.jsx";
+import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-function RefundBody({ client, accounts, initial, errors: serverErrors }) {
+// Refund to Client, the "Refund Form" artboard on the Record View HMS canvas.
+// Two amounts: the SAR taken from the client's deposit (journal) and what the
+// account actually paid in its own currency (cash book); the same number for
+// a SAR account. Another user approves it before anything is posted.
+function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
   const { t } = useI18n();
   const i = initial || {};
-  const accountOptions = accounts || [];
-  const [confirm, confirmDialog] = useConfirm();
   const form = useForm({
     from_account: i.from_account || "",
     amount_sar: i.amount_sar || "",
     amount_paid: i.amount_paid || "",
+    refund_date: i.refund_date || todayIso(),
+    reason: i.reason || "",
     note: i.note || "",
     proof: null,
   });
+  const d = form.data;
+  const set = (k) => (v) => form.setData(k, v);
   const errors = { ...serverErrors, ...form.errors };
+  const back = `/finance/clients/${client.pk}/statement/`;
 
-  const account = accountOptions.find((a) => a.value === form.data.from_account);
-  const accountLabel = account?.label || form.data.from_account;
-  // A SAR account pays exactly the SAR taken from the fund; any other
-  // currency needs the real amount that left the account.
+  const account = accounts.find((a) => a.value === d.from_account);
   const foreign = account && account.currency !== "SAR";
+  const amount = Number(d.amount_sar) || 0;
+  const held = client.saldo_dana;
+
+  const why = !account ? t("Choose the account the refund is paid from.")
+    : !amount ? t("Enter how much of the deposit to refund.")
+      : amount > held ? t("More than the {n} SAR deposit.", { n: fmt(held) })
+        : foreign && !(Number(d.amount_paid) > 0) ? t("Enter the amount paid out in {ccy}.", { ccy: account.currency })
+          : !d.reason.trim() ? t("Give the reason for the refund.")
+            : "";
 
   const submit = (e) => {
     e.preventDefault();
-    const amount = Number(form.data.amount_sar) || 0;
-    const paid = foreign ? `${fmt(Number(form.data.amount_paid) || 0)} ${account.currency}` : `${fmt(amount)} SAR`;
-    confirm({
-      title: t("Send this refund?"),
-      message: t("{paid} will be paid out to {name} from {account}, taking {amount} SAR from their fund. This posts a journal entry.", {
-        paid, amount: fmt(amount), name: client.name, account: accountLabel,
-      }),
-      confirmLabel: t("Send Refund"),
-      danger: true,
-      icon: "wallet",
-      onConfirm: () => form.post(`/finance/clients/${client.pk}/refund/`, { forceFormData: true }),
-    });
+    if (why) return;
+    form.post(`/finance/clients/${client.pk}/refund/`, { forceFormData: true });
   };
 
+  const error = Object.values(errors).filter(Boolean).map((x) => t(x)).join(" ");
   return (
-    <div className="form-page shadcn-root">
-      <PageBack href={`/finance/clients/${client.pk}/statement/`} label={t("Back")} />
-      <FormHeader
-        kicker={t("Refund")}
-        title={t("Refund to Client")}
-        sub={`${client.name} — ${t("Fund balance")}: ${fmt(client.saldo_dana)} SAR`}
-      />
+    <FormA title={t("Refund to Client")} onSubmit={submit} error={error || null}>
+      <div className="fa-fields">
+        <Field label={t("Client")} required>
+          <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{client.name}</span></ReadOnly>
+        </Field>
+        <Field label={t("Paid from")} required>
+          <Picker searchable={false} value={d.from_account} placeholder={t("Choose account")} heading={t("Paid from")}
+            options={accounts.map((a) => ({ value: a.value, label: a.label, meta: [a.branch_name, a.currency].filter(Boolean).join(", ") }))}
+            onPick={(o) => form.setData((x) => ({ ...x, from_account: o.value, amount_paid: "" }))}
+            extra={account ? <span className="fa-om">{account.currency}</span> : null} />
+        </Field>
+        <Field label={t("From client deposit")} required>
+          <AmountIn ccy="SAR" value={d.amount_sar} onChange={set("amount_sar")}
+            hint={<button type="button" className="fa-btn o sm" onClick={() => form.setData("amount_sar", String(Math.max(held, 0)))}>{t("All")}</button>} />
+        </Field>
+        {foreign ? (
+          <Field label={t("Amount paid out")} required>
+            <AmountIn ccy={account.currency} value={d.amount_paid} onChange={set("amount_paid")} />
+          </Field>
+        ) : (
+          <Field label={t("Amount paid out")}>
+            <ReadOnly>{t("Same as the deposit amount, paid in SAR")}</ReadOnly>
+          </Field>
+        )}
+        <Field label={t("Refund date")} required>
+          <DatePicker value={d.refund_date} onChange={set("refund_date")} label={t("Choose refund date")} />
+        </Field>
+        <Field label={t("Reason")} required>
+          <TextIn value={d.reason} onChange={set("reason")} placeholder={t("For example, the client cancelled the trip")} />
+        </Field>
+      </div>
 
-      <form method="post" onSubmit={submit}>
-        <FormPanel>
-          <FormSection label={t("Refund Details")}>
-            <div className="fg-2">
-              <FormField label={t("Paid from")} name="from_account" error={errors.from_account}>
-                <Select name="from_account" value={form.data.from_account} onValueChange={(v) => form.setData("from_account", v)}>
-                  <SelectTrigger id="from_account" className="w-full">
-                    <SelectValue placeholder={t("Choose account")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accountOptions.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <FormField
-                label={t("From client fund (SAR)")}
-                name="amount_sar"
-                type="number"
-                step="1"
-                value={form.data.amount_sar}
-                onChange={(v) => form.setData("amount_sar", v)}
-                error={errors.amount_sar}
-              />
-              {foreign && (
-                <FormField
-                  label={t("Amount paid ({currency})", { currency: account.currency })}
-                  name="amount_paid" type="number" step="1"
-                  value={form.data.amount_paid} onChange={(v) => form.setData("amount_paid", v)}
-                  error={errors.amount_paid}
-                  hint={t("Exactly what left the account.")}
-                />
-              )}
-            </div>
-            <FormField label={t("Note")} name="note" span={2}>
-              <Textarea name="note" rows={2} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Reason for refund…")} />
-            </FormField>
-            <FormField label={t("Proof")} name="proof" span={2} hint={t("Optional — image or PDF")} error={errors.proof}>
-              <Input
-                id="proof" name="proof" type="file" accept="image/*,.pdf"
-                onChange={(e) => form.setData("proof", e.target.files[0] || null)}
-              />
-            </FormField>
-          </FormSection>
+      <div className="fa-rh"><span className="fa-cap">{t("Deposit of {name}", { name: client.name })}</span></div>
+      <div className="rf-eff">
+        <div><span>{t("Deposit held now")}</span><span className="fa-num">{fmt(held)} SAR</span></div>
+        <div><span>{t("This refund")}</span><span className="fa-num">−{fmt(amount)} SAR</span></div>
+        <div className="res"><span>{t("Deposit left after approval")}</span><span className={"fa-num" + (held - amount < 0 ? " neg" : "")}><b>{fmt(held - amount)}</b> SAR</span></div>
+      </div>
 
-          <FormActions
-            cancelHref={`/finance/clients/${client.pk}/statement/`}
-            submitLabel={t("Send Refund")}
-            processing={form.processing}
-          />
-        </FormPanel>
-      </form>
-      {confirmDialog}
-    </div>
+      <NoteField label={t("Transfer proof")} optional>
+        <FileDrop file={d.proof} onFile={set("proof")} title={t("Upload the bank slip")}
+          onTooBig={() => showToast(t("File too large. Maximum upload size is 3 MB."), "error")} />
+      </NoteField>
+      <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Another user approves it before it is posted.")} />
+
+      <Foot why={why} cancelHref={back} submitLabel={t("Submit for approval")} processing={form.processing} />
+      <style>{EFF_CSS}</style>
+    </FormA>
   );
 }
+
+export const EFF_CSS = `
+.rf-eff { border: 1px solid var(--border); border-radius: 14px; padding: 6px 14px; font-size: 13px; }
+.rf-eff > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 30px; color: var(--muted-foreground); }
+.rf-eff .res { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; color: var(--foreground); font-weight: 500; }
+.rf-eff .res b { font-weight: 700; font-size: 15px; }
+.rf-eff .neg b { color: var(--danger-text); }
+`;
 
 export default withStandaloneModal(RefundBody, (p) => `/finance/clients/${p.client.pk}/statement/`);

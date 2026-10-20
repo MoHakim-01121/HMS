@@ -1,4 +1,5 @@
-﻿import json
+from urllib.parse import urlencode
+import json
 import logging
 from datetime import date, timedelta
 
@@ -11,6 +12,7 @@ from django.shortcuts import redirect
 from inertia import render as inertia_render
 
 from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, InvoiceLine, log_activity
+from ..utils import round_half_up
 from ..models.choices import InvoiceType
 from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
@@ -136,59 +138,119 @@ def _hotel_invoices(request):
     return scope(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user)
 
 
-@require_perm('invoice', 'view')
-def invoice_list(request):
-    base_qs = _hotel_invoices(request).with_lines()
-
-    qs, filters = _filter_invoice_qs(base_qs, request)
-    q, status, date_from, date_to = filters['q'], filters['status'], filters['date_from'], filters['date_to']
-
-    due_soon = request.GET.get('due_soon')
-    if due_soon:
-        threshold = date.today() + timedelta(days=7)
-        qs = qs.filter(due_date__lte=threshold, due_date__gte=date.today())
-
-    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    page_invoices = list(page_obj)
-    paid_map = fq.invoice_paid_map([inv.pk for inv in page_invoices])
-    credited_map = fq.invoice_credited_map([inv.pk for inv in page_invoices])
-
-    invoices = []
-    for inv in page_invoices:
+def _invoice_money(invoices):
+    """{pk: (due, remaining, status)} for hotel invoices: what is owed after
+    credit notes, what is still open, and paid / partial / unpaid / void /
+    overpaid. Two bulk ledger queries for the lot."""
+    ids = [inv.pk for inv in invoices]
+    paid_map = fq.invoice_paid_map(ids)
+    credited_map = fq.invoice_credited_map(ids)
+    out = {}
+    for inv in invoices:
         credited, deposited = credited_map.get(inv.pk, (0, 0))
         due = 0 if inv.is_void else inv.total_sar - credited
         remaining = due - (paid_map.get(inv.pk, 0) - deposited)
+        status = ("void" if inv.is_void else "overpaid" if remaining < 0 else "paid" if remaining == 0
+                  else "partial" if remaining < due else "unpaid")
+        out[inv.pk] = (due, remaining, status)
+    return out
+
+
+def _due_month_kpis(base_qs, first, last, user):
+    """Invoiced and collection for invoices due in [first, last]."""
+    invs = [i for i in base_qs.filter(due_date__gte=first, due_date__lte=last) if not i.is_void]
+    money = _invoice_money(invs)
+    due = sum(money[i.pk][0] for i in invs)
+    open_ = sum(max(0, money[i.pk][1]) for i in invs)
+    return {
+        'invoiced': sum(i.total_sar for i in invs), 'count': len(invs),
+        'outstanding': open_, 'rate': round((due - open_) * 100 / due) if due else None,
+    }
+
+
+@require_perm('invoice', 'view')
+def invoice_list(request):
+    """Invoice list (Record View HMS canvas): KPIs for the month invoices fall
+    due, the toolbar, and the table one page at a time."""
+    from .helpers import list_per_page, list_period, pct_delta, prev_month_range
+    base_qs = _hotel_invoices(request).with_lines()
+    q = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '')
+    sort = request.GET.get('sort', 'due')
+    date_from, date_to, period = list_period(request)
+    today = date.today()
+
+    qs = base_qs
+    if q:
+        qs = qs.filter(Invoice.objects.name_matches(q))
+    period_qs = qs
+    if date_from:
+        period_qs = period_qs.filter(due_date__gte=date_from)
+    if date_to:
+        period_qs = period_qs.filter(due_date__lte=date_to)
+
+    period_invs = list(period_qs.order_by(
+        F('due_date').desc(nulls_last=True) if sort == '-due' else F('due_date').asc(nulls_last=True), '-created_at'))
+    money = _invoice_money(period_invs)
+    counts = {k: sum(1 for v in money.values() if v[2] == k) for k in ('paid', 'partial', 'unpaid', 'void', 'overpaid')}
+    counts['paid'] += counts.pop('overpaid')
+    is_overdue = lambda inv: inv.due_date and inv.due_date < today and money[inv.pk][1] > 0 and not inv.is_void
+
+    # Overdue is over every date (its KPI is not tied to the month).
+    if status == 'overdue':
+        rows = [i for i in qs.filter(due_date__lt=today).order_by('due_date') if not i.is_void]
+        money.update(_invoice_money(rows))
+        rows = [i for i in rows if money[i.pk][1] > 0]
+    elif status in ('paid', 'partial', 'unpaid', 'void'):
+        rows = [i for i in period_invs if money[i.pk][2] == status or (status == 'paid' and money[i.pk][2] == 'overpaid')]
+    else:
+        rows = period_invs
+
+    page_obj = Paginator(rows, list_per_page(request)).get_page(request.GET.get('page'))
+    invoices = []
+    for inv in page_obj:
+        due, remaining, st = money[inv.pk]
+        late = (today - inv.due_date).days if inv.due_date and inv.due_date < today and remaining > 0 and not inv.is_void else 0
         invoices.append({
-            "id": inv.id,
-            "invoice_number": inv.invoice_number,
-            "customer_name": inv.customer_name,
-            "issued_date": inv.issued_date.strftime("%d/%m/%Y") if inv.issued_date else None,
-            "due_date": inv.due_date.strftime("%d/%m/%Y") if inv.due_date else None,
-            "created_at": inv.created_at.strftime("%d/%m/%Y"),
-            "total_sar": inv.total_sar,
-            "remaining_sar": remaining,
-            "status": (
-                "void" if inv.is_void
-                else "overpaid" if remaining < 0
-                else "paid" if remaining == 0
-                else "partial" if remaining < due
-                else "unpaid"
-            ),
+            "id": inv.id, "invoice_number": inv.invoice_number, "customer_name": inv.customer_name,
+            "due_date": inv.due_date.isoformat() if inv.due_date else None,
+            "total_sar": inv.total_sar, "remaining_sar": remaining, "status": st, "days_late": late,
         })
 
-    props = {
-        "invoices": invoices,
-        "total_count": paginator.count,
-        "q": q,
-        "status_filter": status,
-        "date_from": date_from,
-        "date_to": date_to,
-        "pagination": pagination_props(page_obj),
-    }
-    props["remit_stats"] = _invoice_stats(base_qs)
+    kpis = None
+    if period['month']:
+        cur = _due_month_kpis(base_qs, date_from, date_to, request.user)
+        pf, pl = prev_month_range(date_from)
+        prev = _due_month_kpis(base_qs, pf, pl, request.user)
+        overdue_all = [i for i in base_qs.filter(due_date__lt=today) if not i.is_void]
+        om = _invoice_money(overdue_all)
+        overdue = [i for i in overdue_all if om[i.pk][1] > 0]
+        unbilled = list(scope(ConfirmationLetter.objects.uninvoiced(), request.user)
+                        .exclude(reservation_status='CANCELLED')
+                        .filter(check_in__gte=date_from, check_in__lte=date_to)
+                        .prefetch_related('rooms').order_by('check_in'))
+        kpis = {
+            'cur': cur, 'prev': prev, 'prev_month': pf.strftime('%Y-%m'),
+            'invoiced_delta': pct_delta(cur['invoiced'], prev['invoiced']),
+            'rate_delta': (cur['rate'] - prev['rate']) if cur['rate'] is not None and prev['rate'] is not None else None,
+            'overdue': {'value': sum(om[i.pk][1] for i in overdue), 'count': len(overdue),
+                        'oldest_days': max(((today - i.due_date).days for i in overdue), default=0)},
+            'unbilled': {'value': round_half_up(sum(float(c.total_price or 0) for c in unbilled)), 'count': len(unbilled),
+                         'first': unbilled[0].check_in.isoformat() if unbilled else None},
+        }
 
-    return inertia_render(request, "Invoice/List", props=props)
+    years = sorted({d.year for d in base_qs.exclude(due_date=None).dates('due_date', 'year')} | {today.year})
+    return inertia_render(request, "Invoice/List", props={
+        "invoices": invoices,
+        "filters": {"q": q, "status": status, "sort": sort, "per": list_per_page(request), **period},
+        "years": years, "counts": counts, "kpis": kpis,
+        "export_qs": "?" + urlencode([(k, v) for k, v in [
+            ("q", q), ("date_from", date_from.isoformat() if date_from else ""),
+            ("date_to", date_to.isoformat() if date_to else ""),
+            ("status", {"paid": "lunas", "unpaid": "belum", "partial": "partial", "void": "void"}.get(status, "")),
+        ] if v]),
+        "pagination": pagination_props(page_obj),
+    })
 
 
 def _invoice_stats(invoice_qs):
@@ -215,7 +277,9 @@ def invoice_new(request):
     suggested_number = Invoice.suggest_number(InvoiceType.HOTEL)
 
     if request.method == "POST":
-        invoice_number = request.POST.get("invoice_number", "")
+        # The approved form has no number field: the next number is issued
+        # with the invoice. A number posted by an older client still wins.
+        invoice_number = request.POST.get("invoice_number", "").strip() or suggested_number
 
         def _reject(errors):
             return inertia_render(request, "Invoice/Form", props={
@@ -299,7 +363,7 @@ def _overpaid_props(reservations):
 
 @require_perm('invoice', 'view')
 def invoice_detail(request, pk):
-    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
     res_ctx = _build_reservation_context(invoice)
     reservations = [{
         "id": r["id"],
@@ -412,7 +476,7 @@ def invoice_detail(request, pk):
 
 @require_perm('invoice', 'edit')
 def invoice_edit(request, pk):
-    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
     if invoice.is_void:
         messages.error(request, f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.')
         return redirect('invoice_detail', pk=pk)
@@ -427,13 +491,13 @@ def invoice_edit(request, pk):
 
         _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date'])
         _res_before = _res_snapshot(invoice)
-        new_number = request.POST.get("invoice_number", "")
+        new_number = request.POST.get("invoice_number", "").strip() or invoice.invoice_number
 
         def _reject(errors):
             return inertia_render(request, "Invoice/Form", props={
                 "edit": True,
                 "invoice": _serialize_hotel_invoice(invoice),
-                "cl_data": _cl_data_for_form(request.user),
+                "cl_data": _cl_data_for_form(request.user, invoice),
                 "clients": _client_options(request.user),
                 "branch_choices": _branch_choices(request.user),
                 "initial": _invoice_echo(request),
@@ -483,7 +547,7 @@ def invoice_edit(request, pk):
     return inertia_render(request, "Invoice/Form", props={
         "edit": True,
         "invoice": _serialize_hotel_invoice(invoice),
-        "cl_data": _cl_data_for_form(request.user),
+        "cl_data": _cl_data_for_form(request.user, invoice),
         "clients": _client_options(request.user),
         "branch_choices": _branch_choices(request.user),
     })
@@ -491,7 +555,7 @@ def invoice_edit(request, pk):
 
 @require_perm('invoice', 'delete')
 def invoice_delete(request, pk):
-    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
     if request.method == "POST":
         num = invoice.invoice_number
         # System of record: invoice yang sudah menyentuh general ledger
@@ -525,7 +589,7 @@ def invoice_delete(request, pk):
 
 @require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
-    invoice = get_in_scope_or_404(_hotel_invoices(request), request.user, pk=pk)
+    invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
     return _render_invoice_pdf(invoice)
 
 
@@ -744,7 +808,7 @@ def _validate_hotel_invoice(request, cl_ids, client):
     return {}
 
 
-def _cl_data_for_form(user):
+def _cl_data_for_form(user, invoice=None):
     # prefetch_related("rooms"): `total` below reads cl.total_price, which sums
     # cl.rooms.all() — one extra query per CL without this, i.e. up to 100 on
     # the [:100] slice. It made /invoice/new/ and /invoice/<pk>/edit/ issue 56
@@ -752,7 +816,12 @@ def _cl_data_for_form(user):
     # form endpoints in the app by roughly 10x. Room.subtotal also walks back to
     # room.cl for num_nights; a reverse-FK prefetch populates that back
     # reference, so it stays free.
-    cl_qs = (scope(ConfirmationLetter.objects.all(), user)
+    # What the form can bill: CLs on no invoice yet, plus (editing) the ones
+    # already on this invoice.
+    ids = set(scope(ConfirmationLetter.objects.uninvoiced(), user).values_list("pk", flat=True))
+    if invoice is not None:
+        ids |= set(invoice.confirmation_letters.values_list("pk", flat=True))
+    cl_qs = (scope(ConfirmationLetter.objects.filter(pk__in=ids), user)
              .select_related("client", "hotel")
              .with_invoice()
              .prefetch_related("rooms"))
@@ -767,4 +836,4 @@ def _cl_data_for_form(user):
         "inv": cl.invoice.invoice_number if cl.invoice_id else "",
         "client_id": cl.client_id or "",
         "client_name": cl.client.name,
-    } for cl in cl_qs.order_by("-created_at")[:100]]
+    } for cl in cl_qs.order_by("check_in", "confirmation_number")[:500]]

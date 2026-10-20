@@ -9,7 +9,8 @@ from hw.finance import queries as q
 from hw.models import Client
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_hotel_line, make_invoice, make_remittance, make_service_line
+from hw.finance import accounts as coa
+from hw.tests.factories import fund_ledger_for, make_hotel_line, make_invoice, make_remittance
 
 
 class QueriesTests(TestCase):
@@ -36,6 +37,14 @@ class QueriesTests(TestCase):
         )
         posting.post_payment(p, created_by=self.user)
         return p
+
+    def _loose_charge(self, amount):
+        """A receivable on the client with no reservation behind it."""
+        posting.post_adjustment(
+            lines=[{"account": coa.AR, "debit": amount, "client": self.client_obj.pk, "branch": "sby"},
+                   {"account": coa.OPENING_EQUITY, "credit": amount, "branch": "sby"}],
+            description="piutang tanpa reservasi", entry_date=date(2046, 1, 6), created_by=self.user,
+        )
 
     def test_invoice_charged_and_paid(self):
         self.assertEqual(q.invoice_charged_sar(self.invoice.id), 100000)
@@ -160,16 +169,18 @@ class QueriesTests(TestCase):
         )
         make_hotel_line(
             invoice=inv2, reservation_number="R-Q2", total_sar=30000,
+            check_in=date(2026, 2, 1),
         )
         posting.post_invoice_charge(inv2, created_by=self.user)
         self._pay(100000)  # fully settles R-Q1
 
         st = q.client_statement_by_reservation(self.client_obj.id)
         self.assertEqual(len(st["reservations"]), 2)
-        # Outstanding (R-Q2) sorts before settled (R-Q1).
-        self.assertEqual(st["reservations"][0]["reservation_number"], "R-Q2")
-        self.assertEqual(st["reservations"][0]["balance"], 30000)
-        self.assertTrue(st["reservations"][1]["settled"])
+        # By check-in only: settled R-Q1 (10 Jan) stays above outstanding R-Q2 (1 Feb).
+        self.assertEqual(st["reservations"][0]["reservation_number"], "R-Q1")
+        self.assertTrue(st["reservations"][0]["settled"])
+        self.assertEqual(st["reservations"][1]["reservation_number"], "R-Q2")
+        self.assertEqual(st["reservations"][1]["balance"], 30000)
         self.assertEqual(
             st["opening_balance"]
             + sum(g["balance"] for g in st["reservations"])
@@ -189,12 +200,7 @@ class QueriesTests(TestCase):
     def test_byres_summary_figures_walk_down_to_closing_balance(self):
         """Angka-angka yang dicetak PDF (baris tabel + Account Summary) harus
         bisa dijumlah ulang persis ke `closing_balance` versi balance-forward."""
-        svc = make_invoice(
-            invoice_type="visa", invoice_number="INV-Q-SVC2",
-            customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
-        )
-        make_service_line(invoice=svc, name="Visa", qty=1, price=16250)
-        posting.post_invoice_charge(svc, created_by=self.user)
+        self._loose_charge(16250)
         self._pay(40000)
         dep = create_payment_record(
             None, self.client_obj, date(2046, 2, 1), 100000,
@@ -207,7 +213,7 @@ class QueriesTests(TestCase):
         sub_credit = sum(g["paid"] for g in st["reservations"])
         self.assertEqual(
             st["opening_balance"] + sub_debit - sub_credit
-            + st["unallocated_debits"] - st["unallocated_credits"],
+            + st["adjustments"] - st["unapplied_payments"] - st["deposit_on_account"],
             st["closing_balance"],
         )
         # Total baris tabel = kolom summary, bukan total_debit mentah yang
@@ -216,17 +222,9 @@ class QueriesTests(TestCase):
 
     def test_unallocated_splits_credits_from_debits(self):
         """Deposit 100rb tak teralokasi harus TIDAK dijumlah diam-diam dengan
-        charge service-item 16.250 yang juga tanpa reservasi (regresi: bucket
-        `unallocated` dulu melaporkan -83.750, bukan -100.000)."""
-        # Charge tanpa dimensi reservasi: service item di invoice servis.
-        svc = make_invoice(
-            invoice_type="visa", invoice_number="INV-Q-SVC",
-            customer_name="PT Uji", client=self.client_obj, issued_date=date(2046, 1, 6),
-        )
-        make_service_line(
-            invoice=svc, name="Visa", qty=1, price=16250,
-        )
-        posting.post_invoice_charge(svc, created_by=self.user)
+        piutang 16.250 yang juga tanpa reservasi (regresi: bucket `unallocated`
+        dulu melaporkan -83.750, bukan -100.000)."""
+        self._loose_charge(16250)
         # Deposit 100rb, tanpa invoice/reservasi.
         dep = create_payment_record(
             None, self.client_obj, date(2046, 2, 1), 100000,
@@ -235,8 +233,8 @@ class QueriesTests(TestCase):
         posting.post_payment(dep, created_by=self.user)
 
         st = q.client_statement_by_reservation(self.client_obj.id)
-        self.assertEqual(st["unallocated_credits"], 100000)
-        self.assertEqual(st["unallocated_debits"], 16250)
+        self.assertEqual(st["unapplied_payments"], 100000)
+        self.assertEqual(st["adjustments"], 16250)
         self.assertEqual(st["unallocated"], 16250 - 100000)
         # Rekonsiliasi tetap utuh dan reservasi tidak tersentuh.
         self.assertEqual(
@@ -261,8 +259,8 @@ class QueriesTests(TestCase):
         posting.reverse_entry(voided, reversal_date=date(2046, 2, 2), created_by=self.user)
 
         st = q.client_statement_by_reservation(self.client_obj.id)
-        self.assertEqual(st["unallocated_credits"], 100000)
-        self.assertEqual(st["unallocated_debits"], 0)
+        self.assertEqual(st["unapplied_payments"], 100000)
+        self.assertEqual(st["adjustments"], 0)
         self.assertEqual(st["unallocated"], -100000)
         self.assertEqual(
             st["opening_balance"]
@@ -270,6 +268,79 @@ class QueriesTests(TestCase):
             + st["unallocated"],
             st["closing_balance"],
         )
+
+    def _deposit(self, amount):
+        """Titipan client tanpa reservasi, langsung ke akun Titipan."""
+        posting.post_adjustment(
+            lines=[{"account": coa.CASH_PUSAT, "debit": amount},
+                   {"account": coa.CUST_CREDIT, "credit": amount, "client": self.client_obj.pk}],
+            description="setoran titipan", entry_date=date(2046, 1, 20), created_by=self.user,
+        )
+
+    def _assert_byres_reconciles(self, st):
+        self.assertEqual(
+            st["opening_balance"]
+            + sum(g["balance"] for g in st["reservations"])
+            + st["unallocated"],
+            st["closing_balance"],
+        )
+
+    def test_byres_payment_excess_moved_to_deposit_leaves_unapplied(self):
+        """Kelebihan pembayaran yang dipindah ke titipan pindah dari Unapplied
+        payments ke Deposit on account -- bukan jadi Adjustments (debit)."""
+        p = create_payment_record(
+            None, self.client_obj, date(2046, 2, 1), 30000,
+            method="transfer", created_by=self.user, received_in="sby",
+        )
+        from hw.finance_helpers import confirm_payment
+        confirm_payment(p, confirmed_by=User.objects.create_user("fin-checker", password="x"))
+        p.refresh_from_db()
+        posting.move_payment_excess_to_deposit(p, created_by=self.user, entry_date=date(2046, 2, 3))
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(st["unapplied_payments"], 0)
+        self.assertEqual(st["adjustments"], 0)
+        self.assertEqual(st["deposit_on_account"], 30000)
+        self.assertEqual(st["reservations"][0]["billed"], 100000)
+        self.assertEqual(st["closing_balance"], 70000)
+        self._assert_byres_reconciles(st)
+
+    def test_byres_paying_a_reservation_from_deposit(self):
+        """Bayar dari titipan menambah Credit reservasinya, tidak menambah
+        Debit-nya, dan mengurangi Deposit on account."""
+        self._deposit(40000)
+        p = create_payment_record(
+            invoice=self.invoice, client=self.client_obj, payment_date=date(2046, 2, 1),
+            amount=40000, method="transfer", created_by=self.user, reservation=self.res,
+        )
+        posting.post_payment_from_credit(p, created_by=self.user)
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        g = st["reservations"][0]
+        self.assertEqual((g["billed"], g["paid"], g["balance"]), (100000, 40000, 60000))
+        self.assertEqual(st["deposit_on_account"], 0)
+        self.assertEqual((st["adjustments"], st["unapplied_payments"]), (0, 0))
+        self.assertEqual(st["closing_balance"], 60000)
+        self._assert_byres_reconciles(st)
+
+    def test_byres_refunded_deposit_is_not_an_adjustment(self):
+        """Refund titipan hanya menurunkan Deposit on account (regresi: dulu
+        terbaca sebagai debit tanpa reservasi)."""
+        from hw.models import CashAccount
+        from hw.tests.factories import fund_cash, refund_now
+        self._deposit(20000)
+        pusat = CashAccount.objects.get(branch_id="pusat", currency="SAR")
+        fund_cash(pusat, 20000)
+        refund_now(
+            self.client_obj, account=pusat, amount_sar=5000, amount_paid=5000,
+            created_by=self.user, refund_date=date(2046, 2, 5),
+        )
+
+        st = q.client_statement_by_reservation(self.client_obj.id)
+        self.assertEqual(st["deposit_on_account"], 15000)
+        self.assertEqual(st["adjustments"], 0)
+        self.assertEqual(st["closing_balance"], 100000 - 15000)
+        self._assert_byres_reconciles(st)
 
     def test_trial_balance_zero(self):
         self._pay(55000)
@@ -293,6 +364,7 @@ class QueriesTests(TestCase):
             received_amount_sar=50000,
         )
         self.assertEqual(q.remittance_sent_sar(rmt.id), 0)
+        fund_ledger_for(rmt, 50000)
         posting.post_remittance_send(
             rmt, amount_sar=50000, created_by=self.user,
         )

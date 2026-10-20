@@ -1,62 +1,19 @@
 import { router } from "@inertiajs/react";
-import DetailTable from "../../components/shadcn/detail-table.jsx";
-import { DvLink } from "../../components/shadcn/item-row.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { RvBack, RvHero, RvFigure, RvPairs, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
-import { Icon } from "../../components/icons.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmtDate } from "../../utils/format.js";
+import { fmt, fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
 
-const STATUS_TONE = {
-  pending: "yellow",
-  confirmed: "blue",
-  allocated: "green",
-  rejected: "red",
-  reversed: "gray",
-};
+// Financial period detail, in the detail-page language of the Record View HMS
+// canvas (no artboard of its own): a strip with the step that is due (close,
+// lock), the head card with the totals as facts, then the month-end
+// checklist, account balances, journal entries and payments.
 
-const ENTRY_TYPE_TONE = {
-  charge: "blue",
-  payment: "green",
-  allocate: "yellow",
-  transfer: "purple",
-  refund: "orange",
-  penalty: "red",
-  reversal: "gray",
-};
+const PAY_TONE = { pending: "amber", confirmed: "info", allocated: "green", rejected: "red", reversed: "gray" };
+const CHECK = { ok: { tone: "green", label: "OK" }, warn: { tone: "amber", label: "Review" }, fail: { tone: "red", label: "Blocking" } };
 
-
-const CHECK_ICON = { ok: "check", warn: "alert-circle", fail: "close" };
-
-// Month-end checklist: every item must be settled or knowingly accepted
-// before the period is closed; a failed item blocks the (irreversible) lock.
-function Checklist({ t, checklist }) {
-  return (
-    <RvSection title={t("Month-end checklist")} meta={
-      checklist.fails ? t("{n} blocking", { n: checklist.fails }) : checklist.warns ? t("{n} to review", { n: checklist.warns }) : t("All clear")
-    } first>
-      <ul className="pc-list">
-        {checklist.items.map((i) => (
-          <li key={i.key} className={`pc-item ${i.status}`}>
-            <span className={`pc-ico ${i.status}`}><Icon name={CHECK_ICON[i.status]} size={12} strokeWidth={2.4} /></span>
-            <div className="pc-body">
-              <div className="pc-head">
-                <span className="pc-label">{t(i.label)}</span>
-                {i.link && i.status !== "ok" ? <a className="pc-link" href={i.link}>{t("Open")}</a> : null}
-              </div>
-              <div className="pc-detail">{t(i.detail, i.params)}</div>
-              {i.status !== "ok" && i.rows.length ? (
-                <ul className="pc-rows">{i.rows.map((r) => <li key={r}>{r}</li>)}</ul>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ul>
-    </RvSection>
-  );
-}
+const dec = (n) => (Math.abs(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 export default function Detail({ period = {}, entries = [], payments = [], account_balances = [], total_debit = 0, total_credit = 0, checklist = null }) {
   const { t } = useI18n();
@@ -64,180 +21,163 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
   const [confirm, confirmDialog] = useConfirm();
 
   const openItems = checklist ? checklist.fails + checklist.warns : 0;
-  const closePeriod = () => {
-    confirm({
-      title: t("Close Period"),
-      message: openItems
-        ? t("{n} checklist item(s) are still open. Close this period anyway? No more journal entries will be allowed.", { n: openItems })
-        : t("Close this period? No more journal entries will be allowed."),
-      onConfirm: () => router.post(`/finance/periods/${period.id}/close/`),
-    });
-  };
-
-  const lockPeriod = () => {
-    confirm({
-      title: t("Lock Period"),
-      message: t("Lock this period? This is IRREVERSIBLE."),
-      danger: true,
-      onConfirm: () => router.post(`/finance/periods/${period.id}/lock/`),
-    });
-  };
+  const closePeriod = () => confirm({
+    title: t("Close Period"),
+    message: openItems
+      ? t("{n} checklist item(s) are still open. Close this period anyway? No more journal entries will be allowed.", { n: openItems })
+      : t("Close this period? No more journal entries will be allowed."),
+    onConfirm: () => router.post(`/finance/periods/${period.id}/close/`),
+  });
+  const lockPeriod = () => confirm({
+    title: t("Lock Period"),
+    message: t("Lock this period? This is IRREVERSIBLE."),
+    danger: true,
+    onConfirm: () => router.post(`/finance/periods/${period.id}/lock/`),
+  });
 
   const pill = {
     open: { label: t("Open"), tone: "green" },
-    soft_close: { label: t("Soft Close"), tone: "yellow" },
-    closed: { label: t("Closed"), tone: "orange" },
+    soft_close: { label: t("Soft Close"), tone: "amber" },
+    closed: { label: t("Closed"), tone: "amber" },
     locked: { label: t("Locked"), tone: "gray" },
   }[period.status] || { label: period.status_display, tone: "gray" };
 
   const diff = (total_debit || 0) - (total_credit || 0);
   const balanced = diff === 0;
   const pendingCount = payments.filter((p) => p.status === "pending").length;
+  const canClose = canManage && period.is_postable;
+  const canLock = canManage && period.status === "closed";
+  const lockBlocked = checklist && !checklist.can_lock;
 
-  const entryColumns = [
-    { header: t("Entry #"), render: (e) => <span className="font-mono text-xs">{e.entry_number}</span> },
-    { header: t("Type"), render: (e) => <StatusPill small tone={ENTRY_TYPE_TONE[e.entry_type] || "gray"} label={e.entry_type_display} /> },
-    { header: t("Description"), render: (e) => e.description },
-    { header: t("Date"), render: (e) => e.entry_date },
-    { header: t("Debit"), align: "right", render: (e) => <span className="font-mono">{e.total_debit?.toLocaleString("en-US")}</span> },
-    { header: t("Credit"), align: "right", render: (e) => <span className="font-mono">{e.total_credit?.toLocaleString("en-US")}</span> },
-    { header: t("Balanced"), align: "center", render: (e) => (e.is_balanced ? <span style={{ color: "var(--green)" }}>✓</span> : <span style={{ color: "var(--red)" }}>✗</span>) },
-  ];
-
-  const paymentColumns = [
-    { header: t("Payment #"), render: (p) => <DvLink href={`/finance/payments/${p.id}/`}>{p.payment_number}</DvLink> },
-    { header: t("Client"), render: (p) => p.client_name },
-    { header: t("Amount"), align: "right", render: (p) => <span className="font-mono">{p.amount_sar?.toLocaleString("en-US")} SAR</span> },
-    { header: t("Status"), render: (p) => <StatusPill small tone={STATUS_TONE[p.status] || "gray"} label={p.status_display} /> },
-    { header: t("Date"), render: (p) => p.payment_date },
-  ];
+  const sentence = !balanced
+    ? <><b>{t("Unbalanced.")}</b> {t("Difference of {n} SAR", { n: `${diff < 0 ? "-" : ""}${dec(diff)}` })}{pendingCount ? `, ${t("{n} payments still awaiting review", { n: pendingCount })}` : ""}.</>
+    : pendingCount ? <><b>{pendingCount}</b> {t("payments still awaiting review.")}</>
+      : canLock ? (lockBlocked ? t("Resolve the blocking checklist items first.") : t("Closed. Lock it once the books are final; locking cannot be undone."))
+        : canClose ? (openItems ? t("{n} checklist item(s) are still open.", { n: openItems }) : t("Debits and credits match in this period."))
+          : null;
 
   return (
-    <div className="page shadcn-root hms-rv-page">
-      <RvBack href="/finance/periods/" label={t("Back")} />
+    <DPage>
+      <DTop href="/finance/periods/" />
 
-      <RvHero
-        kicker={period.name}
+      {sentence ? (
+        <DBanner
+          tone={!balanced ? "danger" : pendingCount || openItems || lockBlocked ? "warning" : "success"}
+          actions={canClose || canLock ? (
+            <>
+              {canClose ? <DBtn primary onClick={closePeriod}>{t("Close Period")}</DBtn> : null}
+              {canLock ? <DBtn primary disabled={lockBlocked} onClick={lockPeriod}>{t("Lock Period")}</DBtn> : null}
+            </>
+          ) : null}
+        >
+          {sentence}
+        </DBanner>
+      ) : null}
+
+      <DHead
+        title={period.name}
         badge={pill}
-        title={t("Financial Period")}
         facts={[
           { k: t("From"), v: fmtDate(period.date_from) || t("Not set") },
           { k: t("To"), v: fmtDate(period.date_to) || t("Not set") },
+          { k: t("Total debit"), v: `${dec(total_debit)} SAR` },
+          { k: t("Total credit"), v: `${dec(total_credit)} SAR` },
+          { k: t("Difference"), v: `${dec(diff)} SAR`, tone: balanced ? "success" : "danger" },
+          { k: t("Journal Entries"), v: entries.length },
+          { k: t("Payments"), v: payments.length },
+          period.closed_by && { k: t("Closed by"), v: period.closed_at ? `${period.closed_by}, ${period.closed_at}` : period.closed_by },
+          period.locked_by && { k: t("Locked by"), v: period.locked_at ? `${period.locked_by}, ${period.locked_at}` : period.locked_by },
         ]}
-        side={
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <RvFigure
-              label={t("Difference")}
-              value={fmtDiff(diff)}
-              unit="SAR"
-              color={balanced ? "var(--green)" : "var(--red)"}
-            />
-            <RvPairs
-              pairs={[
-                { k: t("Total debit"), v: (total_debit || 0).toLocaleString("en-US") },
-                { k: t("Total credit"), v: (total_credit || 0).toLocaleString("en-US") },
-              ]}
-            />
-          </div>
-        }
-        note={
-          balanced
-            ? {
-                icon: <Icon name="check" size={12} strokeWidth={2.4} />,
-                iconBg: "var(--green)",
-                title: t("Balanced"),
-                text: pendingCount ? t("{n} payments still awaiting review", { n: pendingCount }) : t("Debits and credits match in this period."),
-              }
-            : {
-                icon: <Icon name="alert-circle" size={13} strokeWidth={2} />,
-                iconBg: "var(--red)",
-                title: t("Unbalanced"),
-                text: `${t("Difference of {n} SAR", { n: fmtSigned(diff) })}${pendingCount ? ` — ${t("{n} payments still awaiting review", { n: pendingCount })}` : ""}`,
-              }
-        }
-        actions={
-          <>
-            {canManage && period.is_postable && (
-              <button key="close" className="hms-rv-btn primary" onClick={closePeriod}>{t("Close Period")}</button>
-            )}
-            {canManage && period.status === "closed" && (
-              <button key="lock" className="hms-rv-btn danger" onClick={lockPeriod} disabled={checklist && !checklist.can_lock}
-                title={checklist && !checklist.can_lock ? t("Resolve the blocking checklist items first.") : undefined}>
-                {t("Lock Period")}
-              </button>
-            )}
-          </>
-        }
       />
 
-      <div className="hms-rv-grid">
-        <div className="hms-rv-col">
-          <RvCard>
-            {checklist ? <Checklist t={t} checklist={checklist} /> : null}
-            {account_balances.length > 0 && (
-              <RvSection title={t("Account Balances")} meta={`${account_balances.length}`} first={!checklist}>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  {account_balances.map((ab) => (
-                    <div key={ab.account} style={{ padding: "12px 16px", flex: "1 1 160px", minWidth: 160, border: "1px solid var(--border)", borderRadius: 12, background: "var(--secondary)" }}>
-                      <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{ab.label}</div>
-                      <div className="font-mono font-bold" style={{ fontSize: 20, marginTop: 4, color: ab.balance > 0 ? "var(--green)" : "var(--red)" }}>
-                        {ab.balance?.toLocaleString("en-US")} <span style={{ fontSize: 12, fontWeight: 400 }}>SAR</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </RvSection>
-            )}
+      {checklist ? (
+        <DCard
+          title={t("Month-end checklist")}
+          meta={checklist.fails ? t("{n} blocking", { n: checklist.fails }) : checklist.warns ? t("{n} to review", { n: checklist.warns }) : t("All clear")}
+        >
+          <div className="da-scroll">
+            <table className="da-t">
+              <tbody>
+                {checklist.items.map((i) => (
+                  <tr key={i.key}>
+                    <td style={{ width: 96 }}><DPill sm tone={CHECK[i.status]?.tone}>{t(CHECK[i.status]?.label || i.status)}</DPill></td>
+                    <td>
+                      <span className="strong">{t(i.label)}</span>
+                      <span className="sub">{t(i.detail, i.params)}</span>
+                      {i.status !== "ok" && i.rows.length ? i.rows.map((r) => <span key={r} className="sub">{r}</span>) : null}
+                    </td>
+                    <td className="n">{i.link && i.status !== "ok" ? <a href={i.link}>{t("Open")}</a> : null}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DCard>
+      ) : null}
 
-            <RvSection title={t("Journal Entries")} meta={`${entries.length}`}>
-              <DetailTable columns={entryColumns} rows={entries} rowKey={(e) => e.id} empty={t("No journal entries in this period.")} />
-            </RvSection>
+      {account_balances.length ? (
+        <DCard title={t("Account Balances")} count={account_balances.length} meta="SAR">
+          <div className="da-scroll">
+            <table className="da-t">
+              <tbody>
+                {account_balances.map((ab) => (
+                  <tr key={ab.account}>
+                    <td>{ab.label}</td>
+                    <td className="n bold" style={{ color: ab.balance > 0 ? "var(--success-text)" : ab.balance < 0 ? "var(--danger-text)" : undefined }}>{fmt(ab.balance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DCard>
+      ) : null}
 
-            <RvSection title={t("Payments")} meta={`${payments.length}`}>
-              <DetailTable columns={paymentColumns} rows={payments} rowKey={(p) => p.id} empty={t("No payments in this period.")} />
-            </RvSection>
-          </RvCard>
-        </div>
+      <DCard title={t("Journal Entries")} count={entries.length}>
+        {entries.length ? (
+          <div className="da-scroll">
+            <table className="da-t">
+              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th><th className="n">{t("Balanced")}</th></tr></thead>
+              <tbody>
+                {entries.map((e) => (
+                  <tr key={e.id}>
+                    <td className="mono">{e.entry_number}</td>
+                    <td className="strong">{e.entry_type_display}</td>
+                    <td className="mut">{e.description}</td>
+                    <td className="nw">{e.entry_date}</td>
+                    <td className="n">{fmt(e.total_debit)}</td>
+                    <td className="n">{fmt(e.total_credit)}</td>
+                    <td className="n">{e.is_balanced ? <span className="good">{t("Yes")}</span> : <span className="late">{t("No")}</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className="n">{fmt(total_debit)}</td><td className="n">{fmt(total_credit)}</td><td /></tr></tfoot>
+            </table>
+          </div>
+        ) : <div className="da-empty">{t("No journal entries in this period.")}</div>}
+      </DCard>
 
-        <RvRail
-          rows={[
-            { k: t("Journal Entries"), v: entries.length },
-            { k: t("Payments"), v: payments.length },
-            period.closed_by ? { k: t("Closed by"), v: period.closed_by } : null,
-            period.closed_at ? { k: t("Closed at"), v: period.closed_at } : null,
-            period.locked_by ? { k: t("Locked by"), v: period.locked_by } : null,
-            period.locked_at ? { k: t("Locked at"), v: period.locked_at } : null,
-          ].filter(Boolean)}
-        />
-      </div>
+      <DCard title={t("Payments")} count={payments.length}>
+        {payments.length ? (
+          <div className="da-scroll">
+            <table className="da-t">
+              <thead><tr><th>{t("Payment")}</th><th>{t("Client")}</th><th>{t("Date")}</th><th>{t("Status")}</th><th className="n">{t("Amount (SAR)")}</th></tr></thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id}>
+                    <td><a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a></td>
+                    <td>{p.client_name}</td>
+                    <td className="nw">{p.payment_date}</td>
+                    <td><DPill sm tone={PAY_TONE[p.status] || "gray"}>{p.status_display}</DPill></td>
+                    <td className="n">{fmt(p.amount_sar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <div className="da-empty">{t("No payments in this period.")}</div>}
+      </DCard>
 
       {confirmDialog}
-      <style>{CSS}</style>
-    </div>
+    </DPage>
   );
-}
-
-const CSS = `
-.pc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.pc-item { display: flex; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
-.pc-item:first-child { border-top: none; padding-top: 4px; }
-.pc-ico { flex: none; width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: #fff; margin-top: 1px; }
-.pc-ico.ok { background: var(--green); }
-.pc-ico.warn { background: var(--yellow); }
-.pc-ico.fail { background: var(--red); }
-.pc-body { flex: 1; min-width: 0; }
-.pc-head { display: flex; align-items: center; gap: 10px; }
-.pc-label { font-size: 13.5px; font-weight: 600; }
-.pc-link { margin-left: auto; font-size: 12.5px; }
-.pc-detail { margin-top: 2px; font-size: 12.5px; color: var(--muted-foreground); }
-.pc-rows { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-`;
-
-function fmtDiff(n) {
-  return (Math.abs(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
-}
-
-function fmtSigned(n) {
-  const v = (Math.abs(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return n < 0 ? `-${v}` : v;
 }

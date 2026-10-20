@@ -50,7 +50,9 @@ class PaymentListFilterTests(TestCase):
         return payment
 
     def _numbers(self, query=''):
-        resp = self.client.get(self.URL + query, HTTP_X_INERTIA='true')
+        # The list opens on the current month; year=all shows every date.
+        sep = '&' if query else '?'
+        resp = self.client.get(self.URL + query + sep + 'year=all', HTTP_X_INERTIA='true')
         self.assertEqual(resp.status_code, 200)
         props = resp.json()['props']
         return [p['payment_number'] for p in props['payments']], props
@@ -63,14 +65,13 @@ class PaymentListFilterTests(TestCase):
         self.assertEqual(self._numbers('?q=cash')[0], ['PAY-FLT-003'])
 
     def test_search_comma_separated_tokens_are_ored(self):
-        rows, _ = self._numbers('?q=FLT-001,FLT-003')
+        rows, _ = self._numbers('?q=FLT-001%2CFLT-003')
         self.assertEqual(sorted(rows), ['PAY-FLT-001', 'PAY-FLT-003'])
 
     def test_multi_status_group_filter(self):
-        rows, props = self._numbers('?status=pending&status=cancelled')
+        rows, props = self._numbers('?status=pending,cancelled')
         self.assertEqual(sorted(rows), ['PAY-FLT-001', 'PAY-FLT-003'])
-        self.assertEqual(props['status_list'], ['pending', 'cancelled'])
-        self.assertEqual(props['active_filters'], 1)
+        self.assertEqual(props['filters']['status'], ['pending', 'cancelled'])
 
     def test_allocation_groups_follow_the_allocation_rows(self):
         self._pay('PAY-FLT-004', self.alpha, date(2026, 4, 1), 700, 'applied')
@@ -79,48 +80,37 @@ class PaymentListFilterTests(TestCase):
         line = make_hotel_line(invoice=make_invoice(client=self.alpha))
         PaymentAllocation.objects.create(payment=partial, invoice_line=line, amount_sar=300)
         self.assertEqual(sorted(self._numbers('?status=allocated')[0]), ['PAY-FLT-002', 'PAY-FLT-004'])
-        self.assertEqual(self._numbers('?status=unallocated')[0], [unallocated.payment_number])
-        self.assertEqual(self._numbers('?status=partial')[0], [partial.payment_number])
-        # A link from before the statuses were reduced still lands on its group.
-        rows, props = self._numbers('?status=applied')
-        self.assertEqual((sorted(rows), props['status_list']), (['PAY-FLT-002', 'PAY-FLT-004'], ['allocated']))
+        # "Not fully applied": nothing applied yet, or part of it.
+        self.assertEqual(sorted(self._numbers('?status=open')[0]), [unallocated.payment_number, partial.payment_number])
         row = next(p for p in self._numbers()[1]['payments'] if p['payment_number'] == 'PAY-FLT-006')
-        self.assertEqual((row['status'], row['status_group']), ('partially_applied', 'partial'))
+        self.assertEqual((row['group'], row['unallocated_sar']), ('partial', 500))
 
-    def test_raw_status_from_old_link_maps_to_its_group(self):
-        rows, props = self._numbers('?status=voided')
-        self.assertEqual(rows, ['PAY-FLT-003'])
-        self.assertEqual(props['status_list'], ['cancelled'])
-
-    def test_row_carries_group_label(self):
+    def test_row_carries_group(self):
         _, props = self._numbers()
         row = next(p for p in props['payments'] if p['payment_number'] == 'PAY-FLT-003')
-        self.assertEqual((row['status_group'], row['status_group_label'], row['status_group_tone']),
-                         ('cancelled', 'Cancelled', 'gray'))
+        self.assertEqual((row['group'], row['status']), ('cancelled', 'voided'))
 
     def test_unknown_status_is_ignored(self):
         rows, props = self._numbers('?status=bogus')
         self.assertEqual(len(rows), 3)
-        self.assertEqual(props['status_list'], [])
+        self.assertEqual(props['filters']['status'], [])
 
     def test_payment_date_range(self):
-        rows, props = self._numbers('?date_from=2026-02-01&date_to=2026-02-28')
+        rows, props = self._numbers('?from=2026-02-01&to=2026-02-28')
         self.assertEqual(rows, ['PAY-FLT-002'])
-        self.assertEqual((props['date_from'], props['date_to']), ('2026-02-01', '2026-02-28'))
-        self.assertEqual(props['active_filters'], 1)
 
-    def test_sort_options(self):
-        self.assertEqual(self._numbers('?sort=payment_date')[0], ['PAY-FLT-001', 'PAY-FLT-002', 'PAY-FLT-003'])
-        self.assertEqual(self._numbers('?sort=-payment_date')[0], ['PAY-FLT-003', 'PAY-FLT-002', 'PAY-FLT-001'])
-        self.assertEqual(self._numbers('?sort=-amount_sar')[0], ['PAY-FLT-002', 'PAY-FLT-003', 'PAY-FLT-001'])
-        _, props = self._numbers('?sort=nonsense')
-        self.assertEqual(props['sort'], '-created_at')
+    def test_month(self):
+        resp = self.client.get(self.URL + '?month=2026-02', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual([p['payment_number'] for p in resp['payments']], ['PAY-FLT-002'])
+        self.assertEqual(resp['kpis']['received'], 5000)
 
-    def test_status_counts_ignore_active_filters(self):
-        _, props = self._numbers('?q=FLT-001')
-        counts = {g['key']: g['count'] for g in props['status_groups']}
-        self.assertEqual(counts, {'pending': 1, 'unallocated': 0, 'partial': 0, 'allocated': 1, 'cancelled': 1})
-        self.assertEqual(props['total_count'], 1)
+    def test_sort_by_date(self):
+        self.assertEqual(self._numbers('?sort=date')[0], ['PAY-FLT-001', 'PAY-FLT-002', 'PAY-FLT-003'])
+        self.assertEqual(self._numbers('?sort=-date')[0], ['PAY-FLT-003', 'PAY-FLT-002', 'PAY-FLT-001'])
+
+    def test_status_counts_ignore_the_status_filter(self):
+        _, props = self._numbers('?status=pending')
+        self.assertEqual(props['counts'], {'pending': 1, 'open': 0, 'allocated': 1, 'cancelled': 1})
 
     def test_csv_export_honours_search(self):
         resp = self.client.get('/finance/payments/export/csv/?q=beta&status=allocated')
@@ -132,15 +122,14 @@ class PaymentListFilterTests(TestCase):
 
     def test_void_payment_shows_no_unallocated_amount(self):
         # p3 is voided with no allocation: the row must not read "3000 unalloc",
-        # and the unapplied stat must only count effective payments (p2 here).
+        # and unapplied cash only counts effective payments.
         _, props = self._numbers()
         row = next(p for p in props['payments'] if p['payment_number'] == 'PAY-FLT-003')
         self.assertEqual(row['unallocated_sar'], 0)
-        self.assertEqual(props['stats']['unapplied_total'], 0)     # p2 is fully allocated
-        self.assertEqual(props['stats']['unapplied_count'], 0)
+        kpis = lambda: self.client.get(self.URL + '?month=2026-04', HTTP_X_INERTIA='true').json()['props']['kpis']
+        self.assertEqual((kpis()['unapplied_sar'], kpis()['unapplied_count']), (0, 0))
         self._pay('PAY-FLT-007', self.alpha, date(2026, 4, 5), 700, 'confirmed')
-        _, props = self._numbers()
-        self.assertEqual((props['stats']['unapplied_total'], props['stats']['unapplied_count']), (700, 1))
+        self.assertEqual((kpis()['unapplied_sar'], kpis()['unapplied_count']), (700, 1))
 
     def test_void_payment_is_not_reported_as_allocated(self):
         resp = self.client.get(f'/finance/payments/{self.p3.pk}/', HTTP_X_INERTIA='true')
@@ -156,13 +145,13 @@ class PaymentListFilterTests(TestCase):
         for value, _label in PaymentRecord.STATUS_CHOICES:
             self.assertIn(_group_of(PaymentRecord(status=value, amount_sar=1)), keys, value)
 
-    def test_partial_reload_skips_dialog_and_stats_props(self):
+    def test_partial_reload_skips_dialog_props(self):
         resp = self.client.get(
-            self.URL + '?q=beta', HTTP_X_INERTIA='true',
+            self.URL + '?q=beta&year=all', HTTP_X_INERTIA='true',
             HTTP_X_INERTIA_PARTIAL_COMPONENT='Payment/List',
-            HTTP_X_INERTIA_PARTIAL_DATA='payments,pagination,q',
+            HTTP_X_INERTIA_PARTIAL_DATA='payments,pagination',
         )
         props = resp.json()['props']
         self.assertEqual(sorted(p['payment_number'] for p in props['payments']), ['PAY-FLT-002', 'PAY-FLT-003'])
-        for lazy in ('invoice_choices', 'client_choices', 'account_choices', 'stats'):
+        for lazy in ('invoice_choices', 'client_choices', 'account_choices'):
             self.assertNotIn(lazy, props)

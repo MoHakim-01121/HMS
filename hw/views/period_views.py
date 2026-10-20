@@ -42,6 +42,8 @@ def period_list(request):
     return inertia_render(request, 'Period/List', props={
         'periods': [_period_props(p) for p in periods],
         'seasons': seasons.season_choices(),
+        'next_season': {k: (v.isoformat() if hasattr(v, 'isoformat') else v)
+                        for k, v in seasons.suggest_next_season().items()},
     })
 
 

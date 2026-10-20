@@ -1,344 +1,142 @@
 import { useState } from "react";
-import { router } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import EmptyState from "../../components/shadcn/empty-state.jsx";
-import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import RowActions from "../../components/shadcn/row-actions.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
-import ListCard from "../../components/shadcn/list-card.jsx";
-import SearchBox from "../../components/shadcn/search-box.jsx";
-import FilterPanel, { FilterSection } from "../../components/shadcn/filter-panel.jsx";
-import FilterRadioGroup from "../../components/shadcn/filter-radio-group.jsx";
-import FilterChips from "../../components/shadcn/filter-chips.jsx";
-import ExportMenu from "../../components/shadcn/export-menu.jsx";
-import TrackingPanel from "./TrackingPanel.jsx";
+import { Link, router } from "@inertiajs/react";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
+import {
+  ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
+  TableCard, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav,
+} from "../../components/shadcn/list-a.jsx";
+import TrackingPanel from "./TrackingPanel.jsx";
+import RecapPanel, { RECAP_CSS } from "./RecapPanel.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { listVisit } from "../../utils/listVisit.js";
-import { fmt } from "../../utils/format.js";
 
-const STATUS_OPTS = [
-  { val: "", label: "All", cls: "c-all" },
-  { val: "pending", label: "Pending", cls: "c-pen" },
-  { val: "received", label: "Received", cls: "c-rec" },
-];
+const STATE = { pending: ["amber", "In transit"], partial: ["info-o", "Partially received"], received: ["green", "Received"] };
+const monthName = (ym, t) => (ym ? t(MONTHS[+ym.slice(5, 7) - 1]) : "");
+const signed = (v) => (v > 0 ? "+" : "") + fmtN(v);
 
-const visit = (params) => listVisit("/remittance/", params);
-
-export default function List({ tab = "transfers", remittances, stats, status_filter, q, total_count, tracking, monthly }) {
+// Remittance to HQ, as on the Record View HMS canvas: what was sent in the
+// month, cash in transit (filters the table), what is still due to HQ and the
+// FX gain; the table shows IDR sent against SAR received. Tracking and the
+// monthly recap stay one click away.
+export default function List({ tab = "transfers", remittances = [], filters: f, years = [], counts = {}, account_counts = [],
+  kpis, totals, sees_figures, pagination, tracking, monthly }) {
   const { t } = useI18n();
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [sel, setSel] = useState(status_filter || "");
-  const { query, setQuery } = useDebouncedSearch(q, (qq) => visit({ q: qq, status: status_filter || "" }));
-
-  const apply = () => { setPanelOpen(false); visit({ q: query, status: sel }); };
-  const resetAll = () => { setQuery(""); setSel(""); setPanelOpen(false); visit({ q: "", status: "" }); };
-  const dirty = sel !== (status_filter || "");
-  const statusLabelOf = (v) => STATUS_OPTS.find((o) => o.val === v)?.label || v;
-  const chips = [
-    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); visit({ q: "", status: status_filter || "" }); } }] : []),
-    ...(status_filter ? [{ key: "status", label: t("Status {status}", { status: t(statusLabelOf(status_filter)) }), onRemove: () => { setSel(""); visit({ q: query, status: "" }); } }] : []),
-  ];
-  const [confirm, confirmDialog] = useConfirm();
-  const del = (e, pk, label) => { e.stopPropagation(); confirm({ title: t("Delete remittance"), message: t("Delete remittance {label}?", { label }), onConfirm: () => router.post(`/remittance/${pk}/delete/`) }); };
-  const openForm = useFormModal();
   const perms = usePerms();
-  const receiptUrl = (rem) => `/remittance/${rem.id}/receipt/?next=/remittance/`;
+  const openForm = useFormModal();
+  const [go, loading] = useListNav("/remittance/", f);
+  const [draft, setDraft] = useState(f);
+  const tog = (key, v) => setDraft((d) => ({ ...d, [key]: d[key].includes(v) ? d[key].filter((x) => x !== v) : [...d[key], v] }));
+  const transitOnly = f.status.length === 1 && f.status[0] === "transit";
+  const filterCount = (f.status.length ? 1 : 0) + (f.acct.length ? 1 : 0);
+  const prevName = kpis ? monthName(kpis.prev_month, t) : "";
+  const label = f.month ? monthName(f.month, t) : f.year && f.year !== "all" ? f.year : t("All dates");
 
-  const TABS = [
-    { key: "transfers", label: t("Transfers") },
-    { key: "tracking", label: t("Tracking") },
-    { key: "recap", label: t("Recap") },
-  ];
+  const views = (
+    <span className="la-lg" style={{ fontSize: 13 }}>
+      {[["transfers", t("Transfers"), "/remittance/"], ["tracking", t("Tracking"), "/remittance/?tab=tracking"], ["recap", t("Monthly recap"), "/remittance/?tab=recap"]].map(([k, l, href]) => (
+        k === tab ? <b key={k} style={{ color: "var(--foreground)" }}>{l}</b> : <Link key={k} href={href} style={{ color: "var(--muted-foreground)", fontWeight: 500 }}>{l}</Link>
+      ))}
+    </span>
+  );
 
-  const columns = [
-    { header: t("Remittance No"), className: "col-m-primary col-nowrap", render: (rem) => rem.remittance_number },
-    {
-      header: t("Status"),
-      className: "col-m-badge",
-      render: (rem) => rem.status === "received" ? <StatusPill tone="green" label={t("Received")} />
-        : rem.settled_sar > 0 ? <StatusPill tone="blue" label={t("Partially received")} />
-          : <StatusPill tone="yellow" label={t("Pending")} />,
-    },
-    { header: t("Date"), className: "col-m-secondary col-nowrap", render: (rem) => rem.date },
-    {
-      header: t("Proof"),
-      className: "col-m-hide",
-      render: (rem) => (
-        <>
-          <span className="m-hide">
-            {rem.proof_url
-              ? <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", fontSize: 12, textDecoration: "none" }} onClick={(e) => e.stopPropagation()}>{t("View")} ↗</a>
-              : "—"}
-          </span>
-          {rem.proof_url && <a href={rem.proof_url} target="_blank" rel="noreferrer" className="dv-link m-only" onClick={(e) => e.stopPropagation()}>{t("Proof")}</a>}
-        </>
-      ),
-    },
-    {
-      header: t("Received"),
-      className: "mono col-m-hide col-nowrap",
-      render: (rem) => (rem.settled_sar ? fmt(rem.settled_sar) : "—"),
-    },
-    {
-      header: t("Allocated"),
-      className: "mono col-m-hide col-nowrap",
-      render: (rem) => (rem.expected_sar != null ? fmt(rem.allocated_sar) : "—"),
-    },
-    {
-      header: t("Total SAR"),
-      className: "mono col-m-amount",
-      style: { fontWeight: 600 },
-      render: (rem) => (
-        <>
-          <span className="m-hide">{fmt(rem.total_sar)} SAR</span>
-          <span className="m-only" style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
-          <span className="m-only">{fmt(rem.total_sar)} SAR</span>
-        </>
-      ),
-    },
-    {
-      header: "",
-      className: "col-m-actions",
-      render: (rem) => (
-        <RowActions actions={[
-          rem.can_record_receipt && perms.can("remittance", "edit") && perms.headOffice && { icon: "check", label: t("Record Receipt"), variant: "green", strokeWidth: 2.5, onClick: () => openForm(receiptUrl(rem)) },
-          { icon: "pdf", label: "PDF", href: `/remittance/${rem.id}/pdf/`, variant: "green", external: true },
-          perms.can("remittance", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/remittance/${rem.id}/edit/`) },
-          rem.status === "pending" && !rem.settled_sar && perms.can("remittance", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, rem.id, rem.date) },
-        ]} />
-      ),
-    },
-  ];
+  if (tab !== "transfers") {
+    return (
+      <ListPage title={t("Remittance to HQ")} legend={views}>
+        <style>{RECAP_CSS}</style>
+        {tab === "tracking" && <TrackingPanel tracking={tracking} />}
+        {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
+      </ListPage>
+    );
+  }
 
   return (
-    <div className="page shadcn-root">
-      <style>{LIST_CSS}</style>
-      <PageBack />
-      <PageHeader
-        title={t("Remittance")}
-        sub={tab === "transfers"
-          ? t("{count} remittances saved", { count: total_count })
-          : tab === "tracking"
-            ? t("Client money in Surabaya not yet allocated to what HQ received")
-            : t("Per transfer month — received is what actually reached HQ")}
-        actions={
-          <>
-            <ExportMenu
-              items={[
-                { href: "/remittance/export/ledger/", label: t("Ledger PDF"), external: true },
-                { href: "/remittance/export/csv/", label: t("Export CSV") },
-              ]}
-            />
-            {perms.can("remittance", "create") && (
-              <Button type="button" size="lg" onClick={() => openForm("/remittance/new/")} onPointerEnter={() => openForm.prefetch("/remittance/new/")} onFocus={() => openForm.prefetch("/remittance/new/")}>{t("+ New Transfer")}</Button>
-            )}
-          </>
-        }
-      />
-
-      <div className="rmt-tabs" role="tablist">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={`rmt-tab${tab === key ? " active" : ""}`}
-            onClick={() => key !== tab && visit({ tab: key === "transfers" ? "" : key })}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "transfers" && (
-        <>
-          <div className="hms-kpi-row">
-            <KpiCard label={t("Sent")} value={fmt(stats.sent)} unit="SAR" foot={t("all transfers")} />
-            <KpiCard label={t("Received at HQ")} value={fmt(stats.received)} unit="SAR" foot={t("actually reached HQ")} />
-            <KpiCard label={t("In transit")} value={fmt(stats.in_transit)} unit="SAR" foot={t("sent, not received yet")} />
-            <KpiCard
-              label={t("Received, not allocated")}
-              value={fmt(stats.received_unallocated)}
-              unit="SAR"
-              warn={stats.received_unallocated > 0}
-              foot={stats.received_unallocated > 0 ? (
-                <button type="button" className="rmt-kpi-link" onClick={() => visit({ tab: "tracking" })}>
-                  {t("Allocate in Tracking")} →
-                </button>
-              ) : t("nothing waiting")}
-            />
-          </div>
-
-          {/* Posisi kas: angka yang tidak ada di tab lain. Kewajiban ke Pusat dan
-              saldo dana klien sengaja berdampingan -- kewajiban negatif tanpa
-              konteks saldo klien bisa salah dibaca sebagai kredit murni Surabaya. */}
-          <dl className="rmt-cash" aria-label={t("Cash position")}>
-            <div>
-              <dt>{stats.kewajiban_kirim < 0 ? t("Credit Owed by HQ") : t("Owed to HQ")}</dt>
-              <dd>{fmt(Math.abs(stats.kewajiban_kirim))} SAR</dd>
-            </div>
-            <div>
-              <dt>{t("Client Fund Balance")}</dt>
-              <dd>{fmt(stats.saldo_dana_klien)} SAR</dd>
-            </div>
-            <div>
-              <dt>{t("Client rupiah not yet sent")}</dt>
-              <dd>{fmt(stats.client_idr_held)} IDR</dd>
-            </div>
-            {stats.client_usd_held ? (
-              <div>
-                <dt>{t("Client USD not yet exchanged")}</dt>
-                <dd>{fmt(stats.client_usd_held)} USD</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>{stats.fx_profit_idr < 0 ? t("Branch FX loss") : t("Branch FX profit")}</dt>
-              <dd>
-                <a href="/finance/fund-flow/" style={{ color: "inherit" }}>
-                  {stats.fx_priced ? `${fmt(Math.abs(stats.fx_profit_idr))} IDR` : "—"}
-                </a>
-                {stats.fx_unpriced ? (
-                  <span style={{ fontWeight: 400, color: "var(--muted-foreground)" }}>
-                    {" "}{t("({n} transfers without original amount, not counted)", { n: stats.fx_unpriced })}
-                  </span>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="filter-bar">
-            <SearchBox value={query} onChange={setQuery} placeholder="Search remittance number or reference…" />
-            <div className="fbar-actions">
-              <FilterPanel
-                count={status_filter ? 1 : 0}
-                open={panelOpen}
-                onToggle={() => setPanelOpen((v) => !v)}
-                dirty={dirty}
-                onApply={apply}
-                onResetAll={resetAll}
-              >
-                <FilterSection label={t("Status")} onReset={() => setSel("")}>
-                  <FilterRadioGroup label={t("Status")} options={STATUS_OPTS} value={sel} onChange={setSel} dot />
-                </FilterSection>
-              </FilterPanel>
-            </div>
-          </div>
-
-          <FilterChips chips={chips} onClearAll={resetAll} />
-
-          <ListCard
-            columns={columns}
-            rows={remittances}
-            rowKey={(rem) => rem.id}
-            onRowClick={(rem) => router.visit(`/remittance/${rem.id}/`)}
-            empty={{
-              icon: "invoice",
-              title: "No remittances yet",
-              sub: 'Click "+ New Transfer" to record a transfer to HQ',
-              filteredTitle: "No results",
-              filteredSub: "Try adjusting your search filters",
-            }}
-            hasFilter={!!(q || status_filter)}
-          />
-        </>
+    <ListPage title={t("Remittance to HQ")} legend={views} loading={loading}>
+      {kpis && (
+        <Kpis>
+          <Kpi label={t("Remitted to HQ")} value={fmtN(kpis.idr)} unit="IDR"
+            delta={kpis.delta && { text: kpis.delta, good: !kpis.delta.startsWith("-"), title: t("{d} vs {m}", { d: kpis.delta, m: prevName }) }}
+            foot={t("{v} SAR value, {p} in {m}", { v: fmtN(kpis.sar), p: fmtN(kpis.prev_sar), m: prevName })} />
+          <Kpi label={t("Cash in transit")} value={fmtN(kpis.transit_sar)} unit="SAR" tone={kpis.transit_sar ? "warn" : undefined}
+            foot={kpis.transit_count ? t("{n} remittances, oldest waiting {d} days", { n: kpis.transit_count, d: kpis.transit_oldest }) : t("Everything sent has arrived")}
+            on={transitOnly} onClick={() => go({ status: transitOnly ? [] : ["transit"] })} />
+          <Kpi label={t("Due to HQ")} value={fmtN(kpis.due_to_hq)} unit="SAR"
+            foot={t("Client money received not yet remitted")} />
+          <Kpi label={t("FX gain")} value={signed(kpis.fx_gain)} unit="IDR" tone={kpis.fx_gain > 0 ? "good" : undefined}
+            delta={kpis.fx_delta && { text: kpis.fx_delta, good: !kpis.fx_delta.startsWith("-"), title: t("{d} vs {m}", { d: kpis.fx_delta, m: prevName }) }}
+            foot={[kpis.avg_send_rate && t("Average sent rate {r}", { r: fmtN(kpis.avg_send_rate) }), kpis.book_rate && t("book rate {r}", { r: fmtN(kpis.book_rate) })].filter(Boolean).join(", ") || t("No transfer this month")} />
+        </Kpis>
       )}
 
-      {tab === "tracking" && <TrackingPanel tracking={tracking} />}
-      {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
+      <Toolbar spaced={!!kpis} left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go(p)} />}>
+        <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search remittance, reference")} />
+        <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
+          onReset={() => setDraft({ ...draft, status: [], acct: [] })}
+          onApply={() => go({ status: draft.status, acct: draft.acct })}>
+          <FilterSection label={t("Status")}>
+            <Check on={draft.status.includes("transit")} onClick={() => tog("status", "transit")} label={t("In transit")} count={counts.transit} />
+            <Check on={draft.status.includes("partial")} onClick={() => tog("status", "partial")} label={t("Partially received")} count={counts.partial} />
+            <Check on={draft.status.includes("received")} onClick={() => tog("status", "received")} label={t("Received")} count={counts.received} />
+          </FilterSection>
+          {account_counts.length > 1 && (
+            <FilterSection label={t("From account")}>
+              {account_counts.map((a) => <Check key={a.name} on={draft.acct.includes(a.name)} onClick={() => tog("acct", a.name)} label={a.name} count={a.count} />)}
+            </FilterSection>
+          )}
+        </FilterMenu>
+        <ExportMenu items={[
+          { label: "CSV", href: "/remittance/export/csv/" },
+          f.month && { label: t("FX report"), hint: t("Rate and FX gain per remittance, PDF"), href: `/remittance/export/pdf/?month=${f.month}`, external: true },
+        ].filter(Boolean)} />
+        {perms.can("remittance", "create") && sees_figures && <Primary label={t("New remittance")} onClick={() => openForm("/remittance/new/")} onPrefetch={() => openForm.prefetch("/remittance/new/")} />}
+      </Toolbar>
 
-      {confirmDialog}
-    </div>
+      <TableCard cols={[92, 64, null, 160, 130, 64, 110, 136, 48]}
+        empty={!remittances.length && <Empty title={t("No remittances")} sub={t("Nothing was sent in this period with these filters.")} />}>
+        <thead><tr>
+          <th>{t("Remittance")}</th><th>{t("Sent")}</th><th>{t("From")}</th>
+          <th className="n">{t("Sent")}</th><th className="n">{t("Received at HQ")}</th><th className="n">{t("Rate")}</th>
+          <th className="n">{t("FX gain (IDR)")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
+        </tr></thead>
+        <tbody>
+          {remittances.map((r) => {
+            const [tone, lbl] = STATE[r.state] || STATE.pending;
+            return (
+              <tr key={r.id} onClick={() => router.visit(`/remittance/${r.id}/`)}>
+                <td><span className="mono">{r.remittance_number}</span></td>
+                <td>{dShort(r.date)}</td>
+                <td className="ell">{r.from}<span className="sub">{t("to {a}", { a: r.to })}</span></td>
+                <td className="n"><Amt code={r.currency} value={r.amount_sent} /></td>
+                <td className="n">{r.received_sar ? <Amt code="SAR" value={r.received_sar} /> : <span className="mut">0</span>}</td>
+                <td className="n">{r.currency === "SAR" ? <span className="mut">—</span> : fmtN(r.rate)}</td>
+                <td className="n">{r.state !== "received" && r.fx_gain_idr == null ? <span className="mut">{t("on receipt")}</span>
+                  : r.fx_gain_idr == null ? <span className="mut">{t("Not priced")}</span>
+                  : <span className={r.fx_gain_idr >= 0 ? "good" : "late"}>{signed(r.fx_gain_idr)}</span>}</td>
+                <td><Pill tone={tone}>{t(lbl)}</Pill>{r.state !== "received" && <span className="sub">{t("{n} days", { n: r.days })}</span>}</td>
+                <td className="c">
+                  <RowMenu label={t("Actions for {n}", { n: r.remittance_number })} items={[
+                    r.can_record_receipt && perms.can("remittance", "edit") && { label: t("Record receipt"), onClick: () => router.visit(`/remittance/${r.id}/receipt/`) },
+                    r.proof_url && { label: t("View proof"), href: r.proof_url, external: true },
+                    perms.can("remittance", "edit") && { label: t("Edit"), onClick: () => openForm(`/remittance/${r.id}/edit/`) },
+                    { label: "PDF", href: `/remittance/${r.id}/pdf/`, external: true },
+                  ]} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        {totals && remittances.length > 0 && (
+          <tfoot><tr>
+            <td colSpan={3}>{t("{p} total", { p: label })}</td>
+            <td className="n"><Amt code="IDR" value={totals.idr} /></td>
+            <td className="n"><Amt code="SAR" value={totals.received_sar} /></td>
+            <td className="n">{totals.avg_rate ? fmtN(totals.avg_rate) : ""}</td>
+            <td className={"n" + (totals.fx_gain_idr > 0 ? " good" : "")}>{signed(totals.fx_gain_idr)}</td>
+            <td colSpan={2} className="lbl">{totals.transit_sar ? t("{v} SAR cash in transit", { v: fmtN(totals.transit_sar) }) : ""}</td>
+          </tr></tfoot>
+        )}
+      </TableCard>
+
+      <Pager p={pagination} perPage={f.per} onPage={(page) => go({ page })} onPerPage={(per) => go({ per })} />
+    </ListPage>
   );
 }
-
-const RECAP_PILL = {
-  received: { tone: "green", label: "Received" },
-  partial: { tone: "blue", label: "Partially received" },
-  pending: { tone: "yellow", label: "Pending" },
-};
-
-function RecapPanel({ monthly, t }) {
-  if (!monthly || !monthly.length) {
-    return <EmptyState iconName="invoice" title={t("No remittances yet")} sub={t("Nothing recorded")} />;
-  }
-  return (
-    <div className="recap-list">
-      {monthly.map((m) => (
-        <div key={m.period} className="recap-group">
-          <div className="recap-group-head">
-            <span className="recap-group-label">{m.label}</span>
-            <span className="recap-group-stats">
-              {t("Sent")} {fmt(m.total_sent)} · {t("Received")} {fmt(m.total_received)}
-              {m.total_outstanding ? ` · ${t("In transit")} ${fmt(m.total_outstanding)}` : ""}
-              {m.total_difference ? ` · ${t("Difference")} ${fmt(m.total_difference)}` : ""} SAR
-              <a className="recap-pdf" href={`/remittance/export/pdf/?month=${m.period}`} target="_blank" rel="noreferrer">PDF</a>
-            </span>
-          </div>
-          <div className="hms-list-card">
-            <Table
-              columns={[
-                { header: t("Remittance No"), className: "col-m-primary col-nowrap", render: (x) => x.remittance_number },
-                {
-                  header: t("Status"),
-                  className: "col-m-badge",
-                  render: (x) => <StatusPill tone={RECAP_PILL[x.state].tone} label={t(RECAP_PILL[x.state].label)} />,
-                },
-                { header: t("Date"), className: "col-m-hide col-nowrap", render: (x) => x.date },
-                { header: t("Lines"), className: "col-m-hide", render: (x) => x.lines_count },
-                { header: t("Sent"), className: "mono col-m-hide col-nowrap", render: (x) => fmt(x.sent) },
-                {
-                  header: t("Received"),
-                  className: "mono col-m-amount",
-                  render: (x) => (
-                    <>
-                      <span className="m-only recap-m-label">{t("Received")}</span>
-                      {x.received ? `${fmt(x.received)} SAR` : "—"}
-                      {x.difference ? <span className="recap-diff">{t("difference")} {fmt(x.difference)}</span> : null}
-                    </>
-                  ),
-                },
-                {
-                  header: "",
-                  className: "col-m-actions",
-                  render: (x) => (
-                    <RowActions
-                      actions={[
-                        { icon: "pdf", label: "PDF", href: `/remittance/${x.id}/pdf/`, variant: "green", external: true },
-                        { icon: "arrow-up-right", label: t("Open"), href: `/remittance/${x.id}/`, variant: "green" },
-                      ]}
-                    />
-                  ),
-                },
-              ]}
-              rows={m.remittances}
-              rowKey={(x) => x.id}
-              onRowClick={(x) => router.visit(`/remittance/${x.id}/`)}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Posisi kas + link KPI (tab Transfer) dan detail Recap.
-const LIST_CSS = `
-.recap-pdf { margin-left: 10px; font-weight: 600; color: var(--foreground); text-decoration: none; }
-.recap-pdf:hover { text-decoration: underline; }
-.recap-m-label { margin-right: 6px; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); }
-.recap-diff { display: block; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
-.rmt-kpi-link { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--foreground); cursor: pointer; }
-.rmt-kpi-link:hover { text-decoration: underline; }
-.rmt-cash { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: -4px 2px 16px; font-size: 12.5px; }
-.rmt-cash > div { display: flex; gap: 6px; }
-.rmt-cash dt { color: var(--muted-foreground); }
-.rmt-cash dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-`;

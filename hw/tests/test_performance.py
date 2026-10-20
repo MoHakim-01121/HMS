@@ -1,4 +1,3 @@
-from unittest.mock import patch
 from django.test import TestCase, Client
 from django.contrib.auth.models import User
 
@@ -48,26 +47,6 @@ class SettingsTest(TestCase):
     def test_whitenoise_max_age_is_one_year(self):
         from django.conf import settings
         self.assertEqual(settings.WHITENOISE_MAX_AGE, 31536000)
-
-
-# ── Task 3: Calendar cache ────────────────────────────────────────────────────
-
-class CalendarCacheTest(TestCase):
-    def setUp(self):
-        from django.core.cache import cache
-        cache.clear()
-
-    def tearDown(self):
-        from django.core.cache import cache
-        cache.clear()
-
-    def test_get_message_templates_cached_on_second_call(self):
-        from hw.views.reminder_views import _get_message_templates
-        with patch('hw.views.reminder_views.MessageTemplate') as MockModel:
-            MockModel.objects.all.return_value = []
-            _get_message_templates()
-            _get_message_templates()
-            MockModel.objects.all.assert_called_once()
 
 
 # ── Task 4: CL list defer ─────────────────────────────────────────────────────

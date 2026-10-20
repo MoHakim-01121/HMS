@@ -1,140 +1,127 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import FormHeader from "../../components/shadcn/form-header.jsx";
-import FormPanel from "../../components/shadcn/form-panel.jsx";
-import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
-import FormActions from "../../components/shadcn/form-actions.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import { Input } from "../../components/shadcn/ui/input.jsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
-import { Icon } from "../../components/icons.jsx";
+import {
+  FormA, Field, Picker, DatePicker, AmountIn, TextIn, FileDrop, NoteField, Foot,
+} from "../../components/shadcn/form-a.jsx";
+import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt } from "../../utils/format.js";
-import FxPanel, { FX_CSS } from "./FxPanel.jsx";
+import { fmt, fmtDec } from "../../utils/format.js";
+import { fxFigures } from "./FxPanel.jsx";
 
-// Transfer ke Pusat = lump-sum (IDR + kurs). Reservasi tidak dipilih di sini:
-// alokasi dilakukan saat Pusat mencatat penerimaan (Receipt.jsx), karena baru
-// saat itu jelas uang reservasi mana yang didahulukan.
-function FormBody({ open_transfers = [], today, error, from_accounts = [], fx_pool = null }) {
+// Send to HQ, the "Remittance Form" artboard on the Record View HMS canvas: a
+// lump sum of rupiah leaves a branch account at a rate. The book rate (what
+// clients paid in rupiah, on average) beside it gives the FX result before
+// saving. Reservations are not chosen here: they are allocated when HQ records
+// the receipt (Receipt.jsx), once it is clear whose money came first.
+function FormBody({ open_transfers = [], today, error, from_accounts = [], to_accounts = [], fx_pool = null }) {
   const { t } = useI18n();
   const form = useForm({
     date: today || "",
     // One IDR account → nothing to choose.
     from_bank_account: from_accounts.length === 1 ? from_accounts[0].value : "",
+    to_account: (to_accounts.find((a) => a.is_default) || to_accounts[0])?.value || "",
     amount_idr: "",
     exchange_rate: "",
     receipt_reference: "",
     note: "",
     proof: null,
   });
+  const d = form.data;
+  const set = (k) => (v) => form.setData(k, v);
 
-  const idr = Number(form.data.amount_idr) || 0;
-  const rate = Number(form.data.exchange_rate) || 0;
-  const estimate = idr > 0 && rate > 0 ? Math.round(idr / rate) : null;
+  const idr = Number(d.amount_idr) || 0;
+  const rate = Number(d.exchange_rate) || 0;
+  const sar = idr > 0 && rate > 0 ? Math.round(idr / rate) : null;
+  const fx = fxFigures({ pool: fx_pool, sentIdr: idr, sar });
   const pending = open_transfers.reduce((sum, r) => sum + r.in_transit + r.received_unallocated, 0);
+  const from = from_accounts.find((a) => a.value === d.from_bank_account);
+
+  const why = !d.from_bank_account ? t("Choose the account the money left.")
+    : !d.to_account ? t("Add an HQ SAR account in Bank Balances first.")
+      : !idr ? t("Enter the amount sent.")
+        : !rate ? t("Enter the exchange rate.")
+          : "";
 
   const submit = (e) => {
     e.preventDefault();
+    if (why) return;
     form.post("/remittance/new/", { forceFormData: true });
   };
 
+  const profit = fx?.profit;
   return (
-    <div className="page rem-form shadcn-root">
-      <style>{CSS + FX_CSS}</style>
-      <PageBack href="/remittance/" />
-      <FormHeader
-        kicker={t("Remittance")}
-        title={t("Send to HQ")}
-        sub={t("Money leaving Surabaya. Allocation to reservations happens when HQ records the receipt.")}
-      />
-
-      {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{t(error)}</div>}
-
-      {pending > 0 && (
-        <div className="rem-open-note" role="status">
-          <Icon name="alert-circle" size={15} />
-          <span>
-            {t("{n} SAR from {list} is still in transit or not yet allocated. Make sure this is not the same transfer.", {
-              n: fmt(pending),
-              list: open_transfers.map((r) => r.remittance_number).join(", "),
-            })}
-          </span>
+    <FormA title={t("Send to HQ")} onSubmit={submit} error={error ? t(error) : null}>
+      {pending > 0 ? (
+        <div className="fa-alert fa-alert-top" role="status" style={{ color: "var(--warning-text)" }}>
+          {t("{n} SAR from {list} is still in transit or not yet allocated. Make sure this is not the same transfer.", {
+            n: fmt(pending), list: open_transfers.map((r) => r.remittance_number).join(", "),
+          })}
         </div>
-      )}
+      ) : null}
+      <div className="fa-fields">
+        <Field label={t("From account")} required>
+          <Picker searchable={false} value={d.from_bank_account} placeholder={t("Choose IDR account")} heading={t("From account")}
+            options={from_accounts.map((a) => ({ value: a.value, label: a.name || a.label, meta: a.label }))}
+            onPick={(o) => form.setData("from_bank_account", o.value)}
+            extra={from ? <span className="fa-om">IDR</span> : null} />
+        </Field>
+        <Field label={t("Send to")} required>
+          <Picker searchable={false} value={d.to_account} placeholder={t("Choose HQ account")} heading={t("Send to")}
+            options={to_accounts.map((a) => ({ value: a.value, label: a.label, meta: a.number || "" }))}
+            onPick={(o) => form.setData("to_account", o.value)}
+            extra={<span className="fa-om">SAR</span>} />
+        </Field>
+        <Field label={t("Transfer date")} required>
+          <DatePicker value={d.date} onChange={set("date")} label={t("Choose transfer date")} />
+        </Field>
+        <Field label={t("Bank reference")} optional>
+          <TextIn value={d.receipt_reference} onChange={set("receipt_reference")} placeholder={t("From the transfer slip")} />
+        </Field>
+        <Field label={t("Amount sent")} required>
+          <AmountIn ccy="IDR" value={d.amount_idr} onChange={set("amount_idr")} hint={sar ? `${fmt(sar)} SAR` : null} />
+        </Field>
+        <Field label={t("Exchange rate")} required>
+          <TextIn value={d.exchange_rate} onChange={(v) => form.setData("exchange_rate", v.replace(/[^\d.]/g, ""))} inputMode="decimal"
+            icon={<span className="fa-om">1 SAR =</span>} suffix={<span className="fa-om">IDR</span>} />
+        </Field>
+        <Field label={t("Book rate")}>
+          <div className="fa-oi fa-ro">
+            <span className="fa-ot fa-num" style={{ color: "var(--foreground)", fontWeight: 600 }}>
+              {fx_pool?.rate ? `1 SAR = ${fmt(fx_pool.rate)} IDR` : t("No client rupiah yet")}
+            </span>
+            <span className="fa-om">{t("Average of client payments")}</span>
+          </div>
+        </Field>
+        <Field label={t("FX result")}>
+          <div className={"fa-oi fa-ro" + (profit > 0 ? " rm-gain" : profit < 0 ? " rm-loss" : "")}>
+            <span className="fa-ot fa-num">
+              {profit == null ? t("Enter the amount and rate")
+                : profit === 0 ? t("No gain or loss")
+                  : t(profit > 0 ? "{n} IDR gain" : "{n} IDR loss", { n: fmt(Math.abs(profit)) })}
+            </span>
+            {fx?.originRate ? <span className="fa-om">{t("sent at {r}", { r: fmtDec(idr / sar, 2) })}</span> : null}
+          </div>
+        </Field>
+      </div>
+      {fx && fx.uncovered > 0 ? (
+        <div className="fa-alert" role="status" style={{ color: "var(--warning-text)" }}>
+          {t("{n} SAR of this transfer has no client rupiah behind it, so no original rate.", { n: fmt(fx.uncovered) })}
+        </div>
+      ) : null}
 
-      <form method="post" onSubmit={submit}>
-        <FormPanel>
-          <FormSection label={t("Transfer Info")}>
-            <div className="fg-2">
-              <FormField
-                label={t("Transfer Date")} name="date" type="date" required
-                value={form.data.date} onChange={(v) => form.setData("date", v)}
-              />
-              <FormField
-                label={t("Bank Reference")} name="receipt_reference"
-                value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
-              />
-              <FormField label={t("From Account")} name="from_bank_account" required span={2}>
-                <Select value={form.data.from_bank_account} onValueChange={(v) => form.setData("from_bank_account", v)}>
-                  <SelectTrigger id="from_bank_account" className="w-full"><SelectValue placeholder={t("Choose IDR account")} /></SelectTrigger>
-                  <SelectContent>
-                    {from_accounts.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <FormField
-                label={t("Amount IDR")} name="amount_idr" type="number" min="1" required
-                value={form.data.amount_idr} onChange={(v) => form.setData("amount_idr", v)}
-                placeholder="240000000"
-              />
-              <FormField
-                label={t("Exchange Rate (IDR/SAR)")} name="exchange_rate" type="number" step="0.01" min="0.01" required
-                value={form.data.exchange_rate} onChange={(v) => form.setData("exchange_rate", v)}
-                placeholder="4800"
-              />
-            </div>
-            <p className={"rem-estimate" + (estimate == null ? " is-hint" : "")} aria-live="polite">
-              {estimate != null ? t("≈ {n} SAR", { n: fmt(estimate) }) : t("Enter the IDR amount and rate to see the SAR estimate.")}
-            </p>
-            <FxPanel pool={fx_pool} sentIdr={idr} sar={estimate} />
-            <div className="fg-2">
-              <FormField
-                name="proof" label={t("Receipt")} hint={t("Optional — image or PDF")}
-              >
-                <Input
-                  id="proof" name="proof" type="file" accept="image/*,.pdf"
-                  onChange={(e) => form.setData("proof", e.target.files[0] || null)}
-                />
-              </FormField>
-              <FormField
-                label={t("Note")} name="note"
-                value={form.data.note} onChange={(v) => form.setData("note", v)}
-                placeholder={t("Transfer BCA 01/06")}
-              />
-            </div>
-          </FormSection>
+      <NoteField label={t("Transfer proof")} optional>
+        <FileDrop file={d.proof} onFile={set("proof")} title={t("Upload the bank transfer slip")}
+          onTooBig={() => showToast(t("File too large. Maximum upload size is 3 MB."), "error")} />
+      </NoteField>
+      <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Anything HQ should know about this transfer")} />
 
-          <FormActions
-            cancelHref="/remittance/"
-            submitLabel={form.processing ? t("Saving…") : t("Save Remittance")}
-            processing={form.processing}
-          />
-        </FormPanel>
-      </form>
-    </div>
+      <Foot why={why} cancelHref="/remittance/" submitLabel={t("Save remittance")} processing={form.processing} />
+      <style>{`
+.rm-gain .fa-ot { color: var(--success-text) !important; font-weight: 600 !important; }
+.rm-loss .fa-ot { color: var(--danger-text) !important; font-weight: 600 !important; }
+`}</style>
+    </FormA>
   );
 }
-
-const CSS = `
-.rem-open-note {
-  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px;
-  padding: 10px 12px; border-radius: 12px; font-size: 12.5px; line-height: 1.5;
-  background: color-mix(in oklch, var(--muted) 55%, var(--card)); border: 1px solid var(--border);
-}
-.rem-open-note svg { flex: none; margin-top: 2px; color: var(--yellow); }
-.rem-estimate { margin: 6px 0 14px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.rem-estimate.is-hint { font-weight: 400; color: var(--muted-foreground); }
-`;
 
 export default withStandaloneModal(FormBody, "/remittance/");

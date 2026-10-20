@@ -1,4 +1,5 @@
 ﻿import logging
+import re
 from datetime import date, datetime, time as dt_time
 
 from django.contrib import messages
@@ -35,58 +36,131 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
+def _season_activity(clients_qs, start, end):
+    """{client_id: [cl_count, room_nights, last_check_in]} for live CLs of
+    `clients_qs` checking in between start and end."""
+    out = {}
+    cls = (ConfirmationLetter.objects.filter(client__in=clients_qs, check_in__gte=start, check_in__lte=end)
+           .exclude(reservation_status='CANCELLED').prefetch_related('rooms'))
+    for cl in cls:
+        row = out.setdefault(cl.client_id, [0, 0, None])
+        row[0] += 1
+        row[1] += sum(r.quantity for r in cl.rooms.all()) * (cl.num_nights or 0)
+        row[2] = max(row[2], cl.check_in) if row[2] else cl.check_in
+    return out
+
+
+def _client_season_status(cid, cur, prev, first_seen, start, active):
+    if not active:
+        return 'inactive'
+    if cid in cur:
+        return 'new' if first_seen.get(cid) and first_seen[cid] >= start else 'active'
+    return 'dormant' if cid in prev else 'inactive'
+
+
 @require_perm('clients', 'view')
 def client_list(request):
-    qs = scope(Client.objects.all(), request.user)
-
+    """Client list (Record View HMS canvas): KPIs for the umrah season against
+    the season before at the same point (new, active, retention, dormant)."""
+    from datetime import timedelta
+    from django.db.models import Max, Min
+    from ..models.period import Season
+    from .helpers import csv_list, list_per_page
+    base = scope(Client.objects.all(), request.user)
     q = request.GET.get('q', '').strip()
+    statuses = csv_list(request, 'status', ['new', 'active', 'dormant', 'inactive'])
+    city = request.GET.get('city', '').strip()
+    sort = request.GET.get('sort', '-last')
+    today = date.today()
+
+    seasons = list(Season.objects.order_by('-date_from'))
+    season = next((x for x in seasons if x.name == request.GET.get('season')), None) \
+        or next((x for x in seasons if x.date_from <= today <= x.date_to), None) or (seasons[0] if seasons else None)
+    prev_season = next((x for x in seasons if season and x.date_to < season.date_from), None)
+
+    qs = base
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(brand__icontains=q) | Q(city__icontains=q) | Q(pic__icontains=q))
+    if city:
+        qs = qs.filter(city__iexact=city)
 
-    status = request.GET.get('status', '')
-    if status == 'active':
-        qs = qs.filter(is_active=True)
-    elif status == 'inactive':
-        qs = qs.filter(is_active=False)
+    last_cl = dict(ConfirmationLetter.objects.filter(client__in=base).exclude(reservation_status='CANCELLED')
+                   .values('client_id').annotate(t=Max('check_in')).values_list('client_id', 't'))
+    kpis, cur, prev = None, {}, {}
+    if season:
+        point = min(today, season.date_to)
+        cur = _season_activity(base, season.date_from, point)
+        first_seen = dict(ConfirmationLetter.objects.filter(client__in=base).exclude(reservation_status='CANCELLED')
+                          .values('client_id').annotate(t=Min('check_in')).values_list('client_id', 't'))
+        if prev_season:
+            same_point = prev_season.date_from + (point - season.date_from)
+            prev = _season_activity(base, prev_season.date_from, prev_season.date_to)
+            prev_to_point = _season_activity(base, prev_season.date_from, min(same_point, prev_season.date_to))
+            before_prev = next((x for x in seasons if x.date_to < prev_season.date_from), None)
+            pp = _season_activity(base, before_prev.date_from, before_prev.date_to) if before_prev else {}
+        else:
+            prev_to_point, pp, same_point = {}, {}, None
+        active_ids = set(base.filter(is_active=True).values_list('pk', flat=True))
+        new_now = [c for c in cur if first_seen.get(c) and first_seen[c] >= season.date_from]
+        new_then = [c for c in prev_to_point if prev_season and first_seen.get(c) and first_seen[c] >= prev_season.date_from]
+        dormant_now = [c for c in prev if c not in cur and c in active_ids]
+        dormant_then = [c for c in pp if c not in prev_to_point]
+        back = sum(1 for c in prev if c in cur)
+        back_then = sum(1 for c in pp if c in prev)
+        kpis = {
+            'season': season.name, 'prev_season': prev_season.name if prev_season else None,
+            'range': f"{season.date_from.strftime('%B')} to {season.date_to.strftime('%B')}",
+            'new': len(new_now), 'new_then': len(new_then) if prev_season else None,
+            'active': len(cur), 'active_then': len(prev_to_point) if prev_season else None, 'clients': len(active_ids),
+            'retention': round(back * 100 / len(prev)) if prev else None, 'back': back, 'prev_active': len(prev),
+            'retention_then': round(back_then * 100 / len(pp)) if pp else None,
+            'dormant': len(dormant_now), 'dormant_then': len(dormant_then) if pp else None,
+            'dormant_nights': sum(prev[c][1] for c in dormant_now),
+        }
+        status_of = lambda c: _client_season_status(c.pk, cur, prev, first_seen, season.date_from, c.is_active)
+    else:
+        # No season set up: the CL and room-night columns count all time.
+        cur = _season_activity(base, date(2000, 1, 1), date(2100, 1, 1))
+        status_of = lambda c: 'active' if c.is_active else 'inactive'
 
-    qs = qs.order_by('name')
-    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    rows_all = list(qs)
+    counts = {k: 0 for k in ('new', 'active', 'dormant', 'inactive')}
+    for c in rows_all:
+        c._status = status_of(c)
+        counts[c._status] += 1
+    rows_all = [c for c in rows_all if not statuses or c._status in statuses]
+    if sort == 'name':
+        rows_all.sort(key=lambda c: (c.brand or c.name).lower())
+    else:
+        rows_all.sort(key=lambda c: (last_cl.get(c.pk) or date.min), reverse=True)
 
-    # Client is information only (no money figures): the one activity fact
-    # shown is when this client last booked, taken from its latest CL.
-    from django.db.models import Max
-    from django.utils import timezone
-    last_cl = dict(
-        ConfirmationLetter.objects.filter(client_id__in=[c.pk for c in page_obj])
-        .values('client_id').annotate(t=Max('created_at'))
-        .values_list('client_id', 't')
-    )
-
-    def _days_since_booking(client_id):
-        last = last_cl.get(client_id)
-        return (timezone.now() - last).days if last else None
-
-    rows = []
-    for c in page_obj:
-        rows.append({
-            "id": c.pk,
-            "name": c.name,
-            "brand": c.brand,
-            "city": c.city,
-            "province": c.province,
-            "pic": c.pic,
-            "wa": c.wa,
-            "wa_group": c.wa_group,
-            "reminder_target": c.reminder_target,
-            "days_since_last_order": _days_since_booking(c.pk),
-            "is_active": c.is_active,
-        })
+    page_obj = Paginator(rows_all, list_per_page(request)).get_page(request.GET.get('page'))
+    clients = [{
+        "id": c.pk, "name": c.name, "brand": c.brand, "city": c.city, "pic": c.pic, "wa": c.wa,
+        "wa_group": c.wa_group, "reminder_target": c.reminder_target,
+        "last_booking": last_cl[c.pk].isoformat() if c.pk in last_cl else None,
+        "cl_count": cur.get(c.pk, [0])[0], "room_nights": cur.get(c.pk, [0, 0])[1],
+        "status": c._status, "is_active": c.is_active,
+    } for c in page_obj]
     return inertia_render(request, "Client/List", props={
-        "clients": rows, "q": q, "status": status,
-        "total_count": paginator.count,
+        "clients": clients,
+        "filters": {"q": q, "status": statuses, "city": city, "sort": sort, "season": season.name if season else "",
+                    "per": list_per_page(request)},
+        "seasons": [{"name": x.name, "current": x.date_from <= today <= x.date_to} for x in seasons],
+        "cities": sorted({c for c in base.exclude(city='').values_list('city', flat=True)}, key=str.lower),
+        "counts": counts, "kpis": kpis,
         "pagination": pagination_props(page_obj),
     })
+
+
+@require_perm('clients', 'export')
+def client_export_csv(request):
+    """Clients with their contact: name, brand, city, PIC and WhatsApp."""
+    from .helpers import csv_export_response
+    qs = scope(Client.objects.all(), request.user).order_by('name')
+    return csv_export_response('clients.csv', ['Client', 'Brand', 'City', 'Province', 'PIC', 'WhatsApp', 'Status'], [
+        [c.name, c.brand, c.city, c.province, c.pic, c.wa, 'Active' if c.is_active else 'Inactive'] for c in qs
+    ])
 
 
 def _owner_branches(user):
@@ -229,7 +303,7 @@ def client_detail(request, pk):
     """Client information only. Money (invoices, balances, fund activity,
     transfer/refund, statement) lives under Finance → Client Ledger."""
     from django.utils import timezone
-    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
+    c = get_in_scope_or_404(Client.objects.select_related('owner_branch'), request.user, pk=pk)
     cls = list(c.cls.order_by('-created_at'))
     cls_data = [{
         "pk": cl.pk,
@@ -237,6 +311,10 @@ def client_detail(request, pk):
         "guest_name": cl.guest_name,
         "hotel_name": cl.hotel_name,
         "check_in": cl.check_in.strftime("%d/%m/%Y") if cl.check_in else None,
+        "check_out": cl.check_out.strftime("%d/%m/%Y") if cl.check_out else None,
+        "num_nights": cl.num_nights,
+        "num_guests": cl.num_guests,
+        "status": cl.reservation_status,
     } for cl in cls]
     days_since_last_booking = (timezone.now() - cls[0].created_at).days if cls else None
 
@@ -256,6 +334,10 @@ def client_detail(request, pk):
             "note": c.note,
             "is_active": c.is_active,
             "days_since_last_order": days_since_last_booking,
+            "branch": c.owner_branch.name if c.owner_branch_id else None,
+            "created_at": c.created_at.strftime("%b %Y") if c.created_at else None,
+            "lat": c.lat,
+            "lng": c.lng,
         },
         "cls": cls_data,
     })
@@ -312,6 +394,14 @@ def _save_client(c, data, owner_branch):
     c.save()
 
 
+def _reason_note(P):
+    """The form's Reason and Note as the document's one note: the reason
+    first, the note after it."""
+    reason = (P.get('reason') or '').strip()
+    note = (P.get('note') or '').strip()
+    return '\n'.join(x for x in (reason, note) if x)
+
+
 @require_perm('payments', 'edit')
 def client_refund(request, pk):
     """Pay a client's fund back out of a concrete account.
@@ -336,7 +426,8 @@ def client_refund(request, pk):
     P = request.POST
     account = resolve_money_account(P.get('from_account'))
     amount = round_half_up(_to_float(P.get('amount_sar')))
-    note = (P.get('note') or '').strip()
+    note = _reason_note(P)
+    refund_date = _parse_date(P.get('refund_date')) or date.today()
     proof = request.FILES.get('proof')
 
     errors = {}
@@ -367,7 +458,7 @@ def client_refund(request, pk):
         try:
             refund = request_refund(
                 client_obj, account=account, amount_sar=amount, amount_paid=paid,
-                refund_date=date.today(), created_by=request.user, note=note, proof=proof,
+                refund_date=refund_date, created_by=request.user, note=note, proof=proof,
             )
         except FinanceError as e:
             errors['amount_sar'] = str(e)
@@ -380,7 +471,8 @@ def client_refund(request, pk):
 
     return page(errors, {
         'from_account': P.get('from_account', ''), 'amount_sar': P.get('amount_sar', ''),
-        'amount_paid': P.get('amount_paid', ''), 'note': note,
+        'amount_paid': P.get('amount_paid', ''), 'note': P.get('note', ''), 'reason': P.get('reason', ''),
+        'refund_date': P.get('refund_date', ''),
     })
 
 
@@ -391,11 +483,12 @@ def client_deposit_transfer(request, pk):
     client_obj = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
 
     def page(errors=None, initial=None):
+        others = list(scope(Client.objects.filter(is_active=True), request.user).exclude(pk=client_obj.pk).order_by('name'))
+        held = finance_queries.client_credit_balances(c.pk for c in others)
         return inertia_render(request, 'Finance/DepositTransfer', props={
             'client': {'pk': client_obj.pk, 'name': client_obj.name,
                        'saldo_dana': finance_queries.client_credit_balance(client_obj.id)},
-            'clients': [{'id': c.pk, 'name': c.name} for c in scope(Client.objects.filter(is_active=True), request.user)
-                        .exclude(pk=client_obj.pk).order_by('name')],
+            'clients': [{'id': c.pk, 'name': c.name, 'city': c.city, 'deposit': held.get(c.pk, 0)} for c in others],
             'errors': errors or {},
             'initial': initial or {},
         })
@@ -403,7 +496,8 @@ def client_deposit_transfer(request, pk):
     if request.method != 'POST':
         return page()
     P = request.POST
-    note = (P.get('note') or '').strip()
+    note = _reason_note(P)
+    transfer_date = _parse_date(P.get('transfer_date')) or date.today()
     amount = round_half_up(_to_float(P.get('amount_sar')))
     to_client = scope(Client.objects.all(), request.user).filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
     errors = {}
@@ -413,7 +507,7 @@ def client_deposit_transfer(request, pk):
         errors['amount_sar'] = 'Enter an amount greater than zero.'
     if not errors:
         try:
-            transfer = request_transfer(client_obj, to_client, amount_sar=amount, transfer_date=date.today(),
+            transfer = request_transfer(client_obj, to_client, amount_sar=amount, transfer_date=transfer_date,
                                         created_by=request.user, note=note)
         except FinanceError as e:
             errors['amount_sar'] = str(e)
@@ -421,7 +515,8 @@ def client_deposit_transfer(request, pk):
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Deposit Transfer', transfer.transfer_number)
             messages.success(request, f'{transfer.transfer_number}: {amount} SAR to {to_client.name} — menunggu persetujuan user lain.')
             return redirect('client_finance_statement', pk=pk)
-    return page(errors, {'to_client': P.get('to_client', ''), 'amount_sar': P.get('amount_sar', ''), 'note': note})
+    return page(errors, {'to_client': P.get('to_client', ''), 'amount_sar': P.get('amount_sar', ''), 'note': P.get('note', ''),
+                         'reason': P.get('reason', ''), 'transfer_date': P.get('transfer_date', '')})
 
 
 def _decide_deposit_out(request, kind, pk, decision):
@@ -539,22 +634,28 @@ def client_statement_pdf(request, pk):
             'settled': g['settled'],
         } for i, g in enumerate(st['reservations'], start=1)]
         # Subtotal of the per-reservation columns only. `total_debit`/`total_credit`
-        # from the query sweep in `unallocated` lines too, so they would not tie
-        # out to the sum of what is printed in these columns.
+        # from the query sweep in adjustments, unapplied payments and deposit
+        # lines too, so they would not tie out to what these columns print.
         subtotal_debit = sum(r['debit'] for r in reservations)
         subtotal_credit = sum(r['credit'] for r in reservations)
         return _render_list_pdf(
             request, Client.objects.none(),
             template='hw/client/client_statement_byres_pdf.html',
-            filename=f'statement_{c.name}_{date.today()}.pdf'.replace(' ', '_'),
+            # Nama file = nama client; karakter yang dilarang di nama file
+            # Windows/macOS diganti spasi.
+            filename=re.sub(r'[\\/:*?"<>|]+', ' ', c.name).strip() + '.pdf',
             extra_ctx={
                 'client': c,
                 'reservations': reservations,
                 'subtotal_debit': subtotal_debit,
                 'subtotal_credit': subtotal_credit,
                 'subtotal_balance': subtotal_debit - subtotal_credit,
-                'unallocated_debits': st['unallocated_debits'],
-                'unallocated_credits': st['unallocated_credits'],
+                'printed_by': request.user.get_full_name() or request.user.get_username(),
+                'count_settled': sum(1 for r in reservations if r['settled']),
+                'count_outstanding': sum(1 for r in reservations if not r['settled']),
+                'adjustments': st['adjustments'],
+                'unapplied_payments': st['unapplied_payments'],
+                'deposit_on_account': st['deposit_on_account'],
                 'opening_balance': st['opening_balance'],
                 'closing_balance': st['closing_balance'],
                 'period_label': period_en,

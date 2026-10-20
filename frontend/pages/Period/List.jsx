@@ -24,7 +24,7 @@ const STATUS_TONE = {
   locked: "gray",
 };
 
-export default function List({ periods = [], seasons = [] }) {
+export default function List({ periods = [], seasons = [], next_season = null }) {
   const { t } = useI18n();
   const perms = usePerms();
   const canManage = perms.can("periods", "edit");
@@ -137,7 +137,7 @@ export default function List({ periods = [], seasons = [] }) {
           canManage && (
             <>
               <Button type="button" variant="outline" size="lg" onClick={() => setCreateDialog(true)}>+ {t("Create Periods")}</Button>
-              <Button type="button" size="lg" onClick={() => setSeason({ name: "", date_from: "", date_to: "" })}>+ {t("New Season")}</Button>
+              <Button type="button" size="lg" onClick={() => setSeason({ name: "", date_from: "", date_to: "", ...(next_season || {}) })}>+ {t("New Season")}</Button>
             </>
           )
         }
@@ -213,6 +213,9 @@ export default function List({ periods = [], seasons = [] }) {
                 <FormField label={t("End")} name="season_to" type="date" required min={season.date_from || undefined}
                   value={season.date_to} onChange={(v) => setSeason((s) => ({ ...s, date_to: v }))} />
               </div>
+              {!season.id && next_season ? (
+                <p className="text-sm text-muted-foreground">{t("Filled in from the Umm al-Qura calendar: the season opens on 14 Dhul Hijjah, right after Hajj, and runs until the next one opens. Change the dates if your season differs.")}</p>
+              ) : null}
               <p className="text-sm text-muted-foreground">{t("Monthly periods missing in this range are created for you.")}</p>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setSeason(null)}>{t("Cancel")}</Button>

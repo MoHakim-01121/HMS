@@ -1,0 +1,255 @@
+/* ── Shell (Bond CRM look, HMS Dashboard canvas "ManagerBond", 2026-10-19) ──
+   Sidebar: a white card floating 14px off the page edges, branch switcher
+   under the logo, Home and Calendar, groups that fold into a tree (canvas
+   "SidebarTree", 2026-10-20), the collapse button at its foot. Collapsed it
+   is a 76px rail with tooltips. Topbar: no card, sticky
+   over a blurred strip of the page: page title (the date on Home) on the left,
+   search that widens, notifications and the account menu on the right.
+   --sidebar-w is the whole slot (card + both gaps), so body padding and the
+   topbar's left edge follow it. Desktop only (601px+); phones keep the mobile
+   top bar and bottom nav. */
+
+@media (min-width: 601px) {
+  :root { --topbar-h: 70px; --sidebar-w: 276px; --sidebar-w-collapsed: 104px; --shell-gap: 14px; }
+
+  .hms-sidebar.ks-sb {
+    top: var(--shell-gap); left: var(--shell-gap); bottom: var(--shell-gap);
+    width: calc(var(--sidebar-w) - 2 * var(--shell-gap));
+    padding: 12px; gap: 0; overflow: visible;
+    border: 0; border-radius: 20px; background: var(--card);
+    box-shadow: 0 1px 2px rgba(10,12,16,.04);
+    transition: width .3s cubic-bezier(.32,.72,0,1);
+    --ks-on: color-mix(in oklch, var(--foreground) 7%, var(--card));
+  }
+  body.sidebar-collapsed .hms-sidebar.ks-sb { width: calc(var(--sidebar-w-collapsed) - 2 * var(--shell-gap)); }
+
+  /* Brand + branch (a switcher when the user covers more than one branch). */
+  .ks-top { flex: none; margin-bottom: 14px; }
+  .ks-brw { position: relative; }
+  .ks-ws { width: 100%; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 6px; border: 0; border-radius: 14px; background: none; color: var(--foreground); font: inherit; text-align: left; text-decoration: none; box-sizing: border-box; overflow: hidden; }
+  button.ks-ws { cursor: pointer; }
+  button.ks-ws:hover, button.ks-ws[aria-expanded="true"] { background: var(--secondary); }
+  .ks-ws:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ks-logo { width: 34px; height: 34px; flex: none; display: block; object-fit: contain; }
+  .ks-bn { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .ks-bn b { font-size: 14px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+  .ks-bn span { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ks-bn span svg { flex: none; }
+  .ks-code { display: none; }
+
+  .ks-bm { position: absolute; z-index: 40; left: 0; right: 0; top: 56px; padding: 4px; background: var(--popover); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-menu); transform-origin: top left; animation: ksDdIn .18s cubic-bezier(.16,1,.3,1) both; }
+  .ks-bm-h { padding: 8px 10px 6px; font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); }
+  .ks-bo { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--foreground); font: 500 13.5px var(--font-sans); text-align: left; cursor: pointer; }
+  .ks-bo:hover { background: var(--secondary); }
+  .ks-bo.on { background: var(--secondary); font-weight: 600; }
+  .ks-bo .cd { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: .03em; color: var(--muted-foreground); text-transform: uppercase; }
+  .ks-bo .hq { height: 18px; padding: 0 6px; border-radius: 9999px; border: 1px solid var(--input); font-size: 10.5px; font-weight: 600; color: var(--muted-foreground); display: inline-grid; place-content: center; }
+  .ks-bo .ckm { width: 16px; flex: none; display: grid; color: var(--foreground); }
+  .ks-bm-f { margin: 4px 0 0; padding: 8px 10px 6px; border-top: 1px solid var(--hairline); font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
+
+  /* Nav (Sidebar tree, HMS Dashboard canvas "SidebarTree", 2026-10-20): Home
+     and Calendar, then groups as rows with an icon and a chevron; a group's
+     pages hang off a thin guide line, without icons. The active page is a soft
+     pill and its group's row turns ink. */
+  .ks-nav { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; margin: 0 -12px; padding: 0 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .ks-nav.fade { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent); }
+  .ks-nav::-webkit-scrollbar { display: none; }
+  .ks-nav > * { flex-shrink: 0; }
+  .ks-sec { margin: 14px 0 4px; padding: 0 10px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted-foreground); white-space: nowrap; }
+  .ks-row { flex: none; display: flex; align-items: center; gap: 10px; width: 100%; height: 38px; padding: 0 10px; overflow: hidden; border: 0; border-radius: 11px; background: none; color: color-mix(in oklch, var(--foreground) 78%, var(--card)); font: 500 13.5px var(--font-sans); text-align: left; text-decoration: none; white-space: nowrap; box-sizing: border-box; cursor: pointer; transition: background-color .14s ease, color .14s ease; }
+  .ks-row svg { flex: none; color: var(--muted-foreground); transition: color .14s ease; }
+  .ks-row:hover { background: var(--secondary); color: var(--foreground); }
+  .ks-row:hover svg { color: var(--foreground); }
+  .ks-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+  .ks-row.on { background: var(--ks-on); color: var(--foreground); font-weight: 600; }
+  .ks-row.on svg, .ks-row.here svg { color: var(--foreground); }
+  .ks-row.here { color: var(--foreground); font-weight: 600; }
+  .ks-lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .ks-row .ch { transition: transform .2s cubic-bezier(.32,.72,0,1); }
+  .ks-row[aria-expanded="false"] .ch { transform: rotate(-90deg); }
+
+  .ks-kids { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .26s cubic-bezier(.32,.72,0,1); }
+  .ks-kids.shut { grid-template-rows: 0fr; }
+  .ks-kids-in { min-height: 0; overflow: hidden; transition: opacity .2s ease; }
+  .ks-kids.shut .ks-kids-in { opacity: 0; visibility: hidden; transition: opacity .15s ease, visibility 0s .26s; }
+  .ks-tree { position: relative; margin: 2px 0 6px 19px; padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .ks-tree::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 1.5px; border-radius: 1px; background: var(--border); }
+  .ks-tree .ks-row { position: relative; height: 34px; font-size: 13px; overflow: visible; }
+  .ks-tree .ks-row.on::before { content: ""; position: absolute; left: -12px; width: 1.5px; height: 20px; border-radius: 1px; background: var(--foreground); }
+
+  /* Collapse, a quiet row pinned to the foot of the card. */
+  .ks-foot { flex: none; margin: 0 -12px; padding: 8px 12px 0; border-top: 1px solid var(--hairline); }
+  .ks-foot .ks-row { color: var(--muted-foreground); }
+
+  /* Collapsed rail: logo with the branch code under it, Home, Calendar and one
+     icon per group (it reopens the sidebar on that group), collapse at the foot.
+     The branch menu opens beside the rail. */
+  body.sidebar-collapsed .ks-lb,
+  body.sidebar-collapsed .ks-bn,
+  body.sidebar-collapsed .ks-row .ch,
+  body.sidebar-collapsed .ks-kids,
+  body.sidebar-collapsed .ks-sec { display: none; }
+  body.sidebar-collapsed .ks-ws { flex-direction: column; justify-content: center; gap: 3px; height: auto; padding: 6px 0; }
+  body.sidebar-collapsed .ks-code { display: block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted-foreground); }
+  body.sidebar-collapsed .ks-row { justify-content: center; padding: 0; height: 40px; }
+  body.sidebar-collapsed .ks-row.here { background: var(--ks-on); }
+  body.sidebar-collapsed .ks-bm { left: calc(100% + 22px); right: auto; top: 0; width: 240px; }
+  .ks-tip { position: absolute; left: calc(100% + 8px); z-index: 70; height: 30px; padding: 0 11px; border-radius: 8px; background: var(--foreground); color: var(--background); font: 500 12.5px var(--font-sans); display: flex; align-items: center; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-popover); transform: translateY(-50%); animation: ksTipIn .14s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes ksTipIn { from { opacity: 0; transform: translate(-4px,-50%); } to { opacity: 1; transform: translateY(-50%); } }
+
+  /* Topbar */
+  .hms-topbar.ks-tb {
+    /* Its title and icons line up with the page's own edges: .page is
+       --page-max wide at most (1040px; the dashboard is wider), centred in
+       what the sidebar leaves. */
+    --tb-x: max(20px, calc((100vw - var(--sidebar-w) - var(--page-max, 1040px)) / 2 + 20px));
+    padding: var(--shell-gap) calc(var(--tb-x) - 4px) 0 var(--tb-x); gap: 16px;
+    border-bottom: 1px solid transparent; box-shadow: none;
+    background: color-mix(in oklch, var(--bg, var(--background)) 86%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4);
+    transition: left .3s cubic-bezier(.32,.72,0,1), border-color .2s ease;
+  }
+  body.sidebar-collapsed .hms-topbar.ks-tb { --tb-x: max(20px, calc((100vw - var(--sidebar-w-collapsed) - var(--page-max, 1040px)) / 2 + 20px)); }
+  body:has(.page > .la-main) .hms-topbar.ks-tb { --page-max: 1320px; }
+  .hms-topbar.ks-tb.lift { border-bottom-color: color-mix(in oklch, var(--border) 80%, transparent); }
+  .ks-tl, .ks-tr { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .ks-pt { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ks-pt.day { font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .ks-ib { position: relative; width: 40px; height: 40px; flex: none; border: 0; border-radius: 12px; background: none; color: var(--muted-foreground); cursor: pointer; display: grid; place-content: center; }
+  .ks-ib:hover, .ks-ib[aria-expanded="true"] { background: var(--card); color: var(--foreground); }
+  .ks-ib:focus-visible, .ks-acct:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .ks-nb { position: absolute; top: 3px; right: 3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font-size: 10.5px; font-weight: 600; display: grid; place-content: center; box-sizing: border-box; border: 2px solid var(--bg, var(--background)); font-variant-numeric: tabular-nums; }
+  .ks-div { width: 1px; height: 22px; margin: 0 6px; background: var(--border); }
+  .ks-anchor { position: relative; }
+
+  /* Closed it is the search icon; pressed, it widens into the field. The
+     width eases first, then the text field fades in, so nothing jumps. */
+  .ks-ts { position: relative; width: 40px; margin-right: 2px; transition: width .3s cubic-bezier(.32,.72,0,1), margin .3s cubic-bezier(.32,.72,0,1); }
+  .ks-ts.open { width: 380px; margin-right: 6px; }
+  .ks-tsi { display: flex; align-items: center; gap: 9px; height: 40px; padding: 0 5px 0 11px; border: 1px solid transparent; border-radius: 9999px; background: transparent; box-sizing: border-box; cursor: pointer; overflow: hidden;
+    transition: border-color .25s ease, background-color .25s ease, box-shadow .3s ease; }
+  .ks-ts:not(.open) .ks-tsi:hover { background: var(--card); }
+  .ks-ts.open .ks-tsi { cursor: text; background: var(--card); }
+  .ks-tsi input { opacity: 0; transition: opacity .16s ease; }
+  .ks-ts.open .ks-tsi input { opacity: 1; transition: opacity .18s ease .08s; }
+  .ks-ts:not(.open) .ks-tsi input { pointer-events: none; }
+  .ks-ts:not(.open) .ks-sx { opacity: 0; pointer-events: none; }
+  .ks-ts.open .ks-tsi { border-color: var(--foreground); box-shadow: 0 0 0 4px color-mix(in oklch, var(--foreground) 8%, transparent); }
+  .ks-tsi > svg { flex: none; color: var(--muted-foreground); transition: color .2s ease; }
+  .ks-ts.open .ks-tsi > svg { color: var(--muted-foreground); }
+  .ks-tsi input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; font: 500 14px var(--font-sans); color: var(--foreground); outline: none; box-shadow: none; }
+  .ks-tsi input::placeholder { color: var(--muted-foreground); font-weight: 400; }
+  .ks-sx { width: 28px; height: 28px; flex: none; border: 0; border-radius: 9999px; background: none; color: var(--muted-foreground); cursor: pointer; display: grid; place-content: center; transition: opacity .2s ease, background-color .12s ease; }
+  .ks-sx:hover { background: var(--secondary); color: var(--foreground); }
+  .ks-sp { position: absolute; z-index: 50; top: 48px; left: 0; right: 0; max-height: calc(100vh - 80px); display: flex; flex-direction: column; background: var(--popover); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-popover); overflow: hidden; transform-origin: top center; animation: ksSpIn .2s cubic-bezier(.16,1,.3,1) both; }
+  .ks-sbody { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 4px 6px 8px; animation: ksFade .22s ease-out .05s both; }
+  .ks-sbody::-webkit-scrollbar { display: none; }
+  .ks-sg { padding: 12px 10px 4px; font-size: 11.5px; font-weight: 500; color: var(--muted-foreground); }
+  .ks-sr { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 38px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--foreground); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; text-decoration: none; transition: background-color .1s ease; }
+  .ks-sr:hover, .ks-sr.on { background: var(--secondary); }
+  .ks-st1 { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: 13.5px; white-space: nowrap; }
+  .ks-st1 .mono { flex: none; font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); }
+  .ks-st1 .nm { overflow: hidden; text-overflow: ellipsis; }
+  .ks-sr mark { background: none; color: var(--foreground); font-weight: 700; }
+  .ks-smeta { flex: none; font-size: 12.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ks-smore { display: block; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); font: 500 12.5px var(--font-sans); text-align: left; cursor: pointer; }
+  .ks-smore:hover { background: var(--secondary); color: var(--foreground); }
+  .ks-sempty { padding: 28px 20px 30px; text-align: center; }
+  .ks-sempty b { font-size: 14px; font-weight: 600; }
+  .ks-sempty p { margin: 6px auto 0; max-width: 380px; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+  .ks-sload { padding: 20px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
+
+  .ks-dd { position: absolute; z-index: 40; top: 50px; right: 0; padding: 6px; background: var(--popover); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-menu); transform-origin: top right; animation: ksDdIn .18s cubic-bezier(.16,1,.3,1) both; }
+  .ks-nh { display: flex; justify-content: space-between; align-items: center; height: 48px; padding: 0 10px; font-size: 14px; font-weight: 600; }
+  .ks-nlink { height: 28px; margin-right: -8px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); font: 500 12.5px var(--font-sans); cursor: pointer; }
+  .ks-nlink:hover { background: var(--secondary); color: var(--foreground); }
+  .ks-nr { display: grid; grid-template-columns: 92px minmax(0,1fr) auto; align-items: center; column-gap: 12px; row-gap: 1px; min-height: 40px; padding: 6px 10px; border-radius: 8px; color: var(--foreground); text-decoration: none; font-size: 13.5px; white-space: nowrap; transition: background-color .1s ease; }
+  .ks-nr:hover { background: var(--secondary); }
+  .ks-nr .mono { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; }
+  .ks-nr .nm { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+  .ks-nr .smeta { font-size: 12.5px; color: var(--muted-foreground); text-align: right; }
+  .ks-nr .smeta.hot { color: var(--warning-text); font-weight: 500; }
+  .ks-nr .amt { grid-column: 3; font-size: 12.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .ks-nempty { padding: 14px 10px 18px; font-size: 13px; color: var(--muted-foreground); }
+
+  .ks-acct .ks-av { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--border); }
+  .ks-acct { width: 44px; height: 44px; margin-left: 0; padding: 0; border: 0; border-radius: 9999px; background: none; cursor: pointer; display: grid; place-content: center; }
+  .ks-acct .ks-av { transition: box-shadow .15s ease; }
+  .ks-acct:hover .ks-av, .ks-acct[aria-expanded="true"] .ks-av { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--input); }
+  .ks-ah { display: flex; align-items: center; gap: 10px; padding: 10px 10px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--hairline); }
+  .ks-ah .an { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+  .ks-ah .an b { font-size: 13.5px; }
+  .ks-ah .an span { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ks-ar { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--foreground); font: 500 13px var(--font-sans); text-align: left; cursor: pointer; text-decoration: none; box-sizing: border-box; }
+  .ks-ar:hover { background: var(--secondary); }
+  .ks-ar svg { color: var(--muted-foreground); flex: none; }
+  .ks-ar .am { margin-left: auto; font-size: 12px; color: var(--muted-foreground); }
+  .ks-ar.danger, .ks-ar.danger svg { color: var(--danger-text); }
+  .ks-sep { height: 1px; margin: 4px 0; background: var(--hairline); }
+
+  /* Popovers open with a short spring-like ease and close faster than they
+     open (is-closing, kept mounted by usePresence). */
+  @keyframes ksDdIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes ksSpIn { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes ksPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-4px) scale(.98); } }
+  @keyframes ksFade { from { opacity: 0; } to { opacity: 1; } }
+  .ks-dd, .ks-bm { animation-duration: .22s; animation-timing-function: cubic-bezier(.16,1,.3,1); }
+  .ks-dd.is-closing, .ks-bm.is-closing, .ks-sp.is-closing { animation: ksPopOut .15s cubic-bezier(.4,0,1,1) both; pointer-events: none; }
+  .ks-sp { animation-duration: .26s; }
+
+  /* Notifications: the header stays, the list scrolls. */
+  .ks-ndd { width: 420px; padding: 0 6px 6px; display: flex; flex-direction: column; max-height: min(480px, calc(100vh - 96px)); }
+  .ks-ndd .ks-nh { flex: none; border-bottom: 1px solid var(--hairline); margin: 0 -6px; padding: 0 16px; }
+  .ks-nbody { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 2px; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+  .ks-nbody::-webkit-scrollbar { width: 8px; }
+  .ks-nbody::-webkit-scrollbar-thumb { background: var(--input); border-radius: 9999px; border: 2px solid var(--popover); }
+
+  /* Sidebar links, group chevrons and the active pill ease rather than snap. */
+  .ks-ws, .ks-bo, .ks-ar, .ks-nr, .ks-sr { transition: background-color .16s ease, color .16s ease; }
+  .ks-ib:active, .ks-acct:active { transform: scale(.94); }
+  .ks-ib, .ks-acct { transition: background-color .16s ease, transform .12s ease; }
+
+  .page-shell { transition: opacity .2s ease; }
+  body.ks-switching .page-shell { opacity: .35; }
+
+  @media (max-width: 1100px) {
+    .ks-ts.open { width: 300px; }
+  }
+}
+
+/* Avatar: the user's photo, else initials on the info tint. */
+.ks-av { width: 36px; height: 36px; flex: none; border-radius: 9999px; background: var(--info-tint); color: var(--info-text); display: grid; place-content: center; font-size: 12.5px; font-weight: 700; letter-spacing: .02em; overflow: hidden; }
+.ks-av.lg { width: 40px; height: 40px; font-size: 13.5px; }
+.ks-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Switch-branch confirm + toast (all widths) */
+.ks-cq { position: fixed; inset: 0; z-index: 80; background: rgba(10,12,16,.42); display: flex; justify-content: center; align-items: flex-start; padding: 120px 24px 24px; box-sizing: border-box; animation: ksFade .18s ease-out both; }
+.ks-cdlg { width: 100%; max-width: 420px; padding: 22px 22px 18px; background: var(--popover); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow-palette); box-sizing: border-box; animation: ksSpIn .22s cubic-bezier(.16,1,.3,1) both; }
+.ks-cdlg h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.ks-cdlg p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+.ks-cda { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+.ks-b2 { height: 38px; padding: 0 16px; border: 1px solid var(--input); border-radius: 9999px; background: var(--card); color: var(--foreground); font: 600 13px var(--font-sans); cursor: pointer; }
+.ks-b2:hover { border-color: var(--foreground); }
+.ks-bd { height: 38px; padding: 0 16px; border: 0; border-radius: 9999px; background: var(--destructive); color: var(--destructive-foreground); font: 600 13px var(--font-sans); cursor: pointer; }
+.ks-toast { position: fixed; z-index: 90; left: 50%; bottom: 28px; display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 18px 0 14px; border-radius: 9999px; background: var(--foreground); color: var(--background); font: 500 13.5px var(--font-sans); box-shadow: var(--shadow-popover); transform: translateX(-50%); animation: ksToastIn .26s cubic-bezier(.16,1,.3,1) both; }
+.ks-toast b { font-weight: 600; }
+@keyframes ksToastIn { from { opacity: 0; transform: translate(-50%,10px); } to { opacity: 1; transform: translate(-50%,0); } }
+
+/* Mobile account sheet: branch rows */
+.m-branch-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+.m-branch-row .cd { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hms-sidebar.ks-sb, .hms-topbar.ks-tb, .ks-row, .ks-row .ch, .ks-kids, .ks-kids-in, .ks-ts, .ks-tsi, .page-shell { transition: none !important; }
+  .ks-dd, .ks-bm, .ks-sp, .ks-sbody, .ks-cq, .ks-cdlg, .ks-toast, .ks-tip { animation: none; }
+}
+
+/* Inputs that sit inside a drawn control (search pill, form fields, profile
+   search) take nothing from design.css's global input skin: the control
+   around them is the field. */
+.ks-tsi input, .fa-oin input, .fa-psearch input, .fa-pill-in input, .fa-price input, .fa-qin,
+.pf-search input, .pf-fld input {
+  background: transparent !important; border: 0 !important; box-shadow: none !important;
+  border-radius: 0 !important; padding: 0 !important; min-height: 0 !important; outline: none;
+}
+.fa-qin { width: 34px !important; height: 24px !important; text-align: center; }

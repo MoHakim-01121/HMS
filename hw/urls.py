@@ -1,6 +1,8 @@
 from django.urls import path
+from django.contrib.auth.decorators import login_required
 from django.views.generic import RedirectView
 from . import views
+from .active_branch import switch_branch
 
 urlpatterns = [
     path('', views.landing, name='landing'),
@@ -30,28 +32,9 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('invoice/<int:pk>/delete/', views.invoice_delete, name='invoice_delete'),
     path('invoice/<int:pk>/pdf/', views.invoice_pdf, name='invoice_pdf'),
 
-    # Invoice Services / Visa
-    path('services/', views.services_list, name='services_list'),
-    path('services/new/', views.services_new, name='services_new'),
-    path('services/export/csv/', views.services_export_csv, name='services_export_csv'),
-    path('services/export/pdf/', views.services_list_pdf, name='services_list_pdf'),
-    path('services/<int:pk>/', views.services_detail, name='services_detail'),
-    path('services/<int:pk>/edit/', views.services_edit, name='services_edit'),
-    path('services/<int:pk>/delete/', views.services_delete, name='services_delete'),
-    path('services/<int:pk>/pdf/', views.services_pdf, name='services_pdf'),
-    path('services/<int:pk>/duplicate/', views.services_duplicate, name='services_duplicate'),
 
     # Calendar
     path('calendar/', views.calendar_view, name='calendar'),
-    path('calendar/cl/<int:pk>/estimasi/', views.cl_estimasi_save, name='cl_estimasi_save'),
-    path('calendar/send-recap/', views.calendar_send_recap, name='calendar_send_recap'),
-    path('calendar/send-reminder-group/', views.calendar_send_reminder_group, name='calendar_send_reminder_group'),
-    path('calendar/wa-targets/', views.wa_target_add, name='wa_target_add'),
-    path('calendar/wa-targets/<int:pk>/toggle/', views.wa_target_toggle, name='wa_target_toggle'),
-    path('calendar/wa-targets/<int:pk>/delete/', views.wa_target_delete, name='wa_target_delete'),
-    path('calendar/message-templates/', views.message_template_save, name='message_template_save'),
-    path('calendar/recap-settings/', views.calendar_recap_settings, name='calendar_recap_settings'),
-    path('calendar/checkin-pdf/', views.calendar_checkin_pdf, name='calendar_checkin_pdf'),
 
     # Search
     path('search/', views.global_search, name='global_search'),
@@ -62,12 +45,12 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
 
     # AI
     path('ai/chat/', views.ai_chat, name='ai_chat'),
+    path('ai/chat/reset/', views.ai_chat_reset, name='ai_chat_reset'),
     path('ai/draft/', views.ai_draft_message, name='ai_draft_message'),
-
-    # Billing WA send
 
     # Clients
     path('clients/', views.client_list, name='client_list'),
+    path('clients/export/csv/', views.client_export_csv, name='client_export_csv'),
     path('clients/new/', views.client_new, name='client_new'),
     path('clients/map/', views.client_map, name='client_map'),
     path('clients/map/data/', views.client_map_data, name='client_map_data'),
@@ -83,6 +66,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('hotels/', views.hotel_list, name='hotel_list'),
     path('hotels/new/', views.hotel_new, name='hotel_new'),
     path('hotels/map/', views.hotel_map, name='hotel_map'),
+    path('hotels/export/csv/', views.hotel_export_csv, name='hotel_export_csv'),
     path('hotels/map/data/', views.hotel_map_data, name='hotel_map_data'),
     path('hotels/<int:pk>/', views.hotel_detail, name='hotel_detail'),
     path('hotels/<int:pk>/edit/', views.hotel_edit, name='hotel_edit'),
@@ -131,6 +115,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('account/avatar/upload/', views.avatar_upload, name='avatar_upload'),
     path('account/avatar/delete/', views.avatar_delete, name='avatar_delete'),
     path('account/language/', views.set_language, name='set_language'),
+    path('account/branch/', switch_branch, name='switch_branch'),
 
 
     # Cancellation Penalty (accessible through CL)
@@ -156,7 +141,8 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('health/', views.health_check, name='health_check'),
 
     # ── Finance Redesign ──
-    path('finance/', views.finance_hub, name='finance_hub'),
+    # The Finance overview page was removed (2026-10-20); old links land on Home.
+    path('finance/', login_required(RedirectView.as_view(url='/dashboard/')), name='finance_hub'),
     path('finance/payments/', views.payment_list, name='payment_list'),
     path('finance/payments/export/csv/', views.payment_export_csv, name='payment_export_csv'),
     path('finance/payments/record/', views.payment_record, name='payment_record'),
@@ -169,10 +155,12 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/payments/<int:pk>/reject/', views.payment_reject, name='payment_reject'),
     path('finance/payments/<int:pk>/reverse/', views.payment_reverse, name='payment_reverse'),
     path('finance/fund-flow/', views.fund_flow_report, name='fund_flow_report'),
+    path('finance/branch-report/', views.branch_report_view, name='branch_report'),
+    path('finance/branch-report/export/csv/', views.branch_report_csv, name='branch_report_csv'),
     path('finance/fund-flow/export/csv/', views.fund_flow_csv, name='fund_flow_csv'),
     path('finance/ar-aging/', views.ar_aging_report, name='ar_aging_report'),
-    path('finance/service-margin/', views.service_margin_report, name='service_margin_report'),
     path('finance/credit-notes/', views.credit_note_list, name='credit_note_list'),
+    path('finance/credit-notes/export/csv/', views.credit_note_export_csv, name='credit_note_export_csv'),
     path('finance/credit-notes/<int:pk>/void/', views.credit_note_void, name='credit_note_void'),
     path('finance/credit-notes/<int:pk>/pdf/', views.credit_note_pdf, name='credit_note_pdf'),
     path('finance/invoices/<int:pk>/void/', views.invoice_void, name='invoice_void'),
@@ -180,14 +168,30 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/invoices/<int:pk>/credit-notes/new/', views.credit_note_new, name='credit_note_new'),
     path('finance/ar-aging/export/csv/', views.ar_aging_csv, name='ar_aging_csv'),
     path('finance/exchanges/', views.exchange_list, name='exchange_list'),
+    path('finance/exchanges/export/csv/', views.exchange_export_csv, name='exchange_export_csv'),
     path('finance/exchanges/new/', views.exchange_new, name='exchange_new'),
     path('finance/exchanges/<int:pk>/void/', views.exchange_void, name='exchange_void'),
     path('finance/expenses/', views.expense_list, name='expense_list'),
     path('finance/expenses/export/csv/', views.expense_export_csv, name='expense_export_csv'),
     path('finance/expenses/record/', views.expense_record, name='expense_record'),
     path('finance/expenses/<int:pk>/', views.expense_detail, name='expense_detail'),
+    path('finance/expenses/<int:pk>/approve/', views.expense_approve, name='expense_approve'),
+    path('finance/expenses/<int:pk>/reject/', views.expense_reject, name='expense_reject'),
     path('finance/expenses/<int:pk>/pay/', views.expense_pay, name='expense_pay'),
     path('finance/expenses/<int:pk>/void/', views.expense_void, name='expense_void'),
+    path('finance/claims/', views.claim_list, name='claim_list'),
+    path('finance/claims/new/', views.claim_new, name='claim_new'),
+    path('finance/claims/<int:pk>/', views.claim_detail, name='claim_detail'),
+    path('finance/claims/<int:pk>/submit/', views.claim_submit, name='claim_submit'),
+    path('finance/claims/<int:pk>/cancel/', views.claim_cancel, name='claim_cancel'),
+    path('finance/claims/<int:pk>/reject/', views.claim_reject, name='claim_reject'),
+    path('finance/claims/<int:pk>/pay/', views.claim_pay, name='claim_pay'),
+    path('finance/claims/<int:pk>/unpay/', views.claim_unpay, name='claim_unpay'),
+    path('finance/claims/<int:pk>/export/csv/', views.claim_export_csv, name='claim_export_csv'),
+    path('finance/claims/<int:pk>/pdf/', views.claim_pdf, name='claim_pdf'),
+    path('finance/expenses/categories/', views.expense_categories, name='expense_categories'),
+    path('finance/expenses/categories/new/', views.expense_category_new, name='expense_category_new'),
+    path('finance/expenses/categories/<str:code>/edit/', views.expense_category_edit, name='expense_category_edit'),
     path('finance/clients/<int:pk>/statement/', views.client_finance_statement, name='client_finance_statement'),
     path('finance/clients/<int:pk>/statement/pdf/', views.client_statement_pdf, name='client_statement_pdf'),
     path('finance/clients/<int:pk>/refund/', views.client_refund, name='client_refund'),
@@ -211,6 +215,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('finance/trial-balance/', views.trial_balance, name='trial_balance'),
     path('finance/statements/', views.statements_list, name='statements_list'),
     path('finance/bank-accounts/', views.bank_account_list, name='bank_account_list'),
+    path('finance/bank-accounts/export/csv/', views.bank_account_export_csv, name='bank_account_export_csv'),
     path('finance/bank-accounts/new/', views.bank_account_new, name='bank_account_new'),
     path('finance/bank-accounts/<int:pk>/edit/', views.bank_account_edit, name='bank_account_edit'),
     path('finance/bank-accounts/<str:kind>/<int:pk>/', views.bank_account_transactions, name='bank_account_transactions'),

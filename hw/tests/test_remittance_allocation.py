@@ -30,7 +30,7 @@ from hw.models import Client, Remittance, RemittanceLine
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.models.settlement import RemittanceSettlement
-from hw.tests.factories import make_hotel_line, make_invoice, make_remittance
+from hw.tests.factories import fund_ledger_for, make_hotel_line, make_invoice, make_remittance
 
 
 def _net(account_id):
@@ -77,6 +77,7 @@ class AllocationBase(TestCase):
         rem = make_remittance(
             remittance_number=number, date=when, amount_idr=idr, exchange_rate=rate,
         )
+        fund_ledger_for(rem)
         posting.resync_remittance(rem, created_by=self.user)
         return rem
 
@@ -93,7 +94,7 @@ class AllocationBase(TestCase):
 class SimulationScenarioTest(AllocationBase):
     def test_transfer_first_then_allocate_on_each_receipt(self):
         self.assertEqual(_net(coa.TRANSIT), 50000)
-        self.assertEqual(_net(coa.CASH_SBY), 0)
+        self.assertEqual(_net(coa.CASH_SBY), 50000)   # client SAR 50,000 + rupiah funded 50,000 − sent 50,000
         self.assertEqual(self._idle(), {'A': 32000, 'B': 9000, 'C': 9000})
 
         self._receive(40000, date(2026, 9, 12), [
@@ -103,7 +104,7 @@ class SimulationScenarioTest(AllocationBase):
         self.rem.refresh_from_db()
         self.assertEqual(_net(coa.TRANSIT), 10000)
         self.assertEqual(_net(coa.CASH_PUSAT), 40000)
-        self.assertEqual(_net(coa.CASH_SBY), 0)
+        self.assertEqual(_net(coa.CASH_SBY), 50000)   # funding stays; see above
         self.assertEqual(self.rem.status, Remittance.STATUS_PENDING)
         self.assertEqual(self._idle(), {'A': 0, 'B': 9000, 'C': 1000})
         self.assertEqual(self.rem.allocated_sar, 40000)
@@ -116,7 +117,7 @@ class SimulationScenarioTest(AllocationBase):
         self.rem.refresh_from_db()
         self.assertEqual(_net(coa.TRANSIT), 0)
         self.assertEqual(_net(coa.CASH_PUSAT), 50000)
-        self.assertEqual(_net(coa.CASH_SBY), 0)
+        self.assertEqual(_net(coa.CASH_SBY), 50000)   # funding stays; see above
         self.assertEqual(self.rem.status, Remittance.STATUS_RECEIVED)
         self.assertEqual(self._idle(), {'A': 0, 'B': 0, 'C': 0})
         self.assertEqual(self.rem.unallocated_sar, 0)
@@ -230,7 +231,7 @@ class CorrectionTest(AllocationBase):
             {'linked_number': 'B', 'amount_sar': 8000},
         ], created_by=self.user, entry_date=date(2026, 9, 13))
         self.assertEqual(self._idle(), {'A': 0, 'B': 1000, 'C': 9000})
-        self.assertEqual(_net(coa.CASH_SBY), 0)
+        self.assertEqual(_net(coa.CASH_SBY), 50000)   # see SimulationScenarioTest
         self.assertEqual(_net(coa.TRANSIT), 10000)
         self.assertEqual(sorted(l.linked_number for l in self.s1.allocations.all()), ['A', 'B'])
 
@@ -279,6 +280,7 @@ class ClosedTransferPeriodTest(TestCase):
         rem = make_remittance(
             remittance_number='RMT-ALC-9', date=date(2026, 9, 28), amount_idr=23_040_000, exchange_rate=4800,
         )
+        fund_ledger_for(rem)
         posting.resync_remittance(rem, created_by=user)
         sept.status = FinancialPeriod.STATUS_CLOSED
         sept.save(update_fields=['status'])

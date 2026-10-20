@@ -11,7 +11,7 @@ from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import CancellationPenalty, Client, ConfirmationLetter, Invoice, PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account, make_hotel_line, make_invoice, make_service_line
+from hw.tests.factories import make_account, make_hotel_line, make_invoice
 
 
 class _Base(TestCase):
@@ -110,36 +110,3 @@ class ExcessToDepositTest(_Base):
         self.assertTrue(CancellationPenalty.objects.get(pk=pen.pk).is_paid)   # the penalty stays paid
 
 
-class ServicesPaidToIssuingBranchTest(_Base):
-    def setUp(self):
-        super().setUp()
-        self.svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='SAR',
-                                    issued_date=date(2026, 3, 1), branch_id='sby')
-        self.svc = make_service_line(self.svc_inv, name='Visa', qty=2, price=300)
-        posting.post_invoice_charge(self.svc_inv, created_by=self.user)
-
-    def test_services_paid_into_another_branch_is_refused(self):
-        jkt = make_account('jkt', 'SAR')
-        with self.assertRaisesMessage(FinanceError, 'hanya'):
-            create_payment_record(self.svc_inv, self.client_obj, date(2026, 3, 5), 600, method='Transfer',
-                                  receiving_account=jkt, created_by=self.user, service_item=self.svc)
-
-    def test_services_paid_into_the_issuing_branch_is_fine(self):
-        p = create_payment_record(self.svc_inv, self.client_obj, date(2026, 3, 5), 600, method='Transfer',
-                                  received_in='sby', created_by=self.user, service_item=self.svc)
-        self.assertEqual(p.allocations.get().invoice_line_id, self.svc.pk)
-
-    def test_hotel_money_may_land_in_any_branch(self):
-        jkt = make_account('jkt', 'SAR')
-        p = create_payment_record(self.inv, self.client_obj, date(2026, 3, 5), 1_000, method='Transfer',
-                                  receiving_account=jkt, created_by=self.user, reservation=self.line)
-        self.assertEqual(p.receiving_branch_code, 'jkt')
-
-    def test_services_form_refuses_fractions(self):
-        resp = self.client.post(f'/services/{self.svc_inv.pk}/edit/', {
-            'client_id': str(self.client_obj.pk), 'invoice_number': self.svc_inv.invoice_number,
-            'invoice_currency': 'SAR', 'issued_date': '2026-03-01', 'due_date': '2026-03-20',
-            'service_items': json.dumps([{'service_number': 1, 'name': 'Visa', 'qty': 2, 'price': 300.5}]),
-        }, HTTP_X_INERTIA='true')
-        self.assertIn('finance', resp.json()['props']['errors'])
-        self.assertEqual(self.svc_inv.service_items.get().unit_price, 300)

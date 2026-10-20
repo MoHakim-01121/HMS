@@ -7,7 +7,6 @@ it bills lives in InvoiceLine, one table for every kind of line:
            no dates and no amount: those are read from the reservation, so an
            invoice can never disagree with the CL it bills.
   penalty  a cancellation penalty on a reservation billed here.
-  service  a description, a quantity and a unit price in the invoice currency.
 
 Amounts are whole units of the invoice currency (hotel invoices are always
 SAR). Whether an invoice is paid is never stored; it is derived from the
@@ -156,11 +155,6 @@ class Invoice(models.Model):
         """Hotel lines billed by this invoice, as a queryset."""
         return Reservation.objects.filter(invoice=self, voided_at=self._line_stamp())
 
-    @property
-    def service_items(self):
-        """Service lines billed by this invoice, as a queryset."""
-        return ServiceItem.objects.filter(invoice=self, voided_at=self._line_stamp())
-
     def _line_stamp(self):
         return self.voided_at if self.is_void else None
 
@@ -210,14 +204,6 @@ class Invoice(models.Model):
             defaults={'line_no': self._next_line_no()},
         )
         return line
-
-    def add_service_line(self, description, quantity, unit_price):
-        if self.invoice_type == InvoiceType.HOTEL:
-            raise ValueError('A hotel invoice cannot carry service lines.')
-        return InvoiceLine.objects.create(
-            invoice=self, kind=InvoiceLine.KIND_SERVICE, line_no=self._next_line_no(),
-            description=description, quantity=quantity, unit_price=unit_price,
-        )
 
     def pay_to_accounts(self):
         """Rekening tujuan bayar ("Pay to") invoice ini: rekening aktif cabang
@@ -287,10 +273,6 @@ class Invoice(models.Model):
             return self.FINANCIAL_STATE_PARTIAL
         return self.FINANCIAL_STATE_UNPAID
 
-    @property
-    def financial_state_display(self):
-        return dict(self.FINANCIAL_STATE_CHOICES)[self.financial_state]
-
     # ── Numbering ─────────────────────────────────────────────
 
     @classmethod
@@ -320,7 +302,7 @@ class Invoice(models.Model):
 
     @staticmethod
     def _number_prefix(invoice_type):
-        return 'INV' if invoice_type == InvoiceType.HOTEL else 'SVC'
+        return 'INV'
 
 
 class InvoiceLineQuerySet(models.QuerySet):
@@ -352,11 +334,9 @@ class InvoiceLineQuerySet(models.QuerySet):
 class InvoiceLine(models.Model):
     KIND_HOTEL   = 'hotel'
     KIND_PENALTY = 'penalty'
-    KIND_SERVICE = 'service'
     KIND_CHOICES = [
         (KIND_HOTEL,   'Hotel reservation'),
         (KIND_PENALTY, 'Cancellation penalty'),
-        (KIND_SERVICE, 'Service'),
     ]
 
     # PROTECT: an invoice is voided, not deleted, once its lines carry money.
@@ -372,10 +352,6 @@ class InvoiceLine(models.Model):
     penalty = models.ForeignKey(
         'CancellationPenalty', null=True, blank=True, on_delete=models.PROTECT, related_name='invoice_lines',
     )
-    # service: what is sold, how many, at what unit price (invoice currency).
-    description = models.CharField(max_length=255, blank=True)
-    quantity    = models.PositiveIntegerField(null=True, blank=True)
-    unit_price  = models.PositiveIntegerField(null=True, blank=True)
 
     # Set when the line stops being billed: taken off the invoice after the
     # ledger already referenced it, or the whole invoice was voided. The row
@@ -391,32 +367,15 @@ class InvoiceLine(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['invoice', 'line_no'], name='invoice_line_no_uniq'),
             models.CheckConstraint(
-                condition=models.Q(kind__in=['hotel', 'penalty', 'service']), name='invoice_line_kind_valid',
+                condition=models.Q(kind__in=['hotel', 'penalty']), name='invoice_line_kind_valid',
             ),
             # Each kind fills exactly its own columns.
             models.CheckConstraint(
                 condition=(
-                    models.Q(
-                        kind='hotel', confirmation_letter__isnull=False, penalty__isnull=True,
-                        description='', quantity__isnull=True, unit_price__isnull=True,
-                    )
-                    | models.Q(
-                        kind='penalty', penalty__isnull=False, confirmation_letter__isnull=True,
-                        description='', quantity__isnull=True, unit_price__isnull=True,
-                    )
-                    | (
-                        models.Q(
-                            kind='service', confirmation_letter__isnull=True, penalty__isnull=True,
-                            quantity__isnull=False, unit_price__isnull=False,
-                        )
-                        & ~models.Q(description='')
-                    )
+                    models.Q(kind='hotel', confirmation_letter__isnull=False, penalty__isnull=True)
+                    | models.Q(kind='penalty', penalty__isnull=False, confirmation_letter__isnull=True)
                 ),
                 name='invoice_line_shape_per_kind',
-            ),
-            models.CheckConstraint(
-                condition=models.Q(quantity__isnull=True) | models.Q(quantity__gt=0),
-                name='invoice_line_quantity_positive',
             ),
             models.UniqueConstraint(
                 fields=['confirmation_letter'], condition=models.Q(voided_at__isnull=True, kind='hotel'),
@@ -439,9 +398,7 @@ class InvoiceLine(models.Model):
     def label(self):
         if self.kind == self.KIND_HOTEL:
             return f'{self.reservation_number} · {self.hotel}'.strip(' ·')
-        if self.kind == self.KIND_PENALTY:
-            return f'Penalty {self.penalty.penalty_number}'
-        return f'#{self.line_no} {self.description}'
+        return f'Penalty {self.penalty.penalty_number}'
 
     @property
     def amount(self):
@@ -456,8 +413,6 @@ class InvoiceLine(models.Model):
 
     @property
     def live_amount(self):
-        if self.kind == self.KIND_SERVICE:
-            return (self.quantity or 0) * (self.unit_price or 0)
         if self.kind == self.KIND_PENALTY:
             return self.penalty.penalty_amount
         from ..finance.reservation_rules import reservation_total_for_cl
@@ -509,24 +464,6 @@ class InvoiceLine(models.Model):
     def total_sar(self):
         return self.amount
 
-    # ── Service line: the names the services pages and PDFs read ──
-
-    @property
-    def service_number(self):
-        return self.line_no
-
-    @property
-    def name(self):
-        return self.description
-
-    @property
-    def qty(self):
-        return self.quantity
-
-    @property
-    def price(self):
-        return self.unit_price
-
     @property
     def total(self):
         return self.amount
@@ -556,21 +493,6 @@ class Reservation(InvoiceLine):
 
     def save(self, *args, **kwargs):
         self.kind = InvoiceLine.KIND_HOTEL
-        super().save(*args, **kwargs)
-
-
-class ServiceItem(InvoiceLine):
-    """A service line."""
-
-    objects = _KindManager(InvoiceLine.KIND_SERVICE)
-
-    class Meta:
-        proxy = True
-        verbose_name = 'Service Line'
-        verbose_name_plural = 'Service Lines'
-
-    def save(self, *args, **kwargs):
-        self.kind = InvoiceLine.KIND_SERVICE
         super().save(*args, **kwargs)
 
 

@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import EmptyState from "../../components/shadcn/empty-state.jsx";
+import {
+  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary,
+  TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav,
+} from "../../components/shadcn/list-a.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogFooter, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -29,11 +28,25 @@ const CSS = `
 
 const EMPTY_LINE = { line_date: new Date().toISOString().split("T")[0], direction: "in", description: "", amount: "" };
 
-export default function List({ statements = [], account_choices = [] }) {
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// "2026-10-01".."2026-10-29" -> "01 to 29 Oct 2026"
+const periodLabel = (a, b, t) => {
+  const [ay, am, ad] = a.split("-"), [by, bm, bd] = b.split("-");
+  if (ay === by && am === bm) return t("{a} to {b} {m} {y}", { a: ad, b: bd, m: MON[+bm - 1], y: by });
+  return t("{a} to {b}", { a: `${ad} ${MON[+am - 1]}${ay !== by ? " " + ay : ""}`, b: `${bd} ${MON[+bm - 1]} ${by}` });
+};
+
+// Bank Reconciliation, as on the Record View HMS canvas: no KPIs; one row per
+// bank statement with its closing balance, lines matched and the difference
+// against the books. Statements come in by import, or typed in.
+export default function List({ statements = [], account_choices = [], filters: f, counts = {}, account_counts = [], pagination }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const canEdit = perms.can("payments", "edit");
+  const canEdit = perms.can("bank", "edit");
   const openForm = useFormModal();
+  const [go, loading] = useListNav("/finance/reconciliation/", f);
+  const [draft, setDraft] = useState(f);
+  const tog = (key, v) => setDraft((d) => ({ ...d, [key]: d[key].includes(v) ? d[key].filter((x) => x !== v) : [...d[key], v] }));
 
   const [newOpen, setNewOpen] = useState(false);
   const [form, setForm] = useState({
@@ -63,51 +76,54 @@ export default function List({ statements = [], account_choices = [] }) {
   const currency = account_choices.find((a) => a.value === form.account)?.currency;
   const inCur = (label) => (currency ? `${t(label)} (${currency})` : t(label));
 
-  const columns = [
-    { header: t("Account"), render: (s) => s.account_label },
-    { header: t("Period"), render: (s) => `${s.period_start} – ${s.period_end}` },
-    {
-      header: t("Status"),
-      render: (s) => <StatusPill tone={s.is_fully_matched ? "green" : "yellow"} label={s.is_fully_matched ? t("Fully Matched") : t("Unmatched Lines")} />,
-    },
-    { header: t("Lines"), align: "right", render: (s) => `${s.lines_matched}/${s.lines_total}` },
-    {
-      header: t("Difference"), align: "right",
-      render: (s) => (
-        <span className="col-nowrap" style={{ color: s.difference !== 0 ? "var(--yellow)" : "var(--green)" }}>
-          {s.difference?.toLocaleString("en-US")} {s.currency}
-        </span>
-      ),
-    },
-  ];
-
   return (
-    <div className="page shadcn-root">
-      <PageBack label={t("Back")} />
+    <ListPage title={t("Bank Reconciliation")} loading={loading}>
+      <Toolbar left={<span className="la-note">{t("Bank statements")}</span>}>
+        <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search account or period")} />
+        <FilterMenu count={(f.status.length ? 1 : 0) + (f.acct.length ? 1 : 0)} onOpen={() => setDraft(f)}
+          onReset={() => setDraft({ ...draft, status: [], acct: [] })}
+          onApply={() => go({ status: draft.status, acct: draft.acct })}>
+          <FilterSection label={t("Status")}>
+            <Check on={draft.status.includes("wip")} onClick={() => tog("status", "wip")} label={t("In progress")} count={counts.wip} />
+            <Check on={draft.status.includes("done")} onClick={() => tog("status", "done")} label={t("Reconciled")} count={counts.done} />
+          </FilterSection>
+          {account_counts.length > 1 && (
+            <FilterSection label={t("Account")}>
+              {account_counts.map((a) => <Check key={a.name} on={draft.acct.includes(a.name)} onClick={() => tog("acct", a.name)} label={a.name} count={a.count} />)}
+            </FilterSection>
+          )}
+        </FilterMenu>
+        {canEdit && <button type="button" className="la-tool" onClick={() => setNewOpen(true)}>{t("Type in")}</button>}
+        {canEdit && <Primary label={t("Import statement")} onClick={() => openForm("/finance/reconciliation/import/")} onPrefetch={() => openForm.prefetch("/finance/reconciliation/import/")} />}
+      </Toolbar>
 
-      <PageHeader
-        title={t("Reconciliation")}
-        sub={t("Match bank statements against recorded bank transactions.")}
-        actions={canEdit ? (
-          <>
-            <Button size="lg" variant="outline" onClick={() => setNewOpen(true)}>+ {t("Type In")}</Button>
-            <Button size="lg" onClick={() => openForm("/finance/reconciliation/import/")}>{t("Import CSV")}</Button>
-          </>
-        ) : null}
-      />
+      <TableCard cols={[null, 190, 200, 120, 180, 120, 56]}
+        empty={!statements.length && <Empty title={t("No statements")} sub={t("Import the bank's CSV export, or type a statement in, to start reconciling.")} />}>
+        <thead><tr>
+          <th>{t("Account")}</th><th><span className="srt">{t("Statement period")}{LIcon.sortDown}</span></th>
+          <th className="n">{t("Statement closing balance")}</th><th className="n">{t("Lines matched")}</th>
+          <th className="n">{t("Difference")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
+        </tr></thead>
+        <tbody>
+          {statements.map((s) => (
+            <tr key={s.id} onClick={() => router.visit(`/finance/reconciliation/${s.id}/`)}>
+              <td className="ell strong">{s.account_label}</td>
+              <td>{periodLabel(s.period_start, s.period_end, t)}</td>
+              <td className="n"><Amt code={s.currency} value={s.closing_balance} /></td>
+              <td className="n">{t("{a} of {b}", { a: s.lines_matched, b: s.lines_total })}</td>
+              <td className="n">{s.difference ? <span className="late"><Amt code={s.currency} value={s.difference} /></span> : <span className="good">0</span>}</td>
+              <td><Pill tone={s.state === "done" ? "green" : "amber-o"}>{s.state === "done" ? t("Reconciled") : t("In progress")}</Pill></td>
+              <td className="c">
+                <RowMenu label={t("Actions for {n}", { n: s.account_label })} items={[
+                  { label: s.state === "done" ? t("Open") : t("Continue matching"), onClick: () => router.visit(`/finance/reconciliation/${s.id}/`) },
+                ]} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
 
-      <div className="hms-list-card">
-        {statements.length > 0 ? (
-          <Table
-            columns={columns}
-            rows={statements}
-            rowKey={(s) => s.id}
-            onRowClick={(s) => router.visit(`/finance/reconciliation/${s.id}/`)}
-          />
-        ) : (
-          <EmptyState iconName="wallet" title={t("No statements found")} sub={t("Import the bank's CSV export, or type a statement in, to start reconciling.")} />
-        )}
-      </div>
+      <Pager p={pagination} perPage={f.per} onPage={(page) => go({ page })} onPerPage={(per) => go({ per })} />
 
       {newOpen && (
         <Dialog open onOpenChange={(v) => { if (!v) setNewOpen(false); }}>
@@ -175,6 +191,6 @@ export default function List({ statements = [], account_choices = [] }) {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </ListPage>
   );
 }

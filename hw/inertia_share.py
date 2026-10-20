@@ -9,7 +9,7 @@ from django.contrib.messages import get_messages
 from inertia import share
 
 from .context_processors import due_soon
-from .branch_scope import covers_all
+from .branch_scope import coverage, covers_all
 from .permissions import get_role, perms_payload, role_label
 
 
@@ -30,6 +30,35 @@ def _avatar_url(user):
         return avatar.url if avatar else None
     except ValueError:
         return None
+
+
+def _branch(request):
+    """The branch the shell names under the logo, and the ones it can switch
+    to (empty: nothing to switch)."""
+    from .models.branch import Branch
+    rows = getattr(request, "branch_choices", [])
+    active = getattr(request.user, "_active_branch", None)
+    if active:
+        current = next(b for b in rows if b.code == active)
+    elif rows:
+        current = rows[0]
+    else:
+        codes = coverage(request.user)
+        qs = Branch.objects.filter(is_active=True)
+        if codes is not None:
+            qs = qs.filter(code__in=codes)
+        current = qs.order_by("-is_hq", "name").first()
+    row = lambda b: {"code": b.code, "name": b.name, "is_hq": b.is_hq}
+    return {
+        "current": row(current) if current else None,
+        "choices": [row(b) for b in rows],
+    }
+
+
+
+def _has_report_branches(user):
+    from .finance.branch_report import report_branches
+    return report_branches(user).exists()
 
 
 def _language(user):
@@ -62,8 +91,12 @@ class InertiaShareMiddleware:
                         # Head office (every branch): its own steps — e.g.
                         # recording a remittance receipt — show only then.
                         "all_branches": covers_all(user),
+                        # Branch report: hidden when the user covers no branch
+                        # that runs on HMS (head office / inactive only).
+                        "report_branches": _has_report_branches(user),
                     }
                 },
+                branch=lambda: _branch(request),
                 locale=_language(user),
                 flash=lambda: _flash(request),
                 **due_soon(request),

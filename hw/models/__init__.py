@@ -6,23 +6,23 @@ from .activity import ActivityLog, log_activity
 from .client import Client
 from .confirmation import ConfirmationLetter, ReservationStatus, Room
 from .invoice import (
-    Invoice, InvoiceLine, InvoiceRevision, Reservation, ServiceItem,
+    Invoice, InvoiceLine, InvoiceRevision, Reservation,
     Attachment, _attachment_path,
 )
 from .remittance import Remittance, RemittanceLine
-from .bank import BankAccount, CashAccount, MoneyAccount
+from .bank import BankAccount, CashAccount, MoneyAccount, StaffAccount
 from .bank_transaction import BankTransaction
 from .currency_exchange import CurrencyExchange
 from .credit_note import CreditNote, CreditNoteLine
 from .client_money import ClientRefund, ClientTransfer
 from .reconciliation import BankStatement, BankStatementLine
-from .expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment
+from .expense import (
+    Expense, ExpenseCategory, ExpenseClaim, ExpenseClaimItem, ExpenseLine, ExpensePayment, ExpenseReceipt,
+)
 from .settlement import RemittanceSettlement
 from .hotel import Hotel, RoomType, Occupancy, RoomView, room_type_name, HARAM_LAT, HARAM_LNG, NABAWI_LAT, NABAWI_LNG
 from .meal_plan import MealPlan
 from .penalty import CancellationPenalty
-from .reminder import WATarget, MessageTemplate
-from .visit import Visit, VisitPhoto
 from .landing import Pricelist, TeamMember
 from .receipt import Receipt
 
@@ -49,13 +49,13 @@ __all__ = [
     'Client',
     'ConfirmationLetter', 'ReservationStatus', 'Room',
     # Invoice
-    'Invoice', 'InvoiceLine', 'InvoiceRevision', 'Reservation', 'ServiceItem', 'Attachment', '_attachment_path',
+    'Invoice', 'InvoiceLine', 'InvoiceRevision', 'Reservation', 'Attachment', '_attachment_path',
     # Remittance
     'Remittance', 'RemittanceLine',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
-    'MoneyAccount', 'BankAccount', 'CashAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
+    'MoneyAccount', 'BankAccount', 'CashAccount', 'StaffAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)
-    'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment',
+    'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment', 'ExpenseReceipt',
     # Settlement (Master Architecture v2.0 FASE E)
     'RemittanceSettlement',
     # Hotel
@@ -64,9 +64,6 @@ __all__ = [
     # Penalty
     'CancellationPenalty',
     # Reminder
-    'WATarget', 'MessageTemplate',
-    # Visit
-    'Visit', 'VisitPhoto',
     # Landing
     'Pricelist', 'TeamMember',
     # Receipt

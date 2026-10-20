@@ -148,25 +148,6 @@ export function RvSection({ title, meta, children, first }) {
   );
 }
 
-export function RvLinks({ label, items }) {
-  const list = (items || []).filter(Boolean);
-  if (!list.length) return null;
-  return (
-    <div className="hms-rv-links">
-      <span className="hms-rv-lbl" style={{ marginRight: 2 }}>{label}</span>
-      {list.map((l, i) => (
-        l.href ? (
-          <a key={i} className="hms-rv-linkchip" href={l.href} target={l.newTab ? "_blank" : undefined} rel={l.newTab ? "noreferrer" : undefined}>
-            {l.label}<span className="s">{l.sub}</span>
-          </a>
-        ) : (
-          <span key={i} className="hms-rv-linkchip">{l.label}<span className="s">{l.sub}</span></span>
-        )
-      ))}
-    </div>
-  );
-}
-
 export function RvRail({ rows, children }) {
   return (
     <div className="hms-rv-railcard">

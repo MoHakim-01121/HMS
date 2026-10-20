@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from hw.models import (
-    Client, ConfirmationLetter, Hotel, Invoice, MealPlan, PaymentRecord, Reservation, Room, RoomType, ServiceItem,
+    Client, ConfirmationLetter, Hotel, Invoice, MealPlan, PaymentRecord, Reservation, Room, RoomType,
 )
 from hw.models.client import client_name_key
 from hw.signals import invoice_sync_suspended
@@ -224,14 +224,6 @@ def set_line_total(line, total_sar):
     return Reservation.objects.get(pk=line.pk)
 
 
-def make_service_line(invoice, name='Service', qty=1, price=0, **legacy):
-    legacy.pop('service_number', None)
-    if legacy:
-        raise TypeError(f'make_service_line: argumen tidak dikenal {sorted(legacy)}')
-    line = invoice.add_service_line(name, qty, price)
-    return ServiceItem.objects.get(pk=line.pk)
-
-
 def cl_form_payload(cl, rooms=None, **overrides):
     """POST body yang sah untuk /cl/<pk>/edit/ (atau /cl/new/) berdasarkan `cl`.
 
@@ -327,9 +319,55 @@ def ops_and_money_role():
     to check the ledger rather than who may do what, use this role."""
     from hw.models.role import RoleDefinition
     every = ['view', 'create', 'edit', 'delete', 'export', 'approve']
-    modules = ('cl', 'invoice', 'services', 'hotels', 'clients', 'calendar', 'penalty',
-               'payments', 'expenses', 'remittance', 'statements', 'journal', 'periods')
+    modules = ('cl', 'invoice', 'hotels', 'clients', 'calendar', 'penalty',
+               'payments', 'bank', 'expenses', 'remittance', 'statements', 'journal', 'periods')
     RoleDefinition.objects.get_or_create(
         slug='ops-money', defaults={'label': 'Ops & Money (test)', 'permissions': {m: every for m in modules}},
     )
     return 'ops-money'
+
+
+def fund_account(account, amount, sar, day, user=None):
+    """Isi rekening `account` dengan `amount` (mata uang rekening) senilai
+    `sar` SAR, di buku besar DAN buku kas — yang dibutuhkan beban, yang dinilai
+    dengan kurs tercatat rekening (posting.carrying_sar)."""
+    fund_ledger(account, amount, sar, day, user)
+    return fund_cash(account, amount, day)
+
+
+def fund_ledger(account, amount, sar, day, user=None):
+    """Isi buku besar rekening `account` dengan `amount` (mata uang rekening)
+    senilai `sar` SAR, tanpa baris buku kas. Untuk test yang mengirim
+    remittance: dengan `amount`/`sar` = kurs kirimnya, nilai tercatat yang
+    dikirim sama dengan SAR kirimnya, jadi tidak terbentuk laba/rugi kurs."""
+    from django.contrib.auth.models import User
+    from hw.finance import accounts as coa, posting
+    user = user or User.objects.get_or_create(username='factory-funder')[0]
+    return posting.post_adjustment(
+        lines=[{'account': account.ledger_account_id, 'debit': sar, 'branch': account.branch_id,
+                **posting.native(account, amount)},
+               {'account': coa.OPENING_EQUITY, 'credit': sar, 'branch': account.branch_id}],
+        description=f'dana awal {account}', entry_date=day, created_by=user,
+    )
+
+
+def fund_ledger_for(remittance, amount_sar=None):
+    """fund_ledger untuk tepat satu remittance: rupiahnya senilai SAR kirimnya
+    (`amount_sar`, bawaan expected_sar), pada tanggal remittance."""
+    return fund_ledger(remittance.from_account, remittance.amount_sent,
+                       amount_sar or remittance.expected_sar, remittance.date)
+
+
+def paid_expense(branch, account, amount, day, user, *, category='UTIL', vendor=None, description=''):
+    """Beban rupiah yang sudah diajukan, disetujui dan dibayar dari `account`.
+    Mengembalikan (expense, payment)."""
+    from hw.finance import expense_service
+    from hw.models import ExpenseCategory
+    exp = expense_service.submit_expense(
+        branch=branch, expense_date=day, created_by=user, vendor=vendor, description=description,
+        lines=[{'category': ExpenseCategory.objects.get(code=category), 'amount': amount}],
+    )
+    expense_service.approve_expense(exp, approved_by=user)
+    payment = expense_service.pay_expense(exp, account=account, payment_date=day, paid_by=user)
+    exp.refresh_from_db()
+    return exp, payment

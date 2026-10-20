@@ -43,24 +43,7 @@ export const REM_TABLE_CSS = `
 }
 .rem-input:focus { outline:none; border-color:var(--ring); }
 
-.rem-total-bar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:13px 16px; border-top:1px solid var(--border);
-}
-.rem-total-label { font-size:13px; font-weight:500; color:var(--muted-foreground); }
-.rem-total-val { font-size:18px; font-weight:700; color:var(--foreground); }
-
 .rem-input:disabled { opacity:.5; cursor:not-allowed; }
-
-/* aksi per baris di Edit: hapus reservasi dari transfer, atau batalkan */
-.rem-linkbtn {
-  background:none; border:none; padding:0; cursor:pointer;
-  font-size:12px; color:var(--muted-foreground);
-  text-decoration:underline; text-underline-offset:2px;
-}
-.rem-linkbtn:hover { color:var(--foreground); }
-.rem-linkbtn.danger { color:var(--destructive); }
-.rem-linkbtn.danger:hover { opacity:.8; }
 
 /* peringatan saat mengedit transfer yang sudah ditandai Received */
 .rem-received-note {

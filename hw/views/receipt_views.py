@@ -23,7 +23,7 @@ from django.shortcuts import redirect
 from django.utils import timezone
 
 from ..models import Receipt
-from ..branch_scope import get_in_scope_or_404, scope
+from ..branch_scope import get_in_scope_or_404
 from ..permissions import require_perm
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ def _allocation_rows(payment):
     return rows
 
 
-@require_perm('invoice', 'export')
+@require_perm('payments', 'export')
 def receipt_pdf(request, pk):
     receipt = get_in_scope_or_404(
         Receipt.objects.select_related(

@@ -27,12 +27,13 @@ def ai_draft_message(request):
         pk = int(data.get("pk"))
     except Exception:
         return JsonResponse({"error": "Invalid request."}, status=400)
+    if invoice_type not in ("invoice", "invoice_lunas"):
+        return JsonResponse({"error": "Invalid request."}, status=400)
 
     invoice = scope(Invoice.objects.all(), request.user).filter(pk=pk).first()
     # A user who may not view this kind of invoice, or another branch's, gets
     # the same answer as for one that does not exist.
-    module = 'services' if invoice and invoice.invoice_type == 'visa' else 'invoice'
-    if not invoice or not can(request.user, module, 'view'):
+    if not invoice or not can(request.user, 'invoice', 'view'):
         return JsonResponse({"error": "Invoice not found."}, status=404)
 
     result = generate_draft_message(invoice_type, invoice)
@@ -71,3 +72,12 @@ def ai_chat(request):
         log_activity(request.user, ActivityLog.ACTION_PDF, 'AI Chat', message[:100])
 
     return JsonResponse({"reply": reply or "Sorry, unable to process your question right now."})
+
+
+@login_required
+@require_POST
+def ai_chat_reset(request):
+    """'New chat': forget the remembered exchanges, so the next question
+    starts without the earlier ones as context."""
+    request.session.pop("ai_history", None)
+    return JsonResponse({"ok": True})

@@ -193,7 +193,6 @@ def _position_inputs(remittances):
     from . import queries
 
     ids = [r.pk for r in remittances]
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
     return {
         'allocated': _sum_by_remittance(
             RemittanceLine.objects.filter(settlement__remittance_id__in=ids), 'amount_sar', 'settlement__remittance_id',

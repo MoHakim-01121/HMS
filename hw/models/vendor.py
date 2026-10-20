@@ -1,8 +1,7 @@
-"""Vendor — pemasok Services (visa dan sejenisnya), skema target §3.1.
+"""Vendor — pemasok yang dibayar lewat pengeluaran (Expense), skema target §3.1.
 
-Services adalah produk milik cabang: setiap item yang dijual ke client dibeli
-dari satu vendor dengan jumlah yang sama. Vendor menjadi tabel master supaya
-utang dan pembayaran ke vendor menunjuk baris yang sama, bukan teks bebas.
+Vendor menjadi tabel master supaya pengeluaran ke vendor yang sama menunjuk
+baris yang sama, bukan teks bebas.
 """
 from django.db import models
 

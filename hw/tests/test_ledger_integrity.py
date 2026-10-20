@@ -5,12 +5,10 @@ Covers the review findings that were actually implemented:
       (it was dead code before).
 * C2: editing an invoice's payment list must not touch the penalty's own
       journal income.
-* H2/C3/H4(delete): posted financial documents (invoice, services invoice,
-      remittance, penalty) cannot be silently deleted once they touch the
-      ledger.
-* M3: visa/service invoices compute total_sar and remaining_sar correctly.
+* H2/C3/H4(delete): posted financial documents (invoice, remittance,
+      penalty) cannot be silently deleted once they touch the ledger.
 """
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line, make_service_line
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -161,17 +159,6 @@ class DeleteGuardTest(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertFalse(Invoice.objects.filter(pk=inv.pk).exists())
 
-    def test_services_delete_blocked_when_charges_exist(self):
-        inv = make_invoice(
- invoice_type='visa', invoice_number='SVC-DEL-1',
-            customer_name='Sinar', client=self.cl_obj, issued_date=date(2026, 8, 1),
-        )
-        make_service_line(invoice=inv, name='Visa', qty=1, price=300)
-        posting.post_invoice_charge(inv, created_by=self.user)
-        resp = self.client.post(f'/services/{inv.pk}/delete/')
-        self.assertEqual(resp.status_code, 302)
-        self.assertTrue(Invoice.objects.filter(pk=inv.pk).exists())
-
     def test_remittance_delete_blocked_when_lines_exist(self):
         rem = make_remittance(
  remittance_number='RMT-001', date=date(2026, 8, 1),
@@ -208,37 +195,3 @@ class DeleteGuardTest(TestCase):
         self.assertTrue(CancellationPenalty.objects.filter(pk=penalty.pk).exists())
 
 
-class ServiceInvoiceTotalTest(TestCase):
-    """M3 — visa invoices compute total/remaining correctly."""
-
-    def test_visa_invoice_total_sar_includes_service_items(self):
-        FinancialPeriod.objects.create(
-            name='2026',            date_from=date(2026, 1, 1), date_to=date(2026, 12, 31),
-        )
-        cl = Client.objects.create( name='Sinar')
-        user = User.objects.create_user('svc_tot', password='x')
-        inv = make_invoice(
- invoice_type='visa', invoice_number='SVC-TOT-1',
-            customer_name='Sinar', client=cl, issued_date=date(2026, 8, 1),
-        )
-        make_service_line(invoice=inv, name='Visa', qty=2, price=150)
-        make_service_line(invoice=inv, name='Insurance', qty=1, price=100)
-        self.assertEqual(inv.total_sar, 400)
-        self.assertEqual(inv.remaining_sar, 400)
-
-        posting.post_invoice_charge(inv, created_by=user)
-        p = create_payment_record(
-            invoice=inv, client=cl, payment_date=date(2026, 8, 2),
-            amount=300, method='transfer', created_by=user,
-        )
-        confirm_payment(p, confirmed_by=user)
-        self.assertEqual(inv.total_paid_sar, 300)
-        self.assertEqual(inv.remaining_sar, 100)
-
-    def test_hotel_invoice_total_unaffected(self):
-        inv = make_invoice(
- invoice_type='hotel', invoice_number='INV-TOT-1',
-            customer_name='Sinar', issued_date=date(2026, 8, 1),
-        )
-        make_hotel_line(invoice=inv, reservation_number='R1', total_sar=1000)
-        self.assertEqual(inv.total_sar, 1000)

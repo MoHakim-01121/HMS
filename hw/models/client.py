@@ -83,7 +83,7 @@ class Client(models.Model):
     @property
     def resolved_invoices(self):
         """Invoices belonging to this client via either signal: the direct
-        Invoice.client FK (populated by invoice_views.py/services_views.py
+        Invoice.client FK (populated by invoice_views.py
         forms) OR a journal line carrying this client's dimension (Fase 7 --
         pengganti Charge.client yang pensiun; charge income lines sudah
         membawa dimensi client). Unioned rather than picking one -- an invoice

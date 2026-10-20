@@ -1,85 +1,58 @@
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import {
-  Table as ShadcnTable, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter,
-} from "../../components/shadcn/ui/table.jsx";
+import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmtDate } from "../../utils/format.js";
+import { fmt, fmtDate } from "../../utils/format.js";
 
+// Journal entry detail, in the detail-page language of the Record View HMS
+// canvas (no artboard of its own): the head card with the entry's facts, then
+// its lines with debit and credit totals.
 export default function JournalDetail({ entry = {}, created_by = "", reverses_number = null, lines = [] }) {
   const { t } = useI18n();
   const totalDebit = lines.reduce((s, l) => s + (l.amount_sar > 0 ? l.amount_sar : 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + (l.amount_sar < 0 ? -l.amount_sar : 0), 0);
+  const balanced = totalDebit === totalCredit;
 
   return (
-    <div className="page shadcn-root">
-      <PageBack href="/finance/journal/" label={t("Back")} />
+    <DPage>
+      <DTop href="/finance/journal/" />
 
-      <PageHeader
-        title={
-          <>
-            {entry.entry_number}
-            {entry.is_reversal && <span style={{ marginLeft: 10 }}><StatusPill tone="red" label={t("Reversal")} /></span>}
-          </>
-        }
-        sub={entry.description}
+      <DHead
+        title={entry.entry_number}
+        badge={entry.is_reversal ? { label: t("Reversal"), tone: "red" } : { label: t(entry.entry_type_display), tone: "gray" }}
+        facts={[
+          { k: t("Type"), v: t(entry.entry_type_display) },
+          { k: t("Date"), v: fmtDate(entry.entry_date) || t("Not set") },
+          { k: t("Created by"), v: created_by || t("System") },
+          reverses_number && { k: t("Reverses"), v: <a href={`/finance/journal/?q=${encodeURIComponent(reverses_number)}`}>{reverses_number}</a> },
+          { k: t("Total"), v: `${fmt(totalDebit)} SAR`, strong: true, tone: balanced ? undefined : "danger" },
+        ]}
+        note={entry.description ? { label: t("Description"), text: entry.description } : null}
       />
 
-      {/* Meta */}
-      <div className="hms-kpi-row" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <KpiCard label={t("Type")} value={t(entry.entry_type_display)} />
-        <KpiCard label={t("Date")} value={fmtDate(entry.entry_date) || "—"} />
-        <KpiCard label={t("Created By")} value={created_by || "—"} />
-        <KpiCard
-          label={t("Reverses")}
-          value={reverses_number
-            ? <a href={`/finance/journal/?q=${reverses_number}`} className="hms-dv-link">{reverses_number}</a>
-            : "—"}
-        />
-      </div>
-
-      {/* Lines */}
-      <div className="card">
-        <div className="table-wrap hms-table-v2">
-          <ShadcnTable>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>{t("Account")}</TableHead>
-                <TableHead>{t("Reference")}</TableHead>
-                <TableHead>{t("Note")}</TableHead>
-                <TableHead className="text-right">{t("Debit")}</TableHead>
-                <TableHead className="text-right">{t("Credit")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lines.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell className="font-medium whitespace-nowrap">{l.account_display}</TableCell>
-                  <TableCell className="text-muted-foreground">{l.dim || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {l.note || "—"}
-                    {l.native && <div style={{ fontSize: 11.5 }}>{l.native}</div>}
-                  </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {l.amount_sar > 0 ? l.amount_sar.toLocaleString("en-US") : ""}
-                  </TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {l.amount_sar < 0 ? Math.abs(l.amount_sar).toLocaleString("en-US") : ""}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={3}>{t("Total")}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString("en-US")}</TableCell>
-                <TableCell className="text-right font-mono tabular-nums">{totalDebit.toLocaleString("en-US")}</TableCell>
-              </TableRow>
-            </TableFooter>
-          </ShadcnTable>
+      <DCard title={t("Lines")} count={lines.length} meta={t("Amounts in SAR")}>
+        <div className="da-scroll">
+          <table className="da-t">
+            <thead><tr><th>{t("Account")}</th><th>{t("Reference")}</th><th>{t("Note")}</th><th className="n w">{t("Debit")}</th><th className="n w">{t("Credit")}</th></tr></thead>
+            <tbody>
+              {lines.length ? lines.map((l) => (
+                <tr key={l.id}>
+                  <td className="strong" style={{ whiteSpace: "nowrap" }}>{l.account_display}</td>
+                  <td className="mut">{l.dim || ""}</td>
+                  <td className="mut">{l.note || ""}{l.native ? <span className="sub">{l.native}</span> : null}</td>
+                  <td className="n">{l.amount_sar > 0 ? fmt(l.amount_sar) : ""}</td>
+                  <td className="n">{l.amount_sar < 0 ? fmt(-l.amount_sar) : ""}</td>
+                </tr>
+              )) : <tr><td colSpan={5} className="empty">{t("No lines")}</td></tr>}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3}>{balanced ? t("Total") : t("Total, not balanced")}</td>
+                <td className="n">{fmt(totalDebit)}</td>
+                <td className="n" style={balanced ? undefined : { color: "var(--danger-text)" }}>{fmt(totalCredit)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-      </div>
-    </div>
+      </DCard>
+    </DPage>
   );
 }

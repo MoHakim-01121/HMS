@@ -1,88 +1,63 @@
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import KebabMenu from "../../components/shadcn/kebab-menu.jsx";
-import { DvLink } from "../../components/shadcn/item-row.jsx";
-import { RvBack, RvHero, RvFigure, RvCard, RvSection, RvRail } from "../../components/shadcn/record-view.jsx";
-import { Icon } from "../../components/icons.jsx";
+import { DPage, DTop, DHead, DBanner, DCard } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
+// Penalty detail, in the detail-page language of the Record View HMS canvas
+// (no artboard of its own): a strip when the penalty is not billed, the head
+// card with its facts, then the reason.
 export default function Detail({ penalty: p }) {
   const { t } = useI18n();
   const openForm = useFormModal();
   const perms = usePerms();
   const [confirm, confirmDialog] = useConfirm();
-  const del = () => confirm({ title: t("Delete penalty"), message: t("Delete penalty document {number}?", { number: p.penalty_number }), onConfirm: () => router.post(`/penalty/${p.id}/delete/`) });
-
-  const sections = [];
-  if (p.reason) {
-    sections.push({ title: t("Reason"), body: <div className="hms-rv-railtext">{p.reason}</div> });
-  }
-  if (p.note) {
-    sections.push({ title: t("Notes"), body: <div className="hms-rv-railtext">{p.note}</div> });
-  }
+  const del = () => confirm({
+    title: t("Delete penalty"),
+    message: t("Delete penalty document {number}?", { number: p.penalty_number }),
+    danger: true,
+    onConfirm: () => router.post(`/penalty/${p.id}/delete/`),
+  });
 
   return (
-    <div className="page shadcn-root hms-rv-page">
-      <RvBack href={`/cl/${p.cl.id}/`} label={t("Back to CL")} />
+    <DPage>
+      <DTop href={`/cl/${p.cl.id}/`} />
 
-      <RvHero
-        kicker={p.penalty_number}
-        badge={p.is_paid ? { label: t("Paid"), tone: "green" } : { label: t("Unpaid"), tone: "yellow" }}
-        title={p.cl.guest_name}
+      {!p.is_paid && !p.invoice ? (
+        <DBanner tone="danger">
+          <b>{t("Not billed.")}</b> {t("The invoice that billed this penalty was voided. Put the reservation on an invoice to bill it again.")}
+        </DBanner>
+      ) : null}
+
+      <DHead
+        title={p.penalty_number}
+        badge={p.is_paid ? { label: t("Paid"), tone: "green" } : { label: t("Unpaid"), tone: "amber" }}
+        menu={[
+          { label: t("Download PDF"), icon: "pdf", href: `/penalty/${p.id}/pdf/`, external: true },
+          perms.can("penalty", "edit") && { label: t("Edit"), icon: "edit", onClick: () => openForm(`/penalty/${p.id}/edit/`) },
+          perms.can("penalty", "delete") && { label: t("Delete penalty…"), icon: "trash", danger: true, separator: true, onClick: del },
+        ]}
         facts={[
-          p.cancellation_date ? { k: t("Cancellation Date"), v: p.cancellation_date } : null,
-          p.is_paid && p.payment_date ? { k: t("Payment Date"), v: p.payment_date } : null,
-          !p.is_paid && p.paid_sar > 0 ? { k: t("Paid so far"), v: `${fmt(p.paid_sar)} SAR` } : null,
-        ].filter(Boolean)}
-        side={
-          <RvFigure
-            label={p.is_paid ? t("Paid") : t("Penalty Due")}
-            value={fmt(p.penalty_amount)}
-            unit={p.penalty_currency}
-            color={p.is_paid ? "var(--green)" : "var(--red)"}
-          />
-        }
-        note={
-          p.is_paid
-            ? { icon: <Icon name="check" size={12} strokeWidth={2.4} />, iconBg: "var(--green)", title: t("Paid"), text: t("This penalty has been paid.") }
-            : p.invoice
-              ? { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--yellow)", title: t("Penalty due"), text: t("This penalty has not been paid yet.") }
-              : { icon: <Icon name="alert-circle" size={13} strokeWidth={2} />, iconBg: "var(--red)", title: t("Not billed"), text: t("The invoice that billed this penalty was voided. Put the reservation on an invoice to bill it again.") }
-        }
-        actions={
-          <>
-            <a className="hms-rv-btn" href={`/penalty/${p.id}/pdf/`} target="_blank" rel="noreferrer">{t("PDF")}</a>
-            {perms.can("penalty", "edit") && (
-              <button type="button" className="hms-rv-btn primary" onClick={() => openForm(`/penalty/${p.id}/edit/`)}>
-                {t("Edit")}
-              </button>
-            )}
-            <KebabMenu items={[perms.can("penalty", "delete") && { label: t("Delete"), onClick: del, danger: true }]} />
-          </>
-        }
+          { k: p.is_paid ? t("Paid") : t("Penalty due"), v: `${fmt(p.penalty_amount)} ${p.penalty_currency}`, strong: true, tone: p.is_paid ? "success" : undefined },
+          !p.is_paid && p.paid_sar > 0 && { k: t("Paid so far"), v: `${fmt(p.paid_sar)} SAR` },
+          { k: t("Cancellation date"), v: p.cancellation_date || t("Not set") },
+          p.is_paid && p.payment_date && { k: t("Payment date"), v: p.payment_date },
+          { k: t("Guest"), v: p.cl.guest_name },
+          { k: t("Confirmation Letter"), v: <a href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</a> },
+          { k: t("Invoice"), v: p.invoice ? <a href={`/invoice/${p.invoice.id}/`}>{p.invoice.invoice_number}</a> : <span className="dim">{t("Not billed")}</span> },
+        ]}
+        note={p.note ? { label: t("Notes"), text: p.note } : null}
       />
 
-      <div className="hms-rv-grid">
-        <div className="hms-rv-col">
-          <RvCard>
-            {sections.map((s, i) => (
-              <RvSection key={s.title} title={s.title} first={i === 0}>
-                {s.body}
-              </RvSection>
-            ))}
-          </RvCard>
-        </div>
-
-        <RvRail rows={[
-          { k: t("Confirmation Letter"), v: <DvLink href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</DvLink> },
-          { k: t("Invoice"), v: p.invoice ? <DvLink href={`/invoice/${p.invoice.id}/`}>{p.invoice.invoice_number}</DvLink> : t("Not billed") },
-        ]} />
-      </div>
+      {p.reason ? (
+        <DCard pad title={t("Reason")}>
+          <p className="da-text">{p.reason}</p>
+        </DCard>
+      ) : null}
 
       {confirmDialog}
-    </div>
+    </DPage>
   );
 }

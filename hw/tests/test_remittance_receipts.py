@@ -101,7 +101,7 @@ class DeleteReceiptTest(AllocationBase):
         self.assertEqual(self.rem.status, Remittance.STATUS_PENDING)
         self.assertEqual(_net(coa.TRANSIT), 10000)
         self.assertEqual(_net(coa.CASH_PUSAT), 40000)
-        self.assertEqual(_net(coa.CASH_SBY), 0)
+        self.assertEqual(_net(coa.CASH_SBY), 50000)   # client SAR + rupiah funded − sent
         self.assertEqual(self._idle(), {'A': 0, 'B': 9000, 'C': 1000})
         self.assertEqual(list(RemittanceSettlement.objects.values_list('pk', flat=True)), [self.s1.pk])
         self.assertFalse(RemittanceLine.objects.filter(settlement_id=self.s2.pk).exists())

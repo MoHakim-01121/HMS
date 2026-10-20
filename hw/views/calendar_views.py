@@ -1,229 +1,115 @@
-﻿import calendar
+﻿from collections import Counter
 from datetime import date, timedelta
+import calendar
 
-from django.http import JsonResponse
 from django.urls import reverse
 
 from inertia import render as inertia_render
 
 from ..models import ConfirmationLetter, Invoice
-from ..models.confirmation import guest_name_expr
-from ..branch_scope import get_in_scope_or_404, scope
+from ..models.choices import HotelCity
+from ..models.confirmation import ReservationStatus
+from ..branch_scope import scope
 from ..permissions import require_perm
-from ..i18n import tr, user_language
-from .pdf import _render_checkin_pdf
 
-_MONTH_NAMES_EN = ['', 'January', 'February', 'March', 'April', 'May', 'June',
-                   'July', 'August', 'September', 'October', 'November', 'December']
-_MONTH_NAMES_ID = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-                   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
-
-_CL_COLORS = {
-    'DEFINITE': 'blue',
-    'TENTATIVE': 'yellow',
-    'CANCELLED': 'red',
-}
+# The two-week timeline opens on the Sunday of the week holding the anchor day.
+WEEK_DAYS = 14
 
 
-def _get_upcoming_checkins(user):
-    today = date.today()
-    week_end = today + timedelta(days=6)
-    qs = (
-        scope(ConfirmationLetter.objects.all(), user)
-        .filter(check_in__gte=today, check_in__lte=week_end)
-        .exclude(reservation_status='CANCELLED')
-        .select_related('client', 'hotel')
-        .prefetch_related('rooms__room_type_ref')
-        .order_by('check_in', 'hotel__name')
-    )
-    result = []
-    for cl in qs:
-        rooms_str = ', '.join(f"{r.quantity} {r.room_type}" for r in cl.rooms.all()) or '-'
-        result.append({
-            'pk': cl.pk,
-            'guest_name': cl.guest_name,
-            'confirmation_number': cl.confirmation_number,
-            'hotel_name': cl.hotel_name,
-            'check_in': cl.check_in.isoformat() if cl.check_in else '',
-            'rooms': rooms_str,
-            'guest_phone': cl.guest_phone,
-            'estimasi_tiba': cl.estimasi_tiba.strftime('%H:%M') if cl.estimasi_tiba is not None else '',
-            'pic_name': cl.pic_name,
-            'pic_phone': cl.pic_phone,
-            'client_id': cl.client_id,
-            'client_name': cl.client.name if cl.client_id else None,
-            'url': cl.get_absolute_url(),
-        })
-    return result
+def _parse_date(raw, fallback):
+    try:
+        return date.fromisoformat(raw) if raw else fallback
+    except (TypeError, ValueError):
+        return fallback
 
 
-def _inv_color(request, remaining, total):
-    if remaining <= 0:
-        return 'green', tr(request, 'Paid', 'Lunas')
-    if remaining < total:
-        return 'yellow', tr(request, 'Partial', 'Sebagian')
-    return 'red', tr(request, 'Unpaid', 'Belum Bayar')
+def _sunday_of(d):
+    # date.weekday(): Monday = 0 ... Sunday = 6.
+    return d - timedelta(days=(d.weekday() + 1) % 7)
 
 
-def _clip_day(d, month, year, days_in_month, is_start):
-    if d.year == year and d.month == month:
-        return d.day
-    return 1 if is_start else days_in_month
+def _window(request, today):
+    """(view, first day, last day) of the range shown. `start` anchors either
+    view: the two weeks open on its Sunday, the month is the month holding it."""
+    view = 'month' if request.GET.get('view') == 'month' else 'weeks'
+    anchor = _parse_date(request.GET.get('start'), today)
+    if view == 'month':
+        first = anchor.replace(day=1)
+        return view, first, first.replace(day=calendar.monthrange(first.year, first.month)[1])
+    first = _sunday_of(anchor)
+    return view, first, first + timedelta(days=WEEK_DAYS - 1)
+
+
+def _room_types(cl):
+    """'3 Quad, 2 Triple': the rooms booked, by room type, in booking order."""
+    counts = Counter()
+    for room in cl.rooms.all():
+        counts[room.room_type] += room.quantity
+    return ', '.join(f'{n} {name}' for name, n in counts.items())
 
 
 @require_perm('calendar', 'view')
 def calendar_view(request):
+    """Occupancy timeline per hotel (Record View HMS canvas, 'Calendar').
+
+    Every booking that touches the range comes back with real dates; the page
+    draws the bars and works out Arriving, Leaving and In-house for the picked
+    day. A cancelled booking holds no rooms, so it is left out.
+    """
     today = date.today()
-    try:
-        year = int(request.GET.get('year', today.year))
-        month = int(request.GET.get('month', today.month))
-    except (ValueError, TypeError):
-        year, month = today.year, today.month
+    view, first, last = _window(request, today)
 
-    if month < 1:
-        month, year = 12, year - 1
-    elif month > 12:
-        month, year = 1, year + 1
-
-    days_in_month = calendar.monthrange(year, month)[1]
-    month_start = date(year, month, 1)
-    month_end = date(year, month, days_in_month)
-
-    hotel_map = {}
-
-    cl_qs = (
+    cls_list = list(
         scope(ConfirmationLetter.objects.all(), request.user)
-        .filter(check_in__lte=month_end, check_out__gt=month_start)
-        .exclude(check_in=None).exclude(check_out=None)
+        # check_out == first still counts: it is that day's Leaving list.
+        .filter(check_in__lte=last, check_out__gte=first)
+        .exclude(reservation_status=ReservationStatus.CANCELLED)
         .select_related('client', 'hotel')
+        .prefetch_related('rooms__room_type_ref')
         .with_invoice()
+        .order_by('check_in', 'confirmation_number')
     )
-    cls_list = list(cl_qs)
-    invoices = Invoice.objects.with_lines().in_bulk({cl.invoice_id for cl in cls_list if cl.invoice_id})
+    invoice_ids = {cl.invoice_id for cl in cls_list if cl.invoice_id}
+    invoices = Invoice.objects.with_lines().in_bulk(invoice_ids)
 
     from ..finance import queries as finance_queries
-    paid_by_invoice = finance_queries.invoice_paid_map(
-        {cl.invoice_id for cl in cls_list if cl.invoice_id}
-    )
+    paid_by_invoice = finance_queries.invoice_paid_map(invoice_ids)
 
+    hotels, bookings = {}, []
     for cl in cls_list:
-        start = _clip_day(cl.check_in, month, year, days_in_month, is_start=True)
-        end = _clip_day(cl.check_out, month, year, days_in_month, is_start=False)
-        if end <= start:
-            end = start
-        hotel = cl.hotel_name or "—"
-
+        hotels.setdefault(cl.hotel_id, {
+            'id': cl.hotel_id,
+            'name': cl.hotel_name,
+            'city': cl.hotel.city,
+            'url': reverse('hotel_detail', args=[cl.hotel_id]),
+        })
         inv = invoices.get(cl.invoice_id)
-        inv_number = inv.invoice_number if inv else ''
-        inv_remaining = (
-            f"{inv.total_sar - paid_by_invoice.get(inv.pk, 0):,.0f} SAR" if inv else ''
-        )
-        inv_url = reverse('invoice_detail', args=[inv.pk]) if inv else ''
-
-        hotel_map.setdefault(hotel, []).append({
-            'guest': cl.guest_name,
+        bookings.append({
+            'id': cl.pk,
             'ref': cl.confirmation_number,
-            'start': start,
-            'end': end,
-            'span': end - start + 1,
-            'color': _CL_COLORS.get(cl.reservation_status, 'blue'),
-            'status': cl.reservation_status,
-            'total': f"{cl.total_price:,.0f} SAR",
-            'url': reverse('cl_detail', args=[cl.pk]),
-            'nights': cl.num_nights,
-            'inv_number': inv_number,
-            'inv_remaining': inv_remaining,
-            'inv_url': inv_url,
+            'client': cl.guest_name,
+            'hotel': cl.hotel_id,
             'check_in': cl.check_in.isoformat(),
+            'check_out': cl.check_out.isoformat(),
+            'tentative': cl.reservation_status == ReservationStatus.TENTATIVE,
+            'rooms': cl.total_rooms,
+            'room_types': _room_types(cl),
+            'url': reverse('cl_detail', args=[cl.pk]),
+            'inv_number': inv.invoice_number if inv else '',
+            'inv_url': reverse('invoice_detail', args=[inv.pk]) if inv else '',
+            'inv_open': float(max(inv.total_sar - paid_by_invoice.get(inv.pk, 0), 0)) if inv else None,
         })
 
-    hotels = [{'name': k, 'reservations': sorted(v, key=lambda x: x['start'])}
-              for k, v in sorted(hotel_map.items())]
-
-    prev_month, prev_year = (month - 1, year) if month > 1 else (12, year - 1)
-    next_month, next_year = (month + 1, year) if month < 12 else (1, year + 1)
-
-    today_day = today.day if today.year == year and today.month == month else None
-
-    # Summary counts
-    all_res = [r for h in hotels for r in h['reservations']]
-    checkins_today   = sum(1 for r in all_res if r['start'] == today_day) if today_day else 0
-    checkouts_today  = sum(1 for r in all_res if r['end'] == today_day) if today_day else 0
-    tentative_count  = sum(1 for r in all_res if r['color'] == 'yellow')
-    active_today     = sum(1 for r in all_res if today_day and r['start'] <= today_day <= r['end']) if today_day else 0
+    # Makkah before Madinah, then by name.
+    city_order = {c: i for i, c in enumerate(HotelCity.values)}
+    hotel_list = sorted(hotels.values(), key=lambda h: (city_order.get(h['city'], 99), h['name']))
 
     return inertia_render(request, "Calendar/Index", props={
-        "year": year,
-        "month": month,
-        "month_name": (_MONTH_NAMES_ID if user_language(request) == 'id' else _MONTH_NAMES_EN)[month],
-        "days_in_month": days_in_month,
-        "days": list(range(1, days_in_month + 1)),
-        "today_day": today_day,
-        "hotels": hotels,
-        "prev_year": prev_year,
-        "prev_month": prev_month,
-        "next_year": next_year,
-        "next_month": next_month,
-        "total_reservations": sum(len(h['reservations']) for h in hotels),
-        "checkins_today": checkins_today,
-        "checkouts_today": checkouts_today,
-        "tentative_count": tentative_count,
-        "active_today": active_today,
-        "upcoming_checkins": _get_upcoming_checkins(request.user),
+        "view": view,
+        "start": first.isoformat(),
+        "end": last.isoformat(),
+        "today": today.isoformat(),
+        "cities": [{'value': v, 'label': label} for v, label in HotelCity.choices],
+        "hotels": hotel_list,
+        "bookings": bookings,
     })
-
-
-@require_perm('calendar', 'edit')
-def cl_estimasi_save(request, pk):
-    if request.method != 'POST':
-        return JsonResponse({'ok': False}, status=405)
-    cl = get_in_scope_or_404(ConfirmationLetter.objects.all(), request.user, pk=pk)
-    estimasi_str = request.POST.get('estimasi_tiba', '').strip()
-    cl.pic_name  = request.POST.get('pic_name', '').strip()
-    cl.pic_phone = request.POST.get('pic_phone', '').strip()
-    if estimasi_str:
-        from datetime import datetime as _dt
-        try:
-            cl.estimasi_tiba = _dt.strptime(estimasi_str, '%H:%M').time()
-        except ValueError:
-            cl.estimasi_tiba = None
-    else:
-        cl.estimasi_tiba = None
-    cl.save(update_fields=['estimasi_tiba', 'pic_name', 'pic_phone'])
-    return JsonResponse({'ok': True})
-
-
-@require_perm('calendar', 'export')
-def calendar_checkin_pdf(request):
-    today = date.today()
-    date_str = request.GET.get('date', '').strip()
-
-    if date_str:
-        try:
-            from datetime import datetime as _dt
-            filter_date = _dt.strptime(date_str, '%Y-%m-%d').date()
-            date_filter = {'check_in': filter_date}
-            title = f"Check-in – {filter_date.strftime('%d %B %Y')}"
-            filename = f"checkin-{date_str}.pdf"
-            date_start = date_end = filter_date
-        except ValueError:
-            date_start, date_end = today, today + timedelta(days=6)
-            date_filter = {'check_in__gte': date_start, 'check_in__lte': date_end}
-            title = "Upcoming Check-in Recap"
-            filename = f"checkin-rekap-{today.isoformat()}.pdf"
-    else:
-        date_start, date_end = today, today + timedelta(days=6)
-        date_filter = {'check_in__gte': date_start, 'check_in__lte': date_end}
-        title = "Upcoming Check-in Recap"
-        filename = f"checkin-rekap-{today.isoformat()}.pdf"
-
-    qs = (
-        scope(ConfirmationLetter.objects.all(), request.user)
-        .filter(**date_filter)
-        .exclude(reservation_status='CANCELLED')
-        .with_parties().prefetch_related('rooms__room_type_ref')
-        .order_by('check_in', 'hotel__name', guest_name_expr().asc())
-    )
-
-    return _render_checkin_pdf(list(qs), title, filename,
-                               date_start=date_start, date_end=date_end)

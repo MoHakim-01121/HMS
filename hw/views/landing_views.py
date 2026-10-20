@@ -4,8 +4,7 @@ Two parts, one feature (the public site):
   - public render: `landing`, `public_hotels` — the pages anonymous visitors see
   - manage CRUD: team members and pricelist that feed those pages
 
-CRUD follows the same plain request.POST-dict pattern as hw/views/visit_views.py
-— no Django Forms, no DRF. GET renders a form (used by the form modal), POST
+CRUD uses plain request.POST dicts — no Django Forms, no DRF. GET renders a form (used by the form modal), POST
 saves and redirects back to the manage screen; validation failures re-render
 the form echoing submitted values + errors.
 """

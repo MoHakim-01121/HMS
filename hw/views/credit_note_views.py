@@ -19,7 +19,6 @@ from ..finance import credit_note_service as cns
 from ..finance import queries as fq
 from ..finance.errors import FinanceError
 from ..models import ActivityLog, log_activity
-from ..models.choices import InvoiceType
 from ..models.credit_note import CreditNote
 from ..models.invoice import Invoice
 from ..branch_scope import get_in_scope_or_404, scope
@@ -28,8 +27,7 @@ from .helpers import _parse_date, request_data
 
 
 def _detail_url(invoice):
-    name = 'invoice_detail' if invoice.invoice_type == InvoiceType.HOTEL else 'services_detail'
-    return reverse(name, args=[invoice.pk])
+    return reverse('invoice_detail', args=[invoice.pk])
 
 
 def _void_props(*, kicker, title, number, sub, action, cancel, blockers=(), error=None, reason=''):
@@ -157,8 +155,56 @@ def credit_note_rows(qs):
 
 @require_perm('invoice', 'view')
 def credit_note_list(request):
+    """Credit Notes (Record View HMS canvas): no KPIs; the month's credit
+    notes with the month total under the table."""
+    from datetime import date as _date
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+    from ..models import Invoice
+    from .helpers import csv_list, list_per_page, list_period, pagination_props
+    q = request.GET.get('q', '').strip()
+    applied = csv_list(request, 'applied', ['ar', 'deposit'])
+    voided = request.GET.get('voided') == '1'
+    date_from, date_to, period = list_period(request)
     qs = scope(CreditNote.objects.all(), request.user).select_related('invoice', 'client').prefetch_related('lines')
-    return inertia_render(request, 'Finance/CreditNotes', props={'credit_notes': credit_note_rows(qs)})
+    if q:
+        qs = qs.filter(Q(credit_note_number__icontains=q) | Q(client__name__icontains=q)
+                       | Q(invoice__invoice_number__icontains=q) | Q(reason__icontains=q))
+    if date_from:
+        qs = qs.filter(issued_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(issued_date__lte=date_to)
+    period_rows = credit_note_rows(qs.order_by('-issued_date', '-pk'))
+    live = [r for r in period_rows if r['status'] == CreditNote.STATUS_ACTIVE]
+    kind = lambda r: 'deposit' if r['to_deposit_sar'] else 'ar'
+    rows = [r for r in period_rows if (voided or r['status'] == CreditNote.STATUS_ACTIVE) and (not applied or kind(r) in applied)]
+    page_obj = Paginator(rows, list_per_page(request)).get_page(request.GET.get('page'))
+
+    def invoice_choices():
+        return [{'id': i.pk, 'number': i.invoice_number, 'client': i.customer_name}
+                for i in scope(Invoice.objects.exclude(status=Invoice.STATUS_VOID), request.user).order_by('-created_at')[:200]]
+
+    years = sorted({d.year for d in scope(CreditNote.objects.all(), request.user).dates('issued_date', 'year')} | {_date.today().year})
+    return inertia_render(request, 'Finance/CreditNotes', props={
+        'credit_notes': list(page_obj),
+        'filters': {'q': q, 'applied': applied, 'voided': '1' if voided else '', 'per': list_per_page(request), **period},
+        'years': years,
+        'counts': {'ar': sum(1 for r in period_rows if kind(r) == 'ar'), 'deposit': sum(1 for r in period_rows if kind(r) == 'deposit'),
+                   'voided': len(period_rows) - len(live)},
+        'summary': {'count': len(live), 'amount': sum(r['amount_sar'] for r in live), 'to_deposit': sum(r['to_deposit_sar'] for r in live)},
+        'invoice_choices': invoice_choices,
+        'pagination': pagination_props(page_obj),
+    })
+
+
+@require_perm('invoice', 'export')
+def credit_note_export_csv(request):
+    from .helpers import csv_export_response
+    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice', 'client').prefetch_related('lines').order_by('-issued_date')
+    return csv_export_response('credit_notes.csv', ['Credit note', 'Date', 'Client', 'Invoice', 'Reason', 'Amount SAR', 'To deposit SAR', 'Status'], [
+        [r['number'], r['date'], r['client'], r['invoice_number'], r['reason'], r['amount_sar'], r['to_deposit_sar'], r['status']]
+        for r in credit_note_rows(qs)
+    ])
 
 
 @require_perm('payments', 'approve')

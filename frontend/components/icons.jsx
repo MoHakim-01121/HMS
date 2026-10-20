@@ -351,17 +351,6 @@ export function Icon({ name, size = 15, strokeWidth = 2, ...rest }) {
   );
 }
 
-// Brand mark (Workspace logo — three bars) used in the topbar.
-export function BrandMark({ size = 16 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="2" width="4.5" height="22" fill="currentColor" />
-      <rect x="18.5" y="2" width="4.5" height="22" fill="currentColor" />
-      <rect x="7.5" y="11" width="11" height="2.5" fill="currentColor" />
-    </svg>
-  );
-}
-
 // WhatsApp brand glyph (Simple Icons "whatsapp" path) — filled, unlike the
 // stroke-based line icons in PATHS above, so it gets its own component
 // rather than an Icon-name entry.

@@ -1,5 +1,5 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
-from hw.tests.factories import fund_cash, make_account, make_cl, make_hotel_line, make_invoice, make_remittance, make_service_line, set_line_total
+from hw.tests.factories import fund_cash, fund_ledger_for, make_account, make_cl, make_hotel_line, make_invoice, make_remittance, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -70,15 +70,6 @@ class InvoiceChargeTests(PostingTestBase):
             self.invoice, created_by=self.user, entry_date=date(2045, 6, 1),
         )
         self.assertEqual(_net(account_id=coa.AR, invoice=self.invoice), 0)
-
-    def test_service_invoice_uses_service_income(self):
-        inv = make_invoice(
- invoice_type="visa", invoice_number="SVC-P1",
-            customer_name="PT Uji", client=self.client_obj, issued_date=date(2045, 2, 1),
-        )
-        make_service_line(invoice=inv, name="Visa", qty=2, price=15000)
-        posting.post_invoice_charge(inv, created_by=self.user)
-        self.assertEqual(_net(account_id=coa.INC_SERVICE, invoice=inv), -30000)
 
 
 class PaymentPostingTests(PostingTestBase):
@@ -191,16 +182,18 @@ class RemittanceResyncTests(PostingTestBase):
     penerimaan Pusat lewat settlement_service, selisihnya ditutup terpisah."""
 
     def _remittance(self, sar=50000):
-        return make_remittance(
+        rmt = make_remittance(
             date=date(2045, 5, 1), remittance_number="RMT-R", amount_sent=sar * 4750,
         )
+        fund_ledger_for(rmt)   # the account holds exactly the rupiah sent, at 4,750
+        return rmt
 
     def test_send_then_receive_then_close_difference(self):
         from hw.finance import settlement_service
         rmt = self._remittance()
         posting.resync_remittance(rmt, created_by=self.user)
         source = rmt.from_account.ledger_account_id
-        self.assertEqual(_net(account_id=source), -50000)
+        self.assertEqual(_net(account_id=source), 0)   # funded 50,000, sent 50,000
         self.assertEqual(_net(account_id=coa.TRANSIT), 50000)
 
         settlement_service.add_settlement(
@@ -227,7 +220,7 @@ class RemittanceResyncTests(PostingTestBase):
         rmt.amount_sent = 45000 * 4750
         rmt.save(update_fields=["amount_sent"])
         posting.resync_remittance(rmt, created_by=self.user)
-        self.assertEqual(_net(account_id=rmt.from_account.ledger_account_id), -45000)
+        self.assertEqual(_net(account_id=rmt.from_account.ledger_account_id), 50000 - 45000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 45000)
         self.assertEqual(verify_chain(), [])
 

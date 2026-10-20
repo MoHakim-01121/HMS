@@ -30,10 +30,6 @@ class Approvable(models.Model):
     class Meta:
         abstract = True
 
-    @property
-    def is_pending(self):
-        return self.status == ApprovalStatus.PENDING
-
 
 class ClientRefund(Approvable):
     refund_number = models.CharField(max_length=30, unique=True)

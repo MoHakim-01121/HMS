@@ -10,7 +10,7 @@ from hw.models.period import FinancialPeriod
 from hw.finance import posting, settlement_service as svc
 from hw.finance import queries as fq
 from hw.finance.errors import FinanceError
-from hw.tests.factories import make_remittance
+from hw.tests.factories import fund_ledger_for, make_remittance
 
 
 class SettlementBase(TestCase):
@@ -77,6 +77,7 @@ class CloseRemittanceDiffTest(SettlementBase):
         self.rmt.amount_idr = 240_000_000
         self.rmt.exchange_rate = 4800  # expected_sar = 50000
         self.rmt.save(update_fields=['amount_sent', 'exchange_rate'])
+        fund_ledger_for(self.rmt, 50000)
         posting.post_remittance_send(
             self.rmt, amount_sar=50000, created_by=self.user,
         )
@@ -116,6 +117,7 @@ class SettlementBasisAndStatusSyncTest(SettlementBase):
     terposting di TRANSIT (bukan amount_idr/kurs)."""
 
     def _send(self, amount):
+        fund_ledger_for(self.rmt, amount)
         posting.post_remittance_send(
             self.rmt, amount_sar=amount, created_by=self.user,
         )

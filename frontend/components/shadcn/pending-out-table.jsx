@@ -23,7 +23,7 @@ const CSS = `
 
 const base = (row) => (row.kind === "refund" ? `/finance/refunds/${row.id}` : `/finance/deposit-transfers/${row.id}`);
 
-export default function PendingOutTable({ rows = [], showClient = false }) {
+export default function PendingOutTable({ rows = [], showClient = false, plain = false }) {
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
   const [rejecting, setRejecting] = useState(null);
@@ -84,10 +84,47 @@ export default function PendingOutTable({ rows = [], showClient = false }) {
     },
   ];
 
+  // `plain`: the detail-page table (detail-a.css), as on the Client Ledger.
+  const table = plain ? (
+    <div className="da-scroll">
+      <table className="da-t">
+        <thead>
+          <tr>
+            <th>{t("Document")}</th>
+            {showClient ? <th>{t("Client")}</th> : null}
+            <th>{t("Details")}</th><th>{t("Recorded by")}</th><th className="n">{t("Amount (SAR)")}</th>
+            <th className="n"><span className="sr-only">{t("Decision")}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={`${r.kind}-${r.id}`} className="mid">
+              <td style={{ verticalAlign: "middle" }}><span className="mono">{r.number}</span><span className="sub">{r.kind === "refund" ? t("Refund") : t("Deposit transfer")}, {fmtDate(r.date)}</span></td>
+              {showClient ? <td style={{ verticalAlign: "middle" }}><Link href={`/finance/clients/${r.client_id}/statement/`}>{r.client}</Link></td> : null}
+              <td style={{ verticalAlign: "middle" }}>{r.detail}{r.note ? <span className="sub">{r.note}</span> : null}</td>
+              <td style={{ verticalAlign: "middle" }}>{r.created_by}</td>
+              <td className="n" style={{ verticalAlign: "middle", fontWeight: 600 }}>{fmt(r.amount_sar)}</td>
+              <td className="n" style={{ verticalAlign: "middle" }}>
+                {r.can_decide ? (
+                  <span className="pot-actions">
+                    <button type="button" className="da-btn" style={{ height: 32, border: "1px solid var(--input)" }} onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</button>
+                    <button type="button" className="da-btn primary" style={{ height: 32 }} onClick={() => approve(r)}>{t("Approve")}</button>
+                  </span>
+                ) : <span className="sub">{t("Awaiting another user")}</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <DetailTable columns={columns} rows={rows} rowKey={(r) => `${r.kind}-${r.id}`} empty={t("Nothing awaiting approval.")} />
+  );
+
   return (
     <>
       <style>{CSS}</style>
-      <DetailTable columns={columns} rows={rows} rowKey={(r) => `${r.kind}-${r.id}`} empty={t("Nothing awaiting approval.")} />
+      {table}
       {confirmDialog}
       {rejecting && (
         <Dialog open onOpenChange={(v) => { if (!v) setRejecting(null); }}>

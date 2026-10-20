@@ -77,7 +77,7 @@ class RefundTransferViewTest(TestCase):
         fund_cash(CashAccount.objects.get(branch_id='pusat'), amount)
 
     def _idr_account(self):
-        from hw.models import BankAccount, LedgerAccount
+        from hw.models import BankAccount
         acc = BankAccount.objects.create(
             branch_id="sby", name="IDR", currency="IDR", bank_name="Mandiri", account_identifier="555",
             ledger_account_id=cash_ledger_for('sby', 'IDR'),

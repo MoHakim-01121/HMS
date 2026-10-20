@@ -72,7 +72,6 @@ def _fmt_date_id(d):
 def generate_draft_message(invoice_type: str, invoice) -> str | None:
     # Impor lokal: hw.views.__init__ mengimpor modul ini, impor top-level
     # ke hw.views.* akan membuat siklus.
-    from .views.context import _build_visa_services_context
     from .views.invoice_billing import _billing_client
 
     def _fmt(n):
@@ -81,22 +80,15 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     client = _billing_client(invoice)
     name = client.name
     signature = _SIGNATURE
-    lunas = invoice_type in ('invoice_lunas', 'services_lunas')
+    lunas = invoice_type == 'invoice_lunas'
 
-    if invoice_type in ('invoice', 'invoice_lunas'):
-        detail_lines = []
-        for r in invoice.reservations:
-            detail_lines.append(f"- RSV : {r.reservation_number}")
-            detail_lines.append(f"  Hotel: {r.hotel or '-'}")
-        total = invoice.total_sar
-        remaining = 0 if lunas else invoice.remaining_sar
-        currency = 'SAR'
-    else:
-        services = _build_visa_services_context(invoice)
-        detail_lines = [f"- Layanan: {s['product']} x{s['qty']}" for s in services]
-        total = sum(s['total'] for s in services)
-        remaining = 0 if lunas else sum(s['remaining'] for s in services)
-        currency = invoice.currency
+    detail_lines = []
+    for r in invoice.reservations:
+        detail_lines.append(f"- RSV : {r.reservation_number}")
+        detail_lines.append(f"  Hotel: {r.hotel or '-'}")
+    total = invoice.total_sar
+    remaining = 0 if lunas else invoice.remaining_sar
+    currency = 'SAR'
     paid = total - remaining
 
     if lunas:
@@ -146,7 +138,7 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     return "\n".join(parts)
 
 
-CHAT_MODULES = ('invoice', 'services', 'cl')
+CHAT_MODULES = ('invoice', 'cl')
 
 
 def get_chat_reply(
@@ -156,7 +148,7 @@ def get_chat_reply(
     user,
     modules=CHAT_MODULES,
 ) -> str | None:
-    """Answer from recent invoices, services and CLs of `user`'s branches.
+    """Answer from recent invoices and CLs of `user`'s branches.
     `modules` is what the user may view: data of any other module or branch is
     not even read, so it can reach neither the answer nor the model provider."""
     from .branch_scope import scope
@@ -166,8 +158,6 @@ def get_chat_reply(
 
     invoices = list(scope(Invoice.objects.filter(invoice_type="hotel"), user).with_lines()
                     .order_by("-created_at")[:20]) if 'invoice' in modules else []
-    services = list(scope(Invoice.objects.filter(invoice_type="visa"), user).with_lines()
-                    .order_by("-created_at")[:20]) if 'services' in modules else []
     cls      = list(scope(ConfirmationLetter.objects.all(), user).prefetch_related('rooms')
                     .order_by("-created_at")[:20]) if 'cl' in modules else []
 
@@ -183,16 +173,12 @@ def get_chat_reply(
     needs_inv = is_followup or any(k in msg_lower for k in [
         'invoice', 'inv', 'bayar', 'lunas', 'tagih', 'sisa', 'hotel', 'total', 'belum'
     ])
-    needs_svc = is_followup or any(k in msg_lower for k in [
-        'service', 'svc', 'visa', 'layanan'
-    ])
     needs_cl = is_followup or any(k in msg_lower for k in [
         'cl', 'confirmation', 'letter', 'tamu', 'guest', 'check', 'kamar', 'room', 'reservasi'
     ])
-    if not (needs_inv or needs_svc or needs_cl):
-        needs_inv = needs_svc = needs_cl = True
+    if not (needs_inv or needs_cl):
+        needs_inv = needs_cl = True
     needs_inv = needs_inv and 'invoice' in modules
-    needs_svc = needs_svc and 'services' in modules
     needs_cl = needs_cl and 'cl' in modules
 
     summary = []
@@ -201,8 +187,6 @@ def get_chat_reply(
             f"Invoice Hotel: {len(invoices)} total | {inv_total:,.0f} SAR | Sisa: {inv_remaining:,.0f} SAR | {inv_unpaid} belum lunas\n"
             f"Bulan ini: {len(inv_this_month)} invoice | {inv_month_total:,.0f} SAR"
         )
-    if 'services' in modules:
-        summary.append(f"Invoice Services: {len(services)} total")
     if 'cl' in modules:
         summary.append(f"Confirmation Letter: {len(cls)} total")
 
@@ -224,13 +208,6 @@ def get_chat_reply(
             for i in invoices
         )
         system_parts.append(f"\n\n=== INVOICE HOTEL ===\n{inv_lines}")
-
-    if needs_svc:
-        svc_lines = "\n".join(
-            f"- {i.invoice_number} | {i.customer_name} | {i.currency} | {i.issued_date or '-'}"
-            for i in services
-        )
-        system_parts.append(f"\n\n=== INVOICE SERVICES ===\n{svc_lines}")
 
     if needs_cl:
         cl_lines = "\n".join(

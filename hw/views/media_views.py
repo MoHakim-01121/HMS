@@ -30,10 +30,6 @@ PUBLIC = 'public'
 LOGGED_IN = 'logged_in'
 
 
-def _any_view(*modules):
-    return lambda user, path: any(can(user, m, 'view') for m in modules)
-
-
 def _proof_of(model_name, *modules):
     """A proof file: the user views one of `modules` and the record holding
     the file belongs to the user's branches."""
@@ -43,6 +39,14 @@ def _proof_of(model_name, *modules):
         return (any(can(user, m, 'view') for m in modules)
                 and scope(model.objects.filter(proof=path), user).exists())
     return rule
+
+
+def _expense_receipt(user, path):
+    """expenses/receipts/… — a receipt on a line of an expense of the user's
+    branches, with expenses.view."""
+    from ..models import Expense
+    return (can(user, 'expenses', 'view')
+            and scope(Expense.objects.filter(lines__receipts__file=path), user).exists())
 
 
 def _ledger_proof(user, path):
@@ -59,14 +63,11 @@ def _owner_pk(path):
 
 
 def _invoice_attachment(user, path):
-    """attachments/invoice/<id>/… — an invoice of the user's branches; hotel
-    invoices need invoice.view, services invoices (type visa) services.view."""
+    """attachments/invoice/<id>/… — an invoice of the user's branches, with
+    invoice.view."""
     from ..models import Invoice
-    invoice_type = (scope(Invoice.objects.filter(pk=_owner_pk(path)), user)
-                    .values_list('invoice_type', flat=True).first())
-    if invoice_type is None:
-        return False
-    return can(user, 'services' if invoice_type == 'visa' else 'invoice', 'view')
+    return (can(user, 'invoice', 'view')
+            and scope(Invoice.objects.filter(pk=_owner_pk(path)), user).exists())
 
 
 def _cl_attachment(user, path):
@@ -83,13 +84,13 @@ MEDIA_RULES = (
     ('avatars/', LOGGED_IN),
     ('attachments/invoice/', _invoice_attachment),
     ('attachments/cl/', _cl_attachment),
-    ('payments/proof/', _proof_of('PaymentRecord', 'payments', 'invoice', 'services', 'statements')),
+    ('payments/proof/', _proof_of('PaymentRecord', 'payments', 'invoice', 'statements')),
     ('refunds/proof/', _proof_of('ClientRefund', 'payments', 'statements')),
-    ('exchange/proof/', _proof_of('CurrencyExchange', 'payments')),
+    ('exchange/proof/', _proof_of('CurrencyExchange', 'bank')),
     ('expenses/proof/', _proof_of('Expense', 'expenses')),
+    ('expenses/receipts/', _expense_receipt),
     ('remittance/proof/', _proof_of('Remittance', 'remittance')),
     ('ledger/proof/', _ledger_proof),
-    ('visits/', _any_view('clients')),
 )
 
 # Shown in the browser; anything else (spreadsheets, text) is downloaded.

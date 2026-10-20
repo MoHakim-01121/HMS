@@ -1,12 +1,8 @@
 """Bank reconciliation views — statement entry/import + line matching.
 
 UI surface for hw/finance/reconciliation_service.py and statement_import.py.
-Reading is gated under 'statements' (same read-only-reporting class as
-Client Ledger / Trial Balance / Bank Balances — that module is genuinely
-view/export-only for every role, see permissions.py). Entering a statement
-and matching lines are real edits, gated under 'remittance' instead — same
-cash-movement sensitivity class already used for Settlement, and the one
-'statements' itself deliberately never grants.
+Gated under 'bank' with bank accounts and transfers: reading needs view,
+entering a statement and matching lines need edit.
 
 Amounts are in the account's own currency throughout.
 """
@@ -100,12 +96,32 @@ def _resolve_account(request, value):
     return account if account is not None and in_scope(request.user, account.branch_id) else None
 
 
-@require_perm('statements', 'view')
+@require_perm('bank', 'view')
 def reconciliation_list(request):
-    statements = scope(BankStatement.objects.all(), request.user).select_related('account')
+    """Bank Reconciliation (Record View HMS canvas): no KPIs; one row per
+    statement with its closing balance, lines matched and the difference."""
+    from django.core.paginator import Paginator
+    from .helpers import csv_list, list_per_page, pagination_props
+    q = request.GET.get('q', '').strip().lower()
+    statuses = csv_list(request, 'status', ['wip', 'done'])
+    accounts = csv_list(request, 'acct')
+    statements = scope(BankStatement.objects.all(), request.user).select_related('account').order_by('-period_end', '-pk')
+    rows = [_statement_props(s) for s in statements]
+    for r in rows:
+        r['state'] = 'done' if r['is_fully_matched'] and r['difference'] == 0 else 'wip'
+    counts = {'wip': sum(1 for r in rows if r['state'] == 'wip'), 'done': sum(1 for r in rows if r['state'] == 'done')}
+    acc_n = {}
+    for r in rows:
+        acc_n[r['account_label']] = acc_n.get(r['account_label'], 0) + 1
+    shown = [r for r in rows if (not q or q in f"{r['account_label']} {r['period_start']} {r['period_end']}".lower())
+             and (not statuses or r['state'] in statuses) and (not accounts or r['account_label'] in accounts)]
+    page_obj = Paginator(shown, list_per_page(request)).get_page(request.GET.get('page'))
     return inertia_render(request, 'Reconciliation/List', props={
-        'statements': [_statement_props(s) for s in statements],
+        'statements': list(page_obj),
         'account_choices': _account_choices(request.user),
+        'filters': {'q': q, 'status': statuses, 'acct': accounts, 'per': list_per_page(request)},
+        'counts': counts, 'account_counts': [{'name': k, 'count': v} for k, v in sorted(acc_n.items())],
+        'pagination': pagination_props(page_obj),
     })
 
 
@@ -116,7 +132,7 @@ def _payload(request):
         return request.POST
 
 
-@require_perm('payments', 'edit')
+@require_perm('bank', 'edit')
 def reconciliation_new(request):
     if request.method != 'POST':
         return redirect('reconciliation_list')
@@ -178,7 +194,7 @@ def _preview_props(result):
     }
 
 
-@require_perm('payments', 'edit')
+@require_perm('bank', 'edit')
 def reconciliation_import(request):
     """Import a bank CSV. Two steps on one page: `preview` parses the text
     (with the user's column mapping, if any) and shows what would be saved;
@@ -233,7 +249,7 @@ def reconciliation_import(request):
     return redirect('reconciliation_detail', pk=statement.pk)
 
 
-@require_perm('statements', 'view')
+@require_perm('bank', 'view')
 def reconciliation_detail(request, pk):
     statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
     return inertia_render(request, 'Reconciliation/Detail', props={
@@ -241,7 +257,7 @@ def reconciliation_detail(request, pk):
     })
 
 
-@require_perm('payments', 'edit')
+@require_perm('bank', 'edit')
 def reconciliation_match(request, pk):
     line = get_in_scope_or_404(BankStatementLine.objects.all(), request.user, pk=pk)
     if request.method != 'POST':
@@ -263,7 +279,7 @@ def reconciliation_match(request, pk):
     return redirect('reconciliation_detail', pk=line.statement_id)
 
 
-@require_perm('payments', 'edit')
+@require_perm('bank', 'edit')
 @require_POST
 def reconciliation_match_suggested(request, pk):
     statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
@@ -275,7 +291,7 @@ def reconciliation_match_suggested(request, pk):
     return redirect('reconciliation_detail', pk=pk)
 
 
-@require_perm('payments', 'edit')
+@require_perm('bank', 'edit')
 def reconciliation_unmatch(request, pk):
     line = get_in_scope_or_404(BankStatementLine.objects.all(), request.user, pk=pk)
     if request.method != 'POST':

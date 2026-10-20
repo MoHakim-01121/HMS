@@ -69,8 +69,6 @@ def _payment_props(p):
         'client_name': p.client.name if p.client else None,
         # hotel/check_in/check_out ikut dikirim supaya tabel alokasi di detail
         # bisa menyebut kamar mana yang dibayar, bukan cuma nomor reservasi.
-        # Alokasi ke ServiceItem tidak punya hotel/tanggal -- namanya dipakai
-        # sebagai ganti di kolom yang sama.
         'allocations': [{
             'id': a.pk,
             'reservation_id': a.reservation_id,
@@ -78,8 +76,6 @@ def _payment_props(p):
             'hotel': a.reservation.hotel if a.reservation else '',
             'check_in': a.reservation.check_in.isoformat() if a.reservation and a.reservation.check_in else None,
             'check_out': a.reservation.check_out.isoformat() if a.reservation and a.reservation.check_out else None,
-            'service_item_id': a.service_item_id,
-            'service_item_name': a.service_item.name if a.service_item else None,
             'invoice_number': a.invoice_line.invoice.invoice_number,
             'amount_sar': a.amount_sar,
         } for a in p.allocations.select_related('invoice_line__confirmation_letter__hotel', 'invoice_line__invoice')],
@@ -150,11 +146,15 @@ def _invoice_choices(queryset):
     """
     from .context import _build_reservation_context
     from ..finance import queries as fq
+    from ..finance.credit_note_service import _credited_by_lines
     invoices = list(queryset)
-    paid_map = fq.invoice_paid_map([inv.pk for inv in invoices])
+    ids = [inv.pk for inv in invoices]
+    paid_map = fq.invoice_paid_map(ids)
+    res_paid = fq.reservation_paid_maps(ids)
+    credited = _credited_by_lines(ids)
     out = []
     for inv in invoices:
-        res_ctx = _build_reservation_context(inv)
+        res_ctx = _build_reservation_context(inv, credited=credited[inv.pk], paid_map=res_paid[inv.pk])
         reservations = [{
             'id': r.get('id'),
             'number': r['number'],
@@ -334,84 +334,117 @@ def _payments(request):
     return scope(PaymentRecord.objects.all(), request.user)
 
 
+_LIST_GROUPS = ('pending', 'open', 'allocated', 'cancelled')
+
+
+def _list_group_q(key):
+    """The four status groups of the Payments list filter."""
+    if key == 'open':
+        return _group_q('unallocated') | _group_q('partial')
+    return _group_q(key)
+
+
 @require_perm('payments', 'view')
 def payment_list(request):
-    base_qs = _payments(request).select_related('client', 'invoice', 'confirmed_by', 'created_by')
-    f = _payment_filter_params(request)
-    payments = _apply_payment_filters(base_qs, f)
+    """Payments list (Record View HMS canvas): cash received in the month
+    (by currency on the back), waiting confirmation, unapplied cash, the
+    toolbar and the table, one page at a time."""
+    from ..finance import queries as fq
+    from .helpers import csv_list, list_per_page, list_period, pct_delta, prev_month_range
+    base = _payments(request).select_related('client', 'invoice', 'receiving_account', 'created_by')
+    q = request.GET.get('q', '').strip()
+    groups = csv_list(request, 'status', _LIST_GROUPS)
+    currencies = csv_list(request, 'cur', ['IDR', 'USD', 'SAR'])
+    methods = csv_list(request, 'method')
+    sort = request.GET.get('sort', '-date')
+    date_from, date_to, period = list_period(request)
 
-    sort_labels = {
-        '-created_at':   tr(request, 'Created (newest)', 'Dibuat (terbaru)'),
-        '-payment_date': tr(request, 'Payment date (newest)', 'Tanggal bayar (terbaru)'),
-        'payment_date':  tr(request, 'Payment date (oldest)', 'Tanggal bayar (terlama)'),
-        '-amount_sar':   tr(request, 'Amount (largest)', 'Jumlah (terbesar)'),
-    }
-    sort = f['sort'] if f['sort'] in sort_labels else '-created_at'
-    # Counts filter GROUPS in use (same rule as the CL list): several ticked
-    # statuses are one group, a date range is one more.
-    active_filters = bool(f['status_list']) + bool(f['date_from'] or f['date_to'])
-    group_counts = {key: 0 for key, _, _ in PAYMENT_STATUS_GROUPS}
-    for p in _payments(request).with_allocated().only('status', 'amount_sar'):
-        group_counts[_group_of(p)] += 1
-    status_groups = [
-        {'key': key, 'label': label, 'count': group_counts[key]}
-        for key, label, _ in PAYMENT_STATUS_GROUPS
-    ]
+    qs = _apply_payment_filters(base, {'q': q, 'status_list': [], 'date_from': None, 'date_to': None,
+                                       'client_id': '', 'invoice_id': '', 'sort': '-created_at'})
+    # Waiting confirmation and unapplied cash are not tied to a month.
+    if not (groups and set(groups) <= {'pending', 'open'}):
+        if date_from:
+            qs = qs.filter(payment_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(payment_date__lte=date_to)
+    period_qs = qs.with_allocated()
+    counts = {k: period_qs.filter(_list_group_q(k)).count() for k in _LIST_GROUPS}
+    from django.db.models import Count
+    cur_counts = {r['receiving_account__currency']: r['n'] for r in period_qs.values('receiving_account__currency').annotate(n=Count('id'))}
+    method_counts = sorted(((r['method'], r['n']) for r in period_qs.values('method').annotate(n=Count('id')) if r['method']), key=lambda x: -x[1])
 
-    # Server-side pagination (matches the other list pages: 10 on mobile, 15
-    # otherwise). Filters above are honoured so filter + pagination stay consistent.
-    paginator = Paginator(payments, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    page_payments = list(page_obj)
+    rows_qs = period_qs
+    if groups:
+        wanted = Q()
+        for k in groups:
+            wanted |= _list_group_q(k)
+        rows_qs = rows_qs.filter(wanted)
+    if currencies:
+        rows_qs = rows_qs.filter(receiving_account__currency__in=currencies)
+    if methods:
+        rows_qs = rows_qs.filter(method__in=methods)
+    rows_qs = rows_qs.order_by('payment_date' if sort == 'date' else '-payment_date', '-pk')
 
-    # Everything below the table -- the Record Payment dialog's dropdowns and
-    # the KPI row -- is passed as a callable. inertia-django only evaluates a
-    # callable on a full visit; the filter bar's partial reloads (`only:` in
-    # Payment/List.jsx) skip it. _invoice_choices alone costs ~300 queries
-    # (reservation context per invoice), which used to run on every keystroke
-    # of the search box.
+    page_obj = Paginator(rows_qs, list_per_page(request)).get_page(request.GET.get('page'))
+    page = list(page_obj)
+    unalloc = fq.payment_unallocated_map([p.pk for p in page if p.status in PaymentRecord.EFFECTIVE_STATUSES])
+    rows = []
+    for p in page:
+        g = _group_of(p)
+        rows.append({
+            'id': p.pk, 'payment_number': p.payment_number,
+            'payment_date': p.payment_date.isoformat() if p.payment_date else None,
+            'client_name': p.client.name if p.client_id else '',
+            'invoice_number': p.invoice.invoice_number if p.invoice_id else '',
+            'account': str(p.receiving_account) if p.receiving_account_id else '',
+            'method': p.method, 'currency': p.currency, 'amount': p.amount, 'amount_sar': p.amount_sar,
+            'group': g, 'status': p.status, 'status_display': p.get_status_display(),
+            'unallocated_sar': unalloc.get(p.pk, 0),
+            'has_proof': bool(p.proof), 'proof_url': p.proof.url if p.proof else None,
+            'created_by': p.created_by.username if p.created_by_id else None,
+        })
+
+    kpis = None
+    if period['month']:
+        eff = _payments(request).filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
+        month = eff.filter(payment_date__gte=date_from, payment_date__lte=date_to)
+        pf, pl = prev_month_range(date_from)
+        prev_sar = sum(eff.filter(payment_date__gte=pf, payment_date__lte=pl).values_list('amount_sar', flat=True))
+        by_cur = {}
+        for cur, amt, sar in month.values_list('receiving_account__currency', 'amount', 'amount_sar'):
+            a2 = by_cur.setdefault(cur, [0, 0]); a2[0] += amt; a2[1] += sar
+        received = sum(v[1] for v in by_cur.values())
+        pending = _payments(request).filter(status=PaymentRecord.STATUS_PENDING)
+        um = fq.payment_unallocated_map(eff.values_list('pk', flat=True))
+        kpis = {
+            'received': received, 'delta': pct_delta(received, prev_sar), 'prev_month': pf.strftime('%Y-%m'),
+            'by_currency': [{'code': c, 'amount': by_cur[c][0], 'sar': by_cur[c][1]} for c in ('IDR', 'USD', 'SAR') if c in by_cur],
+            'pending_count': pending.count(), 'pending_sar': sum(pending.values_list('amount_sar', flat=True)),
+            'unapplied_sar': sum(um.values()), 'unapplied_count': sum(1 for v in um.values() if v > 0),
+        }
+
     def invoice_choices():
         return _invoice_choices(_open_invoices(scope(Invoice.objects.all(), request.user), limit=50))
 
-    # Client choices for the record dialog — deposit (tanpa invoice) butuh
-    # client eksplisit, dan client-first memendekkan daftar invoice.
     def client_choices():
-        return [
-            {'id': c.pk, 'name': c.name, 'city': c.city}
-            for c in scope(Client.objects.filter(is_active=True), request.user).order_by('name')
-        ]
+        return [{'id': c.pk, 'name': c.name, 'city': c.city}
+                for c in scope(Client.objects.filter(is_active=True), request.user).order_by('name')]
 
-    def stats():
-        from ..finance import queries as fq
-        effective = _payments(request).filter(status__in=PaymentRecord.EFFECTIVE_STATUSES)
-        # One aggregate pair for the whole set instead of two queries per
-        # payment -- the same bulk pattern as fq.invoice_paid_map.
-        unapplied_map = fq.payment_unallocated_map(effective.values_list('pk', flat=True))
-        # Counts come from group_counts (shared with the filter panel).
-        return {
-            'total': sum(group_counts.values()),
-            'allocated': group_counts['allocated'],
-            'partially_applied': group_counts['partial'],
-            'unapplied_total': sum(unapplied_map.values()),
-            'unapplied_count': sum(1 for v in unapplied_map.values() if v > 0),
-        }
-
+    years = sorted({d.year for d in _payments(request).dates('payment_date', 'year')} | {date.today().year})
     return inertia_render(request, 'Payment/List', props={
-        'payments': [_payment_props(p) for p in page_payments],
+        'payments': rows,
+        'filters': {'q': q, 'status': groups, 'cur': currencies, 'method': methods, 'sort': sort,
+                    'per': list_per_page(request), **period},
+        'years': years,
+        'counts': counts, 'currency_counts': cur_counts,
+        'method_counts': [{'method': m, 'count': n} for m, n in method_counts],
+        'kpis': kpis,
+        'export_qs': '?' + '&'.join(x for x in [
+            f'date_from={date_from.isoformat()}' if date_from else '', f'date_to={date_to.isoformat()}' if date_to else '',
+        ] if x),
         'invoice_choices': invoice_choices,
         'client_choices': client_choices,
         'account_choices': lambda: money_account_choices(branches=with_head_office(request.user)),
-        'stats': stats,
-        'q': f['q'],
-        'status_list': f['status_list'],
-        'date_from': f['date_from'].isoformat() if f['date_from'] else '',
-        'date_to': f['date_to'].isoformat() if f['date_to'] else '',
-        'sort': sort,
-        'sort_label': sort_labels[sort],
-        'sort_labels': sort_labels,
-        'active_filters': active_filters,
-        'status_groups': status_groups,
-        'total_count': paginator.count,
         'pagination': pagination_props(page_obj),
     })
 
@@ -440,9 +473,14 @@ def _allocatable_reservations(payment):
     for inv in _open_invoices(Invoice.objects.filter(client_id=payment.client_id), limit=30):
         add(inv)
 
+    from ..finance import queries as fq
+    from ..finance.credit_note_service import _credited_by_lines
+    ids = [inv.pk for inv in invoices]
+    res_paid = fq.reservation_paid_maps(ids)
+    credited = _credited_by_lines(ids)
     rows = []
     for inv in invoices:
-        for row in _build_reservation_context(inv):
+        for row in _build_reservation_context(inv, credited=credited[inv.pk], paid_map=res_paid[inv.pk]):
             rows.append({**row, 'invoice_id': inv.pk, 'invoice_number': inv.invoice_number})
     caps = posting.allocation_caps(payment, [r['id'] for r in rows])
     for row in rows:

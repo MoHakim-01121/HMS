@@ -18,7 +18,8 @@ from ..finance import fund_flow, posting, remittance_allocation
 from ..finance_helpers import FinanceError
 from ..branch_scope import get_in_scope_or_404, in_scope, scope
 from ..permissions import require_perm
-from .helpers import validate_proof_file, period_label as _period_label, csv_export_response
+from .helpers import validate_proof_file, period_label as _period_label, csv_export_response, pagination_props
+from django.core.paginator import Paginator
 
 logger = logging.getLogger(__name__)
 
@@ -142,52 +143,95 @@ def _can_record_receipt(rem):
 
 @require_perm('remittance', 'view')
 def remittance_list(request):
+    """Remittance list (Record View HMS canvas): what was sent to HQ in the
+    month (IDR, and SAR at the book), cash in transit, what is still due to HQ
+    and the FX gain; the table shows IDR sent against SAR received. The
+    Tracking and Recap views stay as tabs."""
     from django.db.models import Q
-    from ..finance import queries as finance_queries
+    from ..finance import fund_flow, queries as finance_queries
+    from .helpers import csv_list, list_per_page, list_period, pct_delta, prev_month_range
     tab = request.GET.get('tab', '')
     if tab not in ('tracking', 'recap'):
         tab = 'transfers'
-    status_filter = request.GET.get('status', '')
+    sees = _sees_remittance_figures(request.user)
     q = request.GET.get('q', '').strip()
+    statuses = csv_list(request, 'status', ['transit', 'partial', 'received'])
+    accounts = csv_list(request, 'acct')
+    date_from, date_to, period = list_period(request)
+    today = date.today()
 
-    remittances, stats = [], None
+    rows, kpis, counts, account_counts, page_obj, totals = [], None, {}, [], None, None
     if tab == 'transfers':
-        qs = _remittances(request).prefetch_related('settlements__allocations').order_by('-date')
+        qs = _remittances(request).select_related('from_account', 'to_account').prefetch_related('settlements').order_by('-date', '-pk')
         if q:
-            qs = qs.filter(
-                Q(remittance_number__icontains=q) |
-                Q(receipt_reference__icontains=q) |
-                Q(note__icontains=q)
-            )
-        qs = remittance_allocation.annotate_statuses(qs.annotate(settled_sar_sum=Sum(
-            'settlements__received_amount_sar', filter=Q(settlements__voided_at__isnull=True),
-        )))
-        # Status is derived from the receipts, so the filter runs here.
-        if status_filter in ('pending', 'received'):
-            qs = [rem for rem in qs if rem.status == status_filter]
-        sent_map = finance_queries.remittance_sent_map([rem.pk for rem in qs])
-        stats = _compute_stats() if _sees_remittance_figures(request.user) else None
-        remittances = [{
-            "id": rem.id,
-            "remittance_number": rem.remittance_number,
-            "date": rem.date.strftime("%d/%m/%Y"),
-            "total_sar": int(sent_map.get(rem.pk, 0)),
-            "status": rem.status,
-            "settled_sar": int(rem.settled_sar_sum or 0),
-            "expected_sar": rem.expected_sar,
-            "allocated_sar": sum(int(a.amount_sar) for s in rem.settlements.all() for a in s.allocations.all()),
-            "proof_url": rem.proof.url if rem.proof else None,
-            "can_record_receipt": _can_record_receipt(rem),
-        } for rem in qs]
+            qs = qs.filter(Q(remittance_number__icontains=q) | Q(receipt_reference__icontains=q) | Q(note__icontains=q))
+        in_transit_only = statuses == ['transit'] or set(statuses) == {'transit', 'partial'}
+        period_qs = qs if in_transit_only else qs.filter(**{k: v for k, v in (('date__gte', date_from), ('date__lte', date_to)) if v})
+        figs = remittance_allocation.figures_for(list(period_qs))
+        fx = {t['id']: t for t in fund_flow.fx_profit(branch='sby')['transfers']} if sees else {}
+        state_key = {'pending': 'transit', 'partial': 'partial', 'received': 'received'}
+        counts = {k: 0 for k in ('transit', 'partial', 'received')}
+        acc_n = {}
+        for rem, fig in figs:
+            counts[state_key[fig['state']]] += 1
+            acc_n[str(rem.from_account)] = acc_n.get(str(rem.from_account), 0) + 1
+        account_counts = [{'name': k, 'count': v} for k, v in sorted(acc_n.items())]
+        chosen = [(r, f) for r, f in figs
+                  if (not statuses or state_key[f['state']] in statuses) and (not accounts or str(r.from_account) in accounts)]
+        page_obj = Paginator(chosen, list_per_page(request)).get_page(request.GET.get('page'))
+        for rem, fig in page_obj:
+            t = fx.get(rem.pk) or {}
+            rows.append({
+                'id': rem.pk, 'remittance_number': rem.remittance_number, 'date': rem.date.isoformat(),
+                'from': str(rem.from_account), 'to': str(rem.to_account),
+                'currency': rem.from_account.currency, 'amount_sent': rem.amount_sent,
+                'received_sar': fig['received'], 'outstanding_sar': fig['outstanding'],
+                'rate': float(rem.exchange_rate), 'fx_gain_idr': t.get('profit_idr'),
+                'state': fig['state'], 'days': (today - rem.date).days,
+                'proof_url': rem.proof.url if rem.proof else None, 'can_record_receipt': _can_record_receipt(rem),
+            })
+        if period['month'] or period['year'] not in ('', 'all') or (date_from and date_to):
+            month_figs = [(r, f) for r, f in figs]
+            totals = {
+                'idr': sum(r.amount_sent for r, f in month_figs if r.from_account.currency == 'IDR'),
+                'received_sar': sum(f['received'] for r, f in month_figs),
+                'transit_sar': sum(f['outstanding'] for r, f in month_figs),
+                'fx_gain_idr': sum((fx.get(r.pk) or {}).get('profit_idr') or 0 for r, f in month_figs),
+            }
+            idr_rows = [r for r, f in month_figs if r.from_account.currency == 'IDR']
+            sar_eq = sum(r.amount_sent / float(r.exchange_rate) for r in idr_rows if r.exchange_rate)
+            totals['avg_rate'] = round(totals['idr'] / sar_eq) if sar_eq else None
+        if period['month'] and sees:
+            pf, pl = prev_month_range(date_from)
+            sent_sar = lambda rs: round(sum(r.amount_sent / float(r.exchange_rate) for r in rs if r.exchange_rate))
+            cur_rs = list(_remittances(request).filter(date__gte=date_from, date__lte=date_to).select_related('from_account'))
+            prev_rs = list(_remittances(request).filter(date__gte=pf, date__lte=pl))
+            prev_fx = sum(t['profit_idr'] or 0 for t in fund_flow.fx_profit(branch='sby', date_from=pf, date_to=pl)['transfers'])
+            cur_fx = fund_flow.fx_profit(branch='sby', date_from=date_from, date_to=date_to)['transfers']
+            transit = [(r, f) for r, f in remittance_allocation.figures_for(list(_remittances(request).prefetch_related('settlements'))) if f['outstanding'] > 0]
+            pool = fund_flow.idr_pool('sby')
+            send_rates = [t['send_rate'] for t in cur_fx if t['send_rate']]
+            kpis = {
+                'idr': sum(r.amount_sent for r in cur_rs if r.from_account.currency == 'IDR'),
+                'sar': sent_sar(cur_rs), 'prev_sar': sent_sar(prev_rs), 'prev_month': pf.strftime('%Y-%m'),
+                'delta': pct_delta(sent_sar(cur_rs), sent_sar(prev_rs)),
+                'transit_sar': sum(f['outstanding'] for r, f in transit), 'transit_count': len(transit),
+                'transit_oldest': max(((today - r.date).days for r, f in transit), default=0),
+                'due_to_hq': finance_queries.kewajiban_kirim_sby(),
+                'fx_gain': sum(t['profit_idr'] or 0 for t in cur_fx), 'fx_delta': pct_delta(sum(t['profit_idr'] or 0 for t in cur_fx), prev_fx),
+                'avg_send_rate': round(sum(send_rates) / len(send_rates)) if send_rates else None,
+                'book_rate': round(pool['rate']) if pool['rate'] else None,
+            }
 
+    years = sorted({d.year for d in _remittances(request).dates('date', 'year')} | {today.year})
     return inertia_render(request, "Remittance/List", props={
         "tab": tab,
-        "remittances": remittances,
-        "stats": stats,
-        "status_filter": status_filter,
-        "q": q,
-        "total_count": _remittances(request).count(),
-        "tracking": _compute_tracking_data() if tab == 'tracking' and _sees_remittance_figures(request.user) else None,
+        "remittances": rows,
+        "filters": {"q": q, "status": statuses, "acct": accounts, "per": list_per_page(request), **period},
+        "years": years, "counts": counts, "account_counts": account_counts,
+        "kpis": kpis, "totals": totals, "sees_figures": sees,
+        "pagination": pagination_props(page_obj) if page_obj else None,
+        "tracking": _compute_tracking_data() if tab == 'tracking' and sees else None,
         "monthly": _compute_recap_data(request) if tab == 'recap' else None,
     })
 
@@ -208,6 +252,14 @@ def remittance_new(request):
         .exclude(branch__is_hq=True).select_related('branch').order_by('bank_name', 'account_identifier')
     )
 
+    from ..models.bank import MoneyAccount
+    from ..finance.bank_ledger import default_account
+    hq_default = default_account('pusat', 'SAR')
+    to_accounts = list(
+        MoneyAccount.objects.filter(is_active=True, currency='SAR', branch__is_hq=True)
+        .exclude(kind=MoneyAccount.KIND_STAFF).order_by('kind', 'bank_name', 'name')
+    )
+
     def form_page(error=None):
         return inertia_render(request, "Remittance/Form", props={
             'open_transfers': remittance_allocation.open_transfers(),
@@ -218,7 +270,10 @@ def remittance_new(request):
             'from_accounts': [{
                 'value': str(a.pk),
                 'label': f"{a.bank_name} {a.account_identifier} · {a.branch.name}".strip(),
+                'name': str(a), 'number': a.account_identifier,
             } for a in from_accounts],
+            'to_accounts': [{'value': str(a.pk), 'label': str(a), 'number': a.account_identifier,
+                             'is_default': hq_default is not None and a.pk == hq_default.pk} for a in to_accounts],
         })
 
     if request.method != 'POST':
@@ -249,8 +304,7 @@ def remittance_new(request):
         return form_page('Choose the IDR bank account the money left from.'
                          if from_accounts else 'Add an IDR bank account in Bank Balances first.')
 
-    from ..finance.bank_ledger import default_account
-    to_account = default_account('pusat', 'SAR')
+    to_account = next((a for a in to_accounts if str(a.pk) == request.POST.get('to_account')), None) or hq_default
     if to_account is None:
         return form_page('Add an HQ SAR account in Bank Balances first.')
     # The transfer, its cash book row (the rupiah that left the branch account)

@@ -21,23 +21,12 @@ class InvoiceLineTriggerTest(TestCase):
         self.client_obj = make_client('PT Pemilik')
         self.other = make_client('PT Lain')
         self.hotel_inv = make_invoice(client=self.client_obj)
-        self.svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='USD')
         self.cl = make_cl(client=self.client_obj, check_in=date(2026, 3, 1), check_out=date(2026, 3, 3))
 
     def _refused(self, fn, text):
         with self.assertRaises(DatabaseError) as ctx, transaction.atomic():
             fn()
         self.assertIn(text, str(ctx.exception))
-
-    def test_service_line_on_a_hotel_invoice_is_refused(self):
-        self._refused(lambda: InvoiceLine.objects.create(
-            invoice=self.hotel_inv, line_no=1, kind='service', description='Visa', quantity=1, unit_price=10,
-        ), 'baris service tidak boleh di invoice hotel')
-
-    def test_hotel_line_on_a_services_invoice_is_refused(self):
-        self._refused(lambda: InvoiceLine.objects.create(
-            invoice=self.svc_inv, line_no=1, kind='hotel', confirmation_letter=self.cl,
-        ), 'hanya boleh di invoice hotel')
 
     def test_reservation_of_another_client_is_refused(self):
         foreign = make_cl(client=self.other, check_in=date(2026, 3, 1), check_out=date(2026, 3, 3))
@@ -74,4 +63,4 @@ class InvoiceLineTriggerTest(TestCase):
             )
             self.assertEqual(cur.fetchone(), (True,))
         with self.assertRaises(IntegrityError), transaction.atomic():
-            make_invoice(client=self.client_obj, invoice_type='visa', currency='EUR')
+            make_invoice(client=self.client_obj, currency='EUR')

@@ -138,16 +138,6 @@ class ForeignReservationIsRefusedTest(PaymentHygieneBase):
         self.assertEqual(payment.allocations.first().reservation_id, self.res.pk)
 
 
-class FinanceHubKpiTest(PaymentHygieneBase):
-    def test_pending_review_counts_every_pending_payment_not_just_the_preview(self):
-        for i in range(9):
-            self._payment(number=f'PAY-HYG-P{i}', amount_sar=1000)
-
-        props = _props(self.client.get('/finance/'))
-        self.assertEqual(props['payments']['pending_review'], 9)
-        self.assertEqual(props['payments']['pending_review_total'], 9000)
-
-
 class PaymentExportFilterTest(PaymentHygieneBase):
     def test_export_honours_the_invoice_filter(self):
         self._payment(number='PAY-HYG-E1', amount_sar=1000)

@@ -4,6 +4,7 @@ from datetime import date, datetime
 import magic
 
 from django.http import HttpResponse
+from django.utils.http import content_disposition_header
 
 PROOF_MAX_SIZE = 10 * 1024 * 1024  # 10 MB, matches attachment_upload
 PROOF_ALLOWED_MIME = {
@@ -59,7 +60,9 @@ def _render_list_pdf(request, qs, template, filename, extra_ctx=None):
     html = render_to_string(template, ctx)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    # content_disposition_header menambah filename*=utf-8'' bila nama file
+    # bukan ASCII (mis. nama client Arab), yang tidak bisa ditulis apa adanya.
+    response['Content-Disposition'] = content_disposition_header(False, filename)
     return response
 
 
@@ -116,27 +119,44 @@ def period_label(date_from=None, date_to=None):
     return 'Semua transaksi'
 
 
-def money_account_choices(branch=None, branches=None):
-    """[{value, label, branch, currency}] for a receiving/paying-account
+def money_account_choices(branch=None, branches=None, *, staff=False, balances=False):
+    """[{value, label, branch, currency, kind}] for a receiving/paying-account
     picker — value is "cash:<id>" or "bank:<id>", parsed back by
     resolve_money_account(). Shared by payment_views and expense_views.
-    `branch` keeps one branch's accounts, `branches` those of several."""
+    `branch` keeps one branch's accounts, `branches` those of several.
+    Staff advances ("staff:<id>") only with `staff`; `balances` adds what
+    each account holds now, in its own currency, from the cash book."""
     from ..models.bank import MoneyAccount
     qs = MoneyAccount.objects.filter(is_active=True)
+    if not staff:
+        qs = qs.exclude(kind=MoneyAccount.KIND_STAFF)
     if branch:
         qs = qs.filter(branch_id=branch)
     if branches is not None:
         qs = qs.filter(branch_id__in=branches)
     # Kas dulu, lalu bank — urutan yang sama seperti sebelum digabung.
-    accounts = sorted(qs, key=lambda a: (a.kind != MoneyAccount.KIND_CASH, a.bank_name, a.name, a.pk))
-    return [
-        {'value': a.token, 'label': str(a), 'branch': a.branch_id, 'currency': a.currency}
-        for a in accounts
-    ]
+    order = {MoneyAccount.KIND_CASH: 0, MoneyAccount.KIND_BANK: 1, MoneyAccount.KIND_STAFF: 2}
+    accounts = sorted(qs.select_related('holder', 'branch'), key=lambda a: (order[a.kind], a.bank_name, a.name, a.pk))
+    held = {}
+    if balances:
+        from ..finance.staff_advance import balances as cash_book
+        held = cash_book(accounts)
+    rows = []
+    for a in accounts:
+        row = {'value': a.token, 'label': str(a), 'branch': a.branch_id, 'branch_name': a.branch.name,
+               'currency': a.currency, 'kind': a.kind}
+        if a.kind == MoneyAccount.KIND_BANK:
+            row['number'] = a.account_identifier
+        if a.kind == MoneyAccount.KIND_STAFF:
+            row['holder'] = a.holder_id
+        if balances:
+            row['balance'] = held.get(a.pk, 0)
+        rows.append(row)
+    return rows
 
 
-def resolve_money_account(value):
-    """"cash:<id>" / "bank:<id>" -> MoneyAccount, or None.
+def resolve_money_account(value, *, staff=False):
+    """"cash:<id>" / "bank:<id>" (and "staff:<id>" with `staff`) -> MoneyAccount, or None.
 
     Only active accounts resolve — the same set money_account_choices offers,
     so a hand-crafted value can't book money into a deactivated account.
@@ -145,19 +165,20 @@ def resolve_money_account(value):
     if not value or ':' not in value:
         return None
     kind, _, pk = value.partition(':')
-    if not pk.isdigit() or kind not in (MoneyAccount.KIND_BANK, MoneyAccount.KIND_CASH):
+    kinds = (MoneyAccount.KIND_BANK, MoneyAccount.KIND_CASH) + ((MoneyAccount.KIND_STAFF,) if staff else ())
+    if not pk.isdigit() or kind not in kinds:
         return None
     return MoneyAccount.objects.filter(pk=pk, kind=kind, is_active=True).first()
 
 
 def _client_options(user):
-    """Active clients of the user's branches as [{id, name}] options for form
-    dropdowns."""
+    """Active clients of the user's branches as [{id, name, city}] options
+    for form dropdowns."""
     from ..branch_scope import scope
     from ..models import Client
     return list(
         scope(Client.objects.filter(is_active=True), user)
-        .order_by('name').values('id', 'name')
+        .order_by('name').values('id', 'name', 'city')
     )
 
 
@@ -319,3 +340,71 @@ def request_data(request):
             return {}
         return data if isinstance(data, dict) else {}
     return request.POST
+
+
+def list_period(request, field_from=None, field_to=None):
+    """The period a list page shows, from ?month=YYYY-MM | ?year=YYYY|all.
+
+    Defaults to the current month. A filter range (?from=&to=) wins over the
+    month ("Used instead of the month above" on the list pages). Returns
+    (date_from, date_to, props) where props echo the state for MonthNav;
+    date_from/date_to None mean unbounded."""
+    import calendar
+    from datetime import date as _date
+    g = request.GET
+    rng_from, rng_to = _parse_date(g.get('from', '')), _parse_date(g.get('to', ''))
+    month, year = g.get('month', ''), g.get('year', '')
+    today = _date.today()
+    props = {'month': '', 'year': '', 'from': g.get('from', ''), 'to': g.get('to', '')}
+    if rng_from or rng_to:
+        props['year'] = 'all'
+        return rng_from, rng_to, props
+    if year == 'all':
+        props['year'] = 'all'
+        return None, None, props
+    if year.isdigit() and len(year) == 4 and not month:
+        y = int(year)
+        props['year'] = year
+        return _date(y, 1, 1), _date(y, 12, 31), props
+    try:
+        y, m = (int(x) for x in month.split('-'))
+        first = _date(y, m, 1)
+    except (ValueError, TypeError):
+        first = today.replace(day=1)
+    last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
+    props['month'] = first.strftime('%Y-%m')
+    return first, last, props
+
+
+def list_per_page(request, default=10):
+    try:
+        n = int(request.GET.get('per', default))
+    except (TypeError, ValueError):
+        n = default
+    return n if n in (10, 25, 50) else default
+
+
+def csv_list(request, key, allowed=None):
+    """?key=a,b → ['a', 'b'] (only allowed values when given)."""
+    vals = [v for v in request.GET.get(key, '').split(',') if v]
+    return [v for v in vals if v in allowed] if allowed is not None else vals
+
+
+def prev_month_range(date_from):
+    """First and last day of the month before date_from's month."""
+    import calendar
+    first = (date_from.replace(day=1) - __import__('datetime').timedelta(days=1)).replace(day=1)
+    return first, first.replace(day=calendar.monthrange(first.year, first.month)[1])
+
+
+def pct_delta(cur, prev):
+    """'+12%' / '-5%' / None when there is no base."""
+    if not prev:
+        return None
+    d = round((cur - prev) * 100 / prev)
+    return f"{'+' if d >= 0 else ''}{d}%"
+
+
+def num_delta(cur, prev):
+    d = cur - prev
+    return f"{'+' if d >= 0 else ''}{d}"

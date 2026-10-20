@@ -7,6 +7,6 @@ class SharedCacheBackendTest(TestCase):
         backend = settings.CACHES['default']['BACKEND']
         self.assertEqual(
             backend, 'django.core.cache.backends.db.DatabaseCache',
-            "message_templates/last_recap cache must use a cache shared "
+            "The app cache must be shared "
             "across gunicorn workers, not per-process LocMemCache."
         )

@@ -1,397 +1,252 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="id" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Masuk — Konoz United</title>
+  <title>Sign in — Konoz United</title>
   <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Homlu v2.1 — login surface rebuilt to Claude Design doc 01 (1g).
-       Two bidang: an always-ink narrative panel on the left carrying a
-       breathing 3D lattice, and the form panel (400) on the right. Neutral
-       monochrome tokens, matched to frontend/styles/tailwind.css. */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    /* Login, built to the "Login" artboard on the Record View HMS canvas.
+       An ink narrative panel on the left (the inverse of the theme) with a
+       still lattice, and the form panel on the right. Tokens are copied from
+       frontend/styles/tailwind.css, since this page is served without Vite. */
+    *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     :root,
     [data-theme="light"] {
       --background: oklch(0.972 0.003 250);
       --foreground: oklch(0.205 0.012 260);
-      --card:       oklch(1 0 0);
-      --primary:    oklch(0.205 0.012 260);
+      --card: oklch(1 0 0);
+      --primary: oklch(0.205 0.012 260);
       --primary-foreground: oklch(1 0 0);
       --primary-hover: oklch(0.30 0.012 260);
-      --muted:      oklch(0.985 0.001 250);
+      --secondary: oklch(0.958 0.004 250);
       --muted-foreground: oklch(0.52 0.012 258);
-      --label:      oklch(0.44 0.012 258);
-      --input:      oklch(0.878 0.006 250);
-      --border:     oklch(0.912 0.005 250);
-      --hairline:   oklch(0.944 0.004 250);
-      --ring:       oklch(0.205 0.012 260);
-      --focus:      oklch(0.72 0.15 85);
-      --destructive: oklch(0.58 0.21 25);
-      /* Form panel follows the theme; the narrative panel is its inverse. */
-      --form-bg:   oklch(1 0 0);
-      --aside-bg:  oklch(0.205 0.012 260);
-      --aside-fg:  oklch(1 0 0);
-      --aside-sub: oklch(0.84 0 0);
-      --lat-line:  oklch(1 0 0 / .18);
-      --lat-dot:   oklch(1 0 0 / .42);
-      --shadow-card: 0 1px 2px rgba(0,0,0,.04), 0 12px 32px -12px rgba(0,0,0,.14), 0 40px 80px -40px rgba(0,0,0,.20);
+      --input: oklch(0.878 0.006 250);
+      --border: oklch(0.912 0.005 250);
+      --hairline: oklch(0.944 0.004 250);
+      --ring: oklch(0.72 0.15 85);
+      --success: oklch(0.62 0.16 152);
+      --success-text: oklch(0.46 0.13 152);
+      --success-tint: oklch(0.965 0.03 152);
+      --danger: oklch(0.58 0.21 25);
+      --danger-text: oklch(0.50 0.19 25);
+      --danger-tint: oklch(0.965 0.03 25);
+      --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     [data-theme="dark"] {
-      --background: oklch(0.125 0 0);
+      --background: oklch(0.145 0 0);
       --foreground: oklch(0.985 0 0);
-      --card:       oklch(0.18 0 0);
-      --primary:    oklch(0.985 0 0);
-      --primary-foreground: oklch(0.17 0 0);
+      --card: oklch(0.18 0 0);
+      --primary: oklch(0.985 0 0);
+      --primary-foreground: oklch(0.145 0 0);
       --primary-hover: oklch(0.90 0 0);
-      --muted:      oklch(0.21 0 0);
-      --muted-foreground: oklch(0.62 0 0);
-      --label:      oklch(0.66 0 0);
-      --input:      oklch(0.32 0 0);
-      --border:     oklch(0.26 0 0);
-      --hairline:   oklch(0.24 0 0);
-      --ring:       oklch(0.985 0 0);
-      --focus:      oklch(0.72 0.15 85);
-      --destructive: oklch(0.66 0.19 25);
-      /* Right panel goes true black; left panel flips to white, lattice inks. */
-      --form-bg:   oklch(0.03 0 0);
-      --aside-bg:  oklch(0.97 0 0);
-      --aside-fg:  oklch(0.19 0 0);
-      --aside-sub: oklch(0.40 0 0);
-      --lat-line:  oklch(0 0 0 / .16);
-      --lat-dot:   oklch(0 0 0 / .40);
-      --shadow-card: 0 1px 0 rgba(255,255,255,.04) inset, 0 12px 32px -14px rgba(0,0,0,.6), 0 44px 90px -46px rgba(0,0,0,.85);
+      --secondary: oklch(0.24 0 0);
+      --muted-foreground: oklch(0.66 0 0);
+      --input: oklch(0.32 0 0);
+      --border: oklch(0.26 0 0);
+      --hairline: oklch(0.22 0 0);
+      --success-text: oklch(0.72 0.15 152);
+      --success-tint: oklch(0.24 0.045 152);
+      --danger-text: oklch(0.70 0.17 25);
+      --danger-tint: oklch(0.24 0.045 25);
     }
 
-    html, body {
-      height: 100%;
-      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-      background: var(--background);
-      color: var(--foreground);
-      overflow-x: hidden;
-      overscroll-behavior: none;
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; min-height: 100dvh;
+      background: var(--background); color: var(--foreground);
+      font-family: var(--font-sans); font-size: 14px; line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }
-    body { min-height: 100vh; min-height: 100dvh; }
-    input, button { font-family: inherit; touch-action: manipulation; }
 
-    /* ── Full-page split ─────────────────────────────────────────────── */
-    .login-card {
-      width: 100%;
-      min-height: 100vh; min-height: 100dvh;
-      display: grid;
-      grid-template-columns: 1fr clamp(440px, 40vw, 560px);
-      background: var(--form-bg);
-    }
+    .page { display: grid; grid-template-columns: minmax(0, 1fr) clamp(440px, 40vw, 560px); min-height: 100vh; min-height: 100dvh; }
 
-    /* ── Left: narrative + lattice — the inverse of the active theme ──── */
-    .login-aside {
-      position: relative;
-      background: var(--aside-bg);
-      border-right: 1px solid var(--border);
-      overflow: hidden;
-      color: var(--aside-fg);
-    }
-    .aside-stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; }
-    .lat {
-      position: absolute; inset: -30%;
-      display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr;
-      transform-style: preserve-3d;
-    }
+    /* Left: narrative panel, the inverse of the active theme. */
+    .aside { position: relative; overflow: hidden; background: var(--foreground); color: var(--background); }
+    /* Breathing lattice: two tilted planes of squares turning slowly; front
+       cells rise and fall on staggered timers (cells are built by the script). */
+    .stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; --lat-line: color-mix(in oklch, var(--background) 18%, transparent); --lat-dot: color-mix(in oklch, var(--background) 42%, transparent); }
+    .lat { position: absolute; inset: -30%; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; transform-style: preserve-3d; }
     .lc { position: relative; }
-    .lq  { position: absolute; inset: 14%; border: 1px solid var(--lat-line); }
-    .lq2 { position: absolute; inset: 14%; border: 1px solid var(--lat-line); transform: rotate(45deg); }
-    .ld  { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 999px; background: var(--lat-dot); }
+    .lq, .lq2 { position: absolute; inset: 14%; border: 1px solid var(--lat-line); }
+    .lq2 { transform: rotate(45deg); }
+    .ld { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 999px; background: var(--lat-dot); }
     .plane { position: absolute; inset: 0; transform-style: preserve-3d; animation: latSpin 92s linear infinite; }
     .planeB { animation: latSpinB 140s linear infinite; opacity: .24; }
     @keyframes latSpin  { 0% { transform: rotateX(58deg) rotateZ(0deg) scale(1.02); } 100% { transform: rotateX(58deg) rotateZ(360deg) scale(1.02); } }
     @keyframes latSpinB { 0% { transform: rotateX(58deg) rotateZ(360deg) scale(1.5); } 100% { transform: rotateX(58deg) rotateZ(0deg) scale(1.5); } }
     @keyframes latRise  { 0%, 100% { transform: translateZ(0px); } 50% { transform: translateZ(46px); } }
+    .brand { position: absolute; left: 40px; top: 36px; }
+    .brand img { height: 148px; width: auto; display: block; }
+    .copy { position: absolute; left: 40px; right: 40px; bottom: 40px; }
+    .copy h2 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.24; }
+    .copy p { margin: 10px 0 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: color-mix(in oklch, var(--background) 72%, var(--foreground)); }
+    /* logo-w = white lockup (dark panel, light theme); logo-k = black lockup. */
+    .brand .logo-k, .mlogo .logo-w { display: none; }
+    [data-theme="dark"] .brand .logo-w, [data-theme="dark"] .mlogo .logo-k { display: none; }
+    [data-theme="dark"] .brand .logo-k, [data-theme="dark"] .mlogo .logo-w { display: block; }
 
-    .aside-brand {
-      position: absolute; left: 36px; top: 30px;
-      display: flex; align-items: center;
-      pointer-events: none; z-index: 1;
-    }
-    .aside-logo { display: flex; }
-    .aside-logo img { height: 132px; width: auto; display: block; }
-    /* logo-w = white lockup (for the dark aside → light theme);
-       logo-k = black lockup (for the white aside → dark theme). */
-    .aside-logo .logo-k { display: none; }
-    [data-theme="dark"] .aside-logo .logo-w { display: none; }
-    [data-theme="dark"] .aside-logo .logo-k { display: block; }
-    @media (min-width: 1100px) { .aside-logo img { height: 164px; } }
-    .aside-copy {
-      position: absolute; left: 36px; right: 36px; bottom: 38px;
-      pointer-events: none; z-index: 1;
-    }
-    .aside-copy h2 { font-size: 25px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.24; }
-    .aside-copy p { margin-top: 10px; font-size: 12.5px; line-height: 1.7; color: var(--aside-sub); max-width: 400px; }
+    /* Right: form. */
+    .main { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 48px 44px; background: var(--card); border-left: 1px solid var(--border); }
+    .inner { width: 100%; max-width: 384px; }
+    .mlogo { display: none; }
+    .mlogo img { height: 88px; width: auto; display: block; }
+    h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+    .sub { margin: 6px 0 0; text-wrap: pretty; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
 
-    /* ── Right: form ─────────────────────────────────────────────────── */
-    .login-main { padding: 40px 34px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--form-bg); }
-    .login-inner { width: 100%; max-width: 384px; }
-    @media (min-width: 520px) { .login-main { padding: 48px 44px; } }
+    .alert { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; padding: 12px 14px; border: 1px solid; border-radius: 14px; font-size: 12.5px; line-height: 1.55; }
+    .alert svg { flex: none; margin-top: 2px; }
+    .alert b { display: block; font-size: 13px; font-weight: 600; }
+    .alert span { color: var(--foreground); }
+    .alert.danger { background: var(--danger-tint); border-color: color-mix(in oklch, var(--danger) 34%, transparent); color: var(--danger-text); }
+    .alert.success { background: var(--success-tint); border-color: color-mix(in oklch, var(--success) 34%, transparent); color: var(--success-text); }
 
-    .login-heading { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; line-height: 1.2; }
-    .login-sub { margin-top: 5px; font-size: 12.5px; line-height: 1.6; color: var(--muted-foreground); }
+    .fields { display: flex; flex-direction: column; gap: 14px; margin-top: 22px; }
+    .of { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .ol { font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); }
+    .rq { margin-left: 2px; color: var(--danger-text); }
+    .oi { display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 6px 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); width: 100%; cursor: text; transition: border-color 120ms ease, box-shadow 120ms ease; }
+    .oi:hover { border-color: color-mix(in oklch, var(--foreground) 45%, var(--input)); }
+    .oi:focus-within { border-color: var(--foreground); outline: 2px solid var(--ring); outline-offset: 2px; }
+    .oi.bad { border-color: var(--danger); }
+    .oi.bad:focus-within { border-color: var(--danger); outline-color: var(--danger); }
+    .oi > svg { flex: none; color: var(--muted-foreground); }
+    .oi input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; font: 600 14px var(--font-sans); color: var(--foreground); outline: none; }
+    .oi input::placeholder { color: var(--muted-foreground); font-weight: 400; }
+    .oi input:read-only { color: var(--muted-foreground); }
+    .eye { width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); cursor: pointer; display: grid; place-content: center; }
+    .eye:hover { background: var(--secondary); color: var(--foreground); }
+    .eye .off, .eye[aria-pressed="true"] .on { display: none; }
+    .eye[aria-pressed="true"] .off { display: block; }
+    .err { font-size: 12px; color: var(--danger-text); }
+    .err[hidden] { display: none; }
 
-    .login-error {
-      display: flex; align-items: flex-start; gap: 9px;
-      margin-top: 16px; padding: 12px 14px;
-      background: oklch(0.58 0.21 25 / .06);
-      border: 1px solid oklch(0.58 0.21 25 / .34);
-      border-radius: 14px;
-    }
-    .login-error svg { flex: none; margin-top: 2px; color: var(--destructive); }
-    .login-error b { display: block; font-size: 12.5px; font-weight: 600; color: var(--destructive); }
-    .login-error span { display: block; margin-top: 2px; font-size: 11.5px; line-height: 1.55; color: var(--muted-foreground); }
+    .row { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+    .ck { display: inline-flex; align-items: center; gap: 9px; min-height: 32px; font-size: 13px; font-weight: 500; cursor: pointer; }
+    .ck input { appearance: none; margin: 0; width: 18px; height: 18px; border: 2px solid var(--input); border-radius: 5px; display: grid; place-content: center; cursor: pointer; background: var(--card); }
+    .ck input:checked { background: var(--primary); border-color: var(--primary); }
+    .ck input:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--primary-foreground); border-bottom: 2px solid var(--primary-foreground); transform: rotate(-45deg) translate(1px, -1px); }
+    .forgot { display: inline-flex; align-items: center; min-height: 32px; font-size: 13px; font-weight: 600; color: var(--foreground); text-decoration: none; }
+    .forgot:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-    .login-fields { margin-top: 22px; display: flex; flex-direction: column; gap: 14px; }
-    .lf { display: flex; flex-direction: column; gap: 7px; }
-    .lf label { font-size: 12px; font-weight: 500; color: var(--label); }
-    .lf-input { position: relative; display: flex; align-items: center; }
-    .lf-input input {
-      height: 46px; width: 100%;
-      background: var(--card);
-      border: 1px solid var(--input);
-      border-radius: 14px;
-      color: var(--foreground);
-      font-size: 16px; font-weight: 500;
-      padding: 0 15px;
-      outline: none;
-      transition: border-color .14s;
-    }
-    .lf-input.has-toggle input { padding-right: 46px; }
-    .lf-input input::placeholder { color: var(--muted-foreground); font-weight: 400; }
-    .lf-input input:focus {
-      border-color: var(--ring);
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
-    }
-    .lf-toggle {
-      position: absolute; right: 6px;
-      width: 34px; height: 34px;
-      display: flex; align-items: center; justify-content: center;
-      background: none; border: none; cursor: pointer;
-      color: var(--muted-foreground);
-      border-radius: 10px;
-      transition: color .14s, transform .1s;
-    }
-    .lf-toggle:hover { color: var(--foreground); }
-    .lf-toggle:active { transform: scale(.9); }
-    .lf-toggle svg:last-child { display: none; }
-    .lf-toggle.on svg:first-child { display: none; }
-    .lf-toggle.on svg:last-child { display: block; }
-
-    .login-row {
-      margin-top: 14px;
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    }
-    .lf-check { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 12.5px; font-weight: 500; }
-    .lf-check input { position: absolute; opacity: 0; width: 0; height: 0; }
-    .lf-check .box {
-      width: 18px; height: 18px; flex: none;
-      border-radius: 6px; border: 1.5px solid var(--ring);
-      display: flex; align-items: center; justify-content: center;
-      color: transparent;
-      transition: background .12s, color .12s;
-    }
-    .lf-check input:checked + .box { background: var(--ring); color: var(--primary-foreground); }
-    .lf-check input:focus-visible + .box { outline: 2px solid var(--focus); outline-offset: 2px; }
-    .login-forgot { font-size: 12.5px; font-weight: 600; color: var(--label); cursor: pointer; background: none; border: none; text-decoration: none; }
-    .login-forgot:hover { color: var(--foreground); }
-
-    .login-btn {
-      width: 100%; height: 46px; margin-top: 18px;
-      background: var(--primary); color: var(--primary-foreground);
-      border: 1px solid var(--primary); border-radius: 999px;
-      font-size: 13px; font-weight: 600; letter-spacing: .1px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 9px;
-      transition: background .14s, border-color .14s, opacity .14s, transform .1s;
-    }
-    .login-btn:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
-    .login-btn:active { transform: scale(.98); }
-    .login-btn:disabled { opacity: .6; cursor: not-allowed; }
-    .login-spinner {
-      display: none; width: 14px; height: 14px;
-      border: 2px solid color-mix(in oklab, var(--primary-foreground) 40%, transparent);
-      border-top-color: var(--primary-foreground); border-radius: 50%;
-      animation: spin .65s linear infinite; flex: none;
-    }
+    .go { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; height: 44px; margin-top: 20px; border: 0; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font: 600 14px var(--font-sans); cursor: pointer; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18); transition: background-color 120ms ease, transform 120ms ease; }
+    .go:hover { background: var(--primary-hover); }
+    .go:active { transform: scale(.98); }
+    .go[aria-disabled="true"] { background: var(--primary-hover); cursor: progress; }
+    .spin { display: none; width: 16px; height: 16px; flex: none; border: 2px solid color-mix(in oklch, var(--primary-foreground) 30%, transparent); border-top-color: var(--primary-foreground); border-radius: 50%; animation: spin 700ms linear infinite; }
+    .go[aria-disabled="true"] .spin { display: block; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .login-btn.loading .login-spinner { display: block; }
 
-    .login-foot {
-      margin-top: 18px; padding-top: 18px;
-      border-top: 1px solid var(--hairline);
-      font-size: 11.5px; line-height: 1.6; color: var(--muted-foreground);
-    }
+    .foot { margin: 22px 0 0; text-wrap: pretty; padding-top: 16px; border-top: 1px solid var(--hairline); font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
 
-    /* ── Theme toggle ────────────────────────────────────────────────── */
-    .theme-btn {
-      position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 16px; z-index: 10;
-      width: 38px; height: 38px; border-radius: 50%;
-      background: var(--card); border: 1px solid var(--border);
-      color: var(--muted-foreground); cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .14s, color .14s, transform .1s;
-    }
-    .theme-btn:hover { color: var(--foreground); }
-    .theme-btn:active { transform: scale(.9); }
-    .theme-btn svg:last-child { display: none; }
-    [data-theme="light"] .theme-btn svg:first-child { display: none; }
-    [data-theme="light"] .theme-btn svg:last-child { display: block; }
+    button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+    .oi input:focus, .oi input:focus-visible { outline: none; }
+    .eye:focus-visible { outline-offset: 0; }
 
-    /* ── Autofill ────────────────────────────────────────────────────── */
-    input:-webkit-autofill,
-    input:-webkit-autofill:hover,
-    input:-webkit-autofill:focus {
+    input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
       -webkit-box-shadow: 0 0 0 100px var(--card) inset !important;
       -webkit-text-fill-color: var(--foreground) !important;
       caret-color: var(--foreground);
       transition: background-color 5000s ease-in-out 0s;
     }
 
-    /* ── Toast ───────────────────────────────────────────────────────── */
-    .toast-container { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); left: 50%; transform: translateX(-50%); z-index: 999; width: max-content; max-width: calc(100vw - 32px); }
-    .toast-success {
-      display: flex; align-items: center; justify-content: center;
-      background: var(--card); border: 1px solid var(--border);
-      padding: 11px 18px; border-radius: 999px;
-      font-size: 13px; font-weight: 600; color: var(--foreground);
-      box-shadow: 0 8px 30px -12px rgba(0,0,0,.35);
-      white-space: nowrap;
-      animation: toast-in .25s cubic-bezier(.16,1,.3,1) both;
+    @media (max-width: 760px) {
+      .page { grid-template-columns: 1fr; }
+      .aside { display: none; }
+      .main { justify-content: flex-start; padding: 40px 16px; border-left: 0; }
+      .mlogo { display: block; margin-bottom: 28px; }
     }
-    @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
-
-    /* ── Responsive: drop the narrative pane ─────────────────────────── */
-    @media (max-width: 860px) {
-      .login-card { grid-template-columns: 1fr; }
-      .login-aside { display: none; }
-    }
-    @media (max-width: 460px) {
-      .login-main { padding: 32px 22px; }
-      .login-btn { height: 50px; }
-      .login-row { display: none; }        /* mobile: personal device, no "remember" */
-    }
-
     @media (prefers-reduced-motion: reduce) {
+      .spin { animation-duration: 2s; }
       .plane, .planeB, .lc { animation: none !important; }
-      .login-error, .toast-success { animation: none !important; }
     }
   </style>
 </head>
 <body>
+  <div class="page">
+    <aside class="aside">
+      <div class="stage" id="stage" aria-hidden="true"></div>
+      <div class="brand">
+        <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
+        <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
+      </div>
+      <div class="copy">
+        <h2>Internal management system</h2>
+        <p>The Konoz Surabaya team's workspace for pilgrim accommodation.</p>
+      </div>
+    </aside>
 
-  <button class="theme-btn" onclick="toggleTheme()" title="Ganti tema" aria-label="Ganti tema">
-    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-  </button>
-
-  <div class="login-card">
-
-    <!-- Bidang naratif -->
-    <div class="login-aside">
-      <div class="aside-stage" id="stage" aria-hidden="true"></div>
-      <div class="aside-brand">
-        <span class="aside-logo">
+    <main class="main">
+      <div class="inner">
+        <div class="mlogo">
           <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
           <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
-        </span>
-      </div>
-      <div class="aside-copy">
-        <h2>Sistem manajemen internal</h2>
-        <p>Dipakai tim Surabaya dan Madinah untuk mengurus akomodasi jamaah dari pemesanan sampai setoran ke pusat.</p>
-      </div>
-    </div>
-
-    <!-- Bidang formulir -->
-    <div class="login-main">
-      <div class="login-inner">
-        <div class="login-heading">Masuk</div>
-        <div class="login-sub">Pakai akun yang diberikan admin. Tidak ada pendaftaran sendiri.</div>
+        </div>
+        <h1>Sign in</h1>
+        <p class="sub">Use the account your admin gave you.<br>There is no self sign up.</p>
 
         {% if request.GET.locked %}
-        <div class="login-error">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-          <div>
-            <b>Akun terkunci sementara</b>
-            <span>Terlalu banyak percobaan gagal. Coba lagi dalam lima belas menit atau hubungi admin.</span>
-          </div>
+        <div class="alert danger" role="alert">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path stroke-linecap="round" d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>
+          <div><b>Account locked for 1 hour</b><span>Too many failed attempts. Try again after 1 hour, or ask the admin on WhatsApp to unlock it now.</span></div>
         </div>
         {% elif form.errors %}
-        <div class="login-error">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v6M12 16v.5"/></svg>
-          <div>
-            <b>Nama pengguna atau sandi salah</b>
-            <span>Periksa huruf besar-kecil lalu coba lagi. Akun terkunci sementara setelah beberapa percobaan gagal.</span>
-          </div>
+        <div class="alert danger" role="alert">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7.5v5.5M12 16.5v.01"/></svg>
+          <div><b>Wrong username or password</b><span>Check upper and lower case, then try again.{% if attempts_left is not None %} {{ attempts_left }} attempt{{ attempts_left|pluralize }} left before the account locks for 1 hour.{% endif %}</span></div>
+        </div>
+        {% elif request.GET.logged_out %}
+        <div class="alert success" role="status">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12.5l2.8 2.8L16 10"/></svg>
+          <div><b>You have signed out</b><span>Sign in again to continue.</span></div>
         </div>
         {% endif %}
 
-        <form method="post" id="login-form">
+        <form class="fields" method="post" id="login-form" novalidate>
           {% csrf_token %}
-          <input type="hidden" name="company" value="konoz">
-
-          <div class="login-fields">
-            <div class="lf">
-              <label for="id_username">Nama pengguna</label>
-              <div class="lf-input">
-                <input type="text" id="id_username" name="username" autofocus
-                  autocomplete="username" placeholder="nama pengguna">
-              </div>
-            </div>
-            <div class="lf">
-              <label for="id_password">Kata sandi</label>
-              <div class="lf-input has-toggle">
-                <input type="password" id="id_password" name="password"
-                  autocomplete="current-password" placeholder="kata sandi">
-                <button type="button" class="lf-toggle" onclick="togglePassword(this)" title="Tampilkan / sembunyikan sandi" aria-label="Tampilkan atau sembunyikan sandi">
-                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6zM12 15a3 3 0 100-6 3 3 0 000 6"/></svg>
-                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.94 17.94A10.94 10.94 0 0112 19c-7 0-11-7-11-7a21.62 21.62 0 015.06-6.06M9.9 4.24A10.94 10.94 0 0112 4c7 0 11 7 11 7a21.6 21.6 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
-                </button>
-              </div>
-            </div>
+          <label class="of">
+            <span class="ol">Username<span class="rq">*</span></span>
+            <span class="oi{% if form.errors %} bad{% endif %}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+              <input id="id_username" name="username" autocomplete="username" placeholder="Your username" required
+                value="{{ form.username.value|default_if_none:'' }}" {% if not form.username.value %}autofocus{% endif %}>
+            </span>
+            <span class="err" id="user-err" hidden>Enter your username.</span>
+          </label>
+          <label class="of">
+            <span class="ol">Password<span class="rq">*</span></span>
+            <span class="oi{% if form.errors %} bad{% endif %}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path stroke-linecap="round" d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>
+              <input id="id_password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required
+                {% if form.username.value %}autofocus{% endif %}>
+              <button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false">
+                <svg class="on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="off" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.1A10 10 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-2.6 3.4M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 005.4-1.6M9.9 9.9a3 3 0 004.2 4.2"/></svg>
+              </button>
+            </span>
+            <span class="err" id="pass-err" hidden>Enter your password.</span>
+          </label>
+          <div class="row">
+            <label class="ck"><input type="checkbox" name="remember" value="1"{% if request.POST.remember %} checked{% endif %}>Remember this device</label>
+            <a class="forgot" href="https://wa.me/?text=Hello%20admin%2C%20I%20forgot%20my%20HMS%20password" target="_blank" rel="noopener">Forgot password</a>
           </div>
-
-          <div class="login-row">
-            <label class="lf-check">
-              <input type="checkbox" name="remember" value="1">
-              <span class="box"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12l5 5L19 7"/></svg></span>
-              <span>Ingat perangkat ini</span>
-            </label>
-            <a class="login-forgot" href="https://wa.me/?text=Halo%20admin%2C%20saya%20lupa%20kata%20sandi%20HMS" target="_blank" rel="noopener">Lupa sandi</a>
-          </div>
-
-          <button type="submit" class="login-btn" id="login-btn">
-            <span class="login-spinner"></span>
-            <span class="login-btn-text">Masuk</span>
-          </button>
+          <button type="submit" class="go" id="go" aria-disabled="false"><span class="spin" aria-hidden="true"></span><span id="go-label">Sign in</span></button>
         </form>
 
-        <div class="login-foot">Lupa sandi ditangani admin lewat WhatsApp, bukan surel, karena tidak semua staf punya surel kantor.</div>
+        <p class="foot">Forgotten passwords are reset by the admin over WhatsApp, not email, since not every staff member has an office email.</p>
       </div>
-    </div>
-
+    </main>
   </div>
 
   <script>
-    /* Build the breathing lattice: a back plane and a front plane, each a
-       7×7 grid of stacked squares; front cells rise on the Z axis with
-       staggered timing (doc 01, 1g). */
     (function () {
       var stage = document.getElementById('stage');
-      if (!stage) return;
       var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
       function cell(front, i) {
         var lc = document.createElement('div');
         lc.className = 'lc';
@@ -416,42 +271,45 @@
       stage.appendChild(plane(true, ''));
     })();
 
-    function togglePassword(btn) {
-      var input = document.getElementById('id_password');
-      var show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      btn.classList.toggle('on', show);
-    }
+    (function () {
+      var form =document.getElementById('login-form');
+      var user = document.getElementById('id_username');
+      var pass = document.getElementById('id_password');
+      var eye = document.getElementById('eye');
+      var go = document.getElementById('go');
 
-    document.getElementById('login-form').addEventListener('submit', function () {
-      var btn = document.getElementById('login-btn');
-      btn.classList.add('loading');
-      btn.disabled = true;
-      document.getElementById('id_username').readOnly = true;
-      document.getElementById('id_password').readOnly = true;
-      btn.querySelector('.login-btn-text').textContent = 'Memeriksa';
-    });
+      eye.addEventListener('click', function () {
+        var show = pass.type === 'password';
+        pass.type = show ? 'text' : 'password';
+        eye.setAttribute('aria-pressed', String(show));
+        eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      });
 
-    function toggleTheme() {
-      var html = document.documentElement;
-      var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-      localStorage.setItem('theme', next);
-    }
+      function mark(input, errId, bad) {
+        document.getElementById(errId).hidden = !bad;
+        input.closest('.oi').classList.toggle('bad', bad);
+        input.setAttribute('aria-invalid', String(bad));
+      }
+
+      form.addEventListener('submit', function (e) {
+        if (go.getAttribute('aria-disabled') === 'true') { e.preventDefault(); return; }
+        var userBad = !user.value.trim();
+        var passBad = !pass.value;
+        mark(user, 'user-err', userBad);
+        mark(pass, 'pass-err', passBad);
+        if (userBad || passBad) {
+          e.preventDefault();
+          (userBad ? user : pass).focus();
+          return;
+        }
+        // readOnly, not disabled: disabled fields are left out of the POST.
+        user.readOnly = true;
+        pass.readOnly = true;
+        go.setAttribute('aria-disabled', 'true');
+        document.getElementById('go-label').textContent = 'Signing in...';
+      });
+    })();
+    {% if request.GET.logged_out %}history.replaceState(null, '', '/login/');{% endif %}
   </script>
-
-  {% if request.GET.logged_out %}
-  <div class="toast-container">
-    <div id="logout-toast" class="toast-success">Berhasil keluar</div>
-  </div>
-  <script>
-    history.replaceState(null, '', '/login/');
-    setTimeout(function () {
-      var t = document.getElementById('logout-toast');
-      if (t) { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(function () { t.remove(); }, 300); }
-    }, 3000);
-  </script>
-  {% endif %}
-
 </body>
 </html>

@@ -4,7 +4,7 @@ import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from ".
 import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
-const TYPE_LABEL = { CL: "Conf. Letter", INV: "Invoice Hotel", SVC: "Invoice Services" };
+const TYPE_LABEL = { CL: "Conf. Letter", INV: "Invoice Hotel" };
 
 // shadcn/cmdk rebuild of ../shell/SearchOverlay.jsx — same open/onClose props.
 // Command owns arrow-key navigation, highlight, and Enter-to-select natively,

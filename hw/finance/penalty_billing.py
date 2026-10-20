@@ -70,21 +70,24 @@ def unbill_penalty(penalty, *, user=None):
         post_invoice_charge(invoice, created_by=user, reason=InvoiceRevision.REASON_LINE_CHANGE)
 
 
-def reservation_balances(invoice):
+def reservation_balances(invoice, *, credited=None, paid_map=None):
     """{pk baris hotel: angka reservasi itu di invoice ini}.
 
     Satu reservasi = baris hotelnya + baris dendanya (bila ada). Uang yang
     diterima untuk reservasi itu menutup denda lebih dulu, baru nilai
-    hotelnya; `remaining` negatif berarti kelebihan bayar.
+    hotelnya; `remaining` negatif berarti kelebihan bayar. `credited` dan
+    `paid_map` boleh diisi pemanggil yang sudah menghitungnya massal
+    (credit_note_service._credited_by_lines, queries.reservation_paid_maps).
     """
     from .credit_note_service import _credited_by_line, _line_key
 
     lines = invoice.billed_lines()
     if invoice.is_void:
         credited = {_line_key(line): int(line.amount or 0) for line in lines}
-    else:
+    elif credited is None:
         credited = _credited_by_line(invoice)
-    paid_map = queries.reservation_paid_map(invoice.pk)
+    if paid_map is None:
+        paid_map = queries.reservation_paid_map(invoice.pk)
     penalty_by_cl = {
         line.penalty.cl_id: line for line in lines if line.kind == InvoiceLine.KIND_PENALTY
     }

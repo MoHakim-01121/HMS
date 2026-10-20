@@ -1,84 +1,32 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import axios from "axios";
 import { Link, router, usePage } from "@inertiajs/react";
 import { useTheme } from "./useTheme.js";
 import { Icon } from "../components/icons.jsx";
 import { getCsrf } from "../utils/csrf.js";
 import { useI18n } from "../utils/i18n.jsx";
 import SearchOverlay from "../components/shadcn/search-overlay.jsx";
+import ShellSidebar from "../components/shell/ShellSidebar.jsx";
+import TopbarSearch from "../components/shell/TopbarSearch.jsx";
+import { NAV_TOP, NAV_GROUPS, NavIcon, allowed } from "../components/shell/nav.jsx";
+import { usePresence } from "../components/shell/usePresence.js";
+import "../styles/shell.css";
 import DraftModal from "../components/shadcn/draft-modal.jsx";
 import Toast, { showToast } from "../components/shadcn/toast.jsx";
 import LanguageSwitcher from "../components/shell/LanguageSwitcher.jsx";
 import { FormModalProvider } from "../components/shadcn/form-modal.jsx";
 
 const NAV = {
-  home: "/",
+  home: "/dashboard/",
   cl: "/cl/",
   invoice: "/invoice/",
-  hotels: "/hotels/",
   calendar: "/calendar/",
-  services: "/services/",
-  clients: "/clients/",
-  remittance: "/remittance/",
-  users: "/users/",
-  roles: "/roles/",
   account: "/account/profile/",
   logout: "/logout/",
 };
 
-const NAV_GROUPS = [
-  {
-    heading: "Overview",
-    items: [{ key: "home", label: "Home", href: NAV.home, icon: "home" }],
-  },
-  {
-    heading: "Operations",
-    items: [
-      { key: "cl", label: "Conf Letter", href: NAV.cl, icon: "cl", perm: "cl" },
-      { key: "invoice", label: "Invoice", href: NAV.invoice, icon: "invoice", perm: "invoice" },
-      { key: "hotels", label: "Hotels", href: NAV.hotels, icon: "hotels", perm: "hotels" },
-      { key: "services", label: "Services", href: NAV.services, icon: "services", perm: "services" },
-      { key: "clients", label: "Clients", href: NAV.clients, icon: "clients", perm: "clients" },
-    ],
-  },
-  {
-    heading: "Finance",
-    items: [
-      { key: "finance_hub", label: "Dashboard", href: "/finance/", icon: "dashboard", perm: "payments" },
-      { key: "payments", label: "Payments", href: "/finance/payments/", icon: "remittance", perm: "payments", subheading: "Cash Flow" },
-      { key: "expenses", label: "Expenses", href: "/finance/expenses/", icon: "tag", perm: "expenses" },
-      { key: "remittance", label: "Remittance", href: NAV.remittance, icon: "arrow-up-right", perm: "remittance" },
-      { key: "exchanges", label: "Transfer & Exchange", href: "/finance/exchanges/", icon: "globe", perm: "payments" },
-      { key: "credit_notes", label: "Credit Notes", href: "/finance/credit-notes/", icon: "file-text", perm: "invoice" },
-      { key: "statements", label: "Client Ledger", href: "/finance/statements/", icon: "wallet", perm: "statements", subheading: "Accounts" },
-      { key: "bank_accounts", label: "Bank Balances", href: "/finance/bank-accounts/", icon: "building", perm: "statements" },
-      { key: "reconciliation", label: "Reconciliation", href: "/finance/reconciliation/", icon: "swap", perm: "statements" },
-      { key: "fund_flow", label: "Fund Flow", href: "/finance/fund-flow/", icon: "flow", perm: "statements", subheading: "Reports" },
-      { key: "ar_aging", label: "AR Aging", href: "/finance/ar-aging/", icon: "clock", perm: "statements" },
-      { key: "service_margin", label: "Service Margin", href: "/finance/service-margin/", icon: "tag", perm: "statements" },
-      { key: "penalties", label: "Penalties", href: "/finance/penalties/", icon: "alert-circle", perm: "penalty" },
-      { key: "journal", label: "Journal", href: "/finance/journal/", icon: "file-text", perm: "journal" },
-      { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", icon: "sort", perm: "journal" },
-      { key: "periods", label: "Periods", href: "/finance/periods/", icon: "clock", perm: "periods" },
-    ],
-  },
-  {
-    heading: "Schedule",
-    items: [
-      { key: "calendar", label: "Calendar", href: NAV.calendar, icon: "calendar", perm: "calendar" },
-    ],
-  },
-  {
-    heading: "Admin",
-    items: [
-      { key: "users", label: "Users", href: NAV.users, icon: "users", perm: "users" },
-      { key: "roles", label: "Role", href: NAV.roles, icon: "shield", perm: "users" },
-    ],
-  },
-];
-
 const PAGE_TITLES = {
   home: "Home",
-  finance_hub: "Finance Dashboard",
   cl: "CL",
   invoice: "Invoice",
   hotels: "Hotels",
@@ -90,19 +38,19 @@ const PAGE_TITLES = {
   expenses: "Expenses",
   periods: "Periods",
   statements: "Client Ledger",
-  bank_accounts: "Bank Balances",
-  exchanges: "Transfer & Exchange",
+  bank_accounts: "Bank and Cash",
+  exchanges: "Transfer and Exchange",
   credit_notes: "Credit Notes",
   fund_flow: "Fund Flow",
+  branch_report: "Branch report",
   ar_aging: "AR Aging",
-  service_margin: "Service Margin",
   reconciliation: "Reconciliation",
   penalties: "Penalties",
   journal: "Journal",
   trial_balance: "Trial Balance",
   users: "Users",
-  roles: "Role",
-  account: "Account Settings",
+  roles: "Roles",
+  account: "My Profile",
 };
 
 // Bottom nav: 5 core tabs — Home center, most-used operations flanking, More on right
@@ -117,15 +65,14 @@ const BNAV_TABS = [
 function pageKeyFromUrl(url) {
   if (url === "/" || url === "") return "home";
   const map = [
-    ["/hotels", "hotels"], ["/invoice", "invoice"], ["/services", "services"],
+    ["/hotels", "hotels"], ["/invoice", "invoice"],
     ["/calendar", "calendar"], ["/clients", "clients"],
     ["/remittance", "remittance"],
     ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "account"],
     ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
-    ["/finance/statements", "statements"], ["/finance/clients", "statements"], ["/finance/exchanges", "exchanges"], ["/finance/credit-notes", "credit_notes"], ["/finance/invoices", "invoice"], ["/finance/fund-flow", "fund_flow"], ["/finance/ar-aging", "ar_aging"], ["/finance/service-margin", "service_margin"], ["/finance/bank-accounts", "bank_accounts"],
+    ["/finance/statements", "statements"], ["/finance/clients", "statements"], ["/finance/exchanges", "exchanges"], ["/finance/credit-notes", "credit_notes"], ["/finance/invoices", "invoice"], ["/finance/fund-flow", "fund_flow"], ["/finance/branch-report", "branch_report"], ["/finance/ar-aging", "ar_aging"], ["/finance/bank-accounts", "bank_accounts"],
     ["/finance/reconciliation", "reconciliation"], ["/finance/penalties", "penalties"],
-    ["/finance/", "finance_hub"],
     ["/penalty", "penalties"],
   ];
   for (const [pre, key] of map) if (url.startsWith(pre)) return key;
@@ -155,18 +102,13 @@ function MobileMore({ page, perms, onClose }) {
   }, []);
 
   const groups = useMemo(() => {
-    const filtered = NAV_GROUPS.map((g) => ({
-      ...g,
-      items: g.items.filter((it) => {
-        if (it.key === "home") return false; // already in bottom nav
-        if (!it.perm || (perms[it.perm] || []).length) {
-          if (!query) return true;
-          return t(it.label).toLowerCase().includes(query.toLowerCase());
-        }
-        return false;
-      }),
-    })).filter((g) => g.items.length);
-    return filtered;
+    const ok = allowed(perms);
+    const match = (it) => !query || t(it.label).toLowerCase().includes(query.toLowerCase());
+    // Home is already in the bottom nav.
+    const top = { id: "top", heading: "Overview", items: NAV_TOP.filter((it) => it.key !== "home") };
+    return [top, ...NAV_GROUPS]
+      .map((g) => ({ ...g, items: g.items.filter((it) => ok(it) && match(it)) }))
+      .filter((g) => g.items.length);
   }, [query, perms, t]);
 
   return (
@@ -190,23 +132,20 @@ function MobileMore({ page, perms, onClose }) {
       </div>
       <div className="m-more-body">
         {groups.map((g) => (
-          <div key={g.heading} className="m-more-group">
+          <div key={g.id} className="m-more-group">
             <div className="m-more-heading">{t(g.heading)}</div>
             <div className="m-more-card">
               {g.items.map((item) => (
                 <div key={item.key}>
-                  {item.subheading && (
-                    <div className="m-more-subheading">{t(item.subheading)}</div>
-                  )}
-                  <a
+                  <Link
                     href={item.href}
                     className={"m-more-item" + (page === item.key ? " active" : "")}
                     onClick={onClose}
                   >
-                    <Icon name={item.icon} size={18} strokeWidth={page === item.key ? 2 : 1.6} />
+                    <NavIcon name={item.icon || item.key} />
                     <span className="m-more-label">{t(item.label)}</span>
                     <Icon name="chevron" size={15} strokeWidth={1.8} className="m-more-chev" />
-                  </a>
+                  </Link>
                 </div>
               ))}
             </div>
@@ -217,11 +156,24 @@ function MobileMore({ page, perms, onClose }) {
   );
 }
 
+const READ_KEY = "hms.notif.read";
+const MINI_KEY = "hms.sidebar.mini";
+const TOAST_KEY = "hms.branch.toast";
+
+const fmtSar = (v) => new Intl.NumberFormat("en-US").format(Math.round(v || 0));
+const notifKey = (n) => `${n.type}:${n.ref}:${n.days}`;
+function readSet(key) {
+  try { return new Set(JSON.parse(window.localStorage.getItem(key) || "[]")); } catch { return new Set(); }
+}
+function readMini() {
+  try { return window.localStorage.getItem(MINI_KEY) === "1"; } catch { return false; }
+}
+
 export default function AppLayout({ children }) {
   const { props, url } = usePage();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const user = props.auth?.user;
-  const dueCount = props.due_soon_count || 0;
+  const branch = props.branch || {};
   const dueNotifs = props.due_soon_notifs || [];
   const { theme, toggle } = useTheme();
   const page = pageKeyFromUrl(url);
@@ -229,17 +181,29 @@ export default function AppLayout({ children }) {
 
   const [search, setSearch] = useState(false);
   const [notif, setNotif] = useState(false);
+  const [mNotif, setMNotif] = useState(false); // phones: the old sheet
   const [account, setAccount] = useState(false);
   const [mAccount, setMAccount] = useState(false);
   const [mMore, setMMore] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readMini);
+  const [lift, setLift] = useState(false);
+  const [readKeys, setReadKeys] = useState(() => readSet(READ_KEY));
+  const [confirmTo, setConfirmTo] = useState(null);
+  const [toast, setToast] = useState("");
   const accountWrap = useRef(null);
+  const notifWrap = useRef(null);
+  const searchRef = useRef(null);
+  const dirty = useRef(null);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { setSearch(false); setNotif(false); setAccount(false); setMAccount(false); setMMore(false); }
+      if (e.key === "Escape") { setSearch(false); setNotif(false); setMNotif(false); setAccount(false); setMAccount(false); setMMore(false); setConfirmTo(null); }
       const tag = document.activeElement?.tagName;
-      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") { e.preventDefault(); setSearch(true); }
+      if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") {
+        e.preventDefault();
+        if (window.matchMedia("(min-width: 601px)").matches && searchRef.current) searchRef.current.focus();
+        else setSearch(true);
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -257,22 +221,55 @@ export default function AppLayout({ children }) {
     });
   }, [t]);
 
+  // Unsaved changes: typing in any form marks the page dirty (with the form's
+  // title when it has one); a visit clears it. Switching branch asks first.
   useEffect(() => {
-    const onClick = (e) => {
-      if (accountWrap.current && !accountWrap.current.contains(e.target)) setAccount(false);
-      setNotif(false);
-      setMAccount(false);
+    const onInput = (e) => {
+      const f = e.target.closest?.("form");
+      if (!f) return;
+      const scope = f.closest('[role="dialog"]') || document.querySelector(".page-shell");
+      const title = scope?.querySelector("h1, h2, .hms-modal-title, .htitle")?.textContent?.trim();
+      dirty.current = title || t("this page");
     };
-    if (account || notif || mAccount) {
-      document.addEventListener("click", onClick);
-      return () => document.removeEventListener("click", onClick);
+    document.addEventListener("input", onInput, true);
+    const off = router.on("navigate", () => { dirty.current = null; });
+    return () => { document.removeEventListener("input", onInput, true); off(); };
+  }, [t]);
+
+  useEffect(() => {
+    let name = "";
+    try { name = window.sessionStorage.getItem(TOAST_KEY) || ""; window.sessionStorage.removeItem(TOAST_KEY); } catch { /* storage blocked */ }
+    if (!name) return;
+    setToast(name);
+    const id = setTimeout(() => setToast(""), 3200);
+    return () => clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    const onDoc = (e) => {
+      if (accountWrap.current && !accountWrap.current.contains(e.target)) setAccount(false);
+      if (notifWrap.current && !notifWrap.current.contains(e.target)) setNotif(false);
+      setMAccount(false);
+      setMNotif(false);
+    };
+    if (account || notif || mAccount || mNotif) {
+      document.addEventListener("click", onDoc);
+      return () => document.removeEventListener("click", onDoc);
     }
-  }, [account, notif, mAccount]);
+  }, [account, notif, mAccount, mNotif]);
 
   useEffect(() => {
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     return () => document.body.classList.remove("sidebar-collapsed");
   }, [collapsed]);
+
+  // The topbar stays put; once the page scrolls under it, a hairline shows.
+  useEffect(() => {
+    const onScroll = () => setLift(window.scrollY > 4);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle("map-fullscreen", isMap);
@@ -289,18 +286,58 @@ export default function AppLayout({ children }) {
     return () => { document.body.style.overflow = ""; };
   }, [mMore]);
 
+  const toggleMini = () => {
+    const m = !collapsed;
+    try { window.localStorage.setItem(MINI_KEY, m ? "1" : "0"); } catch { /* storage blocked */ }
+    setCollapsed(m);
+  };
+
+  const doSwitch = (b) => {
+    setConfirmTo(null);
+    dirty.current = null;
+    try { window.sessionStorage.setItem(TOAST_KEY, b.name); } catch { /* storage blocked */ }
+    document.body.classList.add("ks-switching");
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = "/account/branch/";
+    for (const [k, v] of [["csrfmiddlewaretoken", getCsrf()], ["branch", b.code], ["next", window.location.pathname + window.location.search]]) {
+      const i = document.createElement("input");
+      i.type = "hidden"; i.name = k; i.value = v;
+      form.appendChild(i);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  };
+  const pickBranch = (b) => (dirty.current ? setConfirmTo(b) : doSwitch(b));
+
+  const setLanguage = async (value) => {
+    try {
+      await axios.post("/account/language/", new URLSearchParams({ language: value }));
+      router.reload();
+    } catch { /* keep current language */ }
+  };
+
   const notifLabel = (n) => {
     const kind = n.type === "check_in" ? "Check-in" : n.type === "check_out" ? "Check-out" : "Due";
     if (n.days === 0) return t(`${kind} today`);
     if (n.days === 1) return t(`${kind} tomorrow`);
     return t(`${kind} in {n} days`, { n: n.days });
   };
+  const fresh = dueNotifs.filter((n) => !readKeys.has(notifKey(n)));
+  const earlier = dueNotifs.filter((n) => readKeys.has(notifKey(n)));
+  const unread = fresh.length;
+  const markRead = () => {
+    const next = new Set([...readKeys, ...dueNotifs.map(notifKey)]);
+    setReadKeys(next);
+    try { window.localStorage.setItem(READ_KEY, JSON.stringify([...next])); } catch { /* storage blocked */ }
+  };
 
+  // Mobile keeps the old notification sheet.
   const NotifList = () => (
     <>
       <div className="notif-head">
         <span>{t("Notifications")}</span>
-        {dueCount > 0 && <span className="notif-head-count">{t("{count} upcoming", { count: dueCount })}</span>}
+        {dueNotifs.length > 0 && <span className="notif-head-count">{t("{count} upcoming", { count: dueNotifs.length })}</span>}
       </div>
       <div className="notif-body">
         {dueNotifs.length ? (
@@ -327,128 +364,99 @@ export default function AppLayout({ children }) {
     </>
   );
 
+  const [notifShown, notifClosing] = usePresence(notif);
+  const [acctShown, acctClosing] = usePresence(account);
   const pageTitle = t(PAGE_TITLES[page] || "Home");
-  const perms = user?.perms || {};
+  // The desktop topbar names the day on every page; the page names itself
+  // in its own heading. The phone's top bar keeps the page title.
+  const dayLabel = (() => {
+    const d = new Date(), loc = locale === "id" ? "id-ID" : "en-GB";
+    return `${d.toLocaleDateString(loc, { weekday: "long" })}, ${d.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" })}`;
+  })();
+  // `branch_report` is not a server module: the report needs statements and
+  // a branch on HMS to report on (head office alone has none).
+  const perms = { ...(user?.perms || {}), branch_report: user?.report_branches ? (user?.perms?.statements || []) : [] };
+  const displayName = user ? (user.name || user.username) : "";
+  const roleBranch = [user?.role_label, branch.current?.name].filter(Boolean).join(", ");
+  const avatar = (lg) => (
+    <span className={"ks-av" + (lg ? " lg" : "")}>
+      {user.avatar ? <img src={user.avatar} alt="" /> : userInitials(user)}
+    </span>
+  );
+  const notifGroup = (title, rows) => rows.length > 0 && (
+    <div role="group" aria-label={title}>
+      <div className="ks-sg">{title}</div>
+      {rows.map((n, i) => (
+        <Link key={i} className="ks-nr" href={n.url} onClick={() => setNotif(false)}>
+          <span className="mono">{n.ref}</span><span className="nm">{n.title}</span>
+          <span className={"smeta" + (n.days <= 1 ? " hot" : "")}>{notifLabel(n)}</span>
+          {n.type === "invoice_due" && <span className="amt">{fmtSar(n.remaining)} SAR</span>}
+        </Link>
+      ))}
+    </div>
+  );
 
   return (
     <FormModalProvider>
       <div data-page={page}>
       {user && (
         <>
-          {/* ── Desktop sidebar ── */}
-          <aside className="hms-sidebar" aria-label="Sidebar">
-            <a href={NAV.home} className="hms-brand" aria-label="Konoz United — Home">
-              <span className="hms-brand-mark">KU</span>
-              <span className="hms-brand-text">
-                <span className="hms-brand-name">Konoz United</span>
-                <span className="hms-brand-sub">{t("Hotel Management")}</span>
-              </span>
-            </a>
-            <nav className="hms-sidebar-nav">
-              {NAV_GROUPS.map((g) => {
-                const items = g.items.filter((it) => !it.perm || (perms[it.perm] || []).length);
-                if (!items.length) return null;
-                return (
-                  <div key={g.heading} className="hms-sidebar-group">
-                    <div className="hms-sidebar-heading">{t(g.heading)}</div>
-                    {items.map((item) => {
-                      const active = page === item.key;
-                      return (
-                        <div key={item.key}>
-                          {item.subheading && (
-                            <div className="hms-sidebar-subheading">{t(item.subheading)}</div>
-                          )}
-                          <a href={item.href}
-                            className={"hms-sidebar-link" + (active ? " active" : "")}
-                            title={t(item.label)}>
-                            <Icon name={item.icon} size={17} strokeWidth={active ? 2 : 1.6} />
-                            <span>{t(item.label)}</span>
-                          </a>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </nav>
-          </aside>
+          <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />
 
-          {/* ── Desktop topbar ── */}
-          <header className="hms-topbar">
-            <div className="hms-topbar-left">
-              <button type="button" className="hms-collapse-btn"
-                title={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
-                aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
-                onClick={() => setCollapsed((v) => !v)}>
-                <Icon name={collapsed ? "panel-left-open" : "panel-left-close"} size={16} />
-              </button>
-              <div className="hms-topbar-crumb">
-                <span className="hms-topbar-crumb-ws">Konoz United</span>
-                <span className="hms-topbar-crumb-sep"><Icon name="chevron" size={12} strokeWidth={2.5} style={{ transform: "rotate(-90deg)" }} /></span>
-                <span className="hms-topbar-crumb-page">{pageTitle}</span>
-              </div>
+          <header className={"hms-topbar ks-tb" + (lift ? " lift" : "")}>
+            <div className="ks-tl">
+              <span className="ks-pt day">{dayLabel}</span>
             </div>
+            <div className="ks-tr">
+              <TopbarSearch ref={searchRef} perms={perms} branchName={branch.current?.name} />
 
-            <div className="hms-topbar-right">
-              <button type="button" className="hms-topbar-search" title={`${t("Search")} (/)`} aria-label={t("Search")}
-                onClick={() => setSearch(true)}>
-                <Icon name="search" size={15} />
-                <span>{t("Search")}</span>
-                <kbd>/</kbd>
-              </button>
-
-              <button type="button" className="topbar-icon-btn" title={t("Notifications")} aria-label={t("Notifications")}
-                aria-haspopup="true" aria-expanded={notif}
-                onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); setAccount(false); }}>
-                <Icon name="bell" />
-                {dueCount > 0 && <span className="notif-badge">{dueCount}</span>}
-              </button>
-
-              <button type="button" className="topbar-icon-btn" title={t("Toggle theme")} aria-label={t("Toggle theme")} onClick={toggle}>
-                <Icon name={theme === "light" ? "sun" : "moon"} />
-              </button>
-
-              <div className="hms-topbar-account" ref={accountWrap} style={{ position: "relative", display: "flex", alignItems: "center" }}>
-                <button type="button" className="hms-acct-trigger" aria-label="Account"
-                  aria-haspopup="true" aria-expanded={account}
-                  onClick={(e) => { e.stopPropagation(); setAccount((v) => !v); setNotif(false); }}>
-                  <span className="hms-acct-trigger-avatar">
-                    {user.avatar
-                      ? <img src={user.avatar} alt={user.username} />
-                      : userInitials(user)}
-                  </span>
-                  <span className="hms-acct-trigger-name">{user.username}</span>
-                  <Icon name="chevron" size={12} strokeWidth={2.2} className="hms-acct-trigger-chev" />
+              <div className="ks-anchor" ref={notifWrap}>
+                <button type="button" className="ks-ib" aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
+                  aria-haspopup="true" aria-expanded={notif}
+                  onClick={() => { setNotif((v) => !v); setAccount(false); }}>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0112 0v5l2 2H4zM10 21h4" /></svg>
+                  {unread > 0 && <span className="ks-nb">{unread > 9 ? "9+" : unread}</span>}
                 </button>
-                <div className={"hms-acct-menu" + (account ? " open" : "")}>
-                  <div className="hms-acct-head">
-                    <span className="hms-acct-avatar">
-                      {user.avatar ? <img src={user.avatar} alt={user.username} /> : userInitials(user)}
-                    </span>
-                    <span className="hms-acct-id">
-                      <span className="hms-acct-name">{user.username}</span>
-                      <span className="hms-acct-full">{user.name && user.name !== user.username ? user.name : user.role_label}</span>
-                    </span>
-                    <span className="hms-acct-role">{user.role_label || (user.is_superuser ? t("Admin") : user.is_staff ? t("Staff") : t("Member"))}</span>
+                {notifShown && (
+                  <div className={"ks-dd ks-ndd" + (notifClosing ? " is-closing" : "")}>
+                    <div className="ks-nh">{t("Notifications")}{unread > 0 && <button type="button" className="ks-nlink" onClick={markRead}>{t("Mark all as read")}</button>}</div>
+                    <div className="ks-nbody">
+                      {dueNotifs.length === 0 && <div className="ks-nempty">{t("No notifications")}</div>}
+                      {notifGroup(t("New"), fresh)}
+                      {notifGroup(t("Earlier"), earlier)}
+                    </div>
                   </div>
-                  <a href={NAV.account} className="hms-acct-row">
-                    <Icon name="user" size={16} /><span>{t("My Profile")}</span>
-                  </a>
-                  <button type="button" className="hms-acct-row" onClick={toggle}>
-                    <Icon name={theme === "light" ? "sun" : "moon"} size={16} /><span>{t("Theme")}</span>
-                    <span className="hms-acct-meta">{theme === "light" ? t("Light") : t("Dark")}</span>
-                  </button>
-                  <div className="hms-acct-langrow">
-                    <Icon name="globe" size={16} /><span>{t("Language")}</span>
-                    <LanguageSwitcher variant="mini" />
-                  </div>
-                  <form method="post" action={NAV.logout} style={{ margin: 0 }}>
-                    <Csrf />
-                    <button type="submit" className="hms-acct-row hms-acct-row--danger">
-                      <Icon name="logout" size={16} /><span>{t("Log out")}</span>
+                )}
+              </div>
+
+              <span className="ks-div" aria-hidden="true" />
+              <div className="ks-anchor" ref={accountWrap}>
+                <button type="button" className="ks-acct" aria-label={t("Account, {name}", { name: displayName })} title={displayName}
+                  aria-haspopup="menu" aria-expanded={account}
+                  onClick={() => { setAccount((v) => !v); setNotif(false); }}>
+                  {avatar(false)}
+                </button>
+                {acctShown && (
+                  <div className={"ks-dd" + (acctClosing ? " is-closing" : "")} role="menu" style={{ width: 260 }}>
+                    <div className="ks-ah">{avatar(true)}<span className="an"><b>{displayName}</b><span>{roleBranch}</span><span>{user.username}</span></span></div>
+                    <Link className="ks-ar" href={NAV.account} role="menuitem" onClick={() => setAccount(false)}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>{t("My Profile")}
+                    </Link>
+                    <button type="button" className="ks-ar" role="menuitem" onClick={toggle}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>{t("Theme")}<span className="am">{theme === "light" ? t("Light") : t("Dark")}</span>
                     </button>
-                  </form>
-                </div>
+                    <button type="button" className="ks-ar" role="menuitem" onClick={() => setLanguage(locale === "en" ? "id" : "en")}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z" /></svg>{t("Language")}<span className="am">{locale === "en" ? "English" : "Indonesia"}</span>
+                    </button>
+                    <div className="ks-sep" />
+                    <form method="post" action={NAV.logout} style={{ margin: 0 }}>
+                      <Csrf />
+                      <button type="submit" className="ks-ar danger" role="menuitem">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></svg>{t("Log out")}
+                      </button>
+                    </form>
+                  </div>
+                )}
               </div>
             </div>
           </header>
@@ -468,14 +476,14 @@ export default function AppLayout({ children }) {
                 <Icon name="search" size={19} strokeWidth={1.8} />
               </button>
               <button type="button" className="m-top-bar-btn" aria-label="Notifications"
-                aria-haspopup="true" aria-expanded={notif}
-                onClick={(e) => { e.stopPropagation(); setNotif((v) => !v); setMAccount(false); setMMore(false); }}>
+                aria-haspopup="true" aria-expanded={mNotif}
+                onClick={(e) => { e.stopPropagation(); setMNotif((v) => !v); setMAccount(false); setMMore(false); }}>
                 <Icon name="bell" size={19} strokeWidth={1.8} />
-                {dueCount > 0 && <span className="m-top-bar-badge">{dueCount}</span>}
+                {dueNotifs.length > 0 && <span className="m-top-bar-badge">{dueNotifs.length}</span>}
               </button>
               <button type="button" className="m-top-bar-btn" aria-label="Account"
                 aria-haspopup="true" aria-expanded={mAccount}
-                onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); setNotif(false); setMMore(false); }}>
+                onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); setMNotif(false); setMMore(false); }}>
                 <span className="m-top-bar-avatar">
                   {user.avatar
                     ? <img src={user.avatar} alt={user.username} />
@@ -494,7 +502,7 @@ export default function AppLayout({ children }) {
                 <button key={tab.key}
                   type="button"
                   className={"m-bnav-tab" + (isActive ? " active" : "")}
-                  onClick={() => { setMMore((v) => !v); setNotif(false); setMAccount(false); }}>
+                  onClick={() => { setMMore((v) => !v); setMNotif(false); setMAccount(false); }}>
                   <span className="m-bnav-icon"><Icon name={tab.icon} strokeWidth={isActive ? 2 : 1.8} /></span>
                   <span className="m-bnav-label">{t(tab.label)}</span>
                 </button>
@@ -544,7 +552,7 @@ export default function AppLayout({ children }) {
           </div>
 
           {/* ── Shared notification dropdown ── */}
-          {notif && (
+          {mNotif && (
             <div className="notif-dropdown notif-float open" onClick={(e) => e.stopPropagation()}>
               <NotifList />
             </div>
@@ -555,6 +563,24 @@ export default function AppLayout({ children }) {
       {/* v2.1 is a flat solid canvas — no ambient blobs, gradients, or texture. */}
       <div className="page-shell">{children}</div>
 
+      {confirmTo && (
+        <div className="ks-cq" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmTo(null); }}>
+          <div className="ks-cdlg" role="alertdialog" aria-modal="true" aria-labelledby="ks-cdt">
+            <h2 id="ks-cdt">{t("Switch to {name}?", { name: confirmTo.name })}</h2>
+            <p>{t("You have unsaved changes in")} <b>{dirty.current}</b>. {t("Switching branch reloads the page and these changes will be lost.")}</p>
+            <div className="ks-cda">
+              <button type="button" className="ks-b2" autoFocus onClick={() => setConfirmTo(null)}>{t("Stay on {name}", { name: branch.current?.name || "" })}</button>
+              <button type="button" className="ks-bd" onClick={() => doSwitch(confirmTo)}>{t("Discard and switch")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {toast && (
+        <div className="ks-toast" role="status">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
+          <span>{t("Now showing")} <b>{toast}</b></span>
+        </div>
+      )}
       <Toast />
       {user && <SearchOverlay open={search} onClose={() => setSearch(false)} />}
       {user && <DraftModal />}

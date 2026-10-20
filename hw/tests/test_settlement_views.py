@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from hw.models import Branch
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_remittance
+from hw.tests.factories import fund_ledger_for, make_remittance
 
 
 def make_user(username, role):
@@ -98,6 +98,7 @@ class RemittanceCloseDiffViewTest(SettlementViewsBase):
     def setUp(self):
         super().setUp()
         from hw.finance import posting
+        fund_ledger_for(self.rmt, 10000)
         posting.post_remittance_send(self.rmt, amount_sar=10000, created_by=self.manager)
         self.client.force_login(self.finance)
         self.client.post(f'/remittance/{self.rmt.pk}/receipt/', {
@@ -132,8 +133,8 @@ class RemittanceCloseDiffViewTest(SettlementViewsBase):
         self.assertTrue(self._props()['can_close_diff'])
 
     def test_list_props_expose_partial_receipt(self):
-        resp = self.client.get('/remittance/', HTTP_X_INERTIA='true')
+        resp = self.client.get('/remittance/?month=2026-06', HTTP_X_INERTIA='true')
         row = next(r for r in resp.json()['props']['remittances'] if r['id'] == self.rmt.pk)
-        self.assertEqual(row['settled_sar'], 9500)
-        self.assertEqual(row['status'], 'pending')
+        self.assertEqual(row['received_sar'], 9500)
+        self.assertEqual(row['state'], 'partial')
         self.assertTrue(row['can_record_receipt'])

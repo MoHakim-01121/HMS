@@ -50,12 +50,11 @@ class AllocateTest(TestCase):
         ConfirmationLetter.claim_number('7833')  # nomor numerik lama tanpa prefiks
         self.assertFalse(DocumentSequence.objects.filter(key='CL').exists())
 
-    def test_invoice_prefix_per_type(self):
+    def test_invoice_prefix(self):
         client = Client.objects.create(name='PT A')
         make_invoice(invoice_type=InvoiceType.HOTEL, invoice_number='INV-004', client=client, customer_name='PT A')
         with transaction.atomic():
             self.assertEqual(Invoice.generate_number(InvoiceType.HOTEL), 'INV-005')
-            self.assertEqual(Invoice.generate_number('visa'), 'SVC-001')
 
     def test_explicit_key_for_monthly_numbers(self):
         with transaction.atomic():

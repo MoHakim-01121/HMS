@@ -3,7 +3,7 @@
 Pengganti hw/ledger.py. Views memanggil fungsi di sini, tidak pernah
 Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
 """
-from django.db.models import Min, Q, Sum
+from django.db.models import Count, Q, Sum
 
 from ..models.client import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
@@ -103,11 +103,6 @@ def invoice_credited_map(invoice_ids):
     return {i: (credited[i], deposited.get(i, 0)) for i in credited}
 
 
-def invoice_billed_sar(invoice_id):
-    """Tagihan bersih di Piutang: charge hidup − nota kredit hidup."""
-    return _net(_billing(invoice_id=invoice_id))
-
-
 def invoice_outstanding_sar(invoice_id):
     """Sisa piutang invoice = net semua baris Piutang (charge - payment +
     reversal). Positif = masih berutang."""
@@ -196,7 +191,7 @@ def payment_history_rows(invoice):
 
     Hanya status ber-efek-jurnal (PaymentRecord.EFFECTIVE_STATUSES) yang
     dikembalikan; reversal/rejected/pending disembunyikan. Semua konsumen
-    (invoice detail, form edit, PDF, konteks visa) memakai fungsi ini supaya
+    (invoice detail, form edit, PDF) memakai fungsi ini supaya
     satu invoice tak pernah menampilkan angka dari dua sumber berbeda.
     """
     from ..models.payment import PaymentRecord
@@ -211,18 +206,14 @@ def payment_history_rows(invoice):
     rows = []
     for pr in prs:
         refs = []
-        svc_nos = []
         for a in pr.allocations.all():
             if a.reservation_id and a.reservation and a.reservation.reservation_number not in refs:
                 refs.append(a.reservation.reservation_number)
-            if a.service_item_id and a.service_item and a.service_item.service_number not in svc_nos:
-                svc_nos.append(a.service_item.service_number)
         rows.append({
             'pk': pr.pk,
             'status': pr.status,
             'unallocated_sar': pr.amount_sar - sum(a.amount_sar for a in pr.allocations.all()),
             'ref': ', '.join(refs) or pr.reference or pr.payment_number,
-            'svc_nos': svc_nos,
             'payment_number': pr.payment_number,
             'payment_date': pr.payment_date,
             'method': pr.method,
@@ -274,6 +265,18 @@ def reservation_paid_map(invoice_id):
     return {r["invoice_line_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
 
 
+def reservation_paid_maps(invoice_ids):
+    """Bulk reservation_paid_map: {invoice_id: {baris hotel: paid_sar}}."""
+    out = {pk: {} for pk in invoice_ids}
+    rows = (
+        _settling(invoice_id__in=invoice_ids, invoice_line__kind=_HOTEL)
+        .values("invoice_id", "invoice_line_id").annotate(d=Sum("debit"), c=Sum("credit"))
+    )
+    for r in rows:
+        out[r["invoice_id"]][r["invoice_line_id"]] = (r["c"] or 0) - (r["d"] or 0)
+    return out
+
+
 def line_settled_sar(line_id):
     """Uang yang sudah melunasi satu baris invoice (kredit bersih Piutang di
     luar charge dan nota kredit)."""
@@ -314,18 +317,6 @@ def client_receivable(client_id):
     return _net(JournalLine.objects.filter(client_id=client_id, account_id=coa.AR))
 
 
-def client_wallet_map(client_ids):
-    """{client_id: saldo piutang} — sama dengan client_receivable() tapi untuk
-    banyak client dalam satu aggregate query (dipakai client_list agar tidak
-    N+1 query per baris)."""
-    rows = (
-        JournalLine.objects.filter(client_id__in=client_ids, account_id=coa.AR)
-        .values("client_id")
-        .annotate(d=Sum("debit"), c=Sum("credit"))
-    )
-    return {r["client_id"]: (r["d"] or 0) - (r["c"] or 0) for r in rows}
-
-
 def client_billed_sar(client_id):
     """Total ditagih ke client = tagihan bersih (charge − nota kredit)."""
     return _net(_billing(client_id=client_id))
@@ -353,26 +344,19 @@ def client_credit_balance(client_id):
     return (a["c"] or 0) - (a["d"] or 0)
 
 
+def client_credit_balances(client_ids):
+    """{client id: deposit held} for several clients, one query."""
+    rows = (JournalLine.objects.filter(client_id__in=list(client_ids), account_id=coa.CUST_CREDIT)
+            .values("client_id").annotate(d=Sum("debit"), c=Sum("credit")))
+    return {r["client_id"]: (r["c"] or 0) - (r["d"] or 0) for r in rows}
+
+
 def total_client_credit_balance():
     """Σ client_credit_balance untuk semua client, satu aggregate query."""
     a = JournalLine.objects.filter(
         client_id__isnull=False, account_id=coa.CUST_CREDIT,
     ).aggregate(d=Sum("debit"), c=Sum("credit"))
     return (a["c"] or 0) - (a["d"] or 0)
-
-
-def client_reservation_ids(client_id):
-    """Set reservasi milik client dari dimensi baris jurnal yang masih hidup.
-
-    Pengganti pembacaan Charge (tabel legacy, tidak lagi ditulis oleh alur
-    billing sejak jurnal jadi system of record): reservasi seorang client
-    adalah baris hotel yang pernah muncul pada baris jurnal ber-dimensi
-    `client` yang bersangkutan."""
-    return set(
-        JournalLine.objects.filter(client_id=client_id, invoice_line__kind=_HOTEL)
-        .exclude(journal_entry_id__in=_reversed_entry_ids())
-        .values_list("invoice_line_id", flat=True)
-    )
 
 
 def client_statement_qs(client_id, *, date_from=None, date_to=None, as_of=None):
@@ -541,26 +525,34 @@ def client_statement_by_reservation(
     client_id, *, date_from=None, date_to=None, as_of=None,
 ):
     """Statement open-item: baris jurnal client di-rollup jadi satu baris per
-    reservasi (Tagihan / Terbayar / Sisa), bukan satu baris per transaksi.
+    reservasi (Debit / Credit / Balance), bukan satu baris per transaksi.
 
-    Baris tanpa dimensi reservasi dipisah dua arah, karena arahnya artinya
-    berlawanan dan tidak boleh dijumlah diam-diam:
-      - `unallocated_credits` — uang MASUK yang tidak melekat reservasi
-        (payment yang belum dipecah alokasinya, refund keluar dari titipan).
-        Ini saldo client's di tangan kita.
-      - `unallocated_debits` — tagihan yang TIDAK punya reservasi (service item
-        pada invoice servis, penalty pembatalan, adjustment). Ini piutang, bukan
-        setoran, dan tidak pernah jadi titipan client.
+    Statement membaca dua akun, Piutang dan Titipan, dan keduanya dipisah
+    supaya tiap angka di PDF berarti satu hal:
+      - Baris Piutang ber-reservasi -> baris reservasi (`billed` / `paid`).
+      - `adjustments` -- debit Piutang tanpa reservasi. Sejak invoice servis
+        dihapus dan penalty melekat ke reservasinya, sisanya hanya adjustment
+        manual.
+      - `unapplied_payments` -- credit Piutang tanpa reservasi: pembayaran yang
+        sudah masuk tapi belum dialokasikan.
+      - `deposit_on_account` -- saldo Titipan (credit - debit). Refund, transfer
+        antar client, dan pemakaian titipan hanya menggerakkan angka ini; tanpa
+        pemisahan itu refund titipan terbaca sebagai tagihan tanpa reservasi.
+    Debit Piutang pada jurnal transfer adalah kelebihan bayar yang dipindah ke
+    titipan, bukan tagihan baru: ia mengurangi `paid` reservasinya (atau
+    `unapplied_payments` bila tanpa reservasi), dan pasangannya muncul di
+    `deposit_on_account`. Tanpa aturan ini kolom Debit ikut menghitung uang
+    yang dipindah, tidak lagi sama dengan nilai tagihan.
+
     Pasangan reversal (entry yang dibatalkan + entry reversal-nya) dibuang dari
-    semua bucket. Net-nya nol, jadi `unallocated` dan tiap `balance` reservasi
-    tetap sama; yang bersih cuma `billed`/`paid` — tanpa itu "Total Invoiced"
-    di PDF ikut menghitung charge/payment yang sudah dibatalkan, dan tiap
-    pembatalan payment menambah 2x lipatnya ke salah satu sisi.
-    `unallocated` tetap disediakan sebagai net-nya (debits - credits) supaya
-    invarian dan pemanggil lama tidak berubah.
+    semua bucket. Net-nya nol, jadi saldo tidak berubah; yang bersih cuma
+    `billed`/`paid` -- tanpa itu Total debit di PDF ikut menghitung
+    charge/payment yang sudah dibatalkan.
+    `unallocated` = adjustments - unapplied_payments - deposit_on_account, semua
+    yang di luar baris reservasi.
 
     Invarian: opening_balance + Σ(reservasi.balance) + unallocated ==
-    closing_balance — sama persis dengan versi balance-forward. Di-assert.
+    closing_balance -- sama persis dengan versi balance-forward. Di-assert.
     """
     from datetime import date
 
@@ -569,19 +561,23 @@ def client_statement_by_reservation(
     )
 
     groups = {}
-    unallocated_debits = 0
-    unallocated_credits = 0
+    adjustments = 0
+    unapplied_payments = 0
+    deposit_on_account = 0
     for r in st["rows"]:
         if r["is_voided"]:
-            # Pasangan batal: dibuang dari SEMUA bucket. Net-nya nol, jadi
-            # `unallocated` dan tiap `reservasi.balance` tidak berubah —
-            # yang berubah hanya `billed`/`paid`, supaya angka "Total Invoiced"
-            # di PDF tidak ikut menghitung charge/payment yang sudah dibatalkan.
             continue
+        if r["account"] == coa.CUST_CREDIT:
+            deposit_on_account += r["credit"] - r["debit"]
+            continue
+        # Debit Piutang di jurnal transfer = kelebihan bayar keluar ke titipan.
+        moved_out = r["debit"] if r["entry_type"] == JournalEntry.TYPE_TRANSFER else 0
+        debit = r["debit"] - moved_out
+        credit = r["credit"] - moved_out
         rid = r["reservation_id"]
         if rid is None:
-            unallocated_debits += r["debit"]
-            unallocated_credits += r["credit"]
+            adjustments += debit
+            unapplied_payments += credit
             continue
         g = groups.get(rid)
         if g is None:
@@ -593,10 +589,10 @@ def client_statement_by_reservation(
                 "billed": 0,
                 "paid": 0,
             }
-        g["billed"] += r["debit"]
-        g["paid"] += r["credit"]
+        g["billed"] += debit
+        g["paid"] += credit
 
-    unallocated = unallocated_debits - unallocated_credits
+    unallocated = adjustments - unapplied_payments - deposit_on_account
 
     reservations = []
     for g in groups.values():
@@ -604,9 +600,9 @@ def client_statement_by_reservation(
         g["settled"] = g["balance"] <= 0
         reservations.append(g)
 
-    # Outstanding dulu (check_in naik), lunas di bawah.
+    # Urut check_in naik, lunas atau tidak; tanpa check_in di paling bawah.
     reservations.sort(
-        key=lambda g: (g["settled"], g["check_in"] or date.max, g["reservation_number"] or "")
+        key=lambda g: (g["check_in"] or date.max, g["reservation_number"] or "")
     )
 
     assert (
@@ -622,8 +618,9 @@ def client_statement_by_reservation(
         "total_debit": st["total_debit"],
         "total_credit": st["total_credit"],
         "unallocated": unallocated,
-        "unallocated_debits": unallocated_debits,
-        "unallocated_credits": unallocated_credits,
+        "adjustments": adjustments,
+        "unapplied_payments": unapplied_payments,
+        "deposit_on_account": deposit_on_account,
         "reservations": reservations,
         "aging": client_aging(client_id, as_of=as_of, date_to=date_to),
     }
@@ -713,6 +710,7 @@ def client_aging(client_id, *, as_of=None, date_to=None):
 
         total += net
         invoices.append({
+            "id": row["invoice_id"],
             "invoice_number": inv["invoice_number"],
             "amount": net,
             "due_date": inv["due_date"].isoformat() if inv.get("due_date") else None,
@@ -837,6 +835,7 @@ def open_items(client_id, *, date_to=None, as_of=None):
         due = inv.get("due_date")
         aged_from = due or inv.get("issued_date")
         rows.append({
+            "id": inv_id,
             "invoice_number": inv["invoice_number"],
             "invoice_type": inv["invoice_type"],
             "issued_date": inv["issued_date"].isoformat() if inv.get("issued_date") else None,
@@ -924,6 +923,50 @@ def money_accounts_overview(branch=None, include_inactive=False, branches=None):
                 'show_on_invoice': acc.show_on_invoice,
                 'account_identifier': acc.account_identifier,
             })
+    rows += _staff_overview(branch=branch, branches=branches)
+    return rows
+
+
+def _staff_overview(*, branch=None, branches=None):
+    """Uang muka staf as rows of the accounts overview: what each one holds in
+    its currency, its SAR value at its ledger's average rate (all advances of
+    a branch and currency share one ledger account), when money was last
+    given, and whether an expense has been paid from it since."""
+    from django.db.models import Max
+    from ..models.bank import StaffAccount
+    from ..models.bank_transaction import BankTransaction
+    from ..models.expense import ExpensePayment
+    from .staff_advance import balances, display_name
+    qs = StaffAccount.objects.filter(is_active=True).select_related('holder', 'branch')
+    if branch:
+        qs = qs.filter(branch_id=branch)
+    if branches is not None:
+        qs = qs.filter(branch_id__in=branches)
+    accounts = list(qs)
+    held = balances(accounts)
+    ids = [a.pk for a in accounts]
+    live = BankTransaction.objects.filter(account_id__in=ids).exclude(status=BankTransaction.STATUS_VOIDED)
+    given = dict(live.filter(direction=BankTransaction.DIRECTION_IN).values('account_id')
+                 .annotate(d=Max('transaction_date')).values_list('account_id', 'd'))
+    spent = dict(ExpensePayment.objects.filter(source_account_id__in=ids, status=ExpensePayment.STATUS_PAID)
+                 .values('source_account_id').annotate(d=Max('payment_date')).values_list('source_account_id', 'd'))
+    rates = {}
+    rows = []
+    for acc in accounts:
+        if acc.ledger_account_id not in rates:
+            sar = account_balance(acc.ledger_account_id)
+            native = sum(held[a.pk] for a in accounts if a.ledger_account_id == acc.ledger_account_id)
+            rates[acc.ledger_account_id] = (sar / native) if native else 0
+        value = int(round(held[acc.pk] * rates[acc.ledger_account_id])) if acc.currency != 'SAR' else held[acc.pk]
+        rows.append({
+            'id': acc.pk, 'kind': 'staff', 'name': display_name(acc.holder),
+            'ledger_account': acc.ledger_account_id, 'ledger_shared': False,
+            'branch': acc.branch_id, 'currency': acc.currency,
+            'book_balance': value, 'native_balance': held[acc.pk],
+            'is_active': acc.is_active, 'show_on_invoice': False, 'account_identifier': '',
+            'given_on': given[acc.pk].isoformat() if given.get(acc.pk) else None,
+            'spent_since': bool(spent.get(acc.pk) and given.get(acc.pk) and spent[acc.pk] >= given[acc.pk]),
+        })
     return rows
 
 
@@ -934,10 +977,10 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
     ini — BUKAN book_balance (proyeksi JournalLine); dua-duanya bisa berbeda
     untuk event lama yang belum lewat titik `record_bank_transaction`
     (mis. payment legacy `received_in`-only, lihat bank_transaction.py)."""
-    from ..models.bank import BankAccount, CashAccount
+    from ..models.bank import BankAccount, CashAccount, StaffAccount
     from ..models.bank_transaction import BankTransaction
 
-    account_model = BankAccount if kind == 'bank' else CashAccount
+    account_model = {'bank': BankAccount, 'cash': CashAccount, 'staff': StaffAccount}[kind]
     account = account_model.objects.filter(pk=account_id).first()
     if account is None:
         return None
@@ -972,11 +1015,6 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
     return {'account': {'id': account.pk, 'kind': kind, 'name': str(account), 'currency': account.currency}, 'rows': rows}
 
 
-def ap_balance():
-    """Saldo Utang Usaha (positif = KONOZ berutang ke vendor)."""
-    return -account_balance(coa.AP)
-
-
 def branch_expense_sar(branch_code, *, date_from=None, date_to=None):
     """Total beban (net debit akun 5xxx) untuk satu cabang pada rentang tanggal."""
     qs = JournalLine.objects.filter(
@@ -987,104 +1025,6 @@ def branch_expense_sar(branch_code, *, date_from=None, date_to=None):
     if date_to:
         qs = qs.filter(journal_entry__entry_date__lte=date_to)
     return _net(qs)
-
-
-def service_margins(*, branch=None, date_from=None, date_to=None):
-    """Margin per baris Services (spec §5): pendapatan SAR yang ditagih (charge
-    hidup − nota kredit, dari jurnal) dibanding biaya vendornya (ExpenseLine
-    yang diposting dan menunjuk baris itu). Filter: cabang penjual dan tanggal
-    terbit invoice."""
-    from ..models.expense import Expense, ExpenseLine
-    from ..models.invoice import Invoice, InvoiceLine
-
-    lines = (
-        InvoiceLine.objects.filter(kind=InvoiceLine.KIND_SERVICE, voided_at__isnull=True)
-        .exclude(invoice__status=Invoice.STATUS_VOID)
-        .select_related("invoice__client")
-        .order_by("-invoice__issued_date", "invoice_id", "line_no")
-    )
-    if branch:
-        lines = lines.filter(invoice__branch_id=branch)
-    if date_from:
-        lines = lines.filter(invoice__issued_date__gte=date_from)
-    if date_to:
-        lines = lines.filter(invoice__issued_date__lte=date_to)
-    lines = list(lines)
-    ids = [l.pk for l in lines]
-
-    revenue = {
-        r["invoice_line_id"]: (r["d"] or 0) - (r["c"] or 0)
-        for r in _billing(invoice_line_id__in=ids).values("invoice_line_id").annotate(d=Sum("debit"), c=Sum("credit"))
-    }
-    cost = {
-        r["service_line_id"]: r["t"] or 0
-        for r in ExpenseLine.objects.filter(service_line_id__in=ids, expense__status=Expense.STATUS_POSTED)
-        .values("service_line_id").annotate(t=Sum("amount_sar"))
-    }
-
-    rows = []
-    for l in lines:
-        rev, cst = int(revenue.get(l.pk, 0)), int(cost.get(l.pk, 0))
-        rows.append({
-            "line_id": l.pk,
-            "invoice_id": l.invoice_id,
-            "invoice_number": l.invoice.invoice_number,
-            "branch": l.invoice.branch_id,
-            "client": l.invoice.customer_name,
-            "description": l.description,
-            "quantity": l.quantity,
-            "revenue_sar": rev,
-            "cost_sar": cst,
-            "margin_sar": rev - cst,
-            "margin_pct": round((rev - cst) * 100 / rev, 1) if rev else None,
-            "has_cost": l.pk in cost,
-        })
-    total_rev = sum(r["revenue_sar"] for r in rows)
-    total_cost = sum(r["cost_sar"] for r in rows)
-    return {
-        "rows": rows,
-        "revenue_sar": total_rev,
-        "cost_sar": total_cost,
-        "margin_sar": total_rev - total_cost,
-        "without_cost": sum(1 for r in rows if not r["has_cost"]),
-    }
-
-
-def vendor_payables(branches=None):
-    """Utang per vendor (spec §5): Σ beban diposting − Σ pembayarannya.
-    `branches` membatasi ke beban cabang-cabang itu (None = semua)."""
-    from ..models.expense import Expense, ExpenseLine, ExpensePayment
-    from ..models.vendor import Vendor
-
-    lines = ExpenseLine.objects.filter(expense__status=Expense.STATUS_POSTED)
-    payments = ExpensePayment.objects.filter(
-        status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_POSTED,
-    )
-    if branches is not None:
-        lines = lines.filter(expense__branch__in=branches)
-        payments = payments.filter(expense__branch__in=branches)
-    billed = {
-        r["expense__vendor_id"]: r["t"] or 0
-        for r in lines
-        .values("expense__vendor_id").annotate(t=Sum("amount_sar"))
-    }
-    paid = {
-        r["expense__vendor_id"]: r["t"] or 0
-        for r in payments.values("expense__vendor_id").annotate(t=Sum("amount_sar"))
-    }
-    names = dict(Vendor.objects.filter(pk__in=[k for k in billed if k]).values_list("pk", "name"))
-    rows = [
-        {
-            "vendor_id": vid,
-            "vendor": names.get(vid) or "(no vendor)",
-            "billed_sar": int(t),
-            "paid_sar": int(paid.get(vid, 0)),
-            "outstanding_sar": int(t) - int(paid.get(vid, 0)),
-        }
-        for vid, t in billed.items()
-    ]
-    rows.sort(key=lambda r: (-r["outstanding_sar"], r["vendor"]))
-    return rows
 
 
 def mengendap_per_reservation(line_id):
@@ -1212,20 +1152,6 @@ def reservation_cash_breakdown():
     }
 
 
-def reservation_first_payment_date_map(reservation_numbers):
-    """{reservation_number: tanggal pembayaran paling awal} dari baris jurnal
-    kredit Piutang (bukan charge) — dipakai mengurutkan baris remittance sesuai
-    kapan reservasi mulai dibayar."""
-    if not reservation_numbers:
-        return {}
-    rows = (
-        _settling(invoice_line__confirmation_letter__confirmation_number__in=list(reservation_numbers))
-        .values("invoice_line__confirmation_letter__confirmation_number")
-        .annotate(first=Min("journal_entry__entry_date"))
-    )
-    return {r["invoice_line__confirmation_letter__confirmation_number"]: r["first"] for r in rows}
-
-
 def reservation_remittance_map(linked_numbers=None):
     """Riwayat remittance per reservasi (baca RemittanceLine, bukan jurnal):
     {reservation_number: [{rmt_id, rmt_number, date, status, amount_sar,
@@ -1300,11 +1226,12 @@ def clients_overview(*, q="", outstanding_only=False, sort="receivable", clients
         .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
     }
     paid = client_paid_map(cids)
-    receivable = {
-        r["client_id"]: (r["d"] or 0) - (r["c"] or 0)
+    ar_rows = {
+        r["client_id"]: (r["d"] or 0, r["c"] or 0)
         for r in _ar_qs(client_id__in=cids)
         .values("client_id").annotate(d=Sum("debit"), c=Sum("credit"))
     }
+    receivable = {cid: d - c for cid, (d, c) in ar_rows.items()}
     credit = {
         r["client_id"]: (r["c"] or 0) - (r["d"] or 0)
         for r in JournalLine.objects.filter(client_id__in=cids, account_id=coa.CUST_CREDIT)
@@ -1320,6 +1247,9 @@ def clients_overview(*, q="", outstanding_only=False, sort="receivable", clients
             "terbayar": paid.get(cid, 0),
             "piutang": receivable.get(cid, 0),
             "saldo_dana": credit.get(cid, 0),
+            # The receivable account's own debit and credit (Client Ledger list).
+            "ar_debit": ar_rows.get(cid, (0, 0))[0],
+            "ar_credit": ar_rows.get(cid, (0, 0))[1],
         }
         if outstanding_only and row["piutang"] <= 0:
             continue

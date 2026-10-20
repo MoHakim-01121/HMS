@@ -9,7 +9,7 @@ from hw.finance.accounts import cash_ledger_for
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.finance import queries as fq
-from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_priced_cl, set_line_total, ops_and_money_role
+from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice, make_priced_cl, set_line_total, ops_and_money_role
 
 
 class DualWriteTestBase(TestCase):
@@ -88,29 +88,6 @@ class InvoiceEditDualWriteTest(DualWriteTestBase):
         self.assertEqual(fq.invoice_charged_sar(self.invoice.id), 8000)
 
 
-class ServicesDualWriteTest(DualWriteTestBase):
-    def test_creating_services_invoice_posts_service_income_only(self):
-        resp = self.client.post("/services/new/", {
-            "invoice_number": "SVC-DW-001",
-            "customer_name": "PT Dual Write",
-            "client_id": str(self.client_obj.pk),
-            "issued_date": "2026-01-01",
-            "due_date": "",
-            "currency": "SAR",
-            "service_items": json.dumps([
-                {"name": "Visa Umrah", "qty": "2", "price": "500"},
-            ]),
-            "payments": json.dumps([
-                {"ref": "1", "date": "2026-01-05", "method": "Cash", "amount": "600", "currency": "SAR", "exchange": "1"},
-            ]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        invoice = Invoice.objects.get(invoice_number="SVC-DW-001")
-        self.assertEqual(fq.invoice_charged_sar(invoice.id), 1000)
-        self.assertEqual(fq.invoice_paid_sar(invoice.id), 0)
-        self.assertFalse(PaymentRecord.objects.filter(invoice=invoice).exists())
-
-
 class RemittanceDualWriteTest(DualWriteTestBase):
     def setUp(self):
         super().setUp()
@@ -121,12 +98,13 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         self.res = make_hotel_line(invoice=self.invoice, reservation_number="R1", total_sar=5000)
 
     def _idr_account(self):
-        from hw.models import BankAccount, LedgerAccount
+        from hw.models import BankAccount
         acc = BankAccount.objects.create(
             branch_id="sby", name="Ops IDR", currency="IDR", bank_name="Mandiri",
             account_identifier="1400", ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
         fund_cash(acc, 1_000_000_000)
+        fund_ledger(acc, 960_000_000, 200_000, date(2026, 1, 1))   # at the send rate 4,800
         return acc
 
     def test_new_remittance_is_lump_sum_send_leg(self):
@@ -151,7 +129,7 @@ class RemittanceDualWriteTest(DualWriteTestBase):
         # Journal: kirim 3000 dari Kas Surabaya ke Transit, lump-sum;
         # tidak ada lagi shadow CashMovement (Fase 7).
         self.assertEqual(fq.transit(), 3000)
-        self.assertEqual(fq.kas_surabaya(), -3000)
+        self.assertEqual(fq.kas_surabaya(), 200_000 - 3000)   # ledger funding − sent
         # Cash book: the rupiah left the chosen IDR account.
         from hw.models import BankTransaction, Remittance
         rem = Remittance.objects.get()

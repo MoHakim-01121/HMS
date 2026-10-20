@@ -13,7 +13,6 @@ from django.utils import timezone
 from ..models.journal import JournalEntry, JournalLine
 from ..models.payment import PaymentRecord, PaymentLog
 from ..models.period import FinancialPeriod
-from ..models.choices import InvoiceType
 from .errors import (
     FinanceError, JournalImbalanceError, PeriodLockedError,
 )
@@ -337,21 +336,12 @@ def _live_entries(source_type, source_id, entry_type):
     )
 
 
-def _ar_debit_total(entries):
-    if not entries:
-        return 0
-    agg = JournalLine.objects.filter(
-        journal_entry__in=entries, account_id=coa.AR,
-    ).aggregate(d=models.Sum("debit"))
-    return agg["d"] or 0
-
-
 # ── Charge-side (Fase 3 Group A) ───────────────────────────────
 
 def _invoice_charge_lines(invoice):
     from ..models.invoice import InvoiceLine
 
-    income = coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
+    income = coa.INC_HOTEL
     client_id = invoice.client_id
     lines = []
     billed = invoice.billed_lines()
@@ -368,11 +358,6 @@ def _invoice_charge_lines(invoice):
             lines.append({"account": income, "credit": amt,
                           "invoice": invoice.pk, "invoice_line": line.pk,
                           "branch": coa.HQ_BRANCH if income == coa.INC_HOTEL else br})
-        elif line.kind == InvoiceLine.KIND_SERVICE:
-            lines.append({"account": coa.AR, "debit": amt, "client": client_id,
-                          "invoice": invoice.pk, "invoice_line": line.pk})
-            lines.append({"account": income, "credit": amt,
-                          "invoice": invoice.pk, "invoice_line": line.pk})
         elif line.kind == InvoiceLine.KIND_PENALTY:
             # Denda ditagih pada dimensi reservasinya: uang yang sudah masuk
             # untuk reservasi itu menutup denda lebih dulu. Pendapatannya Pusat.
@@ -458,7 +443,6 @@ def clear_payment_allocations(payment):
         {
             "invoice_line_id": a.invoice_line_id,
             "reservation_id": a.reservation_id,
-            "service_item_id": a.service_item_id,
             "amount_sar": a.amount_sar,
         }
         for a in payment.allocations.select_related("invoice_line")
@@ -510,8 +494,7 @@ def _payment_segments(payment):
 def _payment_targets(payment):
     """Daftar identitas yang dibayar oleh payment ini, untuk deskripsi jurnal.
 
-    Dari PaymentAllocation (satu payment bisa menutup beberapa reservasi/
-    service). Nomor reservasi dipakai karena identitas stabil + konsisten
+    Dari PaymentAllocation (satu payment bisa menutup beberapa reservasi). Nomor reservasi dipakai karena identitas stabil + konsisten
     dengan deskripsi jurnal lain (Charge/Remittance pakai nomor, bukan nama).
     """
     refs = []
@@ -527,8 +510,6 @@ def _payment_targets(payment):
         for pa in payment.allocations.select_related("invoice_line__confirmation_letter"):
             if pa.reservation_id and pa.reservation:
                 _add(pa.reservation.reservation_number)
-            elif pa.service_item_id and pa.service_item:
-                _add(f"SVC#{pa.service_item.service_number}")
 
     return refs
 
@@ -656,23 +637,45 @@ def post_payment_from_credit(payment, *, created_by):
     )
 
 
-def carrying_sar(account, amount, on_date):
+def _ledger_holding(ledger_code, on_date, exclude_entry_ids=()):
+    """(SAR value, native amount) held on `ledger_code` up to `on_date`,
+    leaving out the entries in `exclude_entry_ids`."""
+    agg = JournalLine.objects.filter(
+        account_id=ledger_code, journal_entry__entry_date__lte=on_date,
+    ).exclude(journal_entry_id__in=list(exclude_entry_ids)).aggregate(
+        d=models.Sum("debit"), c=models.Sum("credit"),
+        nd=models.Sum("amount_txn", filter=models.Q(debit__gt=0)),
+        nc=models.Sum("amount_txn", filter=models.Q(credit__gt=0)),
+    )
+    return (agg["d"] or 0) - (agg["c"] or 0), (agg["nd"] or 0) - (agg["nc"] or 0)
+
+
+def carrying_sar(account, amount, on_date, *, exclude_entry_ids=()):
     """Nilai SAR tercatat dari `amount` (mata uang asli rekening `account`)
     pada `on_date`: rata-rata saldo SAR / saldo asli akun buku besarnya.
 
     Pembalik ikut dijumlah sehingga saling hapus. Saldo asli yang kosong atau
     tidak sejalan dengan saldo SAR-nya tidak punya rata-rata yang jujur --
-    ditolak, bukan ditebak."""
+    ditolak, bukan ditebak. `exclude_entry_ids`: entry yang tidak dihitung
+    (jurnal milik dokumen yang sedang dinilai ulang)."""
     if account.currency == "SAR":
         return int(amount)
-    lines = JournalLine.objects.filter(account_id=account.ledger_account_id, journal_entry__entry_date__lte=on_date)
-    agg = lines.aggregate(
-        d=models.Sum("debit"), c=models.Sum("credit"),
-        nd=models.Sum("amount_txn", filter=models.Q(debit__gt=0)),
-        nc=models.Sum("amount_txn", filter=models.Q(credit__gt=0)),
-    )
-    sar = (agg["d"] or 0) - (agg["c"] or 0)
-    held = (agg["nd"] or 0) - (agg["nc"] or 0)
+    sar, held = _ledger_holding(account.ledger_account_id, on_date, exclude_entry_ids)
+    if account.kind == account.KIND_STAFF and (held < amount or sar <= 0):
+        # A staff advance may go negative (the staff member fronted the
+        # money). What the advance still covers keeps its own average; the
+        # rest is valued at the branch office cash rate for that currency.
+        from .accounts import cash_ledger_for
+        covered = min(int(amount), max(held, 0)) if sar > 0 else 0
+        value = round_half_up(Decimal(sar) * Decimal(covered) / Decimal(held)) if covered else 0
+        rest = int(amount) - covered
+        o_sar, o_held = _ledger_holding(cash_ledger_for(account.branch_id, account.currency), on_date)
+        if o_sar <= 0 or o_held <= 0:
+            raise FinanceError(
+                f"Belum ada kurs {account.currency} cabang ini per {on_date:%d/%m/%Y} untuk menilai "
+                f"{rest:,} {account.currency} yang ditalangi {account}. Catat dulu uang {account.currency} yang masuk ke kas cabang."
+            )
+        return value + round_half_up(Decimal(o_sar) * Decimal(rest) / Decimal(o_held))
     if held < amount or sar <= 0:
         raise FinanceError(
             f"{account} per {on_date:%d/%m/%Y} tercatat {held:,} {account.currency} senilai {sar:,} SAR — "
@@ -725,20 +728,45 @@ def post_exchange(exchange, *, created_by):
 
 
 @transaction.atomic
-def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None):
-    """Uang keluar dari rekening cabang asal → Kas Dalam Perjalanan (Transit)."""
+def _remittance_send_lines(remittance, amount_sar, entry_date):
+    """Baris jurnal kirim remittance: Transit sebesar SAR yang akan diterima
+    Pusat, rekening asal sebesar nilai tercatat rupiah yang dikirim, dan
+    selisihnya sebagai laba/rugi kurs cabang (keputusan user 2026-10-19: laba
+    cabang = selisih kurs, dan sisa rupiahnya tetap bernilai).
+
+    Setoran lama (`is_legacy`) dikredit sebesar `amount_sar`: kurs asal
+    rupiahnya tidak ada di buku besar. Jurnal hidup remittance ini sendiri
+    tidak ikut dihitung dalam rata-rata, supaya resync tidak menilai ulang
+    terhadap kreditnya sendiri."""
     acc = remittance.from_account
-    entry_date = entry_date or remittance.date or timezone.now().date()
     dims = {"remittance": remittance.pk, "branch": acc.branch_id}
+    if remittance.is_legacy:
+        carried = amount_sar
+    else:
+        own = JournalEntry.objects.for_source("Remittance", remittance.pk).live().values_list("pk", flat=True)
+        carried = carrying_sar(acc, remittance.amount_sent, entry_date, exclude_entry_ids=own)
+    lines = [
+        {"account": coa.TRANSIT, "debit": amount_sar, **dims},
+        {"account": acc.ledger_account_id, "credit": carried, **dims,
+         **native(acc, remittance.amount_sent, remittance.exchange_rate)},
+    ]
+    gain = amount_sar - carried
+    if gain > 0:
+        lines.append({"account": coa.INC_FX_GAIN, "credit": gain, **dims})
+    elif gain < 0:
+        lines.append({"account": coa.EXP_FX_LOSS, "debit": -gain, **dims})
+    return lines
+
+
+def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None):
+    """Uang keluar dari rekening cabang asal → Kas Dalam Perjalanan (Transit),
+    dengan laba/rugi kurs cabang (_remittance_send_lines)."""
+    entry_date = entry_date or remittance.date or timezone.now().date()
     return post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
         description=f"Remittance {remittance.remittance_number} kirim",
         entry_date=entry_date,
-        lines=[
-            {"account": coa.TRANSIT, "debit": amount_sar, **dims},
-            {"account": acc.ledger_account_id, "credit": amount_sar, **dims,
-             **native(acc, remittance.amount_sent, remittance.exchange_rate)},
-        ],
+        lines=_remittance_send_lines(remittance, amount_sar, entry_date),
         source_type="Remittance",
         source_id=remittance.pk,
         created_by=created_by,
@@ -757,12 +785,18 @@ def resync_remittance(remittance, *, created_by):
     koreksi itu (PeriodLockedError)."""
     entry_date = remittance.date or timezone.now().date()
     want = int(remittance.expected_sar or 0)
-    source = remittance.from_account.ledger_account_id
     live = _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE)
-    posted = [(e.entry_date, ln.account_id, int(ln.credit), ln.amount_txn)
-              for e in live for ln in e.lines.all() if ln.credit]
+    # Decide on what the transfer is, not on its valuation: money that reached
+    # the account after the send would re-value an unchanged remittance (and a
+    # note-only edit in a closed month would be refused).
+    source = remittance.from_account.ledger_account_id
+    posted = sorted(
+        (e.entry_date, ln.account_id, int(ln.debit) if ln.account_id == coa.TRANSIT else ln.amount_txn)
+        for e in live for ln in e.lines.all() if ln.account_id in (coa.TRANSIT, source)
+    )
     native_sent = native(remittance.from_account, remittance.amount_sent).get("amount_txn")
-    if posted == ([(entry_date, source, want, native_sent)] if want else []):
+    wanted = sorted([(entry_date, coa.TRANSIT, want), (entry_date, source, native_sent)]) if want else []
+    if posted == wanted:
         return
     for e in live:
         reverse_entry(e, reversal_date=e.entry_date, created_by=created_by)
@@ -771,11 +805,11 @@ def resync_remittance(remittance, *, created_by):
 
 
 def _allocation_target(target, payment=None):
-    """Kolom PaymentAllocation untuk `target`: satu baris invoice (hotel atau
-    service). Denda dibayar lewat baris hotel reservasinya, bukan sendiri."""
+    """Kolom PaymentAllocation untuk `target`: satu baris hotel invoice. Denda
+    dibayar lewat baris hotel reservasinya, bukan sendiri."""
     from ..models.invoice import InvoiceLine
 
-    if not (isinstance(target, InvoiceLine) and target.kind in (InvoiceLine.KIND_HOTEL, InvoiceLine.KIND_SERVICE)):
+    if not (isinstance(target, InvoiceLine) and target.kind == InvoiceLine.KIND_HOTEL):
         raise FinanceError(f"Target alokasi tidak dikenali: {target!r}")
     if payment is not None:
         check_allocation(payment, target)
@@ -784,16 +818,11 @@ def _allocation_target(target, payment=None):
 
 def check_allocation(payment, line):
     """Aturan sebuah alokasi: pembayaran hanya melunasi invoice client-nya
-    sendiri, dan Services hanya dibayar ke rekening cabang penerbitnya (B12)."""
+    sendiri."""
     invoice = line.invoice
     if invoice.client_id != payment.client_id:
         raise FinanceError(
             f"Invoice {invoice.invoice_number} milik client lain; pembayaran hanya melunasi invoice client-nya sendiri."
-        )
-    if line.kind == line.KIND_SERVICE and payment.receiving_account.branch_id != invoice.branch_id:
-        raise FinanceError(
-            f"Invoice Services {invoice.invoice_number} diterbitkan cabang {invoice.branch.name}, jadi hanya "
-            f"bisa dibayar ke rekening cabang itu (bukan {payment.receiving_account})."
         )
 
 
@@ -802,7 +831,7 @@ def allocate_payment(payment, allocations, *, created_by=None):
     """Tulis PaymentAllocation (analitik) — TANPA journal entry.
 
     allocations: iterable (target, amount_sar) di mana target adalah
-    baris invoice (hotel atau service).
+    baris hotel invoice.
     """
     from ..models.payment import PaymentAllocation
 

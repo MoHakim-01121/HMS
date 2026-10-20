@@ -256,15 +256,31 @@ class ClFormTests(TestCase):
             "client_id": str(customer.pk), "guest_name": "PT Budi Wisata",
             "hotel_id": str(hotel.pk), "hotel_name": "Hilton",
             "check_in": "2026-10-01", "check_out": "2026-10-03",
-            "reservation_status": "DEFINITE",
+            "reservation_status": "DEFINITE", "salesperson_id": str(self.user.pk),
             "rooms": json.dumps([{"room_type": "Double", "room_type_id": rt.pk, "meals": "BB", "quantity": 2, "price": 300}]),
         })
         self.assertEqual(resp.status_code, 302)
         cl = ConfirmationLetter.objects.get(confirmation_number="CLX-OK")
+        self.assertEqual(cl.salesperson, self.user)
         rooms = Room.objects.filter(cl=cl)
         self.assertEqual(rooms.count(), 1)
         self.assertEqual(rooms.first().quantity, 2)
 
+
+    def test_new_cl_needs_a_salesperson(self):
+        page = self._post("/cl/new/", {"confirmation_number": "CLX-SP", "rooms": "[]"}).json()
+        self.assertIn("salesperson_id", page["props"]["errors"])
+
+    def test_salesperson_list_names_where_people_work(self):
+        props = self.client.get("/cl/new/", HTTP_X_INERTIA="true").json()["props"]
+        me = next(s for s in props["salespeople"] if s["id"] == self.user.pk)
+        self.assertEqual(me["meta"], "HQ")
+
+    def test_old_cl_without_salesperson_saves_without_one(self):
+        from hw.tests.factories import cl_form_payload
+        cl = make_cl(confirmation_number="CLX-OLD")
+        resp = self._post(f"/cl/{cl.pk}/edit/", cl_form_payload(cl, rooms=[{"quantity": 1, "price": 100}]))
+        self.assertEqual(resp.status_code, 302, resp.json()["props"].get("errors") if resp.status_code == 200 else "")
 
 class ProfileTests(TestCase):
     def setUp(self):
@@ -277,18 +293,33 @@ class ProfileTests(TestCase):
         page = resp.json()
         self.assertEqual(page["component"], "Account/Profile")
         self.assertEqual(page["props"]["account"]["username"], "profiler")
-        self.assertIn("activities", page["props"])
+        self.assertIn("activity", page["props"])
+        # Profile E2 opens the activity on today.
+        self.assertEqual(page["props"]["activity"]["filters"]["range"], "today")
 
     def test_profile_serializes_activity_with_changes(self):
         from hw.models import ActivityLog, log_activity
         log_activity(self.user, ActivityLog.ACTION_EDIT, "Hotel", "Hilton",
                      [{"label": "Nama", "before": "A", "after": "B"}])
         page = self.client.get("/account/profile/", HTTP_X_INERTIA="true").json()
-        acts = page["props"]["activities"]
+        acts = page["props"]["activity"]["rows"]
         edits = [a for a in acts if a["action"] == "edit"]
         self.assertEqual(len(edits), 1)
         self.assertEqual(edits[0]["object_ref"], "Hilton")
         self.assertEqual(edits[0]["changes"][0]["after"], "B")
+
+    def test_activity_filters_on_the_server(self):
+        from hw.models import ActivityLog, log_activity
+        log_activity(self.user, ActivityLog.ACTION_EDIT, "Hotel", "Hilton",
+                     [{"label": "Nama", "before": "Old name", "after": "New name"}])
+        log_activity(self.user, ActivityLog.ACTION_CREATE, "Payment", "PAY-0001")
+        get = lambda qs: self.client.get("/account/profile/?" + qs, HTTP_X_INERTIA="true").json()["props"]["activity"]
+        self.assertEqual([r["object_ref"] for r in get("range=any&acts=create")["rows"]], ["PAY-0001"])
+        self.assertEqual([r["object_ref"] for r in get("range=any&types=Hotel")["rows"]], ["Hilton"])
+        # Search reads the changed values too.
+        self.assertEqual([r["object_ref"] for r in get("range=any&q=new+name")["rows"]], ["Hilton"])
+        types = {t["name"]: t["count"] for t in get("range=any")["types"]}
+        self.assertEqual(types, {"Hotel": 1, "Payment": 1})
 
     def _post(self, url, data):
         return self.client.post(url, data, HTTP_X_INERTIA="true")

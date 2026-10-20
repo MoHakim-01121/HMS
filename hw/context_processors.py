@@ -62,10 +62,10 @@ def due_soon(request):
     threshold = today + timedelta(days=7)
     limit = 20
 
-    # Only what the user may view: hotel invoices (invoice), services
-    # invoices (services), CL check-ins (cl) — of the user's branches.
+    # Only what the user may view: hotel invoices (invoice), CL check-ins
+    # (cl) — of the user's branches.
     user = request.user
-    invoice_types = [t for t, module in (('hotel', 'invoice'), ('visa', 'services')) if can(user, module, 'view')]
+    invoice_types = ['hotel'] if can(user, 'invoice', 'view') else []
     notifs = []
     if invoice_types:
         notifs += _invoice_notifs(user, today, threshold, limit, invoice_types)

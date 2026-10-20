@@ -14,16 +14,6 @@ class PaymentQuerySet(models.QuerySet):
             allocated=Coalesce(models.Sum('allocations__amount_sar'), models.Value(0)) + models.F('deposited_sar'),
         )
 
-    def in_allocation_state(self, state):
-        """Effective payments whose allocation state is `state`
-        (unallocated / partial / allocated)."""
-        qs = self.with_allocated().filter(status=PaymentRecord.STATUS_CONFIRMED)
-        if state == PaymentRecord.ALLOCATION_NONE:
-            return qs.filter(allocated=0)
-        if state == PaymentRecord.ALLOCATION_PARTIAL:
-            return qs.filter(allocated__gt=0, allocated__lt=models.F('amount_sar'))
-        return qs.filter(allocated__gte=models.F('amount_sar'))
-
 
 class PaymentRecord(models.Model):
     """Satu penerimaan uang dari client: X di rekening penerima, kurs Y, nilai Z.
@@ -161,10 +151,6 @@ class PaymentRecord(models.Model):
     # ── Keadaan ───────────────────────────────────────────────
 
     @property
-    def is_confirmed(self):
-        return self.status in self.EFFECTIVE_STATUSES
-
-    @property
     def is_editable(self):
         return self.status == self.STATUS_PENDING
 
@@ -250,16 +236,6 @@ class PaymentAllocation(models.Model):
     @property
     def reservation_id(self):
         line = self.reservation
-        return line.pk if line else None
-
-    @property
-    def service_item(self):
-        line = self.invoice_line
-        return line if line.kind == line.KIND_SERVICE else None
-
-    @property
-    def service_item_id(self):
-        line = self.service_item
         return line.pk if line else None
 
 

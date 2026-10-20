@@ -16,7 +16,7 @@ from hw.models import Client, Remittance
 from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import fund_cash, make_hotel_line, make_invoice
+from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice
 
 
 def _net(**f):
@@ -59,13 +59,15 @@ class LumpSumRemittanceTest(TestCase):
         self.res2 = make_hotel_line(
             invoice=self.invoice, reservation_number='R-LS-2', total_sar=40000,
         )
-        from hw.models import BankAccount, LedgerAccount
+        from hw.models import BankAccount
         # New transfers must name the IDR account the money left from.
         self.idr_account = BankAccount.objects.create(
             branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri', account_identifier='777',
             ledger_account_id=cash_ledger_for('sby', 'IDR'),
         )
         fund_cash(self.idr_account, 1_000_000_000)
+        # Rupiah di buku besar dengan kurs kirim 4.800: tanpa laba/rugi kurs.
+        fund_ledger(self.idr_account, 960_000_000, 200_000, date(2026, 1, 1))
 
     def _login(self):
         self.client.force_login(self.user)
@@ -94,7 +96,7 @@ class LumpSumRemittanceTest(TestCase):
         # settlement sama sekali.
         self.assertEqual(rem.unallocated_sar, 100000)
         self.assertEqual(_net(account_id=coa.TRANSIT), 100000)
-        self.assertEqual(_net(account_id=coa.CASH_SBY), -100000)
+        self.assertEqual(_net(account_id=coa.CASH_SBY), 200000 - 100000)   # ledger funding − sent
 
         # ── 2. Edit tidak lagi membagi transfer lump-sum ke reservasi ──
         lines = (f'[{{"linked_number": "R-LS-1", "invoice_id": {self.invoice.pk}, "amount_sar": 60000}},'
@@ -125,7 +127,7 @@ class LumpSumRemittanceTest(TestCase):
         self.assertEqual(rem.unallocated_sar, 0)
         self.assertEqual(rem.status, Remittance.STATUS_RECEIVED)
         self.assertEqual(_net(account_id=coa.TRANSIT), 0)
-        self.assertEqual(_net(account_id=coa.CASH_SBY), 0)
+        self.assertEqual(_net(account_id=coa.CASH_SBY), 200000)   # only the ledger funding is left
         self.assertEqual(_net(account_id=coa.CASH_PUSAT), 100000)
 
     def test_old_tracking_and_recap_urls_open_their_tab(self):

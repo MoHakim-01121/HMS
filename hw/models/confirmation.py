@@ -7,6 +7,7 @@ Client dan Hotel lewat foreign key, jadi tidak bisa berbeda dari master.
 (Dulu keduanya kolom teks salinan; di produksi 3 nama hotel dan 1 tanggal di
 baris tagihan sudah menyimpang dari CL-nya.)
 """
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models.functions import Coalesce, NullIf
@@ -85,9 +86,11 @@ class ConfirmationLetter(models.Model):
         max_length=10, choices=ReservationStatus.choices, default=ReservationStatus.DEFINITE,
     )
     note          = models.TextField(blank=True)
-    estimasi_tiba = models.TimeField(null=True, blank=True)
-    pic_name      = models.CharField(max_length=200, blank=True)
-    pic_phone     = models.CharField(max_length=50, blank=True)
+    # Who sold the booking (an HMS user). Required on a new CL from the form;
+    # CLs made before 2026-10-16 have none.
+    salesperson   = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='cls_sold',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -12,12 +12,12 @@ from hw.finance import credit_note_service as cns
 from hw.finance import posting, queries as fq
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import (
-    Client, ConfirmationLetter, Invoice, InvoiceLine, Reservation, Room, ServiceItem,
+    Client, ConfirmationLetter, Invoice, InvoiceLine, Reservation, Room,
 )
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import (
-    make_cl, make_client, make_hotel_line, make_invoice, make_room, make_service_line,
+    make_cl, make_client, make_hotel_line, make_invoice, make_room,
 )
 
 
@@ -67,16 +67,15 @@ class InvoiceWithoutCopiesTest(_Base):
         inv.save()
         self.assertEqual(Invoice.objects.get(pk=inv.pk).branch_id, 'jkt')
 
-    def test_invoice_number_is_unique_across_types(self):
+    def test_invoice_number_is_unique(self):
         make_invoice(client=self.client_obj, invoice_number='INV-1')
         with self.assertRaises(IntegrityError), transaction.atomic():
-            make_invoice(client=self.client_obj, invoice_number='INV-1', invoice_type='visa', currency='USD')
+            make_invoice(client=self.client_obj, invoice_number='INV-1')
 
     def test_constraints(self):
         bad = [
             dict(invoice_type='hotel', currency='USD'),                       # hotel is always SAR
-            dict(invoice_type='visa', currency='EUR'),                        # unknown currency
-            dict(invoice_type='services'),                                    # unknown type
+            dict(invoice_type='visa'),                                        # Services is gone
             dict(status='paid'),                                              # payment state is not stored
             dict(status='void'),                                              # void needs its timestamp
             dict(issued_date=date(2026, 3, 10), due_date=date(2026, 3, 1)),   # due before issued
@@ -84,7 +83,6 @@ class InvoiceWithoutCopiesTest(_Base):
         for i, kw in enumerate(bad):
             with self.assertRaises(IntegrityError, msg=kw), transaction.atomic():
                 make_invoice(client=self.client_obj, invoice_number=f'BAD-{i}', **kw)
-        make_invoice(client=self.client_obj, invoice_number='OK-1', invoice_type='visa', currency='IDR')
         make_invoice(client=self.client_obj, invoice_number='OK-2', status='void', voided_at=timezone.now())
 
     def test_search_matches_number_company_and_brand(self):
@@ -156,27 +154,14 @@ class HotelLineTest(_Base):
     def test_line_shape_is_enforced_per_kind(self):
         cl = self._cl('7007')
         hotel_inv = make_invoice(client=self.client_obj)
-        svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='USD')
         bad = [
             dict(invoice=hotel_inv, kind='hotel'),                                          # no reservation
-            dict(invoice=hotel_inv, kind='hotel', confirmation_letter=cl, quantity=1, unit_price=5),
-            dict(invoice=svc_inv, kind='service', description='', quantity=1, unit_price=5),
-            dict(invoice=svc_inv, kind='service', description='Visa', quantity=0, unit_price=5),
-            dict(invoice=svc_inv, kind='service', description='Visa'),                      # no quantity/price
             dict(invoice=hotel_inv, kind='penalty'),                                        # no penalty
-            dict(invoice=svc_inv, kind='other', description='x', quantity=1, unit_price=1),
+            dict(invoice=hotel_inv, kind='service'),                                        # Services is gone
         ]
         for i, kw in enumerate(bad):
             with self.assertRaises(IntegrityError, msg=kw), transaction.atomic():
                 InvoiceLine.objects.create(line_no=50 + i, **kw)
-
-    def test_line_kinds_belong_to_their_invoice_type(self):
-        hotel_inv = make_invoice(client=self.client_obj)
-        svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='USD')
-        with self.assertRaises(ValueError):
-            hotel_inv.add_service_line('Visa', 1, 100)
-        with self.assertRaises(ValueError):
-            svc_inv.add_hotel_line(self._cl('7008'))
 
 
 class InvoiceFollowsReservationTest(_Base):
@@ -308,79 +293,6 @@ class VoidAndRemoveTest(_Base):
     def test_invoice_with_lines_is_protected_from_deletion(self):
         with self.assertRaises(ProtectedError):
             self.inv.delete()
-
-
-class ServiceLineTest(_Base):
-    def setUp(self):
-        super().setUp()
-        self.inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='USD',
-                                invoice_number='SVC-1', issued_date=date(2026, 3, 1))
-        self.visa = make_service_line(self.inv, name='Visa', qty=40, price=150)
-        self.bus = make_service_line(self.inv, name='Bus', qty=1, price=500)
-        posting.post_invoice_charge(self.inv, created_by=self.user)
-
-    def _edit(self, rows, **extra):
-        data = {
-            'client_id': str(self.client_obj.pk), 'invoice_number': 'SVC-1', 'invoice_currency': 'USD',
-            'issued_date': '2026-03-01', 'due_date': '2026-03-20', 'service_items': json.dumps(rows),
-        }
-        data.update(extra)
-        return self.client.post(f'/services/{self.inv.pk}/edit/', data, HTTP_X_INERTIA='true')
-
-    def test_service_lines_live_in_the_same_table(self):
-        self.assertEqual(ServiceItem.objects.filter(invoice=self.inv).count(), 2)
-        self.assertEqual(InvoiceLine.objects.filter(invoice=self.inv, kind='service').count(), 2)
-        self.assertEqual((self.visa.service_number, self.visa.name, self.visa.qty, self.visa.price, self.visa.total),
-                         (1, 'Visa', 40, 150, 6000))
-        self.assertEqual(self.inv.total_sar, 6500)
-
-    def test_edit_updates_lines_in_place(self):
-        resp = self._edit([
-            {'service_number': 1, 'name': 'Visa Umrah', 'qty': 42, 'price': 150},
-            {'service_number': 2, 'name': 'Bus', 'qty': 1, 'price': 500},
-        ])
-        self.assertEqual(resp.status_code, 302)
-        visa = InvoiceLine.objects.get(pk=self.visa.pk)
-        self.assertEqual((visa.description, visa.quantity), ('Visa Umrah', 42))
-        self.assertEqual(fq.invoice_charged_sar(self.inv.pk), 42 * 150 + 500)
-        rev = self.inv.revisions.order_by('-revision_no').first()
-        self.assertEqual((rev.reason, rev.total), ('line_change', 6800))
-
-    def test_removing_the_first_row_does_not_shift_the_others(self):
-        resp = self._edit([{'service_number': 2, 'name': 'Bus', 'qty': 1, 'price': 500}])
-        self.assertEqual(resp.status_code, 302)
-        self.assertIsNotNone(InvoiceLine.objects.get(pk=self.visa.pk).voided_at)   # charged, so voided
-        bus = InvoiceLine.objects.get(pk=self.bus.pk)
-        self.assertEqual((bus.description, bus.voided_at), ('Bus', None))
-        self.assertEqual(Invoice.objects.get(pk=self.inv.pk).total_sar, 500)
-
-    def test_new_rows_get_the_next_number(self):
-        self._edit([
-            {'service_number': 1, 'name': 'Visa', 'qty': 40, 'price': 150},
-            {'service_number': 2, 'name': 'Bus', 'qty': 1, 'price': 500},
-            {'name': 'Handling', 'qty': 40, 'price': 10},
-        ])
-        self.assertEqual(
-            list(self.inv.service_items.values_list('line_no', 'description')),
-            [(1, 'Visa'), (2, 'Bus'), (3, 'Handling')],
-        )
-
-    def test_services_invoice_needs_a_client_and_a_known_currency(self):
-        resp = self._edit([{'name': 'Visa', 'qty': 1, 'price': 1}], client_id='')
-        self.assertIn('client_id', resp.json()['props']['errors'])
-        resp = self._edit([{'name': 'Visa', 'qty': 1, 'price': 1}], invoice_currency='EUR')
-        self.assertIn('invoice_currency', resp.json()['props']['errors'])
-
-    def test_new_services_invoice_is_issued_by_the_client_owner_branch(self):
-        Client.objects.filter(pk=self.client_obj.pk).update(owner_branch_id='jkt')
-        resp = self.client.post('/services/new/', {
-            'client_id': str(self.client_obj.pk), 'invoice_number': 'SVC-2', 'invoice_currency': 'IDR',
-            'issued_date': '2026-03-01', 'due_date': '2026-03-20',
-            'service_items': json.dumps([{'name': 'Visa', 'qty': 2, 'price': 3_000_000}]),
-        })
-        self.assertEqual(resp.status_code, 302)
-        inv = Invoice.objects.get(invoice_number='SVC-2')
-        self.assertEqual((inv.branch_id, inv.currency, inv.total_sar), ('jkt', 'IDR', 6_000_000))
 
 
 class CreditNoteLineTest(_Base):

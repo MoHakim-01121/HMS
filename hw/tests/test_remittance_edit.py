@@ -7,7 +7,7 @@ from django.test import TestCase
 from hw.finance import posting, queries as fq
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import fund_cash, make_hotel_line, make_invoice, make_remittance, make_remittance_line
+from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice, make_remittance, make_remittance_line
 
 
 class RemittanceEditViewTest(TestCase):
@@ -26,6 +26,9 @@ class RemittanceEditViewTest(TestCase):
         posting.post_payment(rec, created_by=self.user)
         self.rem = make_remittance(date=date(2026, 1, 10), remittance_number='RMT-E20', amount_sent=4_750_000)
         fund_cash(self.rem.from_account, 100_000_000)
+        # Buku besar memegang rupiah dengan kurs kirim 4.750: edit di test ini
+        # tidak membentuk laba/rugi kurs.
+        fund_ledger(self.rem.from_account, 95_000_000, 20_000, date(2026, 1, 1))
         posting.resync_remittance(self.rem, created_by=self.user)
 
     def test_form_has_no_editable_lines(self):

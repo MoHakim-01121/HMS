@@ -91,6 +91,15 @@ export default function DraftModal() {
             )}
           </div>
         )}
+        {state.kind === "ready" && !waHref && (
+          <p style={{ display: "flex", alignItems: "center", gap: 6, margin: "12px 2px 0", fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9" />
+              <path strokeLinecap="round" d="M12 11v5M12 8h.01" />
+            </svg>
+            {t("No WhatsApp number on file — copy the message and send it manually.")}
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

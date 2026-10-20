@@ -99,7 +99,7 @@ class AllocationRowsTest(ReceiptPdfBase):
 
     def test_deleting_an_allocated_reservation_is_refused_by_the_database(self):
         """PaymentAllocation.reservation is SET_NULL, but the model also has a
-        CHECK requiring exactly one of reservation/service_item/penalty. The two
+        CHECK requiring exactly one of reservation/penalty. The two
         contradict: nulling the target violates the constraint, so the delete
         raises instead of orphaning the row.
 

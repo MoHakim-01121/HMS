@@ -12,7 +12,6 @@ that was already paid, so it becomes client deposit (Cr Titipan).
 from django.db import transaction
 from django.utils import timezone
 
-from ..models.choices import InvoiceType
 from ..models.credit_note import CreditNote, CreditNoteLine
 from ..models.invoice import Invoice, InvoiceLine, InvoiceRevision
 from ..models.journal import JournalEntry
@@ -70,26 +69,38 @@ def void_invoice(invoice, *, reason, created_by, void_date=None):
 # ── Credit notes ───────────────────────────────────────────────────────
 
 def _income_account(invoice):
-    return coa.INC_HOTEL if invoice.invoice_type == InvoiceType.HOTEL else coa.INC_SERVICE
+    return coa.INC_HOTEL
 
 
-_KEY_BY_KIND = {InvoiceLine.KIND_HOTEL: 'r', InvoiceLine.KIND_SERVICE: 's', InvoiceLine.KIND_PENALTY: 'p'}
-_FORM_KIND = {InvoiceLine.KIND_HOTEL: 'reservation', InvoiceLine.KIND_SERVICE: 'service', InvoiceLine.KIND_PENALTY: 'penalty'}
+_KEY_BY_KIND = {InvoiceLine.KIND_HOTEL: 'r', InvoiceLine.KIND_PENALTY: 'p'}
+_FORM_KIND = {InvoiceLine.KIND_HOTEL: 'reservation', InvoiceLine.KIND_PENALTY: 'penalty'}
 
 
 def _line_key(line):
-    """('r', pk) for a hotel line, ('s', pk) for a service line, ('p', pk) for a penalty line."""
+    """('r', pk) for a hotel line, ('p', pk) for a penalty line."""
     return (_KEY_BY_KIND[line.kind], line.pk)
 
 
 def _credited_by_line(invoice):
-    """{('r', pk) | ('s', pk): SAR already credited by active credit notes}."""
+    """{('r' | 'p', pk): SAR already credited by active credit notes}."""
     out = {}
     for cn_line in CreditNoteLine.objects.filter(
         credit_note__invoice=invoice, credit_note__status=CreditNote.STATUS_ACTIVE,
     ).select_related('invoice_line'):
         key = _line_key(cn_line.invoice_line)
         out[key] = out.get(key, 0) + cn_line.amount_sar
+    return out
+
+
+def _credited_by_lines(invoice_ids):
+    """Bulk _credited_by_line: {invoice_id: {('r' | 'p', pk): SAR}}."""
+    out = {pk: {} for pk in invoice_ids}
+    for cn_line in CreditNoteLine.objects.filter(
+        credit_note__invoice_id__in=invoice_ids, credit_note__status=CreditNote.STATUS_ACTIVE,
+    ).select_related('invoice_line', 'credit_note'):
+        credited = out[cn_line.credit_note.invoice_id]
+        key = _line_key(cn_line.invoice_line)
+        credited[key] = credited.get(key, 0) + cn_line.amount_sar
     return out
 
 
@@ -112,7 +123,7 @@ def creditable_lines(invoice):
 
 @transaction.atomic
 def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
-    """lines: [{'kind': 'reservation'|'service', 'id': pk, 'amount_sar': int}].
+    """lines: [{'kind': 'reservation'|'penalty', 'id': pk, 'amount_sar': int}].
     Lines with amount 0 are ignored. Returns the CreditNote."""
     invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
     reason = (reason or '').strip()

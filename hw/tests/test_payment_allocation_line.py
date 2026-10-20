@@ -16,7 +16,7 @@ from hw.models import (
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_client, make_hotel_line, make_invoice, make_service_line
+from hw.tests.factories import make_client, make_hotel_line, make_invoice
 
 
 class _Base(TestCase):
@@ -44,20 +44,10 @@ class AllocationTargetTest(_Base):
         p = self._payment(reservation=self.line)
         alloc = p.allocations.get()
         self.assertEqual((alloc.invoice_line_id, alloc.amount_sar), (self.line.pk, 5000))
-        self.assertEqual((alloc.reservation_id, alloc.service_item_id), (self.line.pk, None))
+        self.assertEqual(alloc.reservation_id, self.line.pk)
         confirm_payment(p, self.user)
         credit = JournalLine.objects.get(journal_entry__source_payment__isnull=False, credit__gt=0)
         self.assertEqual((credit.invoice_line_id, credit.credit), (self.line.pk, 5000))
-
-    def test_service_allocation_posts_the_service_dimension(self):
-        svc_inv = make_invoice(client=self.client_obj, invoice_type='visa', currency='SAR', issued_date=date(2026, 3, 1))
-        svc = make_service_line(svc_inv, name='Visa', qty=2, price=300)
-        posting.post_invoice_charge(svc_inv, created_by=self.user)
-        p = create_payment_record(svc_inv, self.client_obj, date(2026, 3, 5), 600, method='Transfer',
-                                  created_by=self.user, service_item=svc)
-        confirm_payment(p, self.user)
-        credit = JournalLine.objects.get(journal_entry__source_payment=p.pk, credit__gt=0)
-        self.assertEqual((credit.invoice_line_id, credit.invoice_line.kind), (svc.pk, 'service'))
 
     def test_unallocated_part_stays_without_a_line(self):
         p = self._payment(7000)

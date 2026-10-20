@@ -14,7 +14,7 @@ from hw.finance.errors import InsufficientFundsError
 from hw.management.commands.check_finance import Command as CheckFinance
 from hw.models import BankTransaction, Remittance
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import make_account
+from hw.tests.factories import fund_ledger, make_account
 
 _ids = count(1)
 
@@ -29,6 +29,8 @@ class CashFundsGuardTest(TestCase):
         self.idr = make_account('sby', 'IDR')
         make_account('pusat', 'SAR')
         self._move('in', 10_000_000, date(2026, 3, 1))
+        # The ledger holds rupiah at the send rate (4,750): no FX gain or loss here.
+        fund_ledger(self.idr, 10_450_000, 2_200, date(2026, 3, 1))
 
     def _move(self, direction, amount, day, source_id=None):
         return record_bank_transaction(

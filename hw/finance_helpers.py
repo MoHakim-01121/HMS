@@ -50,13 +50,6 @@ __all__ = [
 ]
 
 
-def _account_obj(ref):
-    """Terima kode v2, kode enum v1, atau instance LedgerAccount → LedgerAccount."""
-    if isinstance(ref, LedgerAccount):
-        return ref
-    return LedgerAccount.objects.get(pk=resolve_account_code(str(ref)))
-
-
 # ── Adapter jurnal (delegasi ke posting layer) ─────────────────
 
 
@@ -115,7 +108,6 @@ def create_payment_record(
     proof=None,
     created_by=None,
     reservation=None,
-    service_item=None,
     received_in='sby',
     receiving_account=None,
 ):
@@ -171,10 +163,10 @@ def create_payment_record(
         created_by=created_by,
     )
 
-    # A payment made for one reservation or service is allocated to it in
-    # full: the target is an allocation row like any other, not a second kind
-    # of link on the payment itself.
-    target = reservation or service_item
+    # A payment made for one reservation is allocated to it in full: the
+    # target is an allocation row like any other, not a second kind of link
+    # on the payment itself.
+    target = reservation
     if target is not None:
         from .finance.posting import check_allocation
         from .models.payment import PaymentAllocation

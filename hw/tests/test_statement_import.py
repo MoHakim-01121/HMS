@@ -10,7 +10,7 @@ from hw.finance import statement_import as si
 from hw.finance.bank_ledger import sync_opening_balance
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
-from hw.models import BankAccount, BankStatement, Client, LedgerAccount
+from hw.models import BankAccount, BankStatement, Client
 from hw.finance.accounts import cash_ledger_for
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod

@@ -3,23 +3,41 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Statement — {{ client.name }}</title>
+  <title>Client Reservation Statement — {{ client.name }}</title>
   <style>
     @page {
       size: A4;
-      margin: 56px 64px 48px;
+      /* Footer satu baris: siapa yang mencetak dan kapan di kiri, nomor
+         halaman di kanan, di bawah garis tipis yang sama dengan .note. Tiap
+         kotak lebarnya 50% supaya kedua garisnya menyambung selebar halaman. */
+      margin: 56px 64px 72px;
       @bottom-left {
-        content: string(doc-date);
+        content: string(printed-by) " " string(printed-at);
+        text-align: left;
+        width: 50%;
+        margin-top: 28px;
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+        vertical-align: top;
         font-size: 10px; color: #111;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       }
       @bottom-right {
         content: "Page " counter(page) " / " counter(pages);
+        text-align: right;
+        width: 50%;
+        margin-top: 28px;
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+        vertical-align: top;
         font-size: 10px; color: #111;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
       }
     }
-    .doc-date-anchor { string-set: doc-date content(); display: none; }
+    /* string-set tidak jalan pada elemen display:none (WeasyPrint), jadi
+       anchornya tetap di-render tapi tanpa ukuran. */
+    .printed-by-anchor { string-set: printed-by content(); position: absolute; width: 0; height: 0; overflow: hidden; }
+    .printed-at-anchor { string-set: printed-at content(); position: absolute; width: 0; height: 0; overflow: hidden; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -66,7 +84,7 @@
        #bbb hanya 1.92:1 — angka nol jadi nyaris tak terlihat. */
     .muted { color: #767676; }
     .sub { font-size: 10px; color: #888; }
-    .idx { font-size: 10.5px; padding-right: 12px; }
+    .idx { font-size: 10.5px; text-align: center; width: 36px; }
 
     .amt { color: #111; }
     /* Debit = tagihan (hitam, netral), Credit = uang masuk. Kuningnya gelap
@@ -122,9 +140,11 @@
       font-size: 12px;
       width: 380px;
     }
-    /* Garis tepat di atas baris mutasi pertama, bukan di atas "Balance brought
-       forward" — supaya saldo awal dan perubahan saldo terbaca dua bagian. */
-    .sum-row:nth-of-type(2) { border-top: 1px solid #ddd; padding-top: 4px; margin-top: 3px; }
+    /* Garis di bawah "Balance brought forward" — supaya saldo awal dan
+       perubahan saldo terbaca dua bagian. Baris itu bisa disembunyikan, jadi
+       garisnya ikut baris itu, bukan `:nth-of-type`. */
+    .sum-row.opening { border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-bottom: 3px; }
+    .sum-count { width: 380px; font-size: 10px; color: #767676; margin-top: 6px; text-align: right; }
     .sum-row .lbl { flex: 1; color: #555; text-align: left; }
     .sum-row .lbl .sub { font-size: 10px; color: #767676; font-weight: 400; }
     .sum-row .val { width: 130px; text-align: right; color: #111; white-space: nowrap; }
@@ -143,12 +163,10 @@
     .v-zero { color: #15803d; }
 
     .note {
-      margin-top: 24px;
+      margin-top: 34px;
       font-size: 9.5px;
       color: #666;
       line-height: 1.7;
-      border-top: 1px solid #eee;
-      padding-top: 10px;
     }
     .note b { color: #333; }
 
@@ -165,11 +183,12 @@
 </head>
 <body>
 
-<span class="doc-date-anchor">{{ now|date:"d M Y, H:i" }}</span>
+<span class="printed-by-anchor">{{ printed_by }}</span>
+<span class="printed-at-anchor">{{ now|date:"d/m/Y H:i" }}</span>
 <div class="watermark">STATEMENT</div>
 
 <div class="top">
-  <div class="doc-title">Client Statement</div>
+  <div class="doc-title">Client Reservation Statement</div>
   <img src="{{ logo_url }}" class="logo">
 </div>
 
@@ -184,7 +203,7 @@
 <table>
   <thead>
     <tr>
-      <th class="r" style="padding-right:12px;">No</th>
+      <th style="text-align:center; width:36px;">No</th>
       <th>RSV</th>
       <th>Hotel</th>
       <th class="nowrap">Check in</th>
@@ -202,7 +221,7 @@
     {% endif %}
     {% for row in reservations %}
     <tr class="{% if row.settled %}settled{% endif %}">
-      <td class="r idx">{{ row.no }}</td>
+      <td class="idx">{{ row.no }}</td>
       <td class="rsv">{{ row.reservation_number|default:"—" }}</td>
       <td>{% if row.hotel %}{{ row.hotel }}{% else %}<span class="muted">—</span>{% endif %}</td>
       <td class="nowrap">{{ row.check_in }}</td>
@@ -229,16 +248,22 @@
       <td class="r mono">{{ subtotal_balance|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
-    {% if unallocated_debits %}
+    {% if adjustments %}
     <tr class="line-row">
-      <td colspan="6">Charges not linked to a reservation</td>
-      <td class="r mono">{{ unallocated_debits|floatformat:0|intcomma }}</td>
+      <td colspan="6">Adjustments</td>
+      <td class="r mono">{{ adjustments|floatformat:0|intcomma }}</td>
     </tr>
     {% endif %}
-    {% if unallocated_credits %}
+    {% if unapplied_payments %}
     <tr class="line-row">
-      <td colspan="6">Payments received not yet applied</td>
-      <td class="r mono">−{{ unallocated_credits|floatformat:0|intcomma }}</td>
+      <td colspan="6">Unapplied payments</td>
+      <td class="r mono">{% if unapplied_payments > 0 %}−{% endif %}{{ unapplied_payments|floatformat:0|intcomma|cut:"-" }}</td>
+    </tr>
+    {% endif %}
+    {% if deposit_on_account %}
+    <tr class="line-row">
+      <td colspan="6">Deposit on account</td>
+      <td class="r mono">{% if deposit_on_account > 0 %}−{% endif %}{{ deposit_on_account|floatformat:0|intcomma|cut:"-" }}</td>
     </tr>
     {% endif %}
   </tbody>
@@ -246,41 +271,57 @@
 
 <div class="summary">
   <div class="summary-title">Account Summary (SAR)</div>
-  <div class="sum-row">
-    <span class="lbl">Balance brought forward</span>
-    <span class="val">{{ opening_balance|floatformat:0|intcomma }}</span>
+  {% if opening_balance %}
+  <div class="sum-row opening">
+    <span class="lbl">Opening balance</span>
+    <span class="val">{% if opening_balance < 0 %}−{% endif %}{{ opening_balance|floatformat:0|intcomma|cut:"-" }}</span>
   </div>
+  {% endif %}
   <div class="sum-row">
-    <span class="lbl">Invoiced — reservations</span>
+    <span class="lbl">Total debit</span>
     <span class="val">{{ subtotal_debit|floatformat:0|intcomma }}</span>
   </div>
   <div class="sum-row">
-    <span class="lbl">Received — reservations</span>
-    <span class="val">−{{ subtotal_credit|floatformat:0|intcomma }}</span>
+    <span class="lbl">Total credit</span>
+    <span class="val">{% if subtotal_credit > 0 %}−{% endif %}{{ subtotal_credit|floatformat:0|intcomma|cut:"-" }}</span>
   </div>
+  {% if adjustments %}
   <div class="sum-row">
-    <span class="lbl">Charges not linked to a reservation</span>
-    <span class="val">{% if unallocated_debits %}{{ unallocated_debits|floatformat:0|intcomma }}{% else %}—{% endif %}</span>
+    <span class="lbl">Adjustments</span>
+    <span class="val">{{ adjustments|floatformat:0|intcomma }}</span>
   </div>
+  {% endif %}
+  {% if unapplied_payments %}
   <div class="sum-row">
-    <span class="lbl">Payments received not yet applied</span>
-    <span class="val">{% if unallocated_credits %}−{{ unallocated_credits|floatformat:0|intcomma }}{% else %}—{% endif %}</span>
+    <span class="lbl">Unapplied payments</span>
+    <span class="val">{% if unapplied_payments > 0 %}−{% endif %}{{ unapplied_payments|floatformat:0|intcomma|cut:"-" }}</span>
   </div>
+  {% endif %}
+  {% if deposit_on_account %}
+  <div class="sum-row">
+    <span class="lbl">Deposit on account</span>
+    <span class="val">{% if deposit_on_account > 0 %}−{% endif %}{{ deposit_on_account|floatformat:0|intcomma|cut:"-" }}</span>
+  </div>
+  {% endif %}
   <div class="sum-row main">
-    <span class="lbl">Amount Due</span>
-    <span class="val {% if closing_balance > 0 %}v-due{% elif closing_balance < 0 %}v-cred{% else %}v-zero{% endif %}">{{ closing_balance|floatformat:0|intcomma }}</span>
+    <span class="lbl">Closing balance</span>
+    <span class="val {% if closing_balance > 0 %}v-due{% elif closing_balance < 0 %}v-cred{% else %}v-zero{% endif %}">{% if closing_balance < 0 %}−{% endif %}{{ closing_balance|floatformat:0|intcomma|cut:"-" }}</span>
   </div>
+  {% if reservations %}
+  <div class="sum-count">{{ reservations|length }} reservation{{ reservations|length|pluralize }}, {{ count_outstanding }} outstanding, {{ count_settled }} settled</div>
+  {% endif %}
 </div>
 
 <div class="note">
   <b>Notes:</b> each line is one reservation. <b>Debit</b> is everything invoiced to that reservation
   and <b>Credit</b> is everything received against it, so <b>Balance</b> = Debit − Credit. A positive
-  balance is an amount still receivable on that reservation; a negative balance is an overpayment held
-  on account against it. Settled reservations remain listed (shown in grey). Two lines below the
-  reservation table carry items that are not tied to any single reservation and therefore sit outside
-  the per-reservation rows: <b>Payments received not yet applied</b> is money held on your account that
-  we have not yet matched to a reservation, and <b>Charges not linked to a reservation</b> is invoiced
-  to you on items such as service fees or cancellation penalties that carry no reservation number.
+  balance is an amount still receivable on that reservation; a negative balance is an overpayment on
+  that reservation. Settled reservations remain listed (shown in grey).
+  {% if adjustments %}<b>Adjustments</b> are charges to your account that carry no reservation number.{% endif %}
+  {% if unapplied_payments %}<b>Unapplied payments</b> are payments we have received but not yet matched to a
+  reservation.{% endif %}
+  {% if deposit_on_account %}<b>Deposit on account</b> is money we hold for you; it can be applied to a
+  reservation or refunded, and it is already deducted from the closing balance.{% endif %}
   This statement is rendered as at the statement date shown above; entries posted subsequently are not
   reflected in these figures.
 </div>
