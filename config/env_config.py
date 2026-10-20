@@ -2,7 +2,6 @@
 Secure environment configuration handler
 """
 import os
-from pathlib import Path
 
 
 def get_env_variable(var_name, default=None):
