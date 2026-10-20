@@ -53,6 +53,16 @@ class BankAccountManageTests(TestCase):
         self.assertTrue(acc.show_on_invoice)
         self.assertEqual(str(acc), 'Bank Mandiri 1400550011119 (IDR)')
 
+    def test_admin_creates_a_cash_box(self):
+        from hw.models.bank import CashAccount
+        self.client.force_login(self.admin)
+        self.client.post('/finance/bank-accounts/new/', post_data(kind='cash', name='Kas Kecil', bank_name='', account_identifier=''))
+        box = CashAccount.objects.get(name='Kas Kecil')
+        self.assertEqual((box.branch_id, box.currency, box.bank_name, box.show_on_invoice), ('sby', 'IDR', '', False))
+        # The same name twice in one branch and currency is refused.
+        self.client.post('/finance/bank-accounts/new/', post_data(kind='cash', name='kas kecil'))
+        self.assertEqual(CashAccount.objects.filter(name__iexact='Kas Kecil').count(), 1)
+
     def test_ledger_account_with_another_currency_is_refused(self):
         self.client.force_login(self.admin)
         resp = self.client.post('/finance/bank-accounts/new/', post_data(ledger_account='1000-KAS-SBY'), HTTP_X_INERTIA='true')

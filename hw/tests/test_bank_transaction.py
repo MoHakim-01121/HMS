@@ -9,7 +9,7 @@ from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
 from hw.finance_helpers import create_payment_record, confirm_payment
-from hw.tests.factories import fund_cash, make_invoice, make_remittance
+from hw.tests.factories import make_invoice, make_remittance
 
 
 class BankTransactionBase(TestCase):
@@ -62,17 +62,12 @@ class PaymentBankTransactionTest(BankTransactionBase):
 
 class ExpensePaymentBankTransactionTest(BankTransactionBase):
     def test_expense_payment_records_out_transaction(self):
-        from hw.models import ExpenseCategory
-        util = ExpenseCategory.objects.get(code='UTIL')
-        exp = expense_service.record_expense(
-            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
-            lines=[{'category': util, 'amount': 1500}],
-        )
-        fund_cash(self.cash_sby, 1500)
-        ep = expense_service.add_expense_payment(
-            exp, amount=1500, payment_date=date(2026, 7, 3),
-            account=self.cash_sby, created_by=self.user,
-        )
+        from hw.models import BankAccount
+        from hw.tests.factories import fund_account, paid_expense
+        idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
+                                         account_identifier='902', ledger_account_id=cash_ledger_for('sby', 'IDR'))
+        fund_account(idr, 7_500_000, 1_500, date(2026, 7, 1), self.user)
+        _, ep = paid_expense(self.sby, idr, 7_500_000, date(2026, 7, 3), self.user)
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual(tx.direction, 'out')
         self.assertEqual(tx.amount_sar, 1500)
@@ -95,7 +90,7 @@ class OriginalAmountTest(BankTransactionBase):
     only its SAR value — the fund-flow report reads it from here."""
 
     def _idr_account(self):
-        from hw.models import BankAccount, LedgerAccount
+        from hw.models import BankAccount
         return BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
                                           account_identifier='901', ledger_account_id=cash_ledger_for('sby', 'IDR'))
 
@@ -111,17 +106,10 @@ class OriginalAmountTest(BankTransactionBase):
         self.assertEqual((tx.currency, tx.amount, tx.amount_sar), ('IDR', 49_000_000, 10_000))
 
     def test_idr_expense_payment_keeps_rupiah_amount(self):
-        from hw.models import ExpenseCategory
-        exp = expense_service.record_expense(
-            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
-            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 100}],
-        )
+        from hw.tests.factories import fund_account, paid_expense
         idr = self._idr_account()
-        fund_cash(idr, 475_000)
-        ep = expense_service.add_expense_payment(
-            exp, amount=475_000, currency='IDR', exchange_rate=4750, payment_date=date(2026, 7, 3),
-            account=idr, created_by=self.user,
-        )
+        fund_account(idr, 475_000, 100, date(2026, 7, 1), self.user)
+        _, ep = paid_expense(self.sby, idr, 475_000, date(2026, 7, 3), self.user)
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual((tx.direction, tx.currency, tx.amount, tx.amount_sar), ('out', 'IDR', 475_000, 100))
 
@@ -191,16 +179,13 @@ class VoidedCashRowTest(BankTransactionBase):
         self.assertNotEqual(pr.status, PaymentRecord.STATUS_REVERSED)  # rolled back
 
     def test_voided_expense_voids_its_cash_row(self):
-        from hw.models import ExpenseCategory
-        exp = expense_service.record_expense(
-            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
-            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 700}],
-        )
-        fund_cash(self.cash_sby, 700)
-        ep = expense_service.add_expense_payment(
-            exp, amount=700, payment_date=date(2026, 7, 3), account=self.cash_sby, created_by=self.user,
-        )
-        expense_service.void_expense(exp, created_by=self.user, date=date(2026, 7, 4))
+        from hw.models import BankAccount
+        from hw.tests.factories import fund_account, paid_expense
+        idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
+                                         account_identifier='903', ledger_account_id=cash_ledger_for('sby', 'IDR'))
+        fund_account(idr, 3_500_000, 700, date(2026, 7, 1), self.user)
+        exp, ep = paid_expense(self.sby, idr, 3_500_000, date(2026, 7, 3), self.user)
+        expense_service.void_expense(exp, voided_by=self.user, date=date(2026, 7, 4))
         tx = BankTransaction.objects.get(source_type='ExpensePayment', source_id=ep.pk)
         self.assertEqual(tx.status, BankTransaction.STATUS_VOIDED)
 
@@ -209,7 +194,7 @@ class AccountCurrencyTest(BankTransactionBase):
     """Money is received into / paid from an account of its own currency."""
 
     def _idr_bank(self):
-        from hw.models import BankAccount, LedgerAccount
+        from hw.models import BankAccount
         return BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', bank_name='Mandiri',
                                           account_identifier='900', ledger_account_id=cash_ledger_for('sby', 'IDR'))
 
@@ -238,28 +223,28 @@ class AccountCurrencyTest(BankTransactionBase):
             create_payment_record(inv, client_obj, date(2026, 7, 1), 4_900_000, currency='IDR', exchange_rate=4900,
                                   method='Transfer', receiving_account=self.cash_sby, created_by=self.user)
 
-    def test_expense_paid_from_account_in_another_currency_is_refused(self):
-        from hw.finance.errors import FinanceError
+    def _approved_expense(self):
         from hw.models import ExpenseCategory
-        exp = expense_service.record_expense(
+        exp = expense_service.submit_expense(
             branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
             lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 100}],
         )
+        return expense_service.approve_expense(exp, approved_by=self.user)
+
+    def test_expense_paid_from_account_in_another_currency_is_refused(self):
+        from hw.finance.errors import FinanceError
         with self.assertRaises(FinanceError):
-            expense_service.add_expense_payment(exp, amount=475_000, currency='IDR', exchange_rate=4750,
-                                                payment_date=date(2026, 7, 3), account=self.cash_sby, created_by=self.user)
+            expense_service.pay_expense(self._approved_expense(), account=self.cash_sby,
+                                        payment_date=date(2026, 7, 3), paid_by=self.user)
 
     def test_expense_paid_from_another_branch_account_is_refused(self):
         from hw.finance.errors import FinanceError
-        from hw.models import ExpenseCategory
-        exp = expense_service.record_expense(
-            branch=self.sby, expense_date=date(2026, 7, 2), created_by=self.user,
-            lines=[{'category': ExpenseCategory.objects.get(code='UTIL'), 'amount': 100}],
-        )
+        jkt_idr = self._idr_bank()
+        jkt_idr.branch_id = 'jkt'
+        jkt_idr.save(update_fields=['branch'])
         with self.assertRaises(FinanceError):
-            expense_service.add_expense_payment(exp, amount=100, payment_date=date(2026, 7, 3),
-                                                account=CashAccount.objects.get(branch_id='jkt'),
-                                                created_by=self.user)
+            expense_service.pay_expense(self._approved_expense(), account=jkt_idr,
+                                        payment_date=date(2026, 7, 3), paid_by=self.user)
 
 
 class HqReceivesSarOnlyTest(BankTransactionBase):

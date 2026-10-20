@@ -73,6 +73,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'hw.active_branch.ActiveBranchMiddleware',
     'hw.inertia_auth.InertiaAuthRedirectMiddleware',
     'inertia.middleware.InertiaMiddleware',
     'hw.inertia_share.InertiaShareMiddleware',
@@ -137,6 +138,13 @@ else:
 TEST_DATABASE_URL = get_env_variable('TEST_DATABASE_URL')
 if TEST_DATABASE_URL and len(sys.argv) > 1 and sys.argv[1] == 'test':
     DATABASES = {'default': dj_database_url.parse(TEST_DATABASE_URL)}
+
+# A user covering several branches looks at one branch at a time; with no pick
+# in the session the app picks head office for them (hw/active_branch.py). The
+# test suite predates the switcher and works across branches, so under `test`
+# a user starts unpicked (every branch); hw.tests.test_active_branch turns the
+# default back on to test the picking itself.
+HMS_DEFAULT_BRANCH_PICK = not (len(sys.argv) > 1 and sys.argv[1] == 'test')
 
 
 CACHES = {

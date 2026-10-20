@@ -12,12 +12,12 @@ from django.test import TestCase
 from hw.branch_scope import branch_codes, covers_all, operating_branches
 from hw.finance import expense_service
 from hw.finance.errors import FinanceError
-from hw.models import ActivityLog, Branch, CashAccount, Expense, ExpenseCategory, UserBranchAccess
+from hw.models import ActivityLog, Branch, Expense, ExpenseCategory, UserBranchAccess
 from hw.models.period import FinancialPeriod
 from hw.models.user import Role
 from hw.permissions import can, perms_payload
 from hw.models import CancellationPenalty, Client, PaymentRecord
-from hw.tests.factories import fund_cash, make_cl, make_invoice
+from hw.tests.factories import make_cl, make_invoice
 
 
 def make_user(username, role=Role.STAFF.value, branch=None):
@@ -108,13 +108,11 @@ class ExpenseBranchTest(TestCase):
         self.util = ExpenseCategory.objects.get(code='UTIL')
         self.hq = make_user('hq', Role.MANAGER.value)
         self.sby_staff = make_user('sby-staff', Role.FINANCE.value, branch='sby')
-        for code in ('sby', 'jkt'):
-            fund_cash(CashAccount.objects.get(branch_id=code), 1_000_000)
         self.sby_exp = self._record('sby', 'Listrik Surabaya')
         self.jkt_exp = self._record('jkt', 'Listrik Jakarta')
 
     def _record(self, code, vendor, user=None):
-        return expense_service.record_expense(
+        return expense_service.submit_expense(
             branch=Branch.objects.get(code=code), expense_date=date(2026, 3, 1), created_by=user or self.hq,
             vendor=vendor, lines=[{'category': self.util, 'amount': 100}],
         )
@@ -126,19 +124,17 @@ class ExpenseBranchTest(TestCase):
 
     def test_branch_staff_see_only_their_branch(self):
         self.client.force_login(self.sby_staff)
-        props = self.client.get('/finance/expenses/', HTTP_X_INERTIA='true').json()['props']
+        props = self.client.get('/finance/expenses/?year=all', HTTP_X_INERTIA='true').json()['props']
         self.assertEqual([e['expense_number'] for e in props['expenses']], [self.sby_exp.expense_number])
         self.assertEqual(props['branch_choices'], [{'value': 'sby', 'label': 'Surabaya'}])
-        self.assertTrue(all(a['branch'] == 'sby' for a in props['account_choices']))
-        self.assertEqual(props['stats']['total'], 1)
+        self.assertEqual(sum(props['counts'].values()), 1)
 
         self.assertEqual(self.client.get(f'/finance/expenses/{self.jkt_exp.pk}/').status_code, 404)
-        # A branch's Finance may void and pay — but not another branch's expense.
-        self.client.force_login(self.sby_staff)
-        self.assertEqual(self.client.post(f'/finance/expenses/{self.jkt_exp.pk}/void/').status_code, 404)
-        self.assertEqual(self.client.post(f'/finance/expenses/{self.jkt_exp.pk}/pay/', {'amount': 10}).status_code, 404)
+        # A branch's Finance approves, pays and voids — but not another branch's expense.
+        for action in ('approve', 'reject', 'pay', 'void'):
+            self.assertEqual(self.client.post(f'/finance/expenses/{self.jkt_exp.pk}/{action}/').status_code, 404, action)
         self.jkt_exp.refresh_from_db()
-        self.assertEqual(self.jkt_exp.status, Expense.STATUS_POSTED)
+        self.assertEqual(self.jkt_exp.status, Expense.STATUS_SUBMITTED)
         csv = self.client.get('/finance/expenses/export/csv/').content.decode()
         self.assertIn('Listrik Surabaya', csv)
         self.assertNotIn('Listrik Jakarta', csv)
@@ -147,7 +143,7 @@ class ExpenseBranchTest(TestCase):
         self.client.force_login(self.sby_staff)
         self.client.post('/finance/expenses/record/', {
             'expense_date': '2026-03-02', 'vendor': 'ATK Surabaya',
-            'lines': '[{"category": "UTIL", "amount": 50}]',
+            'lines': '[{"category": "UTIL", "amount": 50, "no_receipt_reason": "Nota hilang"}]',
         })
         self.assertEqual(Expense.objects.get(vendor__name='ATK Surabaya').branch_id, 'sby')
 
@@ -162,7 +158,7 @@ class ExpenseBranchTest(TestCase):
         with self.assertRaisesMessage(FinanceError, 'di luar akses'):
             self._record('jkt', 'Titipan Jakarta', user=self.sby_staff)
         with self.assertRaisesMessage(FinanceError, 'di luar akses'):
-            expense_service.void_expense(self.jkt_exp, created_by=self.sby_staff)
+            expense_service.approve_expense(self.jkt_exp, approved_by=self.sby_staff)
 
 
 class OperationalScopeTest(TestCase):
@@ -186,7 +182,6 @@ class OperationalScopeTest(TestCase):
         return {
             'mark': mark, 'client': client, 'cl': cl,
             'invoice': make_invoice(client=client, branch_id=code, due_date=date.today()),
-            'services': make_invoice(client=client, branch_id=code, invoice_type='visa'),
             'penalty': CancellationPenalty.objects.create(
                 cl=cl, penalty_number=f'PEN-{mark}', cancellation_date=date.today(), penalty_amount=10),
         }
@@ -198,7 +193,7 @@ class OperationalScopeTest(TestCase):
         self.client.force_login(self.sby_user)
         jkt, sby = self.records['jkt']['mark'], self.records['sby']['mark']
         for url in ('/clients/', '/clients/map/data/', '/cl/', '/cl/export/csv/', '/invoice/',
-                    '/invoice/export/csv/', '/services/', '/services/export/csv/', '/finance/penalties/',
+                    '/invoice/export/csv/', '/finance/penalties/',
                     '/calendar/', '/dashboard/'):
             body = self._get(url).content.decode()
             self.assertNotIn(jkt, body, url)
@@ -216,13 +211,12 @@ class OperationalScopeTest(TestCase):
         for url in (f"/clients/{jkt['client'].pk}/", f"/clients/{jkt['client'].pk}/edit/",
                     f"/cl/{jkt['cl'].pk}/", f"/cl/{jkt['cl'].pk}/pdf/",
                     f"/invoice/{jkt['invoice'].pk}/", f"/invoice/{jkt['invoice'].pk}/pdf/",
-                    f"/services/{jkt['services'].pk}/", f"/services/{jkt['services'].pk}/pdf/",
                     f"/penalty/{jkt['penalty'].pk}/", f"/penalty/{jkt['penalty'].pk}/pdf/"):
             self.assertEqual(self.client.get(url).status_code, 404, url)
         # Their own branch's records open (the 404s above are not a broken page).
         sby = self.records['sby']
         for url in (f"/clients/{sby['client'].pk}/", f"/cl/{sby['cl'].pk}/", f"/invoice/{sby['invoice'].pk}/",
-                    f"/services/{sby['services'].pk}/", f"/penalty/{sby['penalty'].pk}/"):
+                    f"/penalty/{sby['penalty'].pk}/"):
             self.assertEqual(self.client.get(url).status_code, 200, url)
 
     def test_head_office_sees_every_branch(self):
@@ -291,10 +285,10 @@ class FinanceScopeTest(TestCase):
 
     def test_payments_of_the_branch_and_its_clients_only(self):
         self.client.force_login(self.sby_mgr)
-        for url in ('/finance/payments/', '/finance/payments/export/csv/', '/finance/'):
+        for url in ('/finance/payments/?year=all', '/finance/payments/export/csv/'):
             body = self._body(url)
             self.assertNotIn('PAY-JKT', body, url)
-        body = self._body('/finance/payments/')
+        body = self._body('/finance/payments/?year=all')
         self.assertIn('PAY-SBYOWN', body)
         self.assertIn('PAY-SBYATHQ', body)  # a Surabaya client paying at head office
         for key in ('jkt', 'jkt_at_hq'):
@@ -316,7 +310,7 @@ class FinanceScopeTest(TestCase):
 
     def test_remittances_and_their_receipts(self):
         self.client.force_login(self.sby_mgr)
-        body = self._body('/remittance/')
+        body = self._body('/remittance/?year=all')
         self.assertIn('RMT-SBYMARK', body)
         self.assertNotIn('RMT-JKTMARK', body)
         self.assertEqual(self.client.get(f'/remittance/{self.jkt_rem.pk}/').status_code, 404)

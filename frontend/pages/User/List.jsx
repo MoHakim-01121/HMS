@@ -307,6 +307,7 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
               className: "col-m-actions",
               render: (u) => (
                 <RowActions actions={[
+                  { icon: "edit", label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
                   { icon: "pdf", label: t("Credential card"), variant: "green", onClick: () => setCardUser(u) },
                   { icon: "key", label: t("Reset Password"), onClick: () => setResetUser(u) },
                   // Changing your own role would revoke the permission needed

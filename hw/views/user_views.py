@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import ProtectedError
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
+from axes.handlers.proxy import AxesProxyHandler
 from django_ratelimit.decorators import ratelimit
 
 from inertia import render as inertia_render
@@ -38,6 +39,14 @@ class CompanyLoginView(LoginView):
         self.request.session.set_expiry(None if self.request.POST.get('remember') else 0)
         self.request.session.modified = True
         return response
+
+    def form_invalid(self, form):
+        # The wrong-password alert says how many tries are left before axes
+        # locks the account. Axes has already counted this failure.
+        username = form.data.get('username', '')
+        failures = AxesProxyHandler.get_failures(self.request, {'username': username})
+        attempts_left = max(settings.AXES_FAILURE_LIMIT - failures, 0)
+        return self.render_to_response(self.get_context_data(form=form, attempts_left=attempts_left))
 
     def get_success_url(self):
         return '/dashboard/?logged_in=1'
@@ -216,6 +225,9 @@ def user_edit(request, pk):
     if request.method == 'POST':
         action = request.POST.get('action')
 
+        if action == 'save':
+            return _save_user_form(request, edit_user)
+
         if action == 'set_access':
             role = _clean_role(request.POST.get('role'), get_role(edit_user))
             branch, branch_error = _clean_branch(request.POST.get('branch', _branch_value(edit_user)), role)
@@ -249,7 +261,9 @@ def user_edit(request, pk):
         elif action == 'reset_password':
             password = request.POST.get('password', '')
             confirm  = request.POST.get('password_confirm', '')
-            if not password:
+            if edit_user.is_superuser and not request.user.is_superuser and edit_user != request.user:
+                messages.error(request, "Only a superuser can reset a superuser's password.")
+            elif not password:
                 messages.error(request, "New password is required.")
             elif password != confirm:
                 messages.error(request, "Passwords do not match.")
@@ -276,8 +290,89 @@ def user_edit(request, pk):
     # The old 'toggle_staff' action is gone: is_staff is now derived from the
     # role by 'set_access', so flipping it on its own would desync the two.
 
+    if request.method == 'GET':
+        return _user_form_page(request, edit_user)
     # Action-based view: every branch above either redirects on success or sets
     # a messages.error (shown as a flash toast). Always return to the Inertia list.
+    return redirect('user_list')
+
+
+def _user_form_page(request, edit_user, form_data=None, errors=None):
+    """The edit form (canvas "User Form"): name, role and branch, a password
+    reset, and whether the account is active, saved together."""
+    return inertia_render(request, "User/Form", props={
+        "edit": {
+            "id": edit_user.pk, "username": edit_user.username,
+            "is_self": edit_user == request.user, "is_superuser": edit_user.is_superuser,
+        },
+        "form_data": form_data or {
+            "username": edit_user.username, "full_name": edit_user.get_full_name(),
+            "role": get_role(edit_user), "branch": _branch_value(edit_user),
+            "is_active": edit_user.is_active,
+        },
+        "errors": errors or {},
+        "role_choices": _role_choices(),
+        "branch_choices": _branch_choices(),
+    })
+
+
+def _save_user_form(request, edit_user):
+    P = request.POST
+    is_self = edit_user == request.user
+    full_name = (P.get('full_name') or '').strip()
+    role = _clean_role(P.get('role'), get_role(edit_user))
+    branch, branch_error = _clean_branch(P.get('branch', _branch_value(edit_user)), role)
+    password, confirm = P.get('password', ''), P.get('password_confirm', '')
+    is_active = P.get('is_active') == 'on'
+    errors = {}
+    if not full_name:
+        errors['full_name'] = "Enter the full name."
+    elif len(full_name) > 150:
+        errors['full_name'] = "Full name must be 150 characters or fewer."
+    if branch_error:
+        errors['branch'] = branch_error
+    if password and password != confirm:
+        errors['password_confirm'] = "Passwords do not match."
+    access_changes = role != get_role(edit_user) or branch != _branch_value(edit_user)
+    if access_changes and is_self:
+        errors['role'] = "You cannot change your own role."
+    if access_changes and edit_user.is_superuser and not request.user.is_superuser:
+        errors['role'] = "Only a superuser can change a superuser's access."
+    if not is_active and is_self:
+        errors['is_active'] = "You cannot deactivate your own account."
+    # A superuser's account (name, password, access) is a superuser's to
+    # change: anyone else resetting its password could sign in as it.
+    if edit_user.is_superuser and not request.user.is_superuser and not is_self:
+        errors['role'] = "Only a superuser can change a superuser's account."
+    if errors:
+        return _user_form_page(request, edit_user, {
+            "username": edit_user.username, "full_name": full_name, "role": role,
+            "branch": P.get('branch') or ALL_BRANCHES, "is_active": is_active,
+        }, errors)
+
+    changes = []
+    if access_changes:
+        changes += [{'field': f, 'old': o, 'new': n} for f, o, n in
+                    (('role', get_role(edit_user), role), ('branch', _branch_value(edit_user), branch)) if o != n]
+        UserProfile.objects.update_or_create(user=edit_user, defaults={'role': role})
+        edit_user.refresh_from_db()
+        _save_branch(edit_user, branch)
+        edit_user.is_staff = _grants_django_staff(role)
+    parts = full_name.split(None, 1)
+    first, last = parts[0][:30], (parts[1][:150] if len(parts) > 1 else '')
+    if (first, last) != (edit_user.first_name, edit_user.last_name):
+        changes.append({'field': 'full_name', 'old': edit_user.get_full_name(), 'new': full_name})
+        edit_user.first_name, edit_user.last_name = first, last
+    if password:
+        edit_user.set_password(password)
+        changes.append({'field': 'password', 'new': 'reset'})
+    if is_active != edit_user.is_active and not edit_user.is_superuser:
+        changes.append({'field': 'is_active', 'old': edit_user.is_active, 'new': is_active})
+        edit_user.is_active = is_active
+    edit_user.save()
+    if changes:
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username, changes)
+    messages.success(request, f"User '{edit_user.username}' saved.")
     return redirect('user_list')
 
 
@@ -350,17 +445,110 @@ def user_credential_card(request, pk):
     return response
 
 
+ACTIVITY_PER_PAGE = 20
+ACTIVITY_RANGES = ('any', 'today', '7d', '30d', 'custom')
+
+
+def _activity_props(request):
+    """The signed-in user's activity, one page at a time, filtered on the
+    server: search (record, field or value), actions, record types and a date
+    range. It opens on today, as on the Profile E2 canvas."""
+    from datetime import timedelta
+    from django.core.paginator import Paginator
+    from django.db.models import Count, Q, TextField
+    from django.db.models.functions import Cast, TruncDate
+    from django.utils import timezone
+
+    g = request.GET
+    q = g.get('q', '').strip()
+    acts = [a for a in g.get('acts', '').split(',') if a in ActivityLog.Action.values]
+    types = [t for t in g.get('types', '').split(',') if t]
+    rng = g.get('range', 'today')
+    rng = rng if rng in ACTIVITY_RANGES else 'today'
+    date_from, date_to = g.get('from', ''), g.get('to', '')
+
+    mine = ActivityLog.objects.filter(user=request.user)
+    qs = mine
+    if acts:
+        qs = qs.filter(action__in=acts)
+    if types:
+        qs = qs.filter(model_name__in=types)
+    today = timezone.localdate()
+    if rng == 'today':
+        qs = qs.filter(timestamp__date=today)
+    elif rng == '7d':
+        qs = qs.filter(timestamp__date__gt=today - timedelta(days=7))
+    elif rng == '30d':
+        qs = qs.filter(timestamp__date__gt=today - timedelta(days=30))
+    elif rng == 'custom':
+        from .helpers import _parse_date
+        if _parse_date(date_from):
+            qs = qs.filter(timestamp__date__gte=_parse_date(date_from))
+        if _parse_date(date_to):
+            qs = qs.filter(timestamp__date__lte=_parse_date(date_to))
+    if q:
+        qs = qs.annotate(changes_text=Cast('changes', TextField())).filter(
+            Q(model_name__icontains=q) | Q(object_ref__icontains=q) | Q(changes_text__icontains=q))
+
+    page = Paginator(qs.order_by('-timestamp'), ACTIVITY_PER_PAGE).get_page(g.get('page') or 1)
+    rows = list(page.object_list)
+    days = {timezone.localtime(a.timestamp).date() for a in rows}
+    day_counts = {
+        r['d'].isoformat(): r['n']
+        for r in qs.annotate(d=TruncDate('timestamp')).filter(d__in=days).values('d').annotate(n=Count('id'))
+    } if days else {}
+    return {
+        'rows': [{
+            'id': a.pk,
+            'timestamp': timezone.localtime(a.timestamp).isoformat(),
+            'action': a.action,
+            'model_name': a.model_name,
+            'object_ref': a.object_ref,
+            'changes': a.changes or [],
+        } for a in rows],
+        'day_counts': day_counts,
+        'today': today.isoformat(),
+        'page': page.number,
+        'pages': page.paginator.num_pages,
+        'total': page.paginator.count,
+        'start': page.start_index(),
+        'end': page.end_index(),
+        'types': [{'name': r['model_name'], 'count': r['n']} for r in
+                  mine.exclude(model_name='').values('model_name').annotate(n=Count('id')).order_by('model_name')],
+        'filters': {'q': q, 'acts': acts, 'types': types, 'range': rng, 'from': date_from, 'to': date_to},
+    }
+
+
+def _branch_facts(user):
+    """(label, explanation) of the branches a user works in, for My Profile."""
+    from ..branch_scope import coverage
+    codes = coverage(user)
+    if codes is None:
+        if user.is_superuser or get_role(user) == ADMIN_SLUG:
+            return 'All branches', 'An administrator always covers every branch.'
+        return 'All branches', 'Sees every branch, one at a time: pick it under the logo in the sidebar.'
+    names = sorted(Branch.objects.filter(code__in=codes).values_list('name', flat=True))
+    label = ', '.join(names) or 'No branch'
+    if len(names) == 1:
+        return label, f'Sees and creates {names[0]} records only.'
+    return label, 'Sees these branches, one at a time: pick it under the logo in the sidebar.'
+
+
 def _profile_props(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    activities = ActivityLog.objects.filter(user=request.user)[:20]
     u = request.user
     role = role_label(u)
     # Custom roles have no short form, so the badge falls back to the full
     # label rather than mislabelling an unknown role as 'Viewer'.
     role_badge = {'admin': 'Admin', 'manager': 'Manager', 'staff': 'Staff',
                   'viewer': 'Viewer'}.get(get_role(u), role)
+    role_meta = next((c['description'] for c in role_choices() if c['value'] == get_role(u)), '')
+    branch, branch_meta = _branch_facts(u)
     return {
-        "profile": {"avatar_url": profile.avatar.url if profile.avatar else None},
+        "profile": {
+            "avatar_url": profile.avatar.url if profile.avatar else None,
+            "language": profile.language or "en",
+        },
         "account": {
             "full_name":    u.get_full_name() or u.username,
             "username":     u.username,
@@ -371,16 +559,13 @@ def _profile_props(request):
             "is_active":    u.is_active,
             "role":         role,
             "role_badge":   role_badge,
+            "role_meta":    role_meta,
+            "branch":       branch,
+            "branch_meta":  branch_meta,
             "date_joined":  u.date_joined.isoformat() if u.date_joined else None,
             "last_login":   u.last_login.isoformat() if u.last_login else None,
         },
-        "activities": [{
-            "timestamp":  a.timestamp.isoformat(),
-            "action":     a.action,
-            "model_name": a.model_name,
-            "object_ref": a.object_ref,
-            "changes":    a.changes or [],
-        } for a in activities],
+        "activity": _activity_props(request),
     }
 
 

@@ -69,11 +69,11 @@ class MatrixTests(TestCase):
         self.assertTrue(can(user, 'cl', 'create'))
         self.assertFalse(can(user, 'cl', 'delete'))
 
-    def test_staff_sees_remittance_read_only(self):
+    def test_staff_does_not_see_remittance(self):
+        # Staff records client payments only (decided 2026-10-20).
         user = make_user("staff2", Role.STAFF.value)
-        self.assertTrue(can(user, 'remittance', 'view'))
-        self.assertFalse(can(user, 'remittance', 'create'))
-        self.assertFalse(can(user, 'remittance', 'edit'))
+        for action in ('view', 'create', 'edit'):
+            self.assertFalse(can(user, 'remittance', action), action)
 
     def test_viewer_can_only_read_and_export(self):
         user = make_user("view1", Role.VIEWER.value)
@@ -147,12 +147,12 @@ class ViewGuardTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/login/", resp["Location"])
 
-    def test_remittance_is_read_only_for_staff(self):
+    def test_remittance_is_closed_to_staff(self):
         self.login(role=Role.STAFF.value)
-        self.assertEqual(self.client.get("/remittance/").status_code, 200)
-        resp = self.client.get("/remittance/new/")
-        self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], "/dashboard/")
+        for url in ("/remittance/", "/remittance/new/"):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 302, url)
+            self.assertEqual(resp["Location"], "/dashboard/", url)
 
 
 class SharedPropsTests(TestCase):

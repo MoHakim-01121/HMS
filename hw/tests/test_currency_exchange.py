@@ -97,10 +97,11 @@ class RecordExchangeTest(ExchangeBase):
             fx.record_exchange(from_account=self.idr, amount_out=1, to_account=self.idr, amount_in=1,
                                exchange_date=date(2026, 9, 10), created_by=self.user)
         # Money for another branch travels as a Remittance, not a transfer.
-        hq_usd = BankAccount.objects.create(branch_id='pusat', name='USD HQ', currency='USD', bank_name='BCA',
-                                            account_identifier='555', ledger_account_id=cash_ledger_for('pusat', 'USD'))
+        # Pusat holds SAR only, so its SAR account stands in for "another branch".
+        from hw.finance.bank_ledger import default_account
+        hq_sar = default_account('pusat', 'SAR')
         with self.assertRaisesMessage(FinanceError, 'Remittance'):
-            fx.record_exchange(from_account=self.usd, amount_out=100, to_account=hq_usd, amount_in=100,
+            fx.record_exchange(from_account=self.usd, amount_out=100, to_account=hq_sar, amount_in=375,
                                exchange_date=date(2026, 9, 10), created_by=self.user)
         with self.assertRaises(FinanceError):
             self._exchange(out=0)
@@ -172,7 +173,7 @@ class ExchangeViewTest(ExchangeBase):
             'to_account': f'bank:{self.idr.pk}', 'amount_in': '48125000', 'exchange_date': '2026-09-10',
         })
         self.assertEqual(resp.status_code, 302)
-        rows = self.client.get('/finance/exchanges/', HTTP_X_INERTIA='true').json()['props']['exchanges']
+        rows = self.client.get('/finance/exchanges/?month=2026-09', HTTP_X_INERTIA='true').json()['props']['exchanges']
         self.assertEqual((rows[0]['amount_out'], rows[0]['amount_in'], rows[0]['rate']), (2750, 48125000, 17500.0))
 
     def test_form_error_keeps_input(self):

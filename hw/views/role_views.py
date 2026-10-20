@@ -27,7 +27,6 @@ from ..permissions import ACTIONS, GRANTABLE_MODULES, get_role, require_perm
 MODULE_LABELS = {
     'cl': 'Confirmation Letters',
     'invoice': 'Invoices',
-    'services': 'Services',
     'hotels': 'Hotels',
     'clients': 'Clients',
     'remittance': 'Remittance',
@@ -36,7 +35,8 @@ MODULE_LABELS = {
     'users': 'Users & Roles',
     'dev': 'Dev / Style Guide',
     'landing': 'Landing Page',
-    'payments': 'Payments, Refunds & Transfers',
+    'payments': 'Payments, Refunds & Credit Notes',
+    'bank': 'Bank & Transfers',
     'expenses': 'Expenses',
     'statements': 'Finance Reports & Accounts',
     'journal': 'Journal & Trial Balance',

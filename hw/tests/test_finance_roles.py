@@ -1,7 +1,7 @@
 """Phase 3 of the access control audit (decided 2026-10-09).
 
-Only Admin and Finance work on money; Manager and Staff read it, Staff not the
-books. 'approve' is its own action. Every role stays adjustable at /roles/.
+Only Admin and Finance work on money; Manager reads it; Staff records client
+payments only (2026-10-20) and does not see the books. 'approve' is its own action. Every role stays adjustable at /roles/.
 Django admin shows money and audit records read-only.
 """
 from django.contrib import admin as django_admin
@@ -30,16 +30,25 @@ class SeededRolesTest(TestCase):
         self.assertTrue(can(finance, 'periods', 'edit'))
         self.assertTrue(can(finance, 'invoice', 'view'))
         self.assertFalse(can(finance, 'invoice', 'edit'))
-        self.assertFalse(can(finance, 'statements', 'edit'))  # setting up accounts is the admin's
+        self.assertTrue(can(finance, 'bank', 'edit'))  # sets up accounts, from head office (2026-10-20)
 
-    def test_manager_and_staff_read_money_only(self):
+    def test_manager_reads_money_and_staff_records_payments_only(self):
         manager = make_user('mgr', Role.MANAGER.value)
         staff = make_user('stf', Role.STAFF.value)
-        for user in (manager, staff):
-            for module in ('payments', 'expenses', 'remittance'):
-                self.assertTrue(can(user, module, 'view'), (user, module))
-                for action in ('create', 'edit', 'delete', 'approve'):
-                    self.assertFalse(can(user, module, action), (user, module, action))
+        for module in ('payments', 'bank', 'expenses', 'remittance'):
+            self.assertTrue(can(manager, module, 'view'), module)
+            for action in ('create', 'edit', 'delete'):
+                self.assertFalse(can(manager, module, action), module)
+        # Staff records client payments for Finance to confirm (2026-10-20).
+        self.assertTrue(can(staff, 'payments', 'create'))
+        for module in ('bank', 'expenses', 'remittance'):
+            self.assertFalse(can(staff, module, 'view'), module)
+        # Approving is a manager's for expenses only (decided 2026-10-11); staff approve nothing.
+        self.assertTrue(can(manager, 'expenses', 'approve'))
+        for module in ('payments', 'remittance'):
+            self.assertFalse(can(manager, module, 'approve'), module)
+        for module in ('payments', 'expenses', 'remittance'):
+            self.assertFalse(can(staff, module, 'approve'), module)
         self.assertTrue(can(manager, 'invoice', 'delete'))
         self.assertTrue(can(manager, 'journal', 'view'))
         for module in ('journal', 'statements', 'periods'):
@@ -70,14 +79,14 @@ class ApproveActionTest(TestCase):
 class AdjustableRolesTest(TestCase):
     """The seed is a starting point: an administrator widens a role at /roles/."""
 
-    def test_admin_lets_staff_record_payments(self):
+    def test_admin_lets_staff_see_remittances(self):
         staff = make_user('stf', Role.STAFF.value)
-        self.assertFalse(can(staff, 'payments', 'create'))
+        self.assertFalse(can(staff, 'remittance', 'view'))
         self.client.force_login(make_user('chief', Role.ADMIN.value))
         role = RoleDefinition.objects.get(slug='staff')
-        granted = [f'{m}:{a}' for m, actions in role.permissions.items() for a in actions] + ['payments:create']
+        granted = [f'{m}:{a}' for m, actions in role.permissions.items() for a in actions] + ['remittance:view']
         self.client.post('/roles/staff/edit/', {'label': 'Staff', 'permissions': granted})
-        self.assertTrue(can(User.objects.get(pk=staff.pk), 'payments', 'create'))
+        self.assertTrue(can(User.objects.get(pk=staff.pk), 'remittance', 'view'))
 
 
 class ReadOnlyDjangoAdminTest(TestCase):

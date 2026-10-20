@@ -37,6 +37,7 @@ LOGIN_ONLY_URLS = {
     'dashboard/': 'each panel checks its own module (home_views.home)',
     'search/': 'each result group checks its own module',
     'ai/chat/': 'reads only modules the user may view',
+    'ai/chat/reset/': 'clears only the caller\'s own session history',
     'ai/draft/': 'checks the invoice module of the invoice asked for',
     'finance/': 'hub cards filtered by can()',
     'account/profile/': 'own account',
@@ -44,6 +45,7 @@ LOGIN_ONLY_URLS = {
     'account/avatar/upload/': 'own account',
     'account/avatar/delete/': 'own account',
     'account/language/': 'own account',
+    'account/branch/': 'switches only among the branches the user already covers',
 }
 # Old addresses that only redirect to guarded finance pages.
 REDIRECT_URLS = {'clients/<int:pk>/refund/', 'clients/<int:pk>/statement/pdf/'}
@@ -197,12 +199,12 @@ class ProtectedMediaTest(TestCase):
         url = self._file('landing/team/1/face.png', b'png')
         self.assertEqual(self.client.get(url).status_code, 200)
 
-    def test_services_invoice_attachment_needs_services_view(self):
-        inv = make_invoice(invoice_type='visa')
-        url = self._file(f'attachments/invoice/{inv.pk}/visa.pdf')
-        self.client.force_login(make_role('billing', {'invoice': ['view']}))
+    def test_invoice_attachment_needs_invoice_view(self):
+        inv = make_invoice()
+        url = self._file(f'attachments/invoice/{inv.pk}/rooming.pdf')
+        self.client.force_login(make_role('bookings', {'cl': ['view']}))
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.client.force_login(self.staff)
+        self.client.force_login(make_role('billing', {'invoice': ['view']}))
         self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_new_uploads_get_random_names(self):
@@ -253,15 +255,19 @@ class ModuleScopedViewsTest(TestCase):
 
     def test_dashboard_draws_only_permitted_panels(self):
         props = self._home(self.hotelier)
-        for key in ('cl_trend', 'recent_cls', 'payment_snapshot', 'finance_summary', 'top_hotels'):
-            self.assertIsNone(props[key], key)
-        self.assertIsNone(props['kpis']['cl_month'])
-        self.assertIsNone(props['kpis']['unpaid_total'])
+        for key in ('sales', 'sold_months', 'checkins', 'top', 'collected', 'money', 'profit'):
+            self.assertNotIn(key, props, key)
+        self.assertEqual(props['todo'], [])
         self.assertEqual(props['due_soon_count'], 0)
 
+        # Staff get their own dashboard (their CLs, to do, check-ins), with
+        # no money blocks.
         props = self._home(self.staff)
-        self.assertIsNotNone(props['cl_trend'])
-        self.assertIsNotNone(props['payment_snapshot'])
+        self.assertEqual(props['variant'], 'staff')
+        for key in ('sales', 'checkins', 'todo'):
+            self.assertIn(key, props, key)
+        for key in ('collected', 'money', 'profit'):
+            self.assertNotIn(key, props, key)
         self.assertGreaterEqual(props['due_soon_count'], 1)
 
 

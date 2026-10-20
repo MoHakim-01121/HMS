@@ -46,7 +46,8 @@ class SeedTests(TestCase):
         self.assertEqual(matrix['admin'], {m: set(ACTIONS) for m in MODULES})
         self.assertNotIn('users', matrix['manager'])
         self.assertNotIn('dev', matrix['manager'])
-        self.assertEqual(matrix['staff']['remittance'], {'view', 'export'})
+        self.assertEqual(matrix['staff']['payments'], {'view', 'create', 'export'})
+        self.assertNotIn('remittance', matrix['staff'])
         self.assertNotIn('delete', matrix['staff']['cl'])
         self.assertEqual(matrix['viewer']['cl'], {'view', 'export'})
 

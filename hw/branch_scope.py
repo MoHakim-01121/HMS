@@ -36,9 +36,9 @@ HEAD_OFFICE = {
     'cl': _CHANGES,
     'penalty': _CHANGES,
     'calendar': frozenset({'edit'}),
-    # Setting up bank and cash accounts (confirmed 2026-10-09); a branch reads
-    # its own accounts' balances and movements.
-    'statements': _CHANGES,
+    # Setting up bank and cash accounts is head office's too (confirmed
+    # 2026-10-09), but 'bank' also covers transfers and reconciliation, which
+    # a branch may do: that check lives in finance_views.sets_up_accounts().
 }
 
 # Model name -> lookup path from the model to the branch that owns its records.
@@ -48,12 +48,13 @@ BRANCH_FIELD = {
     # A CL (and its penalty) belongs to its client's branch.
     'ConfirmationLetter': 'client__owner_branch',
     'CancellationPenalty': 'cl__client__owner_branch',
-    # An invoice (hotel or services) belongs to the branch that issued it.
+    # An invoice belongs to the branch that issued it.
     'Invoice': 'branch',
     'InvoiceLine': 'invoice__branch',
     # An attachment hangs on an invoice or on a CL: either path may own it.
     'Attachment': ('invoice__branch', 'cl__client__owner_branch'),
     'Expense': 'branch',
+    'ExpenseClaim': 'branch',
     'ExpensePayment': 'expense__branch',
     # Money: the account it moved through, and for a client's money the
     # client's branch too — a branch works on its clients' payments even when
@@ -80,8 +81,19 @@ def is_head_office_only(module, action):
     return actions is not None and (actions == EVERY_ACTION or action in actions)
 
 
-def branch_codes(user):
-    """Branch codes `user` covers, or None for every branch.
+def head_office_allows(user, module, action):
+    """Head office's own work: the user covers every branch, whichever branch
+    they have picked. Head office does not run HMS itself, only the branches
+    do (2026-10-20), so the organisation's own pages (users and roles, the
+    journal, periods) must not wait for head office to be picked."""
+    if not is_head_office_only(module, action):
+        return True
+    return covers_all(user)
+
+
+def coverage(user):
+    """Branch codes `user` covers, or None for every branch: what they may
+    touch, whichever branch they are looking at.
 
     Superusers and the admin role cover every branch whatever their profile
     says, so a misconfigured profile can never lock the administrator out."""
@@ -99,20 +111,61 @@ def branch_codes(user):
     return codes
 
 
+def branch_codes(user):
+    """Branch codes whose records `user` sees now, or None for every branch.
+
+    A user covering more than one branch looks at one at a time — the branch
+    picked in the sidebar (ActiveBranchMiddleware sets it). Lists, pickers and
+    reports narrow to it; what the user may do stays their coverage()."""
+    active = getattr(user, '_active_branch', None)
+    if active:
+        return frozenset({active})
+    return coverage(user)
+
+
+def switchable_branches(user):
+    """Active branches the user can switch between, HQ first: their coverage
+    when it holds more than one branch, else none (nothing to switch)."""
+    from .models.branch import Branch
+    codes = coverage(user)
+    qs = Branch.objects.filter(is_active=True)
+    if codes is not None:
+        qs = qs.filter(code__in=codes)
+    rows = list(qs.order_by('-is_hq', 'name'))
+    return rows if len(rows) > 1 else []
+
+
+def active_hq(user):
+    """True when the user is looking at head office: the branch picked is HQ,
+    or they cover every branch and no branch is picked (no switcher in play)."""
+    active = getattr(user, '_active_branch', None)
+    if active:
+        return bool(getattr(user, '_active_is_hq', False))
+    return covers_all(user)
+
+
 def covers_all(user):
-    return branch_codes(user) is None
+    return coverage(user) is None
 
 
 def in_scope(user, branch_code):
+    codes = coverage(user)
+    return codes is None or branch_code in codes
+
+
+def in_view(user, branch_code):
+    """`branch_code` is the branch the user is looking at (or one of theirs,
+    when they have nothing to switch)."""
     codes = branch_codes(user)
     return codes is None or branch_code in codes
 
 
-def scope(queryset, user, field=None):
-    """`queryset` narrowed to the user's branches. `field` is the lookup path
-    from the model to its branch (or a tuple of alternative paths); by default
-    BRANCH_FIELD's."""
-    codes = branch_codes(user)
+def scope(queryset, user, field=None, codes=False):
+    """`queryset` narrowed to the branch the user is looking at. `field` is
+    the lookup path from the model to its branch (or a tuple of alternative
+    paths); by default BRANCH_FIELD's. `codes` overrides the branch set."""
+    if codes is False:
+        codes = branch_codes(user)
     if codes is None:
         return queryset
     field = field or BRANCH_FIELD[queryset.model.__name__]
@@ -124,9 +177,11 @@ def scope(queryset, user, field=None):
 
 
 def get_in_scope_or_404(queryset, user, field=None, **lookup):
-    """One record of the user's branches; anything else is a 404."""
+    """One record of the user's branches; anything else is a 404. Any branch
+    the user covers, not only the one picked: a link to another branch's
+    record still opens."""
     try:
-        return scope(queryset, user, field).get(**lookup)
+        return scope(queryset, user, field, codes=coverage(user)).get(**lookup)
     except queryset.model.DoesNotExist:
         raise Http404
 

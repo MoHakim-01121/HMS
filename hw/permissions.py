@@ -25,19 +25,22 @@ from django.db import DatabaseError
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 
-from .branch_scope import covers_all, is_head_office_only
+from .branch_scope import head_office_allows
 from .models.role import ADMIN_SLUG, MATRIX_CACHE_KEY, RoleDefinition
 from .models.user import Role
 
 # Every guarded area of the app. Keep in sync with SIDEBAR_NAV keys in
 # frontend/layouts/AppLayout.jsx so nav gating and view gating agree.
 MODULES = (
-    'cl', 'invoice', 'services', 'hotels', 'clients',
+    'cl', 'invoice', 'hotels', 'clients',
     'remittance', 'calendar', 'penalty', 'users', 'dev',
     'landing',
     # Finance areas, each its own module so money operations can be granted
     # independently (least privilege / segregation of duties).
     'payments', 'journal', 'statements', 'periods', 'expenses',
+    # Bank and cash accounts, transfers and exchanges between them, and
+    # reconciliation: the bank side, apart from recording client payments.
+    'bank',
 )
 
 # 'approve' is the second person's decision on money: confirming a payment,
@@ -61,10 +64,10 @@ _READ = {'view', 'export'}
 _NO_DELETE = {'view', 'create', 'edit', 'export'}
 
 # The operational modules (bookings, billing, clients, catalogue) and the money
-# modules. Only Admin and Finance work on money; Manager and Staff read it
-# (decided 2026-10-09).
-OPERATIONAL_MODULES = ('cl', 'invoice', 'services', 'hotels', 'clients', 'calendar', 'penalty')
-MONEY_MODULES = ('payments', 'expenses', 'remittance')
+# modules. Only Admin and Finance work on money; Manager reads it (decided
+# 2026-10-09); Staff records client payments only (decided 2026-10-20).
+OPERATIONAL_MODULES = ('cl', 'invoice', 'hotels', 'clients', 'calendar', 'penalty')
+MONEY_MODULES = ('payments', 'bank', 'expenses', 'remittance')
 
 # role -> module -> allowed actions. A module missing from a role's dict means
 # no access at all (not even 'view').
@@ -88,18 +91,21 @@ DEFAULT_ROLE_MATRIX = {
     },
 
     # Runs the operation: full CRUD on bookings, billing, clients and the
-    # catalogue; reads money and the books, never moves or approves money.
+    # catalogue; reads money and the books, never moves money. Approves (or
+    # rejects) branch expenses before Finance pays them (decided 2026-10-11).
     Role.MANAGER.value: {
         **{m: set(_CRUD) for m in OPERATIONAL_MODULES + ('landing',)},
         **{m: set(_READ) for m in MONEY_MODULES + ('statements', 'journal', 'periods')},
+        'expenses': set(_READ) | {'approve'},
     },
 
-    # Day-to-day operators: create and edit their work, never delete it. Money
-    # is read-only (a payment's status, a remittance); the books and finance
-    # reports are not theirs.
+    # Day-to-day operators: create and edit their work, never delete it. Of
+    # money they only record client payments, which Admin or Finance confirm;
+    # the bank, remittances, expenses and the books are not theirs (decided
+    # 2026-10-20).
     Role.STAFF.value: {
         **{m: set(_NO_DELETE) for m in OPERATIONAL_MODULES + ('landing',)},
-        **{m: set(_READ) for m in MONEY_MODULES},
+        'payments': {'view', 'create', 'export'},
     },
 
     # Read-only account: reporting, exports, PDF — nothing that mutates.
@@ -134,7 +140,7 @@ DEFAULT_ROLE_META = {
     },
     Role.STAFF.value: {
         'label': 'Staff',
-        'description': 'Create and edit operational records; no deleting; money read-only.',
+        'description': 'Create and edit operational records; no deleting; records client payments for Finance to confirm.',
         'grants_django_staff': False,
         'order': 30,
     },
@@ -258,7 +264,7 @@ def can(user, module, action):
         return False
     if action not in role_matrix().get(role, {}).get(module, ()):
         return False
-    return not is_head_office_only(module, action) or covers_all(user)
+    return head_office_allows(user, module, action)
 
 
 def perms_payload(user):
@@ -266,9 +272,8 @@ def perms_payload(user):
     the same answer can() gives."""
     role = get_role(user)
     matrix = role_matrix().get(role, {})
-    everywhere = covers_all(user)
     payload = {
-        module: sorted(a for a in actions if everywhere or not is_head_office_only(module, a))
+        module: sorted(a for a in actions if head_office_allows(user, module, a))
         for module, actions in matrix.items()
     }
     return {module: actions for module, actions in payload.items() if actions}
@@ -304,22 +309,6 @@ def require_perm(module, action):
                 return _deny(request)
             return view_func(request, *args, **kwargs)
         wrapper.access_guard = ('perm', module, action)
-        return wrapper
-    return decorator
-
-
-def require_role(*roles):
-    """Guard a view by role, for areas with no natural module/action pair."""
-    allowed = {r.value if hasattr(r, 'value') else r for r in roles}
-
-    def decorator(view_func):
-        @wraps(view_func)
-        @login_required
-        def wrapper(request, *args, **kwargs):
-            if get_role(request.user) not in allowed:
-                return _deny(request)
-            return view_func(request, *args, **kwargs)
-        wrapper.access_guard = ('role', tuple(sorted(allowed)))
         return wrapper
     return decorator
 
