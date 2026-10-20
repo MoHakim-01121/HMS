@@ -1,260 +1,125 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { Icon } from "../../components/icons.jsx";
-import PageBack from "../../components/shadcn/page-back.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import RowActions from "../../components/shadcn/row-actions.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
-import ListCard from "../../components/shadcn/list-card.jsx";
-import SearchBox from "../../components/shadcn/search-box.jsx";
-import FilterPanel from "../../components/shadcn/filter-panel.jsx";
-import FilterChips from "../../components/shadcn/filter-chips.jsx";
-import ExportMenu from "../../components/shadcn/export-menu.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import useDebouncedSearch from "../../hooks/useDebouncedSearch.js";
-import useDismiss from "../../hooks/useDismiss.js";
+import {
+  ListPage, Legend, Kpis, Kpi, Spark, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange,
+  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav,
+} from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmtDateShort } from "../../utils/format.js";
 
-const STATUS_OPTS = [
-  { val: "definite", label: "Definite", cls: "c-def", countKey: "definite" },
-  { val: "tentative", label: "Tentative", cls: "c-ten", countKey: "tentative" },
-  { val: "cancelled", label: "Cancelled", cls: "c-can", countKey: "cancelled" },
-];
+const STATUS = { DEFINITE: ["green", "Definite"], TENTATIVE: ["amber", "Tentative"], CANCELLED: ["gray", "Cancelled"] };
+const monthName = (ym, t) => (ym ? t(MONTHS[+ym.slice(5, 7) - 1]) : "");
 
-function statusBadge(s) {
-  if (s === "DEFINITE") return ["green", "Definite"];
-  if (s === "CANCELLED") return ["red", "Cancelled"];
-  return ["yellow", "Tentative"];
-}
-
-// Mobile card only: "12/08/2026" -> "12 Aug" so the stay line stays short
-// enough to leave room for the hotel name above it.
-const shortDate = (dmy) => fmtDateShort(dmy) || "?";
-
-// Django reads ?status=a&status=b (repeated), so build the query string by hand.
-function buildQuery({ q, status, date_from, date_to, sort, page }) {
-  const p = new URLSearchParams();
-  if (q) p.append("q", q);
-  (status || []).forEach((s) => p.append("status", s));
-  if (date_from) p.append("date_from", date_from);
-  if (date_to) p.append("date_to", date_to);
-  if (sort) p.append("sort", sort);
-  if (page) p.append("page", page);
-  return "/cl/?" + p.toString();
-}
-
-export default function List({ letters, total_count, q, status_list, date_from, date_to, sort, sort_label, sort_labels, active_filters, counts, pagination }) {
+// Confirmation Letter list, as on the Record View HMS canvas: four KPIs for
+// the CLs sold in the month (by the day each was made) with a small trend against the month before
+// (Cancelled filters the table), the toolbar above the table, and paging.
+export default function List({ letters, filters: f, years, counts, kpis, export_qs, pagination }) {
   const { t } = useI18n();
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [sortOpen, setSortOpen] = useState(false);
-  const sortRef = useDismiss(sortOpen, () => setSortOpen(false));
-  const [sel, setSel] = useState(status_list || []);
-  const [from, setFrom] = useState(date_from || "");
-  const [to, setTo] = useState(date_to || "");
-  const { query, setQuery } = useDebouncedSearch(q, (qq) => go({ q: qq }));
-
-  const go = (extra = {}) =>
-    router.get(buildQuery({ q: query, status: status_list, date_from, date_to, sort, ...extra }), {}, { preserveState: true, preserveScroll: true, replace: true });
-
-  const toggleStatus = (val) => setSel((prev) => prev.includes(val) ? prev.filter((s) => s !== val) : [...prev, val]);
-  const applyFilters = () => { setPanelOpen(false); go({ status: sel, date_from: from, date_to: to }); };
-  const resetAll = () => { setSel([]); setFrom(""); setTo(""); setPanelOpen(false); go({ q: "", status: [], date_from: "", date_to: "" }); setQuery(""); };
-  const appliedList = status_list || [];
-  const dirty = sel.slice().sort().join() !== appliedList.slice().sort().join() || from !== (date_from || "") || to !== (date_to || "");
-
-  const [confirm, confirmDialog] = useConfirm();
-
-  const statusOptByVal = Object.fromEntries(STATUS_OPTS.map((o) => [o.val, o]));
-  const chips = [
-    ...(q ? [{ key: "q", label: t('Keyword "{q}"', { q }), onRemove: () => { setQuery(""); go({ q: "" }); } }] : []),
-    ...((date_from || date_to) ? [{ key: "date", label: t("Check-in {from} to {to}", { from: date_from || "…", to: date_to || "…" }), onRemove: () => { setFrom(""); setTo(""); go({ date_from: "", date_to: "" }); } }] : []),
-    ...appliedList.map((val) => ({
-      key: "status-" + val,
-      label: t("Status {status}", { status: t(statusOptByVal[val]?.label || val) }),
-      onRemove: () => { const next = appliedList.filter((s) => s !== val); setSel(next); go({ status: next }); },
-    })),
-  ];
-  const del = (e, pk, number) => { e.stopPropagation(); confirm({ title: t("Delete CL"), message: t("Delete CL {number}?", { number }), onConfirm: () => router.post(`/cl/${pk}/delete/`) }); };
-  const openForm = useFormModal();
   const perms = usePerms();
+  const openForm = useFormModal();
+  const [confirm, confirmDialog] = useConfirm();
+  const [go, loading] = useListNav("/cl/", f);
+  const [draft, setDraft] = useState(f);
 
-  const exportQs = buildQuery({ q, status: status_list, date_from, date_to, sort }).replace("/cl/", "");
+  const filterCount = (f.status.length ? 1 : 0) + (f.inv ? 1 : 0) + (f.from || f.to ? 1 : 0);
+  const toggle = (v) => setDraft((d) => ({ ...d, status: d.status.includes(v) ? d.status.filter((x) => x !== v) : [...d.status, v] }));
+  const onlyCancelled = f.status.length === 1 && f.status[0] === "cancelled";
 
-  const columns = [
-    {
-      header: t("No CL"),
-      className: "col-m-primary",
-      render: (cl) => (
-        <>
-          <span className="col-bold col-nowrap">{cl.confirmation_number}</span>
-          {cl.has_invoice && <span className="m-hide" style={{ fontSize: 10, color: "var(--accent-2)", marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}>● INV</span>}
-          {cl.has_invoice && <span className="m-only" style={{ marginLeft: 5 }} title={t("Already invoiced: {number}", { number: cl.invoice_number })}><StatusPill small outline label="INV" /></span>}
-        </>
-      ),
-    },
-    {
-      header: t("Status"),
-      className: "col-m-badge",
-      render: (cl) => {
-        const [tone, blabel] = statusBadge(cl.reservation_status);
-        return <StatusPill tone={tone} label={t(blabel)} />;
-      },
-    },
-    { header: t("Client/Travel"), className: "col-m-secondary col-ellipsis", render: (cl) => (cl.guest_name || "").trim().replace(/^-$/, "") || <span className="col-dim">—</span> },
-    {
-      header: t("Hotel"),
-      className: "col-ellipsis-sm col-muted col-m-meta",
-      render: (cl) => (
-        <>
-          <span className="m-hide">{cl.hotel_name}</span>
-          <span className="m-only m-card-hotelstay">
-            <span className="m-card-hotel-row">
-              <Icon name="hotels" size={11} />
-              <span className="m-card-hotel-name">{cl.hotel_name}</span>
-            </span>
-            {(cl.check_in || cl.check_out) && (
-              <span className="m-card-stay-row">
-                <Icon name="calendar" size={11} />
-                <span className="m-card-stay-dates">{shortDate(cl.check_in)} – {shortDate(cl.check_out)}</span>
-                {!!cl.num_nights && <span className="m-card-nights">{t("{n} nights", { n: cl.num_nights })}</span>}
-              </span>
-            )}
-          </span>
-        </>
-      ),
-    },
-    { header: t("Check-in"), className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_in || "—" },
-    { header: t("Check-out"), className: "col-muted col-nowrap col-m-hide", render: (cl) => cl.check_out || "—" },
-    {
-      header: t("Total"),
-      className: "mono col-nowrap col-m-amount",
-      render: (cl) => (
-        <>
-          <span className="m-hide">{cl.total_price ? cl.total_price.toLocaleString("en-US") + " SAR" : <span className="col-dim">—</span>}</span>
-          {!!cl.total_rooms && <span className="m-only m-card-rooms">{cl.total_rooms} {t(cl.total_rooms === 1 ? "room" : "rooms")}</span>}
-          <span className="m-only m-card-total-group">
-            <span style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--text-3)", fontWeight: 700 }}>{t("Total")}</span>
-            <span>{cl.total_price ? `${cl.total_price.toLocaleString("en-US")} SAR` : <span style={{ color: "var(--text-3)" }}>—</span>}</span>
-          </span>
-        </>
-      ),
-    },
-    {
-      header: "",
-      className: "col-m-actions",
-      render: (cl) => (
-        <RowActions actions={[
-          { icon: "pdf", label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, variant: "green", external: true },
-          perms.can("cl", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
-          perms.can("cl", "delete") && { icon: "trash", label: t("Delete"), variant: "red", onClick: (e) => del(e, cl.id, cl.confirmation_number) },
-        ]} />
-      ),
-    },
-  ];
+  const cur = kpis?.cur, prev = kpis?.prev;
+  const prevName = kpis ? monthName(kpis.prev_month, t) : "";
+  const sparkLabel = (what, a, b) => t("{what}, cumulative by sale day. {cur}: {a}. {prev}: {b}", { what, cur: monthName(f.month, t), prev: prevName, a: a.join(", "), b: b.join(", ") });
+
+  const del = (cl) => confirm({ title: t("Delete CL"), message: t("Delete CL {number}?", { number: cl.confirmation_number }), onConfirm: () => router.post(`/cl/${cl.id}/delete/`) });
 
   return (
-    <div className="page shadcn-root">
-      <PageBack />
-      <PageHeader
-        title={t("Confirmation Letter")}
-        sub={t("{count} documents saved", { count: total_count })}
-        actions={
-          <>
-            <ExportMenu
-              items={[
-                { href: `/cl/export/csv/${exportQs}`, label: "CSV" },
-                { href: `/cl/export/pdf/${exportQs}`, label: t("Payment Check"), hint: t("Total, paid and remaining per reservation"), external: true },
-                { href: `/cl/export/pdf-v2/${exportQs}`, label: t("Room Formation"), hint: t("Room types and meals per reservation"), external: true },
-              ]}
-            />
-            {perms.can("cl", "create") && (
-              <Button type="button" size="lg" onClick={() => openForm("/cl/new/")} onPointerEnter={() => openForm.prefetch("/cl/new/")} onFocus={() => openForm.prefetch("/cl/new/")}>{t("+ Create New")}</Button>
-            )}
-          </>
-        }
-      />
+    <ListPage title={t("Confirmation Letter")} loading={loading}
+      legend={kpis && <Legend current={monthName(f.month, t)} previous={prevName} note={t("by sale date")} />}>
+      {kpis && (
+        <Kpis>
+          <Kpi label={t("Reservations")} value={fmtN(cur.count)} foot={`${prevName} ${fmtN(prev.count)}`}
+            delta={{ text: kpis.delta.count, good: cur.count >= prev.count, title: t("{d} vs {m}", { d: kpis.delta.count, m: prevName }) }}
+            spark={<Spark cur={cur.spark_count} prev={prev.spark_count} label={sparkLabel(t("Reservations"), cur.spark_count, prev.spark_count)} />} />
+          <Kpi label={t("Room nights")} value={fmtN(cur.nights)} foot={`${prevName} ${fmtN(prev.nights)}`}
+            delta={kpis.delta.nights && { text: kpis.delta.nights, good: cur.nights >= prev.nights, title: t("{d} vs {m}", { d: kpis.delta.nights, m: prevName }) }}
+            spark={<Spark cur={cur.spark_nights} prev={prev.spark_nights} label={sparkLabel(t("Room nights"), cur.spark_nights, prev.spark_nights)} />} />
+          <Kpi label={t("Total value")} value={fmtN(cur.value)} unit="SAR" foot={`${prevName} ${fmtN(prev.value)} SAR`}
+            delta={kpis.delta.value && { text: kpis.delta.value, good: cur.value >= prev.value, title: t("{d} vs {m}", { d: kpis.delta.value, m: prevName }) }}
+            spark={<Spark cur={cur.spark_value} prev={prev.spark_value} label={sparkLabel(t("Total value in thousand SAR"), cur.spark_value, prev.spark_value)} />} />
+          <Kpi label={t("Cancelled")} value={fmtN(cur.cancelled)} tone={cur.cancelled ? "warn" : undefined}
+            foot={t("{v} SAR lost, {n} in {m}", { v: fmtN(cur.cancelled_value), n: prev.cancelled, m: prevName })}
+            delta={{ text: kpis.delta.cancelled, good: cur.cancelled <= prev.cancelled, title: t("{d} vs {m}", { d: kpis.delta.cancelled, m: prevName }) }}
+            on={onlyCancelled} onClick={() => go({ status: onlyCancelled ? [] : ["cancelled"] })} />
+        </Kpis>
+      )}
 
-      <div className="filter-bar">
-        <SearchBox value={query} onChange={setQuery} placeholder="Search guest, hotel, confirmation number…" />
+      <Toolbar spaced={!!kpis}
+        left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
+        <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search client, hotel, CL number")} />
+        <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
+          onReset={() => setDraft({ ...draft, status: [], inv: "", from: "", to: "" })}
+          onApply={() => go({ status: draft.status, inv: draft.inv, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
+          <FilterSection label={t("Status")}>
+            <Check on={draft.status.includes("definite")} onClick={() => toggle("definite")} label={t("Definite")} count={counts.definite} />
+            <Check on={draft.status.includes("tentative")} onClick={() => toggle("tentative")} label={t("Tentative")} count={counts.tentative} />
+            <Check on={draft.status.includes("cancelled")} onClick={() => toggle("cancelled")} label={t("Cancelled")} count={counts.cancelled} />
+          </FilterSection>
+          <FilterSection label={t("Invoice")}>
+            <Check radio on={!draft.inv} onClick={() => setDraft({ ...draft, inv: "" })} label={t("All")} count={counts.all} />
+            <Check radio on={draft.inv === "yes"} onClick={() => setDraft({ ...draft, inv: "yes" })} label={t("Invoiced")} count={counts.invoiced} />
+            <Check radio on={draft.inv === "no"} onClick={() => setDraft({ ...draft, inv: "no" })} label={t("Not invoiced")} count={counts.not_invoiced} />
+          </FilterSection>
+          <FilterSection label={t("Check-in range")} hint={t("Used instead of the month above.")}>
+            <DateRange from={draft.from} to={draft.to} onFrom={(v) => setDraft({ ...draft, from: v })} onTo={(v) => setDraft({ ...draft, to: v })} />
+          </FilterSection>
+        </FilterMenu>
+        <ExportMenu items={[
+          { label: "CSV", href: `/cl/export/csv/${export_qs}` },
+          { label: t("Payment check"), hint: t("Total, paid and remaining per reservation"), href: `/cl/export/pdf/${export_qs}`, external: true },
+          { label: t("Room formation"), hint: t("Room types and meals per reservation"), href: `/cl/export/pdf-v2/${export_qs}`, external: true },
+        ]} />
+        {perms.can("cl", "create") && <Primary label={t("New CL")} onClick={() => openForm("/cl/new/")} onPrefetch={() => openForm.prefetch("/cl/new/")} />}
+      </Toolbar>
 
-        <div className="fbar-actions">
-          <div className="sort-wrap" ref={sortRef} onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="fbar-btn" onClick={() => { setSortOpen((v) => !v); setPanelOpen(false); }}>
-              <Icon name="sort" size={13} /> {sort_label}
-            </button>
-            {sortOpen && (
-              <div className="sort-menu open">
-                {Object.entries(sort_labels).map(([val, label]) => (
-                  <a key={val} className={"sort-opt" + (sort === val ? " active" : "")} onClick={() => { setSortOpen(false); go({ sort: val }); }}>{label}</a>
-                ))}
-              </div>
-            )}
-          </div>
+      <TableCard cols={[76, null, null, 130, 64, 64, 96, 100, 104, 56]}
+        empty={!letters.length && <Empty title={t("No confirmation letters")} sub={t("Nothing matches this month and these filters.")} />}>
+        <thead><tr>
+          <th>CL</th><th>{t("Client")}</th><th>{t("Hotel")}</th>
+          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "-check_in" ? "check_in" : "-check_in" })}>{t("Stay")}{f.sort === "-check_in" ? LIcon.sortUp : LIcon.sortDown}</button></th>
+          <th className="n">{t("Nights")}</th><th className="n">{t("Rooms")}</th><th>{t("Invoice")}</th>
+          <th className="n">{t("Total (SAR)")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
+        </tr></thead>
+        <tbody>
+          {letters.map((cl) => {
+            const [tone, label] = STATUS[cl.reservation_status] || STATUS.TENTATIVE;
+            return (
+              <tr key={cl.id} className={cl.reservation_status === "CANCELLED" ? "dim" : ""} onClick={() => router.visit(`/cl/${cl.id}/`)}>
+                <td><span className="mono">{cl.confirmation_number}</span></td>
+                <td className="ell strong">{cl.guest_name}</td>
+                <td className="ell">{cl.hotel_name}</td>
+                <td>{stay(cl.check_in, cl.check_out, t)}</td>
+                <td className="n">{cl.num_nights}</td>
+                <td className="n">{cl.total_rooms}</td>
+                <td>{cl.invoice_number ? <span className="mono">{cl.invoice_number}</span> : <span className="mut">{t("Not invoiced")}</span>}</td>
+                <td className="n">{fmtN(cl.total_price)}</td>
+                <td><Pill tone={tone}>{t(label)}</Pill></td>
+                <td className="c">
+                  <RowMenu label={t("Actions for {n}", { n: cl.confirmation_number })} items={[
+                    { label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, external: true },
+                    perms.can("cl", "edit") && { label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
+                    perms.can("cl", "delete") && { label: t("Delete"), danger: true, onClick: () => del(cl) },
+                  ]} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableCard>
 
-          <FilterPanel
-            count={active_filters}
-            open={panelOpen}
-            onToggle={() => { setPanelOpen((v) => !v); setSortOpen(false); }}
-            dirty={dirty}
-            onApply={applyFilters}
-            onResetAll={resetAll}
-          >
-            <div className="fp-section">
-              <div className="fp-section-head">
-                <span className="fp-section-label">{t("Check-in")}</span>
-                <button type="button" className="fp-reset" onClick={() => { setFrom(""); setTo(""); }}>{t("Reset")}</button>
-              </div>
-              <div className="fp-date-row">
-                <div className="fp-date-field"><label>{t("From")}</label><input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
-                <div className="fp-date-field"><label>{t("To")}</label><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
-              </div>
-            </div>
-            <div className="fp-section">
-              <div className="fp-section-head">
-                <span className="fp-section-label">{t("Status")}</span>
-                <button type="button" className="fp-reset" onClick={() => setSel([])}>{t("Reset")}</button>
-              </div>
-              <div className="fp-status-group" data-multi role="group" aria-label={t("Status")}>
-                {STATUS_OPTS.map((o) => (
-                  <div key={o.val} className={`fp-status-opt ${o.cls}${sel.includes(o.val) ? " selected" : ""}`}
-                    role="checkbox" aria-checked={sel.includes(o.val)} tabIndex={0}
-                    onClick={() => toggleStatus(o.val)}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStatus(o.val); } }}>
-                    <span className="fp-status-dot"></span>
-                    <span className="fp-status-opt-label">{t(o.label)}</span>
-                    <span className="fp-status-count">{counts[o.countKey]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </FilterPanel>
-        </div>
-      </div>
-
-      <FilterChips chips={chips} onClearAll={resetAll} />
-
-      <ListCard
-        columns={columns}
-        rows={letters}
-        rowKey={(cl) => cl.id}
-        onRowClick={(cl) => router.visit(`/cl/${cl.id}/`)}
-        empty={{
-          icon: "cl",
-          title: "No documents yet",
-          sub: "Use the Create New button in the top right",
-          filteredTitle: "No results",
-          filteredSub: "Try adjusting your search filters",
-        }}
-        hasFilter={!!q}
-        pagination={pagination}
-        unit={t("documents")}
-        onPage={(p) => go({ page: p })}
-      />
+      <Pager p={pagination} perPage={f.per} onPage={(page) => go({ page })} onPerPage={(per) => go({ per })} />
       {confirmDialog}
-    </div>
+    </ListPage>
   );
 }

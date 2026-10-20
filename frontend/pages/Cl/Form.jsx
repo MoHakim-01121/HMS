@@ -1,38 +1,33 @@
 import { useContext } from "react";
 import { useForm } from "@inertiajs/react";
 import FormHeader from "../../components/shadcn/form-header.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
-import FormActions from "../../components/shadcn/form-actions.jsx";
-import Combobox from "../../components/shadcn/combobox.jsx";
 import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Input } from "../../components/shadcn/ui/input.jsx";
-import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
-import { postForm } from "../../utils/inertiaForm.js";
-import RoomRows from "./RoomRows.jsx";
+import { Field, Picker, CellPicker, DateRangePicker, nightsBetween, todayIso } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
-const STATUS = [
-  ["DEFINITE", "Definite", "var(--green)"],
-  ["TENTATIVE", "Tentative", "var(--yellow)"],
-  ["CANCELLED", "Cancelled", "var(--red)"],
-];
+const EMPTY_ROOM = { room_type: "", room_type_id: "", meals: "", meal_plan_code: "", quantity: 1, price: "" };
 
-function nightsBetween(ci, co) {
-  if (!ci || !co) return 1;
-  const d = (new Date(co) - new Date(ci)) / 86400000;
-  return d > 0 ? d : 1;
-}
+const ICON = {
+  client: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path strokeLinecap="round" d="M3 19c.8-3.2 3.2-5 6-5s5.2 1.8 6 5" /><path strokeLinecap="round" d="M15.5 4.8a3.2 3.2 0 010 6.2M17.5 14.4c1.8.6 3 2.2 3.5 4.6" /></svg>,
+  hotel: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 20V6l8-3 8 3v14M9 20v-4h6v4" /></svg>,
+  number: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16" /></svg>,
+  person: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path strokeLinecap="round" d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>,
+  minus: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" d="M5 12h14" /></svg>,
+  plus: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" d="M12 5v14M5 12h14" /></svg>,
+  trash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 002 2h8a2 2 0 002-2l1-12M9 7V4h6v3" /></svg>,
+};
 
-const CAPACITY = { Double: 2, Triple: 3, Quad: 4, Quint: 5 };
-
-export default function Form({ cl, edit, errors: serverErrors, suggested_number, hotels, clients }) {
+// Confirmation Letter form, as approved on the Record View HMS canvas:
+// six fields in two columns, the rooms in one framed table with its total,
+// a note for the hotel, and a footer that says what is still missing.
+export default function Form({ cl, edit, errors: serverErrors, suggested_number, hotels, clients, salespeople = [] }) {
   const c = cl || {};
   const { t } = useI18n();
   const form = useForm({
-    client_id: c.client_id || "",
+    client_id: c.client_id ? String(c.client_id) : "",
     hotel_name: c.hotel_name || "",
-    hotel_id: c.hotel_id || "",
+    hotel_id: c.hotel_id ? String(c.hotel_id) : "",
     guest_name: c.guest_name || "",
     // No input for it any more, but it still has to round-trip: the edit view
     // overwrites guest_phone from POST, so dropping it would wipe old CLs' PIC.
@@ -41,412 +36,202 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     check_out: c.check_out || "",
     confirmation_number: c.confirmation_number || suggested_number || "",
     reservation_status: c.reservation_status || "DEFINITE",
+    salesperson_id: c.salesperson_id ? String(c.salesperson_id) : "",
     note: c.note || "",
-    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ room_type: "", room_type_id: "", meals: "", meal_plan_code: "", quantity: 1, price: "" }],
+    rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ ...EMPTY_ROOM }],
   });
   const errors = { ...serverErrors, ...form.errors };
-  const set = (k) => (v) => form.setData(k, v);
-
-  // Guest = client, and a reservation always belongs to one (schema v2): an
-  // exact name match or picking from the list sets client_id; text that
-  // matches no client is refused on save with "choose the client from the list".
-  const clientList = clients || [];
-  const onGuestText = (text) => {
-    const q = text.trim().toLowerCase();
-    const match = clientList.find((cl) => (cl.brand || cl.name).toLowerCase() === q || cl.name.toLowerCase() === q);
-    form.setData("guest_name", text);
-    form.setData("client_id", match ? String(match.id) : "");
-  };
-  const onGuestSelect = (cl) => {
-    form.setData("guest_name", cl.brand || cl.name);
-    form.setData("client_id", String(cl.id));
-  };
-
-  // Hotel = required link to the catalog (RoomType-scoped rooms). Typed text
-  // that doesn't match a cataloged hotel keeps hotel_id empty and is refused
-  // on save — the hotel is added to the catalog first. Switching hotels always clears
-  // room_type selections — room types belong to one hotel. Meals survive
-  // when they still make sense: a code the new hotel also sells is kept, and
-  // free text is kept when the new hotel has no meal list to pick from
-  // (uncataloged, or none configured). Only a code the new hotel does not
-  // sell is cleared, so the user has to choose one that it does.
+  const d = form.data;
   const hotelList = hotels || [];
-  const selectedHotel = hotelList.find((h) => String(h.id) === String(form.data.hotel_id));
-  const resetRoomTypesIfHotelChanged = (newHotelId) => {
-    if (String(newHotelId || "") === String(form.data.hotel_id || "")) return;
-    const next = hotelList.find((h) => String(h.id) === String(newHotelId));
-    const sold = new Set((next?.meal_plans || []).map((mp) => mp.code));
-    form.setData("rooms", form.data.rooms.map((r) => {
-      const code = (r.meal_plan_code || r.meals || "").trim();
-      const meal = sold.has(code) ? { meal_plan_code: code, meals: code }
-        : sold.size === 0 ? { meal_plan_code: "", meals: r.meals }
-        : { meal_plan_code: "", meals: "" };
-      return { ...r, room_type_id: "", room_type: "", ...meal };
-    }));
-  };
-  const onHotelText = (text) => {
-    const q = text.trim().toLowerCase();
-    const match = hotelList.find((h) => h.name.toLowerCase() === q);
-    form.setData("hotel_name", text);
-    if (match) {
-      resetRoomTypesIfHotelChanged(String(match.id));
-      form.setData("hotel_id", String(match.id));
-    } else {
-      resetRoomTypesIfHotelChanged("");
-      form.setData("hotel_id", "");
+  const clientList = clients || [];
+  const hotel = hotelList.find((h) => String(h.id) === String(d.hotel_id));
+  const roomTypes = hotel ? hotel.room_types : [];
+  const mealPlans = hotel ? hotel.meal_plans : [];
+
+  // Switching hotels clears room types (they belong to one hotel). A meal the
+  // new hotel also sells is kept; free text survives when it sells none.
+  const pickHotel = (h) => {
+    if (String(h.id) !== String(d.hotel_id)) {
+      const sold = new Set((h.meal_plans || []).map((mp) => mp.code));
+      form.setData((prev) => ({
+        ...prev, hotel_id: String(h.id), hotel_name: h.name,
+        rooms: prev.rooms.map((r) => {
+          const code = (r.meal_plan_code || r.meals || "").trim();
+          const meal = sold.has(code) ? { meal_plan_code: code, meals: code }
+            : sold.size === 0 ? { meal_plan_code: "", meals: r.meals }
+            : { meal_plan_code: "", meals: "" };
+          return { ...r, room_type_id: "", room_type: "", ...meal };
+        }),
+      }));
     }
   };
-  const onHotelSelect = (h) => {
-    resetRoomTypesIfHotelChanged(String(h.id));
-    form.setData("hotel_name", h.name);
-    form.setData("hotel_id", String(h.id));
-  };
+  const pickClient = (o) => form.setData((prev) => ({ ...prev, client_id: String(o.value), guest_name: o.label }));
 
-  const nights = nightsBetween(form.data.check_in, form.data.check_out);
-  const rooms = form.data.rooms;
-  const total = nights * rooms.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price) || 0), 0);
-  const totalRooms = rooms.reduce((s, r) => s + (Number(r.quantity) || 0), 0);
-  // Cataloged rooms use the linked RoomType's real capacity; uncataloged
-  // (legacy free-text) rooms fall back to the old fixed guess.
-  const roomTypeCapacity = (r) => {
-    if (r.room_type_id && selectedHotel) {
-      const rt = selectedHotel.room_types.find((t) => String(t.id) === String(r.room_type_id));
-      if (rt) return rt.capacity;
-    }
-    return CAPACITY[r.room_type] || 1;
-  };
-  const capacity = rooms.reduce((s, r) => s + roomTypeCapacity(r) * (Number(r.quantity) || 0), 0);
+  const setRoom = (i, patch) => form.setData("rooms", d.rooms.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+  const addRoom = () => form.setData("rooms", [...d.rooms, { ...EMPTY_ROOM }]);
+  const removeRoom = (i) => form.setData("rooms", d.rooms.filter((_, k) => k !== i));
 
-  // Mirrors the server's _validate_cl check so a bad range is caught before the
-  // round trip. The check-out field also carries min=check_in.
-  const setDate = (k, v) => {
-    form.setData(k, v);
-    if (form.errors.check_out) form.clearErrors("check_out");
-  };
+  const nights = Math.max(0, nightsBetween(d.check_in, d.check_out));
+  const rooms = d.rooms;
+  const capacity = (r) => roomTypes.find((rt) => String(rt.id) === String(r.room_type_id))?.capacity || 0;
+  const roomCount = rooms.reduce((s, r) => s + (r.room_type_id ? Number(r.quantity) || 0 : 0), 0);
+  const pax = rooms.reduce((s, r) => s + capacity(r) * (Number(r.quantity) || 0), 0);
+  const perNight = rooms.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price) || 0), 0);
+  const total = perNight * nights;
+
+  const statusOpts = [
+    { value: "TENTATIVE", label: t("Tentative"), meta: t("Rooms held, not confirmed yet"), lead: <span className="fa-dot TENTATIVE" /> },
+    { value: "DEFINITE", label: t("Definite"), meta: t("Confirmed by the hotel"), lead: <span className="fa-dot DEFINITE" /> },
+    // Cancelling is a change to an existing CL: a new one starts held or confirmed.
+    ...(edit ? [{ value: "CANCELLED", label: t("Cancelled"), meta: t("Released, no longer held"), lead: <span className="fa-dot CANCELLED" /> }] : []),
+  ];
+
+  const filledRooms = rooms.filter((r) => r.room_type_id);
+  const why = !d.client_id ? t("Choose the client to continue.")
+    : !d.hotel_id ? t("Choose the hotel to continue.")
+    : !d.check_in ? t("Pick the stay dates to continue.")
+    : !d.check_out ? t("Pick a check-out date to continue.")
+    : !filledRooms.length ? t("Add at least one room to continue.")
+    : !d.confirmation_number.trim() ? t("Enter the confirmation number to continue.")
+    : (!edit || c.salesperson_id) && !d.salesperson_id ? t("Choose the salesperson to continue.")
+    : "";
 
   const submit = (e) => {
     e.preventDefault();
-    const { check_in: ci, check_out: co } = form.data;
-    if (ci && co && co <= ci) {
-      form.setError("check_out", t("Check-out must be after check-in."));
-      return;
-    }
-    postForm(form, edit ? `/cl/${c.id}/edit/` : "/cl/new/", { json: ["rooms"] });
+    if (why) return;
+    // Multipart, rooms as one JSON field (Django reads request.POST). Rows
+    // without a room type are blanks the user never filled.
+    form.transform((data) => ({ ...data, rooms: JSON.stringify(data.rooms.filter((r) => r.room_type_id)) }));
+    form.post(edit ? `/cl/${c.id}/edit/` : "/cl/new/", { forceFormData: true });
   };
 
   const inModal = useContext(FormModalContext)?.inModal;
   const closeHref = edit ? `/cl/${c.id}/` : "/cl/";
-  const submitLabel = edit ? t("Save Changes") : t("Create CL");
+  const ctx = useContext(FormModalContext);
+  const nightsLabel = (n) => (n === 1 ? t("1 night") : t("{n} nights", { n }));
 
   const page = (
-    <div className="form-page cl-form shadcn-root">
-      <style>{CSS}</style>
-      <FormHeader
-        kicker={t("Confirmation Letter")}
-        title={edit ? t("Edit Confirmation Letter") : t("New Confirmation Letter")}
-        sub={t("Hotel reservation details")}
-      />
-
-      <form method="post" onSubmit={submit}>
-        <div className="rd-card">
-          {/* ── Group & client ── */}
-          <section className="rd-sec">
-            <div className="rd-sec-h">
-              <span className="rd-sec-title">{t("Group & client")}</span>
-              <span className="rd-sec-desc">{t("The group name shows on every document and message to the client.")}</span>
-            </div>
-            <div className="rd-sec-b">
-              <div className="rd-row2">
-                <FormField label={t("Group / client name")} name="guest_name" error={errors.guest_name} required>
-                  <Combobox
-                    name="guest_name"
-                    value={form.data.guest_name}
-                    onTextChange={onGuestText}
-                    onSelect={onGuestSelect}
-                    options={clientList}
-                    getLabel={(o) => o.brand || o.name}
-                    placeholder={t("Search client…")}
-                    emptyLabel={t("Not in the client list — add the client first")}
-                    error={errors.guest_name}
-                  />
-                </FormField>
-                <FormField label={t("CL number")} name="confirmation_number" required value={form.data.confirmation_number} onChange={set("confirmation_number")} error={errors.confirmation_number} />
-              </div>
-              <FormField label={t("Status")} name="reservation_status">
-                <div className="rd-seg" role="radiogroup" aria-label={t("Status")}>
-                  {STATUS.map(([v, l, dot]) => (
-                    <button
-                      type="button" key={v} role="radio"
-                      aria-checked={form.data.reservation_status === v}
-                      className={"rd-seg-opt" + (form.data.reservation_status === v ? " is-on" : "")}
-                      onClick={() => form.setData("reservation_status", v)}
-                    >
-                      <span className="rd-seg-dot" style={{ background: dot }} />{t(l)}
-                    </button>
-                  ))}
-                </div>
-              </FormField>
-            </div>
-          </section>
-
-          {/* ── Hotel & stay ── */}
-          <section className="rd-sec">
-            <div className="rd-sec-h">
-              <span className="rd-sec-title">{t("Hotel & stay")}</span>
-              <span className="rd-sec-desc">{t("Nights are computed automatically from the dates.")}</span>
-            </div>
-            <div className="rd-sec-b">
-              <FormField label={t("Hotel")} name="hotel_name" error={errors.hotel_name} required>
-                <Combobox
-                  name="hotel_name"
-                  value={form.data.hotel_name}
-                  onTextChange={onHotelText}
-                  onSelect={onHotelSelect}
-                  options={hotelList}
-                  getLabel={(o) => o.name}
-                  getSub={(o) => o.city || ""}
-                  placeholder={t("Search hotel…")}
-                  emptyLabel={t("Not in the hotel list — add the hotel first")}
-                  error={errors.hotel_name}
-                />
-              </FormField>
-              <div className="rd-row3">
-                <FormField label={t("Check-in")} name="check_in" error={errors.check_in} required>
-                  <Input id="check_in" name="check_in" type="date" value={form.data.check_in} onChange={(e) => setDate("check_in", e.target.value)} />
-                </FormField>
-                <FormField label={t("Check-out")} name="check_out" error={errors.check_out} required>
-                  <Input id="check_out" name="check_out" type="date" min={form.data.check_in || undefined} value={form.data.check_out} onChange={(e) => setDate("check_out", e.target.value)} />
-                </FormField>
-                <FormField label={t("Nights")} name="nights">
-                  <div className="rd-static">{nights}</div>
-                </FormField>
-              </div>
-            </div>
-          </section>
-
-          {/* ── Rooms & pricing ── */}
-          <section className="rd-sec">
-            <div className="rd-sec-h">
-              <span className="rd-sec-title">{t("Rooms & pricing")}</span>
-              <span className="rd-sec-desc">{t("Subtotal = qty × rate × nights, filled automatically.")}</span>
-            </div>
-            <div className="rd-sec-b">
-              <RoomRows
-                rooms={rooms} onChange={(next) => form.setData("rooms", next)} nights={nights}
-                roomTypes={selectedHotel ? selectedHotel.room_types : null}
-                mealPlans={selectedHotel ? selectedHotel.meal_plans : null}
-                addHotelHref={`/hotels/new/?name=${encodeURIComponent(form.data.hotel_name || "")}`}
-                editHotelHref={selectedHotel ? `/hotels/${selectedHotel.id}/edit/` : null}
-              />
-              {errors.rooms && (
-                <div role="alert" style={{ fontSize: 12, color: "var(--red)", marginTop: 6 }}>{t(errors.rooms)}</div>
-              )}
-              <div className="rd-rooms-foot">
-                <span>{totalRooms} {t(totalRooms === 1 ? "room" : "rooms")} · {t("capacity")} {capacity} {t("pax")}</span>
-                <span className="rd-rooms-foot-total">{t("Total")} {fmt(total)} <span className="cur">SAR</span></span>
-              </div>
-            </div>
-          </section>
-
-          {/* ── Notes ── */}
-          <section className="rd-sec rd-sec-last">
-            <div className="rd-sec-h">
-              <span className="rd-sec-title">{t("Notes")}</span>
-              <span className="rd-sec-desc">{t("Shown on the PDF sent to the hotel.")}</span>
-            </div>
-            <div className="rd-sec-b">
-              <FormField name="note">
-                <Textarea name="note" rows={3} value={form.data.note} onChange={(e) => form.setData("note", e.target.value)} placeholder={t("Internal notes…")} />
-              </FormField>
-            </div>
-          </section>
+    <div className="fa-form">
+      <FormHeader title={edit ? t("Edit Confirmation Letter") : t("New Confirmation Letter")} />
+      <form method="post" onSubmit={submit} noValidate>
+        <div className="fa-fields">
+          <Field label={t("Client")} required error={errors.guest_name && t(errors.guest_name)}>
+            <Picker icon={ICON.client} value={d.client_id} placeholder={t("Select a client")} heading={t("Clients")}
+              options={clientList.map((o) => ({ value: String(o.id), label: o.brand || o.name, meta: o.city || (o.brand ? o.name : "") }))}
+              onPick={pickClient} invalid={!!errors.guest_name}
+              addNew={{ label: t("New client"), meta: t("Opens the client form in a new tab"), href: "/clients/new/" }} />
+          </Field>
+          <Field label={t("Hotel")} required error={errors.hotel_name && t(errors.hotel_name)}>
+            <Picker icon={ICON.hotel} value={d.hotel_id} placeholder={t("Select a hotel")} heading={t("Hotels")}
+              options={hotelList.map((h) => ({ value: String(h.id), label: h.name, meta: h.city ? h.city[0].toUpperCase() + h.city.slice(1) : "", raw: h }))}
+              onPick={(o) => pickHotel(o.raw)} invalid={!!errors.hotel_name}
+              addNew={{ label: t("New hotel"), meta: t("Opens the hotel form in a new tab"), href: "/hotels/new/" }} />
+          </Field>
+          <Field label={t("Stay")} required error={(errors.check_out || errors.check_in) && t(errors.check_out || errors.check_in)}>
+            <DateRangePicker start={d.check_in} end={d.check_out} minDate={edit ? undefined : todayIso()}
+              invalid={!!(errors.check_out || errors.check_in)}
+              onChange={(ci, co) => { form.setData((prev) => ({ ...prev, check_in: ci, check_out: co })); form.clearErrors("check_out", "check_in"); }} />
+          </Field>
+          <Field label={t("Confirmation no.")} required error={errors.confirmation_number && t(errors.confirmation_number)}>
+            <span className={"fa-oi fa-oin" + (errors.confirmation_number ? " bad" : "")}>
+              {ICON.number}
+              <input className="fa-num" aria-label={t("Confirmation no.")} placeholder={t("From the hotel")} required
+                value={d.confirmation_number} onChange={(e) => form.setData("confirmation_number", e.target.value)} />
+            </span>
+          </Field>
+          <Field label={t("Status")} required error={errors.reservation_status && t(errors.reservation_status)}>
+            <Picker searchable={false} value={d.reservation_status} options={statusOpts}
+              icon={<span className={"fa-dot " + d.reservation_status} />}
+              onPick={(o) => form.setData("reservation_status", o.value)} />
+          </Field>
+          <Field label={t("Salesperson")} required={!edit || !!c.salesperson_id} error={errors.salesperson_id && t(errors.salesperson_id)}>
+            <Picker icon={ICON.person} value={d.salesperson_id} placeholder={t("Select a salesperson")} heading={t("Salespeople")}
+              options={salespeople.map((s) => ({ value: String(s.id), label: s.name, meta: s.meta === "HQ" ? t("HQ") : t("{branch} branch", { branch: s.meta }) }))}
+              onPick={(o) => form.setData("salesperson_id", o.value)} invalid={!!errors.salesperson_id} />
+          </Field>
         </div>
-        <FormActions cancelHref={closeHref} submitLabel={submitLabel} processing={form.processing} />
+
+        <div className="fa-rh">
+          <span className="fa-cap">{t("Rooms")}</span>
+          <span className="fa-mut">{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}, {pax} Pax</span>
+        </div>
+        <div className="fa-box">
+          <div className="fa-scroll">
+            <div className="fa-row hd" aria-hidden="true">
+              <span>{t("Room type")}</span><span>{t("Meal plan")}</span><span>{t("Qty")}</span>
+              <span className="r">{t("Price per night")}</span><span className="r">{t("Subtotal")}</span><span />
+            </div>
+            {!hotel && <div className="fa-note-empty">{t("Choose the hotel first; its room types fill this list.")}</div>}
+            {hotel && roomTypes.length === 0 && (
+              <div className="fa-note-empty">{t("This hotel has no room types yet.")} <a href={`/hotels/${hotel.id}/edit/`} target="_blank" rel="noreferrer">{t("Add them on the hotel's page")}</a></div>
+            )}
+            {hotel && roomTypes.length > 0 && rooms.length === 0 && <div className="fa-note-empty">{t("No rooms yet. Add the first room type.")}</div>}
+            {hotel && roomTypes.length > 0 && rooms.map((r, i) => {
+              const sub = (Number(r.quantity) || 0) * (Number(r.price) || 0) * nights;
+              const mealValue = r.meal_plan_code || r.meals;
+              return (
+                <div className="fa-row" key={i}>
+                  <CellPicker value={r.room_type_id} placeholder={t("Room type")} label={t("Room type")}
+                    options={roomTypes.map((rt) => ({ value: String(rt.id), label: rt.name, meta: t("{n} guests", { n: rt.capacity }) }))}
+                    onPick={(o) => setRoom(i, { room_type_id: o.value, room_type: o.label })} />
+                  {mealPlans.length > 0 ? (
+                    <CellPicker value={mealValue} placeholder={t("Meal plan")} label={t("Meal plan")}
+                      options={[
+                        ...mealPlans.map((mp) => ({ value: mp.code, label: mp.code, meta: t(mp.name) })),
+                        // Text from before the meal list that matches no code: kept as is.
+                        ...(mealValue && !mealPlans.some((mp) => mp.code === mealValue) ? [{ value: mealValue, label: mealValue, meta: t("old entry") }] : []),
+                      ]}
+                      onPick={(o) => setRoom(i, { meal_plan_code: mealPlans.some((mp) => mp.code === o.value) ? o.value : "", meals: o.value })} />
+                  ) : (
+                    <label className="fa-pill fa-pill-in"><input aria-label={t("Meal plan")} placeholder="BB, HB…" value={r.meals} onChange={(e) => setRoom(i, { meals: e.target.value })} /></label>
+                  )}
+                  <span className="fa-stp">
+                    <button type="button" aria-label={t("Fewer")} onClick={() => setRoom(i, { quantity: Math.max(1, (Number(r.quantity) || 1) - 1) })}>{ICON.minus}</button>
+                    <input className="fa-qin" aria-label={t("Quantity")} inputMode="numeric" value={r.quantity}
+                      onChange={(e) => { const n = parseInt(e.target.value, 10); setRoom(i, { quantity: Number.isNaN(n) ? "" : Math.max(1, Math.min(999, n)) }); }} />
+                    <button type="button" aria-label={t("More")} onClick={() => setRoom(i, { quantity: (Number(r.quantity) || 0) + 1 })}>{ICON.plus}</button>
+                  </span>
+                  <label className="fa-price"><input aria-label={t("Price per night")} inputMode="decimal" value={r.price} placeholder="0"
+                    onChange={(e) => setRoom(i, { price: e.target.value.replace(/[^\d.]/g, "") })} /><span className="fa-unit">SAR</span></label>
+                  <span className="fa-sub"><b>{fmt(sub)}</b><span className="fa-unit">SAR</span></span>
+                  <button type="button" className="fa-trash" aria-label={t("Remove room")} onClick={() => removeRoom(i)}>{ICON.trash}</button>
+                </div>
+              );
+            })}
+            {hotel && roomTypes.length > 0 && (
+              <button type="button" className="fa-phantom" onClick={addRoom}>{ICON.plus}{t("Add room")}</button>
+            )}
+            <div className="fa-row tot">
+              <span style={{ gridColumn: "span 2" }}><b>{t("Total")}</b>{nights > 0 && <span className="fa-mut" style={{ marginLeft: 8, fontSize: 12 }}>{nightsLabel(nights)}</span>}</span>
+              <span className="fa-num">{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}</span>
+              <span className="fa-tpn">{fmt(perNight)}<span className="fa-unit">SAR</span></span>
+              <span className="fa-sub"><b>{fmt(total)}</b><span className="fa-unit">SAR</span></span>
+              <span />
+            </div>
+          </div>
+        </div>
+        {errors.rooms && <div className="fa-alert" role="alert">{t(errors.rooms)}</div>}
+
+        <div className="fa-notewrap">
+          <span className="fa-cap">{t("Note")}</span>
+          <textarea className="fa-note" aria-label={t("Note for the hotel")} placeholder={t("Add a note for the hotel")}
+            value={d.note} onChange={(e) => form.setData("note", e.target.value)} />
+        </div>
+
+        <div className="hms-form-actions fa-foot">
+          {why && <span className="fa-why" role="status">{why}</span>}
+          {inModal ? (
+            <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
+          ) : (
+            <a className="fa-btn o" href={closeHref}>{t("Cancel")}</a>
+          )}
+          <button type="submit" className="fa-btn p" aria-disabled={!!why || form.processing} disabled={form.processing}>
+            {edit ? t("Save changes") : t("Create CL")}
+          </button>
+        </div>
       </form>
     </div>
   );
 
   return inModal ? page : <StandaloneFormModal closeHref={closeHref}>{page}</StandaloneFormModal>;
 }
-
-/* ── Layout ───────────────────────────────────────────────────────────────
-   Single column of label-left / field-right sections (Claude Design "HOMLU
-   HMS Redesign" §5a/5b, minus its summary rail — the running total already
-   sits under the Rooms table), with the standard sticky FormActions bar.
-   Above 960px viewport the form-modal widens a little so the Rooms table
-   fits beside the section labels (see the :has() rule below); under that
-   every section collapses to a single stack.
-
-   The editable Rooms table keeps the treatment from RoomRows.jsx — a real
-   <table> in one bordered frame, muted header, chromeless cells. */
-const CSS = `
-/* Widen the form-modal so the Rooms table (min 560px) clears the label column. */
-@media (min-width: 960px) {
-  .form-modal-content:has(.cl-form) { max-width: 920px; }
-}
-
-.cl-form form { margin-top: 22px; }
-.hms-modal-body .cl-form form { margin-top: 0; }
-
-.cl-form .rd-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card, 22px);
-  background: var(--card);
-  overflow: visible;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 40px -12px color-mix(in oklch, var(--primary) 16%, transparent);
-}
-/* Bleeds to the dialog edges; no bottom bleed, the FormActions bar owns that. */
-.hms-modal-body .cl-form .rd-card {
-  border: none; border-radius: 0; box-shadow: none;
-  margin: -24px -20px 0;
-}
-@media (max-width: 600px) {
-  .hms-modal-body .cl-form .rd-card { margin: -20px -16px 0; }
-}
-.hms-modal-body .cl-form .hms-form-actions { margin-top: 0; }
-
-.cl-form .rd-sec {
-  display: grid; grid-template-columns: 168px minmax(0, 1fr); gap: 28px;
-  padding: 26px 30px;
-  border-bottom: 1px solid var(--border);
-}
-.cl-form .rd-sec-last { border-bottom: none; }
-.cl-form .rd-sec-h { display: flex; flex-direction: column; gap: 5px; }
-.cl-form .rd-sec-title { font-size: 13px; font-weight: 600; color: var(--foreground); }
-.cl-form .rd-sec-desc { font-size: 11.5px; line-height: 1.5; color: var(--muted-foreground); }
-.cl-form .rd-sec-b { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-
-.cl-form .rd-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.cl-form .rd-row3 { display: grid; grid-template-columns: 1fr 1fr 96px; gap: 12px; }
-
-/* Field labels: the small uppercase caption from the design, replacing
-   FormField's default sentence-case Label. */
-.cl-form .rd-sec-b [data-slot="form-field"] label {
-  font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted-foreground);
-}
-
-.cl-form .rd-static {
-  height: 40px; display: flex; align-items: center; justify-content: center;
-  border: 2px solid var(--border); border-radius: var(--radius-control);
-  background: color-mix(in oklch, var(--muted) 50%, transparent);
-  font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground);
-}
-
-/* Segmented status control */
-.cl-form .rd-seg {
-  display: inline-flex; gap: 3px; padding: 3px; width: fit-content;
-  border: 1px solid var(--border); border-radius: 999px;
-  background: color-mix(in oklch, var(--muted) 50%, transparent);
-}
-.cl-form .rd-seg-opt {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 14px; border: none; border-radius: 999px; background: transparent;
-  font: inherit; font-size: 12px; font-weight: 500; color: var(--muted-foreground);
-  cursor: pointer; transition: background .12s, color .12s;
-}
-.cl-form .rd-seg-opt.is-on {
-  background: var(--card); color: var(--foreground); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(0,0,0,.06);
-}
-.cl-form .rd-seg-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
-
-.cl-form .rd-rooms-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  font-size: 11.5px; color: var(--muted-foreground); font-variant-numeric: tabular-nums;
-}
-.cl-form .rd-rooms-foot-total { font-weight: 600; color: var(--foreground); }
-.cl-form .rd-rooms-foot .cur { font-weight: 400; color: var(--muted-foreground); }
-
-/* ── Narrow: sections stacked ── */
-@media (max-width: 959px) {
-  .cl-form .rd-sec { grid-template-columns: 1fr; gap: 12px; padding: 22px 22px; }
-}
-@media (max-width: 600px) {
-  .cl-form .rd-row2, .cl-form .rd-row3 { grid-template-columns: 1fr; }
-}
-
-/* Rooms table frame — shared with the Invoice form. */
-.cl-form .cl-tbl-wrap {
-  border: 1px solid var(--border); border-radius: var(--radius-control, 16px);
-  background: var(--card); overflow: hidden;
-}
-.cl-form .cl-tbl-scroll { overflow-x: auto; }
-.cl-form .cl-tbl { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; min-width: 560px; }
-.cl-form .cl-tbl thead th {
-  padding: 0 10px; height: 38px;
-  font-size: 12px; font-weight: 500; line-height: 38px;
-  color: var(--muted-foreground); text-align: left; white-space: nowrap;
-  background: var(--muted); border-bottom: 1px solid var(--border);
-  text-transform: none; letter-spacing: normal;
-}
-.cl-form .cl-tbl thead th.r { text-align: right; }
-.cl-form .cl-tbl thead th + th { border-left: 1px solid var(--border); }
-.cl-form .cl-tbl tbody tr { animation: none; }
-.cl-form .cl-tbl tbody td {
-  padding: 0; height: 40px;
-  border-bottom: 1px solid var(--border);
-  background: transparent; vertical-align: middle;
-  transition: background .1s;
-}
-.cl-form .cl-tbl tbody td + td { border-left: 1px solid var(--border); }
-.cl-form .cl-tbl tbody tr:hover td { background: color-mix(in oklch, var(--muted) 45%, transparent); }
-
-.cl-form .cl-tbl .c-in {
-  width: 100%; height: 100%; min-height: 40px;
-  padding: 0 10px; margin: 0;
-  background: transparent; border: none; border-radius: 0; box-shadow: none;
-  font-family: inherit; font-size: 13px; font-weight: 400; color: var(--foreground);
-  -webkit-appearance: none; appearance: none;
-}
-.cl-form .cl-tbl .c-in:focus {
-  outline: none; border-color: transparent;
-  box-shadow: inset 0 0 0 2px var(--ring); background: var(--card);
-}
-.cl-form .cl-tbl .c-in::placeholder { color: var(--muted-foreground); opacity: .75; }
-.cl-form .cl-tbl .c-in.c-num { text-align: right; font-variant-numeric: tabular-nums; }
-.cl-form .cl-tbl .c-in.c-strong { font-weight: 600; }
-.cl-form .cl-tbl .c-in[type="number"]::-webkit-outer-spin-button,
-.cl-form .cl-tbl .c-in[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.cl-form .cl-tbl .c-in[type="number"] { -moz-appearance: textfield; }
-
-.cl-form .cl-tbl .c-sel { position: relative; display: block; height: 100%; }
-.cl-form .cl-tbl .c-sel select.c-in { padding-right: 24px; cursor: pointer; }
-.cl-form .cl-tbl .c-sel::after {
-  content: ''; position: absolute; right: 11px; top: 50%;
-  width: 5px; height: 5px; pointer-events: none;
-  border-right: 1.5px solid var(--muted-foreground);
-  border-bottom: 1.5px solid var(--muted-foreground);
-  transform: translateY(-70%) rotate(45deg);
-}
-.cl-form .cl-tbl .c-calc {
-  padding: 0 10px; text-align: right;
-  font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums;
-  color: var(--muted-foreground); white-space: nowrap;
-}
-.cl-form .cl-tbl .c-act { text-align: center; }
-.cl-form .cl-row-del {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 26px; height: 26px; border-radius: 8px; border: none; padding: 0;
-  background: transparent; color: var(--muted-foreground);
-  cursor: pointer; opacity: .45; transition: opacity .12s, background .12s, color .12s;
-}
-.cl-form .cl-tbl tbody tr:hover .cl-row-del { opacity: 1; }
-.cl-form .cl-row-del:hover { background: var(--destructive); color: var(--destructive-foreground); opacity: 1; }
-.cl-form .cl-row-del:focus-visible { opacity: 1; outline: 2px solid var(--ring); outline-offset: 1px; }
-.cl-form .cl-tbl-add {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; height: 38px; padding: 0;
-  background: transparent; border: none;
-  font-family: inherit; font-size: 12.5px; font-weight: 500;
-  color: var(--muted-foreground); cursor: pointer; transition: background .12s, color .12s;
-}
-.cl-form .cl-tbl-add:hover { background: var(--muted); color: var(--foreground); }
-
-/* Phones keep the card list forms.css already draws (.cl-rooms-cards). */
-.cl-form .cl-rooms-desktop { display: block; }
-@media (max-width: 600px) {
-  .cl-form .cl-rooms-desktop { display: none; }
-}
-`;

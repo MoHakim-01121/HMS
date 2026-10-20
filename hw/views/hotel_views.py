@@ -14,7 +14,7 @@ from inertia import render as inertia_render
 from ..models import ActivityLog, Hotel, MealPlan, RoomType, RoomView, log_activity, room_type_name
 from ..models.hotel import OCCUPANCY_BY_CAPACITY
 from ..permissions import require_perm
-from .helpers import _is_mobile, pagination_props, snapshot_fields, track_changes
+from .helpers import _is_mobile, csv_export_response, pagination_props, snapshot_fields, track_changes
 
 
 def _hotel_error(data, instance=None):
@@ -25,11 +25,13 @@ def _hotel_error(data, instance=None):
     name = data.get('name', '').strip()
     if not name:
         return 'Hotel name is required.'
-    city = data.get('city', 'makkah')
+    city = data.get('city', '')
     if city not in {c for c, _ in HotelCity.choices}:
         return 'Choose Makkah or Madinah.'
+    if not data.get('stars'):
+        return 'Choose the stars.'
     try:
-        stars = int(data.get('stars') or 3)
+        stars = int(data['stars'])
     except (ValueError, TypeError):
         stars = 0
     if not 1 <= stars <= 5:
@@ -49,6 +51,7 @@ def _save_hotel(h, data):
     h.area    = data.get('area', '').strip()
     h.note    = data.get('note', '').strip()
     h.is_active = data.get('is_active') == 'on'
+    h.has_allotment = data.get('has_allotment') == 'on'
     try:
         h.lat = float(data['lat']) if data.get('lat') else None
     except (ValueError, TypeError):
@@ -62,12 +65,15 @@ def _save_hotel(h, data):
         h.avg_occupancy = float(val) if val else None
     except (ValueError, TypeError):
         h.avg_occupancy = None
-    route_raw = data.get('route', '').strip()
-    try:
-        parsed = _json.loads(route_raw) if route_raw else None
-        h.route = parsed if isinstance(parsed, list) and len(parsed) > 0 else None
-    except (ValueError, TypeError):
-        h.route = None
+    # The hotel form no longer edits the walking route (location is only
+    # coordinates now), so a save without the field keeps the stored one.
+    if 'route' in data:
+        route_raw = data.get('route', '').strip()
+        try:
+            parsed = _json.loads(route_raw) if route_raw else None
+            h.route = parsed if isinstance(parsed, list) and len(parsed) > 0 else None
+        except (ValueError, TypeError):
+            h.route = None
     h.save()
 
 
@@ -118,45 +124,80 @@ def _room_type_form_props(h, rt=None, form_data=None, errors=None):
     }
 
 
-@require_perm('hotels', 'view')
-def hotel_list(request):
+# Yes/no filters of the hotel list: ?key=a,b → the Q each value adds. Picking
+# both values of one pair is the same as picking neither.
+_HOTEL_FLAG_FILTERS = {
+    'allotment': {'yes': Q(has_allotment=True), 'no': Q(has_allotment=False)},
+    'status': {'active': Q(is_active=True), 'inactive': Q(is_active=False)},
+    'location': {
+        'set': Q(lat__isnull=False, lng__isnull=False),
+        'missing': Q(lat__isnull=True) | Q(lng__isnull=True),
+    },
+}
+
+
+def _hotel_list_qs(request):
+    """Hotels matching the list's search and filters (city, stars,
+    allotment, status, location)."""
+    from .helpers import csv_list
     qs = Hotel.objects.all()
-    q            = request.GET.get('q', '').strip()
-    area_filter  = request.GET.get('area', '').strip()
-    city_filter  = request.GET.get('city', '').strip()
-    stars_filter = request.GET.get('stars', '').strip()
+    q = request.GET.get('q', '').strip()
+    cities = csv_list(request, 'city', ['makkah', 'madinah'])
+    stars = [int(x) for x in csv_list(request, 'stars', ['1', '2', '3', '4', '5'])]
+    flags = {k: csv_list(request, k, list(opts)) for k, opts in _HOTEL_FLAG_FILTERS.items()}
     if q:
         qs = qs.filter(Q(name__icontains=q) | Q(area__icontains=q))
-    if area_filter:
-        qs = qs.filter(area__icontains=area_filter)
-    if city_filter in ('makkah', 'madinah'):
-        qs = qs.filter(city=city_filter)
-    if stars_filter.isdigit():
-        qs = qs.filter(stars=int(stars_filter))
-    paginator = Paginator(qs, 10 if _is_mobile(request) else 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    hotels = [{
-        "id": h.id,
-        "name": h.name,
-        "city": h.city,
-        "city_display": h.get_city_display(),
-        "area": h.area,
-        "stars": h.stars,
-        "distance": h.distance_to_haram,
-        "distance_label": h.distance_label,
-        "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
-        "is_active": h.is_active,
-    } for h in page_obj]
+    base = qs
+    if cities:
+        qs = qs.filter(city__in=cities)
+    if stars:
+        qs = qs.filter(stars__in=stars)
+    for key, picked in flags.items():
+        if picked:
+            cond = Q()
+            for v in picked:
+                cond |= _HOTEL_FLAG_FILTERS[key][v]
+            qs = qs.filter(cond)
+    sort = request.GET.get('sort', 'name')
+    return base, qs.order_by('-name' if sort == '-name' else 'name'), {
+        'q': q, 'city': cities, 'stars': [str(x) for x in stars], **flags, 'sort': sort,
+    }
 
+
+@require_perm('hotels', 'view')
+def hotel_list(request):
+    """Hotel list (Record View HMS canvas): no KPIs, city and stars in Filter."""
+    from django.db.models import Count
+    from .helpers import list_per_page
+    base, qs, filters = _hotel_list_qs(request)
+    page_obj = Paginator(qs, list_per_page(request)).get_page(request.GET.get('page'))
+    hotels = [{
+        "id": h.id, "name": h.name, "city": h.city, "city_display": h.get_city_display(), "area": h.area,
+        "stars": h.stars, "distance": h.distance_to_haram, "distance_label": h.distance_label,
+        "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None, "is_active": h.is_active,
+        "has_allotment": h.has_allotment,
+    } for h in page_obj]
     return inertia_render(request, "Hotel/List", props={
         "hotels": hotels,
-        "total_count": paginator.count,
-        "q": q,
-        "city_filter": city_filter,
-        "stars_filter": stars_filter,
-        "area_filter": area_filter,
+        "total": Hotel.objects.count(),
+        "filters": {**filters, "per": list_per_page(request)},
+        "counts": {
+            "city": {r['city']: r['n'] for r in base.values('city').annotate(n=Count('id'))},
+            "stars": {str(r['stars']): r['n'] for r in base.values('stars').annotate(n=Count('id'))},
+            **{key: {v: base.filter(cond).count() for v, cond in opts.items()} for key, opts in _HOTEL_FLAG_FILTERS.items()},
+            "all": base.count(),
+        },
         "pagination": pagination_props(page_obj),
     })
+
+
+@require_perm('hotels', 'export')
+def hotel_export_csv(request):
+    _, qs, _ = _hotel_list_qs(request)
+    return csv_export_response('hotels.csv', ['Hotel', 'City', 'Area', 'Stars', 'Allotment', 'Avg pax', 'Distance to mosque', 'Status'], [
+        [h.name, h.get_city_display(), h.area, h.stars, 'Yes' if h.has_allotment else 'No', h.avg_occupancy or '', h.distance_label, 'Active' if h.is_active else 'Inactive']
+        for h in qs
+    ])
 
 
 @require_perm('hotels', 'create')
@@ -198,7 +239,7 @@ def hotel_edit(request, pk):
         "edit": True,
         "hotel": {
             "id": h.id, "name": h.name, "city": h.city, "stars": h.stars,
-            "area": h.area, "note": h.note, "is_active": h.is_active,
+            "area": h.area, "note": h.note, "is_active": h.is_active, "has_allotment": h.has_allotment,
             "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
             "lat": h.lat, "lng": h.lng, "route": h.route,
         },
@@ -231,6 +272,7 @@ def hotel_detail(request, pk):
             "avg_occupancy": float(h.avg_occupancy) if h.avg_occupancy else None,
             "note": h.note,
             "is_active": h.is_active,
+            "has_allotment": h.has_allotment,
             "lat": h.lat,
             "lng": h.lng,
             "ref_label": h.ref_label,

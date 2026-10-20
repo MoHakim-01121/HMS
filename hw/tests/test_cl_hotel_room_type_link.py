@@ -24,7 +24,7 @@ class CLHotelRoomTypeLinkTest(TestCase):
             'client_id': str(self.customer.pk),
             'hotel_name': 'Hotel Sawaaed', 'hotel_id': str(self.hotel.pk),
             'check_in': '2026-09-01', 'check_out': '2026-09-03',
-            'reservation_status': 'DEFINITE',
+            'reservation_status': 'DEFINITE', 'salesperson_id': str(self.user.pk),
             'rooms': json.dumps([room]),
         }
 

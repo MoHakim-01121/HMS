@@ -34,7 +34,7 @@ class CLMealPlanTest(TestCase):
             'hotel_name': 'Hotel Sawaaed',
             'hotel_id': str(self.hotel.pk),
             'check_in': '2026-10-01', 'check_out': '2026-10-03',
-            'reservation_status': 'DEFINITE',
+            'reservation_status': 'DEFINITE', 'salesperson_id': str(self.user.pk),
             'rooms': json.dumps([row]),
         })
         return ConfirmationLetter.objects.get(confirmation_number='CL-MEAL-001').rooms.get()

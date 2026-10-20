@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
-import { RvBack } from "../../components/shadcn/record-view.jsx";
-import RowActions from "../../components/shadcn/row-actions.jsx";
-import KebabMenu from "../../components/shadcn/kebab-menu.jsx";
-import { Input } from "../../components/shadcn/ui/input.jsx";
+import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
+import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmtDist } from "../../utils/format.js";
-import { Icon } from "../../components/icons.jsx";
+
+// Hotel detail, the "Hotel Detail" artboard on the Record View HMS canvas:
+// the head card, then Room types (one row per type, its views as chips) beside
+// the map, then Meal plans beside the room calculator, then notes.
 
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
@@ -20,8 +21,8 @@ function haversine(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Leaflet map ported from hotel_detail.html. Height is set through the wrapper.
-function HotelMiniMap({ hotel, height = 320 }) {
+// Leaflet map ported from hotel_detail.html; it fills its parent.
+function HotelMiniMap({ hotel }) {
   const { t } = useI18n();
   const ref = useRef(null);
   useEffect(() => {
@@ -31,8 +32,7 @@ function HotelMiniMap({ hotel, height = 320 }) {
       if (cancelled || !ref.current) return;
       const refLL = hotel.city === "madinah" ? [24.4672, 39.6112] : [21.420324, 39.826485];
       const hotelLL = [hotel.lat, hotel.lng];
-      const d = hotel.distance;
-      const color = distColor(d);
+      const color = distColor(hotel.distance);
 
       map = L.map(ref.current, { zoomControl: false, scrollWheelZoom: false, dragging: true });
       L.control.zoom({ position: "bottomright" }).addTo(map);
@@ -45,11 +45,13 @@ function HotelMiniMap({ hotel, height = 320 }) {
       const routeTip = L.tooltip({ permanent: false, opacity: 1, className: "route-dist-tip", direction: "top", offset: [0, -8] });
       const dot = (c, sz) => L.divIcon({ className: "", html: `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${c};border:2px solid #fff;box-shadow:0 0 6px ${c}99;"></div>`, iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] });
 
-      L.marker(refLL, { icon: dot(MAP.yellow, 12) }).bindTooltip(hotel.ref_label).addTo(map);
+      // Leaflet renders a string tooltip as HTML; text nodes keep names plain.
+      const text = (s) => document.createTextNode(s || "");
+      L.marker(refLL, { icon: dot(MAP.yellow, 12) }).bindTooltip(text(hotel.ref_label)).addTo(map);
       if (hotel.city !== "madinah") {
         L.marker([21.4225, 39.8262], { icon: dot(MAP.red, 10) }).bindTooltip(t("Masjid Al-Haram")).addTo(map);
       }
-      L.marker(hotelLL, { icon: dot(color, 12) }).bindTooltip(hotel.name, { direction: "top", offset: [0, -8] }).addTo(map);
+      L.marker(hotelLL, { icon: dot(color, 12) }).bindTooltip(text(hotel.name), { direction: "top", offset: [0, -8] }).addTo(map);
 
       const coords = hotel.route && hotel.route.length >= 2 ? hotel.route : [refLL, hotelLL];
       map.fitBounds(coords.map((c) => L.latLng(c[0], c[1])), { padding: [40, 40] });
@@ -64,257 +66,224 @@ function HotelMiniMap({ hotel, height = 320 }) {
     };
   }, [hotel]);
 
-  return <div ref={ref} style={{ height }} />;
+  return <div ref={ref} />;
 }
 
 function RoomCalculator({ avg }) {
   const { t } = useI18n();
-  const [jamaah, setJamaah] = useState(35);
-  const rooms = jamaah > 0 ? Math.ceil(jamaah / avg) : null;
+  const [pilgrims, setPilgrims] = useState(35);
+  const rooms = pilgrims > 0 ? Math.ceil(pilgrims / avg) : null;
   return (
-    <div className="hms-hm-calc">
-      <div className="hms-hm-crow">
-        <span className="lbl">{t("Pilgrims")}</span>
-        <div className="hms-hm-stepper">
-          <button type="button" className="stp" aria-label={t("Decrease")} onClick={() => setJamaah((v) => Math.max(1, v - 1))}>−</button>
-          <Input
-            aria-label={t("Pilgrims")}
-            className="hms-hm-inp"
-            type="number"
-            min="1"
-            value={jamaah}
-            onChange={(e) => setJamaah(parseInt(e.target.value) || 0)}
-          />
-          <button type="button" className="stp" aria-label={t("Increase")} onClick={() => setJamaah((v) => v + 1)}>+</button>
+    <>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 16 }}>
+        <div>
+          <label htmlFor="hm-pilgrims" style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)" }}>{t("Pilgrims")}</label>
+          <div className="hm-step">
+            <button type="button" aria-label={t("Decrease")} onClick={() => setPilgrims((v) => Math.max(1, v - 1))}>−</button>
+            <input id="hm-pilgrims" type="number" min="1" value={pilgrims} onChange={(e) => setPilgrims(parseInt(e.target.value, 10) || 0)} />
+            <button type="button" aria-label={t("Increase")} onClick={() => setPilgrims((v) => v + 1)}>+</button>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("Rooms needed")}</div>
+          <div style={{ marginTop: 2, fontSize: 32, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+            {rooms ?? "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--muted-foreground)" }}>{t("rooms")}</span>
+          </div>
         </div>
       </div>
-      <div className="hms-hm-cresult">
-        <span className="lbl">{t("Rooms needed")}</span>
-        <span className="val">
-          {rooms ?? "—"}
-          <span className="u">{t("Rooms")}</span>
-        </span>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+        {t("Based on an average of {avg} pax per room.", { avg })}
       </div>
-      <div className="hms-hm-cavg">
-        {t("Avg {avg} pax/room", { avg })}
-      </div>
-    </div>
+    </>
   );
 }
+
+// One view of a room type: a chip that opens Edit / Remove.
+function ViewChip({ rt, canEdit, onEdit, onRemove }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const label = rt.view ? t(rt.view) : t("Standard");
+  if (!canEdit) return <span className="hm-chip static">{label}</span>;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="hm-chip" aria-label={t("{type}, {view}", { type: rt.name, view: label })}>{label}</button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={4} className="la-menu" style={{ width: 180 }}>
+        <div role="menu">
+          <button type="button" role="menuitem" className="la-mi" onClick={() => { setOpen(false); onEdit(rt); }}>{t("Edit")}</button>
+          <button type="button" role="menuitem" className="la-mi danger" onClick={() => { setOpen(false); onRemove(rt); }}>{t("Remove")}</button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+const SHOWN = 6;
 
 export default function Detail({ hotel }) {
   const { t } = useI18n();
   const openForm = useFormModal();
   const perms = usePerms();
-  const hasCoords = hotel.lat != null && hotel.lng != null;
-  const distTone =
-    hotel.distance == null ? undefined :
-    hotel.distance < 500 ? "var(--green)" :
-    hotel.distance < 1500 ? "var(--yellow)" : "var(--red)";
-
-  const canEdit = perms.can("hotels", "edit");
   const [confirm, confirmDialog] = useConfirm();
+  const [showAll, setShowAll] = useState(false);
+  const hasCoords = hotel.lat != null && hotel.lng != null;
+  const canEdit = perms.can("hotels", "edit");
+  const base = `/hotels/${hotel.id}`;
+
   const delHotel = () => confirm({
     title: t("Delete hotel"),
     message: t("Delete hotel {name}?", { name: hotel.name }),
-    onConfirm: () => router.post(`/hotels/${hotel.id}/delete/`),
+    danger: true,
+    onConfirm: () => router.post(`${base}/delete/`),
   });
-
-  const roomTypes = [...(hotel.room_types || [])].sort(
-    (a, b) => (a.capacity || 0) - (b.capacity || 0) || String(a.name).localeCompare(String(b.name))
-  );
-  const mealPlans = hotel.meal_plans || [];
-  const locationText = `${hotel.city_display}${hotel.area ? `, ${hotel.area}` : ""}`;
-
   const removeRoomType = (rt) => confirm({
     title: t("Remove room type"),
-    message: t("Remove {name} from this hotel?", { name: rt.name }),
+    message: t("Remove {name} from this hotel?", { name: rt.view ? `${rt.name}, ${t(rt.view)}` : rt.name }),
     detail: t("CLs that already use it keep their rooms unchanged."),
     confirmLabel: "Remove",
     danger: true,
-    onConfirm: () => router.post(`/hotels/${hotel.id}/room-types/${rt.id}/delete/`),
+    onConfirm: () => router.post(`${base}/room-types/${rt.id}/delete/`),
   });
 
+  // One row per type name; each row of the hotel's room types is a view chip.
+  const groups = [];
+  for (const rt of hotel.room_types || []) {
+    let g = groups.find((x) => x.name === rt.name);
+    if (!g) groups.push((g = { name: rt.name, capacity: rt.capacity, items: [] }));
+    g.items.push(rt);
+    g.capacity = Math.max(g.capacity || 0, rt.capacity || 0);
+  }
+  groups.sort((a, b) => (a.capacity || 0) - (b.capacity || 0) || String(a.name).localeCompare(String(b.name)));
+  const shown = showAll ? groups : groups.slice(0, SHOWN);
+  const mealPlans = hotel.meal_plans || [];
+
+  const distTone = hotel.distance == null ? undefined : hotel.distance < 500 ? "success" : hotel.distance < 1500 ? "warning" : "danger";
+
   return (
-    <div className="page shadcn-root hms-rv-page hms-hm-main">
-      <RvBack href="/hotels/" label={t("Back")} />
-      <div className="hms-hm-cards">
-        <section className="hms-hm-card hms-hm-info">
-          <div className="hms-hm-top">
-            <h1>{hotel.name}</h1>
-            <div className="hms-hm-topacts">
-              <span className={`hms-dv-pill hms-rv-badge tone-${hotel.is_active ? "green" : "gray"}`}>
-                {hotel.is_active ? t("Active") : t("Inactive")}
-              </span>
-              {canEdit ? (
-                <button
-                  type="button" className="hms-rv-btn"
-                  onClick={() => openForm(`/hotels/${hotel.id}/edit/`)}
-                  onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/edit/`)}
-                >
-                  {t("Edit")}
-                </button>
-              ) : null}
-              <KebabMenu items={[perms.can("hotels", "delete") && { label: t("Delete"), onClick: delHotel, danger: true }]} />
-            </div>
-          </div>
+    <DPage>
+      <style>{CSS}</style>
+      <DTop href="/hotels/" />
 
-          <div className="hms-hm-sub">{locationText}</div>
+      <DHead
+        title={hotel.name}
+        badge={hotel.is_active ? { label: t("Active"), tone: "green" } : { label: t("Inactive"), tone: "gray" }}
+        menu={[
+          canEdit && { label: t("Edit"), icon: "edit", onClick: () => openForm(`${base}/edit/`) },
+          perms.can("hotels", "delete") && { label: t("Delete hotel…"), icon: "trash", danger: true, separator: true, onClick: delHotel },
+        ]}
+        cols={4}
+        facts={[
+          { k: t("Location"), v: [hotel.city_display, hotel.area].filter(Boolean).join(" · ") },
+          { k: t("Stars"), v: hotel.stars ? `${hotel.stars}★` : t("Not set") },
+          { k: t("Allotment"), v: hotel.has_allotment ? t("Allotment") : t("No allotment") },
+          { k: t("Distance to Masjid Al-Haram"), v: hasCoords && hotel.distance_label ? hotel.distance_label : t("Not set"), tone: hasCoords ? distTone : undefined },
+          { k: t("Average occupancy"), v: hotel.avg_occupancy ? t("{n} pax/room", { n: hotel.avg_occupancy }) : t("Not set") },
+        ]}
+      />
 
-          <div className="hms-hm-meta">
-            <div>
-              <div className="k">{t("Stars")}</div>
-              <div className="v">{hotel.stars ? `${hotel.stars}★` : "—"}</div>
-            </div>
-            <div>
-              <div className="k">{t("Distance to Masjid Al-Haram")}</div>
-              <div className="v" style={{ color: distTone }}>{hasCoords && hotel.distance_label ? hotel.distance_label : "—"}</div>
-            </div>
-            <div>
-              <div className="k">{t("Average occupancy")}</div>
-              <div className="v">{hotel.avg_occupancy ? `${hotel.avg_occupancy} pax/room` : "—"}</div>
-            </div>
-            <div>
-              <div className="k">{t("Reference")}</div>
-              <div className="v sub">{hasCoords ? hotel.ref_label : "—"}</div>
-            </div>
-          </div>
-
-          {hotel.note ? (
-            <div className="hms-hm-notebox">
-              <div className="hms-hm-sec-lbl">
-                <h2>{t("Notes")}</h2>
-              </div>
-              <div className="hms-hm-note-text">{hotel.note}</div>
-            </div>
+      <div className="da-pair">
+        <DCard
+          title={t("Room types")}
+          count={groups.length || null}
+          actions={canEdit ? (
+            <>
+              <button type="button" onClick={() => openForm(`${base}/room-types/bulk/`)} onPointerEnter={() => openForm.prefetch?.(`${base}/room-types/bulk/`)}>{t("Bulk add")}</button>
+              <button type="button" onClick={() => openForm(`${base}/room-types/new/`)} onPointerEnter={() => openForm.prefetch?.(`${base}/room-types/new/`)}>{t("+ Add")}</button>
+            </>
           ) : null}
-        </section>
-
-        <div className="hms-hm-pair">
-          <section className="hms-hm-card hms-hm-rt">
-            <div className="hms-hm-sec-lbl">
-              <h2>{t("Room types")}</h2>
-              {canEdit ? (
-                <span className="right">
-                  <button
-                    type="button" className="hms-dv-act"
-                    onClick={() => openForm(`/hotels/${hotel.id}/room-types/bulk/`)}
-                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/room-types/bulk/`)}
-                  >
-                    <Icon name="plus" size={13} />
-                    {t("Bulk Add Room Types")}
-                  </button>
-                  <button
-                    type="button" className="hms-dv-act"
-                    onClick={() => openForm(`/hotels/${hotel.id}/room-types/new/`)}
-                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/room-types/new/`)}
-                  >
-                    {t("+ Add Room Type")}
-                  </button>
-                </span>
-              ) : null}
-            </div>
-            {roomTypes.length ? (
-              <div className="hms-hm-table">
-              <table className="hms-hm-rtbl">
-                <thead>
-                  <tr>
-                    <th>{t("Room type")}</th>
-                    {/* "View" alone translates as the Lihat action; the noun
-                        key is "Room View". Order follows the form. */}
-                    <th>{t("Room View")}</th>
-                    <th>{t("Capacity")}</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {roomTypes.map((rt) => (
-                    <tr key={rt.id}>
-                      <td className="nm">{rt.name}</td>
-                      <td className="mut">{rt.view ? t(rt.view) : "—"}</td>
-                      <td className="mut">{rt.capacity} {t("pax")}</td>
-                      {canEdit ? (
-                        <td className="ac-wrap">
-                          <span className="ac">
-                            <RowActions
-                              actions={[
-                                { icon: "edit", label: t("Edit"), onClick: () => openForm(`/hotels/${hotel.id}/room-types/${rt.id}/edit/`) },
-                                { icon: "trash", label: t("Remove"), variant: "red", onClick: () => removeRoomType(rt) },
-                              ]}
-                            />
-                          </span>
+        >
+          {groups.length ? (
+            <>
+              <div className="da-scroll">
+                <table className="da-t mid">
+                  <thead><tr><th>{t("Room type")}</th><th className="n">{t("Capacity")}</th><th>{t("Views")}</th></tr></thead>
+                  <tbody>
+                    {shown.map((g) => (
+                      <tr key={g.name} className="mid">
+                        <td className="strong" style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{g.name}</td>
+                        <td className="n" style={{ verticalAlign: "middle" }}>{g.capacity} {t("pax")}</td>
+                        <td style={{ paddingTop: 10, paddingBottom: 10 }}>
+                          {g.items.map((rt) => (
+                            <ViewChip key={rt.id} rt={rt} canEdit={canEdit} onEdit={(x) => openForm(`${base}/room-types/${x.id}/edit/`)} onRemove={removeRoomType} />
+                          ))}
                         </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <div className="hms-hm-empty">{t("This hotel has no room types yet.")}</div>
-            )}
-          </section>
-
-          <section className="hms-hm-card hms-hm-meal">
-            <div className="hms-hm-sec-lbl">
-              <h2>{t("Meal plans")}</h2>
-              {canEdit ? (
-                <span className="right">
-                  <button
-                    type="button" className="hms-dv-act"
-                    onClick={() => openForm(`/hotels/${hotel.id}/meal-plans/`)}
-                    onPointerEnter={() => openForm.prefetch?.(`/hotels/${hotel.id}/meal-plans/`)}
-                  >
-                    {t("Manage")}
+              {groups.length > SHOWN ? (
+                <div style={{ marginTop: "auto", padding: "4px 24px 16px", borderTop: "1px solid var(--border)" }}>
+                  <button type="button" className="hm-more" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)}>
+                    {showAll ? t("Show less") : t("Show all {n} types", { n: groups.length })}
                   </button>
-                </span>
-              ) : null}
-            </div>
-            {mealPlans.length ? (
-              <div className="hms-hm-rows">
-                {mealPlans.map((mp) => (
-                  <div key={mp.code} className="hms-hm-row">
-                    <span className="cd">{mp.code}</span>
-                    <span>{t(mp.name)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="hms-hm-empty">{t("No meal plans set — the CL form falls back to free-text Meals for this hotel.")}</div>
-            )}
-
-            {hotel.avg_occupancy ? (
-              <div className="hms-hm-calc-sec">
-                <div className="hms-hm-sec-lbl">
-                  <h2>{t("Room calculator")}</h2>
                 </div>
-                <RoomCalculator avg={hotel.avg_occupancy} />
-              </div>
-            ) : null}
-          </section>
-        </div>
+              ) : null}
+            </>
+          ) : <div className="da-empty">{t("This hotel has no room types yet.")}</div>}
+        </DCard>
 
-        <section className="hms-hm-card hms-hm-loccard">
-          <div className="hms-hm-loctop">
-            <div className="hms-hm-sec-lbl">
-              <h2>{t("Location")}</h2>
-            </div>
-            <a className="hms-hm-maplink" href="/hotels/map/">
-              <Icon name="map-pin" size={13} />
-              {t("See full map")}
-            </a>
-          </div>
+        <DCard title={t("Location")} actions={<a href="/hotels/map/">{t("See full map")} ↗</a>}>
           {hasCoords ? (
-            <div className="hms-hm-map">
-              <HotelMiniMap hotel={hotel} height={260} />
-            </div>
-          ) : (
-            <div className="hms-hm-note">{t("Location not set — add coordinates on the edit page to show this hotel on the map.")}</div>
-          )}
-        </section>
+            <>
+              <div className="da-map" role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} style={{ marginTop: 4 }}>
+                <HotelMiniMap hotel={hotel} />
+              </div>
+              <div style={{ padding: "12px 24px 18px", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+                {t("Distance measured from {ref}.", { ref: hotel.ref_label })}
+              </div>
+            </>
+          ) : <div className="da-empty">{t("Location not set — add coordinates on the edit page to show this hotel on the map.")}</div>}
+        </DCard>
       </div>
 
+      <div className={hotel.avg_occupancy ? "da-pair" : undefined}>
+        <DCard
+          title={t("Meal plans")}
+          actions={canEdit ? <button type="button" onClick={() => openForm(`${base}/meal-plans/`)} onPointerEnter={() => openForm.prefetch?.(`${base}/meal-plans/`)}>{t("Manage")}</button> : null}
+        >
+          {mealPlans.length ? (
+            <div className="da-rows">
+              {mealPlans.map((mp) => (
+                <div key={mp.code}>
+                  <span style={{ width: 32, fontFamily: "var(--font-mono)", fontSize: 12.5, fontWeight: 600, color: "var(--muted-foreground)" }}>{mp.code}</span>
+                  <span>{t(mp.name)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="da-empty">{t("No meal plans set — the CL form falls back to free-text Meals for this hotel.")}</div>}
+        </DCard>
+
+        {hotel.avg_occupancy ? (
+          <DCard pad title={t("Room calculator")}>
+            <RoomCalculator avg={hotel.avg_occupancy} />
+          </DCard>
+        ) : null}
+      </div>
+
+      {hotel.note ? (
+        <DCard pad title={t("Notes")}>
+          <p className="da-text">{hotel.note}</p>
+        </DCard>
+      ) : null}
+
       {confirmDialog}
-    </div>
+    </DPage>
   );
 }
+
+const CSS = `
+.hm-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; margin: 2px 4px 2px 0; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 500 11.5px var(--font-sans); cursor: pointer; white-space: nowrap; }
+.hm-chip:hover, .hm-chip[aria-expanded="true"] { background: var(--input); }
+.hm-chip.static { cursor: default; }
+.hm-chip.static:hover { background: var(--secondary); }
+.hm-more { height: 36px; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: 600 12.5px var(--font-sans); cursor: pointer; }
+.hm-more:hover { color: var(--foreground); }
+.hm-step { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.hm-step button { width: 40px; height: 40px; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 600 18px var(--font-sans); cursor: pointer; }
+.hm-step button:hover { background: var(--input); }
+.hm-step input { width: 72px; height: 40px; box-sizing: border-box; text-align: center; border: 2px solid var(--border); border-radius: 14px; background: var(--card); color: var(--foreground); font: 600 15px var(--font-sans); font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.hm-step input::-webkit-outer-spin-button, .hm-step input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.hm-step input:focus { outline: none; border-color: var(--foreground); }
+`;

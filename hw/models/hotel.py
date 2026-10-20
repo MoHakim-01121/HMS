@@ -21,6 +21,8 @@ class Hotel(models.Model):
         max_digits=5, decimal_places=2, null=True, blank=True,
         help_text='Rata-rata orang per kamar, mis. 3.4',
     )
+    # The hotel holds rooms for us on contract (allotment), or we book per request.
+    has_allotment = models.BooleanField(default=False)
     note          = models.TextField(blank=True)
     route         = models.JSONField(null=True, blank=True,
                                      help_text='Intermediate waypoints [[lat,lng],...] between mosque and hotel')
@@ -89,15 +91,6 @@ class Hotel(models.Model):
         # mean little to pilgrims planning the Fajr walk.
         minutes = max(1, round(d / 80))
         return f'±{minutes} mnt jalan kaki'
-
-    @property
-    def stars_display(self):
-        return '★' * self.stars + '☆' * (5 - self.stars)
-
-    def rooms_needed(self, jamaah_count):
-        if not self.avg_occupancy or self.avg_occupancy <= 0:
-            return None
-        return math.ceil(jamaah_count / float(self.avg_occupancy))
 
 
 class Occupancy(models.TextChoices):
