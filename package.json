@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "lint": "eslint frontend"
+    "lint": "eslint frontend",
+    "lint:ui": "node scripts/lint-ui.mjs"
   },
   "dependencies": {
     "@inertiajs/react": "^1.2.0",

@@ -113,10 +113,14 @@ if (compare) {
       for (let i = 0; i < da.length; i += 4) if (Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 24) diff++;
       return { diff, pct: (100 * diff / (da.length / 4)).toFixed(3) };
     }, ["data:image/png;base64," + readFileSync(a).toString("base64"), "data:image/png;base64," + readFileSync(b).toString("base64")]);
-    rows.push(`${file}\t${r.size ? "SIZE " + r.size : r.diff ? `${r.diff}px (${r.pct}%)` : "same"}`);
+    // Sub-pixel bar edges and text anti-aliasing move a few hundred pixels at
+    // most between identical renders; anything above 0.05% is a real change.
+    const verdict = r.size ? "CHANGED size " + r.size : !r.diff ? "same" : r.pct <= 0.05 ? `noise ${r.diff}px` : `CHANGED ${r.diff}px (${r.pct}%)`;
+    rows.push(`${file}\t${verdict}`);
   }
   writeFileSync(join(outDir, "diff.txt"), rows.join("\n") + "\n");
-  console.log("\n" + rows.join("\n"));
+  const changed = rows.filter((r) => r.includes("CHANGED"));
+  console.log(`\n${rows.length} compared, ${changed.length} changed` + (changed.length ? "\n" + changed.join("\n") : ""));
 }
 await browser.close();
 if (failed.length) { console.error("\nFAILED\n" + failed.join("\n")); process.exit(1); }

@@ -105,9 +105,6 @@
   --info: #337EA9;
   --info-text: #1A5BAE;
   --info-tint: #DCEAFB;
-  --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
-  --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
-  --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
   /* Carried over from design.css (legacy layer) with the values it had, so the
      app no longer depends on that file for them. --green/--bg alias their Paper
      names; --red/--yellow stay as they were until they are folded into
@@ -231,6 +228,53 @@
      (The root was 14px until 2026-10-22, which also put every rem utility
      12.5% under its name; it is the browser's 16px now.) */
   --radius-control: 14px;
+
+  /* Every :root token above as a utility (bg-hero, text-danger-text,
+     border-hairline, …), so components never need var() in a class. */
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-hairline: var(--hairline);
+  --color-data: var(--data);
+  --color-hero: var(--hero);
+  --color-hero-on: var(--hero-on);
+  --color-chart-bar: var(--chart-bar);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-on: var(--sidebar-on);
+  --color-sidebar-on-fg: var(--sidebar-on-fg);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-tint: var(--success-tint);
+  --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-warning-text: var(--warning-text);
+  --color-warning-tint: var(--warning-tint);
+  --color-danger: var(--danger);
+  --color-danger-text: var(--danger-text);
+  --color-danger-tint: var(--danger-tint);
+  --color-info: var(--info);
+  --color-info-text: var(--info-text);
+  --color-info-tint: var(--info-tint);
+
+  --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
+  --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
+  --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
+
+  /* Motion: one enter curve, one exit curve, one drawer curve (iOS sheet). */
+  --ease-out-quint: cubic-bezier(.16,1,.3,1);
+  --ease-in-quick: cubic-bezier(.4,0,1,1);
+  --ease-drawer: cubic-bezier(.32,.72,0,1);
+  --animate-menu-in: menu-in 180ms var(--ease-out-quint) both;
+  --animate-menu-out: menu-out 150ms var(--ease-in-quick) both;
+  --animate-panel-in: panel-in 200ms var(--ease-out-quint) both;
+  --animate-fade-in: fade-in 180ms var(--ease-out-quint) both;
+  --animate-rise-in: rise-in 180ms var(--ease-out-quint) both;
+  @keyframes menu-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+  @keyframes menu-out { to { opacity: 0; transform: translateY(-4px) scale(.98); } }
+  @keyframes panel-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+  @keyframes fade-in { from { opacity: 0; } }
+  @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } }
 }
 
 /* design.css's body already defaults to Fira Sans now that every page carries this class,
