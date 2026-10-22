@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
-import {
-  ListPage, Kpis, Kpi, Toolbar, TableCard, Empty, ExportMenu, DateRange, LIcon, fmtN, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, TableCard, Empty, ExportMenu, DateRange, LIcon, fmtN, rowNav, Tr, Th, Td, ToolButton, MonthLabel, NavButton } from "../../components/shadcn/list-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
@@ -91,15 +89,15 @@ export default function BranchReport({
     valuePicker = (
       <>
         <DateRange from={range.from} to={range.to} onFrom={(v) => setRange({ ...range, from: v })} onTo={(v) => setRange({ ...range, to: v })} />
-        <button type="button" className="la-tool" disabled={!range.from || !range.to} onClick={() => go({ value: `${range.from}..${range.to}` })}>{t("Show")}</button>
+        <ToolButton disabled={!range.from || !range.to} onClick={() => go({ value: `${range.from}..${range.to}` })}>{t("Show")}</ToolButton>
       </>
     );
   } else {
     valuePicker = (
       <>
-        <span className="la-month">{periodName(period, period.kind, loc)}</span>
-        <button type="button" className="la-icon" aria-label={t("Previous")} onClick={() => go({ value: shift(period.kind, period.value, -1) })}>{LIcon.prev}</button>
-        <button type="button" className="la-icon" aria-label={t("Next")} onClick={() => go({ value: shift(period.kind, period.value, 1) })}>{LIcon.next}</button>
+        <MonthLabel>{periodName(period, period.kind, loc)}</MonthLabel>
+        <NavButton aria-label={t("Previous")} onClick={() => go({ value: shift(period.kind, period.value, -1) })}>{LIcon.prev}</NavButton>
+        <NavButton aria-label={t("Next")} onClick={() => go({ value: shift(period.kind, period.value, 1) })}>{LIcon.next}</NavButton>
       </>
     );
   }
@@ -136,21 +134,21 @@ export default function BranchReport({
       <h2 className="br-h2">{t("FX profit per transfer")}</h2>
       <TableCard cols={[110, 76, 110, 140, 96, 96, 130]}
         empty={!transfers.length && <Empty title={t("No transfers to head office")} sub={t("The branch earns its FX profit when it sends money to head office.")} />}>
-        <thead><tr>
-          <th>{t("Transfer")}</th><th>{t("Date")}</th><th className="n">SAR</th><th className="n">{t("IDR sent")}</th>
-          <th className="n">{t("Average rate")}</th><th className="n">{t("Send rate")}</th><th className="n">{t("FX profit (IDR)")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Transfer")}</Th><Th>{t("Date")}</Th><Th className="text-right">SAR</Th><Th className="text-right">{t("IDR sent")}</Th>
+          <Th className="text-right">{t("Average rate")}</Th><Th className="text-right">{t("Send rate")}</Th><Th className="text-right">{t("FX profit (IDR)")}</Th>
+        </Tr></thead>
         <tbody>
           {transfers.map((x) => (
-            <tr key={x.id} {...rowNav(`/remittance/${x.id}/`)}>
-              <td><span className="mono">{x.remittance_number}</span></td>
-              <td>{dayMonth(x.date, loc)}</td>
-              <td className="n">{fmtN(x.sar)}</td>
-              <td className="n">{fmtN(x.idr_sent)}</td>
-              <td className="n">{rate(x.avg_rate)}</td>
-              <td className="n">{rate(x.send_rate)}</td>
-              <td className="n">{x.profit_idr == null ? <span className="mut">{t("Not priced")}</span> : fmtN(x.profit_idr)}</td>
-            </tr>
+            <Tr key={x.id} {...rowNav(`/remittance/${x.id}/`)}>
+              <Td><span className="font-mono text-[13px] font-semibold">{x.remittance_number}</span></Td>
+              <Td>{dayMonth(x.date, loc)}</Td>
+              <Td className="text-right">{fmtN(x.sar)}</Td>
+              <Td className="text-right">{fmtN(x.idr_sent)}</Td>
+              <Td className="text-right">{rate(x.avg_rate)}</Td>
+              <Td className="text-right">{rate(x.send_rate)}</Td>
+              <Td className="text-right">{x.profit_idr == null ? <span className="text-muted-foreground">{t("Not priced")}</span> : fmtN(x.profit_idr)}</Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
@@ -158,29 +156,29 @@ export default function BranchReport({
       <h2 className="br-h2">{t("Operating expenses")}</h2>
       <TableCard cols={[null, 160]}
         empty={!exp.by_category?.length && <Empty title={t("No expenses paid")} sub={t("Nothing was paid in this period.")} />}>
-        <thead><tr><th>{t("Category")}</th><th className="n">{t("Amount (IDR)")}</th></tr></thead>
+        <thead><Tr><Th>{t("Category")}</Th><Th className="text-right">{t("Amount (IDR)")}</Th></Tr></thead>
         <tbody>
-          {(exp.by_category || []).map((c) => <tr key={c.name}><td>{c.name}</td><td className="n">{fmtN(c.amount)}</td></tr>)}
+          {(exp.by_category || []).map((c) => <Tr key={c.name}><Td>{c.name}</Td><Td className="text-right">{fmtN(c.amount)}</Td></Tr>)}
           {exp.by_category?.length ? (<>
-            <tr><td><span className="strong">{t("Total")}</span></td><td className="n"><span className="strong">{fmtN(exp.total)}</span></td></tr>
-            <tr><td className="mut">{t("Reimbursed")}</td><td className="n">{fmtN(exp.paid_back)}</td></tr>
-            <tr><td className="mut">{t("Claimed, waiting")}</td><td className="n">{fmtN(exp.claimed)}</td></tr>
-            <tr><td className="mut">{t("Not claimed yet")}</td><td className="n">{fmtN(exp.unclaimed)}</td></tr>
+            <Tr><Td><span className="font-medium">{t("Total")}</span></Td><Td className="text-right"><span className="font-medium">{fmtN(exp.total)}</span></Td></Tr>
+            <Tr><Td className="text-muted-foreground">{t("Reimbursed")}</Td><Td className="text-right">{fmtN(exp.paid_back)}</Td></Tr>
+            <Tr><Td className="text-muted-foreground">{t("Claimed, waiting")}</Td><Td className="text-right">{fmtN(exp.claimed)}</Td></Tr>
+            <Tr><Td className="text-muted-foreground">{t("Not claimed yet")}</Td><Td className="text-right">{fmtN(exp.unclaimed)}</Td></Tr>
           </>) : null}
         </tbody>
       </TableCard>
 
       <h2 className="br-h2">{t("Position as of {d}", { d: dayMonth(pos.as_of, loc) })}</h2>
       <TableCard cols={[null, 90, 160]}>
-        <thead><tr><th>{t("Account")}</th><th>{t("Currency")}</th><th className="n">{t("Balance")}</th></tr></thead>
+        <thead><Tr><Th>{t("Account")}</Th><Th>{t("Currency")}</Th><Th className="text-right">{t("Balance")}</Th></Tr></thead>
         <tbody>
           {(pos.accounts || []).map((a) => (
-            <tr key={a.name}><td>{a.name}{a.kind === "staff" && <span className="sub">{t("Staff advance")}</span>}</td>
-              <td>{a.currency}</td><td className="n">{fmtN(a.native)}</td></tr>
+            <Tr key={a.name}><Td>{a.name}{a.kind === "staff" && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("Staff advance")}</span>}</Td>
+              <Td>{a.currency}</Td><Td className="text-right">{fmtN(a.native)}</Td></Tr>
           ))}
-          <tr><td>{t("Client receivables")}</td><td>SAR</td><td className="n">{fmtN(pos.receivable_sar)}</td></tr>
-          <tr><td>{t("Client deposits")}</td><td>SAR</td><td className="n">{fmtN(pos.deposits_sar)}</td></tr>
-          <tr><td>{t("Owed by head office")}</td><td>IDR</td><td className="n">{fmtN(pos.owed_by_hq_idr)}</td></tr>
+          <Tr><Td>{t("Client receivables")}</Td><Td>SAR</Td><Td className="text-right">{fmtN(pos.receivable_sar)}</Td></Tr>
+          <Tr><Td>{t("Client deposits")}</Td><Td>SAR</Td><Td className="text-right">{fmtN(pos.deposits_sar)}</Td></Tr>
+          <Tr><Td>{t("Owed by head office")}</Td><Td>IDR</Td><Td className="text-right">{fmtN(pos.owed_by_hq_idr)}</Td></Tr>
         </tbody>
       </TableCard>
     </ListPage>

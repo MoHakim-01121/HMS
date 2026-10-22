@@ -2,10 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -63,42 +60,42 @@ export default function Exchanges({ exchanges = [], filters: f, years = [], coun
 
       <TableCard cols={[100, 80, 104, null, null, 150, 96, 56]}
         empty={!exchanges.length && <Empty title={t("No transfers")} sub={t("Nothing moved between accounts in this period.")} />}>
-        <thead><tr>
-          <th>{t("Number")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th>{t("Type")}</th><th>{t("From")}</th><th>{t("To")}</th><th className="n">{t("Rate")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Number")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th>{t("Type")}</Th><Th>{t("From")}</Th><Th>{t("To")}</Th><Th className="text-right">{t("Rate")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {exchanges.map((ex) => {
             const r = rateOf(ex);
             const dead = ex.status === "voided";
             return (
-              <tr key={ex.id} className={dead ? "dim" : ""} style={{ cursor: "default" }}>
-                <td><span className="mono">{ex.exchange_number}</span></td>
-                <td>{dShort(ex.exchange_date)}</td>
-                <td>{r ? t("Exchange") : t("Transfer")}</td>
-                <td className="ell">{ex.from_label}<span className="sub">{fmtN(ex.amount_out)} {ex.from_currency}</span></td>
-                <td className="ell">{ex.to_label}<span className="sub">{fmtN(ex.amount_in)} {ex.to_currency}</span></td>
-                <td className="n">{r ? <>{fmtN(r.v)}<span className="sub">{r.per}</span></> : <span className="mut">{t("Same currency")}</span>}</td>
-                <td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></td>
-                <td className="c">
+              <Tr key={ex.id} row={dead ? "dim" : undefined} style={{ cursor: "default" }}>
+                <Td><span className="font-mono text-[13px] font-semibold">{ex.exchange_number}</span></Td>
+                <Td>{dShort(ex.exchange_date)}</Td>
+                <Td>{r ? t("Exchange") : t("Transfer")}</Td>
+                <Td className="truncate">{ex.from_label}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{fmtN(ex.amount_out)} {ex.from_currency}</span></Td>
+                <Td className="truncate">{ex.to_label}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{fmtN(ex.amount_in)} {ex.to_currency}</span></Td>
+                <Td className="text-right">{r ? <>{fmtN(r.v)}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{r.per}</span></> : <span className="text-muted-foreground">{t("Same currency")}</span>}</Td>
+                <Td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: ex.exchange_number })} items={[
                     ex.proof_url && { label: t("View proof"), href: ex.proof_url, external: true },
                     !dead && perms.can("bank", "delete") && { label: t("Void transfer"), danger: true, onClick: () => voidEx(ex) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>
         {summary && exchanges.length > 0 && (
-          <tfoot><tr><td colSpan={8} style={{ fontWeight: 400, whiteSpace: "normal" }}>
+          <tfoot><Tr><Td colSpan={8} style={{ fontWeight: 400, whiteSpace: "normal" }}>
             <b>{period}:</b>{" "}
             {t("{a} transfers and {b} exchanges.", { a: summary.transfers, b: summary.exchanges })}{" "}
             {summary.sar_in > 0 && t("{idr} IDR exchanged to {sar} SAR at an average rate of {r}.", { idr: fmtN(summary.idr_out), sar: fmtN(summary.sar_in), r: fmtN(summary.avg_rate) })}{" "}
-            <span className="mut">{t("Voided entries are not counted.")}</span>
-          </td></tr></tfoot>
+            <span className="text-muted-foreground">{t("Voided entries are not counted.")}</span>
+          </Td></Tr></tfoot>
         )}
       </TableCard>
 

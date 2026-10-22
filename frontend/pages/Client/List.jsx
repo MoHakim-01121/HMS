@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
+import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  ListPage, Legend, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Legend, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, Note, MenuButton, Menu, MenuItem, MenuHint, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -63,21 +60,21 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
             on={only("dormant")} onClick={() => go({ status: only("dormant") ? [] : ["dormant"] })} />
         </Kpis>
       ) : (
-        perms.can("periods", "view") && <p className="la-note" style={{ margin: 0 }}>{t("Season figures appear once umrah seasons are set up.")} <Link href="/finance/periods/" style={{ fontWeight: 600 }}>{t("Set up seasons")}</Link></p>
+        perms.can("periods", "view") && <Note>{t("Season figures appear once umrah seasons are set up.")} <Link href="/finance/periods/" className="font-semibold">{t("Set up seasons")}</Link></Note>
       )}
 
       <Toolbar spaced={!!k}
         left={seasons.length > 0 && (
           <Popover open={seasonOpen} onOpenChange={setSeasonOpen}>
-            <PopoverTrigger asChild><button type="button" className="la-yr" style={{ marginLeft: 0 }}>{t("Season {s}", { s: f.season })}{LIcon.chev}</button></PopoverTrigger>
-            <PopoverContent align="start" sideOffset={6} className="la-menu" style={{ width: 180 }}>
-              <div role="menu">{seasons.map((s) => (
-                <button type="button" key={s.name} role="menuitem" className={"la-mi" + (s.name === f.season ? " on" : "")}
+            <PopoverTrigger asChild><MenuButton className="ml-0">{t("Season {s}", { s: f.season })}{LIcon.chev}</MenuButton></PopoverTrigger>
+            <Menu align="start" sideOffset={6} className="w-[180px]">
+              {seasons.map((s) => (
+                <MenuItem key={s.name} on={s.name === f.season}
                   onClick={() => { setSeasonOpen(false); go({ season: s.name }); }}>
-                  <span>{s.name}{s.current && <span className="h">{t("current")}</span>}</span>
-                </button>
-              ))}</div>
-            </PopoverContent>
+                  <span>{s.name}{s.current && <MenuHint>{t("current")}</MenuHint>}</span>
+                </MenuItem>
+              ))}
+            </Menu>
           </Popover>
         )}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search client, brand, PIC, city")} />
@@ -90,10 +87,10 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
             ))}
           </FilterSection>
           <FilterSection label={t("City")}>
-            <select className="la-tool" style={{ width: "100%" }} value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} aria-label={t("City")}>
+            <ToolButton as="select" className="w-full" value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} aria-label={t("City")}>
               <option value="">{t("All cities")}</option>
               {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </ToolButton>
           </FilterSection>
         </FilterMenu>
         {perms.can("clients", "export") && <ExportMenu items={[{ label: "CSV", hint: t("Contact list: PIC, WhatsApp and city per client"), href: "/clients/export/csv/" }]} />}
@@ -102,32 +99,32 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
 
       <TableCard cols={[null, 140, 180, 130, 60, 104, 100, 56]}
         empty={!clients.length && <Empty title={t("No clients")} sub={t("Nothing matches this search and these filters.")} />}>
-        <thead><tr>
-          <th>{t("Client")}</th><th>{t("City")}</th><th>{t("PIC / WhatsApp")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "name" ? "-last" : "name" })}>{f.sort === "name" ? t("Client name") : t("Last booking")}{LIcon.sortDown}</button></th>
-          <th className="n">CL</th><th className="n">{t("Room nights")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Client")}</Th><Th>{t("City")}</Th><Th>{t("PIC / WhatsApp")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "name" ? "-last" : "name" })}>{f.sort === "name" ? t("Client name") : t("Last booking")}{LIcon.sortDown}</button></Th>
+          <Th className="text-right">CL</Th><Th className="text-right">{t("Room nights")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {clients.map((c) => {
             const [tone, label] = STATUS[c.status] || STATUS.inactive;
             return (
-              <tr key={c.id} className={c.status === "inactive" ? "dim" : ""} {...rowNav(`/clients/${c.id}/`)}>
-                <td className="ell"><span className="strong">{c.brand || c.name}</span>{c.brand && <span className="sub">{c.name}</span>}</td>
-                <td className="ell">{c.city || <span className="mut">—</span>}</td>
-                <td className="ell">{c.pic || <span className="mut">—</span>}{c.wa && <span className="sub">{c.wa}</span>}</td>
-                <td>{c.last_booking ? <>{dShort(c.last_booking)}<span className="sub">{ago(c.last_booking, t)}</span></> : <span className="mut">{t("Never")}</span>}</td>
-                <td className={"n" + (c.cl_count ? "" : " zero")}>{c.cl_count}</td>
-                <td className={"n" + (c.room_nights ? "" : " zero")}>{fmtN(c.room_nights)}</td>
-                <td><Pill tone={tone}>{t(label)}</Pill></td>
-                <td className="c">
+              <Tr key={c.id} row={c.status === "inactive" ? "dim" : undefined} {...rowNav(`/clients/${c.id}/`)}>
+                <Td className="truncate"><span className="font-medium">{c.brand || c.name}</span>{c.brand && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{c.name}</span>}</Td>
+                <Td className="truncate">{c.city || <span className="text-muted-foreground">—</span>}</Td>
+                <Td className="truncate">{c.pic || <span className="text-muted-foreground">—</span>}{c.wa && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{c.wa}</span>}</Td>
+                <Td>{c.last_booking ? <>{dShort(c.last_booking)}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{ago(c.last_booking, t)}</span></> : <span className="text-muted-foreground">{t("Never")}</span>}</Td>
+                <Td className={"text-right" + (c.cl_count ? "" : " text-muted-foreground")}>{c.cl_count}</Td>
+                <Td className={"text-right" + (c.room_nights ? "" : " text-muted-foreground")}>{fmtN(c.room_nights)}</Td>
+                <Td><Pill tone={tone}>{t(label)}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: c.name })} items={[
                     c.wa && { label: t("Chat on WhatsApp"), href: waLink(c.wa), external: true },
                     perms.can("clients", "edit") && { label: t("Edit"), onClick: () => openForm(`/clients/${c.id}/edit/`) },
                     perms.can("clients", "delete") && { label: t("Delete"), danger: true, onClick: () => del(c) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

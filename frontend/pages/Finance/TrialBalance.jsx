@@ -1,8 +1,5 @@
 import { Fragment, useState } from "react";
-import {
-  ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange,
-  TableCard, Pill, Empty, fmtN, dLong, useListNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, TableCard, Pill, Empty, fmtN, dLong, useListNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Neraca Saldo: total debit & kredit tiap akun pada rentang tanggal, satu
@@ -41,7 +38,7 @@ export default function TrialBalance({
           foot={balanced ? t("debits equal credits") : t("debits and credits do not match")} />
       </Kpis>
 
-      <Toolbar left={<span className="la-note">{range}</span>}>
+      <Toolbar left={<Note>{range}</Note>}>
         <FilterMenu count={ranged ? 1 : 0} onOpen={() => setDraft(f)}
           onReset={() => setDraft({ date_from: "", date_to: "" })}
           onApply={() => go({ date_from: draft.date_from, date_to: draft.date_to })}>
@@ -63,31 +60,31 @@ export default function TrialBalance({
 
       <TableCard cols={[null, 160, 160, 160]}
         empty={!groups.length && <Empty title={t("No journal data")} sub={t("No entries match your filters.")} />}>
-        <thead><tr>
-          <th>{t("Account")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th><th className="n">{t("Net")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Account")}</Th><Th className="text-right">{t("Debit")}</Th><Th className="text-right">{t("Credit")}</Th><Th className="text-right">{t("Net")}</Th>
+        </Tr></thead>
         <tbody>
           {types.map((tp) => (
             <Fragment key={tp.type}>
-              <tr className="band"><td colSpan={4}>{t(tp.label)} · {accountsLabel(tp.rows.length)}</td></tr>
+              <Tr row="band"><Td colSpan={4}>{t(tp.label)} · {accountsLabel(tp.rows.length)}</Td></Tr>
               {tp.rows.map((g) => (
-                <tr key={g.account} className="static">
-                  <td className="ell strong">{g.account_display}</td>
-                  <td className={"n" + (g.debit ? "" : " zero")}>{fmtN(g.debit)}</td>
-                  <td className={"n" + (g.credit ? "" : " zero")}>{fmtN(g.credit)}</td>
-                  <td className={"n" + (g.net < 0 ? " late" : "")}>{fmtN(g.net)}</td>
-                </tr>
+                <Tr key={g.account} row="static">
+                  <Td className="truncate font-medium">{g.account_display}</Td>
+                  <Td className={"text-right" + (g.debit ? "" : " text-muted-foreground")}>{fmtN(g.debit)}</Td>
+                  <Td className={"text-right" + (g.credit ? "" : " text-muted-foreground")}>{fmtN(g.credit)}</Td>
+                  <Td className={"text-right" + (g.net < 0 ? " font-medium text-danger-text" : "")}>{fmtN(g.net)}</Td>
+                </Tr>
               ))}
             </Fragment>
           ))}
         </tbody>
         {groups.length > 0 && (
-          <tfoot><tr>
-            <td>{t("Total")}</td>
-            <td className="n">{fmtN(total_debit)}</td>
-            <td className="n">{fmtN(total_credit)}</td>
-            <td className={"n" + (balanced ? "" : " late")}>{fmtN(diff)}</td>
-          </tr></tfoot>
+          <tfoot><Tr>
+            <Td>{t("Total")}</Td>
+            <Td className="text-right">{fmtN(total_debit)}</Td>
+            <Td className="text-right">{fmtN(total_credit)}</Td>
+            <Td className={"text-right" + (balanced ? "" : " font-medium text-danger-text")}>{fmtN(diff)}</Td>
+          </Tr></tfoot>
         )}
       </TableCard>
     </ListPage>

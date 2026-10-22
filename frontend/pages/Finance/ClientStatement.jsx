@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
 import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon } from "../../components/shadcn/detail-a.jsx";
-import { SearchTool, ExportMenu } from "../../components/shadcn/list-a.jsx";
+import { SearchTool, ExportMenu, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
@@ -386,11 +386,11 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <button type="button" className="la-tool cl-period" aria-haspopup="dialog">
+        <ToolButton className="cl-period" aria-haspopup="dialog">
           {DIcon.calendar}
           <span className="cl-period-label">{label}</span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-        </button>
+        </ToolButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="cl-pop">
         {!isOpen ? (

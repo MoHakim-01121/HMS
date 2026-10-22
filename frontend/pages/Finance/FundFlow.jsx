@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, ExportMenu, PickMenu,
-  TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, ExportMenu, PickMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -52,7 +49,7 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
         <Kpi label={t("Branch's own rupiah")} value={fmtN(ownIdr)} unit="IDR" tone={ownIdr < 0 ? "warn" : undefined} foot={t("closing rupiah − client money")} />
       </Kpis>
 
-      <Toolbar left={<span className="la-note">{range}</span>}>
+      <Toolbar left={<Note>{range}</Note>}>
         {branch_choices.length > 1 && (
           <PickMenu value={branch} options={branch_choices} onPick={(b) => go({ branch: b })} label={t("Branch")} />
         )}
@@ -75,26 +72,26 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
 
       <Section title={t("Per currency")} sub={t("Click an amount to see its transactions.")} />
       <TableCard cols={[null, ...currencies.map(() => 170)]}>
-        <thead><tr><th>{t("Line")}</th>{currencies.map((c) => <th key={c} className="n">{c}</th>)}</tr></thead>
+        <thead><Tr><Th>{t("Line")}</Th>{currencies.map((c) => <Th key={c} className="text-right">{c}</Th>)}</Tr></thead>
         <tbody>
           {lineRows.map((l) => (
-            <tr key={l.key} className="static">
-              <td className={edge(l.key) ? "strong" : undefined}>{t(l.label)}</td>
+            <Tr key={l.key} row="static">
+              <Td className={edge(l.key) ? "font-medium" : undefined}>{t(l.label)}</Td>
               {currencies.map((c) => {
                 const v = l.values[c] || 0;
                 const drill = v !== 0 && !edge(l.key);
                 return (
-                  <td key={c} className={"n" + (v < 0 ? " late" : !v ? " zero" : "") + (drill ? " lnk" : "")}
+                  <Td key={c} className={"text-right" + (v < 0 ? " font-medium text-danger-text" : !v ? " text-muted-foreground" : "") + (drill ? " underline decoration-border underline-offset-3 hover:decoration-foreground" : "")}
                     style={{ fontWeight: l.key === "closing" ? 600 : undefined }}>
                     {drill ? (
-                      <button type="button" className="la-drill" aria-pressed={picked?.line === l.key && picked?.currency === c}
+                      <button type="button" className="m-0 cursor-pointer rounded-[4px] border-0 bg-transparent p-0 text-inherit [font:inherit] [text-decoration:inherit] [text-underline-offset:inherit] focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring" aria-pressed={picked?.line === l.key && picked?.currency === c}
                         aria-label={t("{line} in {currency}: see its transactions", { line: t(l.label), currency: c })}
                         onClick={() => setPicked({ line: l.key, currency: c })}>{fmtN(v)}</button>
                     ) : fmtN(v)}
-                  </td>
+                  </Td>
                 );
               })}
-            </tr>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
@@ -102,18 +99,18 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
       {picked && (
         <>
           <Section title={`${t(labelOf[picked.line])} · ${picked.currency}`}>
-            <button type="button" className="la-tool" onClick={() => setPicked(null)}>{t("Close")}</button>
+            <ToolButton onClick={() => setPicked(null)}>{t("Close")}</ToolButton>
           </Section>
           <TableCard cols={[120, 220, null, 180]} empty={!shown.length && <Empty title={t("No transactions")} />}>
-            <thead><tr><th>{t("Date")}</th><th>{t("Account")}</th><th>{t("Reference")}</th><th className="n">{t("Amount")}</th></tr></thead>
+            <thead><Tr><Th>{t("Date")}</Th><Th>{t("Account")}</Th><Th>{t("Reference")}</Th><Th className="text-right">{t("Amount")}</Th></Tr></thead>
             <tbody>
               {shown.map((x, i) => (
-                <tr key={`${x.date}-${i}`} className={x.link ? "" : "static"} {...(x.link ? rowNav(x.link) : {})}>
-                  <td>{dLong(x.date)}</td>
-                  <td className="ell">{x.account}</td>
-                  <td className="ell">{x.reference || x.source_type}</td>
-                  <td className={"n" + (x.amount < 0 ? " late" : "")}>{fmtN(x.amount)} <span className="mut">{x.currency}</span></td>
-                </tr>
+                <Tr key={`${x.date}-${i}`} row={x.link ? undefined : "static"} {...(x.link ? rowNav(x.link) : {})}>
+                  <Td>{dLong(x.date)}</Td>
+                  <Td className="truncate">{x.account}</Td>
+                  <Td className="truncate">{x.reference || x.source_type}</Td>
+                  <Td className={"text-right" + (x.amount < 0 ? " font-medium text-danger-text" : "")}>{fmtN(x.amount)} <span className="text-muted-foreground">{x.currency}</span></Td>
+                </Tr>
               ))}
             </tbody>
           </TableCard>
@@ -122,20 +119,20 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
 
       <Section title={t("Per account")} />
       <TableCard cols={[null, 100, 150, 150, 150, 150]}>
-        <thead><tr>
-          <th>{t("Account")}</th><th>{t("Currency")}</th><th className="n">{t("Opening")}</th>
-          <th className="n">{t("In")}</th><th className="n">{t("Out")}</th><th className="n">{t("Closing")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Account")}</Th><Th>{t("Currency")}</Th><Th className="text-right">{t("Opening")}</Th>
+          <Th className="text-right">{t("In")}</Th><Th className="text-right">{t("Out")}</Th><Th className="text-right">{t("Closing")}</Th>
+        </Tr></thead>
         <tbody>
           {flow.accounts.map((a) => (
-            <tr key={`${a.label}-${a.currency}`} className="static">
-              <td className="ell strong">{a.label}</td>
-              <td className="mut">{a.currency}</td>
-              <td className={"n" + (a.opening < 0 ? " late" : "")}>{fmtN(a.opening)}</td>
-              <td className={"n" + (a.inflow ? "" : " zero")}>{fmtN(a.inflow)}</td>
-              <td className={"n" + (a.outflow ? "" : " zero")}>{fmtN(a.outflow)}</td>
-              <td className={"n" + (a.closing < 0 ? " late" : "")}><b>{fmtN(a.closing)}</b></td>
-            </tr>
+            <Tr key={`${a.label}-${a.currency}`} row="static">
+              <Td className="truncate font-medium">{a.label}</Td>
+              <Td className="text-muted-foreground">{a.currency}</Td>
+              <Td className={"text-right" + (a.opening < 0 ? " font-medium text-danger-text" : "")}>{fmtN(a.opening)}</Td>
+              <Td className={"text-right" + (a.inflow ? "" : " text-muted-foreground")}>{fmtN(a.inflow)}</Td>
+              <Td className={"text-right" + (a.outflow ? "" : " text-muted-foreground")}>{fmtN(a.outflow)}</Td>
+              <Td className={"text-right" + (a.closing < 0 ? " font-medium text-danger-text" : "")}><b>{fmtN(a.closing)}</b></Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
@@ -143,28 +140,28 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
       <Section title={t("FX profit per transfer")} />
       <TableCard cols={[120, 110, 120, 150, 120, 120, 150]}
         empty={!fx.transfers.length && <Empty title={t("No transfers to HQ")} sub={t("Transfers in this period show here with what they earned.")} />}>
-        <thead><tr>
-          <th>{t("Transfer")}</th><th>{t("Date")}</th><th className="n">SAR</th><th className="n">{t("IDR sent")}</th>
-          <th className="n">{t("Average rate")}</th><th className="n">{t("Send rate")}</th><th className="n">{t("FX profit (IDR)")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Transfer")}</Th><Th>{t("Date")}</Th><Th className="text-right">SAR</Th><Th className="text-right">{t("IDR sent")}</Th>
+          <Th className="text-right">{t("Average rate")}</Th><Th className="text-right">{t("Send rate")}</Th><Th className="text-right">{t("FX profit (IDR)")}</Th>
+        </Tr></thead>
         <tbody>
           {fx.transfers.map((r) => (
-            <tr key={r.id} {...rowNav(`/remittance/${r.id}/`)}>
-              <td><span className="mono">{r.remittance_number}</span></td>
-              <td>{dLong(r.date)}</td>
-              <td className="n">{fmtN(r.sar)}</td>
-              <td className="n">{r.idr_sent != null ? fmtN(r.idr_sent) : <span className="mut">–</span>}</td>
-              <td className="n">{r.avg_rate != null ? fmtN(r.avg_rate) : <span className="mut">–</span>}</td>
-              <td className="n">{r.send_rate != null ? fmtN(r.send_rate) : <span className="mut">–</span>}</td>
-              <td className={"n" + (r.profit_idr < 0 ? " late" : "")}>
-                {r.profit_idr == null ? <span className="mut" title={t("No IDR amount on this transfer")}>{t("Not priced")}</span>
+            <Tr key={r.id} {...rowNav(`/remittance/${r.id}/`)}>
+              <Td><span className="font-mono text-[13px] font-semibold">{r.remittance_number}</span></Td>
+              <Td>{dLong(r.date)}</Td>
+              <Td className="text-right">{fmtN(r.sar)}</Td>
+              <Td className="text-right">{r.idr_sent != null ? fmtN(r.idr_sent) : <span className="text-muted-foreground">–</span>}</Td>
+              <Td className="text-right">{r.avg_rate != null ? fmtN(r.avg_rate) : <span className="text-muted-foreground">–</span>}</Td>
+              <Td className="text-right">{r.send_rate != null ? fmtN(r.send_rate) : <span className="text-muted-foreground">–</span>}</Td>
+              <Td className={"text-right" + (r.profit_idr < 0 ? " font-medium text-danger-text" : "")}>
+                {r.profit_idr == null ? <span className="text-muted-foreground" title={t("No IDR amount on this transfer")}>{t("Not priced")}</span>
                   : <b>{fmtN(r.profit_idr)}{!r.fully_covered ? " *" : ""}</b>}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
-      <p className="la-fnote">
+      <p className="m-0 text-[12px] text-muted-foreground">
         {t("Profit = SAR sent × average cost of the client money held − rupiah actually sent (weighted average).")}
         {partial ? " " + t("* The transfer was larger than the client money on record; profit covers only the matched part.") : ""}
       </p>

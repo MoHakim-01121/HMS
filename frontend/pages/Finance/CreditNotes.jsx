@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
-import {
-  ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
+import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, primaryClass, Menu, MenuItem, MenuHint, ToolButton, toolInput } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { cn } from "@/lib/utils";
 
 // A credit note is issued against an invoice: pick the invoice first.
 function NewCreditNote({ invoices }) {
@@ -16,20 +14,20 @@ function NewCreditNote({ invoices }) {
   const list = invoices.filter((i) => !q || `${i.number} ${i.client}`.toLowerCase().includes(q.toLowerCase())).slice(0, 40);
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); setQ(""); }}>
-      <PopoverTrigger asChild><button type="button" className="la-primary">{LIcon.plus}{t("New credit note")}</button></PopoverTrigger>
-      <PopoverContent align="end" sideOffset={8} className="la-menu" style={{ width: 320, padding: 6 }}>
-        <label className="la-tool la-search" style={{ width: "100%", marginBottom: 4 }}>{LIcon.search}
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Which invoice? Search number or client")} />
-        </label>
-        <div role="menu" style={{ maxHeight: 280, overflowY: "auto" }}>
+      <PopoverTrigger asChild><button type="button" className={primaryClass}>{LIcon.plus}{t("New credit note")}</button></PopoverTrigger>
+      <Menu role={null} align="end" sideOffset={8} className="w-[320px] p-1.5">
+        <ToolButton as="label" className="mb-1 w-full cursor-text focus-within:border-foreground">{LIcon.search}
+          <input className={cn(toolInput, "flex-1")} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Which invoice? Search number or client")} />
+        </ToolButton>
+        <div role="menu" className="max-h-[280px] overflow-y-auto">
           {list.map((i) => (
-            <button type="button" key={i.id} role="menuitem" className="la-mi" onClick={() => router.visit(`/finance/invoices/${i.id}/credit-notes/new/`)}>
-              <span><span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 13 }}>{i.number}</span><span className="h">{i.client}</span></span>
-            </button>
+            <MenuItem key={i.id} onClick={() => router.visit(`/finance/invoices/${i.id}/credit-notes/new/`)}>
+              <span><span className="font-mono text-[13px] font-semibold">{i.number}</span><MenuHint>{i.client}</MenuHint></span>
+            </MenuItem>
           ))}
-          {!list.length && <div className="la-mi" style={{ cursor: "default", color: "var(--muted-foreground)" }}>{t("No invoice matches.")}</div>}
+          {!list.length && <MenuItem as="div" role={undefined} className="cursor-default text-muted-foreground">{t("No invoice matches.")}</MenuItem>}
         </div>
-      </PopoverContent>
+      </Menu>
     </Popover>
   );
 }
@@ -66,38 +64,38 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
 
       <TableCard cols={[100, 80, null, 100, null, 130, 96, 56]}
         empty={!credit_notes.length && <Empty title={t("No credit notes")} sub={t("None were issued in this period.")} />}>
-        <thead><tr>
-          <th>{t("Credit note")}</th><th><span className="srt">{t("Date")}{LIcon.sortDown}</span></th><th>{t("Client")}</th><th>{t("Invoice")}</th>
-          <th>{t("Reason")}</th><th className="n">{t("Amount (SAR)")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Credit note")}</Th><Th><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Date")}{LIcon.sortDown}</span></Th><Th>{t("Client")}</Th><Th>{t("Invoice")}</Th>
+          <Th>{t("Reason")}</Th><Th className="text-right">{t("Amount (SAR)")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {credit_notes.map((cn) => {
             const dead = cn.status === "voided";
             return (
-              <tr key={cn.id} className={dead ? "dim" : ""} {...rowNav(cn.invoice_url)}>
-                <td><span className="mono">{cn.number}</span></td>
-                <td>{dShort(cn.date)}</td>
-                <td className="ell strong">{cn.client}</td>
-                <td><span className="mono">{cn.invoice_number}</span></td>
-                <td className="ell" title={cn.reason}>{cn.reason}</td>
-                <td className="n">{fmtN(cn.amount_sar)}{cn.to_deposit_sar > 0 && <span className="sub">{t("{v} to deposit", { v: fmtN(cn.to_deposit_sar) })}</span>}</td>
-                <td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></td>
-                <td className="c">
+              <Tr key={cn.id} row={dead ? "dim" : undefined} {...rowNav(cn.invoice_url)}>
+                <Td><span className="font-mono text-[13px] font-semibold">{cn.number}</span></Td>
+                <Td>{dShort(cn.date)}</Td>
+                <Td className="truncate font-medium">{cn.client}</Td>
+                <Td><span className="font-mono text-[13px] font-semibold">{cn.invoice_number}</span></Td>
+                <Td className="truncate" title={cn.reason}>{cn.reason}</Td>
+                <Td className="text-right">{fmtN(cn.amount_sar)}{cn.to_deposit_sar > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} to deposit", { v: fmtN(cn.to_deposit_sar) })}</span>}</Td>
+                <Td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: cn.number })} items={[
                     { label: t("Download PDF"), href: `/finance/credit-notes/${cn.id}/pdf/`, external: true },
                     !dead && perms.can("payments", "approve") && { label: t("Void credit note"), danger: true, onClick: () => router.visit(`/finance/credit-notes/${cn.id}/void/`) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>
         {summary && credit_notes.length > 0 && (
-          <tfoot><tr>
-            <td colSpan={5}>{t("{p}, {n} credit notes", { p: period, n: summary.count })}</td>
-            <td className="n">{fmtN(summary.amount)}{summary.to_deposit > 0 && <span className="sub">{t("{v} to deposit", { v: fmtN(summary.to_deposit) })}</span>}</td>
-            <td colSpan={2} className="lbl">{t("Voided not counted")}</td>
-          </tr></tfoot>
+          <tfoot><Tr>
+            <Td colSpan={5}>{t("{p}, {n} credit notes", { p: period, n: summary.count })}</Td>
+            <Td className="text-right">{fmtN(summary.amount)}{summary.to_deposit > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} to deposit", { v: fmtN(summary.to_deposit) })}</span>}</Td>
+            <Td colSpan={2} label>{t("Voided not counted")}</Td>
+          </Tr></tfoot>
         )}
       </TableCard>
 

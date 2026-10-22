@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
-import { Delta, Spark, LIcon, MONTHS, Pill, fmtN } from "../../components/shadcn/list-a.jsx";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
+import { Spark, LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
+import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import "../../styles/detail-a.css";
 import "../../styles/dashboard.css";
@@ -41,11 +41,11 @@ export default function Home(props) {
   });
   const Body = props.variant === "finance" ? FinanceHome : props.variant === "staff" || props.variant === "viewer" ? StaffHome : ManagerHome;
   return (
-    <div className="page shadcn-root db">
-      <div className={"la-main db-v-" + props.variant + (loading ? " la-loading" : "")}>
+    <PageFrame className="db">
+      <PageMain loading={loading} className={"db-v-" + props.variant}>
         <Body {...props} onGo={go} />
-      </div>
-    </div>
+      </PageMain>
+    </PageFrame>
   );
 }
 
@@ -137,32 +137,27 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
   };
   const atNow = period.start.slice(0, 7) === thisMonth;
   return (
-    <div className="la-bar">
-      <div className="la-left">
-        <span className="la-month">{isSeason ? t("Whole season") : `${t(MONTHS[start.getMonth()])} ${start.getFullYear()}`}</span>
-        <button type="button" className="la-icon" aria-label={t("Previous month")} disabled={isSeason} onClick={() => shift(-1)}>{LIcon.prev}</button>
-        <button type="button" className="la-icon" aria-label={t("Next month")} disabled={isSeason || atNow} onClick={() => shift(1)}>{LIcon.next}</button>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button type="button" className="la-yr" aria-haspopup="menu">{isSeason ? t("Season {s}", { s: period.label }) : t("Monthly")}{LIcon.chev}</button>
-          </PopoverTrigger>
-          <PopoverContent align="start" sideOffset={6} className="la-menu" style={{ width: 220 }}>
-            <div role="menu">
-              <button type="button" role="menuitem" className={"la-mi" + (isSeason ? "" : " on")}
-                onClick={() => { setOpen(false); onGo({ month: thisMonth }); }}>{t("Month by month")}</button>
-              {seasons.length > 0 && <div className="la-sep" />}
-              {seasons.slice(0, 1).map((s) => (
-                <button type="button" key={s.name} role="menuitem" className={"la-mi" + (isSeason ? " on" : "")}
-                  onClick={() => { setOpen(false); onGo({ season: 1 }); }}>
-                  <span>{t("Season {s}", { s: s.name })}<span className="h">{dDay(s.start)} {s.start.slice(0, 4)} {t("to")} {dDay(s.end)} {s.end.slice(0, 4)}</span></span>
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-      {note && <div className="la-right"><span className="la-note">{note}</span></div>}
-    </div>
+    <Toolbar left={<>
+      <MonthLabel>{isSeason ? t("Whole season") : `${t(MONTHS[start.getMonth()])} ${start.getFullYear()}`}</MonthLabel>
+      <NavButton aria-label={t("Previous month")} disabled={isSeason} onClick={() => shift(-1)}>{LIcon.prev}</NavButton>
+      <NavButton aria-label={t("Next month")} disabled={isSeason || atNow} onClick={() => shift(1)}>{LIcon.next}</NavButton>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <MenuButton aria-haspopup="menu">{isSeason ? t("Season {s}", { s: period.label }) : t("Monthly")}{LIcon.chev}</MenuButton>
+        </PopoverTrigger>
+        <Menu align="start" sideOffset={6} className="w-[220px]">
+          <MenuItem on={!isSeason} onClick={() => { setOpen(false); onGo({ month: thisMonth }); }}>{t("Month by month")}</MenuItem>
+          {seasons.length > 0 && <MenuSep />}
+          {seasons.slice(0, 1).map((s) => (
+            <MenuItem key={s.name} on={isSeason} onClick={() => { setOpen(false); onGo({ season: 1 }); }}>
+              <span>{t("Season {s}", { s: s.name })}<MenuHint>{dDay(s.start)} {s.start.slice(0, 4)} {t("to")} {dDay(s.end)} {s.end.slice(0, 4)}</MenuHint></span>
+            </MenuItem>
+          ))}
+        </Menu>
+      </Popover>
+    </>}>
+      {note && <Note>{note}</Note>}
+    </Toolbar>
   );
 }
 
@@ -240,14 +235,10 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
         <span className="f">{prev ? `${prevLabel}: ${fmtN(prev.value)}` : t("First season in HMS, nothing to compare")}</span>
       </Link>
       {kpis.map((k) => (
-        <Link key={k.label} className="la-kpi" href={k.href}>
-          <span className="la-kt"><span className="l">{k.label}</span>{k.d && <Delta text={k.d} good={k.good} />}</span>
-          <span className="la-kr">
-            <span className={"la-v" + (k.none ? " none" : k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
-            {k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />}
-          </span>
-          <span className="la-kb">{k.foot}</span>
-        </Link>
+        <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
+          delta={k.d && { text: k.d, good: k.good }}
+          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined}
+          spark={k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />} />
       ))}
     </div>
   );
@@ -338,7 +329,7 @@ function Collected({ col, deposits }) {
           </div>
         </>
       ) : (
-        <div className="la-empty"><b>{t("Nothing billed yet")}</b>{t("Invoices issued in this period show here.")}</div>
+        <Empty title={t("Nothing billed yet")} sub={t("Invoices issued in this period show here.")} />
       )}
     </section>
   );
@@ -388,10 +379,8 @@ function Todo({ items, count }) {
           })}
         </div>
       ) : (
-        <div className="la-empty">
-          <div className="db-ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg></div>
-          <b>{t("Nothing waits for you")}</b>{t("Past-due invoices, missing DPs and approvals show up here.")}
-        </div>
+        <Empty lead={<div className="db-ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg></div>}
+          title={t("Nothing waits for you")} sub={t("Past-due invoices, missing DPs and approvals show up here.")} />
       )}
     </section>
   );
@@ -426,7 +415,7 @@ function Checkins({ data, title }) {
           <div className="da-card-foot"><span className="l">{t("{n} rooms arriving this week", { n: rooms })}</span><Link href="/calendar/" style={{ marginLeft: "auto" }}>{t("See all in Calendar")}</Link></div>
         </>
       ) : (
-        <div className="la-empty"><b>{t("No check-ins this week")}</b>{t("Arrivals of the next 7 days show here.")}</div>
+        <Empty title={t("No check-ins this week")} sub={t("Arrivals of the next 7 days show here.")} />
       )}
     </section>
   );
@@ -485,7 +474,7 @@ function Ranking({ title, meta, rows, empty, hasPrev }) {
           })}
         </div>
       ) : (
-        <div className="la-empty"><b>{empty[0]}</b>{empty[1]}</div>
+        <Empty title={empty[0]} sub={empty[1]} />
       )}
     </section>
   );
@@ -534,7 +523,7 @@ function People({ p }) {
           ))}
         </div>
       ) : (
-        <div className="la-empty"><b>{t("Everyone can sign in")}</b>{t("Locked and idle accounts show here.")}</div>
+        <Empty title={t("Everyone can sign in")} sub={t("Locked and idle accounts show here.")} />
       )}
     </section>
   );
@@ -597,7 +586,7 @@ function MyPayments({ rows }) {
           })}
         </div>
       ) : (
-        <div className="la-empty"><b>{t("No payments uploaded yet")}</b>{t("Client payments you record show here until Finance confirms them.")}</div>
+        <Empty title={t("No payments uploaded yet")} sub={t("Client payments you record show here until Finance confirms them.")} />
       )}
     </section>
   );
@@ -692,14 +681,10 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
         </Link>
       )}
       {kpis.map((k) => (
-        <Link key={k.label} className="la-kpi" href={k.href}>
-          <span className="la-kt"><span className="l">{k.label}</span>{k.d && <Delta text={k.d} good={k.good} />}</span>
-          <span className="la-kr">
-            <span className={"la-v" + (k.none ? " none" : k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
-            {k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />}
-          </span>
-          <span className="la-kb">{k.foot}</span>
-        </Link>
+        <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
+          delta={k.d && { text: k.d, good: k.good }}
+          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined}
+          spark={k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />} />
       ))}
     </div>
   );
@@ -763,7 +748,7 @@ function ToConfirm({ pay }) {
           ))}
         </div>
       ) : (
-        <div className="la-empty"><b>{t("No payments to confirm")}</b>{t("Payments recorded by staff wait here for you.")}</div>
+        <Empty title={t("No payments to confirm")} sub={t("Payments recorded by staff wait here for you.")} />
       )}
     </section>
   );
@@ -790,7 +775,7 @@ function ToChase({ chase }) {
           <div className="da-card-foot"><span className="l">{t("{v} SAR past due", { v: fmtN(chase.total) })}</span></div>
         </>
       ) : (
-        <div className="la-empty"><b>{t("Nothing past due")}</b>{t("Invoices past their due date show here.")}</div>
+        <Empty title={t("Nothing past due")} sub={t("Invoices past their due date show here.")} />
       )}
     </section>
   );

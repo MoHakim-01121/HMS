@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { Menu, MenuItem } from "../../components/shadcn/list-a.jsx";
 import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
 import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
-import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
+import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -109,12 +110,10 @@ function ViewChip({ rt, canEdit, onEdit, onRemove }) {
       <PopoverTrigger asChild>
         <button type="button" className="hm-chip" aria-label={t("{type}, {view}", { type: rt.name, view: label })}>{label}</button>
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={4} className="la-menu" style={{ width: 180 }}>
-        <div role="menu">
-          <button type="button" role="menuitem" className="la-mi" onClick={() => { setOpen(false); onEdit(rt); }}>{t("Edit")}</button>
-          <button type="button" role="menuitem" className="la-mi danger" onClick={() => { setOpen(false); onRemove(rt); }}>{t("Remove")}</button>
-        </div>
-      </PopoverContent>
+      <Menu align="start" sideOffset={4} className="w-[180px]">
+        <MenuItem onClick={() => { setOpen(false); onEdit(rt); }}>{t("Edit")}</MenuItem>
+        <MenuItem danger onClick={() => { setOpen(false); onRemove(rt); }}>{t("Remove")}</MenuItem>
+      </Menu>
     </Popover>
   );
 }

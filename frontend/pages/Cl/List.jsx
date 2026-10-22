@@ -2,10 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  ListPage, Legend, Kpis, Kpi, Spark, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Legend, Kpis, Kpi, Spark, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -84,35 +81,35 @@ export default function List({ letters, filters: f, years, counts, kpis, export_
 
       <TableCard cols={[76, null, null, 130, 64, 64, 96, 100, 104, 56]}
         empty={!letters.length && <Empty title={t("No confirmation letters")} sub={t("Nothing matches this month and these filters.")} />}>
-        <thead><tr>
-          <th>CL</th><th>{t("Client")}</th><th>{t("Hotel")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "-check_in" ? "check_in" : "-check_in" })}>{t("Stay")}{f.sort === "-check_in" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th className="n">{t("Nights")}</th><th className="n">{t("Rooms")}</th><th>{t("Invoice")}</th>
-          <th className="n">{t("Total (SAR)")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>CL</Th><Th>{t("Client")}</Th><Th>{t("Hotel")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "-check_in" ? "check_in" : "-check_in" })}>{t("Stay")}{f.sort === "-check_in" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th className="text-right">{t("Nights")}</Th><Th className="text-right">{t("Rooms")}</Th><Th>{t("Invoice")}</Th>
+          <Th className="text-right">{t("Total (SAR)")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {letters.map((cl) => {
             const [tone, label] = STATUS[cl.reservation_status] || STATUS.TENTATIVE;
             return (
-              <tr key={cl.id} className={cl.reservation_status === "CANCELLED" ? "dim" : ""} {...rowNav(`/cl/${cl.id}/`)}>
-                <td><span className="mono">{cl.confirmation_number}</span></td>
-                <td className="ell strong">{cl.guest_name}</td>
-                <td className="ell">{cl.hotel_name}</td>
-                <td>{stay(cl.check_in, cl.check_out, t)}</td>
-                <td className="n">{cl.num_nights}</td>
-                <td className="n">{cl.total_rooms}</td>
-                <td>{cl.invoice_number ? <span className="mono">{cl.invoice_number}</span> : <span className="mut">{t("Not invoiced")}</span>}</td>
-                <td className="n">{fmtN(cl.total_price)}</td>
-                <td><Pill tone={tone}>{t(label)}</Pill></td>
-                <td className="c">
+              <Tr key={cl.id} row={cl.reservation_status === "CANCELLED" ? "dim" : undefined} {...rowNav(`/cl/${cl.id}/`)}>
+                <Td><span className="font-mono text-[13px] font-semibold">{cl.confirmation_number}</span></Td>
+                <Td className="truncate font-medium">{cl.guest_name}</Td>
+                <Td className="truncate">{cl.hotel_name}</Td>
+                <Td>{stay(cl.check_in, cl.check_out, t)}</Td>
+                <Td className="text-right">{cl.num_nights}</Td>
+                <Td className="text-right">{cl.total_rooms}</Td>
+                <Td>{cl.invoice_number ? <span className="font-mono text-[13px] font-semibold">{cl.invoice_number}</span> : <span className="text-muted-foreground">{t("Not invoiced")}</span>}</Td>
+                <Td className="text-right">{fmtN(cl.total_price)}</Td>
+                <Td><Pill tone={tone}>{t(label)}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: cl.confirmation_number })} items={[
                     { label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, external: true },
                     perms.can("cl", "edit") && { label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
                     perms.can("cl", "delete") && { label: t("Delete"), danger: true, onClick: () => del(cl) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  ListPage, Kpis, Kpi, Delta, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Delta, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, FlipKpi, KpiRow, KpiValue, KpiFoot } from "../../components/shadcn/list-a.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -58,23 +55,14 @@ export default function List({ payments = [], invoice_choices = [], client_choic
     <ListPage title={t("Payments")} loading={loading}>
       {kpis && (
         <Kpis>
-          <button type="button" className={"la-kpi" + (flip ? " flip" : "")} aria-expanded={flip}
-            aria-label={t("Cash received, {v} SAR. Show amounts by currency", { v: fmtN(kpis.received) })} onClick={() => setFlip((v) => !v)}>
-            <span className="la-kt"><span className="l">{t("Cash received")}</span>
-              <span className="la-kh">{!flip && kpis.delta && <Delta text={kpis.delta} good={!kpis.delta.startsWith("-")} title={t("{d} vs {m}", { d: kpis.delta, m: prevName })} />}<span className="la-tg">{LIcon.chev}</span></span>
-            </span>
-            <span className="la-face">
-              <span className="la-fa" aria-hidden={flip}>
-                <span className="la-kr"><span className="la-v">{fmtN(kpis.received)}<small>SAR</small></span></span>
-                <span className="la-kb">{kpis.by_currency.length ? t("{list} received", { list: kpis.by_currency.map((c) => c.code).join(", ") }) : t("Nothing received yet")}</span>
-              </span>
-              <span className="la-fb" aria-hidden={!flip}>
-                <span className="la-cg">{kpis.by_currency.map((c) => (
-                  <span key={c.code} style={{ display: "contents" }}><span className="cc">{c.code}</span><span className="cn">{fmtN(c.amount)}</span><span className="cs">{fmtN(c.sar)} SAR</span></span>
-                ))}</span>
-              </span>
-            </span>
-          </button>
+          <FlipKpi label={t("Cash received")} flipped={flip} onToggle={() => setFlip((v) => !v)}
+            ariaLabel={t("Cash received, {v} SAR. Show amounts by currency", { v: fmtN(kpis.received) })}
+            delta={kpis.delta && <Delta text={kpis.delta} good={!kpis.delta.startsWith("-")} title={t("{d} vs {m}", { d: kpis.delta, m: prevName })} />}
+            front={<>
+              <KpiRow><KpiValue unit="SAR">{fmtN(kpis.received)}</KpiValue></KpiRow>
+              <KpiFoot>{kpis.by_currency.length ? t("{list} received", { list: kpis.by_currency.map((c) => c.code).join(", ") }) : t("Nothing received yet")}</KpiFoot>
+            </>}
+            rows={kpis.by_currency} />
           <Kpi label={t("Waiting confirmation")} value={fmtN(kpis.pending_count)} unit={t("payments")}
             foot={t("{v} SAR not yet posted", { v: fmtN(kpis.pending_sar) })}
             on={only("pending")} onClick={() => go({ status: only("pending") ? [] : ["pending"] })} />
@@ -110,36 +98,36 @@ export default function List({ payments = [], invoice_choices = [], client_choic
 
       <TableCard cols={[96, 70, null, 84, 150, 150, 88, 140, 48]}
         empty={!payments.length && <Empty title={t("No payments")} sub={t("Nothing matches this period and these filters.")} />}>
-        <thead><tr>
-          <th>{t("Payment")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th>{t("Client")}</th><th>{t("For")}</th><th>{t("Received into")}</th>
-          <th className="n">{t("Amount received")}</th><th className="n">{t("SAR value")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Payment")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th>{t("Client")}</Th><Th>{t("For")}</Th><Th>{t("Received into")}</Th>
+          <Th className="text-right">{t("Amount received")}</Th><Th className="text-right">{t("SAR value")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {payments.map((p) => {
             const [tone, label] = GROUP[p.group] || GROUP.cancelled;
             return (
-              <tr key={p.id} className={p.group === "cancelled" ? "dim" : ""} {...rowNav(`/finance/payments/${p.id}/`)}>
-                <td><span className="mono">{p.payment_number}</span></td>
-                <td>{dShort(p.payment_date)}</td>
-                <td className="ell strong">{p.client_name}</td>
-                <td>{p.invoice_number ? <span className="mono">{p.invoice_number}</span> : <span className="mut">{t("Not assigned")}</span>}</td>
-                <td className="ell">{p.account}<span className="sub">{t(p.method)}</span></td>
-                <td className="n"><Amt code={p.currency} value={p.amount} /></td>
-                <td className="n book">{fmtN(p.amount_sar)}</td>
-                <td><Pill tone={tone}>{label ? t(label) : t(p.status_display)}</Pill>
-                  {p.group === "partial" && p.unallocated_sar > 0 && <span className="sub">{t("{v} SAR left", { v: fmtN(p.unallocated_sar) })}</span>}</td>
-                <td className="c">
+              <Tr key={p.id} row={p.group === "cancelled" ? "dim" : undefined} {...rowNav(`/finance/payments/${p.id}/`)}>
+                <Td><span className="font-mono text-[13px] font-semibold">{p.payment_number}</span></Td>
+                <Td>{dShort(p.payment_date)}</Td>
+                <Td className="truncate font-medium">{p.client_name}</Td>
+                <Td>{p.invoice_number ? <span className="font-mono text-[13px] font-semibold">{p.invoice_number}</span> : <span className="text-muted-foreground">{t("Not assigned")}</span>}</Td>
+                <Td className="truncate">{p.account}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t(p.method)}</span></Td>
+                <Td className="text-right"><Amt code={p.currency} value={p.amount} /></Td>
+                <Td className="text-right text-muted-foreground">{fmtN(p.amount_sar)}</Td>
+                <Td><Pill tone={tone}>{label ? t(label) : t(p.status_display)}</Pill>
+                  {p.group === "partial" && p.unallocated_sar > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} SAR left", { v: fmtN(p.unallocated_sar) })}</span>}</Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: p.payment_number })} items={[
                     canConfirm(p) && p.status === "pending" && { label: t("Confirm"), onClick: () => setConfirmDialog(p) },
                     canEdit && ["unallocated", "partial"].includes(p.group) && { label: t("Apply"), onClick: () => router.visit(`/finance/payments/${p.id}/`) },
                     p.has_proof && { label: t("View proof"), href: p.proof_url, external: true },
                     canEdit && p.status === "pending" && { label: t("Reject…"), danger: true, onClick: () => setRejectDialog({ ...p, reason: "" }) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

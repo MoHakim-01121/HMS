@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  ListPage, Toolbar, Primary, TableCard, Section, RowMenu, Pill, Empty, dLong, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, Section, RowMenu, Pill, Empty, dLong, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -51,28 +49,28 @@ export default function List({ periods = [], seasons = [], next_season = null })
 
   return (
     <ListPage title={t("Financial Periods")}>
-      <Toolbar left={<span className="la-note">{t("Books close month by month; a season groups its months for reporting.")}</span>}>
-        {canManage && <button type="button" className="la-tool" onClick={() => setCreateDialog(true)}>{t("Create periods")}</button>}
+      <Toolbar left={<Note>{t("Books close month by month; a season groups its months for reporting.")}</Note>}>
+        {canManage && <ToolButton onClick={() => setCreateDialog(true)}>{t("Create periods")}</ToolButton>}
         {canManage && <Primary label={t("New season")} onClick={() => setSeason({ name: "", date_from: "", date_to: "", ...(next_season || {}) })} />}
       </Toolbar>
 
       <Section title={t("Umrah seasons")} />
       <TableCard cols={[null, 260, 100, 56]}
         empty={!seasons.length && <Empty title={t("No seasons yet")} sub={t("Add a season with its start and end date to read reports for the whole season.")} />}>
-        <thead><tr><th>{t("Season")}</th><th>{t("Dates")}</th><th className="n">{t("Months")}</th><th className="c">{t("Action")}</th></tr></thead>
+        <thead><Tr><Th>{t("Season")}</Th><Th>{t("Dates")}</Th><Th className="text-right">{t("Months")}</Th><Th className="text-center">{t("Action")}</Th></Tr></thead>
         <tbody>
           {seasons.map((s) => (
-            <tr key={s.id} className="static">
-              <td className="strong">{s.name}</td>
-              <td>{dLong(s.date_from)} – {dLong(s.date_to)}</td>
-              <td className="n">{monthsIn(s)}</td>
-              <td className="c">
+            <Tr key={s.id} row="static">
+              <Td className="font-medium">{s.name}</Td>
+              <Td>{dLong(s.date_from)} – {dLong(s.date_to)}</Td>
+              <Td className="text-right">{monthsIn(s)}</Td>
+              <Td className="text-center">
                 {canManage && <RowMenu label={t("Actions for {n}", { n: s.name })} items={[
                   { label: t("Edit"), onClick: () => setSeason({ ...s }) },
                   { label: t("Delete"), danger: true, onClick: () => confirm({ title: t("Delete Season"), message: t("Delete this season? Its monthly periods and journal entries stay as they are."), onConfirm: () => router.post(`/finance/seasons/${s.id}/delete/`) }) },
                 ]} />}
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
@@ -80,20 +78,20 @@ export default function List({ periods = [], seasons = [], next_season = null })
       <Section title={t("Monthly periods")} />
       <TableCard cols={[120, 130, null, 140, 120, 56]}
         empty={!periods.length && <Empty title={t("No periods yet")} sub={t("Create periods to generate the twelve months of a year.")} />}>
-        <thead><tr>
-          <th>{t("Period")}</th><th>{t("Status")}</th><th>{t("Dates")}</th>
-          <th className="n">{t("Journal entries")}</th><th className="n">{t("Payments")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Period")}</Th><Th>{t("Status")}</Th><Th>{t("Dates")}</Th>
+          <Th className="text-right">{t("Journal entries")}</Th><Th className="text-right">{t("Payments")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {periods.map((p) => (
-            <tr key={p.id} {...rowNav(`/finance/periods/${p.id}/`)}>
-              <td className="strong">{p.name}</td>
-              <td><Pill tone={STATUS_TONE[p.status] || "gray"}>{p.status_display}</Pill></td>
-              <td>{dLong(p.date_from)} – {dLong(p.date_to)}</td>
-              <td className={"n" + (p.journal_count ? "" : " zero")}>{p.journal_count}</td>
-              <td className={"n" + (p.payment_count ? "" : " zero")}>{p.payment_count}</td>
-              <td className="c"><RowMenu label={t("Actions for {n}", { n: p.name })} items={periodMenu(p)} /></td>
-            </tr>
+            <Tr key={p.id} {...rowNav(`/finance/periods/${p.id}/`)}>
+              <Td className="font-medium">{p.name}</Td>
+              <Td><Pill tone={STATUS_TONE[p.status] || "gray"}>{p.status_display}</Pill></Td>
+              <Td>{dLong(p.date_from)} – {dLong(p.date_to)}</Td>
+              <Td className={"text-right" + (p.journal_count ? "" : " text-muted-foreground")}>{p.journal_count}</Td>
+              <Td className={"text-right" + (p.payment_count ? "" : " text-muted-foreground")}>{p.payment_count}</Td>
+              <Td className="text-center"><RowMenu label={t("Actions for {n}", { n: p.name })} items={periodMenu(p)} /></Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>

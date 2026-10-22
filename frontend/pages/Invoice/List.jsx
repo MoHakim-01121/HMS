@@ -2,10 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -74,33 +71,33 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
 
       <TableCard cols={[110, null, 130, 130, 150, 130, 56]}
         empty={!invoices.length && <Empty title={t("No invoices")} sub={f.status === "overdue" ? t("Nothing is overdue.") : t("Nothing falls due in this period with these filters.")} />}>
-        <thead><tr>
-          <th>{t("Invoice")}</th><th>{t("Client")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "-due" ? "due" : "-due" })}>{t("Due date")}{f.sort === "-due" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th className="n">{t("Total (SAR)")}</th><th className="n">{t("Remaining (SAR)")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Invoice")}</Th><Th>{t("Client")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "-due" ? "due" : "-due" })}>{t("Due date")}{f.sort === "-due" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th className="text-right">{t("Total (SAR)")}</Th><Th className="text-right">{t("Remaining (SAR)")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {invoices.map((inv) => {
             const [tone, label] = STATUS[inv.status] || STATUS.unpaid;
             return (
-              <tr key={inv.id} className={inv.status === "void" ? "dim" : ""} {...rowNav(`/invoice/${inv.id}/`)}>
-                <td><span className="mono">{inv.invoice_number}</span></td>
-                <td className="ell strong">{inv.customer_name}</td>
-                <td>{dShort(inv.due_date)}{inv.days_late > 0 && <span className="sub late">{t("{n} days late", { n: inv.days_late })}</span>}</td>
-                <td className="n">{fmtN(inv.total_sar)}</td>
-                <td className={"n" + (inv.days_late > 0 ? " late" : inv.remaining_sar < 0 ? " good" : "")}>
+              <Tr key={inv.id} row={inv.status === "void" ? "dim" : undefined} {...rowNav(`/invoice/${inv.id}/`)}>
+                <Td><span className="font-mono text-[13px] font-semibold">{inv.invoice_number}</span></Td>
+                <Td className="truncate font-medium">{inv.customer_name}</Td>
+                <Td>{dShort(inv.due_date)}{inv.days_late > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-medium text-danger-text">{t("{n} days late", { n: inv.days_late })}</span>}</Td>
+                <Td className="text-right">{fmtN(inv.total_sar)}</Td>
+                <Td className={"text-right" + (inv.days_late > 0 ? " font-medium text-danger-text" : inv.remaining_sar < 0 ? " text-success-text" : "")}>
                   {inv.remaining_sar < 0 ? t("{v} over", { v: fmtN(-inv.remaining_sar) }) : fmtN(inv.remaining_sar)}
-                </td>
-                <td><Pill tone={tone}>{t(label)}</Pill></td>
-                <td className="c">
+                </Td>
+                <Td><Pill tone={tone}>{t(label)}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: inv.invoice_number })} items={[
                     { label: t("Download PDF"), href: `/invoice/${inv.id}/pdf/`, external: true },
                     perms.can("invoice", "edit") && inv.status !== "void" && { label: t("Edit"), onClick: () => openForm(`/invoice/${inv.id}/edit/`) },
                     perms.can("invoice", "delete") && { label: t("Delete"), danger: true, onClick: () => del(inv) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

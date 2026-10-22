@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
-import {
-  ListPage, Toolbar, Kpis, Kpi, ExportMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Kpis, Kpi, ExportMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, toolInput, ToolbarRight } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -36,59 +34,59 @@ export default function ArAging({ aging }) {
         <Kpi label={t("Over 30 days late")} value={fmtN(late)} unit="SAR" tone={late > 0 ? "warn" : undefined} foot={t("needs follow-up")} />
       </Kpis>
 
-      <Toolbar left={<span className="la-note">{t("What every client still owes, by days past the due date")}</span>}>
-        <label className="la-tool la-asof">{t("As of")}
-          <input type="date" value={aging.as_of} onChange={(e) => e.target.value && go({ as_of: e.target.value })} aria-label={t("As of")} />
-        </label>
+      <Toolbar left={<Note>{t("What every client still owes, by days past the due date")}</Note>}>
+        <ToolButton as="label" className="cursor-text gap-2 text-muted-foreground">{t("As of")}
+          <input className={toolInput} type="date" value={aging.as_of} onChange={(e) => e.target.value && go({ as_of: e.target.value })} aria-label={t("As of")} />
+        </ToolButton>
         {perms.can("statements", "export") && <ExportMenu items={[{ label: "CSV", href: `/finance/ar-aging/export/csv/?as_of=${aging.as_of}` }]} />}
       </Toolbar>
 
       <TableCard cols={[null, 120, 120, 120, 120, 120, 140]}
         empty={!aging.clients.length && <Empty title={t("Nothing owed")} sub={t("No client has an open balance on {d}.", { d: dLong(aging.as_of) })} />}>
-        <thead><tr>
-          <th>{t("Client")}</th>
-          {BUCKETS.map(([k, label]) => <th key={k} className="n">{t(label)}</th>)}
-          <th className="n">{t("Total (SAR)")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Client")}</Th>
+          {BUCKETS.map(([k, label]) => <Th key={k} className="text-right">{t(label)}</Th>)}
+          <Th className="text-right">{t("Total (SAR)")}</Th>
+        </Tr></thead>
         <tbody>
           {aging.clients.map((c) => (
-            <tr key={c.client_id} className={c.client_id === picked ? "on" : ""} onClick={() => setPicked(c.client_id === picked ? null : c.client_id)}>
-              <td className="ell strong">{c.name}</td>
-              {BUCKETS.map(([k]) => <td key={k} className="n">{amount(c.buckets[k], LATE.includes(k))}</td>)}
-              <td className="n"><b>{fmtN(c.total)}</b></td>
-            </tr>
+            <Tr key={c.client_id} row={c.client_id === picked ? "on" : undefined} onClick={() => setPicked(c.client_id === picked ? null : c.client_id)}>
+              <Td className="truncate font-medium">{c.name}</Td>
+              {BUCKETS.map(([k]) => <Td key={k} className="text-right">{amount(c.buckets[k], LATE.includes(k))}</Td>)}
+              <Td className="text-right"><b>{fmtN(c.total)}</b></Td>
+            </Tr>
           ))}
         </tbody>
         {aging.clients.length > 0 && (
-          <tfoot><tr>
-            <td>{t("Total")}</td>
-            {BUCKETS.map(([k]) => <td key={k} className="n">{fmtN(aging.buckets[k])}</td>)}
-            <td className="n">{fmtN(aging.total)}</td>
-          </tr></tfoot>
+          <tfoot><Tr>
+            <Td>{t("Total")}</Td>
+            {BUCKETS.map(([k]) => <Td key={k} className="text-right">{fmtN(aging.buckets[k])}</Td>)}
+            <Td className="text-right">{fmtN(aging.total)}</Td>
+          </Tr></tfoot>
         )}
       </TableCard>
 
       {client && (
         <>
           <Section title={client.name} sub={t("Open invoices as of {d}", { d: dLong(aging.as_of) })}>
-            <span className="la-right">
-              <Link className="la-tool" href={`/finance/clients/${client.client_id}/statement/`}>{t("Statement")}</Link>
-              <button type="button" className="la-tool" onClick={() => setPicked(null)}>{t("Close")}</button>
-            </span>
+            <ToolbarRight>
+              <ToolButton as={Link} href={`/finance/clients/${client.client_id}/statement/`}>{t("Statement")}</ToolButton>
+              <ToolButton onClick={() => setPicked(null)}>{t("Close")}</ToolButton>
+            </ToolbarRight>
           </Section>
           <TableCard cols={[null, 140, 140, 160]}
             empty={!client.invoices.length && <Empty title={t("No invoice on record")} />}>
-            <thead><tr>
-              <th>{t("Invoice")}</th><th>{t("Due date")}</th><th className="n">{t("Days overdue")}</th><th className="n">{t("Remaining (SAR)")}</th>
-            </tr></thead>
+            <thead><Tr>
+              <Th>{t("Invoice")}</Th><Th>{t("Due date")}</Th><Th className="text-right">{t("Days overdue")}</Th><Th className="text-right">{t("Remaining (SAR)")}</Th>
+            </Tr></thead>
             <tbody>
               {client.invoices.map((i) => (
-                <tr key={i.id} {...rowNav(`/invoice/${i.id}/`)}>
-                  <td><span className="mono">{i.invoice_number}</span></td>
-                  <td>{i.due_date ? dLong(i.due_date) : "–"}</td>
-                  <td className={"n" + (LATE.includes(i.bucket) ? " late" : "")}>{i.days_overdue || <span className="mut">{t("Not yet due")}</span>}</td>
-                  <td className="n">{amount(i.amount, LATE.includes(i.bucket))}</td>
-                </tr>
+                <Tr key={i.id} {...rowNav(`/invoice/${i.id}/`)}>
+                  <Td><span className="font-mono text-[13px] font-semibold">{i.invoice_number}</span></Td>
+                  <Td>{i.due_date ? dLong(i.due_date) : "–"}</Td>
+                  <Td className={"text-right" + (LATE.includes(i.bucket) ? " font-medium text-danger-text" : "")}>{i.days_overdue || <span className="text-muted-foreground">{t("Not yet due")}</span>}</Td>
+                  <Td className="text-right">{amount(i.amount, LATE.includes(i.bucket))}</Td>
+                </Tr>
               ))}
             </tbody>
           </TableCard>

@@ -1,9 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { Link, router } from "@inertiajs/react";
-import {
-  ListPage, Toolbar, Primary, TableCard, RowMenu, Pill,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
@@ -246,24 +244,24 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
 
   return (
     <ListPage title={t("Users")}>
-      <Toolbar left={<span className="la-note">{t("{n} accounts, {a} active", { n: users.length, a: active })}</span>}>
-        <Link className="la-tool" href="/roles/">{t("Roles")}</Link>
+      <Toolbar left={<Note>{t("{n} accounts, {a} active", { n: users.length, a: active })}</Note>}>
+        <ToolButton as={Link} href="/roles/">{t("Roles")}</ToolButton>
         <Primary label={t("New user")} onClick={() => openForm("/users/new/")} onPrefetch={() => openForm.prefetch("/users/new/")} />
       </Toolbar>
 
       <TableCard cols={[200, null, 110, 160, 200, 56]}>
-        <thead><tr>
-          <th>{t("Username")}</th><th>{t("Name")}</th><th>{t("Status")}</th><th>{t("Role")}</th><th>{t("Branch")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Username")}</Th><Th>{t("Name")}</Th><Th>{t("Status")}</Th><Th>{t("Role")}</Th><Th>{t("Branch")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.id} className={u.is_active ? "" : "dim"} onClick={() => openForm(`/users/${u.id}/edit/`)}>
-              <td><span className="strong">{u.username}</span>{u.is_self && <> <Pill tone="gray" sm>{t("You")}</Pill></>}</td>
-              <td className="ell">{u.full_name}</td>
-              <td><Pill tone={u.is_active ? "green" : "gray"}>{u.is_active ? t("Active") : t("Inactive")}</Pill></td>
-              <td>{u.role_label}</td>
-              <td className="ell">{u.branch === "all" ? t("All branches") : u.branch.split(",").map((code) => branchLabel[code] || code).join(", ")}</td>
-              <td className="c">
+            <Tr key={u.id} row={u.is_active ? undefined : "dim"} onClick={() => openForm(`/users/${u.id}/edit/`)}>
+              <Td><span className="font-medium">{u.username}</span>{u.is_self && <> <Pill tone="gray" sm>{t("You")}</Pill></>}</Td>
+              <Td className="truncate">{u.full_name}</Td>
+              <Td><Pill tone={u.is_active ? "green" : "gray"}>{u.is_active ? t("Active") : t("Inactive")}</Pill></Td>
+              <Td>{u.role_label}</Td>
+              <Td className="truncate">{u.branch === "all" ? t("All branches") : u.branch.split(",").map((code) => branchLabel[code] || code).join(", ")}</Td>
+              <Td className="text-center">
                 <RowMenu label={t("Actions for {n}", { n: u.username })} items={[
                   { label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
                   // Changing your own role would revoke the permission needed
@@ -274,8 +272,8 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
                   !u.is_self && !u.is_superuser && { label: u.is_active ? t("Deactivate") : t("Activate"), onClick: () => action(u.id, { action: "toggle_active" }) },
                   !u.is_self && !u.is_superuser && { label: t("Delete"), danger: true, onClick: () => del(u) },
                 ]} />
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>

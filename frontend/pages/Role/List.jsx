@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import {
-  ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -71,15 +69,15 @@ export default function List({ roles = [], modules = [], current_role }) {
 
   return (
     <ListPage title={t("Roles")}>
-      <Toolbar left={<span className="la-note">{t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}</span>}>
-        <Link className="la-tool" href="/users/">{t("Users")}</Link>
+      <Toolbar left={<Note>{t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}</Note>}>
+        <ToolButton as={Link} href="/users/">{t("Users")}</ToolButton>
         <Primary label={t("New role")} href="/roles/new/" />
       </Toolbar>
 
       <TableCard cols={[260, null, 220, 100, 56]}>
-        <thead><tr>
-          <th>{t("Role")}</th><th>{t("Description")}</th><th>{t("Permissions")}</th><th className="n">{t("Accounts")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Role")}</Th><Th>{t("Description")}</Th><Th>{t("Permissions")}</Th><Th className="text-right">{t("Accounts")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {roles.map((r) => {
             const { modules: m, grants } = summarise(r.permissions);
@@ -87,23 +85,23 @@ export default function List({ roles = [], modules = [], current_role }) {
             // it is the account that could undo a bad edit.
             const editable = !r.locked && r.slug !== current_role;
             return (
-              <tr key={r.slug} className={editable ? "" : "static"} {...(editable ? rowNav(`/roles/${r.slug}/edit/`) : {})}>
-                <td>
-                  <span className="strong">{r.label}</span>
+              <Tr key={r.slug} row={editable ? undefined : "static"} {...(editable ? rowNav(`/roles/${r.slug}/edit/`) : {})}>
+                <Td>
+                  <span className="font-medium">{r.label}</span>
                   {r.locked && <> <Pill tone="outline" sm>{t("Locked")}</Pill></>}
                   {!r.locked && r.is_system && <> <Pill tone="gray" sm>{t("Built-in")}</Pill></>}
                   {r.slug === current_role && <> <Pill tone="gray" sm>{t("Yours")}</Pill></>}
-                </td>
-                <td className="ell mut" title={r.description || ""}>{r.description || "–"}</td>
-                <td className="mut">{t("{m} modules · {grants} permissions", { m, grants })}</td>
-                <td className={"n" + (r.user_count ? "" : " zero")}>{r.user_count}</td>
-                <td className="c">
+                </Td>
+                <Td className="truncate text-muted-foreground" title={r.description || ""}>{r.description || "–"}</Td>
+                <Td className="text-muted-foreground">{t("{m} modules · {grants} permissions", { m, grants })}</Td>
+                <Td className={"text-right" + (r.user_count ? "" : " text-muted-foreground")}>{r.user_count}</Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: r.label })} items={[
                     editable && { label: t("Edit permissions"), onClick: () => router.visit(`/roles/${r.slug}/edit/`) },
                     !r.is_system && r.slug !== current_role && { label: t("Delete"), danger: true, onClick: () => setDeleting(r) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

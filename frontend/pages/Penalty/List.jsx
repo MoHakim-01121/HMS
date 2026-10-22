@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check,
-  TableCard, Pill, Empty, fmtN, dLong, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, Pill, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Cancellation penalties across confirmation letters. Paid or not comes from
@@ -16,7 +13,7 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
 
   return (
     <ListPage title={t("Penalties")} loading={loading}>
-      <Toolbar left={<span className="la-note">{t("Cancellation penalties across confirmation letters")}</span>}>
+      <Toolbar left={<Note>{t("Cancellation penalties across confirmation letters")}</Note>}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search penalty, CL or client")} />
         <FilterMenu count={f.status ? 1 : 0} onOpen={() => setDraft(f.status)} onReset={() => setDraft("")}
           onApply={() => go({ status: draft })}>
@@ -30,27 +27,27 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
 
       <TableCard cols={[130, 110, null, 120, 130, 140]}
         empty={!penalties.length && <Empty title={t("No penalties")} sub={f.q || f.status ? t("No penalties match your filters.") : t("Penalties appear when a confirmed CL is cancelled with a charge.")} />}>
-        <thead><tr>
-          <th>{t("Penalty #")}</th><th>{t("Status")}</th><th>{t("Client")}</th><th>{t("CL")}</th>
-          <th>{t("Cancelled on")}</th><th className="n">{t("Amount (SAR)")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Penalty #")}</Th><Th>{t("Status")}</Th><Th>{t("Client")}</Th><Th>{t("CL")}</Th>
+          <Th>{t("Cancelled on")}</Th><Th className="text-right">{t("Amount (SAR)")}</Th>
+        </Tr></thead>
         <tbody>
           {penalties.map((p) => (
-            <tr key={p.id} {...rowNav(`/penalty/${p.id}/`)}>
-              <td><span className="mono">{p.penalty_number}</span></td>
-              <td><Pill tone={p.is_paid ? "green" : "amber"}>{p.is_paid ? t("Paid") : t("Unpaid")}</Pill></td>
-              <td className="ell strong">{p.client_name || "—"}</td>
-              <td>{p.cl_id ? <span className="mono">{p.confirmation_number}</span> : <span className="mut">—</span>}</td>
-              <td>{dLong(p.cancellation_date)}</td>
-              <td className="n">{fmtN(p.amount_sar)}</td>
-            </tr>
+            <Tr key={p.id} {...rowNav(`/penalty/${p.id}/`)}>
+              <Td><span className="font-mono text-[13px] font-semibold">{p.penalty_number}</span></Td>
+              <Td><Pill tone={p.is_paid ? "green" : "amber"}>{p.is_paid ? t("Paid") : t("Unpaid")}</Pill></Td>
+              <Td className="truncate font-medium">{p.client_name || "—"}</Td>
+              <Td>{p.cl_id ? <span className="font-mono text-[13px] font-semibold">{p.confirmation_number}</span> : <span className="text-muted-foreground">—</span>}</Td>
+              <Td>{dLong(p.cancellation_date)}</Td>
+              <Td className="text-right">{fmtN(p.amount_sar)}</Td>
+            </Tr>
           ))}
         </tbody>
         {penalties.length > 0 && (
-          <tfoot><tr>
-            <td colSpan={5}>{total > penalties.length ? t("Newest {n} of {m} penalties", { n: penalties.length, m: total }) : t("{n} penalties", { n: total })}</td>
-            <td className="n">{fmtN(sum)}</td>
-          </tr></tfoot>
+          <tfoot><Tr>
+            <Td colSpan={5}>{total > penalties.length ? t("Newest {n} of {m} penalties", { n: penalties.length, m: total }) : t("{n} penalties", { n: total })}</Td>
+            <Td className="text-right">{fmtN(sum)}</Td>
+          </Tr></tfoot>
         )}
       </TableCard>
     </ListPage>

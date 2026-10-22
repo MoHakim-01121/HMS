@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import {
-  ListPage, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check,
-  TableCard, RowMenu, Pager, Empty, LIcon, fmtN, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, RowMenu, Pager, Empty, LIcon, fmtN, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, Pill } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -38,7 +35,7 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
         </Kpis>
       )}
 
-      <Toolbar spaced left={<span className="la-note">{t("Balances as of {d}, in SAR", { d: longDate(as_of) })}</span>}>
+      <Toolbar spaced left={<Note>{t("Balances as of {d}, in SAR", { d: longDate(as_of) })}</Note>}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search client")} />
         <FilterMenu count={f.show ? 1 : 0} onOpen={() => setDraft(f)}
           onReset={() => setDraft({ ...draft, show: "", sort: "receivable" })}
@@ -54,49 +51,49 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
             ))}
           </FilterSection>
         </FilterMenu>
-        <Link className="la-tool" href="/finance/ar-aging/">{t("AR Aging")}</Link>
+        <ToolButton as={Link} href="/finance/ar-aging/">{t("AR Aging")}</ToolButton>
       </Toolbar>
 
       <TableCard cols={[null, 130, 130, 160, 160, 56]}
         empty={!clients.length && <Empty title={t("No clients")} sub={t("Nothing matches this search and filter.")} />}>
-        <thead><tr>
-          <th>{t("Client")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th>
-          <th className="n"><span className="srt">{t("Balance")}{LIcon.sortDown}</span></th><th className="n">{t("Customer deposit")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Client")}</Th><Th className="text-right">{t("Debit")}</Th><Th className="text-right">{t("Credit")}</Th>
+          <Th className="text-right"><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Balance")}{LIcon.sortDown}</span></Th><Th className="text-right">{t("Customer deposit")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {clients.map((c) => (
-            <tr key={c.client_id} {...rowNav(statement(c))}>
-              <td className="ell strong">{c.name}</td>
-              <td className="n">{fmtN(c.ar_debit)}</td>
-              <td className="n">{fmtN(c.ar_credit)}</td>
-              <td className="n">
-                {c.piutang ? <span>{fmtN(Math.abs(c.piutang))} {c.piutang > 0 ? "Dr" : "Cr"}</span> : <span className="zero">0</span>}
-                {c.overdue > 0 && <span className="sub warnt">{t("{v} overdue", { v: fmtN(c.overdue) })}</span>}
-              </td>
-              <td className="n">
-                {c.saldo_dana ? <span>{fmtN(c.saldo_dana)} Cr</span> : <span className="zero">0</span>}
-                {c.offset > 0 && <span className="sub"><span className="la-pill gray sm" style={{ color: "var(--foreground)" }}>{t("Offset {v}", { v: fmtN(c.offset) })}</span></span>}
-              </td>
-              <td className="c">
+            <Tr key={c.client_id} {...rowNav(statement(c))}>
+              <Td className="truncate font-medium">{c.name}</Td>
+              <Td className="text-right">{fmtN(c.ar_debit)}</Td>
+              <Td className="text-right">{fmtN(c.ar_credit)}</Td>
+              <Td className="text-right">
+                {c.piutang ? <span>{fmtN(Math.abs(c.piutang))} {c.piutang > 0 ? "Dr" : "Cr"}</span> : <span className="text-muted-foreground">0</span>}
+                {c.overdue > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-warning-text">{t("{v} overdue", { v: fmtN(c.overdue) })}</span>}
+              </Td>
+              <Td className="text-right">
+                {c.saldo_dana ? <span>{fmtN(c.saldo_dana)} Cr</span> : <span className="text-muted-foreground">0</span>}
+                {c.offset > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground"><Pill tone="gray" sm className="text-foreground">{t("Offset {v}", { v: fmtN(c.offset) })}</Pill></span>}
+              </Td>
+              <Td className="text-center">
                 <RowMenu label={t("Actions for {n}", { n: c.name })} items={[
                   { label: t("Open statement"), onClick: () => router.visit(statement(c)) },
                   { label: t("Statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/`, external: true },
                   { label: t("Reservation statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/?mode=byres`, external: true },
                   c.offset > 0 && { label: t("Apply deposit against AR"), onClick: () => router.visit(statement(c)) },
                 ]} />
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
         {clients.length > 0 && (
-          <tfoot><tr>
-            <td>{t("All {n} clients", { n: p?.count ?? clients.length })}</td>
-            <td className="n">{fmtN(totals.ar_debit)}</td>
-            <td className="n">{fmtN(totals.ar_credit)}</td>
-            <td className="n">{fmtN(Math.abs(totals.piutang))} {totals.piutang >= 0 ? "Dr" : "Cr"}</td>
-            <td className="n">{fmtN(totals.saldo_dana)} Cr</td>
-            <td />
-          </tr></tfoot>
+          <tfoot><Tr>
+            <Td>{t("All {n} clients", { n: p?.count ?? clients.length })}</Td>
+            <Td className="text-right">{fmtN(totals.ar_debit)}</Td>
+            <Td className="text-right">{fmtN(totals.ar_credit)}</Td>
+            <Td className="text-right">{fmtN(Math.abs(totals.piutang))} {totals.piutang >= 0 ? "Dr" : "Cr"}</Td>
+            <Td className="text-right">{fmtN(totals.saldo_dana)} Cr</Td>
+            <Td />
+          </Tr></tfoot>
         )}
       </TableCard>
 

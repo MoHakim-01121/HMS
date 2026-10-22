@@ -1,22 +1,21 @@
 /* Dashboards (HMS Dashboard canvas: ManagerHomlu, Finance, Admin, Staff). KPI cards, tables,
-   pills and empty states come from list-a.css and detail-a.css, as on every
+   pills and empty states come from list-a.jsx and detail-a.css, as on every
    other page. Added from the liked gallery references: one accent card, grey
    bars with the current one in green, ranking bars, one gauge.
    Scales (Refactoring UI audit, 2026-10-21): type 12 / 13 / 16 / 24 / 32 (KPI
    values stay at list-a's 28), space 4 / 8 / 12 / 16 / 24 / 32. The accent
    card holds the one 32px figure; other headline figures stay at 24. */
 
-.db .la-main { gap: 16px; }
+.db [data-slot=list-main] { gap: 16px; }
 .db-hi { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
 .db-sub { margin-top: 4px; font-size: 13px; color: var(--muted-foreground); }
-.db .la-note { font-size: 12px; color: var(--muted-foreground); }
+.db [data-slot=note] { font-size: 12px; color: var(--muted-foreground); }
 
 .db-kpis { display: grid; grid-template-columns: minmax(0, 1.35fr) repeat(4, minmax(0, 1fr)); gap: 12px; }
 .db-kpis.k3 { grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(0, 1fr)); }
-.db-kpis .la-kpi { min-width: 0; }
-.la-v.loss { color: var(--danger-text); }
+.db-kpis [data-slot=kpi] { min-width: 0; }
 
-/* The one accent card: booked value. Padding matches .la-kpi beside it. */
+/* The one accent card: booked value. Padding matches the KPI cards beside it. */
 .db-hero { border-radius: 20px; padding: 16px; background: var(--hero); color: #fff; display: flex; flex-direction: column; text-decoration: none; min-width: 0; }
 .db-hero .l { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.72); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .db-hero .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: rgba(255,255,255,.14); font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
@@ -36,11 +35,11 @@
 .db-g2.one { grid-template-columns: minmax(0, 1fr); }
 .db-g2b > .da-card, .db-g3 > .da-card { display: flex; flex-direction: column; }
 .db-g2b .da-card-foot, .db-g3 .da-card-foot { margin-top: auto; }
-.db-g2b .la-empty, .db-g3 .la-empty { margin: auto 0; }
+.db-g2b [data-slot=empty], .db-g3 [data-slot=empty] { margin: auto 0; }
 .db .da-card-h a { font-size: 12px; font-weight: 500; color: var(--muted-foreground); text-decoration: none; }
 .db .da-card-h a:hover { color: var(--foreground); }
 .db .da-card-foot a { color: var(--foreground); font-weight: 600; text-decoration: none; }
-.db .la-empty { padding: 32px 24px; }
+.db [data-slot=empty] { padding: 32px 24px; }
 
 /* Repeating rows as a grid styled like .da-t: headers in ink (2026-10-20), set apart by size. */
 .dt { font-size: 13px; }
@@ -94,7 +93,7 @@
 .bx .pre { opacity: .5; }
 /* Months before the first CL in HMS: one quiet label, no empty bars. */
 .bc .pre { position: absolute; left: 0; bottom: 0; height: 100%; display: flex; align-items: center; justify-content: center; border-bottom: 1px dashed var(--hairline); font-size: 12px; color: var(--muted-foreground); pointer-events: none; }
-.db .la-month { min-width: 124px; }
+.db [data-slot=month] { min-width: 124px; }
 
 /* Collected: one gauge. Its figure stays below the accent card's. */
 .gauge { position: relative; display: flex; justify-content: center; margin-top: 16px; }
@@ -142,7 +141,6 @@
 .db .da-t .late { color: var(--danger-text); }
 
 /* Finance, Administrator, Staff (HMS Dashboard canvas, 2026-10-20). */
-.la-v.warn { color: var(--warning-text); }
 .db-kpis.nohero { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .db-hero .lines { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .db-hero .lines > span { display: flex; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.72); }
@@ -186,7 +184,7 @@ div.mn-r:hover { background: none; }
   .db-v-staff .db-kpis { display: contents; }
   .db-v-staff .db-hero { order: 1; }
   .db-v-staff .db-work { order: 2; }
-  .db-v-staff .la-kpi { order: 3; }
+  .db-v-staff [data-slot=kpi] { order: 3; }
   .db-v-staff .db-charts { order: 4; }
   .db-v-staff .db-mine { order: 5; }
   .fc, .fx { gap: 8px; }

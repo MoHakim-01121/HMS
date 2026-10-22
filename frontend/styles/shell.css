@@ -121,7 +121,7 @@
     transition: left .3s cubic-bezier(.32,.72,0,1), border-color .2s ease;
   }
   body.sidebar-collapsed .hms-topbar.ks-tb { --tb-x: max(20px, calc((100vw - var(--sidebar-w-collapsed) - var(--page-max, 1040px)) / 2 + 20px)); }
-  body:has(.page > .la-main) .hms-topbar.ks-tb { --page-max: 1320px; }
+  body:has([data-slot=list-main]) .hms-topbar.ks-tb { --page-max: 1320px; }
   .hms-topbar.ks-tb.lift { border-bottom-color: color-mix(in oklch, var(--border) 80%, transparent); }
   .ks-tl, .ks-tr { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .ks-pt { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

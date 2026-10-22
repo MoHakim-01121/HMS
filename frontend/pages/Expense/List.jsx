@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import NewExpense from "./NewExpense.jsx";
@@ -73,48 +70,48 @@ export default function List({
           )}
         </FilterMenu>
         {canExport && <ExportMenu items={[{ label: "CSV", href: "/finance/expenses/export/csv/" }]} />}
-        <a className="la-tool" href="/finance/claims/">{t("Claims")}</a>
-        {canManageCategories && <a className="la-tool" href="/finance/expenses/categories/">{t("Categories")}</a>}
+        <ToolButton as="a" href="/finance/claims/">{t("Claims")}</ToolButton>
+        {canManageCategories && <ToolButton as="a" href="/finance/expenses/categories/">{t("Categories")}</ToolButton>}
         {canCreate && <Primary label={t("New expense")} onClick={() => setNewOpen(true)} />}
       </Toolbar>
 
       <TableCard cols={[104, 76, null, 160, 130, 96, 160, 56]}
         empty={!expenses.length && <Empty title={t("No expenses")} sub={t("Nothing matches this period and these filters.")} />}>
-        <thead><tr>
-          <th>{t("Expense")}</th>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th>{t("Description")}</th><th>{t("Recorded by")}</th><th className="n">{t("Amount (IDR)")}</th><th>{t("Receipt")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Expense")}</Th>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "date" ? "-date" : "date" })}>{t("Date")}{f.sort === "date" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th>{t("Description")}</Th><Th>{t("Recorded by")}</Th><Th className="text-right">{t("Amount (IDR)")}</Th><Th>{t("Receipt")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {expenses.map((e) => {
             const [tone, label] = STATUS[e.status] || STATUS.submitted;
             const cats = [...new Set(e.lines.map((l) => l.category_name))];
             const catText = cats.length > 2 ? t("{a}, {b} and {n} more", { a: cats[0], b: cats[1], n: cats.length - 2 }) : cats.join(", ");
             return (
-              <tr key={e.id} className={["rejected", "voided"].includes(e.status) ? "dim" : ""} {...rowNav(`/finance/expenses/${e.id}/`)}>
-                <td><span className="mono">{e.expense_number}</span></td>
-                <td>{dShort(e.expense_date)}</td>
-                <td className="ell"><span className="strong">{e.description || catText || t("Expense")}</span>
-                  <span className="sub">{t(e.lines.length === 1 ? "{n} line, {c}" : "{n} lines, {c}", { n: e.lines.length, c: catText })}</span></td>
-                <td className="ell">{e.recorded_by}{e.vendor && <span className="sub">{e.vendor}</span>}</td>
-                <td className="n">{fmtN(e.total_amount)}</td>
-                <td>{(() => {
+              <Tr key={e.id} row={["rejected", "voided"].includes(e.status) ? "dim" : undefined} {...rowNav(`/finance/expenses/${e.id}/`)}>
+                <Td><span className="font-mono text-[13px] font-semibold">{e.expense_number}</span></Td>
+                <Td>{dShort(e.expense_date)}</Td>
+                <Td className="truncate"><span className="font-medium">{e.description || catText || t("Expense")}</span>
+                  <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t(e.lines.length === 1 ? "{n} line, {c}" : "{n} lines, {c}", { n: e.lines.length, c: catText })}</span></Td>
+                <Td className="truncate">{e.recorded_by}{e.vendor && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{e.vendor}</span>}</Td>
+                <Td className="text-right">{fmtN(e.total_amount)}</Td>
+                <Td>{(() => {
                   const n = e.lines.reduce((s, l) => s + (l.receipts?.length || 0), 0) + (e.proof_url ? 1 : 0);
                   const missing = e.lines.filter((l) => !l.receipts?.length && l.no_receipt_reason).length;
                   return n ? t(n === 1 ? "1 file" : "{n} files", { n }) + (missing ? ` · ${t("{n} without", { n: missing })}` : "")
-                    : <span className="mut">{missing ? t("No receipt") : t("None")}</span>;
-                })()}</td>
-                <td><Pill tone={tone}>{t(label)}</Pill></td>
-                <td className="c">
+                    : <span className="text-muted-foreground">{missing ? t("No receipt") : t("None")}</span>;
+                })()}</Td>
+                <Td><Pill tone={tone}>{t(label)}</Pill></Td>
+                <Td className="text-center">
                   <RowMenu label={t("Actions for {n}", { n: e.expense_number })} items={[
                     canApprove && e.status === "submitted" && { label: t("Approve"), onClick: () => router.post(`/finance/expenses/${e.id}/approve/`, {}, { preserveScroll: true }) },
                     e.proof_url && { label: t("View receipt"), href: e.proof_url, external: true },
                     e.status === "approved" && perms.can("expenses", "edit") && { label: t("Pay"), onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
                     canApprove && e.status === "submitted" && { label: t("Reject"), danger: true, onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
                   ]} />
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             );
           })}
         </tbody>

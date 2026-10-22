@@ -2,10 +2,8 @@ import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { cn } from "@/lib/utils";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -40,7 +38,7 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
 
   return (
     <ListPage title={t("Hotels")} loading={loading}>
-      <Toolbar left={<span className="la-note">{t("{n} hotels registered", { n: total })}</span>}>
+      <Toolbar left={<Note>{t("{n} hotels registered", { n: total })}</Note>}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search name or area")} />
         <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
           onReset={() => setDraft({ ...draft, ...Object.fromEntries(KEYS.map((k) => [k, []])) })}
@@ -51,38 +49,38 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
           {section("status", t("Status"), t("All statuses"), [["active", t("Active")], ["inactive", t("Inactive")]])}
           {section("location", t("Location"), t("All hotels"), [["set", t("Has coordinates")], ["missing", t("No location")]])}
         </FilterMenu>
-        <Link className="la-tool" href="/hotels/map/">{t("Map")}<Pin /></Link>
+        <ToolButton as={Link} href="/hotels/map/">{t("Map")}<Pin /></ToolButton>
         {perms.can("hotels", "export") && <ExportMenu items={[{ label: "CSV", href: `/hotels/export/csv/${qs ? "?" + qs : ""}` }]} />}
         {perms.can("hotels", "create") && <Primary label={t("New hotel")} onClick={() => openForm("/hotels/new/")} onPrefetch={() => openForm.prefetch("/hotels/new/")} />}
       </Toolbar>
 
       <TableCard cols={[null, 92, 140, 64, 124, 76, 132, 96, 56]}
         empty={!hotels.length && <Empty title={t("No hotels")} sub={t("Nothing matches this search and these filters.")} />}>
-        <thead><tr>
-          <th><button type="button" className="srt" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
-            onClick={() => go({ sort: f.sort === "-name" ? "name" : "-name" })}>{t("Hotel")}{f.sort === "-name" ? LIcon.sortUp : LIcon.sortDown}</button></th>
-          <th>{t("City")}</th><th>{t("Area")}</th><th>{t("Stars")}</th><th>{t("Allotment")}</th>
-          <th className="n" title={t("Average pax per room")}>{t("Avg pax")}</th><th>{t("Distance to mosque")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+            onClick={() => go({ sort: f.sort === "-name" ? "name" : "-name" })}>{t("Hotel")}{f.sort === "-name" ? LIcon.sortUp : LIcon.sortDown}</button></Th>
+          <Th>{t("City")}</Th><Th>{t("Area")}</Th><Th>{t("Stars")}</Th><Th>{t("Allotment")}</Th>
+          <Th className="text-right" title={t("Average pax per room")}>{t("Avg pax")}</Th><Th>{t("Distance to mosque")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {hotels.map((h) => (
-            <tr key={h.id} className={h.is_active ? "" : "dim"} {...rowNav(`/hotels/${h.id}/`)}>
-              <td className="ell strong">{h.name}</td>
-              <td>{h.city_display}</td>
-              <td className="ell">{h.area || <span className="mut">—</span>}</td>
-              <td><span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 500 }}><Star />{h.stars}</span></td>
-              <td><span className={"hl-al" + (h.has_allotment ? "" : " no")}>{h.has_allotment ? t("Allotment") : t("No allotment")}</span></td>
-              <td className="n">{h.avg_occupancy != null ? h.avg_occupancy.toFixed(1) : <span className="mut">—</span>}</td>
-              <td>{h.distance == null ? <span className="mut">{t("No location")}</span>
-                : <span className={h.distance <= 500 ? "good" : h.distance <= 1500 ? "warnt" : "late"} style={{ fontWeight: 600 }}>{h.distance_label}</span>}</td>
-              <td><Pill tone={h.is_active ? "green" : "gray"}>{h.is_active ? t("Active") : t("Inactive")}</Pill></td>
-              <td className="c">
+            <Tr key={h.id} row={h.is_active ? undefined : "dim"} {...rowNav(`/hotels/${h.id}/`)}>
+              <Td className="truncate font-medium">{h.name}</Td>
+              <Td>{h.city_display}</Td>
+              <Td className="truncate">{h.area || <span className="text-muted-foreground">—</span>}</Td>
+              <Td><span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 500 }}><Star />{h.stars}</span></Td>
+              <Td><span className={"hl-al" + (h.has_allotment ? "" : " no")}>{h.has_allotment ? t("Allotment") : t("No allotment")}</span></Td>
+              <Td className="text-right">{h.avg_occupancy != null ? h.avg_occupancy.toFixed(1) : <span className="text-muted-foreground">—</span>}</Td>
+              <Td>{h.distance == null ? <span className="text-muted-foreground">{t("No location")}</span>
+                : <span className={cn(h.distance <= 500 ? "text-success-text" : h.distance <= 1500 ? "text-warning-text" : "font-medium text-danger-text")} style={{ fontWeight: 600 }}>{h.distance_label}</span>}</Td>
+              <Td><Pill tone={h.is_active ? "green" : "gray"}>{h.is_active ? t("Active") : t("Inactive")}</Pill></Td>
+              <Td className="text-center">
                 <RowMenu label={t("Actions for {n}", { n: h.name })} items={[
                   perms.can("hotels", "edit") && { label: t("Edit"), onClick: () => openForm(`/hotels/${h.id}/edit/`) },
                   perms.can("hotels", "delete") && { label: t("Delete"), danger: true, onClick: () => del(h) },
                 ]} />
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>

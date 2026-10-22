@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  ListPage, Kpis, Kpi, Toolbar, FilterMenu, FilterSection, Check, Primary, TableCard, Pill, Pager, Empty,
-  fmtN, dShort, useListNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, FilterMenu, FilterSection, Check, Primary, TableCard, Pill, Pager, Empty, fmtN, dShort, useListNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 
@@ -42,29 +39,29 @@ export default function Claims({ claims = [], kpis = {}, counts = {}, filters: f
             ))}
           </FilterSection>
         </FilterMenu>
-        <a className="la-tool" href="/finance/expenses/">{t("Expenses")}</a>
+        <ToolButton as="a" href="/finance/expenses/">{t("Expenses")}</ToolButton>
         {perms.can("expenses", "create") && <Primary label={t("New claim")} onClick={() => router.visit("/finance/claims/new/")} />}
       </Toolbar>
 
       <TableCard cols={[110, null, 90, 140, 120, 110]}
         empty={!claims.length && <Empty title={t("No claims")} sub={t("Claim the expenses the branch has paid, for the months you choose.")} />}>
-        <thead><tr>
-          <th>{t("Claim")}</th><th>{t("Expenses dated")}</th><th className="n">{t("Expenses")}</th>
-          <th className="n">{t("Amount (IDR)")}</th><th>{t("Status")}</th><th>{t("Reimbursed on")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Claim")}</Th><Th>{t("Expenses dated")}</Th><Th className="text-right">{t("Expenses")}</Th>
+          <Th className="text-right">{t("Amount (IDR)")}</Th><Th>{t("Status")}</Th><Th>{t("Reimbursed on")}</Th>
+        </Tr></thead>
         <tbody>
           {claims.map((c) => {
             const [tone, label] = CLAIM_STATUS[c.status] || CLAIM_STATUS.draft;
             return (
-              <tr key={c.id} className={["rejected", "cancelled"].includes(c.status) ? "dim" : ""}
+              <Tr key={c.id} row={["rejected", "cancelled"].includes(c.status) ? "dim" : undefined}
                 onClick={() => router.visit(`/finance/claims/${c.id}/`)}>
-                <td><span className="mono">{c.claim_number}</span></td>
-                <td>{dShort(c.date_from)} – {dShort(c.date_to)}<span className="sub">{c.branch_name}</span></td>
-                <td className="n">{c.item_count ?? ""}</td>
-                <td className="n">{fmtN(c.total_amount)}</td>
-                <td><Pill tone={tone}>{t(label)}</Pill></td>
-                <td>{c.paid_date ? dShort(c.paid_date) : <span className="mut">—</span>}</td>
-              </tr>
+                <Td><span className="font-mono text-[13px] font-semibold">{c.claim_number}</span></Td>
+                <Td>{dShort(c.date_from)} – {dShort(c.date_to)}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{c.branch_name}</span></Td>
+                <Td className="text-right">{c.item_count ?? ""}</Td>
+                <Td className="text-right">{fmtN(c.total_amount)}</Td>
+                <Td><Pill tone={tone}>{t(label)}</Pill></Td>
+                <Td>{c.paid_date ? dShort(c.paid_date) : <span className="text-muted-foreground">—</span>}</Td>
+              </Tr>
             );
           })}
         </tbody>

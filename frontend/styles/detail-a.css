@@ -143,7 +143,7 @@
 .da-tab .c { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .da-tabbar.tall .da-tab { height: 52px; }
 .da-tools { display: flex; align-items: center; gap: 8px; padding: 8px 0; flex-wrap: wrap; }
-.da-tools .la-search { width: 220px; }
+.da-tools [data-slot=search] { width: 220px; }
 .da-tools .ghost { height: 36px; padding: 0 12px; border: 0; border-radius: 9999px; background: none; font: 600 13px var(--font-sans); color: var(--foreground); cursor: pointer; }
 .da-tools .ghost:hover { background: var(--secondary); }
 .da-tools .ico { width: 36px; padding: 0; justify-content: center; }
@@ -181,7 +181,7 @@
   .da-facts.c3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .da-tabbar { padding: 0 12px 0 16px; }
   .da-tools { width: 100%; }
-  .da-tools .la-search { flex: 1; width: auto; }
+  .da-tools [data-slot=search] { flex: 1; width: auto; }
 }
 @media (max-width: 600px) {
   .da-head { padding: 16px 16px; }

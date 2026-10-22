@@ -1,8 +1,8 @@
 import { Fragment, useContext, useState } from "react";
 import { Link } from "@inertiajs/react";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.jsx";
+import { Popover, PopoverTrigger } from "./ui/popover.jsx";
 import { FormModalContext } from "./form-modal.jsx";
-import { LIcon } from "./list-a.jsx";
+import { LIcon, Menu, MenuItem, MenuSep } from "./list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import "../../styles/detail-a.css";
 
@@ -86,24 +86,21 @@ export function DMenu({ items, label, small }) {
       <PopoverTrigger asChild>
         <button type="button" className={"da-dots" + (small ? " sm" : "")} aria-label={label || t("Actions")} aria-haspopup="menu">{LIcon.dots}</button>
       </PopoverTrigger>
-      <PopoverContent align="end" sideOffset={6} className="la-menu" style={{ width: 220 }}>
-        <div role="menu">
+      <Menu align="end" sideOffset={6} className="w-[220px]">
           {list.map((it, i) => {
-            const cls = "la-mi" + (it.danger ? " danger" : "");
             const body = <>{it.icon ? DIcon[it.icon] : null}{it.label}</>;
             return (
               <Fragment key={it.label}>
-                {it.separator && i > 0 ? <div className="la-sep" /> : null}
+                {it.separator && i > 0 ? <MenuSep /> : null}
                 {it.href ? (
-                  <a role="menuitem" className={cls} href={it.href} target={it.external ? "_blank" : undefined} rel="noreferrer" onClick={() => setOpen(false)}>{body}</a>
+                  <MenuItem as="a" danger={it.danger} href={it.href} target={it.external ? "_blank" : undefined} rel="noreferrer" onClick={() => setOpen(false)}>{body}</MenuItem>
                 ) : (
-                  <button type="button" role="menuitem" className={cls} onClick={(e) => { setOpen(false); it.onClick(e); }}>{body}</button>
+                  <MenuItem danger={it.danger} onClick={(e) => { setOpen(false); it.onClick(e); }}>{body}</MenuItem>
                 )}
               </Fragment>
             );
           })}
-        </div>
-      </PopoverContent>
+      </Menu>
     </Popover>
   );
 }

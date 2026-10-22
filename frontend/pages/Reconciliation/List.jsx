@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary,
-  TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import FormField, { amountText, amountValue } from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
@@ -78,7 +75,7 @@ export default function List({ statements = [], account_choices = [], filters: f
 
   return (
     <ListPage title={t("Bank Reconciliation")} loading={loading}>
-      <Toolbar left={<span className="la-note">{t("Bank statements")}</span>}>
+      <Toolbar left={<Note>{t("Bank statements")}</Note>}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search account or period")} />
         <FilterMenu count={(f.status.length ? 1 : 0) + (f.acct.length ? 1 : 0)} onOpen={() => setDraft(f)}
           onReset={() => setDraft({ ...draft, status: [], acct: [] })}
@@ -93,32 +90,32 @@ export default function List({ statements = [], account_choices = [], filters: f
             </FilterSection>
           )}
         </FilterMenu>
-        {canEdit && <button type="button" className="la-tool" onClick={() => setNewOpen(true)}>{t("Type in")}</button>}
+        {canEdit && <ToolButton onClick={() => setNewOpen(true)}>{t("Type in")}</ToolButton>}
         {canEdit && <Primary label={t("Import statement")} onClick={() => openForm("/finance/reconciliation/import/")} onPrefetch={() => openForm.prefetch("/finance/reconciliation/import/")} />}
       </Toolbar>
 
       <TableCard cols={[null, 190, 200, 120, 180, 120, 56]}
         empty={!statements.length && <Empty title={t("No statements")} sub={t("Import the bank's CSV export, or type a statement in, to start reconciling.")} />}>
-        <thead><tr>
-          <th>{t("Account")}</th><th><span className="srt">{t("Statement period")}{LIcon.sortDown}</span></th>
-          <th className="n">{t("Statement closing balance")}</th><th className="n">{t("Lines matched")}</th>
-          <th className="n">{t("Difference")}</th><th>{t("Status")}</th><th className="c">{t("Action")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Account")}</Th><Th><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Statement period")}{LIcon.sortDown}</span></Th>
+          <Th className="text-right">{t("Statement closing balance")}</Th><Th className="text-right">{t("Lines matched")}</Th>
+          <Th className="text-right">{t("Difference")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+        </Tr></thead>
         <tbody>
           {statements.map((s) => (
-            <tr key={s.id} {...rowNav(`/finance/reconciliation/${s.id}/`)}>
-              <td className="ell strong">{s.account_label}</td>
-              <td>{periodLabel(s.period_start, s.period_end, t)}</td>
-              <td className="n"><Amt code={s.currency} value={s.closing_balance} /></td>
-              <td className="n">{t("{a} of {b}", { a: s.lines_matched, b: s.lines_total })}</td>
-              <td className="n">{s.difference ? <span className="late"><Amt code={s.currency} value={s.difference} /></span> : <span className="good">0</span>}</td>
-              <td><Pill tone={s.state === "done" ? "green" : "amber-o"}>{s.state === "done" ? t("Reconciled") : t("In progress")}</Pill></td>
-              <td className="c">
+            <Tr key={s.id} {...rowNav(`/finance/reconciliation/${s.id}/`)}>
+              <Td className="truncate font-medium">{s.account_label}</Td>
+              <Td>{periodLabel(s.period_start, s.period_end, t)}</Td>
+              <Td className="text-right"><Amt code={s.currency} value={s.closing_balance} /></Td>
+              <Td className="text-right">{t("{a} of {b}", { a: s.lines_matched, b: s.lines_total })}</Td>
+              <Td className="text-right">{s.difference ? <span className="font-medium text-danger-text"><Amt code={s.currency} value={s.difference} /></span> : <span className="text-success-text">0</span>}</Td>
+              <Td><Pill tone={s.state === "done" ? "green" : "amber-o"}>{s.state === "done" ? t("Reconciled") : t("In progress")}</Pill></Td>
+              <Td className="text-center">
                 <RowMenu label={t("Actions for {n}", { n: s.account_label })} items={[
                   { label: s.state === "done" ? t("Open") : t("Continue matching"), onClick: () => router.visit(`/finance/reconciliation/${s.id}/`) },
                 ]} />
-              </td>
-            </tr>
+              </Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>

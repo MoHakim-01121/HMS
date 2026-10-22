@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, DateRange,
-  TableCard, Pill, Pager, Empty, fmtN, dLong, useListNav, rowNav,
-} from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, DateRange, TableCard, Pill, Pager, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Journal entries: the ledger, newest first. Search and the Filter panel
@@ -22,7 +19,7 @@ export default function Journal({
 
   return (
     <ListPage title={t("Journal Entries")} loading={loading}>
-      <Toolbar left={<span className="la-note">{range}, {t("{n} entries", { n: fmtN(total) })}</span>}>
+      <Toolbar left={<Note>{range}, {t("{n} entries", { n: fmtN(total) })}</Note>}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search number or description")} />
         <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
           onReset={() => setDraft({ ...draft, type: "", date_from: "", date_to: "" })}
@@ -42,20 +39,20 @@ export default function Journal({
 
       <TableCard cols={[120, 170, null, 120, 130, 130]}
         empty={!entries.length && <Empty title={t("No journal entries")} sub={t("No entries match your filters.")} />}>
-        <thead><tr>
-          <th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th>
-          <th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th>
-        </tr></thead>
+        <thead><Tr>
+          <Th>{t("Entry #")}</Th><Th>{t("Type")}</Th><Th>{t("Description")}</Th><Th>{t("Date")}</Th>
+          <Th className="text-right">{t("Debit")}</Th><Th className="text-right">{t("Credit")}</Th>
+        </Tr></thead>
         <tbody>
           {entries.map((e) => (
-            <tr key={e.id} {...rowNav(`/finance/journal/${e.id}/`)}>
-              <td><span className="mono">{e.entry_number}</span></td>
-              <td>{e.is_reversal ? <Pill tone="red" sm>{t("Reversal")}</Pill> : e.entry_type_display}</td>
-              <td className="ell" title={e.description}>{e.description}</td>
-              <td>{dLong(e.entry_date)}</td>
-              <td className={"n" + (e.debit ? "" : " zero")}>{fmtN(e.debit)}</td>
-              <td className={"n" + (e.credit ? "" : " zero")}>{fmtN(e.credit)}</td>
-            </tr>
+            <Tr key={e.id} {...rowNav(`/finance/journal/${e.id}/`)}>
+              <Td><span className="font-mono text-[13px] font-semibold">{e.entry_number}</span></Td>
+              <Td>{e.is_reversal ? <Pill tone="red" sm>{t("Reversal")}</Pill> : e.entry_type_display}</Td>
+              <Td className="truncate" title={e.description}>{e.description}</Td>
+              <Td>{dLong(e.entry_date)}</Td>
+              <Td className={"text-right" + (e.debit ? "" : " text-muted-foreground")}>{fmtN(e.debit)}</Td>
+              <Td className={"text-right" + (e.credit ? "" : " text-muted-foreground")}>{fmtN(e.credit)}</Td>
+            </Tr>
           ))}
         </tbody>
       </TableCard>
