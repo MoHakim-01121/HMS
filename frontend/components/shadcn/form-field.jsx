@@ -1,6 +1,9 @@
 import { cloneElement, isValidElement } from "react";
 import { Label } from "./ui/label.jsx";
 import { Input } from "./ui/input.jsx";
+import { cn } from "@/lib/utils";
+
+const SPAN = { 2: "col-span-2", 3: "col-span-3", 4: "col-span-4" };
 
 // Whole-number money typed as text: shown grouped ("12,500,000") like the
 // AmountIn fields, handed to onChange as plain digits ("12500000"), a leading
@@ -27,7 +30,7 @@ export default function FormField({
 }) {
   const describedBy = error ? `${name}-error` : hint ? `${name}-hint` : undefined;
   return (
-    <div data-slot="form-field" className={className} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: span ? `span ${span}` : undefined }}>
+    <div data-slot="form-field" className={cn("flex flex-col gap-1.5", SPAN[span], className)}>
       {label && <Label htmlFor={name}>{label}{required ? " *" : ""}</Label>}
       {children
         ? (describedBy && isValidElement(children) ? cloneElement(children, { "aria-describedby": describedBy }) : children)
@@ -42,8 +45,8 @@ export default function FormField({
             aria-describedby={describedBy}
           />
         )}
-      {hint && !error && <div id={`${name}-hint`} style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{hint}</div>}
-      {error && <div id={`${name}-error`} role="alert" style={{ fontSize: 12, color: "var(--destructive)" }}>{error}</div>}
+      {hint && !error && <div id={`${name}-hint`} className="text-[12px] text-muted-foreground">{hint}</div>}
+      {error && <div id={`${name}-error`} role="alert" className="text-[12px] text-destructive">{error}</div>}
     </div>
   );
 }

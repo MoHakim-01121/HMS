@@ -167,7 +167,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
 
       {dialog === "pay" && (
         <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader><DialogTitle>{t("Pay {number}", { number: expense.expense_number })}</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{idr(expense.total_amount)}</div>
@@ -195,7 +195,7 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
 
       {(dialog === "reject" || dialog === "void") && (
         <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{dialog === "reject" ? t("Reject {number}", { number: expense.expense_number }) : t("Void {number}", { number: expense.expense_number })}</DialogTitle>
             </DialogHeader>

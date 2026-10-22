@@ -58,7 +58,25 @@ const PAGES = [
   ["role-new", "admin", "/roles/new/"],
   ["profile", "admin", "/account/profile/"],
   ["calendar", "admin", "/calendar/"],
+  ["client-new", "admin", "/clients/new/"],
+  ["claim-new", "admin", "/finance/claims/new/"],
 ].filter(([, , path]) => !path.includes("/null/")); // no such record locally
+
+// Open overlays (menus, selects, dialogs): [shot name, role, path, clicks].
+// Shot at viewport size, since overlays are fixed to it. Nothing here submits:
+// "Delete" only opens the confirmation, which is never confirmed.
+const ROW_MENU = '[data-slot="popover-trigger"] >> nth=-1';
+const ACTIONS = [
+  ["open-select", "admin", "/clients/new/", ['[data-slot="select-trigger"] >> nth=0']],
+  ["open-branch-select", "admin", "/finance/branch-report/", ['[data-slot="select-trigger"]']],
+  ["open-picker", "admin", "/cl/new/", ['[data-slot="popover-trigger"] >> nth=0']],
+  ["open-row-menu", "admin", "/users/", [ROW_MENU]],
+  ["dialog-reset-password", "admin", "/users/", [ROW_MENU, "text=Reset password"]],
+  ["dialog-access", "admin", "/users/", [ROW_MENU, "text=Manage access"]],
+  ["dialog-access-select", "admin", "/users/", [ROW_MENU, "text=Manage access", '[role="dialog"] [data-slot="select-trigger"]']],
+  ["dialog-confirm-delete", "admin", "/users/", [ROW_MENU, "text=Delete"]],
+  ["search-overlay", "admin", "/cl/", ['#m-top-bar [aria-label="Search"]'], "m"],
+];
 const VIEWPORTS = [["d", { width: 1280, height: 900 }], ["m", { width: 390, height: 844 }]];
 
 const exe = join(homedir(), ".cache/ms-playwright/chromium-1148/chrome-linux/chrome");
@@ -66,14 +84,17 @@ const browser = await chromium.launch(existsSync(exe) ? { executablePath: exe } 
 const failed = [];
 for (const [vp, viewport] of VIEWPORTS) {
   const contexts = {};
-  for (const [shot, role, path] of PAGES) {
-    const file = `${shot}-${vp}.png`;
-    if (only && !file.includes(only)) continue;
+  const pageFor = async (role) => {
     if (!contexts[role]) {
       contexts[role] = await browser.newContext({ viewport, reducedMotion: "reduce", locale: "id-ID" });
       await contexts[role].addCookies([{ name: meta.cookie, value: meta.sessions[role], url: BASE }]);
     }
-    const page = await contexts[role].newPage();
+    return contexts[role].newPage();
+  };
+  for (const [shot, role, path] of PAGES) {
+    const file = `${shot}-${vp}.png`;
+    if (only && !file.includes(only)) continue;
+    const page = await pageFor(role);
     try {
       const res = await page.goto(BASE + path, { waitUntil: "networkidle", timeout: 30000 });
       if (!res || res.status() >= 400 || new URL(page.url()).pathname.includes("login")) throw new Error(`HTTP ${res?.status()} at ${page.url()}`);
@@ -91,6 +112,27 @@ for (const [vp, viewport] of VIEWPORTS) {
       await page.close();
     }
   }
+  for (const [shot, role, path, clicks, onlyVp] of ACTIONS) {
+    const file = `${shot}-${vp}.png`;
+    if ((only && !file.includes(only)) || (onlyVp && onlyVp !== vp)) continue;
+    const page = await pageFor(role);
+    try {
+      await page.goto(BASE + path, { waitUntil: "networkidle", timeout: 30000 });
+      await page.evaluate(() => document.fonts.ready);
+      for (const sel of clicks) {
+        await page.locator(sel).first().click({ timeout: 5000 });
+        await page.waitForTimeout(350);
+      }
+      await page.mouse.move(0, 0);
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(outDir, file) });
+      console.log("shot", file);
+    } catch (e) {
+      failed.push(`${file}: ${e.message.split("\n")[0]}`);
+    } finally {
+      await page.close();
+    }
+  }
   for (const c of Object.values(contexts)) await c.close();
 }
 
@@ -99,7 +141,7 @@ if (compare) {
   // small tolerance (anti-aliasing), and size changes.
   const page = await browser.newPage();
   const rows = [];
-  for (const [shot] of PAGES) for (const [vp] of VIEWPORTS) {
+  for (const [shot] of [...PAGES, ...ACTIONS]) for (const [vp] of VIEWPORTS) {
     const file = `${shot}-${vp}.png`;
     const a = join(ROOT, "ui-shots/baseline", file), b = join(outDir, file);
     if ((only && !file.includes(only)) || !existsSync(a) || !existsSync(b)) continue;

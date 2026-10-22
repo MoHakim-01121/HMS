@@ -128,7 +128,7 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
       {confirmDialog}
       {rejecting && (
         <Dialog open onOpenChange={(v) => { if (!v) setRejecting(null); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("Reject {number}?", { number: rejecting.number })}</DialogTitle>
             </DialogHeader>

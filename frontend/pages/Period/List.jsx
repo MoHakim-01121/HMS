@@ -101,7 +101,7 @@ export default function List({ periods = [], seasons = [], next_season = null })
       {/* Create Periods Dialog */}
       {createDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setCreateDialog(false); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("Create Financial Periods")}</DialogTitle>
             </DialogHeader>
@@ -126,7 +126,7 @@ export default function List({ periods = [], seasons = [], next_season = null })
       )}
       {season && (
         <Dialog open onOpenChange={(v) => { if (!v) setSeason(null); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{season.id ? t("Edit Season") : t("New Season")}</DialogTitle>
             </DialogHeader>

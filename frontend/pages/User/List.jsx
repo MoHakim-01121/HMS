@@ -41,7 +41,7 @@ function AccessDialog({ user, roleChoices, branchChoices, onClose }) {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="hms-dialog">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("Access for {name}", { name: user.username })}</DialogTitle>
           <DialogDescription>
@@ -93,7 +93,7 @@ function ResetPasswordDialog({ user, onClose }) {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="hms-dialog">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("Reset password")}</DialogTitle>
           <DialogDescription>
@@ -190,7 +190,7 @@ function CredentialCardDialog({ user, onClose }) {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="hms-dialog">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("Print credential card")}</DialogTitle>
           <DialogDescription>

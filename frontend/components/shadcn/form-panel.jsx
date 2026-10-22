@@ -1,4 +1,5 @@
 import { Children, useContext } from "react";
+import { cn } from "@/lib/utils";
 import { FormModalContext } from "./form-modal.jsx";
 import FormSection from "./form-section.jsx";
 
@@ -12,18 +13,18 @@ export default function FormPanel({ children }) {
     const prevSection = i > 0 && rows[i - 1].type === FormSection;
     if (isSection && prevSection) {
       return [
-        <div key={`sep-${i}`} data-slot="form-section-sep" style={{ height: 1, background: "var(--border)", flexShrink: 0 }} />,
+        <div key={`sep-${i}`} data-slot="form-section-sep" className="h-px shrink-0 bg-border" />,
         child,
       ];
     }
     return [child];
   });
-  const gap = 52;
-  if (useContext(FormModalContext)?.inModal) {
-    return <div data-slot="form-panel" style={{ display: "flex", flexDirection: "column", gap }}>{separated}</div>;
-  }
+  // min-w-0 on the children: a flex item will not shrink below its content,
+  // so a wide table inside an overflow-x wrapper would push past the dialog
+  // instead of scrolling.
+  const inModal = useContext(FormModalContext)?.inModal;
   return (
-    <div data-slot="form-panel" style={{ background: "var(--card)", borderRadius: "var(--radius-card)", padding: 24, display: "flex", flexDirection: "column", gap }}>
+    <div data-slot="form-panel" className={cn("flex flex-col gap-[52px] *:min-w-0", !inModal && "rounded-card bg-card p-6")}>
       {separated}
     </div>
   );

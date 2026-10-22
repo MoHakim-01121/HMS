@@ -5,6 +5,8 @@ import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const TYPE_LABEL = { CL: "Conf. Letter", INV: "Invoice Hotel" };
+// Group label in caps over 46px rows, a hairline between groups.
+const GROUP = "p-0 [&_[cmdk-group-heading]]:border-t [&_[cmdk-group-heading]]:border-hairline [&_[cmdk-group-heading]]:px-[18px] [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:pb-[7px] [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-[.13em] first:[&_[cmdk-group-heading]]:border-t-0";
 
 // shadcn/cmdk rebuild of ../shell/SearchOverlay.jsx — same open/onClose props.
 // Command owns arrow-key navigation, highlight, and Enter-to-select natively,
@@ -62,7 +64,7 @@ export default function SearchOverlay({ open, onClose }) {
           blur is no longer set here — DialogOverlay carries it for every
           overlay in the app now (see dialog.jsx). */}
       <DialogContent
-        className="hms-search-panel overflow-hidden p-0 rounded-[20px] border border-border bg-card max-w-[min(520px,calc(100%-2rem))] top-[64px] translate-y-0 sm:top-[64px] sm:translate-y-0 max-[600px]:top-[64px] max-[600px]:translate-y-0"
+        className="overflow-hidden p-0 rounded-[20px] shadow-palette border border-border bg-card max-w-[min(520px,calc(100%-2rem))] top-[64px] translate-y-0 sm:top-[64px] sm:translate-y-0 max-[600px]:top-[64px] max-[600px]:translate-y-0"
         showCloseButton={false}
       >
         <Command shouldFilter={false}>
@@ -70,10 +72,10 @@ export default function SearchOverlay({ open, onClose }) {
             placeholder={t("Search number, guest, or hotel…")}
             value={q}
             onValueChange={setQ}
+            wrapperClassName="h-[54px] px-[18px]"
             right={
               <kbd
-                className="shrink-0 rounded-[8px] bg-secondary px-2.5 h-[22px] inline-flex items-center text-[11px] font-semibold text-muted-foreground"
-                style={{ marginRight: 6 }}
+                className="mr-1.5 inline-flex h-[22px] shrink-0 items-center rounded-[8px] bg-secondary text-[11px] font-semibold text-muted-foreground"
               >
                 Esc
               </kbd>
@@ -107,9 +109,9 @@ export default function SearchOverlay({ open, onClose }) {
                 shell/SearchOverlay's horizontal row, and force stale warm-toned
                 tokens (--text-2 etc) that clash with this dialog's neutral palette. */}
             {state.kind === "results" && order.map((type) => (
-              <CommandGroup key={type} heading={`${t(TYPE_LABEL[type] || type)} (${groups[type].length})`}>
+              <CommandGroup key={type} className={GROUP} heading={`${t(TYPE_LABEL[type] || type)} (${groups[type].length})`}>
                 {groups[type].map((r, i) => (
-                  <CommandItem key={i} value={`${type}-${i}`} onSelect={() => { window.location.href = r.url; }}>
+                  <CommandItem key={i} className="min-h-[46px] gap-3 rounded-none px-[18px] py-0" value={`${type}-${i}`} onSelect={() => { window.location.href = r.url; }}>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <span className="truncate text-sm font-medium text-foreground">{r.label}</span>
                       <span className="truncate text-xs text-muted-foreground">{r.sub}</span>
@@ -120,7 +122,7 @@ export default function SearchOverlay({ open, onClose }) {
               </CommandGroup>
             ))}
           </CommandList>
-          <div className="flex items-center gap-3.5 border-t border-[color:var(--hairline)] px-[18px] py-[11px] max-[600px]:hidden">
+          <div className="flex items-center gap-3.5 border-t border-hairline px-[18px] py-[11px] max-[600px]:hidden">
             <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <kbd className="flex h-5 items-center rounded-[8px] bg-secondary px-1.5 text-[10.5px] font-semibold leading-none text-muted-foreground">↑↓</kbd> {t("navigate")}
             </span>

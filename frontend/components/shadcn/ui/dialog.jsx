@@ -40,7 +40,7 @@ const DialogOverlay = React.forwardRef(function DialogOverlay({
       className={cn(
         // v2.1 (doc 07): one flat scrim, no blur — "tidak ada blur/glow".
         // A cool near-black at ~32% over the page.
-        "fixed inset-0 z-50 bg-[color:oklch(0.205_0.012_260/0.32)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+        "fixed inset-0 z-(--z-modal) bg-[color:oklch(0.205_0.012_260/0.32)] data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className
       )}
       {...props} />
@@ -106,7 +106,7 @@ const DialogContent = React.forwardRef(function DialogContent({
           // bg-card, not bg-background: the dialog is a floating surface and
           // should read pure white (--card) against the cool canvas, not a
           // second slab of the same off-white the page sits on.
-          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-card p-6 font-sans shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          "fixed top-[50%] left-[50%] z-(--z-modal) grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-card p-6 font-sans shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}>

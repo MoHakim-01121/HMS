@@ -31,7 +31,7 @@ function DeleteDialog({ role, roles, onClose }) {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="hms-dialog">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("Delete {label}", { label: role.label })}</DialogTitle>
         </DialogHeader>

@@ -10,8 +10,8 @@ function Textarea({
     <textarea
       data-slot="textarea"
       className={cn(
-        // Matches the .shadcn-root textarea rule in tailwind.css — see input.jsx.
-        "flex field-sizing-content min-h-[96px] w-full rounded-[16px] border-2 border-field bg-card px-[14px] py-[12px] text-[14px] transition-[color,border-color] outline-none placeholder:text-muted-foreground focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
+        // Same control look as input.jsx.
+        "flex field-sizing-content min-h-24 w-full rounded-control border-2 border-field bg-card px-3.5 py-3 text-[14px] leading-[1.55] text-foreground shadow-none transition-[border-color] duration-[140ms] ease-[ease] outline-none max-[600px]:text-[16px] placeholder:text-muted-foreground focus:border-ring focus:shadow-none focus:outline-2 focus:outline-solid focus:outline-offset-2 focus:outline-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
         className
       )}
       {...props} />

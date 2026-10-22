@@ -62,7 +62,7 @@ export default function ExpenseCategories({ categories = [] }) {
 
       {editing && (
         <Dialog open onOpenChange={(v) => { if (!v) setEditing(null); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{editing.code ? t("Rename category") : t("New category")}</DialogTitle>
             </DialogHeader>

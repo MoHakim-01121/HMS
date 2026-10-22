@@ -154,7 +154,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
 
       {confirmDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setConfirmDialog(null); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("Confirm Payment")}</DialogTitle>
             </DialogHeader>
@@ -175,7 +175,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
       {/* Reject Dialog */}
       {rejectDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) setRejectDialog(null); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("Reject Payment")}</DialogTitle>
             </DialogHeader>

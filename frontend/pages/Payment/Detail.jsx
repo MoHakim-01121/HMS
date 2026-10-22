@@ -293,7 +293,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
 
       {rejectOpen && (
         <Dialog open onOpenChange={(v) => { if (!v) setRejectOpen(false); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>{t("Reject payment {number}?", { number: payment.payment_number })}</DialogTitle>
             </DialogHeader>

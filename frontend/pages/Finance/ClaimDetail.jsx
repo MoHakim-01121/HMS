@@ -144,7 +144,7 @@ export default function ClaimDetail({ claim = {}, account_choices = [], journal_
 
       {dialog === "pay" && (
         <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader><DialogTitle>{t("Record reimbursement of {n}", { n: claim.claim_number })}</DialogTitle></DialogHeader>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>{idr(claim.total_amount)}</div>
@@ -172,7 +172,7 @@ export default function ClaimDetail({ claim = {}, account_choices = [], journal_
 
       {reasonDialog && (
         <Dialog open onOpenChange={(v) => { if (!v) close(); }}>
-          <DialogContent className="hms-dialog">
+          <DialogContent>
             <DialogHeader><DialogTitle>{reasonDialog[0]}</DialogTitle></DialogHeader>
             <p style={{ fontSize: 13, color: "var(--muted-foreground)", margin: 0 }}>{reasonDialog[1]}</p>
             <FormField label={t("Reason")} name="reason" required={dialog !== "cancel"}>
