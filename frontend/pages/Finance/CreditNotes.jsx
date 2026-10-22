@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import {
   ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav,
+  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -24,7 +24,7 @@ function NewCreditNote({ invoices }) {
         <div role="menu" style={{ maxHeight: 280, overflowY: "auto" }}>
           {list.map((i) => (
             <button type="button" key={i.id} role="menuitem" className="la-mi" onClick={() => router.visit(`/finance/invoices/${i.id}/credit-notes/new/`)}>
-              <span><span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 12.5 }}>{i.number}</span><span className="h">{i.client}</span></span>
+              <span><span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 13 }}>{i.number}</span><span className="h">{i.client}</span></span>
             </button>
           ))}
           {!list.length && <div className="la-mi" style={{ cursor: "default", color: "var(--muted-foreground)" }}>{t("No invoice matches.")}</div>}
@@ -74,7 +74,7 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
           {credit_notes.map((cn) => {
             const dead = cn.status === "voided";
             return (
-              <tr key={cn.id} className={dead ? "dim" : ""} onClick={() => router.visit(cn.invoice_url)}>
+              <tr key={cn.id} className={dead ? "dim" : ""} {...rowNav(cn.invoice_url)}>
                 <td><span className="mono">{cn.number}</span></td>
                 <td>{dShort(cn.date)}</td>
                 <td className="ell strong">{cn.client}</td>

@@ -60,6 +60,7 @@ export default function Detail({ client, cls }) {
   const del = () => confirm({
     title: t("Delete client"),
     message: t("Delete client \"{name}\"?", { name: c.name }),
+    detail: t("This cannot be undone. Deactivate it instead to keep its history."),
     danger: true,
     onConfirm: () => router.post(`/clients/${c.pk}/delete/`),
   });
@@ -78,6 +79,9 @@ export default function Detail({ client, cls }) {
     perms.can("cl", "create") && { label: t("Create CL"), icon: "plus", onClick: () => openForm(`/cl/new/?client=${c.pk}`) },
     perms.can("statements", "view") && { label: t("Client Finance"), icon: "wallet", href: `/finance/clients/${c.pk}/statement/` },
     perms.can("clients", "edit") && { label: t("Edit"), icon: "edit", separator: true, onClick: () => openForm(`/clients/${c.pk}/edit/`) },
+    perms.can("clients", "edit") && (c.is_active
+      ? { label: t("Deactivate"), icon: "close", onClick: () => router.post(`/clients/${c.pk}/active/`) }
+      : { label: t("Activate"), icon: "check", onClick: () => router.post(`/clients/${c.pk}/active/`) }),
     perms.can("clients", "delete") && { label: t("Delete client…"), icon: "trash", danger: true, separator: true, onClick: del },
   ];
 
@@ -115,7 +119,7 @@ export default function Detail({ client, cls }) {
           </dl>
           {needsWaGroup(c) ? (
             <div style={{ marginTop: "auto", paddingTop: 14 }}>
-              <p style={{ margin: 0, paddingTop: 14, borderTop: "1px solid var(--border)", fontSize: 12.5, lineHeight: 1.5, color: "var(--danger-text)" }}>
+              <p style={{ margin: 0, paddingTop: 14, borderTop: "1px solid var(--border)", fontSize: 13, lineHeight: 1.5, color: "var(--danger-text)" }}>
                 {t("Reminder is set to {target} but the WhatsApp Group is not set.", { target: c.reminder_target === "BOTH" ? t("PIC & Group") : t("Group") })}
               </p>
             </div>
@@ -131,7 +135,7 @@ export default function Detail({ client, cls }) {
               <div className="da-map" role="img" aria-label={t("Map showing {name}", { name: c.name })} style={{ marginTop: 4 }}>
                 <PinMap lat={c.lat} lng={c.lng} label={c.brand || c.name} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "14px 24px 18px", fontSize: 12.5 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "14px 24px 18px", fontSize: 13 }}>
                 <span style={{ color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</span>
                 <span style={{ display: "flex", gap: 6 }}>
                   {address ? <button type="button" className="da-btn soft" onClick={copyAddress}>{copied ? t("Copied") : t("Copy address")}</button> : null}

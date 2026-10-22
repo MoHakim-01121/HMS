@@ -88,9 +88,9 @@ export default function SearchOverlay({ open, onClose }) {
             )}
             {state.kind === "loading" && (
               <div data-slot="command-state-loading" className="flex items-center justify-center gap-1.5 py-8">
-                <span className="size-1 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "0ms" }} />
-                <span className="size-1 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "150ms" }} />
-                <span className="size-1 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "300ms" }} />
+                <span className="size-1 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none" style={{ animationDelay: "0ms" }} />
+                <span className="size-1 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none" style={{ animationDelay: "150ms" }} />
+                <span className="size-1 animate-pulse rounded-full bg-muted-foreground motion-reduce:animate-none" style={{ animationDelay: "300ms" }} />
               </div>
             )}
             {state.kind === "error" && (

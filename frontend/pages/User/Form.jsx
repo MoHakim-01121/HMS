@@ -122,14 +122,14 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
       {confirmDialog}
       <style>{`
 .us-box { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; }
-.us-box b { display: block; font-size: 13.5px; font-weight: 500; }
+.us-box b { display: block; font-size: 14px; font-weight: 500; }
 .us-box span span { display: block; font-size: 12px; color: var(--muted-foreground); }
 .us-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
 .us-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
 .us-tg.on { background: var(--foreground); }
 .us-tg.on::after { transform: translateX(16px); }
 .us-tg:disabled { opacity: .5; cursor: not-allowed; }
-.us-link { padding: 0; border: 0; background: none; font: 600 12.5px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.us-link { padding: 0; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
 .us-link:hover { color: var(--foreground); }
 .us-link.danger { color: var(--danger-text); }
 .us-tg:focus-visible, .us-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

@@ -68,7 +68,7 @@ export default function FxPanel({ pool, sentIdr, sar, original, legacy = false }
 
 export const FX_CSS = `
 .rem-fx { margin: 4px 0 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border);
-  background: color-mix(in oklch, var(--muted) 45%, var(--card)); font-size: 12.5px; }
+  background: color-mix(in oklch, var(--muted) 45%, var(--card)); font-size: 13px; }
 .rem-fx-title { font-weight: 600; margin-bottom: 6px; }
 .rem-fx-row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-variant-numeric: tabular-nums; }
 .rem-fx-row > span:first-child { color: var(--muted-foreground); }

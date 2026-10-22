@@ -103,7 +103,7 @@ export const EFF_CSS = `
 .rf-eff { border: 1px solid var(--border); border-radius: 14px; padding: 6px 14px; font-size: 13px; }
 .rf-eff > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 30px; color: var(--muted-foreground); }
 .rf-eff .res { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; color: var(--foreground); font-weight: 500; }
-.rf-eff .res b { font-weight: 700; font-size: 15px; }
+.rf-eff .res b { font-weight: 700; font-size: 16px; }
 .rf-eff .neg b { color: var(--danger-text); }
 `;
 

@@ -243,18 +243,18 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
 }
 
 const CSS = `
-.ex-row { display: grid; grid-template-columns: 156px minmax(0,1fr) 140px 132px 28px; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px; font-size: 13.5px; min-width: 640px; }
+.ex-row { display: grid; grid-template-columns: 156px minmax(0,1fr) 140px 132px 28px; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px; font-size: 14px; min-width: 640px; }
 .ex-line + .ex-line { border-top: 1px solid var(--hairline); }
-.ex-row.h { min-height: 34px; font-size: 11.5px; font-weight: 500; color: var(--muted-foreground); }
+.ex-row.h { min-height: 34px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
 .ex-row .r { text-align: right; }
 .ex-in { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); box-sizing: border-box; transition: border-color 120ms ease; }
 .ex-in:hover { border-color: color-mix(in oklch, var(--foreground) 45%, var(--input)); }
 .ex-in:focus-within { border-color: var(--foreground); }
-.ex-in input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; padding: 0 !important; font: 500 13.5px var(--font-sans); color: var(--foreground); outline: none; box-shadow: none !important; height: 100%; border-radius: 0 !important; }
+.ex-in input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; padding: 0 !important; font: 500 14px var(--font-sans); color: var(--foreground); outline: none; box-shadow: none !important; height: 100%; border-radius: 0 !important; }
 .ex-in input.r { text-align: right; font-weight: 600; }
 .ex-in .u { font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
 .ex-in svg { color: var(--warning-text); flex: none; }
-.ex-rcp { display: flex; align-items: center; gap: 6px; width: 100%; height: 34px; padding: 0 8px 0 10px; border-radius: 10px; box-sizing: border-box; font: 500 12.5px var(--font-sans); text-align: left; cursor: pointer; }
+.ex-rcp { display: flex; align-items: center; gap: 6px; width: 100%; height: 34px; padding: 0 8px 0 10px; border-radius: 10px; box-sizing: border-box; font: 500 13px var(--font-sans); text-align: left; cursor: pointer; }
 .ex-rcp .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ex-rcp.miss { border: 1.5px dashed var(--input); background: none; color: var(--muted-foreground); }
 .ex-rcp.miss:hover { border-color: var(--foreground); color: var(--foreground); }
@@ -266,10 +266,10 @@ const CSS = `
 .ex-rfile { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 10px; border-radius: 8px; font-size: 13px; }
 .ex-rfile:hover { background: var(--secondary); }
 .ex-rfile .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.ex-rfile small { color: var(--muted-foreground); font-size: 11.5px; }
+.ex-rfile small { color: var(--muted-foreground); font-size: 12px; }
 .ex-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed var(--border); margin-top: 2px; }
 .ex-foot .fa-phantom { width: auto; border-top: 0; margin-top: 0; }
-.ex-upl { display: flex; align-items: center; gap: 8px; height: 32px; margin-right: 4px; padding: 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); font: 500 12.5px var(--font-sans); color: var(--foreground); cursor: pointer; }
+.ex-upl { display: flex; align-items: center; gap: 8px; height: 32px; margin-right: 4px; padding: 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); cursor: pointer; }
 .ex-upl small { font-size: 12px; font-weight: 400; color: var(--muted-foreground); }
 .ex-upl:hover { border-color: var(--foreground); }
 .ex-set { margin: 0 -6px; padding: 4px 14px 10px; background: var(--background); border-radius: 0 0 13px 13px; font-size: 13px; }

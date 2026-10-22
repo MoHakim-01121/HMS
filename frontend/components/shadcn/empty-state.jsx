@@ -1,13 +1,14 @@
-import { Icon } from "../icons.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import "../../styles/list-a.css";
 
-export default function EmptyState({ title, sub, iconName }) {
+// The list pages' empty block: a bold line and one sentence, no illustration.
+// `iconName` is still accepted from older callers and ignored.
+export default function EmptyState({ title, sub }) {
   const { t } = useI18n();
   return (
-    <div className="empty">
-      {iconName && <Icon name={iconName} size={36} strokeWidth={1.5} />}
-      <div className="empty-title">{t(title)}</div>
-      {sub && <div className="empty-sub">{t(sub)}</div>}
+    <div className="la-empty">
+      <b>{t(title)}</b>
+      {sub && t(sub)}
     </div>
   );
 }

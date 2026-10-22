@@ -22,7 +22,7 @@ import "../../styles/dashboard.css";
 
 const MON = MONTHS.map((m) => m.slice(0, 3));
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const GREEN = "oklch(0.62 0.16 152)";
+const GREEN = "var(--data)";
 const ARC = 289; // length of the gauge's half circle (r = 92)
 
 const iso = (s) => new Date(s + "T00:00:00");
@@ -30,8 +30,8 @@ const dDay = (s) => { const d = iso(s); return `${d.getDate()} ${MON[d.getMonth(
 const dWeek = (s) => { const d = iso(s); return `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
 const millions = (v) => `${(Math.round((v || 0) / 100000) / 10).toLocaleString("en-US")} M`;
 const money = (v, ccy) => (ccy === "IDR" && Math.abs(v) >= 1e6 ? millions(v) : fmtN(v));
-const signed = (n) => (n > 0 ? `+${n}` : n < 0 ? `-${Math.abs(n)}` : null);
 const pctOf = (cur, prev) => (prev ? Math.round(((cur - prev) * 100) / prev) : null);
+const pastDueSub = (t, c, d) => (c === 1 ? t("1 client, {d} days late", { d }) : t("{c} clients, oldest {d} days", { c, d }));
 const greeting = (t) => { const h = new Date().getHours(); return h < 11 ? t("Good morning") : h < 15 ? t("Good afternoon") : t("Good evening"); };
 
 export default function Home(props) {
@@ -42,7 +42,7 @@ export default function Home(props) {
   const Body = props.variant === "finance" ? FinanceHome : props.variant === "staff" || props.variant === "viewer" ? StaffHome : ManagerHome;
   return (
     <div className="page shadcn-root db">
-      <div className={"la-main" + (loading ? " la-loading" : "")}>
+      <div className={"la-main db-v-" + props.variant + (loading ? " la-loading" : "")}>
         <Body {...props} onGo={go} />
       </div>
     </div>
@@ -75,6 +75,8 @@ function ManagerHome(props) {
   const isSeason = period.kind === "season";
   const todoCount = todo.reduce((a, x) => a + x.count, 0);
   const admin = variant === "admin";
+  // Nobody locked or idle: no card, rather than a card-sized empty state.
+  const access = admin && people && (people.locked.length || people.idle.length) ? people : null;
 
   return (
     <>
@@ -89,21 +91,23 @@ function ManagerHome(props) {
           </div>
         )}
 
-        <div className="db-g2b">
-          <Todo items={todo} count={todoCount} />
-          {checkins && <Checkins data={checkins} />}
-        </div>
+        {(todo.length > 0 || checkins) && (
+          <div className={"db-g2b" + (todo.length && checkins ? "" : " one")}>
+            {todo.length > 0 && <Todo items={todo} count={todoCount} />}
+            {checkins && <Checkins data={checkins} />}
+          </div>
+        )}
 
         {branches?.length > 0 && <ByBranch rows={branches} period={period} />}
 
-        {(top || mon || people) && (
-          <div className={"db-g3" + ([top, admin ? people : top, mon].filter(Boolean).length === 3 ? "" : " two")}>
+        {(top || mon || access) && (
+          <div className={"db-g3" + ([top, admin ? access : top, mon].filter(Boolean).length === 3 ? "" : " two")}>
             {top && <TopClients top={top} />}
             {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, ${t("room nights")}`}
               rows={top.hotels.map((r) => ({ ...r, href: `/hotels/${r.id}/`, sub: r.city, v: r.rn }))}
               empty={[t("No stays yet"), t("Hotels appear here after the first check-in.")]} hasPrev={top.has_prev} />}
             {mon && <MoneyNow m={mon} />}
-            {admin && people && <People p={people} />}
+            {access && <People p={access} />}
           </div>
         )}
     </>
@@ -132,16 +136,15 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
     onGo({ month: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}` });
   };
   const atNow = period.start.slice(0, 7) === thisMonth;
-  const updated = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   return (
     <div className="la-bar">
       <div className="la-left">
-        <span className="la-month">{isSeason ? t("Whole season") : t(MONTHS[start.getMonth()])}</span>
+        <span className="la-month">{isSeason ? t("Whole season") : `${t(MONTHS[start.getMonth()])} ${start.getFullYear()}`}</span>
         <button type="button" className="la-icon" aria-label={t("Previous month")} disabled={isSeason} onClick={() => shift(-1)}>{LIcon.prev}</button>
         <button type="button" className="la-icon" aria-label={t("Next month")} disabled={isSeason || atNow} onClick={() => shift(1)}>{LIcon.next}</button>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button type="button" className="la-yr" aria-haspopup="menu">{isSeason ? t("Season {s}", { s: period.label }) : start.getFullYear()}{LIcon.chev}</button>
+            <button type="button" className="la-yr" aria-haspopup="menu">{isSeason ? t("Season {s}", { s: period.label }) : t("Monthly")}{LIcon.chev}</button>
           </PopoverTrigger>
           <PopoverContent align="start" sideOffset={6} className="la-menu" style={{ width: 220 }}>
             <div role="menu">
@@ -158,14 +161,14 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
           </PopoverContent>
         </Popover>
       </div>
-      <div className="la-right"><span className="la-note">{note || t("Updated {time}", { time: updated })}</span></div>
+      {note && <div className="la-right"><span className="la-note">{note}</span></div>}
     </div>
   );
 }
 
 // kind: "manager" (CL sold, room nights, cancelled, profit), "admin" (past due
-// in place of cancelled), "staff" (my CLs: sold, room nights, check-ins this
-// week, not invoiced) or "viewer" (sold, room nights, check-ins, cancelled).
+// in place of cancelled), "staff" (the branch's CLs: sold, room nights,
+// check-ins this week, not invoiced) or "viewer" (sold, room nights, check-ins, cancelled).
 function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receivable, checkins, uninvoiced }) {
   const { t } = useI18n();
   const mine = kind === "staff";
@@ -190,35 +193,35 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   const heroBad = heroPct && heroPct.startsWith("-");
 
   const kpis = [
-    { label: mine ? t("My CL sold") : t("CL sold"), v: fmtN(cur.cl), d: prev ? signed(cur.cl - prev.cl) : null, good: !prev || cur.cl >= prev.cl,
+    { label: t("CL sold"), v: fmtN(cur.cl), d: pct(cur.cl, prev?.cl), good: !prev || cur.cl >= prev.cl,
       foot: cmp(fmtN(prev?.cl)), spark: [cur.spark.cl, prev?.spark.cl], href: "/cl/" },
-    { label: mine ? t("My room nights") : t("Room nights"), v: fmtN(cur.rn), d: pct(cur.rn, prev?.rn), good: !prev || cur.rn >= prev.rn,
+    { label: t("Room nights"), v: fmtN(cur.rn), d: pct(cur.rn, prev?.rn), good: !prev || cur.rn >= prev.rn,
       foot: cmp(fmtN(prev?.rn)), spark: [cur.spark.rn, prev?.spark.rn], href: "/calendar/" },
   ];
-  const cancelled = { label: t("Cancelled"), v: fmtN(cur.cancelled), unit: "CL", d: prev ? signed(cur.cancelled - prev.cancelled) : null,
+  const cancelled = { label: t("Cancelled"), v: fmtN(cur.cancelled), unit: "CL", d: pct(cur.cancelled, prev?.cancelled),
     good: !prev || cur.cancelled <= prev.cancelled,
     foot: `${t("{v} SAR lost", { v: fmtN(cur.lost) })}. ${prev ? `${prevLabel}: ${prev.cancelled}` : ""}`,
     spark: [cur.spark.cancelled, prev?.spark.cancelled], href: "/cl/" };
   if (kind === "staff" || kind === "viewer") {
     if (checkins) {
       const rooms = checkins.rows.reduce((a, r) => a + r.rooms, 0);
-      kpis.push({ label: mine ? t("My check-ins this week") : t("Check-ins this week"), v: fmtN(checkins.rows.length),
+      kpis.push({ label: t("Check-ins this week"), v: fmtN(checkins.rows.length),
         foot: t("{n} rooms", { n: rooms }), href: "/calendar/" });
     }
     if (mine && uninvoiced) {
       const r = uninvoiced.rows?.[0];
-      kpis.push({ label: t("My CLs not invoiced"), v: fmtN(uninvoiced.count), warn: uninvoiced.count > 0,
+      kpis.push({ label: t("CLs not invoiced"), v: fmtN(uninvoiced.count), warn: uninvoiced.count > 0,
         foot: r ? t("Nearest {d}", { d: dWeek(r.check_in) }) : t("All invoiced"), href: "/invoice/" });
     } else if (!mine) kpis.push(cancelled);
   } else if (kind === "admin" && receivable) {
     kpis.push({ label: t("Past due"), v: fmtN(receivable.past_due), unit: "SAR", warn: receivable.past_due > 0,
-      foot: receivable.past_due ? t("{c} clients, oldest {d} days", { c: receivable.past_clients, d: receivable.oldest }) : t("Nothing past due"),
+      foot: receivable.past_due ? pastDueSub(t, receivable.past_clients, receivable.oldest) : t("Nothing past due"),
       href: "/finance/ar-aging/" });
   } else kpis.push(cancelled);
   if (profit && kind !== "staff" && kind !== "viewer") {
     const p = profit.cur, q = profit.prev;
     kpis.push({
-      label: t("Branch profit"), v: p.profit == null ? "–" : millions(p.profit), unit: p.profit == null ? "" : "IDR", loss: p.profit < 0,
+      label: t("Branch profit"), v: p.profit == null ? t("No FX gain yet") : millions(p.profit), unit: p.profit == null ? "" : "IDR", none: p.profit == null, loss: p.profit < 0,
       d: p.profit != null && q?.profit ? pct(p.profit, q.profit) : null, good: !q?.profit || p.profit >= q.profit,
       foot: t("FX {fx} − expenses {ex}", { fx: millions(p.fx), ex: millions(p.expenses) }), href: "/finance/fund-flow/",
     });
@@ -227,9 +230,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   return (
     <div className={"db-kpis" + (kpis.length === 3 ? " k3" : "")}>
       <Link className={"db-hero" + (heroBad ? " bad" : "")} href="/cl/">
-        <span className="l">{mine
-          ? (isSeason ? t("My booked value, season {s}", { s: period.label }) : t("My booked value, {m}", { m: t(period.label) }))
-          : (isSeason ? t("Booked value, season {s}", { s: period.label }) : t("Booked value, {m}", { m: t(period.label) }))}
+        <span className="l">{isSeason ? t("Booked value, season {s}", { s: period.label }) : t("Booked value, {m}", { m: t(period.label) })}
           {heroPct && <span className={"chip" + (heroBad ? " bad" : "")}>{heroPct}</span>}</span>
         <span className="v">{fmtN(cur.value)}<small>SAR</small></span>
         <span className="bars" role="img" aria-label={t("Booked value building up over the period")}>
@@ -242,7 +243,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
         <Link key={k.label} className="la-kpi" href={k.href}>
           <span className="la-kt"><span className="l">{k.label}</span>{k.d && <Delta text={k.d} good={k.good} />}</span>
           <span className="la-kr">
-            <span className={"la-v" + (k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
+            <span className={"la-v" + (k.none ? " none" : k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
             {k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />}
           </span>
           <span className="la-kb">{k.foot}</span>
@@ -252,10 +253,11 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   );
 }
 
-function SoldPerMonth({ sm, period, isSeason, title }) {
+function SoldPerMonth({ sm, isSeason, title }) {
   const { t } = useI18n();
   const [hv, setHv] = useState(-1);
   const months = sm.months.map((m) => ({ ...m, d: iso(m.key) }));
+  const pre = sm.before_hms || 0;
   const max = Math.max(3, ...months.map((m) => Math.max(m.cur || 0, sm.has_ly ? m.ly : 0)));
   const scale = Math.ceil(max / 3) * 3;
   const pick = isSeason ? sm.now : sm.selected ?? sm.now;
@@ -276,19 +278,19 @@ function SoldPerMonth({ sm, period, isSeason, title }) {
         <h2>{title || t("CL sold per month")}{sm.season && <span className="c">{t("Season {s}", { s: sm.season })}</span>}</h2>
         <span className="db-lg">
           <span><i style={{ background: GREEN }} />{isSeason ? t("This season") : t(MONTHS[p.d.getMonth()])}</span>
-          <span><i style={{ background: "var(--secondary)" }} />{t("Other months")}</span>
+          <span><i style={{ background: "var(--chart-bar)" }} />{t("Other months")}</span>
           {sm.has_ly && <span><i className="ly" />{lyName}</span>}
         </span>
       </div>
       <div className="db-big"><b>{isSeason ? seasonSum : p.cur ?? 0} CL</b><span>{note}</span></div>
-      <div className="bc" role="img" aria-label={t("CL sold per month: {list}.", { list: months.map((m) => m.cur ?? "-").join(", ") })}>
-        {[1, 2 / 3, 1 / 3, 0].map((f) => (
-          <div key={f} className="gl" style={{ bottom: `${f * 100}%` }}><span>{Math.round(scale * f)}</span></div>
-        ))}
+      <div className="bc" role="img" aria-label={t("CL sold per month: {list}.", { list: months.map((m, i) => (i < pre ? "-" : m.cur ?? "-")).join(", ") })}>
+        <div className="gl" style={{ bottom: 0 }} />
+        {pre > 0 && <span className="pre" style={{ width: `calc(${(pre / 12) * 100}% - 8px)` }}>{t("Not in HMS yet")}</span>}
         {months.map((m, i) => {
           const on = isSeason ? i <= sm.now : i === pick;
           const down = sm.has_ly && m.cur != null && m.cur < m.ly;
           return (
+            i < pre ? <div key={m.key} className="col" /> :
             <div key={m.key} className={"col" + (on ? " on" : "") + (on && down ? " down" : "")}
               onMouseEnter={() => setHv(i)} onMouseLeave={() => setHv(-1)}>
               <span className="b" style={{ height: `${((m.cur || 0) / scale) * 100}%` }}>
@@ -306,7 +308,7 @@ function SoldPerMonth({ sm, period, isSeason, title }) {
           );
         })}
       </div>
-      <div className="bx">{months.map((m, i) => <span key={m.key} className={(isSeason ? i <= sm.now : i === pick) || hv === i ? "on" : ""}>{MON[m.d.getMonth()]}</span>)}</div>
+      <div className="bx">{months.map((m, i) => <span key={m.key} className={i < pre ? "pre" : (isSeason ? i <= sm.now : i === pick) || hv === i ? "on" : ""}>{MON[m.d.getMonth()]}</span>)}</div>
     </section>
   );
 }
@@ -321,17 +323,17 @@ function Collected({ col, deposits }) {
         <>
           <div className="gauge">
             <svg width="220" height="124" viewBox="0 0 220 124" role="img" aria-label={t("{p} percent of billed is paid", { p: pct })}>
-              <path d="M18 110 A92 92 0 0 1 202 110" fill="none" stroke="var(--secondary)" strokeWidth="16" strokeLinecap="round" />
+              <path d="M18 110 A92 92 0 0 1 202 110" fill="none" stroke="var(--chart-bar)" strokeWidth="16" strokeLinecap="round" />
               <path d="M18 110 A92 92 0 0 1 202 110" fill="none" strokeWidth="16" strokeLinecap="round"
                 stroke={pct < 60 ? "oklch(0.72 0.16 62)" : GREEN} strokeDasharray={`${((ARC * pct) / 100).toFixed(1)} ${ARC}`} />
             </svg>
             <span className="gpct">{pct}%</span><span className="glab">{t("of billed is paid")}</span>
           </div>
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 12 }}>
             <div className="kv"><span><i style={{ background: GREEN }} />{t("Paid")}</span><b>{fmtN(col.paid)}</b></div>
-            <div className="kv"><span><i style={{ background: "var(--secondary)" }} />{t("Not due yet")}</span><b>{fmtN(col.not_due)}</b></div>
+            <div className="kv"><span><i style={{ background: "var(--chart-bar)" }} />{t("Not due yet")}</span><b>{fmtN(col.not_due)}</b></div>
             <div className="kv"><span><i style={{ background: "var(--warning)" }} />{t("Past due")}</span><b style={{ color: col.past_due ? "var(--warning-text)" : undefined }}>{fmtN(col.past_due)}</b></div>
-            <div className="kv"><span>{t("Billed")}</span><b>{fmtN(col.billed)}</b></div>
+            <div className="kv tot"><span>{t("Billed")}</span><b>{fmtN(col.billed)}</b></div>
             {deposits?.total > 0 && <div className="kv"><span>{t("Client deposits, not applied")}</span><b>{fmtN(deposits.total)}</b></div>}
           </div>
         </>
@@ -344,7 +346,9 @@ function Collected({ col, deposits }) {
 
 function todoText(x, t) {
   switch (x.key) {
-    case "past_due": return [t("Invoices past due"), t("{c} clients, oldest {d} days", { c: x.clients, d: x.oldest }), x.oldest > 30 ? "r" : "w"];
+    case "checkin_today": return [t("Check-in today"), x.count > 1 ? t("{c} and {n} more", { c: x.first, n: x.count - 1 }) : x.first, ""];
+    case "due_week": return [t("Invoices due this week"), t("Nearest {d}, {c}", { d: dWeek(x.nearest.date), c: x.nearest.client }), "w"];
+    case "past_due": return [t("Invoices past due"), pastDueSub(t, x.clients, x.oldest), x.oldest > 30 ? "r" : "w"];
     case "no_dp": return [t("No DP, check-in within 14 days"), t("Nearest {d}, {c}", { d: dWeek(x.nearest.date), c: x.nearest.client }), "w"];
     case "tentative": return [t("Tentative, check-in within 14 days"), t("Confirm or release rooms, nearest {d}", { d: dWeek(x.nearest.date) }), "w"];
     case "uninvoiced": return [t("Confirmed, not invoiced"), t("Nearest {d}, {c}", { d: dWeek(x.nearest.date), c: x.nearest.client }), ""];
@@ -376,7 +380,7 @@ function Todo({ items, count }) {
             return (
               <Link key={x.key} className="dt-r" role="row" href={x.url}>
                 <span role="cell" style={{ minWidth: 0 }}><span className="strong">{title}</span><span className="sub ell">{sub}</span></span>
-                <span className="n" role="cell"><span className={"cnt" + (tone ? " " + tone : "")}>{x.count}</span></span>
+                <span className="n" role="cell"><span className={"cnt" + (tone === "r" ? " r" : "")}>{x.count}</span></span>
                 <span className="n" role="cell">{x.amount != null && <><span className="bold">{money(x.amount, x.ccy)}</span><span className="mut">{x.ccy}</span></>}</span>
                 <span className="go" aria-hidden="true">{LIcon.next}</span>
               </Link>
@@ -490,11 +494,11 @@ function Ranking({ title, meta, rows, empty, hasPrev }) {
 function MoneyNow({ m }) {
   const { t } = useI18n();
   const rows = [
-    { label: t("Cash and bank"), sub: t("{n} accounts, today's rate", { n: m.cash.accounts }), v: fmtN(m.cash.sar), unit: "SAR", href: "/finance/bank-accounts/" },
-    { label: t("Staff cash held"), sub: m.staff.people ? t("{n} staff, oldest {d} days", { n: m.staff.people, d: m.staff.oldest ?? 0 }) : t("None"), v: fmtN(m.staff.sar), unit: "SAR", href: "/finance/bank-accounts/", warn: (m.staff.oldest || 0) > 14 },
-    { label: t("Waiting for Finance"), sub: m.pending.count ? t("{v} SAR, oldest {d} days", { v: fmtN(m.pending.sar), d: m.pending.oldest ?? 0 }) : t("Nothing pending"), v: fmtN(m.pending.count), unit: t("payments"), href: "/finance/payments/", warn: (m.pending.oldest || 0) > 3 },
+    { label: t("Bank and Cash"), sub: t("{n} accounts, today's rate", { n: m.cash.accounts }), v: fmtN(m.cash.sar), unit: "SAR", href: "/finance/bank-accounts/", zero: !m.cash.sar },
+    { label: t("Staff cash held"), sub: m.staff.people ? t("{n} staff, oldest {d} days", { n: m.staff.people, d: m.staff.oldest ?? 0 }) : t("None"), v: fmtN(m.staff.sar), unit: "SAR", href: "/finance/bank-accounts/", warn: (m.staff.oldest || 0) > 14, zero: !m.staff.sar },
+    { label: t("Waiting for Finance"), sub: m.pending.count ? t("{v} SAR, oldest {d} days", { v: fmtN(m.pending.sar), d: m.pending.oldest ?? 0 }) : t("Nothing pending"), v: fmtN(m.pending.count), unit: t("payments"), href: "/finance/payments/", warn: (m.pending.oldest || 0) > 3, zero: !m.pending.count },
   ];
-  if (m.not_sent) rows.push({ label: t("Not sent to HQ"), sub: m.not_sent.last_sent ? t("Last sent {d}", { d: dDay(m.not_sent.last_sent) }) : t("Nothing sent yet"), v: millions(m.not_sent.idr), unit: "IDR", href: "/remittance/", warn: m.not_sent.idr > 0 });
+  if (m.not_sent) rows.push({ label: t("Not sent to HQ"), sub: m.not_sent.last_sent ? t("Last sent {d}", { d: dDay(m.not_sent.last_sent) }) : t("Nothing sent yet"), v: millions(m.not_sent.idr), unit: "IDR", href: "/remittance/", warn: m.not_sent.idr > 0, zero: !m.not_sent.idr });
   return (
     <section className="da-card">
       <div className="da-card-h"><h2>{t("Money now")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
@@ -502,7 +506,7 @@ function MoneyNow({ m }) {
         {rows.map((r) => (
           <Link key={r.label} className="mn-r" href={r.href}>
             <span>{r.label}<small>{r.sub}</small></span>
-            <b className={r.warn ? "warn" : ""}>{r.v}<small>{r.unit}</small></b>
+            <b className={r.warn ? "warn" : r.zero ? "zero" : ""}>{r.v}<small>{r.unit}</small></b>
           </Link>
         ))}
       </div>
@@ -544,23 +548,27 @@ function StaffHome(props) {
   const { variant, period, sales, sold_months: sm, checkins, top, todo = [], uninvoiced, my_payments: pays, advance, seasons = [] } = props;
   const staff = variant === "staff";
   const isSeason = period.kind === "season";
+  // Nothing waiting: no To do card, the greeting line already says so.
+  const work = staff && todo.length > 0;
   return (
     <>
       <Head todo={todo} readOnly={!staff} period={period} seasons={seasons} today={props.today} onGo={props.onGo}
-        scopeNote={staff ? t("Showing your CLs only") : t("Read only")} />
+        scopeNote={staff ? null : t("Read only")} />
       {sales && <KpiRow period={period} sales={sales} sm={sm} isSeason={isSeason} kind={variant} checkins={checkins} uninvoiced={uninvoiced} />}
       {(sm || top) && (
-        <div className={"db-g2" + (sm && top ? "" : " one")}>
-          {sm && <SoldPerMonth sm={sm} sales={sales} period={period} isSeason={isSeason} title={staff ? t("My CL sold per month") : null} />}
-          {top && <TopClients top={top} title={staff ? t("My top clients") : null} />}
+        <div className={"db-g2 db-charts" + (sm && top ? "" : " one")}>
+          {sm && <SoldPerMonth sm={sm} sales={sales} period={period} isSeason={isSeason} />}
+          {top && <TopClients top={top} />}
         </div>
       )}
-      <div className={staff ? "db-g2b" : "db-g2 one"}>
-        {staff && <Todo items={todo} count={todo.reduce((a, x) => a + x.count, 0)} />}
-        {checkins && <Checkins data={checkins} title={staff ? t("My check-ins this week") : null} />}
-      </div>
+      {(work || checkins) && (
+        <div className={"db-g2b db-work" + (work && checkins ? "" : " one")}>
+          {work && <Todo items={todo} count={todo.reduce((a, x) => a + x.count, 0)} />}
+          {checkins && <Checkins data={checkins} />}
+        </div>
+      )}
       {staff && (pays || advance) && (
-        <div className={"db-g2b" + (pays && advance ? "" : " one")}>
+        <div className={"db-g2b db-mine" + (pays && advance ? "" : " one")}>
           {pays && <MyPayments rows={pays} />}
           {advance && <MyAdvance rows={advance} />}
         </div>
@@ -615,7 +623,6 @@ function MyAdvance({ rows }) {
 
 // ── Finance ──────────────────────────────────────────────────────────────
 function FinanceHome(props) {
-  const { t } = useI18n();
   const { period, todo = [], cash, received, flow, receivable, profit, collected: col, deposits, pay, chase, owed, to_pay: toPay, seasons = [] } = props;
   return (
     <>
@@ -667,8 +674,8 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
       foot: receivable.past_due ? t("{v} of it past due", { v: fmtN(receivable.past_due) }) : t("Nothing past due"), href: "/finance/ar-aging/" });
   }
   if (profit) {
-    kpis.push({ label: t("Branch profit"), v: profit.cur == null ? "–" : millions(profit.cur), unit: profit.cur == null ? "" : "IDR",
-      loss: profit.cur < 0, d: profit.cur != null && profit.prev ? pct(profit.cur, profit.prev) : null, good: !profit.prev || profit.cur >= profit.prev,
+    kpis.push({ label: t("Branch profit"), v: profit.cur == null ? t("No FX gain yet") : millions(profit.cur), unit: profit.cur == null ? "" : "IDR",
+      none: profit.cur == null, loss: profit.cur < 0, d: profit.cur != null && profit.prev ? pct(profit.cur, profit.prev) : null, good: !profit.prev || profit.cur >= profit.prev,
       foot: t("FX gain on rupiah sent to HQ"), href: "/finance/fund-flow/" });
   }
   const ccy = (cash?.currencies || []).filter((c) => c.native);
@@ -676,7 +683,7 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
     <div className={"db-kpis" + (cash ? (kpis.length === 3 ? " k3" : "") : " nohero")}>
       {cash && (
         <Link className="db-hero" href="/finance/bank-accounts/">
-          <span className="l">{t("Cash and bank")}</span>
+          <span className="l">{t("Bank and Cash")}</span>
           <span className="v">{fmtN(cash.sar)}<small>SAR</small></span>
           <span className="lines">
             {ccy.map((c) => <span key={c.ccy}><span>{c.ccy}</span><b>{money(c.native, c.ccy)}</b></span>)}
@@ -688,7 +695,7 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
         <Link key={k.label} className="la-kpi" href={k.href}>
           <span className="la-kt"><span className="l">{k.label}</span>{k.d && <Delta text={k.d} good={k.good} />}</span>
           <span className="la-kr">
-            <span className={"la-v" + (k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
+            <span className={"la-v" + (k.none ? " none" : k.loss ? " loss" : k.warn ? " warn" : "")}>{k.v}{k.unit && <small>{k.unit}</small>}</span>
             {k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />}
           </span>
           <span className="la-kb">{k.foot}</span>

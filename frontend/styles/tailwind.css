@@ -1,6 +1,21 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import "./legacy.css" layer(legacy);
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+/* Reduce motion: every animation and transition settles at once, wherever it
+   was declared. Spinners keep turning, slowly, because they mean "still busy". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin, .pf-spin {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
 
 :root,
 [data-theme="light"] {
@@ -12,16 +27,22 @@
      nowhere else on the chrome. Status hues (--green/--yellow/--red/--blue)
      stay semantic only. Geometry: card radius 20, control radius 14, button
      pill 999. */
-  --background: oklch(0.78 0.012 250);   /* cool light-grey canvas: white cards stand off it */
-  --foreground: oklch(0.205 0.012 260);   /* near-black ink */
-  --primary: oklch(0.205 0.012 260);      /* near-black primary pill */
-  --primary-hover: oklch(0.30 0.012 260);
-  --primary-active: oklch(0.36 0.012 260);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.958 0.004 250);    /* quiet-button / chip fill, hover surfaces */
-  --secondary-foreground: oklch(0.205 0.012 260);
-  --muted: oklch(0.972 0.003 250);
-  --muted-foreground: oklch(0.52 0.012 258);  /* supporting text, vs card ≈ 5.5:1 (AA) */
+  /* Paper (2026-10-21): warm paper neutrals after Notion / Radix Sand. Warm
+     off-white canvas, white cards, brown-black ink, leaf green for data. */
+  /* Zaitun (2026-10-22, palette U picked from the "Palet Warna HMS" gallery):
+     Paper's ink and white cards on an olive-tinted canvas; an olive sidebar card
+     with a cream pill for the page you are on; olive primary actions; olive
+     green for data and the one accent card. */
+  --background: #F2F3EC;                  /* olive-tinted canvas: white cards stand off it */
+  --foreground: #37352F;                  /* brown-black ink */
+  --primary: #4A5A2A;                     /* olive primary pill, 7.5:1 with white */
+  --primary-hover: #3E4C23;
+  --primary-active: #34401D;
+  --primary-foreground: #FFFFFF;
+  --secondary: #EEF0E6;                   /* quiet-button / chip fill, hover surfaces */
+  --secondary-foreground: #37352F;
+  --muted: #F6F7F1;
+  --muted-foreground: #64675A;            /* supporting text, vs card ≈ 5.8:1 (AA) */
   /* NOTE: shadcn's convention names this token "accent" (generic hover/highlight
      surface for Radix primitives — SelectItem, DropdownMenuItem, etc), but that
      collides with hw/static/hw/css/design.css's own --accent (HMS's brand color,
@@ -31,83 +52,134 @@
      instead to keep the two systems independent; only --color-accent (the
      Tailwind utility, e.g. bg-accent) still points at it, so shadcn components
      are unaffected. */
-  --surface-hover: oklch(0.958 0.004 250);
-  --surface-hover-foreground: oklch(0.205 0.012 260);
+  --surface-hover: #EEF0E6;
+  --surface-hover-foreground: #37352F;
   --destructive: oklch(0.58 0.21 25);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.912 0.005 250);       /* card / section hairline */
-  --input: oklch(0.878 0.006 250);        /* control border + table total-row rule, one step firmer */
-  --hairline: oklch(0.944 0.004 250);     /* between table rows — softer than --border */
+  --destructive-foreground: #FFFFFF;
+  --border: #E3E6D9;                      /* card / section hairline */
+  --input: #D1D6C3;                       /* control border + table total-row rule, one step firmer */
+  --field: #96948F;                       /* text field / select / checkbox outline, 3:1 on card (WCAG 1.4.11) */
+  --hairline: #F2F3EC;                    /* between table rows — softer than --border */
   --ring: oklch(0.72 0.15 85);            /* gold — the one hued colour on the chrome */
   --radius: 0.75rem;
-  --card: oklch(1 0 0);
+  --card: #FFFFFF;
   --card-foreground: var(--foreground);
-  --popover: oklch(1 0 0);
+  --popover: #FFFFFF;
   --popover-foreground: var(--foreground);
   /* --brand kept defined for the bg-brand/text-brand utilities and the dev
      StyleGuide, but v2.1 uses no decorative gold — nothing in the chrome
      consumes it. Mirrors --ring. */
   --brand: oklch(0.72 0.15 85);
-  --brand-foreground: oklch(1 0 0);
+  --brand-foreground: #FFFFFF;
   --brand-deep: var(--foreground);
+  /* Dashboard data colour and the one accent card. */
+  --data: #6B8E23;
+  --hero: #2F3A1F;
+  --hero-on: #F3E7A1;
+  /* Chart bars that are not the picked one: visible on the card, still under --data. */
+  --chart-bar: #D3D8C6;
+  /* The sidebar card: olive, with a cream pill on the page you are on. Inside
+     it, shell.css maps the ink tokens onto these. */
+  --sidebar: #2F3A1F;
+  --sidebar-fg: #F3F5EC;                  /* 10.9:1 on the sidebar */
+  --sidebar-muted: #B4BF9E;               /* 6.2:1 */
+  --sidebar-on: #F3E7A1;
+  --sidebar-on-fg: #33300A;               /* 10.7:1 on the pill */
+  /* Menus that open inside the sidebar take the page's ink back from these. */
+  --menu-muted: var(--muted-foreground);
+  --menu-line: var(--border);
+  --menu-hover: var(--secondary);
+  --menu-hair: var(--hairline);
   /* Homlu status and elevation tokens (tokens.json): a status reads as its
      tint behind its text colour; --warning fills a notification count. */
-  --success: oklch(0.62 0.16 152);
-  --success-text: oklch(0.46 0.13 152);
-  --success-tint: oklch(0.965 0.03 152);
+  --success: #12A150;
+  --success-text: #0B6B36;
+  --success-tint: #D6F2E1;
   --warning: oklch(0.72 0.16 62);
-  --on-warning: oklch(0.20 0.012 260);
-  --warning-text: oklch(0.48 0.13 62);
-  --warning-tint: oklch(0.965 0.03 62);
+  --on-warning: #37352F;
+  --warning-text: #A14800;
+  --warning-tint: #FFE9D1;
   --danger: var(--destructive);
-  --danger-text: oklch(0.50 0.19 25);
-  --danger-tint: oklch(0.965 0.03 25);
-  --info: oklch(0.55 0.16 250);
-  --info-text: oklch(0.48 0.15 250);
-  --info-tint: oklch(0.965 0.03 250);
-  --shadow-popover: 0 22px 50px -24px rgba(22,24,29,.28);
-  --shadow-menu: 0 22px 50px -22px rgba(22,24,29,.34);
-  --shadow-palette: 0 30px 60px -26px rgba(22,24,29,.42);
+  --danger-text: #B42318;
+  --danger-tint: #FDE2DE;
+  --info: #337EA9;
+  --info-text: #1A5BAE;
+  --info-tint: #DCEAFB;
+  --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
+  --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
+  --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
+  /* Carried over from design.css (legacy layer) with the values it had, so the
+     app no longer depends on that file for them. --green/--bg alias their Paper
+     names; --red/--yellow stay as they were until they are folded into
+     --danger/--warning on purpose. */
+  --bg: var(--background);
+  --green: var(--success);
+  --green-muted: rgba(18,161,80,.1);
+  --red: oklch(0.577 0.215 27.3);
+  --yellow: oklch(0.554 0.121 66.4);
+  --r: 6px;
+  --z-base: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
 }
 
 [data-theme="dark"] {
-  /* v2.1 dark tokens: canvas 0.145, card 0.18, hairline 0.22, separator 0.24,
-     card border 0.26, control border 0.32, text 0.985, muted 0.66. Primary
-     inverts to a white pill; the focus ring stays gold in both themes. */
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-hover: oklch(0.90 0 0);
-  --primary-active: oklch(0.82 0 0);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.24 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.18 0 0);
-  --muted-foreground: oklch(0.66 0 0);  /* vs card(0.18) ≈ 4.6:1 (AA) */
-  --surface-hover: oklch(0.24 0 0);
-  --surface-hover-foreground: oklch(0.985 0 0);
+  /* Paper dark (2026-10-21): warm grey-black after Notion dark, not pure black.
+     Canvas #141414, card two steps up, warm off-white text. Primary inverts to
+     an off-white pill; the focus ring stays gold in both themes. */
+  /* Zaitun dark (2026-10-22): olive-black canvas and cards, a lighter olive
+     sidebar card, cream primary pill with dark text. */
+  --background: #111310;
+  --foreground: #E6E5E3;
+  --primary: #F3E7A1;
+  --primary-hover: #F7EEBC;
+  --primary-active: #EADB82;
+  --primary-foreground: #191919;
+  --secondary: #21251D;
+  --secondary-foreground: #E6E5E3;
+  --muted: #191C16;
+  --muted-foreground: #9B9A97;  /* vs card(#191C16) ≈ 6.3:1 (AA) */
+  --surface-hover: #21251D;
+  --surface-hover-foreground: #E6E5E3;
   --destructive: oklch(0.58 0.21 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.26 0 0);
-  --input: oklch(0.32 0 0);
-  --hairline: oklch(0.22 0 0);
+  --destructive-foreground: #E6E5E3;
+  --border: #2B3026;
+  --input: #3A4133;
+  --field: #6E6D69;   /* field outline, 3.15:1 on card */
+  --hairline: #21251D;
   --ring: oklch(0.72 0.15 85);
-  --card: oklch(0.18 0 0);
+  --card: #191C16;
   --card-foreground: var(--foreground);
-  --popover: oklch(0.18 0 0);
+  --popover: #1E221A;
   --popover-foreground: var(--foreground);
   --brand: oklch(0.72 0.15 85);
-  --brand-foreground: oklch(0.145 0 0);
+  --brand-foreground: #191919;
   --brand-deep: var(--foreground);
-  --success-text: oklch(0.72 0.15 152);
-  --success-tint: oklch(0.24 0.045 152);
-  --warning-text: oklch(0.78 0.14 62);
-  --warning-tint: oklch(0.24 0.045 62);
+  --data: #A7C957;
+  --hero: #364326;
+  --hero-on: #F3E7A1;
+  --chart-bar: #3B4234;
+  --sidebar: #364326;
+  --sidebar-fg: #F3F5EC;
+  --sidebar-muted: #B4BF9E;   /* 5.5:1 on the sidebar */
+  --sidebar-on: #F3E7A1;
+  --sidebar-on-fg: #33300A;
+  --success: #52B788;
+  --success-text: #6FE0A0;
+  --success-tint: #13321F;
+  --on-warning: #191919;
+  --warning-text: #FFB86B;
+  --warning-tint: #3A2712;
   --danger: var(--destructive);
-  --danger-text: oklch(0.70 0.17 25);
-  --danger-tint: oklch(0.24 0.045 25);
-  --info-text: oklch(0.70 0.13 250);
-  --info-tint: oklch(0.24 0.045 250);
+  --danger-text: #FF8A80;
+  --danger-tint: #3D1A17;
+  --info-text: #8AB8FF;
+  --info-tint: #172A45;
+  --green-muted: rgba(82,183,136,.14);
+  --red: #FF453A;
+  --yellow: #F5A623;
 }
 
 @theme inline {
@@ -125,6 +197,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-field: var(--field);
   --color-ring: var(--ring);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -153,11 +226,10 @@
      shadcn's hairline, and it's the single biggest reason our fields looked
      like a different system.
 
-     Declared in px, not rem, on purpose: design.css sets `html { font-size:
-     14px }`, so 1rem is 14px here and every rem-based Tailwind utility comes
-     out 12.5% under its name — h-12 is 42px, size-8 is 28px, rounded-2xl is
-     14px. Homlu's numbers were measured in px, so the control tokens and the
-     component classes below both use explicit px to land on them exactly. */
+     Declared in px: Homlu's numbers were measured in px, so the control tokens
+     and the component classes below use explicit px to land on them exactly.
+     (The root was 14px until 2026-10-22, which also put every rem utility
+     12.5% under its name; it is the browser's 16px now.) */
   --radius-control: 14px;
 }
 
@@ -196,8 +268,8 @@
    search panel sat flush against the panel edge instead of inside the
    measured 16px/8px rhythm Homlu's ⌘K palette uses.
 
-   Restated in px rather than reusing the utilities: html is 14px here, so a
-   rem-based class (px-4 → 14px) comes out under its Homlu-measured name.
+   Restated in px because these are Homlu's measured figures (18px rows,
+   54px input), not the component's own utility values.
    The empty/loading/error blocks carry their own data-slots in
    search-overlay.jsx so the CSS does not have to guess which direct child
    of the list is which. */
@@ -221,68 +293,6 @@
 [data-slot="dialog-content"] [data-slot="command-state-empty"] { padding: 48px 24px; }
 [data-slot="dialog-content"] [data-slot="command-state-loading"] { padding: 32px 0; }
 [data-slot="dialog-content"] [data-slot="command-state-error"] { padding: 16px; }
-
-/* ── Button padding ───────────────────────────────────────────────────────
-   design.css line 89 is `*, *::before, *::after { box-sizing: border-box;
-   margin: 0; padding: 0 }` — a classic reset, and unlayered. Tailwind's
-   padding utilities live in `@layer utilities`, and unlayered rules beat
-   layered ones outright, so `px-4` / `px-[22px]` on a Button never applied:
-   every shadcn Button in this app has been rendering with zero horizontal
-   padding. On a full-pill button that is not subtle — a 48px-tall submit
-   button with no padding is literally a 48px circle with the label spilling
-   out of it, which is what the form footer was showing.
-
-   Restored here rather than by touching design.css's reset, which the entire
-   legacy stylesheet is built on top of. Keyed off the data-size attribute the
-   Button component already emits, so it tracks the cva sizes below it, and
-   deliberately unscoped by .shadcn-root: Radix portals dialog/dropdown content
-   to document.body, outside every page's root wrapper. Icon sizes are square
-   by design and stay at zero. */
-/* The slot list is load-bearing. Button renders `Slot.Root` under `asChild`,
-   and Radix's Slot lets the CHILD's props win for anything both set — so an
-   AlertDialogAction/Cancel (Button asChild + Primitive.Action) comes out as
-   `data-slot="alert-dialog-action"`, never `"button"`. Keying on
-   `[data-slot="button"]` alone therefore skipped every alert-dialog footer
-   button, which is why they rendered as bare circles. The same happens to a
-   Button used as a DropdownMenuTrigger (ExportMenu). `data-size` survives
-   because only Button sets it. */
-:is(
-  [data-slot="button"],
-  [data-slot="alert-dialog-action"],
-  [data-slot="alert-dialog-cancel"],
-  [data-slot="dropdown-menu-trigger"]
-) {
-  &[data-size="default"] { padding-inline: 16px; }
-  &[data-size="default"]:has(> svg) { padding-inline: 12px; }
-  &[data-size="sm"] { padding-inline: 12px; }
-  &[data-size="sm"]:has(> svg) { padding-inline: 10px; }
-  &[data-size="xs"] { padding-inline: 8px; }
-  &[data-size="lg"] { padding-inline: 22px; }
-  &[data-size="lg"]:has(> svg) { padding-inline: 18px; }
-
-  /* design.css line 127 is an unlayered `:focus-visible { outline: 2px solid
-     var(--accent); outline-offset: 2px }`, so it beat the base's `outline-none`
-     and every shadcn control focused with the legacy orange/white outline
-     instead of the designed `ring-ring/50` halo — two focus treatments in one
-     app. Cleared here so the ring utility is the only one left standing;
-     legacy `.btn`/link focus is untouched. */
-  &:focus-visible { outline: none; }
-}
-
-/* ── Alert dialog padding ─────────────────────────────────────────────────
-   Same `* { padding: 0 }` reset, same outcome as the buttons above: the
-   primitive's `p-6` is a layered utility and loses to it, so ConfirmDialog has
-   been painting its title, message and footer flush against the panel edge —
-   text touching the border on all four sides, footer buttons hard against the
-   bottom-right corner.
-
-   Only alert-dialog-content needs this. dialog-content is deliberately p-0
-   (form-modal supplies its own header/body/footer chrome further down this
-   file), and the other Radix surfaces set their padding on inner items.
-
-   Restated in px rather than reusing `p-6`: html is 14px here, so the utility
-   would resolve to 21px, not the 24px the rest of the overlay chrome uses. */
-[data-slot="alert-dialog-content"] { padding: 24px; }
 
 /* ── Plain dialog padding ────────────────────────────────────────────────
    The same `* { padding: 0 }` reset hits the shadcn DialogContent's `p-6`
@@ -400,15 +410,6 @@
 [data-slot="form-field"] textarea::placeholder { color: var(--muted-foreground); }
 [data-slot="form-field"] input[aria-invalid="true"],
 [data-slot="form-field"] textarea[aria-invalid="true"] { border-color: var(--destructive); }
-/* design.css's unlayered `* { padding: 0 }` beats the trigger's own
-   px-[14px] utility (utilities live in a layer), so every select outside a
-   form field (list filter bars) rendered its text flush against the border.
-   Restore the component's own inline padding here. */
-[data-slot="select-trigger"] { padding-inline: 14px; }
-/* Same story for design.css's `thead th { text-align: left }`: it beat the
-   text-right utility, so numeric columns had right-aligned cells under a
-   left-aligned header. */
-thead th.text-right { text-align: right; }
 /* Radix's SelectTrigger is a <button>, so the reset above never reaches it —
    match it to the native controls by hand or the two sit side by side in the
    same row at different heights. */
@@ -425,8 +426,7 @@ thead th.text-right { text-align: right; }
 /* forms.css's field grids were spaced for 30px-tall fields; at 40px the 12px
    gutter reads as cramped, especially once a field carries a hint or error. */
 .shadcn-root form .fg-2,
-.shadcn-root form .fg-3,
-.shadcn-root form .fg-4 { gap: 16px; }
+.shadcn-root form .fg-3 { gap: 16px; }
 
 /* Native file inputs render their own button + filename text, so a fixed
    height with the control's side padding clips the label and pushes the widget
@@ -504,12 +504,10 @@ thead th.text-right { text-align: right; }
    is narrower, and at 3+ columns the fields get too tight to read their own
    values — placeholders were being truncated mid-word ("Receipt cod…",
    "Transfer BC…"). Drop to two columns inside the modal, one on phones. */
-.hms-modal-body .fg-3,
-.hms-modal-body .fg-4 { grid-template-columns: repeat(2, 1fr); }
+.hms-modal-body .fg-3 { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 640px) {
   .hms-modal-body .fg-2,
-  .hms-modal-body .fg-3,
-  .hms-modal-body .fg-4 { grid-template-columns: 1fr; }
+  .hms-modal-body .fg-3 { grid-template-columns: 1fr; }
 }
 
 /* Homlu's reference background is flat solid neutral gray/black — no ambient
@@ -517,7 +515,6 @@ thead th.text-right { text-align: right; }
    inspection). shell.css's .base-bg blob/dot-grid decoration predates this
    direction and visibly contradicts it, so it's suppressed here rather than
    deleted from shell.css (a large shared stylesheet other pages still read). */
-.base-bg { display: none; }
 
 /* Create/Edit forms open as a dialog (Homlu direction, 2026-07-27) — see
    form-modal.jsx. DialogContent already supplies the card surface + 24px
@@ -572,8 +569,7 @@ thead th.text-right { text-align: right; }
    mount into the body long after this file. Invoice's own
    `.inv-form.page { padding-bottom: 112px }` phone rule did exactly that. */
 .form-modal-content .hms-modal-body .form-page,
-.form-modal-content .hms-modal-body .page,
-.form-modal-content .hms-modal-body .page-sm {
+.form-modal-content .hms-modal-body .page {
   max-width: none;
   padding: 0;
   margin: 0;
@@ -609,7 +605,7 @@ thead th.text-right { text-align: right; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -706,7 +702,7 @@ thead th.text-right { text-align: right; }
   .form-modal-content { max-height: 92vh; border-radius: 20px; }
   .hms-modal-body { padding: 20px 16px; }
   .hms-modal-head { padding: 16px; }
-  .hms-modal-body .hms-form-actions { margin: 8px -16px -20px; padding: 14px 16px; bottom: -20px; }
+  .hms-modal-body .hms-form-actions { margin: 8px -16px -20px; padding: 16px 16px; bottom: -20px; }
 }
 
 /* ── Scroll-lock shell compensation ───────────────────────────────────────
@@ -920,17 +916,11 @@ thead th.text-right { text-align: right; }
   .shadcn-root .filter-bar .search-wrap { height: 44px; min-width: 0; flex: 1 1 auto; }
   .shadcn-root .filter-bar .search-wrap input:not([type="checkbox"]):not([type="radio"]) { min-width: 0; }
   .shadcn-root .filter-bar .fbar-actions { width: auto; min-width: 0; margin-top: 0; gap: 8px; flex: 0 0 auto; }
-  .shadcn-root .filter-bar .fbar-actions .sort-wrap,
-  .shadcn-root .filter-bar .fbar-actions .filter-panel-wrap { flex: 0 0 auto; width: auto; }
+  
   /* the sort button collapses to its icon only */
-  .shadcn-root .filter-bar .sort-wrap .fbar-btn {
-    width: 44px; height: 44px; padding: 0; gap: 0;
-    font-size: 0; overflow: hidden;
-  }
-  .shadcn-root .filter-bar .sort-wrap .fbar-btn svg { width: 17px; height: 17px; }
-  .shadcn-root .filter-bar .filter-panel-wrap .fbar-btn {
-    width: auto; height: 44px; padding: 0 14px; border-color: var(--foreground);
-  }
+  
+  
+  
 }
 
 /* ── List-page header (PageHeader.jsx) ── */
@@ -960,193 +950,53 @@ thead th.text-right { text-align: right; }
 .shadcn-root .search-wrap svg { color: var(--muted-foreground); }
 .shadcn-root .search-wrap input::placeholder { color: var(--muted-foreground); }
 
-.shadcn-root .fbar-btn {
-  height: 38px;
-  padding: 0 16px;
-  gap: 8px;
-  background: var(--card);
-  border: 1px solid var(--input);
-  border-radius: 9999px;
-  color: var(--foreground);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.shadcn-root .fbar-btn:hover { color: var(--foreground); border-color: var(--foreground); background: var(--card); }
-.shadcn-root .fbar-btn svg { color: var(--muted-foreground); }
 /* open panel / active filters → the button border goes to full ink */
-.shadcn-root .sort-wrap:has(.sort-menu.open) .fbar-btn,
-.shadcn-root .filter-panel-wrap:has(.filter-panel.open) .fbar-btn,
-.shadcn-root .fbar-btn:has(.fbar-count) { border-color: var(--foreground); }
-.shadcn-root .fbar-btn .fbar-count {
-  min-width: 19px; height: 19px; padding: 0 5px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--foreground); color: var(--background);
-  border-radius: 9999px;
-  font-size: 10.5px; font-weight: 600; line-height: 1;
-}
 
 /* Sort menu + Filter panel — the library .pnl: 20px radius, deep soft
    shadow, no tint. Desktop only; mobile turns them into bottom sheets
    further down. */
-.shadcn-root .sort-menu,
-.shadcn-root .filter-panel {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--popover);
-}
-@media (min-width: 601px) {
-  .shadcn-root .sort-menu,
-  .shadcn-root .filter-panel {
-    top: calc(100% + 6px);
-    box-shadow: 0 22px 50px -24px oklch(0.205 0.012 260 / .28);
-  }
-  .shadcn-root .sort-menu { width: 236px; padding: 8px; }
-  .shadcn-root .filter-panel { width: 320px; }
-}
 
 /* Mobile: bottom sheet with a grabber + a scrim (faked with a huge ring so
    no extra DOM is needed), doc 02b-1c. */
-@media (max-width: 600px) {
-  .shadcn-root .filter-panel.open,
-  .shadcn-root .sort-menu.open {
-    border-radius: 24px 24px 0 0;
-    border-left: 0; border-right: 0; border-bottom: 0;
-    box-shadow: 0 0 0 100vmax oklch(0.205 0.012 260 / .34);
-    padding-top: 14px;
-    animation: sheetIn .24s cubic-bezier(.32,.72,0,1);
-  }
-  .shadcn-root .filter-panel.open::before,
-  .shadcn-root .sort-menu.open::before {
-    content: "";
-    display: block;
-    width: 38px; height: 4px;
-    border-radius: 9999px;
-    background: var(--border);
-    margin: 0 auto 12px;
-  }
-  .shadcn-root .fp-status-opt { height: 46px; }
-  .shadcn-root .fp-footer {
-    padding: 14px 18px calc(16px + env(safe-area-inset-bottom));
-  }
-  /* full-width Apply on the sheet */
-  .shadcn-root .fp-footer [data-slot="button"]:last-child { flex: 1; }
-}
 
-.shadcn-root .sort-opt {
-  height: 40px; padding: 0 10px;
-  border-radius: 12px;
-  font-size: 13px; font-weight: 400; color: var(--foreground);
-}
-.shadcn-root .sort-opt:hover { background: var(--secondary); color: var(--foreground); }
-.shadcn-root .sort-opt.active { color: var(--foreground); font-weight: 600; }
-.shadcn-root .sort-opt.active::after { content: ""; width: 15px; height: 15px; flex: none; background: var(--foreground); -webkit-mask: var(--hms-check) center/contain no-repeat; mask: var(--hms-check) center/contain no-repeat; }
-
-.shadcn-root .fp-head { padding: 15px 18px 13px; border-bottom: 1px solid var(--hairline); }
-.shadcn-root .fp-title { font-size: 14.5px; font-weight: 600; color: var(--foreground); text-transform: none; letter-spacing: normal; }
 .shadcn-root .fp-section { padding: 16px 18px 4px; border-bottom: 0; }
 .shadcn-root .fp-section + .fp-section { padding-top: 12px; }
-.shadcn-root .fp-section-head { padding: 0; margin-bottom: 9px; }
-.shadcn-root .fp-section-label {
-  font-size: 11px; font-weight: 600; letter-spacing: .13em;
-  text-transform: uppercase; color: var(--muted-foreground);
-}
+
 .shadcn-root .fp-reset { font-size: 11px; color: var(--muted-foreground); }
 .shadcn-root .fp-reset:hover { color: var(--foreground); }
 
-.shadcn-root .fp-date-row { padding: 0; gap: 9px; }
-.shadcn-root .fp-date-field label { font-size: 11px; color: var(--muted-foreground); }
-.shadcn-root .fp-date-field input[type="date"] {
-  height: 38px;
-  border: 1px solid var(--input);
-  border-radius: 12px;
-  font-size: 12.5px;
-  padding: 0 12px;
-}
-.shadcn-root .fp-date-field input[type="date"]:focus { border-color: var(--foreground); }
-
-.shadcn-root .fp-status-group { gap: 0; }
-.shadcn-root .fp-status-opt { height: 40px; padding: 0 10px; border-radius: 12px; }
-.shadcn-root .fp-status-opt:hover,
-.shadcn-root .fp-status-opt.selected { background: var(--secondary); }
 /* the dot becomes an 18px check marker — round for single-select,
    .fp-status-group[data-multi] makes it a rounded square */
-.shadcn-root .fp-status-dot {
-  width: 18px; height: 18px;
-  border: 1.5px solid var(--input);
-  border-radius: 9999px;
-  background: transparent;
-}
-.shadcn-root .fp-status-group[data-multi] .fp-status-dot { border-radius: 6px; }
-.shadcn-root .fp-status-dot {
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.shadcn-root .fp-status-opt.selected .fp-status-dot {
-  border-color: var(--foreground);
-  background: var(--foreground);
-}
-.shadcn-root .fp-status-opt.selected .fp-status-dot::after {
-  content: "";
-  width: 11px; height: 11px;
-  background: var(--card);
-  -webkit-mask: var(--hms-check) center/contain no-repeat;
-  mask: var(--hms-check) center/contain no-repeat;
-}
-.shadcn-root .fp-status-opt-label { font-size: 13px; font-weight: 400; color: var(--foreground); }
-.shadcn-root .fp-status-opt.selected .fp-status-opt-label { font-weight: 600; }
-.shadcn-root .fp-status-count {
-  height: 21px; padding: 0 8px;
-  display: inline-flex; align-items: center;
-  background: var(--secondary); border-radius: 9999px;
-  font-size: 11px; font-weight: 600; color: var(--muted-foreground);
-  font-variant-numeric: tabular-nums;
-}
+
 /* v2.1 drops the per-status hue on the option text — the pill in the table
    already carries it, and a menu full of coloured labels reads as noise. */
-.shadcn-root .fp-status-opt.c-def, .shadcn-root .fp-status-opt.c-lun,
-.shadcn-root .fp-status-opt.c-rec, .shadcn-root .fp-status-opt.c-act,
-.shadcn-root .fp-status-opt.c-ten, .shadcn-root .fp-status-opt.c-par,
-.shadcn-root .fp-status-opt.c-pen, .shadcn-root .fp-status-opt.c-star,
-.shadcn-root .fp-status-opt.c-can, .shadcn-root .fp-status-opt.c-bel,
-.shadcn-root .fp-status-opt.c-ina, .shadcn-root .fp-status-opt.c-mak,
-.shadcn-root .fp-status-opt.c-mad, .shadcn-root .fp-status-opt.c-all { color: var(--foreground); }
-
-.shadcn-root .fp-footer { padding: 13px 18px; border-top: 1px solid var(--hairline); background: transparent; }
-
-/* Active-filter chips (doc 02b): white outline pill + ×, one per value. */
-.hms-fchips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; }
-.hms-fchips-label { font-size: 11.5px; color: var(--muted-foreground); }
-.hms-fchip {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 24px; padding: 0 10px;
-  border: 1px solid var(--input);
-  background: var(--card);
-  border-radius: 9999px;
-  font-size: 11.5px; font-weight: 600; color: var(--foreground);
-  cursor: pointer;
-}
-.hms-fchip svg { color: var(--muted-foreground); }
-.hms-fchip:hover { border-color: var(--foreground); }
-.hms-fchips-clear {
-  font-size: 11.5px; font-weight: 600; color: var(--muted-foreground);
-  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
-}
-.hms-fchips-clear:hover { color: var(--foreground); }
 
 /* ── List mobile card — Homlu v2.1 doc 02d ──────────────────────────────
    Plain card (no colour stub, no inline row actions): no + status badge,
    then guest / hotel, then a hairline row with stay·rooms on the left and
    the Total figure on the right. ── */
 @media (max-width: 600px) {
-  .shadcn-root .m-card,
-  .shadcn-root .m-card.m-card--no-stub {
-    display: flex;
-    flex-direction: column;
-    grid-template-columns: none;
+  /* One card holding hairline-divided rows, as list-a's table card does on
+     desktop, rather than a stack of separately bordered cards. */
+  .shadcn-root .m-card-list {
+    gap: 0;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius-card);
     overflow: hidden;
   }
+  .shadcn-root .m-card,
+  .shadcn-root .m-card.m-card--no-stub {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 0;
+  }
+  .shadcn-root .m-card:last-child { border-bottom: 0; }
+  .shadcn-root .m-card:active { background: var(--secondary); }
   .shadcn-root .m-card-stub { display: none; }
   .shadcn-root .m-card-actions { display: none; }
   .shadcn-root .m-card-main { padding: 13px 15px; display: flex; flex-direction: column; gap: 8px; }
@@ -1161,13 +1011,14 @@ thead th.text-right { text-align: right; }
     border-top: 1px solid var(--hairline);
     display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
   }
-  .shadcn-root .m-card-total-group { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; margin-left: 0; }
-  .shadcn-root .m-card-total-group > span:first-child { font-size: 11px !important; color: var(--muted-foreground) !important; letter-spacing: 0 !important; font-weight: 500 !important; text-transform: none !important; }
-  .shadcn-root .m-card-total-group > span:last-child { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+  
+  
+  
   /* Grouping band for grouped card lists (Table's `section` prop): the
      desktop table's uppercase band, restated as a list header. */
   .shadcn-root .m-card-section {
-    padding: 4px 2px 0;
+    padding: 14px 15px 6px;
+    border-bottom: 1px solid var(--hairline);
     font-size: 11px;
     font-weight: 600;
     letter-spacing: .08em;
@@ -1243,7 +1094,7 @@ thead th.text-right { text-align: right; }
      spacing/nav-row sizing below now follows 21st.dev's "Dashboard Sidebar"
      reference instead (see the grouped-nav block further down). */
   :root { --sidebar-w: 256px; --sidebar-w-collapsed: 72px; }
-  body { padding-top: 0; padding-left: var(--sidebar-w); transition: padding-left .18s ease; }
+  body { padding-top: 0; padding-left: var(--sidebar-w); }
   body.sidebar-collapsed { padding-left: var(--sidebar-w-collapsed); }
 
   .hms-sidebar {
@@ -1278,25 +1129,12 @@ thead th.text-right { text-align: right; }
      square instead of a tall rounded rectangle. */
   body.sidebar-collapsed .hms-sidebar { width: var(--sidebar-w-collapsed); padding-left: 12px; padding-right: 12px; }
 
-  .hms-collapse-btn {
-    position: relative;
-    flex-shrink: 0;
-    width: 32px; height: 32px;
-    display: flex; align-items: center; justify-content: center;
-    border: none; background: transparent; border-radius: 8px;
-    color: var(--muted-foreground);
-    cursor: pointer;
-    transition: background .12s, color .12s, transform .12s ease;
-  }
+  
   /* 32px visible, 40px hit target — keeps the chrome compact without a
      sub-spec tap area. */
-  .hms-collapse-btn::after {
-    content: "";
-    position: absolute;
-    inset: -4px;
-  }
-  .hms-collapse-btn:hover { background: var(--secondary); color: var(--foreground); }
-  .hms-collapse-btn:active { transform: scale(0.94); }
+  
+  
+  
 
   /* Grouped nav (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference,
      arunjdass): headed clusters (Operations/Schedule/Admin) instead of one
@@ -1306,93 +1144,46 @@ thead th.text-right { text-align: right; }
      size of each row is not. */
   /* Brand block (v2.1) — replaces the empty space above the nav: a 34px
      rounded near-black mark + the two-line product name. */
-  .hms-brand { display:flex; align-items:center; gap:11px; padding:0 8px; margin-bottom:4px; text-decoration:none; flex:none; }
-  .hms-brand-mark {
-    width:34px; height:34px; flex:none; border-radius:11px;
-    background:var(--foreground); color:var(--background);
-    display:flex; align-items:center; justify-content:center;
-    font-size:13px; font-weight:600; letter-spacing:-.02em;
-  }
-  .hms-brand-text { min-width:0; display:flex; flex-direction:column; }
-  .hms-brand-name { font-size:13.5px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .hms-brand-sub { font-size:11px; color:var(--muted-foreground); white-space:nowrap; }
-  body.sidebar-collapsed .hms-brand { justify-content:center; padding:0; }
-  body.sidebar-collapsed .hms-brand-text { display:none; }
+  
+  
+  
+  
+  
+  
+  
 
-  .hms-sidebar-group + .hms-sidebar-group { margin-top: 15px; }
-  .hms-sidebar-heading {
-    padding: 0 10px 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .13em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-  }
-  .hms-sidebar-subheading {
-    padding: 14px 10px 4px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--muted-foreground);
-    opacity: 0.7;
-  }
+  
+  
+  
 
-  .hms-sidebar-nav {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    /* The nav is the scrolling element in practice (flex:1) — hide its
-       scrollbar on top of the aside's so no scrollbar shows at all. */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .hms-sidebar-nav::-webkit-scrollbar { display: none; }
+  
+  
 
-  .hms-sidebar-group { display: flex; flex-direction: column; gap: 1px; }
+  
 
-  .hms-sidebar-link {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    min-height: 38px;
-    padding: 0 10px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted-foreground);
-    text-decoration: none;
-    transition: color .12s, border-color .12s;
-  }
+  
   /* v2.1: hover only shifts the ink — no champagne fill. */
-  .hms-sidebar-link:hover { color: var(--foreground); }
+  
   /* Icons are flex children of the link; without this they inherit the
      default flex-shrink:1 and get visually squeezed down in the collapsed
      rail, where the link's own padding leaves less width than the icon's
      20px intrinsic size. */
-  .hms-sidebar-link svg { flex-shrink: 0; }
+  
   /* Active nav item (v2.1): a plain white card on the tinted rail — full ink,
      weight 600, hairline border. No gold wash; the rail is the only "second
      surface" and it earns its place through the shell/canvas split, not hue.
      Identical in light and dark (dark card 0.18 reads against canvas 0.145). */
-  .hms-sidebar-link.active { color: var(--foreground); background: var(--card); border-color: var(--border); font-weight: 600; }
+  
 
   /* Collapsed state: icon-only rail — hide every text label, center icons. */
-  body.sidebar-collapsed .hms-sidebar-heading,
-  body.sidebar-collapsed .hms-sidebar-subheading,
-  body.sidebar-collapsed .hms-sidebar-link span {
-    display: none;
-  }
+  
   /* Collapsed row is 48px wide (see .hms-sidebar's own collapsed padding
      override above) — the link's normal 12px horizontal padding would leave
      just 24px for a 20px icon with barely any breathing room, so it's
      dropped here in favor of centering. Radius 10px on this now-square
      48x48 box reads as a rounded box; var(--radius) (12px) was tuned for
      the wider expanded row and looked stadium-like at this size. */
-  body.sidebar-collapsed .hms-sidebar-link { justify-content: center; min-height: 48px; padding-left: 0; padding-right: 0; border-radius: 10px; }
+  
 
   /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
      h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
@@ -1414,149 +1205,71 @@ thead th.text-right { text-align: right; }
     transition: left .18s ease;
   }
   body.sidebar-collapsed .hms-topbar { left: var(--sidebar-w-collapsed); }
-  .hms-topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
-  .hms-topbar-crumb { display: flex; align-items: center; gap: 8px; font-size: 14px; min-width: 0; overflow: hidden; }
-  .hms-topbar-crumb-ws { color: var(--muted-foreground); white-space: nowrap; }
-  .hms-topbar-crumb-sep { color: var(--muted-foreground); opacity: .5; }
-  .hms-topbar-crumb-page { color: var(--foreground); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .hms-topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-  .hms-topbar-account { margin-left: 4px; }
+  
+  
+  
+  
+  
+  
+  
 
   /* Icon buttons (bell/theme) restyled desktop-only to a circular hit-target
      with a transparent idle state — .topbar-icon-btn's base rules live in
      design.css (shared with mobile chrome), so this only overrides inside
      .hms-topbar. 40px clears the desktop min hit area (was 36); the base rule
      already transitions colour/background, this adds the press response. */
-  .hms-topbar .topbar-icon-btn {
-    width: 40px; height: 40px;
-    border-radius: var(--radius-full, 9999px);
-    transition: color .12s, background .12s, transform .12s ease;
-  }
-  .hms-topbar .topbar-icon-btn:hover { background: var(--secondary); }
-  .hms-topbar .topbar-icon-btn:active { transform: scale(0.96); }
+  
+  
+  
 
   /* Search — v2.1 doc 1a: 36px white pill, 1px control border, muted prompt,
      and a keycap chip (22px, radius 7) on the neutral fill. */
-  .hms-topbar-search {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    height: 36px;
-    padding: 0 6px 0 14px;
-    border-radius: 9999px;
-    border: 1px solid var(--input);
-    background: var(--card);
-    color: var(--muted-foreground);
-    font-size: 13px;
-    cursor: pointer;
-    transition: border-color .12s, color .12s, transform .12s ease;
-  }
-  .hms-topbar-search:hover { border-color: var(--foreground); color: var(--foreground); }
-  .hms-topbar-search:active { transform: scale(0.98); }
-  .hms-topbar-search span { white-space: nowrap; }
-  .hms-topbar-search kbd {
-    width: 22px; height: 22px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 7px;
-    background: var(--secondary);
-    border: 0;
-    box-shadow: none;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: var(--font-mono);
-    color: var(--muted-foreground);
-  }
-  @media (max-width: 900px) {
-    .hms-topbar-search { padding: 0 12px; }
-    .hms-topbar-search span, .hms-topbar-search kbd { display: none; }
-  }
+  
+  
+  
+  
+  
+  
 
   /* Account trigger — v2.1 doc 1a: a bordered pill, 34px, with a 24px
      near-black monogram avatar + username + chevron. */
-  .hms-acct-trigger {
-    display: inline-flex; align-items: center; gap: 9px;
-    height: 34px; padding: 0 12px 0 5px;
-    background: var(--card);
-    border: 1px solid var(--input);
-    border-radius: 9999px;
-    font-family: inherit;
-    cursor: pointer;
-    transition: border-color .12s, background .12s;
-  }
-  .hms-acct-trigger:hover { border-color: var(--foreground); }
-  .hms-acct-trigger-avatar {
-    width: 24px; height: 24px; flex: none;
-    border-radius: 9999px;
-    background: var(--foreground); color: var(--background);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 10.5px; font-weight: 600; overflow: hidden;
-  }
-  .hms-acct-trigger-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .hms-acct-trigger-name { font-size: 12.5px; font-weight: 500; color: var(--foreground); }
-  .hms-acct-trigger-chev { color: var(--muted-foreground); }
+  
+  
+  
+  
+  
+  
 
   /* Account menu — v2.1 doc 1e: card radius 20, modal elevation, 266px.
      Header carries avatar 38 + username + full name + a filled ink role
      badge; option rows are 42px with an optional right-hand value; Log out
      is red text under a full-width rule, not a red button. */
-  .hms-acct-menu {
-    position: absolute; top: calc(100% + 8px); right: 0;
-    width: 266px;
-    background: var(--popover);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    box-shadow: 0 22px 50px -22px oklch(0.205 0.012 260 / .34);
-    overflow: hidden;
-    opacity: 0; transform: translateY(-6px) scale(.98);
-    pointer-events: none;
-    transition: opacity .14s, transform .14s;
-    z-index: 60;
-  }
-  .hms-acct-menu.open { opacity: 1; transform: none; pointer-events: auto; }
-  .hms-acct-head {
-    display: flex; align-items: center; gap: 11px;
-    padding: 15px 17px;
-    border-bottom: 1px solid var(--hairline);
-  }
-  .hms-acct-avatar {
-    width: 38px; height: 38px; flex: none;
-    border-radius: 9999px;
-    background: var(--foreground); color: var(--background);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 12.5px; font-weight: 600; overflow: hidden;
-  }
-  .hms-acct-avatar img { width: 100%; height: 100%; object-fit: cover; }
-  .hms-acct-id { min-width: 0; display: flex; flex-direction: column; }
-  .hms-acct-name { font-size: 13.5px; font-weight: 600; color: var(--foreground); }
-  .hms-acct-full { font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  
+  
+  
+  
+  
+  
+  
+  
   .hms-acct-role {
-    flex: none; height: 22px; padding: 0 9px;
+    flex: none; height: 22px; padding: 0 8px;
     display: inline-flex; align-items: center;
     border-radius: 9999px;
     background: var(--foreground); color: var(--background);
-    font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
   }
-  .hms-acct-row, .hms-acct-langrow {
-    display: flex; align-items: center; gap: 11px;
-    width: 100%;
-    height: 42px; padding: 0 17px;
-    border: 0; border-top: 1px solid var(--hairline);
-    background: transparent;
-    font-family: inherit; font-size: 13px; font-weight: 500;
-    color: var(--foreground); text-decoration: none;
-    cursor: pointer;
-  }
-  .hms-acct-row:first-of-type { border-top: 0; }
-  .hms-acct-row svg, .hms-acct-langrow svg { color: var(--muted-foreground); flex: none; }
-  .hms-acct-row > span:not(.hms-acct-meta), .hms-acct-langrow > span { flex: 1; text-align: left; }
-  .hms-acct-row:hover { background: var(--secondary); }
+  
+  
+  
+  
+  
   .hms-acct-meta { flex: none; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
-  .hms-acct-langrow { cursor: default; }
-  .hms-acct-langrow .hms-seg { flex: none; }
-  .hms-acct-row--danger { border-top: 1px solid var(--border); color: oklch(0.55 0.19 25); }
-  .hms-acct-row--danger svg { color: currentColor; }
-  :root:not([data-theme="light"]) .hms-acct-row--danger,
-  [data-theme="dark"] .hms-acct-row--danger { color: oklch(0.70 0.17 25); }
+  
+  
+  
+  
+  
 
   /* Notification popover — Homlu's own notification dropdown specifically
      uses a much larger radius (rounded-4xl = 32px = our --radius-card
@@ -1566,34 +1279,12 @@ thead th.text-right { text-align: right; }
      untouched. */
   /* Reposition below the new 64px-tall topbar (.notif-float's base 54px/300px
      in design.css was tuned for the old 56px topbar). */
-  .notif-float { top: calc(var(--topbar-h) + 8px); right: 20px; }
-  .notif-dropdown {
-    border-radius: var(--radius-card);
-    border: 1px solid var(--border);
-    background: var(--card);
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    width: 340px;
-    padding: 12px;
-  }
-  .notif-head {
-    padding: 4px 8px 10px;
-    border-bottom: none;
-    font-family: var(--font-sans);
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--foreground);
-    text-transform: none;
-    letter-spacing: normal;
-  }
-  .notif-head-count { font-size: 12px; font-weight: 500; letter-spacing: normal; }
-  .notif-item {
-    padding: 10px 8px;
-    border-bottom: none;
-    border-radius: calc(var(--radius) + 4px);
-  }
-  .notif-item:hover { background: var(--secondary); }
+  
+  
+  
+  
+  
+  
 }
 
 /* ── KPI cards (shared shell, 2026-07-28) ──────────────────────────────
@@ -1620,8 +1311,7 @@ thead th.text-right { text-align: right; }
   margin-bottom:16px;
   --kpi-positive: oklch(0.55 0.13 150);
 }
-.hms-kpi-row.cols-3 { grid-template-columns:repeat(3,1fr); }
-.hms-kpi-row.cols-5 { grid-template-columns:repeat(5,1fr); }
+
 @media (min-width:1280px) {
   .hms-kpi-row { grid-template-columns:repeat(4,1fr); }
 }
@@ -1634,8 +1324,7 @@ thead th.text-right { text-align: right; }
 .hms-kpi-val { font-size:27px; font-weight:600; color:var(--foreground); line-height:1; letter-spacing:-.028em; font-variant-numeric:tabular-nums; }
 /* Denser list boards (4+ tinted metrics across a content column) step the
    figure down, per doc 02. */
-.hms-kpi-row.cols-3 .hms-kpi-val,
-.hms-kpi-row.cols-5 .hms-kpi-val { font-size:21px; }
+
 .hms-kpi-val .hms-kpi-unit { font-size:11px; font-weight:600; color:var(--muted-foreground); margin-left:3px; }
 .hms-kpi-val.warn { color:var(--destructive); }
 /* v2.1 list-page KPIs tint the figure with a dark, legible semantic ink
@@ -1669,7 +1358,7 @@ thead th.text-right { text-align: right; }
 .hms-kpi-badge.neutral { background:var(--secondary); color:var(--muted-foreground); }
 .hms-kpi-foot { font-size:11.5px; color:var(--muted-foreground); }
 @media (max-width:600px) {
-  .hms-kpi-row, .hms-kpi-row.cols-3, .hms-kpi-row.cols-5 { grid-template-columns:repeat(2,1fr); }
+  .hms-kpi-row { grid-template-columns:repeat(2,1fr); }
   /* An odd count leaves a blank half-cell in the 2-up grid; let the last
      card take the full row instead. */
   .hms-kpi-row > :last-child:nth-child(odd) { grid-column:1 / -1; }
@@ -1699,7 +1388,6 @@ thead th.text-right { text-align: right; }
 
 /* Wider than design.css's `.dv-page { max-width: 760px }` — the meta grid
    wants 3 columns on desktop. Two classes beat one, so no !important. */
-.dv-page.hms-dv-page { max-width: 880px; }
 
 .hms-dv-card {
   background: var(--card);
@@ -1738,8 +1426,8 @@ thead th.text-right { text-align: right; }
 .hms-dv-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:22px 20px 0; }
 .hms-dv-title { font-size:28px; font-weight:600; letter-spacing:-.02em; line-height:1.15; color:var(--foreground); margin:0; }
 .hms-dv-sub { font-size:13px; color:var(--muted-foreground); margin-top:7px; line-height:1.5; }
-.hms-dv-sub a, .hms-dv-link { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
-.hms-dv-sub a:hover, .hms-dv-link:hover { border-bottom-color:var(--foreground); }
+.hms-dv-sub a { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
+.hms-dv-sub a:hover { border-bottom-color:var(--foreground); }
 .hms-dv-body { padding:0 20px 20px; }
 
 /* Badge — Homlu v2.1 Component Library sheet 4. One pill shape: FILLED for
@@ -1791,7 +1479,6 @@ thead th.text-right { text-align: right; }
 .hms-dv-mlabel { font-size:12px; color:var(--muted-foreground); }
 .hms-dv-mval { font-size:14px; font-weight:500; color:var(--foreground); margin-top:2px; line-height:1.5; overflow-wrap:anywhere; }
 .hms-dv-mval a { color:var(--foreground); text-decoration:none; border-bottom:1px solid var(--border); }
-.hms-dv-mval .hms-dv-mval-sub { font-weight:400; color:var(--muted-foreground); }
 
 /* Amount tile — replaces .dv-amtbox (gold-tinted, mono-uppercase label). */
 .hms-dv-amt { border:1px solid var(--border); border-radius:14px; padding:12px 14px; min-width:150px; align-self:flex-start; background:color-mix(in oklab, var(--secondary) 40%, transparent); }
@@ -1824,11 +1511,6 @@ thead th.text-right { text-align: right; }
 .hms-dv-act:hover { background:var(--secondary); }
 /* Compact date inputs sitting in a section's action row, sized to line up
    with the .hms-dv-act links beside them. */
-.hms-dv-date {
-  font-size:12.5px; font-family:inherit; color:var(--foreground);
-  background:transparent; border:1px solid var(--border); border-radius:8px;
-  padding:3px 8px; color-scheme:light dark;
-}
 
 .hms-dv-empty { font-size:13px; color:var(--muted-foreground); padding:12px 0; }
 
@@ -1948,7 +1630,6 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
    things read once in a while (party, dates, attachments, history). See
    components/shadcn/record-view.jsx for the React pieces.
    ───────────────────────────────────────────────────────────────────────── */
-.hms-rv-page { max-width: 1180px; }
 
 .hms-rv-top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .hms-rv-backlink { display:inline-flex; align-items:center; gap:6px; height:26px; font-size:13px; font-weight:600; color:var(--foreground); text-decoration:none; }
@@ -1963,30 +1644,10 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
    ink, not gold: this redesign's CTA is monochrome, gold stays chrome-only),
    `.danger` = `.dgr` (red outline, never solid — destructive actions always
    confirm before anything is written). */
-.hms-rv-btn {
-  height:42px; display:inline-flex; align-items:center; justify-content:center; gap:8px;
-  padding:0 18px; border:1px solid var(--border); background:var(--card);
-  border-radius:9999px; font-size:13px; font-weight:600; color:var(--foreground);
-  cursor:pointer; white-space:nowrap; text-decoration:none; font-family:inherit;
-}
-.hms-rv-btn:hover { border-color:var(--foreground); }
-.hms-rv-btn.primary { border-color:var(--primary); background:var(--primary); color:var(--primary-foreground); }
-.hms-rv-btn.primary:hover { background:color-mix(in oklch, var(--primary) 88%, black); border-color:color-mix(in oklch, var(--primary) 88%, black); }
-.hms-rv-btn.danger { border-color:color-mix(in oklab, var(--red) 40%, transparent); background:var(--card); color:var(--red); }
-.hms-rv-btn.danger:hover { background:color-mix(in oklab, var(--red) 7%, var(--card)); }
-.hms-rv-btn:disabled { opacity:.5; cursor:not-allowed; }
-.hms-rv-btn svg { flex-shrink:0; }
 
 /* Secondary hero actions are text-height links — record-view rule: one
    primary (filled) action, the rest are links. Used e.g. for "Close
    Difference" while "Record Receipt" is still the open primary path. */
-.hms-rv-linkbtn {
-  display:inline-flex; align-items:center; gap:6px; height:42px; padding:0 8px;
-  background:none; border:none; font-size:13px; font-weight:600;
-  color:var(--muted-foreground); cursor:pointer; white-space:nowrap;
-  text-decoration:none; border-radius:9999px; font-family:inherit;
-}
-.hms-rv-linkbtn:hover { color:var(--foreground); }
 
 /* Icon-only 42px circle (mockup `.ico`) — used for the hero kebab overflow. */
 .hms-rv-note-r .dv-kebab {
@@ -2049,9 +1710,6 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-note-text { margin-top:3px; line-height:1.6; font-size:12.5px; color:var(--muted-foreground); }
 .hms-rv-note-r { display:flex; align-items:center; gap:8px; flex:none; flex-wrap:wrap; }
 
-.hms-rv-grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:18px; margin-top:14px; align-items:stretch; }
-.hms-rv-col { display:flex; flex-direction:column; gap:18px; min-width:0; }
-
 .hms-rv-card { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; height:100%; display:flex; flex-direction:column; }
 
 /* Sections inside a content card — divided by hairlines, no per-section chrome */
@@ -2075,10 +1733,6 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-sec > *:not(.hms-rv-sech):not(.hms-rv-links):not(.hms-pag):last-child { padding-bottom:20px; }
 
 /* Related-documents chip row, closing the content card */
-.hms-rv-links { margin-top:auto; padding:14px 22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.hms-rv-linkchip { height:28px; display:inline-flex; align-items:center; gap:7px; padding:0 11px; border:1px solid var(--border); border-radius:999px; font-size:12px; font-weight:600; color:var(--foreground); text-decoration:none; font-variant-numeric:tabular-nums; }
-.hms-rv-linkchip:hover { border-color:var(--foreground); }
-.hms-rv-linkchip .s { font-weight:400; font-size:11.5px; color:var(--muted-foreground); }
 
 /* Right rail — one plain card, paired key/value list + attachments/history */
 .hms-rv-railcard { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:6px 20px 18px; height:100%; display:flex; flex-direction:column; }
@@ -2101,7 +1755,6 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
 .hms-rv-filedel:hover { background:var(--secondary); color:var(--red); }
 .hms-rv-filedel svg { width:12px; height:12px; }
 
-.hms-rv-railtext { line-height:1.6; font-size:12.5px; color:var(--muted-foreground); }
 .hms-rv-raillink { display:inline-block; margin-top:7px; font-size:12.5px; font-weight:600; color:var(--muted-foreground); cursor:pointer; background:none; border:none; padding:0; text-decoration:none; }
 .hms-rv-raillink:hover { color:var(--foreground); }
 
@@ -2112,336 +1765,43 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
   .hms-rv-h1 { font-size:20px; }
   .hms-rv-notebar { flex-direction:column; align-items:stretch; }
   .hms-rv-note-r { width:100%; }
-  .hms-rv-grid { grid-template-columns:1fr; gap:14px; }
+  
 .hms-rv-card, .hms-rv-railcard { border-radius:14px; }
 }
 
 /* CL detail — Claude Design "CL Detail.dc.html". Hero: identity + actions on
    one row, a facts grid, one status sentence closing the card. Below, a
    flex-wrap pair (content card | 300px+ rail) that stacks on narrow screens. */
-.hms-cl { display:flex; flex-direction:column; gap:16px; }
-.hms-cl .hms-rv-top { height:28px; }
-.hms-cl-hero { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:26px 28px 0; }
-.hms-cl-hero-top { display:flex; align-items:flex-start; justify-content:space-between; gap:20px 32px; flex-wrap:wrap; }
-.hms-cl-hero-id { min-width:0; flex:1 1 360px; }
-.hms-dv-pill.hms-cl-badge { height:22px; padding:0 10px; font-size:11.5px; }
-.hms-cl-h1 { margin:10px 0 0; font-size:26px; font-weight:600; letter-spacing:-.022em; line-height:1.15; text-wrap:pretty; color:var(--foreground); }
-.hms-cl-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.hms-cl-actions .hms-rv-btn { height:40px; padding:0 16px; gap:7px; }
-.hms-cl-actions .hms-rv-btn.primary { padding:0 18px; }
-.hms-cl-actions .dv-kebab { width:40px; height:40px; border-radius:9999px; background:var(--card); border:1px solid var(--border); color:var(--muted-foreground); }
-.hms-cl-actions .dv-kebab:hover { border-color:var(--foreground); background:var(--card); color:var(--foreground); }
-.hms-cl-actions .dv-kebab svg { stroke:currentColor; width:16px; height:16px; }
-.hms-cl-actions .dv-kebab::after { content:none; }
-.hms-cl-facts { margin:22px 0 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px 28px; }
-.hms-cl-facts > div { min-width:0; }
-.hms-cl-facts .hms-rv-lbl { letter-spacing:.12em; }
-.hms-cl-facts dd { margin:5px 0 0; font-size:14px; font-weight:500; color:var(--foreground); font-variant-numeric:tabular-nums; }
-.hms-cl-facts dd.nowrap { white-space:nowrap; }
-.hms-cl-note { margin-top:22px; padding:16px 0 18px; border-top:1px solid var(--border); display:flex; align-items:flex-start; gap:11px; }
-.hms-cl-note-ico { flex:none; width:20px; height:20px; margin-top:1px; border-radius:999px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700; line-height:1; }
-.hms-cl-note-ico.tone-green { background:var(--green); }
-.hms-cl-note-ico.tone-yellow { background:var(--yellow); }
-.hms-cl-note-ico.tone-red { background:var(--red); }
-.hms-cl-note-ico.tone-gray { background:var(--muted-foreground); }
-.hms-cl-note p { margin:0; font-size:13px; line-height:1.55; color:var(--muted-foreground); text-wrap:pretty; }
-.hms-cl-note strong { font-weight:600; color:var(--foreground); }
 
-.hms-cl-grid { display:flex; flex-wrap:wrap; gap:16px; align-items:stretch; }
-.hms-cl-main { flex:999 1 560px; min-width:0; background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; display:flex; flex-direction:column; }
-.hms-cl-sec + .hms-cl-sec { border-top:1px solid var(--border); }
-.hms-cl-sech { padding:22px 24px 12px; display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
-.hms-cl-sech.flush { padding:0; }
-.hms-cl-sech h2 { margin:0; font-size:15px; font-weight:600; letter-spacing:-.01em; color:var(--foreground); }
-.hms-cl-sech .meta { font-size:12.5px; color:var(--muted-foreground); }
-.hms-cl-sech-acts { display:flex; gap:6px; }
-.hms-cl-sech-acts .hms-dv-act:hover { background:transparent; border-color:var(--foreground); }
-.hms-cl .hms-dv-table th { padding:9px 12px; }
-.hms-cl .hms-dv-table td { padding:14px 12px; }
-.hms-cl .hms-dv-table th:first-child, .hms-cl .hms-dv-table td:first-child { padding-left:24px; }
-.hms-cl .hms-dv-table th:last-child, .hms-cl .hms-dv-table td:last-child { padding-right:24px; }
-.hms-cl .hms-dv-table td.semi { font-weight:600; }
-.hms-cl .hms-dv-table td.dim { color:var(--muted-foreground); }
-.hms-cl .hms-dv-table td.tab { font-variant-numeric:tabular-nums; }
-.hms-cl .hms-dv-table a.mono { font-weight:500; font-size:12.5px; border-bottom-color:var(--input); }
-.hms-cl .hms-dv-table tfoot td { padding:16px 12px 20px; border-top:none; }
-.hms-cl .hms-dv-table tfoot td:last-child { padding-right:24px; }
-.hms-cl .hms-dv-table tfoot .lbl { font-size:13px; }
-.hms-cl .hms-dv-table tfoot tr.total .val { font-size:15px; font-weight:600; color:var(--foreground); }
-.hms-cl .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; }
-.hms-cl-dot { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; }
-.hms-cl-dot > span { width:7px; height:7px; border-radius:9px; }
-.hms-cl-nopen { padding:4px 24px 22px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted-foreground); }
-.hms-cl-smbtn { height:34px; padding:0 14px; border-radius:9999px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font-size:12.5px; font-weight:600; font-family:inherit; cursor:pointer; }
-.hms-cl-smbtn:hover { border-color:var(--foreground); }
-
-.hms-cl-history { padding:20px 24px 22px; }
-.hms-cl-histcount { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--muted-foreground); }
-.hms-cl-histrow { margin-top:12px; display:flex; align-items:baseline; justify-content:space-between; gap:6px 16px; flex-wrap:wrap; }
-.hms-cl-histrow .txt { font-size:13px; color:var(--foreground); }
-.hms-cl-histrow .when { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
 /* History entries: action + when, then label | before → after rows. No box —
    entries are separated by space only. */
-button.hms-cl-histcount { background:none; border:none; padding:0; cursor:pointer; font-family:inherit; }
-button.hms-cl-histcount:hover { color:var(--foreground); }
-.hms-cl-hentry + .hms-cl-hentry { margin-top:18px; }
-.hms-cl-hentry .hms-cl-histrow .txt { font-weight:600; }
-.hms-cl-chg { margin-top:8px; display:flex; flex-direction:column; gap:6px; }
-.hms-cl-chg-row { display:grid; grid-template-columns:minmax(90px, 180px) minmax(0,1fr); align-items:baseline; gap:4px 16px; font-size:13px; line-height:1.5; }
-.hms-cl-chg-row .k { color:var(--muted-foreground); font-size:12.5px; min-width:0; overflow-wrap:anywhere; }
-.hms-cl-chg-row .k.strong { color:var(--foreground); font-weight:500; font-size:13px; }
-.hms-cl-chg-row .v { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; font-variant-numeric:tabular-nums; min-width:0; }
-.hms-cl-chg-row .v .grp { white-space:nowrap; }
-.hms-cl-chg-row .v s { color:var(--muted-foreground); }
-.hms-cl-chg-row .v b { font-weight:600; color:var(--foreground); }
-.hms-cl-chg-row .v .arr { margin:0 6px; color:var(--muted-foreground); align-self:center; flex:none; vertical-align:-2px; }
-.hms-cl-chg-row .v .dim, .hms-cl-chg-row .v .none { color:var(--muted-foreground); }
-.hms-cl-chg-row .v .none { font-style:italic; }
-.hms-cl-chg-row .v .tag { font-size:12px; font-weight:600; }
-.hms-cl-chg-row .v .tag.add { color:var(--green); }
-.hms-cl-chg-row .v .tag.del { color:var(--red); }
-@media (max-width: 600px) {
-  .hms-cl-chg-row { grid-template-columns:1fr; }
-}
 
-.hms-cl-related { margin-top:auto; padding:14px 24px; border-top:1px solid var(--border); background:var(--muted); display:flex; align-items:center; gap:8px 12px; flex-wrap:wrap; }
-.hms-cl-related .hms-rv-lbl { letter-spacing:.12em; margin-right:4px; }
-.hms-cl-related .hms-rv-linkchip { background:var(--card); }
-
-.hms-cl-rail { flex:1 1 300px; min-width:0; box-sizing:border-box; background:var(--card); border:1px solid var(--border); border-radius:20px; padding:8px 20px 18px; display:flex; flex-direction:column; }
-.hms-cl-raillist { margin:0; }
-.hms-cl-raillist > div { padding:13px 0; display:flex; align-items:baseline; justify-content:space-between; gap:14px; }
-.hms-cl-raillist > div + div { border-top:1px solid var(--border); }
-.hms-cl-raillist dt { font-size:12.5px; color:var(--muted-foreground); white-space:nowrap; }
-.hms-cl-raillist dd { margin:0; font-size:13px; font-weight:600; text-align:right; color:var(--foreground); }
-.hms-cl-raillist dd.tab { font-variant-numeric:tabular-nums; }
 /* Rail links: no underline — a trailing ↗ icon marks them as navigation. */
-.hms-cl-raillist dd a { display:inline-flex; align-items:center; gap:5px; color:var(--foreground); text-decoration:none; }
-.hms-cl-raillist dd a svg { flex:none; color:var(--muted-foreground); transition:color .15s, transform .15s; }
-.hms-cl-raillist dd a:hover svg { color:var(--foreground); transform:translate(1px,-1px); }
-.hms-cl-raillist dd a .mono { font-size:12.5px; }
-.hms-cl-raillist dd .none { color:var(--muted-foreground); font-weight:500; }
-.hms-cl-railblock { margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
-.hms-cl-raillist + .hms-cl-railblock { margin-top:6px; }
-.hms-cl-railblock-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.hms-cl-railblock .hms-rv-lbl { letter-spacing:.12em; }
-.hms-cl-railblock-h .count { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
-.hms-cl-notes { margin:8px 0 0; font-size:12.5px; line-height:1.6; color:var(--muted-foreground); text-wrap:pretty; white-space:pre-line; }
-.hms-cl-rail .hms-rv-filerow { padding:7px 0; gap:10px; }
-.hms-cl-rail .hms-rv-filedel { width:24px; height:24px; }
 
 /* Dashed full-width upload button (Attachments dashedAdd) */
 .hms-rv-addfile { margin-top:8px; width:100%; height:36px; box-sizing:border-box; border-radius:10px; border:1px dashed var(--input); background:transparent; color:var(--muted-foreground); font-size:12.5px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px; }
 .hms-rv-addfile:hover { border-color:var(--foreground); color:var(--foreground); }
 
-@media (max-width: 860px) {
-  .hms-cl-hero { padding:18px 18px 0; border-radius:16px; }
-  .hms-cl-h1 { font-size:21px; }
-  .hms-cl-main, .hms-cl-rail { border-radius:14px; }
-  .hms-cl-sech { padding:18px 18px 10px; }
-  .hms-cl-history, .hms-cl-related { padding-left:18px; padding-right:18px; }
-}
 /* Same breakpoint as the .hms-dv-table card collapse above. */
-@media (max-width: 600px) {
-  .hms-cl .hms-dv-table tbody tr, .hms-cl .hms-dv-table tfoot { padding-left:18px; padding-right:18px; }
-  .hms-cl .hms-dv-table tbody td, .hms-cl .hms-dv-table tbody td:first-child, .hms-cl .hms-dv-table tbody td:last-child,
-  .hms-cl .hms-dv-table tfoot td, .hms-cl .hms-dv-table tfoot td:last-child { padding:3px 0; }
-}
 
 /* Invoice detail — Claude Design "Invoice Detail.dc.html". Builds on the
    .hms-cl-* record layout above: balance figure + progress ring in the hero,
    the status sentence sharing a row with the actions, grid-row ledgers and a
    full-width activity timeline. */
-.hms-iv-hero-top { align-items:center; }
-.hms-iv-sub { margin-top:8px; display:flex; align-items:center; gap:6px 10px; flex-wrap:wrap; font-size:12.5px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
-.hms-iv-sub .sep { width:1px; height:12px; background:var(--border); }
-.hms-iv-balance { display:flex; align-items:center; gap:16px; }
-.hms-iv-balance .fig { text-align:right; }
-.hms-iv-balance .hms-rv-lbl { letter-spacing:.12em; }
-.hms-iv-balance .amt { margin-top:6px; display:flex; align-items:baseline; justify-content:flex-end; gap:7px; }
-.hms-iv-balance .amt .n { font-size:34px; font-weight:600; letter-spacing:-.025em; line-height:1; font-variant-numeric:tabular-nums; color:var(--foreground); }
-.hms-iv-balance .amt .u { font-size:14px; font-weight:600; color:var(--muted-foreground); }
-.hms-iv-balance .line { margin-top:8px; font-size:13px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
-.hms-iv-balance .line strong { font-weight:600; color:var(--foreground); }
-.hms-iv-ring { flex:none; width:76px; height:76px; border-radius:999px; display:flex; align-items:center; justify-content:center; }
-.hms-iv-ring span { width:62px; height:62px; border-radius:999px; background:var(--card); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--foreground); }
-.hms-iv-note { padding:14px 0 16px; align-items:center; justify-content:space-between; gap:12px 24px; flex-wrap:wrap; }
-.hms-iv-note .l { display:flex; align-items:flex-start; gap:11px; min-width:0; flex:1 1 320px; }
-.hms-dv-pill.hms-iv-pill-sm { height:22px; padding:0 9px; font-size:11px; }
-.hms-iv .mono { font-family:ui-monospace, "SF Mono", Menlo, monospace; font-size:12.5px; }
-.hms-iv .strong { font-weight:600; }
-.hms-iv .tab { font-variant-numeric:tabular-nums; }
-.hms-iv .nowrap { white-space:nowrap; }
-.hms-iv .dim { color:var(--muted-foreground); }
-.hms-iv-link { color:var(--foreground); text-decoration:none; }
-.hms-iv-link:hover { text-decoration:underline; text-underline-offset:2px; }
-.hms-iv-chip { display:inline-flex; align-items:center; gap:3px; font-size:11.5px; font-weight:500; color:var(--muted-foreground); border:1px solid var(--border); border-radius:7px; padding:1px 6px; text-decoration:none; white-space:nowrap; }
-.hms-iv-chip:hover { border-color:var(--foreground); color:var(--foreground); }
-.hms-iv-chip.mono { font-size:11.5px; }
-.hms-iv-chip.warn { color:var(--yellow); border-color:color-mix(in oklab, var(--yellow) 45%, transparent); }
 
 /* Grid-row ledgers (reservations / payments) */
-.hms-iv-grid { font-size:13px; }
-.hms-iv-grid.res .hms-iv-gh, .hms-iv-grid.res .hms-iv-gr { grid-template-columns:minmax(0,1.5fr) minmax(0,1.2fr) 96px 92px 92px 100px; }
-.hms-iv-grid.pay .hms-iv-gh, .hms-iv-grid.pay .hms-iv-gr { grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) minmax(0,1.2fr) 100px; }
-.hms-iv-grid.cn .hms-iv-gh, .hms-iv-grid.cn .hms-iv-gr { grid-template-columns:minmax(0,1.1fr) minmax(0,2.2fr) 100px 76px; }
-.hms-iv-grid.cn .c-method { flex-direction:column; align-items:stretch; gap:2px; }
-.hms-iv-grid.cn .cn-reason { overflow-wrap:anywhere; }
-.hms-iv-grid.cn .c-method .sub { margin-top:0; }
-.hms-iv-gf.sub-row { padding-top:0; padding-bottom:6px; }
-.hms-iv-gf.sub-row + .hms-iv-gf { padding-top:6px; }
-.hms-iv-void { margin-top:6px; font-size:12.5px; color:var(--muted-foreground); }
-.hms-iv-gh, .hms-iv-gr { display:grid; gap:12px; padding:13px 24px; border-bottom:1px solid var(--border); align-items:center; }
-.hms-iv-gh { padding-top:9px; padding-bottom:9px; font-size:12px; font-weight:500; color:var(--muted-foreground); }
-.hms-iv-gh .r, .hms-iv-gr .r { text-align:right; }
-.hms-iv-gr > div { min-width:0; }
-.hms-iv-gr .top { display:flex; align-items:center; gap:8px; }
-.hms-iv-gr .sub { margin-top:3px; font-size:12.5px; color:var(--muted-foreground); }
-.hms-iv-gr .ell { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.hms-iv-gr .c-st { display:flex; }
-.hms-iv-gr .c-method { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.hms-iv-gf { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:16px 24px 20px; align-items:baseline; }
-.hms-iv-gf > span:first-child { text-align:right; color:var(--muted-foreground); }
-.hms-iv-gf .v { text-align:right; font-variant-numeric:tabular-nums; font-size:15px; font-weight:600; white-space:nowrap; color:var(--foreground); }
-.hms-iv-gf .v.green { font-size:14px; color:var(--green); }
-.hms-iv-gf .v.dim { font-size:13px; font-weight:500; color:var(--muted-foreground); }
-.hms-iv-empty { padding:14px 24px; font-size:13px; color:var(--muted-foreground); border-bottom:1px solid var(--border); }
-.hms-iv-empty.pad { padding:4px 24px 24px; border-bottom:none; }
 
-.hms-iv-aside { flex:1 1 300px; min-width:0; display:flex; flex-direction:column; gap:16px; }
-.hms-iv-aside .hms-iv-rail { flex:none; padding-bottom:8px; }
 /* "Pay to" — the branch's invoice bank accounts, one block each */
-.hms-iv-payto-h { padding-top:12px; }
-.hms-iv-payto { padding:12px 0; }
-.hms-iv-payto + .hms-iv-payto { border-top:1px solid var(--border); }
-.hms-iv-payto .h { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.hms-iv-payto .bank { font-size:13px; font-weight:600; color:var(--foreground); }
-.hms-iv-payto .bank .cur { margin-left:4px; font-size:11.5px; font-weight:500; color:var(--muted-foreground); }
-.hms-iv-payto .no { margin-top:4px; font:600 13px ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric:tabular-nums; letter-spacing:.02em; color:var(--foreground); user-select:all; }
-.hms-iv-payto .holder { margin-top:4px; font-size:12.5px; color:var(--muted-foreground); }
-.hms-iv-copy { height:26px; padding:0 10px; border-radius:8px; border:1px solid var(--border); background:var(--card); color:var(--foreground); font:500 12px inherit; font-family:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:5px; flex:none; }
-.hms-iv-copy:hover { border-color:var(--foreground); }
 
 /* Activity timeline */
-.hms-iv-activity { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:20px 24px 0; overflow:hidden; }
-.hms-iv-activity ol { margin:12px -24px 0; padding:0; list-style:none; }
-.hms-iv-activity li { display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; padding:12px 24px; border-top:1px solid var(--border); font-size:13px; }
-.hms-iv-activity .when { flex:none; width:96px; font-size:12.5px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; white-space:nowrap; }
-.hms-iv-activity .what { flex:1 1 260px; min-width:0; display:flex; align-items:center; gap:10px; }
-.hms-iv-activity .ico { flex:none; width:24px; height:24px; box-sizing:border-box; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; line-height:1; }
-.hms-iv-activity .ico.pay { background:var(--green); color:#fff; }
-.hms-iv-activity .ico.alert { background:var(--red); color:#fff; }
-.hms-iv-activity .ico.doc, .hms-iv-activity .ico.status { background:var(--card); border:1px solid var(--input); color:var(--muted-foreground); }
-.hms-iv-activity .ttl { min-width:0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:500; color:var(--foreground); }
-.hms-iv-activity .chg { display:inline-flex; align-items:center; gap:6px; }
-.hms-iv-activity .chg s { color:var(--muted-foreground); font-weight:400; }
-.hms-iv-activity .chg b { font-weight:600; }
-.hms-iv-activity .chg .arr { flex:none; color:var(--muted-foreground); }
-.hms-iv-activity .chg .none { color:var(--muted-foreground); font-style:italic; font-weight:400; }
-.hms-iv-activity .detail { flex:1 1 200px; min-width:0; font-size:12.5px; color:var(--muted-foreground); }
-.hms-iv-activity .actor { flex:none; width:130px; margin-left:auto; text-align:right; font-size:12.5px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--foreground); }
 
-@media (max-width: 860px) {
-  .hms-iv-balance { width:100%; justify-content:space-between; flex-direction:row-reverse; }
-  .hms-iv-balance .fig { text-align:right; }
-  .hms-iv-activity { border-radius:14px; padding:18px 18px 0; }
-  .hms-iv-activity ol { margin:12px -18px 0; }
-  .hms-iv-activity li { padding:12px 18px; }
-}
 /* Phone: ledger rows stack; amounts pair with their column label. */
-@media (max-width: 600px) {
-  .hms-iv-gh { display:none; }
-  .hms-iv-grid.res .hms-iv-gr, .hms-iv-grid.pay .hms-iv-gr { grid-template-columns:1fr auto; gap:6px 12px; padding:12px 18px; }
-  .hms-iv-grid.res .c-id { grid-column:1; grid-row:1; } .hms-iv-grid.res .c-st { grid-column:2; grid-row:1; justify-content:flex-end; align-self:start; }
-  .hms-iv-grid.res .c-stay { grid-column:1 / -1; }
-  .hms-iv-gr [data-label] { grid-column:1 / -1; display:flex; justify-content:space-between; gap:12px; text-align:right; }
-  .hms-iv-gr [data-label]::before { content:attr(data-label); font-size:12px; font-weight:400; color:var(--muted-foreground); text-align:left; }
-  .hms-iv-grid.pay .c-method { grid-column:1 / -1; }
-  .hms-iv-grid.cn .hms-iv-gr { grid-template-columns:1fr auto; gap:6px 12px; padding:12px 18px; }
-  .hms-iv-grid.cn .c-method { grid-column:1 / -1; }
-  .hms-iv-gf { padding:14px 18px 18px; }
-  .hms-iv-empty { padding-left:18px; padding-right:18px; }
-  .hms-iv-activity .when { width:auto; }
-  .hms-iv-activity .actor { width:auto; margin-left:0; text-align:left; }
-}
 
 /* Hotel detail — stacked cards: an identity/meta card, a pair of cards
    (room types, wider | meal plans), and a full-width location card whose
    "See full map" link jumps to the full map page. Room-type row actions
    appear on hover only. Each fact appears exactly once (name = card title,
    distance/reference/avg = meta row). */
-.hms-hm-main { max-width: 1020px; }
-.hms-hm-cards { margin-top:6px; display:flex; flex-direction:column; gap:14px; }
-.hms-hm-card { border:1px solid var(--border); border-radius:16px; background:var(--card); padding:16px 22px 18px; }
-
-.hms-hm-top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.hms-hm-topacts { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-.hms-hm-top h1 { margin:0; font-size:23px; font-weight:640; letter-spacing:-.01em; line-height:1.15; }
-.hms-hm-sub { margin-top:2px; font-size:13.5px; color:var(--muted-foreground); }
-
-.hms-hm-meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:20px; padding:12px 0 10px; }
-.hms-hm-meta .k { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:600; color:var(--muted-foreground); }
-.hms-hm-meta .v { margin-top:3px; font-size:14.5px; font-weight:550; font-variant-numeric:tabular-nums; }
-.hms-hm-meta .v.sub { font-weight:500; color:var(--muted-foreground); }
-
-.hms-hm-notebox { margin-top:12px; padding-top:12px; border-top:1px solid var(--border); }
-.hms-hm-notebox .hms-hm-note-text { padding-top:8px; }
-
-.hms-hm-pair { display:grid; grid-template-columns:minmax(0, 5fr) minmax(0, 3fr); gap:14px; align-items:stretch; }
-
-.hms-hm-sec-lbl { display:flex; align-items:baseline; gap:10px; }
-.hms-hm-sec-lbl h2 { margin:0; font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--foreground); }
-.hms-hm-sec-lbl .cnt { font-size:12px; color:var(--muted-foreground); }
-.hms-hm-sec-lbl .right { margin-left:auto; display:flex; align-items:center; gap:12px; }
-
-.hms-hm-table { margin-top:22px; }
-.hms-hm-rtbl { width:100%; border-collapse:collapse; }
-.hms-hm-rtbl thead th { text-align:left; font-size:11px; font-weight:600; color:var(--muted-foreground); padding:8px 12px 7px 0; border-bottom:1px solid var(--border); white-space:nowrap; }
-.hms-hm-rtbl tbody td { padding:6px 12px 6px 0; font-size:13px; color:var(--foreground); vertical-align:middle; white-space:nowrap; overflow:hidden; }
-.hms-hm-rtbl tbody tr { transition:background .08s; }
-.hms-hm-rtbl tbody tr:hover { background:var(--secondary); }
-.hms-hm-rtbl .nm { font-weight:500; }
-.hms-hm-rtbl .mut { color:var(--muted-foreground); }
-.hms-hm-rtbl .ac-wrap { text-align:right; width:1%; padding-top:4px; padding-bottom:4px; }
-.hms-hm-rtbl .ac { margin-left:auto; visibility:hidden; }
-.hms-hm-rtbl tbody tr:hover .ac, .hms-hm-rtbl tbody tr:focus-within .ac { visibility:visible; }
-.hms-hm-empty { padding:8px 0 2px; font-size:13px; color:var(--muted-foreground); }
-
-.hms-hm-calc-sec { margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
-.hms-hm-calc { display:flex; flex-direction:column; margin-top:10px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:var(--secondary); }
-.hms-hm-crow { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:13px; color:var(--foreground); }
-.hms-hm-crow .lbl { color:var(--muted-foreground); }
-.hms-hm-stepper { display:inline-flex; align-items:center; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--card); }
-.hms-hm-stepper .stp { all:unset; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; color:var(--muted-foreground); cursor:pointer; font-size:15px; line-height:1; user-select:none; }
-.hms-hm-stepper .stp:hover { background:var(--secondary); color:var(--foreground); }
-.hms-hm-stepper .stp:active { background:var(--muted); }
-.hms-hm-crow .hms-hm-stepper .hms-hm-inp { width:46px; flex:none; text-align:center; height:28px; border:none; border-radius:0; background:transparent; padding:0; -moz-appearance:textfield; }
-.hms-hm-crow .hms-hm-stepper .hms-hm-inp::-webkit-outer-spin-button,
-.hms-hm-crow .hms-hm-stepper .hms-hm-inp::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.hms-hm-cresult { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
-.hms-hm-cresult .lbl { font-size:12.5px; color:var(--muted-foreground); }
-.hms-hm-cresult .val { font-size:24px; font-weight:650; letter-spacing:-.02em; line-height:1; color:var(--foreground); font-variant-numeric:tabular-nums; }
-.hms-hm-cresult .u { margin-left:4px; font-size:11px; font-weight:600; color:var(--muted-foreground); }
-.hms-hm-cavg { margin-top:7px; font-size:11px; color:var(--muted-foreground); }
-
-.hms-hm-rows { display:flex; flex-direction:column; padding-top:8px; }
-.hms-hm-row { display:flex; align-items:baseline; gap:12px; padding:3px 0; font-size:13px; }
-.hms-hm-row .cd { flex:none; width:34px; font:600 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-.hms-hm-note-text { font-size:13px; color:var(--muted-foreground); line-height:1.5; }
-
-.hms-hm-loctop { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.hms-hm-maplink { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--foreground); text-decoration:none; border-radius:8px; padding:6px 10px; border:1px solid var(--border); }
-.hms-hm-maplink:hover { background:var(--secondary); }
-.hms-hm-maplink svg { stroke-width:2; color:var(--muted-foreground); }
-.hms-hm-map { margin-top:12px; width:100%; }
-.hms-hm-map > div { border:1px solid var(--border); border-radius:8px; }
-
-.hms-hm-note { padding:8px 0 0; font-size:13px; color:var(--muted-foreground); }
-
-@media (max-width: 980px) {
-  .hms-hm-card { border-radius:14px; padding:14px 15px 16px; }
-  .hms-hm-pair { grid-template-columns:1fr; }
-}
 
 /* ── Map mode ────────────────────────────────────────────────────────────
    /hotels/map/ and /clients/map/ render as an immersive fullscreen map:
@@ -2472,7 +1832,7 @@ body.map-mode .map-back-btn { display: flex !important; }
 .hms-seg-opt {
   appearance: none;
   height: 30px;
-  padding: 0 14px;
+  padding: 0 16px;
   display: inline-flex;
   align-items: center;
   border: 1px solid transparent;
@@ -2494,7 +1854,7 @@ body.map-mode .map-back-btn { display: flex !important; }
   color: var(--foreground);
 }
 .hms-seg--mini { padding: 2px; }
-.hms-seg--mini .hms-seg-opt { height: 24px; padding: 0 10px; font-size: 11px; }
+.hms-seg--mini .hms-seg-opt { height: 24px; padding: 0 12px; font-size: 12px; }
 
 /* ── Fullscreen map pages (Client/Hotel maps) ─────────────────────────────
    AppLayout tags <body> with .map-fullscreen whenever the route is a map
@@ -2511,9 +1871,7 @@ body.map-fullscreen {
 body.map-fullscreen .hms-sidebar,
 body.map-fullscreen .hms-topbar,
 body.map-fullscreen .m-top-bar,
-body.map-fullscreen #m-bottom-nav,
-body.map-fullscreen .notif-dropdown,
-body.map-fullscreen .bnav-account-dd {
+body.map-fullscreen #m-bottom-nav {
   display: none !important;
 }
 body.map-fullscreen #map-wrap {
@@ -2721,25 +2079,7 @@ body.public-page {
     font-weight: 600;
   }
 
-  .m-bnav-badge {
-    position: absolute;
-    top: 4px;
-    right: 50%;
-    transform: translateX(calc(50% + 8px));
-    min-width: 14px;
-    height: 14px;
-    padding: 0 3px;
-    background: var(--destructive);
-    color: var(--destructive-foreground);
-    font-size: 9px;
-    font-weight: 600;
-    border-radius: 9999px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    border: 1.5px solid var(--card);
-  }
+  
 }
 
 /* ── Mobile More page (full-screen module grid) ────────────────────────── */
@@ -2832,15 +2172,7 @@ body.public-page {
     text-transform: uppercase;
     letter-spacing: 0.13em;
   }
-  .m-more-subheading {
-    padding: 10px 12px 3px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    opacity: 0.7;
-  }
+  
 
   /* v2.1 doc 1c: rows grouped in a card, 48px, plain icon + label + chevron. */
   .m-more-card {
@@ -2875,8 +2207,7 @@ body.public-page {
 
 /* ── Mobile content padding ────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .page,
-  .page-sm {
+  .page {
     padding-top: calc(48px + env(safe-area-inset-top));
     padding-bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
     padding-left: 12px;
@@ -2902,14 +2233,9 @@ body.public-page {
 
 /* ── Mobile modal/drawer bottom-sheet ──────────────────────────────────── */
 @media (max-width: 600px) {
-  .modal-overlay {
-    align-items: flex-end;
-    padding: 0;
-  }
+  
 
-  .modal-body {
-    padding: 5px 16px 14px;
-  }
+  
 
   #draft-modal > div {
     margin: 12px;
@@ -2922,25 +2248,6 @@ body.public-page {
 /* Anchored below the top bar, near the bell that opened it — not a bottom
    sheet — so it appears where the tap happened instead of popping up on the
    opposite edge of the screen. */
-@media (max-width: 600px) {
-  .notif-float {
-    top: calc(48px + env(safe-area-inset-top) + 8px);
-    bottom: auto;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: 60dvh;
-    border-radius: 14px;
-  }
-
-  .notif-float .notif-body {
-    max-height: calc(60dvh - 40px);
-  }
-
-  .notif-float .notif-item {
-    padding: 12px 14px;
-  }
-}
 
 /* ── Mobile account sheet (Homlu v2.1 doc 1e — bottom sheet) ───────────── */
 .m-sheet-scrim { display: none; }
@@ -3013,6 +2320,22 @@ body.public-page {
   :root:not([data-theme="light"]) .m-acct-row--danger,
   [data-theme="dark"] .m-acct-row--danger { color: oklch(0.70 0.17 25); }
 
+  /* Notifications in the same sheet: header, New/Earlier groups, two-line rows. */
+  .m-ntf-sheet { max-height: 80dvh; }
+  .m-ntf-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 18px 12px; border-bottom: 1px solid var(--hairline); font-size: 15px; font-weight: 600; color: var(--foreground); }
+  .m-ntf-mark { height: 32px; margin-right: -8px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); font: 500 13px var(--font-sans); cursor: pointer; }
+  .m-ntf-mark:active { background: var(--secondary); }
+  .m-ntf-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px; }
+  .m-ntf-group { padding: 14px 10px 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+  .m-ntf-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; min-height: 56px; padding: 9px 10px; border-radius: 10px; align-content: center; color: var(--foreground); text-decoration: none; }
+  .m-ntf-row:active { background: var(--secondary); }
+  .m-ntf-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
+  .m-ntf-row .when { font-size: 12.5px; color: var(--muted-foreground); text-align: right; white-space: nowrap; }
+  .m-ntf-row .when.hot { color: var(--warning-text); font-weight: 500; }
+  .m-ntf-row .ref { grid-column: 1; font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); }
+  .m-ntf-row .amt { grid-column: 2; font-size: 12.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .m-ntf-empty { padding: 20px 10px; font-size: 13px; color: var(--muted-foreground); }
+
   .m-acct-sheet-close {
     margin: 14px 18px 0;
     height: 48px;
@@ -3037,42 +2360,6 @@ body.public-page {
    three formerly-separate list views collapse into a single navigation home.
    The tab bar is a segmented control on the same neutral monochrome system
    as the rest of the Homlu UI. */
-.rmt-tabs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  width: max-content;
-  max-width: 100%;
-  overflow-x: auto;
-  padding: 3px;
-  margin: 6px 0 18px;
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-}
-.rmt-tab {
-  appearance: none;
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 0.12s ease, background 0.12s ease;
-}
-.rmt-tab:hover {
-  color: var(--foreground);
-}
-.rmt-tab.active {
-  background: var(--card);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-}
 
 /* Recap panel */
 .recap-list {
@@ -3099,16 +2386,8 @@ body.public-page {
 }
 
 @media (max-width: 600px) {
-  .rmt-tabs {
-    width: 100%;
-    margin: 4px 0 14px;
-  }
-  .rmt-tab {
-    flex: 1;
-    text-align: center;
-    padding: 9px 10px;
-    font-size: 13px;
-  }
+  
+  
   .recap-group-head {
     flex-direction: column;
     align-items: flex-start;
@@ -3119,21 +2398,23 @@ body.public-page {
 /* Inline notice boxes on forms/pages: a server error or a warning. */
 .shadcn-root .alert { padding:10px 14px; border-radius:10px; border:1px solid var(--border); font-size:13px; line-height:1.5; }
 .shadcn-root .alert-error { border-color:color-mix(in oklab, var(--red) 40%, transparent); background:color-mix(in oklab, var(--red) 8%, transparent); color:var(--red); }
-.shadcn-root .alert-warning { border-color:color-mix(in oklab, var(--yellow) 45%, transparent); background:color-mix(in oklab, var(--yellow) 9%, transparent); color:var(--foreground); }
-button.hms-iv-chip { background:transparent; font:inherit; font-size:11.5px; cursor:pointer; }
-button.hms-iv-chip:hover { color:var(--red); border-color:color-mix(in oklab, var(--red) 45%, transparent); }
 
-/* Light canvas is a solid grey (0.78), so the card-tuned supporting ink and
-   hover fill wash out where they sit straight on it (page subtitles, month
-   labels, topbar icons). Darken both on the canvas, then hand card surfaces
-   their own values back. Portalled popovers live outside .page-shell and keep
-   the defaults untouched. */
+/* Light canvas is olive-tinted (#F2F3EC), and the card-tuned hover fill
+   (#EEF0E6) vanishes where it sits straight on it (month nav, topbar icons).
+   Give the canvas a firmer fill and one step more supporting ink, then hand
+   card surfaces their own values back. Portalled popovers live outside
+   .page-shell and keep the defaults untouched. */
 [data-theme="light"] .page-shell,
 [data-theme="light"] .hms-topbar.ks-tb {
-  --muted-foreground: oklch(0.34 0.012 258);
-  --secondary: oklch(0.72 0.012 250);
+  --muted-foreground: #5F6353;
+  --secondary: #E3E6D9;
 }
 [data-theme="light"] :is(.da-card, .la-card, .la-kpi, .la-tool, .la-pg, .la-menu, .pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .fa-pop, .fa-drop, .ks-sp, .ks-bm, .ks-dd, .ks-cdlg, .bc .tip) {
-  --muted-foreground: oklch(0.52 0.012 258);
-  --secondary: oklch(0.958 0.004 250);
+  --muted-foreground: #64675A;
+  --secondary: #EEF0E6;
 }
+
+/* Keyboard: the first Tab offers to skip the sidebar (UX audit 2026-10-22). */
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 1000; padding: 8px 16px; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font: 600 13px var(--font-sans); text-decoration: none; transform: translateY(-200%); transition: transform .15s ease; }
+.skip-link:focus { transform: none; outline: 2px solid var(--ring); outline-offset: 2px; }
+.page-shell:focus { outline: none; }

@@ -40,7 +40,7 @@ const PinIcon = () => (
 // New / edit hotel, the "Hotel Form, pilihan 2" artboard on the Record View
 // HMS canvas. The location is only coordinates with a link out to Google Maps;
 // the old map and route editor are gone. A saved route is left as it is.
-function HotelFormBody({ hotel, edit }) {
+function HotelFormBody({ hotel, edit, error }) {
   const { t } = useI18n();
   const h = hotel || {};
   const form = useForm({
@@ -50,8 +50,8 @@ function HotelFormBody({ hotel, edit }) {
     area: h.area || "",
     avg_occupancy: h.avg_occupancy ?? "",
     coords: h.lat != null && h.lng != null ? coordText(h.lat, h.lng) : "",
-    has_allotment: edit ? !!h.has_allotment : false,
-    is_active: edit ? !!h.is_active : true,
+    has_allotment: !!h.has_allotment,
+    is_active: h.is_active ?? true,
     note: h.note || "",
   });
   const d = form.data;
@@ -86,7 +86,7 @@ function HotelFormBody({ hotel, edit }) {
   const stars = (n) => (n === 1 ? t("1 star") : t("{n} stars", { n }));
 
   return (
-    <FormA title={edit ? t("Edit hotel") : t("New hotel")} onSubmit={submit}>
+    <FormA title={edit ? t("Edit hotel") : t("New hotel")} onSubmit={submit} error={error ? t(error) : null}>
       <div className="fa-fields">
         <Field label={t("Hotel name")} required className="wide">
           <TextIn value={d.name} onChange={set("name")} placeholder={t("For example, Hotel Sawaaed")} autoFocus={!edit} />
@@ -146,14 +146,14 @@ function HotelFormBody({ hotel, edit }) {
 
       <Foot why={why} cancelHref={edit ? `/hotels/${h.id}/` : "/hotels/"} submitLabel={edit ? t("Save hotel") : t("Add hotel")} processing={form.processing} />
       <style>{`
-.ht-loc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted-foreground); }
+.ht-loc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted-foreground); }
 .ht-loc b { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ht-far { color: var(--warning-text); font-weight: 500; }
 .ht-loc a { margin-left: auto; color: var(--foreground); font-weight: 600; text-decoration: none; }
 .ht-loc a:hover { text-decoration: underline; }
 .ht-sws { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin-top: 18px; }
 .ht-sw { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; }
-.ht-sw b { display: block; font-size: 13.5px; font-weight: 500; }
+.ht-sw b { display: block; font-size: 14px; font-weight: 500; }
 .ht-sw span span { display: block; font-size: 12px; color: var(--muted-foreground); }
 .ht-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
 .ht-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }

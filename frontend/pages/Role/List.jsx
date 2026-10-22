@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import RowActions from "../../components/shadcn/row-actions.jsx";
+import {
+  ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, rowNav,
+} from "../../components/shadcn/list-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 /** "6 modules · 24 permissions" — enough to tell two roles apart at a glance. */
@@ -55,7 +53,7 @@ function DeleteDialog({ role, roles, onClose }) {
             </select>
           </div>
         ) : (
-          <p className="col-dim">{t("No accounts use this role. It will be removed.")}</p>
+          <p className="text-sm text-muted-foreground">{t("No accounts use this role. It will be removed.")}</p>
         )}
 
         <DialogFooter>
@@ -72,87 +70,46 @@ export default function List({ roles = [], modules = [], current_role }) {
   const [deleting, setDeleting] = useState(null);
 
   return (
-    <div className="page shadcn-root">
-      <PageBack href="/users/" />
-      <PageHeader
-        title={t("Roles")}
-        sub={t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}
-        actions={
-          <Button asChild size="lg">
-            <Link href="/roles/new/">
-              + {t("New Role")}
-            </Link>
-          </Button>
-        }
-      />
+    <ListPage title={t("Roles")}>
+      <Toolbar left={<span className="la-note">{t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}</span>}>
+        <Link className="la-tool" href="/users/">{t("Users")}</Link>
+        <Primary label={t("New role")} href="/roles/new/" />
+      </Toolbar>
 
-      <div className="hms-list-card">
-        <Table
-          columns={[
-            {
-              header: t("Role"),
-              className: "col-bold col-m-primary",
-              render: (r) => (
-                <>
-                  {r.label}
-                  {r.locked && <span style={{ marginLeft: 6 }}><StatusPill tone="blue" label={t("Locked")} /></span>}
-                  {!r.locked && r.is_system && <span style={{ marginLeft: 6 }}><StatusPill tone="gray" label={t("Built-in")} /></span>}
-                  {r.slug === current_role && <span style={{ marginLeft: 6 }}><StatusPill tone="gray" label={t("Yours")} /></span>}
-                </>
-              ),
-            },
-            {
-              header: t("Description"),
-              className: "col-m-secondary",
-              // Capped: an unbounded description column pushes the row-actions
-              // column past the card's right edge.
-              render: (r) => (
-                <span
-                  className="col-dim block truncate max-w-[340px]"
-                  title={r.description || ""}
-                >
-                  {r.description || t("—")}
-                </span>
-              ),
-            },
-            {
-              header: t("Permissions"),
-              className: "col-m-meta",
-              render: (r) => {
-                const { modules: m, grants } = summarise(r.permissions);
-                return <span className="col-dim">{t("{m} modules · {grants} permissions", { m, grants })}</span>;
-              },
-            },
-            {
-              header: t("Accounts"),
-              className: "col-m-badge",
-              render: (r) => <StatusPill tone="gray" label={String(r.user_count)} small />,
-            },
-            {
-                header: "",
-                className: "col-m-actions",
-                render: (r) => (
-                  <RowActions actions={[
-                    // The Administrator row is shown for reference but never
-                    // editable — it is the account that could undo a bad edit.
-                    !r.locked && r.slug !== current_role && {
-                      icon: "edit", label: t("Edit permissions"),
-                      onClick: () => router.visit(`/roles/${r.slug}/edit/`),
-                    },
-                    !r.is_system && r.slug !== current_role && {
-                      icon: "trash", label: t("Delete"), variant: "red",
-                      onClick: () => setDeleting(r),
-                    },
+      <TableCard cols={[260, null, 220, 100, 56]}>
+        <thead><tr>
+          <th>{t("Role")}</th><th>{t("Description")}</th><th>{t("Permissions")}</th><th className="n">{t("Accounts")}</th><th className="c">{t("Action")}</th>
+        </tr></thead>
+        <tbody>
+          {roles.map((r) => {
+            const { modules: m, grants } = summarise(r.permissions);
+            // The Administrator row is shown for reference but never editable:
+            // it is the account that could undo a bad edit.
+            const editable = !r.locked && r.slug !== current_role;
+            return (
+              <tr key={r.slug} className={editable ? "" : "static"} {...(editable ? rowNav(`/roles/${r.slug}/edit/`) : {})}>
+                <td>
+                  <span className="strong">{r.label}</span>
+                  {r.locked && <> <Pill tone="outline" sm>{t("Locked")}</Pill></>}
+                  {!r.locked && r.is_system && <> <Pill tone="gray" sm>{t("Built-in")}</Pill></>}
+                  {r.slug === current_role && <> <Pill tone="gray" sm>{t("Yours")}</Pill></>}
+                </td>
+                <td className="ell mut" title={r.description || ""}>{r.description || "–"}</td>
+                <td className="mut">{t("{m} modules · {grants} permissions", { m, grants })}</td>
+                <td className={"n" + (r.user_count ? "" : " zero")}>{r.user_count}</td>
+                <td className="c">
+                  <RowMenu label={t("Actions for {n}", { n: r.label })} items={[
+                    editable && { label: t("Edit permissions"), onClick: () => router.visit(`/roles/${r.slug}/edit/`) },
+                    !r.is_system && r.slug !== current_role && { label: t("Delete"), danger: true, onClick: () => setDeleting(r) },
                   ]} />
-                ),
-            },
-          ]}
-          rows={roles}
-          rowKey={(r) => r.slug}
-        />
-      </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableCard>
 
       <DeleteDialog role={deleting} roles={roles} onClose={() => setDeleting(null)} />
-    </div>
+    </ListPage>
   );
 }

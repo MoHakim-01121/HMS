@@ -132,8 +132,8 @@ export default function Detail({ statement = {} }) {
 const CSS = `
 .rd-match { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rd-ref { font-size: 12px; color: var(--muted-foreground); }
-.rd-force { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--muted-foreground); }
-.rd-lnk { padding: 0; border: 0; background: none; font: 600 12.5px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.rd-force { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); }
+.rd-lnk { padding: 0; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
 .rd-lnk:hover { color: var(--foreground); }
 .rd-lnk.danger { color: var(--danger-text); }
 `;

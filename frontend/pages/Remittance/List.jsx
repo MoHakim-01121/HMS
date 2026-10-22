@@ -3,7 +3,7 @@ import { Link, router } from "@inertiajs/react";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav,
+  TableCard, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import TrackingPanel from "./TrackingPanel.jsx";
 import RecapPanel, { RECAP_CSS } from "./RecapPanel.jsx";
@@ -41,7 +41,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
 
   if (tab !== "transfers") {
     return (
-      <ListPage title={t("Remittance to HQ")} legend={views}>
+      <ListPage title={t("Remittance")} legend={views}>
         <style>{RECAP_CSS}</style>
         {tab === "tracking" && <TrackingPanel tracking={tracking} />}
         {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
@@ -50,7 +50,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
   }
 
   return (
-    <ListPage title={t("Remittance to HQ")} legend={views} loading={loading}>
+    <ListPage title={t("Remittance")} legend={views} loading={loading}>
       {kpis && (
         <Kpis>
           <Kpi label={t("Remitted to HQ")} value={fmtN(kpis.idr)} unit="IDR"
@@ -101,7 +101,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
           {remittances.map((r) => {
             const [tone, lbl] = STATE[r.state] || STATE.pending;
             return (
-              <tr key={r.id} onClick={() => router.visit(`/remittance/${r.id}/`)}>
+              <tr key={r.id} {...rowNav(`/remittance/${r.id}/`)}>
                 <td><span className="mono">{r.remittance_number}</span></td>
                 <td>{dShort(r.date)}</td>
                 <td className="ell">{r.from}<span className="sub">{t("to {a}", { a: r.to })}</span></td>

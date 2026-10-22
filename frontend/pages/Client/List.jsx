@@ -5,7 +5,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Legend, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav,
+  TableCard, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -112,7 +112,7 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
           {clients.map((c) => {
             const [tone, label] = STATUS[c.status] || STATUS.inactive;
             return (
-              <tr key={c.id} className={c.status === "inactive" ? "dim" : ""} onClick={() => router.visit(`/clients/${c.id}/`)}>
+              <tr key={c.id} className={c.status === "inactive" ? "dim" : ""} {...rowNav(`/clients/${c.id}/`)}>
                 <td className="ell"><span className="strong">{c.brand || c.name}</span>{c.brand && <span className="sub">{c.name}</span>}</td>
                 <td className="ell">{c.city || <span className="mut">—</span>}</td>
                 <td className="ell">{c.pic || <span className="mut">—</span>}{c.wa && <span className="sub">{c.wa}</span>}</td>

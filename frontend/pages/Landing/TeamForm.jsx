@@ -33,7 +33,7 @@ export default function TeamForm({ team, edit, errors: serverErrors }) {
       <FormHeader
         kicker={t("Manage Landing")}
         title={edit ? t("Edit Member") : t("New Member")}
-        sub={t("Anggota tim yang tampil di section Our Team landing page")}
+        sub={t("Team member shown in the Our Team section of the landing page")}
       />
       <form ref={formRef} method="post" onSubmit={submit}>
         <FormPanel>
@@ -42,14 +42,14 @@ export default function TeamForm({ team, edit, errors: serverErrors }) {
               <Input id="name" name="name" type="text" defaultValue={m.name || ""} placeholder={t("Nama lengkap")} />
             </FormField>
             <FormField label={t("Position")} name="position" error={errors.position}>
-              <Input id="position" name="position" type="text" defaultValue={m.position || ""} placeholder={t("Mis. Marketing & Reservasi")} />
+              <Input id="position" name="position" type="text" defaultValue={m.position || ""} placeholder={t("E.g. Marketing & Reservations")} />
             </FormField>
-            <FormField label={t("WhatsApp")} name="wa" error={errors.wa} hint={t("Format internasional, mis. 6281234567890")}>
+            <FormField label={t("WhatsApp")} name="wa" error={errors.wa} hint={t("International format, e.g. 6281234567890")}>
               <Input id="wa" name="wa" type="text" defaultValue={m.wa || ""} placeholder="6281234567890" />
             </FormField>
             <FormField
               label={t("Photo")} name="photo" error={errors.photo}
-              hint={edit && m.photo_url ? t("Foto saat ini akan diganti jika memilih foto baru") : t("Opsional — tampil di section Our Team")}
+              hint={edit && m.photo_url ? t("Choosing a new photo replaces the current one") : t("Optional — shown in the Our Team section")}
             >
               {edit && m.photo_url && (
                 <img src={m.photo_url} alt="" style={{ width: 64, height: 64, borderRadius: "50%", objectFit: "cover", marginBottom: 8, display: "block" }} />
@@ -57,7 +57,7 @@ export default function TeamForm({ team, edit, errors: serverErrors }) {
               <Input id="photo" name="photo" type="file" accept="image/*" />
             </FormField>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <FormField label={t("Order")} name="order" error={errors.order} hint={t("Angka kecil tampil lebih dulu")}>
+              <FormField label={t("Order")} name="order" error={errors.order} hint={t("Lower numbers show first")}>
                 <Input id="order" name="order" type="number" min="0" step="1" defaultValue={m.order ?? ""} />
               </FormField>
               <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 3 }}>

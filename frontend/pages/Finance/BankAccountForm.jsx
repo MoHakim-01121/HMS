@@ -152,14 +152,14 @@ function BankAccountFormBody({
 .ba-seg > button.on { background: var(--card); color: var(--foreground); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .ba-sw { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; }
 .ba-sw + .ba-sw { margin-top: 10px; }
-.ba-sw b { display: block; font-size: 13.5px; font-weight: 500; }
+.ba-sw b { display: block; font-size: 14px; font-weight: 500; }
 .ba-sw span span { display: block; font-size: 12px; color: var(--muted-foreground); }
 .ba-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
 .ba-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
 .ba-tg.on { background: var(--foreground); }
 .ba-tg.on::after { transform: translateX(16px); }
 .ba-adv { margin-top: 18px; }
-.ba-adv > button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: 600 12.5px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.ba-adv > button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
 .ba-adv > button svg { transition: transform 150ms ease; }
 .ba-adv > button[aria-expanded="true"] svg { transform: rotate(90deg); }
 .ba-seg > button:focus-visible, .ba-tg:focus-visible, .ba-adv > button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

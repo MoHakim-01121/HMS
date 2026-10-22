@@ -105,16 +105,16 @@ function CreditNoteFormBody({ invoice, lines = [], cancel, form: initial = {}, e
 }
 
 const CSS = `
-.cn-row { display: grid; grid-template-columns: minmax(0,1fr) 100px 100px 140px 64px; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px; font-size: 13.5px; min-width: 580px; }
+.cn-row { display: grid; grid-template-columns: minmax(0,1fr) 100px 100px 140px 64px; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px; font-size: 14px; min-width: 580px; }
 .cn-row + .cn-row { border-top: 1px solid var(--hairline); }
-.cn-row.h { min-height: 34px; font-size: 11.5px; font-weight: 500; color: var(--muted-foreground); }
+.cn-row.h { min-height: 34px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
 .cn-row .r { text-align: right; }
 .cn-lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .cn-row .fa-btn:disabled { opacity: .45; cursor: not-allowed; }
 .cn-eff { border: 1px solid var(--border); border-radius: 14px; padding: 6px 14px; font-size: 13px; }
 .cn-eff > div, .cn-eff .split > div { display: flex; justify-content: space-between; align-items: center; min-height: 30px; color: var(--muted-foreground); }
 .cn-eff .res { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; color: var(--foreground); font-weight: 500; }
-.cn-eff .res b { font-weight: 700; font-size: 15px; }
+.cn-eff .res b { font-weight: 700; font-size: 16px; }
 .cn-eff .split { display: block; margin: 6px -14px -6px; padding: 6px 14px; background: var(--background); border-radius: 0 0 13px 13px; }
 .cn-eff .split .dep { color: var(--warning-text); font-weight: 500; }
 `;

@@ -31,7 +31,9 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
   const toggle = (id) => setExcluded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
   const save = () => {
     setSaving(true);
-    router.post("/finance/claims/new/", { date_from: f.date_from, date_to: f.date_to, branch: f.branch, exclude: excluded, note }, { onFinish: () => setSaving(false) });
+    // preserveState: a refused save redirects back here (same range), and the
+    // unticked expenses and the note must survive it.
+    router.post("/finance/claims/new/", { date_from: f.date_from, date_to: f.date_to, branch: f.branch, exclude: excluded, note }, { preserveState: true, onFinish: () => setSaving(false) });
   };
 
   return (

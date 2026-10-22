@@ -41,7 +41,7 @@ export default function Combobox({
           placeholder={placeholder}
           aria-invalid={error ? "true" : undefined}
           aria-describedby={describedBy}
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm"
+          className="flex h-9 w-full rounded-md border border-field bg-transparent px-3 py-1 text-base shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm"
         />
       </PopoverAnchor>
       <PopoverContent

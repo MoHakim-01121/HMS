@@ -10,7 +10,7 @@ export function DvLink({ href, newTab, children }) {
   return (
     <a
       className="hms-dv-act"
-      style={{ padding: "1px 7px", fontSize: 11.5, marginLeft: 7, gap: 4, verticalAlign: "middle" }}
+      style={{ padding: "1px 7px", fontSize: 12, marginLeft: 7, gap: 4, verticalAlign: "middle" }}
       href={href}
       target={newTab ? "_blank" : undefined}
       rel={newTab ? "noreferrer" : undefined}

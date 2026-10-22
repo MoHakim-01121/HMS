@@ -51,7 +51,7 @@ export const NAV_TOP = [
 // books Finance keeps, master data, admin. Each group has its own icon.
 export const NAV_GROUPS = [
   { id: "ops", heading: "Operations", icon: "grp_ops", items: [
-    { key: "cl", label: "Conf Letter", href: "/cl/", perm: "cl" },
+    { key: "cl", label: "Confirmation Letter", href: "/cl/", perm: "cl" },
     { key: "invoice", label: "Invoice", href: "/invoice/", perm: "invoice" },
     { key: "payments", label: "Payments", href: "/finance/payments/", perm: "payments" },
     { key: "credit_notes", label: "Credit Notes", href: "/finance/credit-notes/", perm: "invoice" },
@@ -63,7 +63,7 @@ export const NAV_GROUPS = [
     { key: "expenses", label: "Expenses", href: "/finance/expenses/", perm: "expenses" },
     { key: "exchanges", label: "Transfer and Exchange", href: "/finance/exchanges/", perm: "bank" },
     { key: "remittance", label: "Remittance", href: "/remittance/", perm: "remittance" },
-    { key: "reconciliation", label: "Reconciliation", href: "/finance/reconciliation/", perm: "bank" },
+    { key: "reconciliation", label: "Bank Reconciliation", href: "/finance/reconciliation/", perm: "bank" },
   ] },
   { id: "rep", heading: "Reports", icon: "grp_rep", items: [
     { key: "branch_report", label: "Branch report", href: "/finance/branch-report/", perm: "branch_report" },
@@ -72,8 +72,8 @@ export const NAV_GROUPS = [
     { key: "trial_balance", label: "Trial Balance", href: "/finance/trial-balance/", perm: "journal" },
   ] },
   { id: "books", heading: "Books", icon: "grp_books", items: [
-    { key: "journal", label: "Journal", href: "/finance/journal/", perm: "journal" },
-    { key: "periods", label: "Periods", href: "/finance/periods/", perm: "periods" },
+    { key: "journal", label: "Journal Entries", href: "/finance/journal/", perm: "journal" },
+    { key: "periods", label: "Financial Periods", href: "/finance/periods/", perm: "periods" },
   ] },
   { id: "data", heading: "Data", icon: "grp_data", items: [
     { key: "clients", label: "Clients", href: "/clients/", perm: "clients" },

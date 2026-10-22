@@ -149,9 +149,9 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
                 <div className="fg-2">
                   <FormField label={t("Period Start")} name="period_start" type="date" required value={form.data.period_start} onChange={(v) => form.setData("period_start", v)} />
                   <FormField label={t("Period End")} name="period_end" type="date" required value={form.data.period_end} onChange={(v) => form.setData("period_end", v)} />
-                  <FormField label={currency ? `${t("Opening Balance")} (${currency})` : t("Opening Balance")} name="opening_balance" type="number" required
+                  <FormField label={currency ? `${t("Opening Balance")} (${currency})` : t("Opening Balance")} name="opening_balance" amount signed required
                     value={form.data.opening_balance} onChange={(v) => form.setData("opening_balance", v)} />
-                  <FormField label={currency ? `${t("Closing Balance")} (${currency})` : t("Closing Balance")} name="closing_balance" type="number" required
+                  <FormField label={currency ? `${t("Closing Balance")} (${currency})` : t("Closing Balance")} name="closing_balance" amount signed required
                     value={form.data.closing_balance} onChange={(v) => form.setData("closing_balance", v)} />
                 </div>
                 {gap ? (
@@ -177,11 +177,11 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
 }
 
 const CSS = `
-.imp-hint { margin: 0 0 10px; font-size: 12.5px; color: var(--muted-foreground); }
-.imp-warn { margin: 8px 0 12px; font-size: 12.5px; color: var(--yellow); }
+.imp-hint { margin: 0 0 10px; font-size: 13px; color: var(--muted-foreground); }
+.imp-warn { margin: 8px 0 12px; font-size: 13px; color: var(--yellow); }
 .imp-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .imp-table { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-.imp-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.imp-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .imp-table th { position: sticky; top: 0; background: var(--secondary); text-align: left; font-weight: 500; color: var(--muted-foreground); padding: 7px 10px; }
 .imp-table td { padding: 7px 10px; border-top: 1px solid var(--border); vertical-align: top; }
 .imp-table .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

@@ -47,7 +47,7 @@ export const REM_TABLE_CSS = `
 
 /* peringatan saat mengedit transfer yang sudah ditandai Received */
 .rem-received-note {
-  font-size:12.5px; line-height:1.6; color:var(--foreground);
+  font-size:13px; line-height:1.6; color:var(--foreground);
   background:var(--muted); border:1px solid var(--border);
   border-radius:calc(var(--radius) - 2px);
   padding:10px 12px;
@@ -75,7 +75,7 @@ export const RECEIPT_CSS = `
 
 .rcp-alert {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: 12px; font-size: 12.5px;
+  padding: 10px 12px; border-radius: 12px; font-size: 13px;
   color: var(--red); background: color-mix(in oklch, var(--red) 8%, var(--card));
   border: 1px solid color-mix(in oklch, var(--red) 30%, var(--border));
 }
@@ -92,7 +92,7 @@ export const RECEIPT_CSS = `
 .rcp-alloc { display: flex; flex-direction: column; gap: 12px; }
 .rcp-alloc-h { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .rcp-alloc-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--foreground); }
-.rcp-alloc-desc { margin: 3px 0 0; font-size: 11.5px; color: var(--muted-foreground); }
+.rcp-alloc-desc { margin: 3px 0 0; font-size: 12px; color: var(--muted-foreground); }
 .rcp-alloc-tools { display: flex; align-items: center; gap: 6px; }
 .rcp-alloc-tools .search-wrap { width: 250px; height: 36px; }
 .rcp-tool {
@@ -110,19 +110,19 @@ export const RECEIPT_CSS = `
 .rcp-table tbody tr:last-child td { border-bottom: none; }
 .rcp-table tr.is-on td { background: color-mix(in oklch, var(--muted) 45%, transparent); }
 .rcp-table .rcp-group th {
-  padding: 12px 12px 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+  padding: 12px 12px 6px; font-size: 12px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
   background: color-mix(in oklch, var(--muted) 40%, var(--card));
 }
 .rcp-res-no { display: block; font-family: var(--font-mono); font-size: 12px; font-weight: 700; }
 .rcp-sub { display: block; margin-top: 2px; font-size: 11px; font-weight: 400; color: var(--muted-foreground); white-space: nowrap; }
-.rcp-client { font-size: 12.5px; color: var(--muted-foreground); }
-.rcp-date { font-size: 12.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rcp-client { font-size: 13px; color: var(--muted-foreground); }
+.rcp-date { font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rcp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rcp-in { text-align: right; }
 .rcp-in .rem-input[aria-invalid] { border-color: var(--red); }
 .rcp-err { display: block; margin-top: 3px; font-size: 11px; color: var(--red); }
 .rcp-empty, .rcp-legacy {
-  padding: 18px; text-align: center; font-size: 12.5px; color: var(--muted-foreground);
+  padding: 18px; text-align: center; font-size: 13px; color: var(--muted-foreground);
   border: 1px dashed var(--border); border-radius: 14px; margin: 0;
 }
 
@@ -131,7 +131,7 @@ export const RECEIPT_CSS = `
   padding: 24px; border-left: 1px solid var(--border);
   background: color-mix(in oklch, var(--muted) 38%, var(--card));
 }
-.rcp-rows { position: sticky; top: 0; display: flex; flex-direction: column; gap: 9px; font-size: 12.5px; }
+.rcp-rows { position: sticky; top: 0; display: flex; flex-direction: column; gap: 9px; font-size: 13px; }
 .rcp-row { display: flex; justify-content: space-between; gap: 12px; color: var(--muted-foreground); }
 .rcp-row .rcp-num { color: var(--foreground); font-weight: 500; }
 .rcp-row-total { padding-top: 9px; border-top: 1px solid var(--border); color: var(--foreground); font-weight: 600; }
@@ -186,7 +186,7 @@ export const RECEIPT_CSS = `
   .rcp-table td { padding: 0; border: none; }
   .rcp-table .rcp-res { grid-column: 1; }
   .rcp-table .rcp-num { grid-column: 2; grid-row: 1; }
-  .rcp-table .rcp-client, .rcp-table .rcp-date { grid-column: 1; font-size: 11.5px; }
+  .rcp-table .rcp-client, .rcp-table .rcp-date { grid-column: 1; font-size: 12px; }
   .rcp-table .rcp-in { grid-column: 1 / -1; margin-top: 8px; }
   .rcp-table .rcp-in .rem-input { width: 100%; }
 }

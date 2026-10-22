@@ -10,7 +10,7 @@ import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 
-function FormBody({ penalty, cl, suggested_number, today, edit, billing, errors: serverErrors }) {
+function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, errors: serverErrors = {} }) {
   const { t } = useI18n();
   const p = penalty || {};
   const form = useForm({
@@ -20,7 +20,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, errors:
     penalty_amount: p.penalty_amount ?? "",
     note: p.note || "",
   });
-  const errors = { ...serverErrors, ...form.errors };
+  const errors = { ...form.errors, ...Object.fromEntries(Object.entries(serverErrors).map(([k, v]) => [k, t(v)])) };
   const set = (k) => (v) => form.setData(k, v);
 
   const submit = (e) => {
@@ -39,6 +39,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, errors:
       />
 
       <form method="post" onSubmit={submit}>
+        {error && <div className="alert alert-error" role="alert" style={{ marginBottom: 12 }}>{t(error)}</div>}
         <FormPanel>
           <FormSection label={t("Penalty Information")}>
             <div className="fg-2" style={{ marginBottom: 12 }}>
@@ -51,7 +52,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, errors:
           </FormSection>
 
           <FormSection label={t("Amount")}>
-            <FormField label={t("Amount (SAR)")} name="penalty_amount" type="number" step="1" min="1" required
+            <FormField label={t("Amount (SAR)")} name="penalty_amount" amount required
               value={form.data.penalty_amount} onChange={set("penalty_amount")} error={errors.penalty_amount}
               hint={t("Penalties are always set in SAR. A client paying in another currency is recorded as a payment with its rate.")} />
           </FormSection>

@@ -4,7 +4,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, useListNav,
+  TableCard, RowMenu, Pill, Pager, Empty, LIcon, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -66,7 +66,7 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
         </tr></thead>
         <tbody>
           {hotels.map((h) => (
-            <tr key={h.id} className={h.is_active ? "" : "dim"} onClick={() => router.visit(`/hotels/${h.id}/`)}>
+            <tr key={h.id} className={h.is_active ? "" : "dim"} {...rowNav(`/hotels/${h.id}/`)}>
               <td className="ell strong">{h.name}</td>
               <td>{h.city_display}</td>
               <td className="ell">{h.area || <span className="mut">—</span>}</td>

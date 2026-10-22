@@ -3,8 +3,9 @@ import { Link } from "@inertiajs/react";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePresence } from "./usePresence.js";
 import { NAV_TOP, NAV_GROUPS, DEFAULT_OPEN, NavIcon, allowed } from "./nav.jsx";
-import logoLight from "../../assets/logo-konoz.png";
-import logoDark from "../../assets/logo-konoz-dark.png";
+// The sidebar is a dark olive card in both themes, so it always takes the
+// light-on-dark logo.
+import logoOnDark from "../../assets/logo-konoz-dark.png";
 
 // v2: the groups were renamed on 2026-10-20, so older saved states don't apply.
 const GROUPS_KEY = "hms.sidebar.groups.v2";
@@ -31,7 +32,7 @@ const Chevron = ({ size = 15, className }) => (
 // button sits at the foot. Collapsed (body.sidebar-collapsed) it is a rail:
 // the branch code under the logo, one icon per group (a click reopens the
 // sidebar on that group) and tooltips; the branch menu opens beside it.
-export default function ShellSidebar({ page, perms, theme, branch, mini, onPickBranch, onToggleMini }) {
+export default function ShellSidebar({ page, perms, branch, mini, onPickBranch, onToggleMini }) {
   const { t } = useI18n();
   const [groups, setGroups] = useState(readGroups);
   const [branchOpen, setBranchOpen] = useState(false);
@@ -121,7 +122,7 @@ export default function ShellSidebar({ page, perms, theme, branch, mini, onPickB
   const code = current ? (current.is_hq ? "HQ" : current.code) : "";
   const brand = (
     <>
-      <img className="ks-logo" src={theme === "dark" ? logoDark : logoLight} alt="" />
+      <img className="ks-logo" src={logoOnDark} alt="" />
       <span className="ks-code" aria-hidden="true">{code}</span>
       <span className="ks-bn"><b>Konoz United</b><span>{current ? current.name : t("Hotel Management")}{multi && <Chevron size={12} />}</span></span>
     </>

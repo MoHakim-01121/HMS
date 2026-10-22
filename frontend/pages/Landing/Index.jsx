@@ -119,6 +119,14 @@ export default function LandingIndex({ stats, featured_hotels, team_members, pri
   // is what's actually driving window.scrollY here.
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
+    // Smooth scroll keeps moving the page after the wheel stops, so it stays
+    // off for anyone who asked the OS for reduced motion.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const onScroll = () => setScrolled(window.scrollY > 60);
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+      return () => window.removeEventListener("scroll", onScroll);
+    }
     const lenis = new Lenis({
       duration: 1.1,
       easing: (t) => Math.min(1, 1.001 - 2 ** (-10 * t)),

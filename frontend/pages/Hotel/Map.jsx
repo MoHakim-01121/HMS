@@ -44,8 +44,8 @@ export default function HotelMap() {
       const themeObserver = new MutationObserver(() => tileLayer.setUrl(getTileUrl()));
       themeObserver.observe(document.documentElement, { attributeFilter: ["data-theme"] });
 
-      const refIcon = () => L.divIcon({ className: "", html: '<div style="width:12px;height:12px;border-radius:3px;background:var(--accent);border:2px solid rgba(255,255,255,.6);box-shadow:0 0 8px var(--accent);"></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
-      const mosqueIcon = () => L.divIcon({ className: "", html: '<div style="width:10px;height:10px;border-radius:3px;background:var(--red);border:2px solid rgba(255,255,255,.5);box-shadow:0 0 6px var(--red);"></div>', iconSize: [10, 10], iconAnchor: [5, 5] });
+      const refIcon = () => L.divIcon({ className: "", html: '<div style="width:12px;height:12px;border-radius:3px;background:var(--primary);border:2px solid rgba(255,255,255,.6);box-shadow:0 0 8px var(--primary);"></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
+      const mosqueIcon = () => L.divIcon({ className: "", html: '<div style="width:10px;height:10px;border-radius:3px;background:var(--danger);border:2px solid rgba(255,255,255,.5);box-shadow:0 0 6px var(--danger);"></div>', iconSize: [10, 10], iconAnchor: [5, 5] });
       L.marker(HARAM, { icon: refIcon() }).bindTooltip(t("Pelataran Al-Haram")).addTo(map);
       L.marker(HARAM_INFO, { icon: mosqueIcon() }).bindTooltip(t("Masjid Al-Haram")).addTo(map);
       L.marker(NABAWI, { icon: mosqueIcon() }).bindTooltip(t("Masjid Nabawi")).addTo(map);
@@ -106,7 +106,7 @@ export default function HotelMap() {
       }
       const syncRadioStyles = () => ["all", "makkah", "madinah"].forEach((v) => { const l = document.getElementById("fp-city-" + v); if (l) l.classList.toggle("active", document.querySelector('input[name="fp-city"][value="' + v + '"]').checked); });
 
-      function saveFilters() { try { localStorage.setItem("hmap_filters", JSON.stringify({ city: getCityFilter(), dists: getDistFilters(), stars: getStarsFilters(), avg: avgOnly, q: document.getElementById("hotel-search").value || "" })); } catch (e) { /* noop */ } }
+      function saveFilters() { try { localStorage.setItem("hmap_filters", JSON.stringify({ city: getCityFilter(), dists: getDistFilters(), stars: getStarsFilters(), avg: avgOnly, q: document.getElementById("hotel-search").value || "" })); } catch { /* noop */ } }
       function loadFilters() {
         try {
           const s = localStorage.getItem("hmap_filters"); if (!s) return;
@@ -116,7 +116,7 @@ export default function HotelMap() {
           (f.stars || []).forEach((v) => { const cb = document.querySelector('input[name="fp-stars"][value="' + v + '"]'); if (cb) cb.checked = true; });
           avgOnly = !!f.avg; if (avgOnly) document.getElementById("sw-avg").classList.add("on");
           if (f.q) { const inp = document.getElementById("hotel-search"); if (inp) inp.value = f.q; syncSearchClear(); }
-        } catch (e) { /* noop */ }
+        } catch { /* noop */ }
       }
 
       function applyFilters() {
@@ -131,14 +131,14 @@ export default function HotelMap() {
       }
       function updateCounter(n) { const label = n + " " + t("Hotel"); document.getElementById("hp-count").textContent = label; const mc = document.getElementById("mob-sheet-count"); if (mc) mc.textContent = label; }
 
-      const toggleLegend = () => { document.getElementById("leg-body").classList.toggle("hidden"); document.getElementById("leg-arrow").classList.toggle("up"); };
+      const toggleLegend = () => { const hidden = document.getElementById("leg-body").classList.toggle("hidden"); document.getElementById("leg-arrow").classList.toggle("up"); document.getElementById("leg-toggle").setAttribute("aria-expanded", String(!hidden)); };
 
       let filterOpen = false;
       const toggleFilter = () => { filterOpen = !filterOpen; document.getElementById("filter-dropdown").classList.toggle("open", filterOpen); document.getElementById("filter-open-btn").classList.toggle("has-filter", filterOpen || countActiveFilters() > 0); };
       function closeFilter() { filterOpen = false; const dd = document.getElementById("filter-dropdown"); if (dd) dd.classList.remove("open"); const btn = document.getElementById("filter-open-btn"); if (btn) btn.classList.toggle("has-filter", countActiveFilters() > 0); }
 
-      const toggleRoutes = () => { routesVisible = !routesVisible; document.getElementById("sw-route").classList.toggle("on", routesVisible); if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup); };
-      const toggleAvg = () => { avgOnly = !avgOnly; document.getElementById("sw-avg").classList.toggle("on", avgOnly); applyFilters(); };
+      const toggleRoutes = () => { routesVisible = !routesVisible; document.getElementById("sw-route").classList.toggle("on", routesVisible); document.getElementById("tg-route").setAttribute("aria-checked", String(routesVisible)); if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup); };
+      const toggleAvg = () => { avgOnly = !avgOnly; document.getElementById("sw-avg").classList.toggle("on", avgOnly); document.getElementById("tg-avg").setAttribute("aria-checked", String(avgOnly)); applyFilters(); };
       const resetFilters = () => { document.querySelector('input[name="fp-city"][value="all"]').checked = true; document.querySelectorAll("#filter-dropdown input[type=checkbox]").forEach((cb) => { cb.checked = false; }); avgOnly = false; document.getElementById("sw-avg").classList.remove("on"); document.getElementById("hotel-search").value = ""; applyFilters(); };
 
       function buildCardHtml(h, idx) {
@@ -153,10 +153,10 @@ export default function HotelMap() {
           '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="' + t("Hotel details") + '">' +
           '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
           "</a></div>" +
-          '<div class="hp-card-sub"><span style="color:var(--yellow);letter-spacing:1px;">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
+          '<div class="hp-card-sub"><span style="color:var(--warning-text);letter-spacing:1px;">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
       }
       function renderPanel(hotels) {
-        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--text-2);margin-bottom:16px;">' + t("No matching hotels") + '</div><button onclick="resetFilters()" style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:8px;padding:8px 16px;color:var(--text-2);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">' + t("Reset Filter") + "</button></div>";
+        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px;">' + t("No matching hotels") + '</div><button onclick="resetFilters()" style="background:var(--secondary);border:1px solid var(--input);border-radius:8px;padding:8px 16px;color:var(--muted-foreground);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">' + t("Reset Filter") + "</button></div>";
         const html = hotels.length === 0 ? empty : hotels.map((h, i) => buildCardHtml(h, i)).join("");
         if (!isMobile()) document.getElementById("hotel-list").innerHTML = html;
         const mobList = document.getElementById("mob-sheet-list");
@@ -318,7 +318,7 @@ export default function HotelMap() {
         <div className="map-search-wrap">
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
           <input type="text" id="hotel-search" placeholder={t("Search hotel or area...")} onInput={() => window.debounceSearch?.()} />
-          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--text-3)", lineHeight: 1, flexShrink: 0 }} title={t("Clear")}>
+          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--muted-foreground)", lineHeight: 1, flexShrink: 0 }} title={t("Clear")}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -327,7 +327,7 @@ export default function HotelMap() {
           <button className="map-tb-btn" id="filter-open-btn" onClick={() => window.toggleFilter?.()}>
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 8h10M10 12h4" /></svg>
             {t("Filter")}
-            <span id="filter-badge" style={{ display: "none", background: "var(--accent)", color: "#fff", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }} />
+            <span id="filter-badge" style={{ display: "none", background: "var(--primary)", color: "var(--primary-foreground)", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }} />
           </button>
 
           <div id="filter-dropdown" className="map-filter-dropdown">
@@ -337,17 +337,17 @@ export default function HotelMap() {
             <label className="fp-radio" id="fp-city-madinah"><input type="radio" name="fp-city" value="madinah" onChange={() => window.applyFilters?.()} /> Madinah</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
             <div className="fp-section"><div className="fp-section-title">{t("Distance to Mosque")}</div></div>
-            <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--green)", display: "inline-block", flexShrink: 0 }} /> {t("≤ 500 M")}</label>
-            <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--yellow)", display: "inline-block", flexShrink: 0 }} /> {t("500 M – 1.5 KM")}</label>
-            <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--red)", display: "inline-block", flexShrink: 0 }} /> {t("> 1.5 KM")}</label>
+            <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--success)", display: "inline-block", flexShrink: 0 }} /> {t("≤ 500 M")}</label>
+            <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning)", display: "inline-block", flexShrink: 0 }} /> {t("500 M – 1.5 KM")}</label>
+            <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--danger)", display: "inline-block", flexShrink: 0 }} /> {t("> 1.5 KM")}</label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
             <div className="fp-section"><div className="fp-section-title">{t("Stars")}</div></div>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★</span></label>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★</span></label>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--yellow)", fontSize: 12 }}>★★★★★</span></label>
+            <label className="fp-check"><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★</span></label>
+            <label className="fp-check"><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★★</span></label>
+            <label className="fp-check"><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★★★</span></label>
             <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">{t("Has Avg / Capacity")}</span><div id="sw-avg" className="fp-toggle-switch" /></div>
-            <div className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">{t("Show Routes")}</span><div id="sw-route" className="fp-toggle-switch on" /></div>
+            <button type="button" id="tg-avg" role="switch" aria-checked="false" className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">{t("Has Avg / Capacity")}</span><span id="sw-avg" className="fp-toggle-switch" /></button>
+            <button type="button" id="tg-route" role="switch" aria-checked="true" className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">{t("Show Routes")}</span><span id="sw-route" className="fp-toggle-switch on" /></button>
             <div className="fp-reset-wrap"><button type="button" className="fp-reset" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
           </div>
         </div>
@@ -356,18 +356,18 @@ export default function HotelMap() {
       <div className="hud-coords" id="hud-coords">---.-°N  ---.-°E</div>
 
       <div className="map-legend">
-        <div className="leg-toggle" onClick={() => window.toggleLegend?.()}>
+        <button type="button" id="leg-toggle" aria-expanded="true" aria-controls="leg-body" className="leg-toggle" onClick={() => window.toggleLegend?.()}>
           <span className="leg-toggle-title">{t("Legend")}</span>
           <svg className="leg-arrow" id="leg-arrow" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-        </div>
+        </button>
         <div id="leg-body">
           <div className="leg-section">{t("Distance to Mosque")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--green)" }} /> {t("≤ 500 M")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--yellow)" }} /> {t("500 M – 1.5 KM")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {t("> 1.5 KM")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--success)" }} /> {t("≤ 500 M")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--warning)" }} /> {t("500 M – 1.5 KM")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--danger)" }} /> {t("> 1.5 KM")}</div>
           <div className="leg-section">{t("Reference Points")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--accent)" }} /> Al-Haram Plaza</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--red)" }} /> {t("Mosque")}</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--primary)" }} /> Al-Haram Plaza</div>
+          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--danger)" }} /> {t("Mosque")}</div>
         </div>
       </div>
 
@@ -402,108 +402,112 @@ export default function HotelMap() {
 const CSS = `
 #map-wrap { position: relative; height: calc(100vh - 48px); overflow: hidden; }
 #map { position: absolute; inset: 0; isolation: isolate; }
-.hotel-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; background: rgba(20,20,23,.92); background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: visible; z-index: var(--z-dropdown); transition: transform .25s cubic-bezier(.4,0,.2,1); }
+.hotel-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; background: var(--card); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: visible; z-index: var(--z-dropdown); transition: transform .25s cubic-bezier(.4,0,.2,1); }
 .hotel-panel.collapsed { transform: translateX(300px); }
 .hotel-panel-inner { display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; z-index: 1; }
-.panel-toggle { position: absolute; left: -26px; top: 50%; transform: translateY(-50%); width: 26px; height: 52px; background: rgba(20,20,23,.92); background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(16px); border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-3); transition: color .15s; z-index: 1; }
-.panel-toggle:hover { color: var(--text); }
+.panel-toggle { position: absolute; left: -26px; top: 50%; transform: translateY(-50%); width: 26px; height: 52px; background: var(--card); border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); transition: color .15s; z-index: 1; }
+.panel-toggle:hover { color: var(--foreground); }
 .panel-toggle svg { transition: transform .25s cubic-bezier(.4,0,.2,1); }
 .hotel-panel.collapsed .panel-toggle svg { transform: rotate(180deg); }
 .hp-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .hp-meta { display: flex; align-items: center; justify-content: space-between; }
-.hp-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: var(--text-3); text-transform: uppercase; }
+.hp-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted-foreground); text-transform: uppercase; }
 .hp-list { flex: 1; overflow-y: auto; min-height: 0; }
 .hp-list::-webkit-scrollbar { width: 3px; }
 .hp-list::-webkit-scrollbar-track { background: transparent; }
-.hp-list::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
-.hp-card { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; border-left: 2px solid transparent; transition: background .12s, border-color .12s; animation: card-in .18s ease both; }
-.hp-card:hover { background: var(--surface-2); }
-.hp-card.active { background: var(--accent-muted); border-left-color: var(--accent); }
+.hp-list::-webkit-scrollbar-thumb { background: var(--input); border-radius: 2px; }
+.hp-card { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .12s; animation: card-in .18s ease both; }
+.hp-card:hover { background: var(--secondary); }
+.hp-card.active { background: var(--secondary); box-shadow: inset 0 0 0 1px var(--input); }
 .hp-card-top { display: flex; align-items: center; gap: 9px; }
-.hp-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; transition: box-shadow .15s; }
-.hp-card:hover .hp-dot, .hp-card.active .hp-dot { box-shadow: 0 0 6px currentColor; }
-.hp-card-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hp-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.hp-card-name { font-size: 13px; font-weight: 600; color: var(--foreground); line-height: 1.3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hp-card-dist { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; letter-spacing: .3px; }
-.hp-card-dist.green  { color: var(--green); }
-.hp-card-dist.yellow { color: var(--yellow); }
-.hp-card-dist.red    { color: var(--red); }
-.hp-card-dist.dim    { color: var(--text-3); }
-.hp-card-link { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; margin-left: 2px; color: var(--text-3); text-decoration: none; border-radius: 6px; transition: color .15s, background .15s; }
-.hp-card:hover .hp-card-link { color: var(--text-2); }
-.hp-card-link:hover { color: var(--accent) !important; background: var(--accent-muted); }
-.hp-card-sub { font-size: 10.5px; color: var(--text-3); padding-left: 17px; margin-top: 2px; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-legend { position: absolute; top: 60px; left: 12px; z-index: var(--z-overlay); background: rgba(20,20,23,.85); background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 11px; min-width: 140px; color: var(--text-2); }
-.leg-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; margin-bottom:8px; }
-.leg-toggle-title { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-3); }
-.leg-arrow { color:var(--text-3); transition:transform .2s; }
+.hp-card-dist.green  { color: var(--success-text); }
+.hp-card-dist.yellow { color: var(--warning-text); }
+.hp-card-dist.red    { color: var(--danger-text); }
+.hp-card-dist.dim    { color: var(--muted-foreground); }
+.hp-card-link { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; margin-left: 2px; color: var(--muted-foreground); text-decoration: none; border-radius: 6px; transition: color .15s, background .15s; }
+.hp-card:hover .hp-card-link { color: var(--muted-foreground); }
+.hp-card-link:hover { color: var(--primary) !important; background: var(--secondary); }
+.hp-card-sub { font-size: 10.5px; color: var(--muted-foreground); padding-left: 17px; margin-top: 2px; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-legend { position: absolute; top: 60px; left: 12px; z-index: var(--z-overlay); background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 11px; min-width: 140px; color: var(--muted-foreground); }
+.leg-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; margin-bottom:8px; width:100%; padding:0; border:0; background:none; font:inherit; color:inherit; }
+.leg-toggle-title { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted-foreground); }
+.leg-arrow { color:var(--muted-foreground); transition:transform .2s; }
 .leg-arrow.up { transform:rotate(-180deg); }
 #leg-body { overflow:hidden; max-height:200px; transition:max-height .25s ease, opacity .2s; opacity:1; }
 #leg-body.hidden { max-height:0; opacity:0; }
-.leg-section { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--text-3); margin-bottom:5px; margin-top:9px; }
+.leg-section { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted-foreground); margin-bottom:5px; margin-top:9px; }
 .leg-section:first-child { margin-top:0; }
 .leg-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
 .leg-row:last-child { margin-bottom:0; }
 .leg-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
 .map-topbar { position: absolute; top: 12px; left: 12px; z-index: var(--z-overlay); display: flex; align-items: center; gap: 8px; }
 .filter-btn-wrap { position: relative; }
-.map-tb-btn { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: rgba(20,20,23,.9); background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(10px); border: 1px solid var(--border-2); border-radius: 20px; color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .15s; }
-.map-tb-btn:hover { border-color: var(--text-3); }
-.map-tb-btn.has-filter { color: var(--accent); border-color: var(--accent); background: var(--accent-muted); }
-.map-search-wrap { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; min-width: 220px; background: rgba(20,20,23,.88); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--border-2); border-radius: 20px; box-shadow: 0 2px 12px rgba(0,0,0,.3); }
-.map-search-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-muted), 0 2px 12px rgba(0,0,0,.3); }
-.map-search-wrap:focus-within svg { color: var(--accent); }
-.map-search-wrap svg { color: var(--text-3); flex-shrink: 0; }
-.map-search-wrap input, .map-search-wrap input:focus { background: transparent !important; border: none !important; border-color: transparent !important; outline: none !important; box-shadow: none !important; -webkit-box-shadow: none !important; padding: 0 !important; margin: 0; border-radius: 0 !important; color: var(--text); font-size: 13px; font-family: inherit; width: 100%; height: 100%; -webkit-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; }
-.map-search-wrap input::placeholder { color: var(--text-3); }
-.map-filter-dropdown { position: absolute; top: calc(100% + 6px); left: 0; width: 240px; background: rgba(20,20,23,.96); background: color-mix(in srgb, var(--surface) 96%, transparent); backdrop-filter: blur(12px); border: 1px solid var(--border-2); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.4); z-index: var(--z-overlay); opacity: 0; pointer-events: none; transform: translateY(-6px) scale(.98); transform-origin: top left; transition: opacity .18s, transform .18s; overflow: hidden; padding-top: 4px; }
+.map-tb-btn { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: var(--card); border: 1px solid var(--input); border-radius: 20px; color: var(--foreground); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.map-tb-btn:hover { border-color: var(--muted-foreground); }
+.map-tb-btn.has-filter { color: var(--primary); border-color: var(--primary); background: var(--secondary); }
+.map-search-wrap { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; min-width: 220px; background: var(--card); border: 1px solid var(--input); border-radius: 20px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 4px 12px rgb(0 0 0 / .06); }
+.map-search-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent); }
+.map-search-wrap:focus-within svg { color: var(--primary); }
+.map-search-wrap svg { color: var(--muted-foreground); flex-shrink: 0; }
+.map-search-wrap input, .map-search-wrap input:focus { background: transparent !important; border: none !important; border-color: transparent !important; outline: none !important; box-shadow: none !important; -webkit-box-shadow: none !important; padding: 0 !important; margin: 0; border-radius: 0 !important; color: var(--foreground); font-size: 13px; font-family: inherit; width: 100%; height: 100%; -webkit-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; }
+.map-search-wrap input::placeholder { color: var(--muted-foreground); }
+.map-filter-dropdown { position: absolute; top: calc(100% + 6px); left: 0; width: 240px; background: var(--card); border: 1px solid var(--input); border-radius: 12px; box-shadow: 0 4px 24px rgb(0 0 0 / .12); z-index: var(--z-overlay); opacity: 0; pointer-events: none; transform: translateY(-6px) scale(.98); transform-origin: top left; transition: opacity .18s, transform .18s; overflow: hidden; padding-top: 4px; }
 .map-filter-dropdown.open { opacity: 1; pointer-events: all; transform: none; }
 .fp-section { padding: 10px 14px 2px; }
-.fp-section-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
+.fp-section-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 6px; }
 .fp-divider { height: 1px; background: var(--border); margin: 4px 0; }
-.fp-radio, .fp-check { display: flex; align-items: center; gap: 9px; padding: 6px 14px; cursor: pointer; font-size: 13px; color: var(--text-2); transition: background .1s, color .1s; }
-.fp-radio:hover, .fp-check:hover { background: var(--surface-2); color: var(--text); }
-.fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
-.fp-radio.active { color: var(--text); font-weight: 600; }
-.fp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; }
-.fp-toggle-label { font-size: 13px; color: var(--text-2); }
-.fp-toggle-switch { width: 32px; height: 17px; border-radius: 9px; background: var(--border-2); position: relative; transition: background .15s; flex-shrink: 0; }
-.fp-toggle-switch.on { background: var(--accent); }
-.fp-toggle-switch::after { content:''; position:absolute; width:11px; height:11px; border-radius:50%; background:#fff; top:3px; left:3px; transition:left .15s; }
+.fp-radio, .fp-check { display: flex; align-items: center; gap: 9px; padding: 6px 14px; cursor: pointer; font-size: 13px; color: var(--muted-foreground); transition: background .1s, color .1s; }
+.fp-radio:hover, .fp-check:hover { background: var(--secondary); color: var(--foreground); }
+.fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; }
+.fp-radio.active { color: var(--foreground); font-weight: 600; }
+.fp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
+.fp-toggle-row:focus-visible, .leg-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
+.fp-toggle-label { font-size: 13px; color: var(--muted-foreground); }
+.fp-toggle-switch { width: 32px; height: 17px; border-radius: 9px; background: var(--input); position: relative; transition: background .15s; flex-shrink: 0; }
+.fp-toggle-switch.on { background: var(--primary); }
+.fp-toggle-switch::after { content:''; position:absolute; width:11px; height:11px; border-radius:50%; background:var(--primary-foreground); top:3px; left:3px; transition:left .15s; }
 .fp-toggle-switch.on::after { left: 18px; }
 .fp-reset-wrap { padding: 10px 14px 12px; }
-.fp-reset { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border-2); background: transparent; color: var(--text-3); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
-.fp-reset:hover { border-color: var(--text-3); color: var(--text-2); }
-.hud-coords { position: absolute; bottom: 20px; left: 12px; z-index: var(--z-overlay); font-variant-numeric: tabular-nums; font-size: 10.5px; letter-spacing: .6px; color: var(--text-2); background: rgba(20,20,23,.8); background: color-mix(in srgb, var(--surface) 80%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; pointer-events: none; transition: color .2s, border-color .2s; }
-.hud-coords.active { color: var(--accent); border-color: var(--accent); }
-.route-dist-tip { background:var(--surface-2) !important; border:1px solid var(--border-2) !important; color:var(--text) !important; font-size:11px !important; font-weight:700 !important; font-variant-numeric:tabular-nums; letter-spacing:.3px !important; padding:4px 9px !important; border-radius:6px !important; white-space:nowrap; pointer-events:none; box-shadow:0 2px 10px rgba(0,0,0,.3); }
+.fp-reset { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--input); background: transparent; color: var(--muted-foreground); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.fp-reset:hover { border-color: var(--muted-foreground); color: var(--muted-foreground); }
+.hud-coords { position: absolute; bottom: 20px; left: 12px; z-index: var(--z-overlay); font-variant-numeric: tabular-nums; font-size: 10.5px; letter-spacing: .6px; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; pointer-events: none; transition: color .2s, border-color .2s; }
+.hud-coords.active { color: var(--primary); border-color: var(--primary); }
+.route-dist-tip { background:var(--secondary) !important; border:1px solid var(--input) !important; color:var(--foreground) !important; font-size:11px !important; font-weight:700 !important; font-variant-numeric:tabular-nums; letter-spacing:.3px !important; padding:4px 9px !important; border-radius:6px !important; white-space:nowrap; pointer-events:none; box-shadow:0 2px 8px rgb(0 0 0 / .08); }
 .route-dist-tip::before { display:none !important; }
-.leaflet-popup-content-wrapper { background:var(--surface); backdrop-filter:blur(12px); border:1px solid var(--border-2); border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.45); color:var(--text); animation:popup-in .15s cubic-bezier(.34,1.56,.64,1) both; }
-.leaflet-popup-tip { background:var(--surface); }
+.leaflet-popup-content-wrapper { background:var(--card); border:1px solid var(--input); border-radius:12px; box-shadow:0 4px 24px rgb(0 0 0 / .12); color:var(--foreground); animation:popup-in .16s cubic-bezier(.32,.72,0,1) both; }
+.leaflet-popup-tip { background:var(--card); }
 .leaflet-popup-content { margin:12px 16px; min-width:160px; }
-.pop-name  { font-size:13px; font-weight:700; color:var(--text); margin-bottom:2px; }
-.pop-stars { font-size:11px; color:var(--yellow); letter-spacing:2px; margin-bottom:6px; }
-.pop-area  { font-size:10.5px; color:var(--text-3); margin-bottom:6px; }
+.pop-name  { font-size:13px; font-weight:700; color:var(--foreground); margin-bottom:2px; }
+.pop-stars { font-size:11px; color:var(--warning-text); letter-spacing:2px; margin-bottom:6px; }
+.pop-area  { font-size:10.5px; color:var(--muted-foreground); margin-bottom:6px; }
 .pop-row   { display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px; }
-.pop-label { font-size:10px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--text-3); }
-.pop-val   { font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
-.pop-val.green  { color:var(--green); }
-.pop-val.yellow { color:var(--yellow); }
-.pop-val.red    { color:var(--red); }
+.pop-label { font-size:10px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--muted-foreground); }
+.pop-val   { font-weight:700; color:var(--foreground); font-variant-numeric:tabular-nums; }
+.pop-val.green  { color: var(--success-text); }
+.pop-val.yellow { color: var(--warning-text); }
+.pop-val.red    { color: var(--danger-text); }
 @keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.6);opacity:0} }
 @keyframes card-in   { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:translateX(0)} }
-@keyframes popup-in  { from{opacity:0;transform:scale(.94) translateY(6px)} to{opacity:1;transform:scale(1) translateY(0)} }
-@keyframes dot-bounce { 0%,80%,100%{transform:translateY(0);opacity:.3} 40%{transform:translateY(-6px);opacity:1} }
+@keyframes popup-in  { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:scale(1) translateY(0)} }
+@keyframes dot-pulse { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
 .map-loading { display:flex; align-items:center; justify-content:center; gap:5px; padding:48px 20px; }
-.map-loading span { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:dot-bounce 1.2s ease-in-out infinite; }
+.map-loading span { width:6px; height:6px; border-radius:50%; background:var(--primary); animation:dot-pulse 1.2s ease-in-out infinite; }
 .map-loading span:nth-child(2) { animation-delay:.2s; }
 .map-loading span:nth-child(3) { animation-delay:.4s; }
 .leaflet-marker-icon { transition: opacity .25s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .hp-card, .leaflet-popup-content-wrapper, .map-loading span { animation: none; }
+  .hotel-panel, .mob-list-sheet, .map-filter-dropdown { transition: none; }
+}
 .leaflet-bottom.leaflet-right { transition: right .25s cubic-bezier(.4,0,.2,1), bottom .25s cubic-bezier(.4,0,.2,1); }
 .leaflet-control-zoom { border: none !important; box-shadow: none !important; }
-.leaflet-control-zoom-in, .leaflet-control-zoom-out { width: 30px !important; height: 30px !important; line-height: 28px !important; font-size: 17px !important; font-weight: 600 !important; background: rgba(20,20,23,.9) !important; background: color-mix(in srgb, var(--surface) 90%, transparent) !important; backdrop-filter: blur(8px); border: 1px solid var(--border-2) !important; color: var(--text-2) !important; display: block !important; text-align: center !important; transition: background .15s, color .15s, border-color .15s !important; border-radius: 8px !important; }
+.leaflet-control-zoom-in, .leaflet-control-zoom-out { width: 30px !important; height: 30px !important; line-height: 28px !important; font-size: 17px !important; font-weight: 600 !important; background: var(--card) !important; border: 1px solid var(--input) !important; color: var(--muted-foreground) !important; display: block !important; text-align: center !important; transition: background .15s, color .15s, border-color .15s !important; border-radius: 8px !important; }
 .leaflet-control-zoom-in { margin-bottom: 4px !important; }
-.leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover { background: var(--accent-muted) !important; border-color: var(--accent) !important; color: var(--accent) !important; }
-.leaflet-tooltip { background:var(--surface-2) !important; border:1px solid var(--border-2) !important; color:var(--text) !important; }
+.leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover { background: var(--secondary) !important; border-color: var(--primary) !important; color: var(--primary) !important; }
+.leaflet-tooltip { background:var(--secondary) !important; border:1px solid var(--input) !important; color:var(--foreground) !important; }
 @media (max-width: 600px) {
   html, body { overflow: hidden; height: 100%; }
   #map-wrap { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: auto; }
@@ -512,7 +516,7 @@ const CSS = `
   .hotel-panel { display: none !important; }
   .hud-coords  { display: none; }
   .map-legend  { display: none; }
-  .map-topbar { top: 0; left: 0; right: 0; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); gap: 8px; background: rgba(20,20,23,.94); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); border-radius: 0; }
+  .map-topbar { top: 0; left: 0; right: 0; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); gap: 8px; background: var(--card); border-bottom: 1px solid var(--border); border-radius: 0; }
   .map-search-wrap { flex: 1; min-width: 0; box-shadow: none; }
   .map-search-wrap input, .map-search-wrap input:focus { font-size: 16px !important; }
   .filter-btn-wrap, .map-tb-btn { flex-shrink: 0; }
@@ -521,18 +525,18 @@ const CSS = `
 }
 .map-back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; background: var(--card); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); text-decoration: none; transition: color .15s, border-color .15s; }
 .map-back-btn:hover { color: var(--foreground); border-color: var(--foreground); }
-.mob-list-sheet { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% - 57px - env(safe-area-inset-top)); background: rgba(20,20,23,.98); background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top-left-radius: 16px; border-top-right-radius: 16px; border: 1px solid var(--border); border-bottom: none; z-index: var(--z-dropdown); transition: transform .35s cubic-bezier(.175,.885,.32,1.1); box-shadow: 0 -6px 28px rgba(0,0,0,.4); flex-direction: column; overflow: hidden; }
+.mob-list-sheet { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% - 57px - env(safe-area-inset-top)); background: var(--card); border-top-left-radius: 16px; border-top-right-radius: 16px; border: 1px solid var(--border); border-bottom: none; z-index: var(--z-dropdown); transition: transform .32s cubic-bezier(.32,.72,0,1); box-shadow: 0 -4px 24px rgb(0 0 0 / .12); flex-direction: column; overflow: hidden; }
 @media (max-width: 600px) { .mob-list-sheet { display: flex; } }
 .mob-list-sheet.state-closed { transform: translateY(calc(100% - 62px)); }
 .mob-list-sheet.state-half   { transform: translateY(45%); }
 .mob-list-sheet.state-full   { transform: translateY(0); }
 .mob-list-sheet.no-anim      { transition: none; }
-.mob-sheet-handle-area { flex-shrink: 0; padding: 10px 16px 8px; touch-action: none; user-select: none; cursor: row-resize; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-.mob-sheet-pill { width: 40px; height: 5px; background: var(--border-2); border-radius: 3px; margin: 0 auto 10px; }
+.mob-sheet-handle-area { flex-shrink: 0; padding: 10px 16px 8px; touch-action: none; user-select: none; cursor: row-resize; border-bottom: 1px solid var(--border); background: var(--secondary); }
+.mob-sheet-pill { width: 40px; height: 5px; background: var(--input); border-radius: 3px; margin: 0 auto 10px; }
 .mob-sheet-meta { display: flex; align-items: center; justify-content: space-between; }
-.mob-sheet-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-2); }
-.mob-sheet-hint  { font-size: 11px; color: var(--text-3); letter-spacing: .3px; }
+.mob-sheet-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted-foreground); }
+.mob-sheet-hint  { font-size: 11px; color: var(--muted-foreground); letter-spacing: .3px; }
 .mob-sheet-list  { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; position: relative; }
 .mob-sheet-list::-webkit-scrollbar { display: none; }
-.mob-sheet-list::after { content: ''; pointer-events: none; position: sticky; bottom: 0; left: 0; right: 0; height: 48px; display: block; background: linear-gradient(to bottom, transparent, var(--surface)); margin-top: -48px; }
+.mob-sheet-list::after { content: ''; pointer-events: none; position: sticky; bottom: 0; left: 0; right: 0; height: 48px; display: block; background: linear-gradient(to bottom, transparent, var(--card)); margin-top: -48px; }
 `;

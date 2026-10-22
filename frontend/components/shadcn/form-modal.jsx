@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
 import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from "./ui/dialog.jsx";
+import ConfirmDialog from "./confirm-dialog.jsx";
 import { resolvePage } from "../../utils/resolvePage.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -62,7 +63,18 @@ export function FormModalProvider({ children }) {
   // Guards against a slow first open resolving after a second one started.
   const seq = useRef(0);
 
-  const close = useCallback(() => setModal(null), []);
+  // Typing in the form marks it dirty; closing a dirty form (Escape, scrim,
+  // ×, Cancel) asks before throwing the input away. A save or a validation
+  // round trip closes it through `drop` below, without asking.
+  const dirty = useRef(false);
+  const [asking, setAsking] = useState(false);
+  const close = useCallback(() => {
+    dirty.current = false;
+    setAsking(false);
+    setModal(null);
+    window.dispatchEvent(new Event("hms:clean"));
+  }, []);
+  const requestClose = useCallback(() => (dirty.current ? setAsking(true) : close()), [close]);
 
   const load = useCallback((url) => {
     const hit = cache.current.get(url);
@@ -97,6 +109,7 @@ export function FormModalProvider({ children }) {
 
   const openForm = useCallback((url) => {
     const token = ++seq.current;
+    dirty.current = false;
     setHeader(null); // don't show the previous form's title while this one loads
     let settled = false;
     load(url).then(
@@ -130,6 +143,8 @@ export function FormModalProvider({ children }) {
       // visit that just landed may well be the redirect after a save.
       cache.current.clear();
       seq.current++;
+      dirty.current = false;
+      setAsking(false);
       setModal((m) => (m ? null : m));
     };
     const offSuccess = router.on("success", drop);
@@ -157,26 +172,39 @@ export function FormModalProvider({ children }) {
   return (
     <FormModalContext.Provider value={{ openForm: trigger, inModal: false }}>
       {children}
-      <Dialog open={!!modal} onOpenChange={(open) => { if (!open) close(); }}>
+      <Dialog open={!!modal} onOpenChange={(open) => { if (!open) requestClose(); }}>
         {/* The scrim (black/50 + backdrop-blur-xs) comes from DialogOverlay and
             is deliberately not overridden here: this modal was briefly the only
             overlay in HMS without blur, chasing Homlu's measured flat scrim,
             which read as inconsistent next to the ⌘K palette and every other
             dialog. See dialog.jsx. */}
-        <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}>
+        <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}
+          onInputCapture={() => { dirty.current = true; }}>
           <ModalFrame
             title={header?.title || (shown?.status === "loading" ? t("Loading…") : t("Form"))}
             sub={header?.sub}
             status={shown?.status}
             body={shown?.status === "ready" && shown.Component ? (
-              <FormModalContext.Provider value={{ openForm: trigger, inModal: true, close, setHeader }}>
+              <FormModalContext.Provider value={{ openForm: trigger, inModal: true, close: requestClose, setHeader }}>
                 <shown.Component {...shown.props} />
               </FormModalContext.Provider>
             ) : <FormSkeleton />}
           />
         </DialogContent>
       </Dialog>
+      <DiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={close} />
     </FormModalContext.Provider>
+  );
+}
+
+// "Discard changes?": keep editing is the safe default.
+function DiscardDialog({ open, onKeep, onDiscard }) {
+  const { t } = useI18n();
+  return (
+    <ConfirmDialog open={open} icon="alert" title="Discard changes?"
+      message={t("What you typed in this form has not been saved.")}
+      confirmLabel="Discard" cancelLabel="Keep editing"
+      onConfirm={onDiscard} onClose={onKeep} />
   );
 }
 
@@ -199,22 +227,30 @@ export function StandaloneFormModal({ closeHref = "/", children }) {
   const parent = useContext(FormModalContext);
   const [header, setHeader] = useState(null);
   const [open, setOpen] = useState(true);
+  const dirty = useRef(false);
+  const [asking, setAsking] = useState(false);
 
   // Nothing is behind this dialog to fall back to (the page IS the form), so
   // dismissing it — Escape, scrim click, Cancel — has to navigate.
   const close = useCallback(() => {
+    dirty.current = false;
+    setAsking(false);
     setOpen(false);
+    window.dispatchEvent(new Event("hms:clean"));
     router.visit(closeHref);
   }, [closeHref]);
+  const requestClose = useCallback(() => (dirty.current ? setAsking(true) : close()), [close]);
 
   const value = useMemo(
-    () => ({ openForm: parent?.openForm || NOOP, inModal: true, close, setHeader }),
-    [parent, close]
+    () => ({ openForm: parent?.openForm || NOOP, inModal: true, close: requestClose, setHeader }),
+    [parent, requestClose]
   );
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) close(); }}>
-      <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}>
+    <>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
+      <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}
+        onInputCapture={() => { dirty.current = true; }}>
         <ModalFrame
           title={header?.title || t("Form")}
           sub={header?.sub}
@@ -223,6 +259,8 @@ export function StandaloneFormModal({ closeHref = "/", children }) {
         />
       </DialogContent>
     </Dialog>
+    <DiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={close} />
+    </>
   );
 }
 

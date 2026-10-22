@@ -1,15 +1,10 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import { TableRow, TableCell } from "../../components/shadcn/ui/table.jsx";
-import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
+import {
+  ListPage, Toolbar, Kpis, Kpi, ExportMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav,
+} from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt } from "../../utils/format.js";
-import { listVisit } from "../../utils/listVisit.js";
 
 const BUCKETS = [
   ["current", "Not yet due"],
@@ -25,93 +20,80 @@ const LATE = ["31_60", "61_90", "90_plus"];
 export default function ArAging({ aging }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const [asOf, setAsOf] = useState(aging.as_of);
+  const [go, loading] = useListNav("/finance/ar-aging/", { as_of: aging.as_of });
   const [picked, setPicked] = useState(null);
   const client = picked && aging.clients.find((c) => c.client_id === picked);
 
-  const amount = (v, late) => (v ? <span className="col-nowrap" style={{ color: late ? "var(--red)" : undefined }}>{fmt(v)}</span> : <span className="col-dim">—</span>);
-
-  const clientColumns = [
-    { header: t("Client"), className: "col-m-primary", render: (c) => <span className="col-bold">{c.name}</span> },
-    ...BUCKETS.map(([key, label]) => ({
-      header: t(label), className: "col-m-amount text-right", render: (c) => amount(c.buckets[key], LATE.includes(key)),
-    })),
-    { header: t("Total (SAR)"), className: "col-m-amount text-right", render: (c) => <span className="col-bold col-nowrap">{fmt(c.total)}</span> },
-  ];
-
-  const invoiceColumns = [
-    { header: t("Invoice"), className: "col-m-primary", render: (i) => <Link href={`/invoice/${i.id}/`} className="col-bold">{i.invoice_number}</Link> },
-    { header: t("Due date"), className: "col-m-meta col-nowrap", render: (i) => i.due_date || "—" },
-    { header: t("Days overdue"), className: "col-m-meta text-right", render: (i) => (i.days_overdue ? i.days_overdue : t("Not yet due")) },
-    { header: t("Remaining (SAR)"), className: "col-m-amount text-right", render: (i) => amount(i.amount, LATE.includes(i.bucket)) },
-  ];
-
+  const amount = (v, late) => (v ? <span className={late ? "late" : undefined}>{fmtN(v)}</span> : <span className="mut">–</span>);
   const late = LATE.reduce((s, k) => s + aging.buckets[k], 0);
   const overdue = aging.total - aging.buckets.current;
 
   return (
-    <div className="page shadcn-root">
-      <style>{CSS}</style>
-      <PageBack label={t("Back")} />
-      <PageHeader
-        title={t("AR Aging")}
-        sub={t("What every client still owes, by how many days past the due date.")}
-        actions={perms.can("statements", "export") ? (
-          <Button asChild variant="outline" size="lg"><a href={`/finance/ar-aging/export/csv/?as_of=${aging.as_of}`}>{t("Export CSV")}</a></Button>
-        ) : null}
-      />
+    <ListPage title={t("AR Aging")} loading={loading}>
+      <Kpis>
+        <Kpi label={t("Total receivable")} value={fmtN(aging.total)} unit="SAR" foot={t("{n} clients owe", { n: aging.clients.length })} />
+        <Kpi label={t("Overdue")} value={fmtN(overdue)} unit="SAR" tone={overdue > 0 ? "warn" : undefined} foot={t("past the due date")} />
+        <Kpi label={t("Over 30 days late")} value={fmtN(late)} unit="SAR" tone={late > 0 ? "warn" : undefined} foot={t("needs follow-up")} />
+      </Kpis>
 
-      <div className="filter-bar ag-filters">
-        <label className="ag-label" htmlFor="ag-asof">{t("As of")}</label>
-        <input id="ag-asof" type="date" className="hms-dv-date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
-        <Button variant="outline" onClick={() => listVisit("/finance/ar-aging/", { as_of: asOf })}>{t("Apply")}</Button>
-      </div>
+      <Toolbar left={<span className="la-note">{t("What every client still owes, by days past the due date")}</span>}>
+        <label className="la-tool la-asof">{t("As of")}
+          <input type="date" value={aging.as_of} onChange={(e) => e.target.value && go({ as_of: e.target.value })} aria-label={t("As of")} />
+        </label>
+        {perms.can("statements", "export") && <ExportMenu items={[{ label: "CSV", href: `/finance/ar-aging/export/csv/?as_of=${aging.as_of}` }]} />}
+      </Toolbar>
 
-      <div className="hms-kpi-row ag-kpis">
-        <KpiCard label={t("Total Receivable")} value={fmt(aging.total)} unit="SAR" foot={t("{n} clients owe", { n: aging.clients.length })} />
-        <KpiCard label={t("Overdue")} value={fmt(overdue)} unit="SAR" warn={overdue > 0} foot={t("past the due date")} />
-        <KpiCard label={t("Over 30 days late")} value={fmt(late)} unit="SAR" warn={late > 0} foot={t("needs follow-up")} />
-      </div>
-
-      <div className="hms-list-card">
-        <Table
-          columns={clientColumns}
-          rows={aging.clients}
-          rowKey={(c) => c.client_id}
-          onRowClick={(c) => setPicked(c.client_id === picked ? null : c.client_id)}
-          empty={t("No outstanding receivables.")}
-          footer={aging.clients.length ? (
-            <TableRow>
-              <TableCell className="col-bold">{t("Total")}</TableCell>
-              {BUCKETS.map(([key]) => <TableCell key={key} className="text-right col-bold">{fmt(aging.buckets[key])}</TableCell>)}
-              <TableCell className="text-right col-bold">{fmt(aging.total)}</TableCell>
-            </TableRow>
-          ) : undefined}
-        />
-      </div>
+      <TableCard cols={[null, 120, 120, 120, 120, 120, 140]}
+        empty={!aging.clients.length && <Empty title={t("Nothing owed")} sub={t("No client has an open balance on {d}.", { d: dLong(aging.as_of) })} />}>
+        <thead><tr>
+          <th>{t("Client")}</th>
+          {BUCKETS.map(([k, label]) => <th key={k} className="n">{t(label)}</th>)}
+          <th className="n">{t("Total (SAR)")}</th>
+        </tr></thead>
+        <tbody>
+          {aging.clients.map((c) => (
+            <tr key={c.client_id} className={c.client_id === picked ? "on" : ""} onClick={() => setPicked(c.client_id === picked ? null : c.client_id)}>
+              <td className="ell strong">{c.name}</td>
+              {BUCKETS.map(([k]) => <td key={k} className="n">{amount(c.buckets[k], LATE.includes(k))}</td>)}
+              <td className="n"><b>{fmtN(c.total)}</b></td>
+            </tr>
+          ))}
+        </tbody>
+        {aging.clients.length > 0 && (
+          <tfoot><tr>
+            <td>{t("Total")}</td>
+            {BUCKETS.map(([k]) => <td key={k} className="n">{fmtN(aging.buckets[k])}</td>)}
+            <td className="n">{fmtN(aging.total)}</td>
+          </tr></tfoot>
+        )}
+      </TableCard>
 
       {client && (
         <>
-          <h2 className="ag-h">
-            {client.name}
-            <Link className="ag-link" href={`/finance/clients/${client.client_id}/statement/`}>{t("Statement")}</Link>
-            <button type="button" className="ag-clear" onClick={() => setPicked(null)}>{t("Close")}</button>
-          </h2>
-          <div className="hms-list-card">
-            <Table columns={invoiceColumns} rows={client.invoices} rowKey={(i) => i.id} empty={t("No invoice on record.")} />
-          </div>
+          <Section title={client.name} sub={t("Open invoices as of {d}", { d: dLong(aging.as_of) })}>
+            <span className="la-right">
+              <Link className="la-tool" href={`/finance/clients/${client.client_id}/statement/`}>{t("Statement")}</Link>
+              <button type="button" className="la-tool" onClick={() => setPicked(null)}>{t("Close")}</button>
+            </span>
+          </Section>
+          <TableCard cols={[null, 140, 140, 160]}
+            empty={!client.invoices.length && <Empty title={t("No invoice on record")} />}>
+            <thead><tr>
+              <th>{t("Invoice")}</th><th>{t("Due date")}</th><th className="n">{t("Days overdue")}</th><th className="n">{t("Remaining (SAR)")}</th>
+            </tr></thead>
+            <tbody>
+              {client.invoices.map((i) => (
+                <tr key={i.id} {...rowNav(`/invoice/${i.id}/`)}>
+                  <td><span className="mono">{i.invoice_number}</span></td>
+                  <td>{i.due_date ? dLong(i.due_date) : "–"}</td>
+                  <td className={"n" + (LATE.includes(i.bucket) ? " late" : "")}>{i.days_overdue || <span className="mut">{t("Not yet due")}</span>}</td>
+                  <td className="n">{amount(i.amount, LATE.includes(i.bucket))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
         </>
       )}
-    </div>
+    </ListPage>
   );
 }
-
-const CSS = `
-.ag-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ag-filters input[type="date"] { width: auto; flex: none; height: 40px; }
-.ag-label { font-size: 12.5px; color: var(--muted-foreground); }
-.ag-kpis { margin-bottom: 18px; }
-.ag-h { display: flex; align-items: center; gap: 10px; margin: 22px 0 10px; font-size: 14px; font-weight: 600; }
-.ag-link { font-size: 12.5px; font-weight: 500; }
-.ag-clear { margin-left: auto; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font: inherit; font-size: 12px; cursor: pointer; }
-`;

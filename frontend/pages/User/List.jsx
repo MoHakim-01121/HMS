@@ -1,12 +1,10 @@
 import { useState } from "react";
 import axios from "axios";
-import { router } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { Link, router } from "@inertiajs/react";
+import {
+  ListPage, Toolbar, Primary, TableCard, RowMenu, Pill,
+} from "../../components/shadcn/list-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import RowActions from "../../components/shadcn/row-actions.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
@@ -23,13 +21,6 @@ import BranchField from "./BranchField.jsx";
 function action(userId, fields) {
   router.post(`/users/${userId}/edit/`, fields, { forceFormData: true });
 }
-
-const ROLE_TONE = {
-  admin: "blue",
-  manager: "green",
-  staff: "gray",
-  viewer: "yellow",
-};
 
 // The role decides what this account can do, the branch on whose records;
 // the server applies both in the 'set_access' action.
@@ -251,88 +242,53 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
   const [resetUser, setResetUser] = useState(null);
   const [cardUser, setCardUser] = useState(null);
   const branchLabel = Object.fromEntries(branch_choices.map((c) => [c.value, c.label]));
+  const active = users.filter((u) => u.is_active).length;
 
   return (
-    <div className="page shadcn-root">
-      <PageBack />
-      <PageHeader
-        title={t("Users")}
-        sub={t("{count} accounts registered", { count: users.length })}
-        actions={
-          <Button type="button" size="lg" onClick={() => openForm("/users/new/")} onPointerEnter={() => openForm.prefetch("/users/new/")} onFocus={() => openForm.prefetch("/users/new/")}>
-            + {t("New User")}
-          </Button>
-        }
-      />
+    <ListPage title={t("Users")}>
+      <Toolbar left={<span className="la-note">{t("{n} accounts, {a} active", { n: users.length, a: active })}</span>}>
+        <Link className="la-tool" href="/roles/">{t("Roles")}</Link>
+        <Primary label={t("New user")} onClick={() => openForm("/users/new/")} onPrefetch={() => openForm.prefetch("/users/new/")} />
+      </Toolbar>
 
-      <div className="hms-list-card">
-        <Table
-          columns={[
-            {
-              header: t("Username"),
-              className: "col-bold col-m-primary",
-              render: (u) => (
-                <>
-                  {u.username}
-                  {u.is_self && <span style={{ marginLeft: 6, display: "inline-flex" }}><StatusPill tone="gray" label={t("You")} /></span>}
-                </>
-              ),
-            },
-            {
-              header: t("Name"),
-              className: "col-m-secondary",
-              render: (u) => u.full_name,
-            },
-            {
-              header: t("Status"),
-              className: "col-m-badge",
-              render: (u) => u.is_active ? <StatusPill tone="green" label={t("Active")} /> : <StatusPill tone="gray" label={t("Inactive")} />,
-            },
-            {
-              header: t("Role"),
-              className: "col-m-badge",
-              render: (u) => (
-                <StatusPill tone={ROLE_TONE[u.role] || "gray"} label={u.role_label} />
-              ),
-            },
-            {
-              header: t("Branch"),
-              className: "col-m-secondary",
-              render: (u) => u.branch === "all"
-                ? t("All branches")
-                : u.branch.split(",").map((code) => branchLabel[code] || code).join(", "),
-            },
-            {
-              header: "",
-              className: "col-m-actions",
-              render: (u) => (
-                <RowActions actions={[
-                  { icon: "edit", label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
-                  { icon: "pdf", label: t("Credential card"), variant: "green", onClick: () => setCardUser(u) },
-                  { icon: "key", label: t("Reset Password"), onClick: () => setResetUser(u) },
+      <TableCard cols={[200, null, 110, 160, 200, 56]}>
+        <thead><tr>
+          <th>{t("Username")}</th><th>{t("Name")}</th><th>{t("Status")}</th><th>{t("Role")}</th><th>{t("Branch")}</th><th className="c">{t("Action")}</th>
+        </tr></thead>
+        <tbody>
+          {users.map((u) => (
+            <tr key={u.id} className={u.is_active ? "" : "dim"} onClick={() => openForm(`/users/${u.id}/edit/`)}>
+              <td><span className="strong">{u.username}</span>{u.is_self && <> <Pill tone="gray" sm>{t("You")}</Pill></>}</td>
+              <td className="ell">{u.full_name}</td>
+              <td><Pill tone={u.is_active ? "green" : "gray"}>{u.is_active ? t("Active") : t("Inactive")}</Pill></td>
+              <td>{u.role_label}</td>
+              <td className="ell">{u.branch === "all" ? t("All branches") : u.branch.split(",").map((code) => branchLabel[code] || code).join(", ")}</td>
+              <td className="c">
+                <RowMenu label={t("Actions for {n}", { n: u.username })} items={[
+                  { label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
                   // Changing your own role would revoke the permission needed
-                  // to change it back — the server refuses it too.
-                  !u.is_self && { icon: "shield", label: t("Manage access"), onClick: () => setAccessUser(u) },
-                  !u.is_self && !u.is_superuser && { icon: "power", label: u.is_active ? t("Deactivate") : t("Activate"), onClick: () => action(u.id, { action: "toggle_active" }) },
-                  !u.is_self && !u.is_superuser && { icon: "trash", label: t("Delete"), variant: "red", onClick: () => del(u) },
+                  // to change it back; the server refuses it too.
+                  !u.is_self && { label: t("Manage access"), onClick: () => setAccessUser(u) },
+                  { label: t("Reset password"), onClick: () => setResetUser(u) },
+                  { label: t("Credential card"), onClick: () => setCardUser(u) },
+                  !u.is_self && !u.is_superuser && { label: u.is_active ? t("Deactivate") : t("Activate"), onClick: () => action(u.id, { action: "toggle_active" }) },
+                  !u.is_self && !u.is_superuser && { label: t("Delete"), danger: true, onClick: () => del(u) },
                 ]} />
-              ),
-            },
-          ]}
-          rows={users}
-          rowKey={(u) => u.id}
-        />
-      </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
       <AccessDialog
-        key={accessUser?.id ?? "none"}
+        key={`access-${accessUser?.id ?? "none"}`}
         user={accessUser}
         roleChoices={role_choices}
         branchChoices={branch_choices}
         onClose={() => setAccessUser(null)}
       />
       <ResetPasswordDialog user={resetUser} onClose={() => setResetUser(null)} />
-      <CredentialCardDialog key={cardUser?.id ?? "none"} user={cardUser} onClose={() => setCardUser(null)} />
+      <CredentialCardDialog key={`card-${cardUser?.id ?? "none"}`} user={cardUser} onClose={() => setCardUser(null)} />
       {confirmDialog}
-    </div>
+    </ListPage>
   );
 }

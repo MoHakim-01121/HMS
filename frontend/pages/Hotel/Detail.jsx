@@ -91,7 +91,7 @@ function RoomCalculator({ avg }) {
           </div>
         </div>
       </div>
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 13, color: "var(--muted-foreground)" }}>
         {t("Based on an average of {avg} pax per room.", { avg })}
       </div>
     </>
@@ -134,6 +134,7 @@ export default function Detail({ hotel }) {
   const delHotel = () => confirm({
     title: t("Delete hotel"),
     message: t("Delete hotel {name}?", { name: hotel.name }),
+    detail: t("This cannot be undone. Deactivate it instead to hide it from new CLs and keep its history."),
     danger: true,
     onConfirm: () => router.post(`${base}/delete/`),
   });
@@ -170,6 +171,9 @@ export default function Detail({ hotel }) {
         badge={hotel.is_active ? { label: t("Active"), tone: "green" } : { label: t("Inactive"), tone: "gray" }}
         menu={[
           canEdit && { label: t("Edit"), icon: "edit", onClick: () => openForm(`${base}/edit/`) },
+          canEdit && (hotel.is_active
+            ? { label: t("Deactivate"), icon: "close", onClick: () => router.post(`${base}/active/`) }
+            : { label: t("Activate"), icon: "check", onClick: () => router.post(`${base}/active/`) }),
           perms.can("hotels", "delete") && { label: t("Delete hotel…"), icon: "trash", danger: true, separator: true, onClick: delHotel },
         ]}
         cols={4}
@@ -230,7 +234,7 @@ export default function Detail({ hotel }) {
               <div className="da-map" role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} style={{ marginTop: 4 }}>
                 <HotelMiniMap hotel={hotel} />
               </div>
-              <div style={{ padding: "12px 24px 18px", fontSize: 12.5, color: "var(--muted-foreground)" }}>
+              <div style={{ padding: "12px 24px 18px", fontSize: 13, color: "var(--muted-foreground)" }}>
                 {t("Distance measured from {ref}.", { ref: hotel.ref_label })}
               </div>
             </>
@@ -247,7 +251,7 @@ export default function Detail({ hotel }) {
             <div className="da-rows">
               {mealPlans.map((mp) => (
                 <div key={mp.code}>
-                  <span style={{ width: 32, fontFamily: "var(--font-mono)", fontSize: 12.5, fontWeight: 600, color: "var(--muted-foreground)" }}>{mp.code}</span>
+                  <span style={{ width: 32, fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: "var(--muted-foreground)" }}>{mp.code}</span>
                   <span>{t(mp.name)}</span>
                 </div>
               ))}
@@ -274,11 +278,11 @@ export default function Detail({ hotel }) {
 }
 
 const CSS = `
-.hm-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; margin: 2px 4px 2px 0; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 500 11.5px var(--font-sans); cursor: pointer; white-space: nowrap; }
+.hm-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; margin: 2px 4px 2px 0; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 500 12px var(--font-sans); cursor: pointer; white-space: nowrap; }
 .hm-chip:hover, .hm-chip[aria-expanded="true"] { background: var(--input); }
 .hm-chip.static { cursor: default; }
 .hm-chip.static:hover { background: var(--secondary); }
-.hm-more { height: 36px; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: 600 12.5px var(--font-sans); cursor: pointer; }
+.hm-more { height: 36px; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: 600 13px var(--font-sans); cursor: pointer; }
 .hm-more:hover { color: var(--foreground); }
 .hm-step { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
 .hm-step button { width: 40px; height: 40px; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 600 18px var(--font-sans); cursor: pointer; }

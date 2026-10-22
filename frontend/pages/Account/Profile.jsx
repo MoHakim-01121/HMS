@@ -3,6 +3,7 @@ import axios from "axios";
 import { router } from "@inertiajs/react";
 import { Dialog, DialogContent, DialogTitle } from "../../components/shadcn/ui/dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import "../../styles/profile.css";
 
 // My Profile, as approved on the Record View HMS canvas (Profile E2): who you
@@ -245,6 +246,21 @@ function EditSheet({ field, account, serverErrors, onClose, onSaved }) {
 }
 
 // ── Photo: choose, crop, upload ──────────────────────────────────────────
+// Removing the photo cannot be undone (it has to be uploaded again), so it asks.
+function useRemovePhoto(onRemoved) {
+  const { t } = useI18n();
+  const [confirm, confirmDialog] = useConfirm();
+  const ask = () => confirm({
+    title: t("Remove photo"),
+    message: t("Remove your profile photo?"),
+    detail: t("Your initials show instead until you upload a new one."),
+    confirmLabel: "Remove",
+    danger: true,
+    onConfirm: () => router.post("/account/avatar/delete/", {}, { preserveScroll: true, onSuccess: onRemoved }),
+  });
+  return [ask, confirmDialog];
+}
+
 function PhotoSheet({ open, hasPhoto, onClose, onDone }) {
   const { t } = useI18n();
   const [mode, setMode] = useState("pick"); // pick | crop | busy
@@ -314,7 +330,7 @@ function PhotoSheet({ open, hasPhoto, onClose, onDone }) {
     };
     el.src = img.url;
   };
-  const remove = () => router.post("/account/avatar/delete/", {}, { preserveScroll: true, onSuccess: () => onDone(t("Photo removed.")) });
+  const [remove, removeDialog] = useRemovePhoto(() => onDone(t("Photo removed.")));
 
   const busy = mode === "busy";
   return (
@@ -378,6 +394,7 @@ function PhotoSheet({ open, hasPhoto, onClose, onDone }) {
             {busy && <span className="pf-spin" aria-hidden="true" />}{busy ? t("Uploading") : t("Save")}
           </button>
         </div>
+        {removeDialog}
       </DialogContent>
     </Dialog>
   );
@@ -385,6 +402,7 @@ function PhotoSheet({ open, hasPhoto, onClose, onDone }) {
 
 function ViewSheet({ open, url, name, onClose, onChange, onRemoved }) {
   const { t } = useI18n();
+  const [remove, removeDialog] = useRemovePhoto(onRemoved);
   return (
     <Dialog open={open && !!url} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="pf-sheet" showCloseButton={false}>
@@ -395,9 +413,10 @@ function ViewSheet({ open, url, name, onClose, onChange, onRemoved }) {
           <span className="pf-vm">{t("Everyone in HMS sees this photo.")}</span>
         </div>
         <div className="pf-sf">
-          <span className="left"><button type="button" className="pf-btn d" onClick={() => router.post("/account/avatar/delete/", {}, { preserveScroll: true, onSuccess: onRemoved })}>{t("Remove photo")}</button></span>
+          <span className="left"><button type="button" className="pf-btn d" onClick={remove}>{t("Remove photo")}</button></span>
           <button type="button" className="pf-btn p" onClick={onChange}>{I.cam}{t("Change photo")}</button>
         </div>
+        {removeDialog}
       </DialogContent>
     </Dialog>
   );

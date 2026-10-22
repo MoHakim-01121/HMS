@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import {
   ListPage, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check,
-  TableCard, RowMenu, Pager, Empty, LIcon, fmtN, useListNav,
+  TableCard, RowMenu, Pager, Empty, LIcon, fmtN, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -65,7 +65,7 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
         </tr></thead>
         <tbody>
           {clients.map((c) => (
-            <tr key={c.client_id} onClick={() => router.visit(statement(c))}>
+            <tr key={c.client_id} {...rowNav(statement(c))}>
               <td className="ell strong">{c.name}</td>
               <td className="n">{fmtN(c.ar_debit)}</td>
               <td className="n">{fmtN(c.ar_credit)}</td>

@@ -133,9 +133,9 @@ export default function HotelCard({ hotel }) {
           </motion.div>
         </AnimatePresence>
 
-        {/* Carousel navigation — revealed on hover, like the reference */}
+        {/* Carousel navigation — revealed on hover or keyboard focus; always shown on touch screens, which have no hover */}
         <div
-          className="absolute inset-0 flex items-center justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+          className="absolute inset-0 flex items-center justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
           style={{ padding: 8 }}
         >
           <Button

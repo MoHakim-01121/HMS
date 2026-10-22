@@ -166,12 +166,12 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
 .ro-r .c { display: grid; place-items: center; }
 .ro-h { min-height: 44px; background: var(--background); border-top: 0; }
 .ro-h:hover { background: var(--background); }
-.ro-h .mn { font-size: 11.5px; font-weight: 500; color: var(--muted-foreground); }
-.ro-colb { display: inline-flex; align-items: center; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: none; font: 600 11.5px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
+.ro-h .mn { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+.ro-colb { display: inline-flex; align-items: center; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: none; font: 600 12px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
 .ro-colb:hover:not(:disabled) { background: var(--secondary); color: var(--foreground); }
 .ro-colb:disabled, span.ro-colb { cursor: default; }
 .ro-g { display: flex; align-items: center; min-height: 34px; padding: 0 14px; border-top: 1px solid var(--border); background: var(--background); min-width: 640px; }
-.ro-g .fa-cap { font-size: 10.5px; }
+.ro-g .fa-cap { font-size: 12px; }
 /* input.ro-cb, not .ro-cb: the global input[type="checkbox"] reset outranks a bare class. */
 .ro-r input.ro-cb { appearance: none; margin: 0; width: 18px; height: 18px; border: 2px solid var(--input); border-radius: 5px; display: grid; place-content: center; cursor: pointer; background: var(--card); }
 .ro-r input.ro-cb:checked { background: var(--primary); border-color: var(--primary); }
@@ -180,10 +180,10 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
 .ro-tri { width: 18px; height: 18px; padding: 0; border: 2px solid var(--input); border-radius: 5px; background: var(--card); display: grid; place-content: center; cursor: pointer; color: var(--primary-foreground); }
 .ro-tri.all, .ro-tri.some { background: var(--primary); border-color: var(--primary); }
 .ro-lock { grid-template-columns: minmax(0,1fr) minmax(0,3fr); }
-.ro-lock .lk { font-size: 12.5px; color: var(--muted-foreground); }
+.ro-lock .lk { font-size: 13px; color: var(--muted-foreground); }
 .ro-prow { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.ro-prow b { display: block; font-size: 13.5px; font-weight: 600; }
-.ro-prow span span { display: block; font-size: 12.5px; color: var(--muted-foreground); }
+.ro-prow b { display: block; font-size: 14px; font-weight: 600; }
+.ro-prow span span { display: block; font-size: 13px; color: var(--muted-foreground); }
 .ro-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
 .ro-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
 .ro-tg.on { background: var(--foreground); }

@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Amt, Empty, fmtN, useListNav,
+  TableCard, RowMenu, Pill, Amt, Empty, fmtN, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -79,7 +79,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
                 <td colSpan={2} />
               </tr>,
               ...b.rows.map((a) => (
-                <tr key={a.kind + a.id} className={a.is_active ? "" : "dim"} onClick={() => router.visit(txHref(a))}>
+                <tr key={a.kind + a.id} className={a.is_active ? "" : "dim"} {...rowNav(txHref(a))}>
                   <td className="ell"><span className="strong">{a.name}</span>{a.account_identifier && <span className="sub" style={{ fontFamily: "var(--font-mono)" }}>{a.account_identifier}</span>}</td>
                   <td>{a.kind === "bank" ? t("Bank") : t("Cash")}</td>
                   <td>{a.branch_name}</td>
@@ -110,7 +110,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
               const days = a.given_on ? Math.max(0, Math.round((Date.now() - new Date(a.given_on)) / 86400000)) : null;
               const stale = days != null && days > 30 && !a.spent_since && a.native_balance > 0;
               return (
-                <tr key={"staff" + a.id} onClick={() => router.visit(txHref(a))}>
+                <tr key={"staff" + a.id} {...rowNav(txHref(a))}>
                   <td className="ell"><span className="strong">{a.name}</span></td>
                   <td>{t("Staff")}</td>
                   <td>{a.branch_name}</td>

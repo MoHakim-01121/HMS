@@ -80,7 +80,8 @@ export function Legend({ current, previous, note }) {
   );
 }
 
-export const Kpis = ({ children }) => <div className="la-kpis">{children}</div>;
+// `dense`: five cards or long rupiah figures, values one step smaller.
+export const Kpis = ({ children, dense }) => <div className={"la-kpis" + (dense ? " dense" : "")}>{children}</div>;
 
 // One KPI. Pressable when `onClick`/`href` (it then filters the table), `on`
 // while its filter is the one applied.
@@ -101,7 +102,8 @@ export function Kpi({ label, value, unit, delta, foot, tone, onClick, href, on, 
 export function Delta({ text, good, title }) {
   if (!text) return null;
   const up = !String(text).startsWith("-");
-  return <span className={"la-d " + (good ? "good" : "bad")} title={title}>{up ? LIcon.up : LIcon.down}{text}</span>;
+  // The arrow carries the direction, so the sign is not repeated.
+  return <span className={"la-d " + (good ? "good" : "bad")} title={title}>{up ? LIcon.up : LIcon.down}{String(text).replace(/^[-+−]/, "")}</span>;
 }
 
 // Two cumulative series (this period, the one before) as a tiny line chart.
@@ -259,6 +261,44 @@ export function ExportMenu({ items }) {
   );
 }
 
+// A toolbar button that opens a one-pick menu (branch, season):
+// options = [{ value, label, hint }]; `label` shows when nothing is picked.
+export function PickMenu({ value, options, onPick, label, width = 220 }) {
+  const [open, setOpen] = useState(false);
+  const cur = options.find((o) => o.value === value);
+  if (!options.length) return null;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="la-tool" aria-haspopup="menu">{cur ? cur.label : label}{LIcon.chev}</button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="la-menu" style={{ width }}>
+        <div role="menu">
+          {options.map((o) => (
+            <button type="button" key={o.value} role="menuitem" className={"la-mi" + (o.value === value ? " on" : "")}
+              onClick={() => { setOpen(false); onPick(o.value); }}>
+              <span>{o.label}{o.hint && <span className="h">{o.hint}</span>}</span>
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// A heading between the cards of a page with more than one table.
+export function Section({ title, sub, children }) {
+  return (
+    <div className="la-sec">
+      <div><h2>{title}</h2>{sub && <span className="la-sec-sub">{sub}</span>}</div>
+      {children}
+    </div>
+  );
+}
+
+// "2026-10-21" -> "21 Oct 2026"
+export const dLong = (iso) => (iso ? `${dShort(iso)} ${iso.slice(0, 4)}` : "");
+
 export function Primary({ label, onClick, onPrefetch, href }) {
   if (href) return <Link className="la-primary" href={href}>{LIcon.plus}{label}</Link>;
   return <button type="button" className="la-primary" onClick={onClick} onPointerEnter={onPrefetch} onFocus={onPrefetch}>{LIcon.plus}{label}</button>;
@@ -298,12 +338,35 @@ export function Amt({ code, value }) {
   return <span className="amt"><span className="code">{code}</span><b>{fmtN(value)}</b></span>;
 }
 
+// Props for a row that opens `href`: a plain click visits it, Ctrl/⌘-click and
+// middle-click open it in a new tab the way a link would. Spread onto the <tr>.
+export const rowNav = (href) => ({
+  onClick: (e) => (e.metaKey || e.ctrlKey ? window.open(href, "_blank") : router.visit(href)),
+  onAuxClick: (e) => { if (e.button === 1) window.open(href, "_blank"); },
+});
+
 // The table card. `cols` = widths (px or null); children = <thead>/<tbody>/<tfoot>.
+// Rows open on click; Tab reaches each one and Enter or Space opens it too
+// (rows marked .static or .band are not openable and stay out of the tab order).
 export function TableCard({ cols, children, empty }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    ref.current?.querySelectorAll("tbody tr").forEach((tr) => {
+      if (tr.matches(".static, .band")) tr.removeAttribute("tabindex");
+      else tr.tabIndex = 0;
+    });
+  });
+  const onKey = (e) => {
+    const tr = e.target;
+    if ((e.key === "Enter" || e.key === " ") && tr.tagName === "TR" && tr.parentElement?.tagName === "TBODY") {
+      e.preventDefault();
+      tr.click();
+    }
+  };
   return (
     <section className="la-card">
       <div className="la-scroll">
-        <table className="la-t">
+        <table className="la-t" ref={ref} onKeyDown={onKey}>
           {cols && <colgroup>{cols.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>}
           {children}
         </table>

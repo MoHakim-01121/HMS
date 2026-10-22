@@ -92,7 +92,7 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
 
       <style>{`
 .bt-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 400; color: var(--muted-foreground); }
-.bt-range input { width: 150px !important; flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--input); border-radius: 10px; background: var(--card); font: 500 12.5px var(--font-sans); color: var(--foreground); }
+.bt-range input { width: 150px !important; flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); }
 .da-card-h:has(.bt-range) { align-items: center; flex-wrap: wrap; padding-bottom: 12px; }
 `}</style>
     </DPage>

@@ -158,7 +158,7 @@ export function DHead({ title, badge, menu, chips, facts, cols, note, children }
   );
 }
 
-export function DCard({ title, count, meta, actions, children, className, pad }) {
+export function DCard({ title, count, meta, sub, actions, children, className, pad }) {
   return (
     <section className={"da-card" + (pad ? " pad" : "") + (className ? " " + className : "")}>
       {title || meta || actions ? (
@@ -168,6 +168,7 @@ export function DCard({ title, count, meta, actions, children, className, pad })
           {actions ? <span className="acts">{actions}</span> : null}
         </div>
       ) : null}
+      {sub ? <p className="da-card-sub">{sub}</p> : null}
       {children}
     </section>
   );

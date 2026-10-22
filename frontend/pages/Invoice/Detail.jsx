@@ -37,7 +37,7 @@ function PayTo({ t, acc }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
       <div>
-        <div style={{ fontSize: 13.5, fontWeight: 600 }}>{acc.bank_name} <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 500, color: "var(--muted-foreground)" }}>{acc.currency}</span></div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{acc.bank_name} <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 500, color: "var(--muted-foreground)" }}>{acc.currency}</span></div>
         <div style={{ marginTop: 2, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>{acc.account_identifier}</div>
         {acc.account_name ? <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{acc.account_name}</div> : null}
       </div>

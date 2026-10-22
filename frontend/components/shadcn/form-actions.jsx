@@ -27,7 +27,7 @@ export default function FormActions({ cancelHref, submitLabel, processing }) {
       )}
       {submitLabel && (
         <Button type="submit" size="lg" disabled={processing}>
-          {submitLabel}
+          {processing ? t("Saving…") : submitLabel}
         </Button>
       )}
     </div>

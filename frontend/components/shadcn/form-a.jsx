@@ -382,7 +382,7 @@ export function Foot({ why, note, cancelHref, onCancel, submitLabel, processing,
         : ctx?.inModal ? <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
           : <a className="fa-btn o" href={cancelHref}>{t("Cancel")}</a>}
       {extra}
-      <button type="submit" className="fa-btn p" aria-disabled={!!why || processing} disabled={processing}>{submitLabel}</button>
+      <button type="submit" className="fa-btn p" aria-disabled={!!why || processing} disabled={processing}>{processing ? t("Saving…") : submitLabel}</button>
     </div>
   );
 }

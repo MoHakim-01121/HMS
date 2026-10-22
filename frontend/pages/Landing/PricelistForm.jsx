@@ -33,19 +33,19 @@ export default function PricelistForm({ pricelist, edit, errors: serverErrors })
       <FormHeader
         kicker={t("Manage Landing")}
         title={edit ? t("Edit Pricelist") : t("Upload Pricelist")}
-        sub={t("File harga hotel yang bisa diunduh agen dari landing page")}
+        sub={t("Hotel price file agents can download from the landing page")}
       />
       <form ref={formRef} method="post" onSubmit={submit} encType="multipart/form-data">
         <FormPanel>
           <FormSection label={t("Pricelist")}>
             <FormField label={t("Title")} name="title" error={errors.title}>
-              <Input id="title" name="title" type="text" defaultValue={p.title || ""} placeholder={t("Mis. Pricelist Hotel Makkah – Januari")} />
+              <Input id="title" name="title" type="text" defaultValue={p.title || ""} placeholder={t("E.g. Makkah Hotel Pricelist – January")} />
             </FormField>
             <FormField
               label={t("File")} name="file" error={errors.file}
               hint={edit && p.filename
-                ? t("File saat ini: {name} — pilih file baru untuk mengganti", { name: p.filename })
-                : t("Hanya satu pricelist aktif — upload ini akan menggantikan pricelist sebelumnya")}
+                ? t("Current file: {name} — choose a new file to replace it", { name: p.filename })
+                : t("Only one pricelist is active — this upload replaces the previous one")}
             >
               <Input id="file" name="file" type="file" accept=".pdf,.xls,.xlsx,.doc,.docx" />
             </FormField>

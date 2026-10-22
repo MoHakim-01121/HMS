@@ -2,11 +2,11 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import {
   ListPage, Kpis, Kpi, Delta, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav,
+  ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
-  Dialog, DialogCloseButton, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
@@ -121,7 +121,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
           {payments.map((p) => {
             const [tone, label] = GROUP[p.group] || GROUP.cancelled;
             return (
-              <tr key={p.id} className={p.group === "cancelled" ? "dim" : ""} onClick={() => router.visit(`/finance/payments/${p.id}/`)}>
+              <tr key={p.id} className={p.group === "cancelled" ? "dim" : ""} {...rowNav(`/finance/payments/${p.id}/`)}>
                 <td><span className="mono">{p.payment_number}</span></td>
                 <td>{dShort(p.payment_date)}</td>
                 <td className="ell strong">{p.client_name}</td>

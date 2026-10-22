@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { fetchJson } from "../../utils/fetchJson.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog.jsx";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog.jsx";
+import { Button } from "./ui/button.jsx";
+import { Textarea } from "./ui/textarea.jsx";
 
 // Message generator. The app never sends WhatsApp itself — this modal only
 // produces the message text for the operator to copy and send by hand (a
@@ -63,36 +65,32 @@ export default function DraftModal() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[480px] hms-dialog">
         <DialogHeader>
-          <DialogTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="message" size={16} /> {title}
-          </DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div style={{ minHeight: 120 }}>
           {state.kind === "loading" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--muted-foreground)", fontSize: 13 }}>{t("Generating message…")}</div>}
           {state.kind === "error" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--destructive)", fontSize: 13 }}>{t("Failed to reach the server.")}</div>}
           {state.kind === "ready" && (
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={10}
-              style={{ width: "100%", fontFamily: "inherit", fontSize: 13, lineHeight: 1.7, color: "var(--foreground)", background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: 10, resize: "vertical" }}
-            />
+            <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10}
+              aria-label={title} style={{ lineHeight: 1.7 }} />
           )}
         </div>
         {state.kind === "ready" && (
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button className="btn btn-ghost btn-sm" onClick={copy}>
-              <Icon name="copy" size={13} /> {copied ? t("Copied!") : t("Copy")}
-            </button>
+          <DialogFooter>
+            <Button variant="outline" onClick={copy}>
+              <Icon name="copy" size={14} /> {copied ? t("Copied!") : t("Copy")}
+            </Button>
             {waHref && (
-              <a className="btn btn-primary btn-sm" href={waHref} target="_blank" rel="noreferrer">
-                <Icon name="message" size={13} /> {t("Open in WhatsApp")}
-              </a>
+              <Button asChild>
+                <a href={waHref} target="_blank" rel="noreferrer">
+                  <Icon name="message" size={14} /> {t("Open in WhatsApp")}
+                </a>
+              </Button>
             )}
-          </div>
+          </DialogFooter>
         )}
         {state.kind === "ready" && !waHref && (
-          <p style={{ display: "flex", alignItems: "center", gap: 6, margin: "12px 2px 0", fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+          <p style={{ display: "flex", alignItems: "center", gap: 6, margin: "12px 2px 0", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
               <circle cx="12" cy="12" r="9" />
               <path strokeLinecap="round" d="M12 11v5M12 8h.01" />

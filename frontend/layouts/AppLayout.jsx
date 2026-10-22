@@ -36,7 +36,7 @@ const PAGE_TITLES = {
   remittance: "Remittance",
   payments: "Payments",
   expenses: "Expenses",
-  periods: "Periods",
+  periods: "Financial Periods",
   statements: "Client Ledger",
   bank_accounts: "Bank and Cash",
   exchanges: "Transfer and Exchange",
@@ -44,7 +44,7 @@ const PAGE_TITLES = {
   fund_flow: "Fund Flow",
   branch_report: "Branch report",
   ar_aging: "AR Aging",
-  reconciliation: "Reconciliation",
+  reconciliation: "Bank Reconciliation",
   penalties: "Penalties",
   journal: "Journal",
   trial_balance: "Trial Balance",
@@ -83,12 +83,14 @@ function Csrf() {
   return <input type="hidden" name="csrfmiddlewaretoken" value={getCsrf()} />;
 }
 
-// Two-letter monogram for the topbar avatar / account menu (v2.1, no photo).
-function userInitials(user) {
-  const src = (user?.name && user.name !== user.username ? user.name : user?.username) || "?";
-  const parts = src.trim().split(/\s+/);
-  const s = parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : src.slice(0, 2);
-  return s.toUpperCase();
+// No photo: a plain person glyph, never a monogram (initials avatars read as
+// templated UI, 2026-10-22).
+function UserGlyph() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+    </svg>
+  );
 }
 
 // ── Mobile More page (full-screen module grid) ─────────────────────────
@@ -195,6 +197,16 @@ export default function AppLayout({ children }) {
   const searchRef = useRef(null);
   const dirty = useRef(null);
 
+  // The browser tab names the page: its heading ("INV-090", "Journal
+  // Entries"), Home on the dashboard, so tabs and history can be told apart.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const h1 = ["/", "/dashboard/"].includes(url.split("?")[0]) ? "" : document.querySelector(".page-shell h1")?.textContent?.trim();
+      document.title = `${h1 || t(PAGE_TITLES[page] || "Home")} — Konoz United`;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [url, page, t]);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") { setSearch(false); setNotif(false); setMNotif(false); setAccount(false); setMAccount(false); setMMore(false); setConfirmTo(null); }
@@ -207,6 +219,18 @@ export default function AppLayout({ children }) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // The mouse wheel over a focused number field steps its value: scrolling
+  // the page past a capacity or coordinate field silently changed it. Drop
+  // focus first, so the wheel scrolls the page and the value stays.
+  useEffect(() => {
+    const onWheel = (e) => {
+      const el = document.activeElement;
+      if (el?.type === "number" && el === e.target) el.blur();
+    };
+    document.addEventListener("wheel", onWheel, { passive: true });
+    return () => document.removeEventListener("wheel", onWheel);
   }, []);
 
   // An upload larger than nginx's client_max_body_size (3 MB) is rejected
@@ -233,7 +257,13 @@ export default function AppLayout({ children }) {
     };
     document.addEventListener("input", onInput, true);
     const off = router.on("navigate", () => { dirty.current = null; });
-    return () => { document.removeEventListener("input", onInput, true); off(); };
+    // A form dismissed without saving (discarded) is no longer unsaved work.
+    const onClean = () => { dirty.current = null; };
+    window.addEventListener("hms:clean", onClean);
+    // Reload or closing the tab with unsaved input: the browser asks first.
+    const onUnload = (e) => { if (dirty.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", onUnload);
+    return () => { document.removeEventListener("input", onInput, true); off(); window.removeEventListener("hms:clean", onClean); window.removeEventListener("beforeunload", onUnload); };
   }, [t]);
 
   useEffect(() => {
@@ -258,10 +288,20 @@ export default function AppLayout({ children }) {
     }
   }, [account, notif, mAccount, mNotif]);
 
+  // Collapsing re-lays the page once, then slides the content from where it
+  // was (FLIP) on the sidebar's own curve: a transform, not a padding
+  // transition that re-lays every table on every frame.
+  const collapseMounted = useRef(false);
   useEffect(() => {
+    const shell = document.querySelector(".page-shell");
+    const before = shell?.getBoundingClientRect().left;
     document.body.classList.toggle("sidebar-collapsed", collapsed);
-    return () => document.body.classList.remove("sidebar-collapsed");
+    if (!collapseMounted.current) { collapseMounted.current = true; return; }
+    if (!shell || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const dx = before - shell.getBoundingClientRect().left;
+    if (dx) shell.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(.32,.72,0,1)" });
   }, [collapsed]);
+  useEffect(() => () => document.body.classList.remove("sidebar-collapsed"), []);
 
   // The topbar stays put; once the page scrolls under it, a hairline shows.
   useEffect(() => {
@@ -332,38 +372,6 @@ export default function AppLayout({ children }) {
     try { window.localStorage.setItem(READ_KEY, JSON.stringify([...next])); } catch { /* storage blocked */ }
   };
 
-  // Mobile keeps the old notification sheet.
-  const NotifList = () => (
-    <>
-      <div className="notif-head">
-        <span>{t("Notifications")}</span>
-        {dueNotifs.length > 0 && <span className="notif-head-count">{t("{count} upcoming", { count: dueNotifs.length })}</span>}
-      </div>
-      <div className="notif-body">
-        {dueNotifs.length ? (
-          dueNotifs.map((n, i) => (
-            <a key={i} href={n.url} className="notif-item">
-              <div className="notif-item-top">
-                <span className="notif-ref">{n.ref}</span>
-                <span className={"notif-days" + (n.days === 0 ? " notif-today" : n.days <= 2 ? " notif-urgent" : "")}>{notifLabel(n)}</span>
-              </div>
-              <div className="notif-item-bot">
-                <span className="notif-customer">{n.title}</span>
-                <span className="notif-amount">
-                  {n.type === "invoice_due"
-                    ? `${new Intl.NumberFormat("en-US").format(Math.round(n.remaining))} SAR`
-                    : n.meta}
-                </span>
-              </div>
-            </a>
-          ))
-        ) : (
-          <div className="notif-empty">{t("No notifications")}</div>
-        )}
-      </div>
-    </>
-  );
-
   const [notifShown, notifClosing] = usePresence(notif);
   const [acctShown, acctClosing] = usePresence(account);
   const pageTitle = t(PAGE_TITLES[page] || "Home");
@@ -380,7 +388,7 @@ export default function AppLayout({ children }) {
   const roleBranch = [user?.role_label, branch.current?.name].filter(Boolean).join(", ");
   const avatar = (lg) => (
     <span className={"ks-av" + (lg ? " lg" : "")}>
-      {user.avatar ? <img src={user.avatar} alt="" /> : userInitials(user)}
+      {user.avatar ? <img src={user.avatar} alt="" /> : <UserGlyph />}
     </span>
   );
   const notifGroup = (title, rows) => rows.length > 0 && (
@@ -399,6 +407,7 @@ export default function AppLayout({ children }) {
   return (
     <FormModalProvider>
       <div data-page={page}>
+      <a className="skip-link" href="#main">{t("Skip to content")}</a>
       {user && (
         <>
           <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />
@@ -487,7 +496,7 @@ export default function AppLayout({ children }) {
                 <span className="m-top-bar-avatar">
                   {user.avatar
                     ? <img src={user.avatar} alt={user.username} />
-                    : <span className="m-top-bar-avatar-default">{userInitials(user)}</span>}
+                    : <span className="m-top-bar-avatar-default">{<UserGlyph />}</span>}
                 </span>
               </button>
             </div>
@@ -523,11 +532,12 @@ export default function AppLayout({ children }) {
 
           {/* ── Mobile account sheet (v2.1 bottom sheet) ── */}
           {mAccount && <div className="m-sheet-scrim" onClick={() => setMAccount(false)} />}
-          <div className={"m-acct-sheet" + (mAccount ? " open" : "")} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("Account")}>
+          <div className={"m-acct-sheet" + (mAccount ? " open" : "")} onClick={(e) => e.stopPropagation()}
+            ref={(el) => { if (el) el.inert = !mAccount; }} role={mAccount ? "dialog" : undefined} aria-hidden={!mAccount} aria-label={t("Account")}>
             <span className="m-sheet-grab" aria-hidden="true" />
             <div className="m-acct-sheet-head">
               <span className="m-acct-sheet-avatar">
-                {user.avatar ? <img src={user.avatar} alt={user.username} /> : userInitials(user)}
+                {user.avatar ? <img src={user.avatar} alt={user.username} /> : <UserGlyph />}
               </span>
               <span className="m-acct-sheet-id">
                 <span className="m-acct-sheet-name">{user.username}</span>
@@ -551,17 +561,38 @@ export default function AppLayout({ children }) {
             <button type="button" className="m-acct-sheet-close" onClick={() => setMAccount(false)}>{t("Close")}</button>
           </div>
 
-          {/* ── Shared notification dropdown ── */}
-          {mNotif && (
-            <div className="notif-dropdown notif-float open" onClick={(e) => e.stopPropagation()}>
-              <NotifList />
+          {/* ── Mobile notification sheet: the account sheet's frame, the desktop list's groups ── */}
+          {mNotif && <div className="m-sheet-scrim" onClick={() => setMNotif(false)} />}
+          <div className={"m-acct-sheet m-ntf-sheet" + (mNotif ? " open" : "")} onClick={(e) => e.stopPropagation()}
+            ref={(el) => { if (el) el.inert = !mNotif; }} role={mNotif ? "dialog" : undefined} aria-hidden={!mNotif} aria-label={t("Notifications")}>
+            <span className="m-sheet-grab" aria-hidden="true" />
+            <div className="m-ntf-head">
+              <span>{t("Notifications")}</span>
+              {unread > 0 && <button type="button" className="m-ntf-mark" onClick={markRead}>{t("Mark all as read")}</button>}
             </div>
-          )}
+            <div className="m-ntf-body">
+              {dueNotifs.length === 0 && <div className="m-ntf-empty">{t("No notifications")}</div>}
+              {[[t("New"), fresh], [t("Earlier"), earlier]].map(([title, rows]) => rows.length > 0 && (
+                <div key={title} role="group" aria-label={title}>
+                  <div className="m-ntf-group">{title}</div>
+                  {rows.map((n, i) => (
+                    <Link key={i} className="m-ntf-row" href={n.url} onClick={() => setMNotif(false)}>
+                      <span className="nm">{n.title}</span>
+                      <span className={"when" + (n.days <= 1 ? " hot" : "")}>{notifLabel(n)}</span>
+                      <span className="ref">{n.ref}</span>
+                      {n.type === "invoice_due" && <span className="amt">{fmtSar(n.remaining)} SAR</span>}
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <button type="button" className="m-acct-sheet-close" onClick={() => setMNotif(false)}>{t("Close")}</button>
+          </div>
         </>
       )}
 
       {/* v2.1 is a flat solid canvas — no ambient blobs, gradients, or texture. */}
-      <div className="page-shell">{children}</div>
+      <div className="page-shell" id="main" tabIndex={-1}>{children}</div>
 
       {confirmTo && (
         <div className="ks-cq" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmTo(null); }}>

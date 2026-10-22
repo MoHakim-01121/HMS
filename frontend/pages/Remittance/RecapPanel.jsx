@@ -80,6 +80,6 @@ export default function RecapPanel({ monthly, t }) {
 export const RECAP_CSS = `
 .recap-pdf { margin-left: 10px; font-weight: 600; color: var(--foreground); text-decoration: none; }
 .recap-pdf:hover { text-decoration: underline; }
-.recap-m-label { margin-right: 6px; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--text-3); }
+.recap-m-label { margin-right: 6px; font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--muted-foreground); }
 .recap-diff { display: block; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
 `;

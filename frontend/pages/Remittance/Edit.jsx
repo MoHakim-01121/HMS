@@ -21,7 +21,7 @@ const rateText = (amount, sar) => (amount && sar ? (amount / sar).toFixed(2) : "
 // HQ already received it — and the user fills in the rupiah actually sent and
 // the rupiah the clients paid for it (original amount); each amount can also
 // be entered as its rate.
-function EditBody({ rem, fx_pool = null }) {
+function EditBody({ rem, fx_pool = null, error = null }) {
   const { t } = useI18n();
   const legacy = rem.is_legacy;
   const sar = rem.expected_sar || 0;
@@ -67,6 +67,7 @@ function EditBody({ rem, fx_pool = null }) {
       <FormHeader kicker={t("Remittance")} title={t("Edit {number}", { number: rem.remittance_number })} />
 
       <form method="post" onSubmit={submit}>
+        {error && <div className="alert alert-error" role="alert" style={{ marginBottom: 12 }}>{t(error)}</div>}
         <FormPanel>
           {legacy ? (
             <div className="rem-received-note">

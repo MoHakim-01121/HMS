@@ -11,49 +11,49 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* Login, built to the "Login" artboard on the Record View HMS canvas.
-       An ink narrative panel on the left (the inverse of the theme) with a
-       still lattice, and the form panel on the right. Tokens are copied from
+       An olive narrative panel on the left with a slowly turning lattice,
+       and the form panel on the right, in English or Indonesian. Tokens are copied from
        frontend/styles/tailwind.css, since this page is served without Vite. */
     *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
     :root,
     [data-theme="light"] {
-      --background: oklch(0.972 0.003 250);
-      --foreground: oklch(0.205 0.012 260);
-      --card: oklch(1 0 0);
-      --primary: oklch(0.205 0.012 260);
-      --primary-foreground: oklch(1 0 0);
-      --primary-hover: oklch(0.30 0.012 260);
-      --secondary: oklch(0.958 0.004 250);
-      --muted-foreground: oklch(0.52 0.012 258);
-      --input: oklch(0.878 0.006 250);
-      --border: oklch(0.912 0.005 250);
-      --hairline: oklch(0.944 0.004 250);
+      --background: #F2F3EC;
+      --foreground: #37352F;
+      --card: #FFFFFF;
+      --primary: #4A5A2A;
+      --primary-foreground: #FFFFFF;
+      --primary-hover: #3E4C23;
+      --secondary: #EEF0E6;
+      --muted-foreground: #64675A;
+      --input: #D1D6C3;
+      --border: #E3E6D9;
+      --hairline: #F2F3EC;
       --ring: oklch(0.72 0.15 85);
-      --success: oklch(0.62 0.16 152);
-      --success-text: oklch(0.46 0.13 152);
-      --success-tint: oklch(0.965 0.03 152);
+      --success: #12A150;
+      --success-text: #0B6B36;
+      --success-tint: #D6F2E1;
       --danger: oklch(0.58 0.21 25);
-      --danger-text: oklch(0.50 0.19 25);
-      --danger-tint: oklch(0.965 0.03 25);
+      --danger-text: #B42318;
+      --danger-tint: #FDE2DE;
       --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
     [data-theme="dark"] {
-      --background: oklch(0.145 0 0);
-      --foreground: oklch(0.985 0 0);
-      --card: oklch(0.18 0 0);
-      --primary: oklch(0.985 0 0);
-      --primary-foreground: oklch(0.145 0 0);
-      --primary-hover: oklch(0.90 0 0);
-      --secondary: oklch(0.24 0 0);
-      --muted-foreground: oklch(0.66 0 0);
-      --input: oklch(0.32 0 0);
-      --border: oklch(0.26 0 0);
-      --hairline: oklch(0.22 0 0);
-      --success-text: oklch(0.72 0.15 152);
-      --success-tint: oklch(0.24 0.045 152);
-      --danger-text: oklch(0.70 0.17 25);
-      --danger-tint: oklch(0.24 0.045 25);
+      --background: #111310;
+      --foreground: #E6E5E3;
+      --card: #191C16;
+      --primary: #F3E7A1;
+      --primary-foreground: #191919;
+      --primary-hover: #F7EEBC;
+      --secondary: #21251D;
+      --muted-foreground: #9B9A97;
+      --input: #3A4133;
+      --border: #2B3026;
+      --hairline: #21251D;
+      --success-text: #6FE0A0;
+      --success-tint: #13321F;
+      --danger-text: #FF8A80;
+      --danger-tint: #3D1A17;
     }
 
     html, body { margin: 0; padding: 0; }
@@ -66,11 +66,15 @@
 
     .page { display: grid; grid-template-columns: minmax(0, 1fr) clamp(440px, 40vw, 560px); min-height: 100vh; min-height: 100dvh; }
 
-    /* Left: narrative panel, the inverse of the active theme. */
-    .aside { position: relative; overflow: hidden; background: var(--foreground); color: var(--background); }
+    /* Left: narrative panel in the sidebar's olive (Zaitun), in both themes,
+       so sign-in reads as the same product as the app shell. It used to be
+       the inverse of the theme: charcoal or pale grey, both muddy. */
+    .aside { --side: #2F3A1F; --side-fg: #F3F5EC; --side-muted: #B4BF9E; --side-on: #F3E7A1;
+      position: relative; overflow: hidden; background: var(--side); color: var(--side-fg); }
+    [data-theme="dark"] .aside { --side: #364326; }
     /* Breathing lattice: two tilted planes of squares turning slowly; front
        cells rise and fall on staggered timers (cells are built by the script). */
-    .stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; --lat-line: color-mix(in oklch, var(--background) 18%, transparent); --lat-dot: color-mix(in oklch, var(--background) 42%, transparent); }
+    .stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; --lat-line: color-mix(in oklch, var(--side-fg) 16%, transparent); --lat-dot: color-mix(in oklch, var(--side-on) 75%, transparent); }
     .lat { position: absolute; inset: -30%; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; transform-style: preserve-3d; }
     .lc { position: relative; }
     .lq, .lq2 { position: absolute; inset: 14%; border: 1px solid var(--lat-line); }
@@ -85,14 +89,15 @@
     .brand img { height: 148px; width: auto; display: block; }
     .copy { position: absolute; left: 40px; right: 40px; bottom: 40px; }
     .copy h2 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.24; }
-    .copy p { margin: 10px 0 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: color-mix(in oklch, var(--background) 72%, var(--foreground)); }
-    /* logo-w = white lockup (dark panel, light theme); logo-k = black lockup. */
+    .copy p { margin: 10px 0 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--side-muted); }
+    /* logo-w = white lockup, logo-k = black lockup. The olive panel always
+       takes the white one; the mobile logo follows the form's theme. */
     .brand .logo-k, .mlogo .logo-w { display: none; }
-    [data-theme="dark"] .brand .logo-w, [data-theme="dark"] .mlogo .logo-k { display: none; }
-    [data-theme="dark"] .brand .logo-k, [data-theme="dark"] .mlogo .logo-w { display: block; }
+    [data-theme="dark"] .mlogo .logo-k { display: none; }
+    [data-theme="dark"] .mlogo .logo-w { display: block; }
 
     /* Right: form. */
-    .main { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 48px 44px; background: var(--card); border-left: 1px solid var(--border); }
+    .main { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 48px 44px; background: var(--card); border-left: 1px solid var(--border); }
     .inner { width: 100%; max-width: 384px; }
     .mlogo { display: none; }
     .mlogo img { height: 88px; width: auto; display: block; }
@@ -142,7 +147,10 @@
     .go[aria-disabled="true"] .spin { display: block; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .foot { margin: 22px 0 0; text-wrap: pretty; padding-top: 16px; border-top: 1px solid var(--hairline); font-size: 12px; line-height: 1.6; color: var(--muted-foreground); }
+    .lang { position: absolute; top: 20px; right: 24px; display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9999px; }
+    .lang button { min-width: 36px; height: 28px; padding: 0 10px; border: 0; border-radius: 9999px; background: none; color: var(--muted-foreground); font: 600 12px var(--font-sans); cursor: pointer; }
+    .lang button[aria-pressed="true"] { background: var(--secondary); color: var(--foreground); }
+    .hint { margin: -12px 0 0 27px; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
 
     button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .oi input:focus, .oi input:focus-visible { outline: none; }
@@ -176,69 +184,73 @@
         <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
       </div>
       <div class="copy">
-        <h2>Internal management system</h2>
-        <p>The Konoz Surabaya team's workspace for pilgrim accommodation.</p>
+        <h2 data-id="Sistem manajemen internal">Internal management system</h2>
+        <p data-id="Ruang kerja tim Konoz Surabaya untuk akomodasi jamaah.">The Konoz Surabaya team's workspace for pilgrim accommodation.</p>
       </div>
     </aside>
 
     <main class="main">
+      <div class="lang" role="group" aria-label="Language / Bahasa">
+        <button type="button" data-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-lang="id" aria-pressed="false">ID</button>
+      </div>
       <div class="inner">
         <div class="mlogo">
           <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
           <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
         </div>
-        <h1>Sign in</h1>
-        <p class="sub">Use the account your admin gave you.<br>There is no self sign up.</p>
+        <h1 data-id="Masuk">Sign in</h1>
+        <p class="sub" data-id="Pakai akun yang diberikan admin.">Use the account your admin gave you.</p>
 
         {% if request.GET.locked %}
         <div class="alert danger" role="alert">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path stroke-linecap="round" d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>
-          <div><b>Account locked for 1 hour</b><span>Too many failed attempts. Try again after 1 hour, or ask the admin on WhatsApp to unlock it now.</span></div>
+          <div><b data-id="Akun dikunci selama 1 jam">Account locked for 1 hour</b><span data-id="Terlalu banyak percobaan gagal. Coba lagi setelah 1 jam, atau minta admin lewat WhatsApp untuk membukanya sekarang.">Too many failed attempts. Try again after 1 hour, or ask the admin on WhatsApp to unlock it now.</span></div>
         </div>
         {% elif form.errors %}
         <div class="alert danger" role="alert">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7.5v5.5M12 16.5v.01"/></svg>
-          <div><b>Wrong username or password</b><span>Check upper and lower case, then try again.{% if attempts_left is not None %} {{ attempts_left }} attempt{{ attempts_left|pluralize }} left before the account locks for 1 hour.{% endif %}</span></div>
+          <div><b data-id="Username atau password salah">Wrong username or password</b><span data-id="Periksa huruf besar dan kecil, lalu coba lagi.{% if attempts_left is not None %} Sisa {{ attempts_left }} percobaan sebelum akun dikunci 1 jam.{% endif %}">Check upper and lower case, then try again.{% if attempts_left is not None %} {{ attempts_left }} attempt{{ attempts_left|pluralize }} left before the account locks for 1 hour.{% endif %}</span></div>
         </div>
         {% elif request.GET.logged_out %}
         <div class="alert success" role="status">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 12.5l2.8 2.8L16 10"/></svg>
-          <div><b>You have signed out</b><span>Sign in again to continue.</span></div>
+          <div><b data-id="Anda sudah keluar">You have signed out</b><span data-id="Masuk lagi untuk melanjutkan.">Sign in again to continue.</span></div>
         </div>
         {% endif %}
 
         <form class="fields" method="post" id="login-form" novalidate>
           {% csrf_token %}
           <label class="of">
-            <span class="ol">Username<span class="rq">*</span></span>
+            <span class="ol"><span data-id="Username">Username</span><span class="rq">*</span></span>
             <span class="oi{% if form.errors %} bad{% endif %}">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
-              <input id="id_username" name="username" autocomplete="username" placeholder="Your username" required
+              <input id="id_username" name="username" autocomplete="username" placeholder="Your username" data-id-ph="Username Anda" required
                 value="{{ form.username.value|default_if_none:'' }}" {% if not form.username.value %}autofocus{% endif %}>
             </span>
-            <span class="err" id="user-err" hidden>Enter your username.</span>
+            <span class="err" id="user-err" hidden data-id="Isi username Anda.">Enter your username.</span>
           </label>
           <label class="of">
-            <span class="ol">Password<span class="rq">*</span></span>
+            <span class="ol"><span data-id="Password">Password</span><span class="rq">*</span></span>
             <span class="oi{% if form.errors %} bad{% endif %}">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path stroke-linecap="round" d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>
-              <input id="id_password" name="password" type="password" autocomplete="current-password" placeholder="Your password" required
+              <input id="id_password" name="password" type="password" autocomplete="current-password" placeholder="Your password" data-id-ph="Password Anda" required
                 {% if form.username.value %}autofocus{% endif %}>
               <button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false">
                 <svg class="on" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
                 <svg class="off" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M10.6 5.1A10 10 0 0112 5c6.4 0 10 7 10 7a17 17 0 01-2.6 3.4M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 005.4-1.6M9.9 9.9a3 3 0 004.2 4.2"/></svg>
               </button>
             </span>
-            <span class="err" id="pass-err" hidden>Enter your password.</span>
+            <span class="err" id="pass-err" hidden data-id="Isi password Anda.">Enter your password.</span>
           </label>
           <div class="row">
-            <label class="ck"><input type="checkbox" name="remember" value="1"{% if request.POST.remember %} checked{% endif %}>Remember this device</label>
-            <a class="forgot" href="https://wa.me/?text=Hello%20admin%2C%20I%20forgot%20my%20HMS%20password" target="_blank" rel="noopener">Forgot password</a>
+            <label class="ck"><input type="checkbox" name="remember" value="1" aria-describedby="remember-hint"{% if request.POST.remember %} checked{% endif %}><span data-id="Ingat perangkat ini">Remember this device</span></label>
+            <a class="forgot" href="https://wa.me/?text=Hello%20admin%2C%20I%20forgot%20my%20HMS%20password" target="_blank" rel="noopener" data-id="Lupa password">Forgot password</a>
           </div>
-          <button type="submit" class="go" id="go" aria-disabled="false"><span class="spin" aria-hidden="true"></span><span id="go-label">Sign in</span></button>
+          <p class="hint" id="remember-hint" data-id="Tetap masuk walau browser ditutup. Keluar otomatis setelah 1 jam tanpa aktivitas.">Stays signed in after the browser closes. Signs out after 1 hour without activity.</p>
+          <button type="submit" class="go" id="go" aria-disabled="false"><span class="spin" aria-hidden="true"></span><span id="go-label" data-id="Masuk">Sign in</span></button>
         </form>
 
-        <p class="foot">Forgotten passwords are reset by the admin over WhatsApp, not email, since not every staff member has an office email.</p>
       </div>
     </main>
   </div>
@@ -271,6 +283,43 @@
       stage.appendChild(plane(true, ''));
     })();
 
+    // EN / ID before sign-in, when the profile's language is not known yet:
+    // the saved choice, else the browser's. English is in the markup; the
+    // Indonesian text rides on data-id (data-id-ph for placeholders).
+    var LANG = (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('login-lang'); } catch (e) {}
+      return saved || ((navigator.language || '').toLowerCase().indexOf('id') === 0 ? 'id' : 'en');
+    })();
+    function L(en, id) { return LANG === 'id' ? id : en; }
+    function applyLang(lang) {
+      LANG = lang;
+      document.documentElement.lang = lang;
+      document.title = L('Sign in', 'Masuk') + ' — Konoz United';
+      document.querySelectorAll('[data-id]').forEach(function (el) {
+        if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.textContent);
+        el.textContent = el.getAttribute(lang === 'id' ? 'data-id' : 'data-en');
+      });
+      document.querySelectorAll('[data-id-ph]').forEach(function (el) {
+        if (!el.hasAttribute('data-en-ph')) el.setAttribute('data-en-ph', el.placeholder);
+        el.placeholder = el.getAttribute(lang === 'id' ? 'data-id-ph' : 'data-en-ph');
+      });
+      document.querySelectorAll('.lang button').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === lang));
+      });
+      var eye = document.getElementById('eye');
+      var shown = eye.getAttribute('aria-pressed') === 'true';
+      eye.setAttribute('aria-label', shown ? L('Hide password', 'Sembunyikan password') : L('Show password', 'Tampilkan password'));
+    }
+    document.querySelectorAll('.lang button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var lang = b.getAttribute('data-lang');
+        try { localStorage.setItem('login-lang', lang); } catch (e) {}
+        applyLang(lang);
+      });
+    });
+    applyLang(LANG);
+
     (function () {
       var form =document.getElementById('login-form');
       var user = document.getElementById('id_username');
@@ -282,7 +331,7 @@
         var show = pass.type === 'password';
         pass.type = show ? 'text' : 'password';
         eye.setAttribute('aria-pressed', String(show));
-        eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        eye.setAttribute('aria-label', show ? L('Hide password', 'Sembunyikan password') : L('Show password', 'Tampilkan password'));
       });
 
       function mark(input, errId, bad) {
@@ -306,7 +355,7 @@
         user.readOnly = true;
         pass.readOnly = true;
         go.setAttribute('aria-disabled', 'true');
-        document.getElementById('go-label').textContent = 'Signing in...';
+        document.getElementById('go-label').textContent = L('Signing in…', 'Sedang masuk…');
       });
     })();
     {% if request.GET.logged_out %}history.replaceState(null, '', '/login/');{% endif %}

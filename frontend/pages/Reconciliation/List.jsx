@@ -2,9 +2,9 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import {
   ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary,
-  TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav,
+  TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { amountText, amountValue } from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogTitle,
@@ -106,7 +106,7 @@ export default function List({ statements = [], account_choices = [], filters: f
         </tr></thead>
         <tbody>
           {statements.map((s) => (
-            <tr key={s.id} onClick={() => router.visit(`/finance/reconciliation/${s.id}/`)}>
+            <tr key={s.id} {...rowNav(`/finance/reconciliation/${s.id}/`)}>
               <td className="ell strong">{s.account_label}</td>
               <td>{periodLabel(s.period_start, s.period_end, t)}</td>
               <td className="n"><Amt code={s.currency} value={s.closing_balance} /></td>
@@ -147,9 +147,9 @@ export default function List({ statements = [], account_choices = [], filters: f
                     value={form.period_start} onChange={(v) => setForm({ ...form, period_start: v })} />
                   <FormField label={t("Period End")} name="period_end" type="date" required
                     value={form.period_end} onChange={(v) => setForm({ ...form, period_end: v })} />
-                  <FormField label={inCur("Opening Balance")} name="opening_balance" type="number"
+                  <FormField label={inCur("Opening Balance")} name="opening_balance" amount signed
                     value={form.opening_balance} onChange={(v) => setForm({ ...form, opening_balance: v })} />
-                  <FormField label={inCur("Closing Balance")} name="closing_balance" type="number" required
+                  <FormField label={inCur("Closing Balance")} name="closing_balance" amount signed required
                     value={form.closing_balance} onChange={(v) => setForm({ ...form, closing_balance: v })} />
                 </div>
 
@@ -167,7 +167,7 @@ export default function List({ statements = [], account_choices = [], filters: f
                           </SelectContent>
                         </Select>
                         <Input placeholder={t("Description")} value={l.description} onChange={(e) => updateLine(i, "description", e.target.value)} />
-                        <Input type="number" placeholder={currency || "0"} value={l.amount} onChange={(e) => updateLine(i, "amount", e.target.value)} />
+                        <Input inputMode="numeric" aria-label={t("Amount")} placeholder={currency || "0"} value={amountText(l.amount)} onChange={(e) => updateLine(i, "amount", amountValue(e.target.value))} />
                         <button type="button" className="rec-line-del" onClick={() => removeLine(i)} aria-label={t("Remove line")}>
                           <Icon name="trash" size={14} />
                         </button>

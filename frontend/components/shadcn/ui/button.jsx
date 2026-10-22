@@ -49,10 +49,8 @@ const buttonVariants = cva(
         sm: "h-8 gap-1.5 px-3 has-[>svg]:px-2.5",
         // Form scale: matches the 40px control height so a submit row doesn't
         // sit visibly shorter than the fields above it. (Was h-10 and unused
-        // anywhere in the app, so re-tuning it breaks nothing.) Explicit px —
-        // html is 14px here, so h-11 would resolve to 38.5px. See --radius-control.
-        // (Horizontal padding is also restated in tailwind.css — design.css's
-        // universal reset zeroes padding on everything and outranks utilities.)
+        // anywhere in the app, so re-tuning it breaks nothing.) Explicit px, to
+        // match the px control tokens. See --radius-control.
         lg: "h-[40px] px-[22px] text-[14px] has-[>svg]:px-[18px]",
         icon: "size-9",
         "icon-xs": "size-6 [&_svg:not([class*='size-'])]:size-3",

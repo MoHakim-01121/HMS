@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import {
   ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary,
-  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav,
+  TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -92,7 +92,7 @@ export default function List({
             const cats = [...new Set(e.lines.map((l) => l.category_name))];
             const catText = cats.length > 2 ? t("{a}, {b} and {n} more", { a: cats[0], b: cats[1], n: cats.length - 2 }) : cats.join(", ");
             return (
-              <tr key={e.id} className={["rejected", "voided"].includes(e.status) ? "dim" : ""} onClick={() => router.visit(`/finance/expenses/${e.id}/`)}>
+              <tr key={e.id} className={["rejected", "voided"].includes(e.status) ? "dim" : ""} {...rowNav(`/finance/expenses/${e.id}/`)}>
                 <td><span className="mono">{e.expense_number}</span></td>
                 <td>{dShort(e.expense_date)}</td>
                 <td className="ell"><span className="strong">{e.description || catText || t("Expense")}</span>

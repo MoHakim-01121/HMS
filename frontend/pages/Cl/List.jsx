@@ -4,7 +4,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Legend, Kpis, Kpi, Spark, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav,
+  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -95,7 +95,7 @@ export default function List({ letters, filters: f, years, counts, kpis, export_
           {letters.map((cl) => {
             const [tone, label] = STATUS[cl.reservation_status] || STATUS.TENTATIVE;
             return (
-              <tr key={cl.id} className={cl.reservation_status === "CANCELLED" ? "dim" : ""} onClick={() => router.visit(`/cl/${cl.id}/`)}>
+              <tr key={cl.id} className={cl.reservation_status === "CANCELLED" ? "dim" : ""} {...rowNav(`/cl/${cl.id}/`)}>
                 <td><span className="mono">{cl.confirmation_number}</span></td>
                 <td className="ell strong">{cl.guest_name}</td>
                 <td className="ell">{cl.hotel_name}</td>

@@ -23,7 +23,7 @@ async function searchOnce(query) {
     let res;
     try {
       res = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
-    } catch (e) {
+    } catch {
       if (attempt === 0) { await new Promise((r) => setTimeout(r, 600)); continue; }
       throw Object.assign(new Error("network"), { reason: "network" });
     }

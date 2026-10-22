@@ -1,15 +1,10 @@
 import { useState } from "react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import SeasonSelect from "../../components/shadcn/season-select.jsx";
-import { Button } from "../../components/shadcn/ui/button.jsx";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
+import {
+  ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, ExportMenu, PickMenu,
+  TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav,
+} from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt } from "../../utils/format.js";
-import { listVisit } from "../../utils/listVisit.js";
 
 // Arus Dana: how much a branch received from clients, exchanged, sent to HQ,
 // spent and refunded — per currency, as the banks hold it — and what its
@@ -17,173 +12,162 @@ import { listVisit } from "../../utils/listVisit.js";
 export default function FundFlow({ branch, branch_choices = [], date_from, date_to, seasons = [], flow, fx, expenses_idr = 0, net_profit_idr = null }) {
   const { t } = useI18n();
   const perms = usePerms();
-  const [from, setFrom] = useState(date_from);
-  const [to, setTo] = useState(date_to);
+  const cur = { branch, from: date_from, to: date_to };
+  const [go, loading] = useListNav("/finance/fund-flow/", cur);
+  const [draft, setDraft] = useState(cur);
   const [picked, setPicked] = useState(null); // {line, currency} drill-down
   const currencies = flow.currencies;
   const labelOf = Object.fromEntries(flow.lines.map((l) => [l.key, l.label]));
+  const csv = `/finance/fund-flow/export/csv/?branch=${branch}&from=${date_from}&to=${date_to}`;
+  const season = seasons.find((s) => s.date_from === date_from && s.date_to === date_to);
+  const range = season ? t("Season {s}", { s: season.name }) : `${dLong(date_from)} – ${dLong(date_to)}`;
 
-  const go = (over = {}) => listVisit("/finance/fund-flow/", { branch, from, to, ...over });
-  const csv = `/finance/fund-flow/export/csv/?branch=${branch}&from=${from}&to=${to}`;
-
-  const lineRows = flow.lines.filter((l) => ["opening", "closing"].includes(l.key) || currencies.some((c) => l.values[c]));
-  const lineColumns = [
-    {
-      header: t("Line"),
-      className: "col-m-primary",
-      render: (l) => <span className={["opening", "closing"].includes(l.key) ? "col-bold" : undefined}>{t(l.label)}</span>,
-    },
-    ...currencies.map((c) => ({
-      header: c,
-      className: "col-m-amount text-right",
-      render: (l) => {
-        const v = l.values[c] || 0;
-        const drillable = v !== 0 && !["opening", "closing"].includes(l.key);
-        // Mobile stacks the row into a card without column headers, so the
-        // currency rides along with the figure there.
-        const text = <span className="col-nowrap" style={{ color: v < 0 ? "var(--red)" : undefined, fontWeight: l.key === "closing" ? 600 : undefined }}>{fmt(v)}<span className="ff-cur"> {c}</span></span>;
-        return drillable ? (
-          <button type="button" className="ff-cell" onClick={() => setPicked({ line: l.key, currency: c })}>{text}</button>
-        ) : text;
-      },
-    })),
-  ];
-
-  const accountColumns = [
-    { header: t("Account"), className: "col-m-primary", render: (a) => <span className="col-bold">{a.label}</span> },
-    { header: t("Currency"), className: "col-m-meta", render: (a) => a.currency },
-    { header: t("Opening"), className: "col-m-amount text-right", render: (a) => fmt(a.opening) },
-    { header: t("In"), className: "col-m-amount text-right", render: (a) => fmt(a.inflow) },
-    { header: t("Out"), className: "col-m-amount text-right", render: (a) => fmt(a.outflow) },
-    { header: t("Closing"), className: "col-m-amount text-right", render: (a) => <span className="col-bold">{fmt(a.closing)}</span> },
-  ];
-
-  const transferColumns = [
-    { header: t("Transfer"), className: "col-m-primary", render: (r) => <a href={`/remittance/${r.id}/`} className="col-bold">{r.remittance_number}</a> },
-    { header: t("Date"), className: "col-m-meta col-nowrap", render: (r) => r.date },
-    { header: "SAR", className: "col-m-amount text-right", render: (r) => fmt(r.sar) },
-    { header: t("IDR sent"), className: "col-m-amount text-right", render: (r) => (r.idr_sent != null ? fmt(r.idr_sent) : "—") },
-    { header: t("Average rate"), className: "col-m-amount text-right", render: (r) => (r.avg_rate != null ? fmt(r.avg_rate) : "—") },
-    { header: t("Send rate"), className: "col-m-amount text-right", render: (r) => (r.send_rate != null ? fmt(r.send_rate) : "—") },
-    {
-      header: t("FX profit (IDR)"),
-      className: "col-m-amount text-right",
-      render: (r) => r.profit_idr == null ? <span className="col-dim" title={t("No IDR amount on this transfer")}>—</span> : (
-        <span className="col-bold" style={{ color: r.profit_idr < 0 ? "var(--red)" : undefined }}>
-          {fmt(r.profit_idr)}{!r.fully_covered ? " *" : ""}
-        </span>
-      ),
-    },
-  ];
-
+  const edge = (k) => ["opening", "closing"].includes(k);
+  const lineRows = flow.lines.filter((l) => edge(l.key) || currencies.some((c) => l.values[c]));
   const shown = picked ? flow.transactions.filter((x) => x.line === picked.line && x.currency === picked.currency) : [];
-  const txColumns = [
-    { header: t("Date"), className: "col-m-meta col-nowrap", render: (x) => x.date },
-    { header: t("Account"), className: "col-m-secondary", render: (x) => x.account },
-    { header: t("Reference"), className: "col-m-primary", render: (x) => (x.link ? <a href={x.link}>{x.reference || x.source_type}</a> : (x.reference || x.source_type)) },
-    { header: t("Amount"), className: "col-m-amount text-right", render: (x) => <span style={{ color: x.amount < 0 ? "var(--red)" : undefined }}>{fmt(x.amount)} {x.currency}</span> },
-  ];
 
   const heldIdr = fx.client_money_held.IDR?.amount || 0;
-  const lineValue = (key, cur) => flow.lines.find((l) => l.key === key)?.values[cur] || 0;
+  const lineValue = (key, c) => flow.lines.find((l) => l.key === key)?.values[c] || 0;
   // Rupiah the branch holds that is not client money awaiting transfer: its
   // own spread (after operations), i.e. what it has actually earned.
   const ownIdr = lineValue("closing", "IDR") - heldIdr;
   const heldUsd = fx.client_money_held.USD?.amount || 0;
   const partial = fx.transfers.some((r) => !r.fully_covered);
+  const noFx = fx.unpriced && fx.unpriced === fx.transfers.length;
 
   return (
-    <div className="page shadcn-root">
-      <style>{CSS}</style>
-      <PageBack label={t("Back")} />
-      <PageHeader
-        title={t("Fund Flow")}
-        sub={t("Money in and out of the branch, per currency as the banks hold it, and what transfers to HQ earned on the exchange rate.")}
-        actions={perms.can("statements", "export") ? (
-          <Button asChild variant="outline" size="lg"><a href={csv}>{t("Export CSV")}</a></Button>
-        ) : null}
-      />
-
-      <div className="filter-bar ff-filters">
-        <Select value={branch} onValueChange={(v) => go({ branch: v })}>
-          <SelectTrigger className="w-44" style={{ height: 40 }}><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <SeasonSelect seasons={seasons} dateFrom={date_from} dateTo={date_to}
-          onPick={(f, tt) => { setFrom(f); setTo(tt); go({ from: f, to: tt }); }} />
-        <input type="date" className="hms-dv-date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} />
-        <span style={{ color: "var(--muted-foreground)" }}>–</span>
-        <input type="date" className="hms-dv-date" value={to} min={from} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} />
-        <Button variant="outline" onClick={() => go()}>{t("Apply")}</Button>
-      </div>
-
-      <div className="hms-kpi-row cols-5 ff-kpis">
-        <KpiCard label={t("FX profit in period")}
-          value={fx.unpriced && fx.unpriced === fx.transfers.length ? "—" : fmt(fx.total_profit_idr)} unit="IDR"
+    <ListPage title={t("Fund Flow")} loading={loading}>
+      <Kpis dense>
+        <Kpi label={t("FX profit in period")} value={noFx ? t("Not priced yet") : fmtN(fx.total_profit_idr)} unit={noFx ? "" : "IDR"} tone={noFx ? "none" : undefined}
           foot={fx.unpriced
             ? t("{n} transfers to HQ · {u} without original amount, not counted", { n: fx.transfers.length, u: fx.unpriced })
             : t("{n} transfers to HQ", { n: fx.transfers.length })} />
-        {/* The branch's profit is what is left after its own costs (business rules 2026-09-29). */}
-        <KpiCard label={t("Net branch profit")}
-          value={net_profit_idr == null ? "—" : fmt(net_profit_idr)} unit="IDR"
-          foot={t("after {n} IDR of expenses paid", { n: fmt(expenses_idr) })} />
-        <KpiCard label={t("Sent to HQ")} value={fmt(-lineValue("sent_hq", "IDR"))} unit="IDR" foot={t("in this period")} />
-        <KpiCard label={t("Client rupiah not yet sent")} value={fmt(heldIdr)} unit="IDR"
-          foot={heldUsd ? t("+ {n} USD not yet exchanged", { n: fmt(heldUsd) }) : t("{n} SAR still owed to HQ", { n: fmt(fx.client_money_held.IDR?.sar || 0) })} />
-        <KpiCard label={t("Branch's own rupiah")} value={fmt(ownIdr)} unit="IDR" foot={t("closing rupiah − client money")} />
-      </div>
+        {/* Branch profit is the FX gain only; expenses are claimed back from HQ, never deducted. */}
+        <Kpi label={t("Branch profit")} value={net_profit_idr == null ? t("No FX gain yet") : fmtN(net_profit_idr)} unit={net_profit_idr == null ? "" : "IDR"}
+          tone={net_profit_idr == null ? "none" : net_profit_idr < 0 ? "warn" : undefined}
+          foot={t("Expenses {n} IDR, claimed back from HQ", { n: fmtN(expenses_idr) })} />
+        <Kpi label={t("Sent to HQ")} value={fmtN(-lineValue("sent_hq", "IDR"))} unit="IDR" foot={t("in this period")} />
+        <Kpi label={t("Client rupiah not yet sent")} value={fmtN(heldIdr)} unit="IDR"
+          foot={heldUsd ? t("+ {n} USD not yet exchanged", { n: fmtN(heldUsd) }) : t("{n} SAR still owed to HQ", { n: fmtN(fx.client_money_held.IDR?.sar || 0) })} />
+        <Kpi label={t("Branch's own rupiah")} value={fmtN(ownIdr)} unit="IDR" tone={ownIdr < 0 ? "warn" : undefined} foot={t("closing rupiah − client money")} />
+      </Kpis>
 
-      <h2 className="ff-h">{t("Per currency")}</h2>
-      <div className="hms-list-card">
-        <Table columns={lineColumns} rows={lineRows} rowKey={(l) => l.key} />
-      </div>
+      <Toolbar left={<span className="la-note">{range}</span>}>
+        {branch_choices.length > 1 && (
+          <PickMenu value={branch} options={branch_choices} onPick={(b) => go({ branch: b })} label={t("Branch")} />
+        )}
+        <FilterMenu count={season ? 1 : 0} onOpen={() => setDraft(cur)} onReset={() => setDraft({ ...draft, from: "", to: "" })}
+          onApply={() => go({ from: draft.from, to: draft.to })}>
+          {seasons.length > 0 && (
+            <FilterSection label={t("Season")}>
+              {seasons.map((s) => (
+                <Check radio key={s.id} label={s.name} on={draft.from === s.date_from && draft.to === s.date_to}
+                  onClick={() => setDraft({ ...draft, from: s.date_from, to: s.date_to })} />
+              ))}
+            </FilterSection>
+          )}
+          <FilterSection label={t("Date")} hint={t("Empty: this month so far.")}>
+            <DateRange from={draft.from} to={draft.to} onFrom={(v) => setDraft({ ...draft, from: v })} onTo={(v) => setDraft({ ...draft, to: v })} />
+          </FilterSection>
+        </FilterMenu>
+        {perms.can("statements", "export") && <ExportMenu items={[{ label: "CSV", href: csv }]} />}
+      </Toolbar>
+
+      <Section title={t("Per currency")} sub={t("Click an amount to see its transactions.")} />
+      <TableCard cols={[null, ...currencies.map(() => 170)]}>
+        <thead><tr><th>{t("Line")}</th>{currencies.map((c) => <th key={c} className="n">{c}</th>)}</tr></thead>
+        <tbody>
+          {lineRows.map((l) => (
+            <tr key={l.key} className="static">
+              <td className={edge(l.key) ? "strong" : undefined}>{t(l.label)}</td>
+              {currencies.map((c) => {
+                const v = l.values[c] || 0;
+                const drill = v !== 0 && !edge(l.key);
+                return (
+                  <td key={c} className={"n" + (v < 0 ? " late" : !v ? " zero" : "") + (drill ? " lnk" : "")}
+                    style={{ fontWeight: l.key === "closing" ? 600 : undefined }}>
+                    {drill ? (
+                      <button type="button" className="la-drill" aria-pressed={picked?.line === l.key && picked?.currency === c}
+                        aria-label={t("{line} in {currency}: see its transactions", { line: t(l.label), currency: c })}
+                        onClick={() => setPicked({ line: l.key, currency: c })}>{fmtN(v)}</button>
+                    ) : fmtN(v)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
+
       {picked && (
         <>
-          <h2 className="ff-h">
-            {t(labelOf[picked.line])} · {picked.currency}
-            <button type="button" className="ff-clear" onClick={() => setPicked(null)}>{t("Close")}</button>
-          </h2>
-          <div className="hms-list-card"><Table columns={txColumns} rows={shown} rowKey={(x, i) => `${x.date}-${i}`} /></div>
+          <Section title={`${t(labelOf[picked.line])} · ${picked.currency}`}>
+            <button type="button" className="la-tool" onClick={() => setPicked(null)}>{t("Close")}</button>
+          </Section>
+          <TableCard cols={[120, 220, null, 180]} empty={!shown.length && <Empty title={t("No transactions")} />}>
+            <thead><tr><th>{t("Date")}</th><th>{t("Account")}</th><th>{t("Reference")}</th><th className="n">{t("Amount")}</th></tr></thead>
+            <tbody>
+              {shown.map((x, i) => (
+                <tr key={`${x.date}-${i}`} className={x.link ? "" : "static"} {...(x.link ? rowNav(x.link) : {})}>
+                  <td>{dLong(x.date)}</td>
+                  <td className="ell">{x.account}</td>
+                  <td className="ell">{x.reference || x.source_type}</td>
+                  <td className={"n" + (x.amount < 0 ? " late" : "")}>{fmtN(x.amount)} <span className="mut">{x.currency}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
         </>
       )}
 
-      <h2 className="ff-h">{t("Per account")}</h2>
-      <div className="hms-list-card">
-        <Table columns={accountColumns} rows={flow.accounts} rowKey={(a) => `${a.label}-${a.currency}`} />
-      </div>
+      <Section title={t("Per account")} />
+      <TableCard cols={[null, 100, 150, 150, 150, 150]}>
+        <thead><tr>
+          <th>{t("Account")}</th><th>{t("Currency")}</th><th className="n">{t("Opening")}</th>
+          <th className="n">{t("In")}</th><th className="n">{t("Out")}</th><th className="n">{t("Closing")}</th>
+        </tr></thead>
+        <tbody>
+          {flow.accounts.map((a) => (
+            <tr key={`${a.label}-${a.currency}`} className="static">
+              <td className="ell strong">{a.label}</td>
+              <td className="mut">{a.currency}</td>
+              <td className={"n" + (a.opening < 0 ? " late" : "")}>{fmtN(a.opening)}</td>
+              <td className={"n" + (a.inflow ? "" : " zero")}>{fmtN(a.inflow)}</td>
+              <td className={"n" + (a.outflow ? "" : " zero")}>{fmtN(a.outflow)}</td>
+              <td className={"n" + (a.closing < 0 ? " late" : "")}><b>{fmtN(a.closing)}</b></td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
 
-      <h2 className="ff-h">{t("FX profit per transfer")}</h2>
-      <div className="hms-list-card">
-        {fx.transfers.length ? (
-          <Table columns={transferColumns} rows={fx.transfers} rowKey={(r) => r.id} />
-        ) : (
-          <p className="ff-empty">{t("No transfers to HQ in this period.")}</p>
-        )}
-      </div>
-      <p className="ff-note">
+      <Section title={t("FX profit per transfer")} />
+      <TableCard cols={[120, 110, 120, 150, 120, 120, 150]}
+        empty={!fx.transfers.length && <Empty title={t("No transfers to HQ")} sub={t("Transfers in this period show here with what they earned.")} />}>
+        <thead><tr>
+          <th>{t("Transfer")}</th><th>{t("Date")}</th><th className="n">SAR</th><th className="n">{t("IDR sent")}</th>
+          <th className="n">{t("Average rate")}</th><th className="n">{t("Send rate")}</th><th className="n">{t("FX profit (IDR)")}</th>
+        </tr></thead>
+        <tbody>
+          {fx.transfers.map((r) => (
+            <tr key={r.id} {...rowNav(`/remittance/${r.id}/`)}>
+              <td><span className="mono">{r.remittance_number}</span></td>
+              <td>{dLong(r.date)}</td>
+              <td className="n">{fmtN(r.sar)}</td>
+              <td className="n">{r.idr_sent != null ? fmtN(r.idr_sent) : <span className="mut">–</span>}</td>
+              <td className="n">{r.avg_rate != null ? fmtN(r.avg_rate) : <span className="mut">–</span>}</td>
+              <td className="n">{r.send_rate != null ? fmtN(r.send_rate) : <span className="mut">–</span>}</td>
+              <td className={"n" + (r.profit_idr < 0 ? " late" : "")}>
+                {r.profit_idr == null ? <span className="mut" title={t("No IDR amount on this transfer")}>{t("Not priced")}</span>
+                  : <b>{fmtN(r.profit_idr)}{!r.fully_covered ? " *" : ""}</b>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
+      <p className="la-fnote">
         {t("Profit = SAR sent × average cost of the client money held − rupiah actually sent (weighted average).")}
         {partial ? " " + t("* The transfer was larger than the client money on record; profit covers only the matched part.") : ""}
       </p>
-    </div>
+    </ListPage>
   );
 }
-
-const CSS = `
-.shadcn-root .ff-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ff-filters input[type="date"] { width: auto; flex: none; height: 40px; }
-.ff-cur { display: none; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
-@media (max-width: 640px) {
-  .shadcn-root .ff-filters > :first-child { flex: 1 1 100%; width: 100%; }
-  .ff-filters input[type="date"] { flex: 1 1 0; min-width: 0; }
-  .ff-cur { display: inline; }
-}
-.ff-kpis { margin-bottom: 18px; }
-.ff-h { display: flex; align-items: center; gap: 10px; margin: 22px 0 10px; font-size: 14px; font-weight: 600; }
-.ff-cell { background: none; border: none; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
-.ff-cell:hover { text-decoration-color: var(--foreground); }
-.ff-clear { margin-left: auto; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); font: inherit; font-size: 12px; cursor: pointer; }
-.ff-empty { padding: 18px; margin: 0; font-size: 12.5px; color: var(--muted-foreground); text-align: center; }
-.ff-note { margin: 10px 2px 0; font-size: 12px; color: var(--muted-foreground); }
-`;

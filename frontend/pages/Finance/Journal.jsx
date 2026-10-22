@@ -1,111 +1,69 @@
-import { router } from "@inertiajs/react";
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import EmptyState from "../../components/shadcn/empty-state.jsx";
-import Pagination from "../../components/shadcn/pagination.jsx";
-import useFilterState from "../../hooks/useFilterState.js";
-import { Button } from "../../components/shadcn/ui/button.jsx";
-import { Input } from "../../components/shadcn/ui/input.jsx";
+import { useState } from "react";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "../../components/shadcn/ui/select.jsx";
+  ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, DateRange,
+  TableCard, Pill, Pager, Empty, fmtN, dLong, useListNav, rowNav,
+} from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
+// Journal entries: the ledger, newest first. Search and the Filter panel
+// (type, date range) drive the server's filters; corrections are reversals.
 export default function Journal({
   entries = [], type_choices = [], page_num = 1, num_pages = 1,
   total = 0, filters = {},
 }) {
   const { t } = useI18n();
-  const { vals, setVal, apply } = useFilterState(
-    { type: "", date_from: "", date_to: "", q: "", ...filters },
-    "/finance/journal/",
-  );
-
-  const gotoPage = (p) => {
-    if (p < 1 || p > num_pages) return;
-    apply(p);
-  };
-
-  const columns = [
-    {
-      header: t("Entry #"),
-      className: "col-m-primary",
-      render: (e) => <span className="col-bold col-nowrap">{e.entry_number}</span>,
-    },
-    {
-      header: t("Type"),
-      render: (e) => (
-        <span className="inline-flex items-center gap-1">
-          {e.entry_type_display}
-          {e.is_reversal && <StatusPill tone="red" label="Reversal" />}
-        </span>
-      ),
-    },
-    { header: t("Description"), render: (e) => e.description },
-    { header: t("Date"), className: "whitespace-nowrap", render: (e) => e.entry_date },
-    {
-      header: t("Debit"),
-      className: "text-right",
-      render: (e) => <span className="font-mono tabular-nums">{e.debit.toLocaleString("en-US")}</span>,
-    },
-    {
-      header: t("Credit"),
-      className: "text-right",
-      render: (e) => <span className="font-mono tabular-nums">{e.credit.toLocaleString("en-US")}</span>,
-    },
-  ];
+  const f = { type: "", date_from: "", date_to: "", q: "", ...filters };
+  const [go, loading] = useListNav("/finance/journal/", f);
+  const [draft, setDraft] = useState(f);
+  const filterCount = (f.type ? 1 : 0) + (f.date_from || f.date_to ? 1 : 0);
+  const range = f.date_from || f.date_to
+    ? `${f.date_from ? dLong(f.date_from) : "…"} – ${f.date_to ? dLong(f.date_to) : "…"}`
+    : t("All dates");
 
   return (
-    <div className="page shadcn-root">
-      <PageBack label={t("Back")} />
-
-      <PageHeader
-        title={t("Journal Entries")}
-        sub={t("Immutable double-entry ledger. Corrections are made via reversal entries.")}
-      />
-
-      {/* Filter Bar */}
-      <div className="filter-bar">
-        <Input
-          className="w-56"
-          placeholder={t("Search number or description...")}
-          value={vals.q}
-          onChange={(e) => setVal("q", e.target.value)}
-        />
-        <Select value={vals.type} onValueChange={(v) => setVal("type", v)}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder={t("All Types")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">{t("All Types")}</SelectItem>
+    <ListPage title={t("Journal Entries")} loading={loading}>
+      <Toolbar left={<span className="la-note">{range}, {t("{n} entries", { n: fmtN(total) })}</span>}>
+        <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search number or description")} />
+        <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
+          onReset={() => setDraft({ ...draft, type: "", date_from: "", date_to: "" })}
+          onApply={() => go({ type: draft.type, date_from: draft.date_from, date_to: draft.date_to })}>
+          <FilterSection label={t("Type")}>
+            <Check radio on={!draft.type} onClick={() => setDraft({ ...draft, type: "" })} label={t("All types")} />
             {type_choices.map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
+              <Check radio key={value} on={draft.type === value} onClick={() => setDraft({ ...draft, type: value })} label={label} />
             ))}
-          </SelectContent>
-        </Select>
-        <Input type="date" value={vals.date_from} onChange={(e) => setVal("date_from", e.target.value)} />
-        <Input type="date" value={vals.date_to} onChange={(e) => setVal("date_to", e.target.value)} />
-        <Button type="button" size="lg" onClick={() => apply()}>{t("Apply")}</Button>
-      </div>
+          </FilterSection>
+          <FilterSection label={t("Date")}>
+            <DateRange from={draft.date_from} to={draft.date_to}
+              onFrom={(v) => setDraft({ ...draft, date_from: v })} onTo={(v) => setDraft({ ...draft, date_to: v })} />
+          </FilterSection>
+        </FilterMenu>
+      </Toolbar>
 
-      {/* Table */}
-      <div className="hms-list-card">
-        {entries.length > 0 ? (
-          <>
-            <Table
-              columns={columns}
-              rows={entries}
-              rowKey={(e) => e.id}
-              onRowClick={(e) => router.visit(`/finance/journal/${e.id}/`)}
-            />
-            <Pagination page={page_num} numPages={num_pages} total={total} unit="entries" onPage={gotoPage} />
-          </>
-        ) : (
-          <EmptyState iconName="invoice" title="No journal entries found" sub="No entries match your filters." />
-        )}
-      </div>
-    </div>
+      <TableCard cols={[120, 170, null, 120, 130, 130]}
+        empty={!entries.length && <Empty title={t("No journal entries")} sub={t("No entries match your filters.")} />}>
+        <thead><tr>
+          <th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th>
+          <th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th>
+        </tr></thead>
+        <tbody>
+          {entries.map((e) => (
+            <tr key={e.id} {...rowNav(`/finance/journal/${e.id}/`)}>
+              <td><span className="mono">{e.entry_number}</span></td>
+              <td>{e.is_reversal ? <Pill tone="red" sm>{t("Reversal")}</Pill> : e.entry_type_display}</td>
+              <td className="ell" title={e.description}>{e.description}</td>
+              <td>{dLong(e.entry_date)}</td>
+              <td className={"n" + (e.debit ? "" : " zero")}>{fmtN(e.debit)}</td>
+              <td className={"n" + (e.credit ? "" : " zero")}>{fmtN(e.credit)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </TableCard>
+
+      {num_pages > 1 && (
+        <Pager p={{ number: page_num, num_pages }} summary={t("Page {p} of {n}", { p: page_num, n: num_pages })}
+          onPage={(page) => go({ page })} />
+      )}
+    </ListPage>
   );
 }

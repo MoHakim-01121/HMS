@@ -1,155 +1,95 @@
-import PageBack from "../../components/shadcn/page-back.jsx";
-import PageHeader from "../../components/shadcn/page-header.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
-import EmptyState from "../../components/shadcn/empty-state.jsx";
-import Table from "../../components/shadcn/table.jsx";
-import KpiCard from "../../components/shadcn/kpi-card.jsx";
-import SeasonSelect from "../../components/shadcn/season-select.jsx";
-import useFilterState from "../../hooks/useFilterState.js";
-import { TableRow, TableCell } from "../../components/shadcn/ui/table.jsx";
-import { router } from "@inertiajs/react";
-import { Button } from "../../components/shadcn/ui/button.jsx";
+import { Fragment, useState } from "react";
+import {
+  ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange,
+  TableCard, Pill, Empty, fmtN, dLong, useListNav,
+} from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import { fmt } from "../../utils/format.js";
 
 // Neraca Saldo: total debit & kredit tiap akun pada rentang tanggal, satu
-// pita per tipe akun, dan baris total sejajar kolom di footer. Angka dalam
-// SAR utuh — KPI di atas tabel membawa ringkasan (debit, kredit, selisih)
-// supaya status seimbang/tidak terbaca sebelum masuk tabel.
+// pita per tipe akun, dan baris total di footer. Angka dalam SAR utuh; KPI di
+// atas tabel membawa debit, kredit dan selisih supaya seimbang/tidak terbaca
+// sebelum masuk tabel.
 export default function TrialBalance({
   groups = [], total_debit = 0, total_credit = 0, balanced = true, seasons = [], filters = {},
 }) {
   const { t } = useI18n();
-  const { vals, setVal, apply } = useFilterState(
-    { date_from: "", date_to: "", ...filters },
-    "/finance/trial-balance/",
-  );
+  const f = { date_from: "", date_to: "", ...filters };
+  const [go, loading] = useListNav("/finance/trial-balance/", f);
+  const [draft, setDraft] = useState(f);
   const diff = total_debit - total_credit;
-  const range = filters.date_from || filters.date_to ? t("in this period") : t("all time");
+  const ranged = !!(f.date_from || f.date_to);
+  const season = seasons.find((s) => s.date_from === f.date_from && s.date_to === f.date_to);
+  const range = season ? t("Season {s}", { s: season.name })
+    : ranged ? `${f.date_from ? dLong(f.date_from) : "…"} – ${f.date_to ? dLong(f.date_to) : "…"}` : t("All dates");
 
-  // Accounts per type, for the section band's count.
-  const counts = {};
-  for (const g of groups) counts[g.type] = (counts[g.type] || 0) + 1;
   const accountsLabel = (n) => t(n === 1 ? "{n} account" : "{n} accounts", { n });
-  const sectionOf = (g) => `${t(g.type_display)} · ${accountsLabel(counts[g.type])}`;
-
-  const columns = [
-    {
-      header: t("Account"),
-      className: "col-m-primary",
-      render: (g) => <span className="col-bold">{g.account_display}</span>,
-    },
-    {
-      header: t("Debit"),
-      className: "col-m-amount text-right",
-      render: (g) => <span className="col-nowrap"><span className="tb-ml">{t("Debit")}</span>{fmt(g.debit)}</span>,
-    },
-    {
-      header: t("Credit"),
-      className: "col-m-amount text-right",
-      render: (g) => <span className="col-nowrap"><span className="tb-ml">{t("Credit")}</span>{fmt(g.credit)}</span>,
-    },
-    {
-      header: t("Net"),
-      className: "col-m-amount text-right",
-      render: (g) => (
-        <span className="col-nowrap" style={{ color: g.net < 0 ? "var(--red)" : undefined }}>
-          <span className="tb-ml">{t("Net")}</span>{fmt(g.net)}
-        </span>
-      ),
-    },
-  ];
+  // Accounts in type order, one band per type.
+  const types = [];
+  for (const g of groups) {
+    let tp = types.find((x) => x.type === g.type);
+    if (!tp) types.push(tp = { type: g.type, label: g.type_display, rows: [] });
+    tp.rows.push(g);
+  }
 
   return (
-    <div className="page shadcn-root">
-      <style>{CSS}</style>
-      <PageBack label={t("Back")} />
+    <ListPage title={t("Trial Balance")} loading={loading}
+      legend={<Pill tone={balanced ? "green" : "red"}>{balanced ? t("Balanced") : t("Unbalanced")}</Pill>}>
+      <Kpis>
+        <Kpi label={t("Total debit")} value={fmtN(total_debit)} unit="SAR" foot={ranged ? t("in this period") : t("all time")} />
+        <Kpi label={t("Total credit")} value={fmtN(total_credit)} unit="SAR" foot={accountsLabel(groups.length)} />
+        <Kpi label={t("Difference")} value={fmtN(diff)} unit="SAR" tone={balanced ? undefined : "warn"}
+          foot={balanced ? t("debits equal credits") : t("debits and credits do not match")} />
+      </Kpis>
 
-      <PageHeader
-        title={t("Trial Balance")}
-        sub={t("Debit and credit totals per account, based on the journal ledger.")}
-        actions={
-          <StatusPill tone={balanced ? "green" : "red"} label={balanced ? t("Balanced") : t("Unbalanced")} />
-        }
-      />
+      <Toolbar left={<span className="la-note">{range}</span>}>
+        <FilterMenu count={ranged ? 1 : 0} onOpen={() => setDraft(f)}
+          onReset={() => setDraft({ date_from: "", date_to: "" })}
+          onApply={() => go({ date_from: draft.date_from, date_to: draft.date_to })}>
+          {seasons.length > 0 && (
+            <FilterSection label={t("Season")}>
+              {seasons.map((s) => (
+                <Check radio key={s.id} label={s.name}
+                  on={draft.date_from === s.date_from && draft.date_to === s.date_to}
+                  onClick={() => setDraft({ date_from: s.date_from, date_to: s.date_to })} />
+              ))}
+            </FilterSection>
+          )}
+          <FilterSection label={t("Date")}>
+            <DateRange from={draft.date_from} to={draft.date_to}
+              onFrom={(v) => setDraft({ ...draft, date_from: v })} onTo={(v) => setDraft({ ...draft, date_to: v })} />
+          </FilterSection>
+        </FilterMenu>
+      </Toolbar>
 
-      <div className="filter-bar tb-filters">
-        <SeasonSelect seasons={seasons} dateFrom={filters.date_from} dateTo={filters.date_to}
-          onPick={(f, tt) => router.get("/finance/trial-balance/", { date_from: f, date_to: tt })} />
-        <input
-          type="date"
-          className="hms-dv-date"
-          aria-label={t("From")}
-          value={vals.date_from}
-          max={vals.date_to || undefined}
-          onChange={(e) => setVal("date_from", e.target.value)}
-        />
-        <span className="tb-dash" aria-hidden="true">–</span>
-        <input
-          type="date"
-          className="hms-dv-date"
-          aria-label={t("To")}
-          value={vals.date_to}
-          min={vals.date_from || undefined}
-          onChange={(e) => setVal("date_to", e.target.value)}
-        />
-        <Button type="button" variant="outline" onClick={() => apply()}>{t("Apply")}</Button>
-      </div>
-
-      <div className="hms-kpi-row">
-        <KpiCard label={t("Total Debit")} value={fmt(total_debit)} unit="SAR" foot={range} />
-        <KpiCard label={t("Total Credit")} value={fmt(total_credit)} unit="SAR" foot={accountsLabel(groups.length)} />
-        <KpiCard
-          label={t("Difference")}
-          value={fmt(diff)}
-          unit="SAR"
-          warn={!balanced}
-          foot={balanced ? t("debits equal credits") : t("debits and credits do not match")}
-        />
-      </div>
-
-      <div className="hms-list-card">
-        {groups.length ? (
-          <Table
-            columns={columns}
-            rows={groups}
-            rowKey={(g) => g.account}
-            section={sectionOf}
-            footer={
-              <TableRow>
-                <TableCell className="col-bold">{t("Total")}</TableCell>
-                <TableCell className="col-bold text-right col-nowrap">{fmt(total_debit)}</TableCell>
-                <TableCell className="col-bold text-right col-nowrap">{fmt(total_credit)}</TableCell>
-                <TableCell className="col-bold text-right col-nowrap" style={{ color: balanced ? undefined : "var(--red)" }}>
-                  {fmt(diff)}
-                </TableCell>
-              </TableRow>
-            }
-          />
-        ) : (
-          <EmptyState iconName="invoice" title={t("No journal data")} sub={t("No entries match your filters.")} />
+      <TableCard cols={[null, 160, 160, 160]}
+        empty={!groups.length && <Empty title={t("No journal data")} sub={t("No entries match your filters.")} />}>
+        <thead><tr>
+          <th>{t("Account")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th><th className="n">{t("Net")}</th>
+        </tr></thead>
+        <tbody>
+          {types.map((tp) => (
+            <Fragment key={tp.type}>
+              <tr className="band"><td colSpan={4}>{t(tp.label)} · {accountsLabel(tp.rows.length)}</td></tr>
+              {tp.rows.map((g) => (
+                <tr key={g.account} className="static">
+                  <td className="ell strong">{g.account_display}</td>
+                  <td className={"n" + (g.debit ? "" : " zero")}>{fmtN(g.debit)}</td>
+                  <td className={"n" + (g.credit ? "" : " zero")}>{fmtN(g.credit)}</td>
+                  <td className={"n" + (g.net < 0 ? " late" : "")}>{fmtN(g.net)}</td>
+                </tr>
+              ))}
+            </Fragment>
+          ))}
+        </tbody>
+        {groups.length > 0 && (
+          <tfoot><tr>
+            <td>{t("Total")}</td>
+            <td className="n">{fmtN(total_debit)}</td>
+            <td className="n">{fmtN(total_credit)}</td>
+            <td className={"n" + (balanced ? "" : " late")}>{fmtN(diff)}</td>
+          </tr></tfoot>
         )}
-      </div>
-    </div>
+      </TableCard>
+    </ListPage>
   );
 }
-
-const CSS = `
-.tb-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.tb-filters input[type="date"] { width: auto; flex: none; height: 40px; }
-.tb-dash { color: var(--muted-foreground); }
-/* The column header names the figure on desktop; the mobile card has no
-   headers, so the label rides along with the number there (FundFlow's
-   .ff-cur pattern). */
-.tb-ml { display: none; }
-@media (max-width: 600px) {
-  .tb-filters input[type="date"] { flex: 1 1 0; min-width: 0; }
-  .tb-ml {
-    display: inline;
-    margin-right: 6px;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--muted-foreground);
-  }
-}
-`;

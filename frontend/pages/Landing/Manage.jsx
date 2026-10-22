@@ -1,5 +1,7 @@
 import { router } from "@inertiajs/react";
 import { Icon } from "../../components/icons.jsx";
+import PageHeader from "../../components/shadcn/page-header.jsx";
+import { DPage, DCard, DBtn } from "../../components/shadcn/detail-a.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import EmptyState from "../../components/shadcn/empty-state.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
@@ -20,7 +22,7 @@ export default function Manage({ team_members, pricelist }) {
   const deleteMember = (m) => {
     confirm({
       title: t("Delete member"),
-      message: t("Hapus {name} dari tim?", { name: m.name }),
+      message: t("Remove {name} from the team?", { name: m.name }),
       onConfirm: () => router.post(`/manage-landing/team/${m.id}/delete/`),
     });
   };
@@ -28,36 +30,27 @@ export default function Manage({ team_members, pricelist }) {
   const deletePricelist = (p) => {
     confirm({
       title: t("Delete pricelist"),
-      message: t("Hapus pricelist “{title}”?", { title: p.title }),
+      message: t("Delete pricelist “{title}”?", { title: p.title }),
       onConfirm: () => router.post(`/manage-landing/pricelist/${p.id}/delete/`),
     });
   };
 
   return (
-    <div className="page shadcn-root">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">{t("Manage Landing")}</h1>
-          <div className="page-sub">{t("Tim anggota dan pricelist yang tampil di halaman publik")}</div>
-        </div>
-        <a href="/?preview=1" target="_blank" rel="noreferrer" className="btn btn-secondary">
-          {t("Preview Halaman Publik")}
-        </a>
-      </div>
+    <DPage>
+      <PageHeader
+        title={t("Manage Landing")}
+        sub={t("Team members and the pricelist shown on the public page")}
+        actions={<DBtn href="/?preview=1" target="_blank" rel="noreferrer">{t("Preview public page")}</DBtn>}
+      />
 
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <div className="page-title" style={{ fontSize: 15 }}>{t("Our Team")}</div>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t("Nama, jabatan dan WhatsApp yang tampil di landing page")}</div>
-          </div>
-          {perms.can("landing", "create") && (
-            <button type="button" className="btn btn-primary" onClick={() => openForm("/manage-landing/team/new/")}>
-              {t("+ New Member")}
-            </button>
-          )}
-        </div>
-
+      <DCard
+        title={t("Our Team")}
+        count={members.length}
+        sub={t("Name, position and WhatsApp shown on the landing page")}
+        actions={perms.can("landing", "create") && (
+          <DBtn primary onClick={() => openForm("/manage-landing/team/new/")}>{t("+ New Member")}</DBtn>
+        )}
+      >
         {members.length ? (
           <Table
             columns={[
@@ -87,23 +80,19 @@ export default function Manage({ team_members, pricelist }) {
             rowKey={(v) => v.id}
           />
         ) : (
-          <EmptyState iconName="users" title="Belum ada anggota tim" sub="Gunakan + New Member di atas untuk menambahkan" />
+          <EmptyState title="Belum ada anggota tim" sub="Gunakan + New Member di atas untuk menambahkan" />
         )}
-      </div>
+      </DCard>
 
-      <div className="card" style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <div className="page-title" style={{ fontSize: 15 }}>{t("Pricelist")}</div>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 2 }}>{t("Hanya satu pricelist aktif — upload baru menggantikan yang lama")}</div>
-          </div>
-          {perms.can("landing", "create") && (
-            <button type="button" className="btn btn-primary" onClick={() => openForm("/manage-landing/pricelist/new/")}>
-              {file ? t("+ Replace Pricelist") : t("+ Upload Pricelist")}
-            </button>
-          )}
-        </div>
-
+      <DCard
+        title={t("Pricelist")}
+        sub={t("Only one pricelist is active — a new upload replaces the old one")}
+        actions={perms.can("landing", "create") && (
+          <DBtn primary onClick={() => openForm("/manage-landing/pricelist/new/")}>
+            {file ? t("+ Replace Pricelist") : t("+ Upload Pricelist")}
+          </DBtn>
+        )}
+      >
         {file ? (
           <Table
             columns={[
@@ -127,11 +116,11 @@ export default function Manage({ team_members, pricelist }) {
             rowKey={(v) => v.id}
           />
         ) : (
-          <EmptyState iconName="download" title="Belum ada pricelist" sub="Gunakan + Upload Pricelist di atas" />
+          <EmptyState title="Belum ada pricelist" sub="Gunakan + Upload Pricelist di atas" />
         )}
-      </div>
+      </DCard>
 
       {confirmDialog}
-    </div>
+    </DPage>
   );
 }

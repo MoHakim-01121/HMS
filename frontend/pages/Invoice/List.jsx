@@ -4,7 +4,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import {
   ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange,
-  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav,
+  ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -32,7 +32,7 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
   const del = (inv) => confirm({ title: t("Delete invoice"), message: t("Delete invoice {number}?", { number: inv.invoice_number }), onConfirm: () => router.post(`/invoice/${inv.id}/delete/`) });
 
   return (
-    <ListPage title={t("Invoice Hotel")} loading={loading}>
+    <ListPage title={t("Invoice")} loading={loading}>
       {kpis && (
         <Kpis>
           <Kpi label={t("Invoiced")} value={fmtN(kpis.cur.invoiced)} unit="SAR"
@@ -84,7 +84,7 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
           {invoices.map((inv) => {
             const [tone, label] = STATUS[inv.status] || STATUS.unpaid;
             return (
-              <tr key={inv.id} className={inv.status === "void" ? "dim" : ""} onClick={() => router.visit(`/invoice/${inv.id}/`)}>
+              <tr key={inv.id} className={inv.status === "void" ? "dim" : ""} {...rowNav(`/invoice/${inv.id}/`)}>
                 <td><span className="mono">{inv.invoice_number}</span></td>
                 <td className="ell strong">{inv.customer_name}</td>
                 <td>{dShort(inv.due_date)}{inv.days_late > 0 && <span className="sub late">{t("{n} days late", { n: inv.days_late })}</span>}</td>

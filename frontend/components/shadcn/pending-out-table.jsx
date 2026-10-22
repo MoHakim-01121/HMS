@@ -16,7 +16,7 @@ import { fmt, fmtDate } from "../../utils/format.js";
    viewer may not decide show who recorded them instead of the buttons. */
 const CSS = `
 .pot-actions { display:inline-flex; gap:6px; justify-content:flex-end; }
-.pot-sub { display:block; font-size:11.5px; color:var(--muted-foreground); }
+.pot-sub { display:block; font-size:12px; color:var(--muted-foreground); }
 .pot-dlgdesc { font-size:13px; color:var(--muted-foreground); margin:6px 0 0; line-height:1.6; }
 .pot-dlglabel { display:block; font-size:12px; color:var(--muted-foreground); margin:16px 0 6px; }
 `;

@@ -156,18 +156,18 @@ const CSS = `
 .tq-fig dd { margin: 6px 0 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .tq-fig.is-strong { background: color-mix(in oklch, var(--muted) 45%, var(--card)); }
 .tq-op { display: inline-block; width: 14px; font-weight: 600; color: var(--foreground); }
-.tq-cur { margin-left: 5px; font-size: 10.5px; font-weight: 600; color: var(--muted-foreground); letter-spacing: 0; }
+.tq-cur { margin-left: 5px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); letter-spacing: 0; }
 
 .tq-callout {
   display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 10px 12px;
-  border-radius: 12px; font-size: 12.5px;
+  border-radius: 12px; font-size: 13px;
   background: color-mix(in oklch, var(--muted) 55%, var(--card)); border: 1px solid var(--border);
 }
 .tq-callout > svg { flex: none; color: var(--yellow); }
 .tq-callout > span { flex: 1; min-width: 0; }
 .tq-callout-act {
   display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 0;
-  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--foreground); cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--foreground); cursor: pointer; white-space: nowrap;
 }
 .tq-callout-act:hover { text-decoration: underline; }
 
@@ -192,18 +192,18 @@ const CSS = `
 .tq-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .tq-row-t { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tq-no { font-family: var(--font-mono); font-size: 12px; font-weight: 700; margin-right: 8px; }
-.tq-row-sub { font-size: 11.5px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tq-amt { flex: none; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tq-row-sub { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tq-amt { flex: none; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tq-amt.is-zero { color: var(--muted-foreground); font-weight: 500; }
 .tq-chev { flex: none; color: var(--muted-foreground); transition: transform .15s; }
 .tq-row.is-open .tq-chev { transform: rotate(180deg); }
 
 .tq-timeline { list-style: none; margin: 0; padding: 2px 16px 14px 36px; display: flex; flex-direction: column; gap: 8px; }
-.tq-timeline li { position: relative; display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; }
+.tq-timeline li { position: relative; display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .tq-timeline li.is-todo { color: var(--muted-foreground); }
 .tq-dot { position: absolute; left: -16px; top: 5px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted-foreground); }
 .tq-dot.is-done { background: var(--foreground); border-color: var(--foreground); }
-.tq-rmt { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted-foreground); text-decoration: none; }
+.tq-rmt { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); text-decoration: none; }
 .tq-rmt:hover { color: var(--foreground); text-decoration: underline; }
 .tq-tl-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 500; }
 .tq-empty { margin-top: 16px; padding: 28px; text-align: center; font-size: 13px; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: 16px; }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
 import {
-  ListPage, Kpis, Kpi, Toolbar, TableCard, Empty, ExportMenu, DateRange, LIcon, fmtN,
+  ListPage, Kpis, Kpi, Toolbar, TableCard, Empty, ExportMenu, DateRange, LIcon, fmtN, rowNav,
 } from "../../components/shadcn/list-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -32,7 +32,7 @@ function shift(kind, value, d) {
 function periodName(p, kind, loc) {
   if (!p) return "";
   const d = (iso) => { const [y, m, dd] = iso.split("-").map(Number); return new Date(y, m - 1, dd); };
-  const a = d(p.date_from), b = d(p.date_to);
+  const a = d(p.date_from);
   if (kind === "month") return a.toLocaleDateString(loc, { month: "long", year: "numeric" });
   if (kind === "quarter") return `Q${Math.floor(a.getMonth() / 3) + 1} ${a.getFullYear()}`;
   if (kind === "year") return String(a.getFullYear());
@@ -142,7 +142,7 @@ export default function BranchReport({
         </tr></thead>
         <tbody>
           {transfers.map((x) => (
-            <tr key={x.id} onClick={() => router.visit(`/remittance/${x.id}/`)}>
+            <tr key={x.id} {...rowNav(`/remittance/${x.id}/`)}>
               <td><span className="mono">{x.remittance_number}</span></td>
               <td>{dayMonth(x.date, loc)}</td>
               <td className="n">{fmtN(x.sar)}</td>
@@ -189,5 +189,5 @@ export default function BranchReport({
 
 // Section headings between the tables; the list pages have none of their own.
 const CSS = `
-.br-h2 { font-size: 15px; font-weight: 600; margin: 32px 0 12px; color: var(--foreground); }
+.br-h2 { font-size: 16px; font-weight: 600; margin: 32px 0 12px; color: var(--foreground); }
 `;

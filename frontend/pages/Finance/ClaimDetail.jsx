@@ -107,8 +107,8 @@ export default function ClaimDetail({ claim = {}, account_choices = [], journal_
             <thead><tr><th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className="n">{t("Amount (IDR)")}</th></tr></thead>
             <tbody>
               {items.map((e) => (
-                <tr key={e.id} onClick={() => router.visit(`/finance/expenses/${e.id}/`)}>
-                  <td className="mono">{e.expense_number}</td>
+                <tr key={e.id}>
+                  <td className="mono"><a href={`/finance/expenses/${e.id}/`}>{e.expense_number}</a></td>
                   <td className="nw">{fmtDate(e.expense_date)}</td>
                   <td>{e.description}</td>
                   <td className="n">{fmt(e.amount)}</td>

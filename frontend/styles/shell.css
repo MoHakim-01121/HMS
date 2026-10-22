@@ -16,10 +16,18 @@
     top: var(--shell-gap); left: var(--shell-gap); bottom: var(--shell-gap);
     width: calc(var(--sidebar-w) - 2 * var(--shell-gap));
     padding: 12px; gap: 0; overflow: visible;
-    border: 0; border-radius: 20px; background: var(--card);
+    border: 1px solid var(--sidebar); border-radius: 20px; background: var(--sidebar);
     box-shadow: 0 1px 2px rgba(10,12,16,.04);
     transition: width .3s cubic-bezier(.32,.72,0,1);
-    --ks-on: color-mix(in oklch, var(--foreground) 7%, var(--card));
+    /* Zaitun: the sidebar is a coloured card, so the ink tokens are mapped onto
+       its own and every row rule below reads them unchanged. */
+    color: var(--sidebar-fg);
+    --card: var(--sidebar);
+    --foreground: var(--sidebar-fg);
+    --muted-foreground: var(--sidebar-muted);
+    --secondary: rgba(255,255,255,.08);
+    --border: rgba(255,255,255,.14);
+    --ks-on: var(--sidebar-on);
   }
   body.sidebar-collapsed .hms-sidebar.ks-sb { width: calc(var(--sidebar-w-collapsed) - 2 * var(--shell-gap)); }
 
@@ -37,6 +45,8 @@
   .ks-bn span svg { flex: none; }
   .ks-code { display: none; }
 
+  /* The branch menu is a light popover inside the sidebar: it takes the page's ink back. */
+  .ks-bm { --foreground: var(--popover-foreground); --muted-foreground: var(--menu-muted); --secondary: var(--menu-hover); --border: var(--menu-line); --hairline: var(--menu-hair); --card: var(--popover); color: var(--foreground); }
   .ks-bm { position: absolute; z-index: 40; left: 0; right: 0; top: 56px; padding: 4px; background: var(--popover); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-menu); transform-origin: top left; animation: ksDdIn .18s cubic-bezier(.16,1,.3,1) both; }
   .ks-bm-h { padding: 8px 10px 6px; font-size: 11.5px; font-weight: 600; color: var(--muted-foreground); }
   .ks-bo { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--foreground); font: 500 13.5px var(--font-sans); text-align: left; cursor: pointer; }
@@ -61,8 +71,9 @@
   .ks-row:hover { background: var(--secondary); color: var(--foreground); }
   .ks-row:hover svg { color: var(--foreground); }
   .ks-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-  .ks-row.on { background: var(--ks-on); color: var(--foreground); font-weight: 600; }
-  .ks-row.on svg, .ks-row.here svg { color: var(--foreground); }
+  .ks-row.on { background: var(--ks-on); color: var(--sidebar-on-fg); font-weight: 600; }
+  .ks-row.here svg { color: var(--foreground); }
+  .ks-row.on svg { color: var(--sidebar-on-fg); }
   .ks-row.here { color: var(--foreground); font-weight: 600; }
   .ks-lb { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .ks-row .ch { transition: transform .2s cubic-bezier(.32,.72,0,1); }
@@ -75,7 +86,7 @@
   .ks-tree { position: relative; margin: 2px 0 6px 19px; padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
   .ks-tree::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 1.5px; border-radius: 1px; background: var(--border); }
   .ks-tree .ks-row { position: relative; height: 34px; font-size: 13px; overflow: visible; }
-  .ks-tree .ks-row.on::before { content: ""; position: absolute; left: -12px; width: 1.5px; height: 20px; border-radius: 1px; background: var(--foreground); }
+  .ks-tree .ks-row.on::before { content: ""; position: absolute; left: -12px; width: 1.5px; height: 20px; border-radius: 1px; background: var(--sidebar-on); }
 
   /* Collapse, a quiet row pinned to the foot of the card. */
   .ks-foot { flex: none; margin: 0 -12px; padding: 8px 12px 0; border-top: 1px solid var(--hairline); }
@@ -94,7 +105,7 @@
   body.sidebar-collapsed .ks-row { justify-content: center; padding: 0; height: 40px; }
   body.sidebar-collapsed .ks-row.here { background: var(--ks-on); }
   body.sidebar-collapsed .ks-bm { left: calc(100% + 22px); right: auto; top: 0; width: 240px; }
-  .ks-tip { position: absolute; left: calc(100% + 8px); z-index: 70; height: 30px; padding: 0 11px; border-radius: 8px; background: var(--foreground); color: var(--background); font: 500 12.5px var(--font-sans); display: flex; align-items: center; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-popover); transform: translateY(-50%); animation: ksTipIn .14s cubic-bezier(.16,1,.3,1) both; }
+  .ks-tip { position: absolute; left: calc(100% + 8px); z-index: 70; height: 30px; padding: 0 11px; border-radius: 8px; background: var(--popover-foreground); color: var(--popover); font: 500 12.5px var(--font-sans); display: flex; align-items: center; white-space: nowrap; pointer-events: none; box-shadow: var(--shadow-popover); transform: translateY(-50%); animation: ksTipIn .14s cubic-bezier(.16,1,.3,1) both; }
   @keyframes ksTipIn { from { opacity: 0; transform: translate(-4px,-50%); } to { opacity: 1; transform: translateY(-50%); } }
 
   /* Topbar */
