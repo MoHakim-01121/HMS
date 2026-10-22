@@ -7,7 +7,13 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from hw.models import (
-    Attachment, CancellationPenalty, Client, ConfirmationLetter, Hotel, Room, RoomType,
+    Attachment,
+    CancellationPenalty,
+    Client,
+    ConfirmationLetter,
+    Hotel,
+    Room,
+    RoomType,
 )
 from hw.tests.factories import make_cl, make_client, make_hotel, make_invoice, make_room
 

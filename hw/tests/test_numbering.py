@@ -1,5 +1,4 @@
 """hw.numbering — counter satu baris per jenis dokumen (DocumentSequence)."""
-from hw.tests.factories import make_cl, make_invoice
 from datetime import date
 
 from django.db import transaction
@@ -8,6 +7,7 @@ from django.test import TestCase, TransactionTestCase
 from hw.models import CancellationPenalty, Client, ConfirmationLetter, DocumentSequence, Invoice
 from hw.models.choices import InvoiceType
 from hw.numbering import NumberingError, advance_number, generate_sequential_number, peek_number
+from hw.tests.factories import make_cl, make_invoice
 
 
 def _cl(number):

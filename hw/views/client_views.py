@@ -1,6 +1,7 @@
-﻿import logging
+import logging
 import re
-from datetime import date, datetime, time as dt_time
+from datetime import date, datetime
+from datetime import time as dt_time
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -9,28 +10,32 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
-from ..models import (
-    ActivityLog, Client, ConfirmationLetter, log_activity,
-)
 from ..branch_scope import get_in_scope_or_404, scope, with_head_office
-from ..permissions import require_perm
 from ..finance import queries as finance_queries
 from ..finance_helpers import FinanceError
+from ..i18n import tr
+from ..models import (
+    ActivityLog,
+    Client,
+    ConfirmationLetter,
+    log_activity,
+)
+from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import (
-    _is_mobile,
     _parse_date,
     _to_float,
     money_account_choices,
     pagination_props,
     resolve_money_account,
-    period_label as _period_label,
     snapshot_fields,
     track_changes,
     validate_proof_file,
+)
+from .helpers import (
+    period_label as _period_label,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,8 +67,8 @@ def _client_season_status(cid, cur, prev, first_seen, start, active):
 def client_list(request):
     """Client list (Record View HMS canvas): KPIs for the umrah season against
     the season before at the same point (new, active, retention, dormant)."""
-    from datetime import timedelta
     from django.db.models import Max, Min
+
     from ..models.period import Season
     from .helpers import csv_list, list_per_page
     base = scope(Client.objects.all(), request.user)
@@ -191,7 +196,7 @@ def _validate_client(data, user, instance=None):
     errors = {}
     name = data.get("name", "").strip()
     if not name:
-        errors["name"] = "Agent name is required."
+        errors["name"] = "Company name is required."
     else:
         # Satu perusahaan satu baris: "PT. Safaar" dan "SAFAAR" dianggap sama.
         clash = Client.objects.filter(name_key=client_name_key(name))
@@ -232,7 +237,7 @@ def client_new(request):
         c = Client()
         _save_client(c, request.POST, _owner_branch(request.POST, request.user))
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Client', c.name)
-        messages.success(request, f'Client "{c.name}" added successfully.')
+        messages.success(request, tr(request, f'Client "{c.name}" added.', f'Client "{c.name}" ditambahkan.'))
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
         "client": None, "edit": False, "branch_choices": _branch_choices(request.user),
@@ -258,7 +263,7 @@ def client_edit(request, pk):
             labels={'name': 'Name', 'brand': 'Brand', 'city': 'City', 'province': 'Province', 'address': 'Address', 'pic': 'PIC', 'wa': 'WhatsApp', 'email': 'Email'},
         )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name, changes)
-        messages.success(request, f'Client "{c.name}" updated successfully.')
+        messages.success(request, tr(request, f'Client "{c.name}" updated.', f'Client "{c.name}" diperbarui.'))
         return redirect('client_detail', pk=c.pk)
     return inertia_render(request, "Client/Form", props={
         "client": {
@@ -272,6 +277,21 @@ def client_edit(request, pk):
         "edit": True,
         "branch_choices": _branch_choices(request.user),
     })
+
+
+@require_perm('clients', 'edit')
+@require_POST
+def client_toggle_active(request, pk):
+    """Deactivate / activate in one click: the reversible way to retire a
+    client, which Delete refuses once it has financial history."""
+    c = get_in_scope_or_404(Client.objects.all(), request.user, pk=pk)
+    c.is_active = not c.is_active
+    c.save(update_fields=['is_active', 'updated_at'])
+    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client', c.name,
+                 [{'label': 'Status', 'before': 'Inactive' if c.is_active else 'Active',
+                   'after': 'Active' if c.is_active else 'Inactive'}])
+    messages.success(request, tr(request, f'Client "{c.name}" is now {"active" if c.is_active else "inactive"}.', f'Client "{c.name}" sekarang {"aktif" if c.is_active else "nonaktif"}.'))
+    return redirect('client_detail', pk=pk)
 
 
 @require_perm('clients', 'delete')
@@ -288,13 +308,12 @@ def client_delete(request, pk):
         if isinstance(exc, ProtectedError):
             messages.error(
                 request,
-                f'Client "{name}" tidak bisa dihapus karena sudah tercatat di '
-                'jurnal keuangan/pembayaran. Nonaktifkan saja (is_active=False).',
+                tr(request, f'Client "{name}" is in the financial journal or payments and cannot be deleted. Deactivate it instead.', f'Client "{name}" tidak bisa dihapus karena sudah tercatat di jurnal keuangan/pembayaran. Nonaktifkan saja.'),
             )
             return redirect('client_detail', pk=pk)
         raise
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name)
-    messages.success(request, f'Client "{name}" deleted.')
+    messages.success(request, tr(request, f'Client "{name}" deleted.', f'Client "{name}" dihapus.'))
     return redirect('client_list')
 
 
@@ -466,7 +485,7 @@ def client_refund(request, pk):
             logger.info("ledger: refund %s SAR (%s %s) to client %s from %s",
                         amount, paid, account.currency, client_obj.pk, account)
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Refund', client_obj.name)
-            messages.success(request, f'Refund {refund.refund_number}: {amount} SAR to {client_obj.name} — menunggu persetujuan user lain.')
+            messages.success(request, tr(request, f'Refund {refund.refund_number}: {amount} SAR to {client_obj.name} — waiting for another user to approve.', f'Refund {refund.refund_number}: {amount} SAR ke {client_obj.name} — menunggu persetujuan user lain.'))
             return redirect('client_finance_statement', pk=pk)
 
     return page(errors, {
@@ -513,7 +532,7 @@ def client_deposit_transfer(request, pk):
             errors['amount_sar'] = str(e)
         else:
             log_activity(request.user, ActivityLog.ACTION_EDIT, 'Client Deposit Transfer', transfer.transfer_number)
-            messages.success(request, f'{transfer.transfer_number}: {amount} SAR to {to_client.name} — menunggu persetujuan user lain.')
+            messages.success(request, tr(request, f'{transfer.transfer_number}: {amount} SAR to {to_client.name} — waiting for another user to approve.', f'{transfer.transfer_number}: {amount} SAR ke {to_client.name} — menunggu persetujuan user lain.'))
             return redirect('client_finance_statement', pk=pk)
     return page(errors, {'to_client': P.get('to_client', ''), 'amount_sar': P.get('amount_sar', ''), 'note': P.get('note', ''),
                          'reason': P.get('reason', ''), 'transfer_date': P.get('transfer_date', '')})
@@ -541,7 +560,7 @@ def _decide_deposit_out(request, kind, pk, decision):
     else:
         log_activity(request.user, ActivityLog.ACTION_EDIT,
                      'Client Refund' if kind == 'refund' else 'Client Deposit Transfer', f'{number} {decision}')
-        messages.success(request, f'{number} {"disetujui" if decision == "confirm" else "ditolak"}.')
+        messages.success(request, tr(request, f'{number} {"approved" if decision == "confirm" else "rejected"}.', f'{number} {"disetujui" if decision == "confirm" else "ditolak"}.'))
     return redirect('client_finance_statement', pk=client_pk)
 
 

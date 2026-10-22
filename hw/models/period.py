@@ -51,6 +51,10 @@ class FinancialPeriod(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_status_display()})"
 
+    def save(self, *args, **kwargs):
+        self._assert_no_overlap()
+        super().save(*args, **kwargs)
+
     def _assert_no_overlap(self):
         if self.date_from is None or self.date_to is None:
             return
@@ -64,10 +68,6 @@ class FinancialPeriod(models.Model):
                 f"Periode {self.date_from}–{self.date_to} tumpang tindih dengan "
                 f"{other.name} ({other.date_from}–{other.date_to})."
             )
-
-    def save(self, *args, **kwargs):
-        self._assert_no_overlap()
-        super().save(*args, **kwargs)
 
     @property
     def is_editable(self):
@@ -178,6 +178,10 @@ class Season(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        self._assert_no_overlap()
+        super().save(*args, **kwargs)
+
     def _assert_no_overlap(self):
         if self.date_from is None or self.date_to is None:
             return
@@ -190,7 +194,3 @@ class Season(models.Model):
                 f"Musim {self.date_from}–{self.date_to} tumpang tindih dengan "
                 f"{clash.name} ({clash.date_from}–{clash.date_to})."
             )
-
-    def save(self, *args, **kwargs):
-        self._assert_no_overlap()
-        super().save(*args, **kwargs)

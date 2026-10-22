@@ -15,9 +15,9 @@ from django.contrib.auth.models import User
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.text import slugify
-
 from inertia import render as inertia_render
 
+from ..i18n import tr
 from ..models import ActivityLog, log_activity
 from ..models.role import RoleDefinition
 from ..models.user import Role, UserProfile
@@ -156,7 +156,7 @@ def role_new(request):
         )
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Role', role.slug,
                      [{'field': 'permissions', 'new': permissions}])
-        messages.success(request, f"Role '{role.label}' created successfully.")
+        messages.success(request, tr(request, f"Role '{role.label}' created.", f"Role '{role.label}' dibuat."))
         return redirect('role_list')
 
     return inertia_render(request, "Role/Form", props={
@@ -172,14 +172,14 @@ def role_edit(request, slug):
     if role.locked:
         messages.error(
             request,
-            "The Administrator role always has full access and cannot be edited.",
+            tr(request, "The Administrator role always has full access and cannot be edited.", "Role Administrator selalu punya akses penuh dan tidak bisa diubah."),
         )
         return redirect('role_list')
 
     # Editing the role you are standing on can revoke the permission needed to
     # undo the edit. Superusers bypass the matrix entirely, so they are safe.
     if role.slug == get_role(request.user) and not request.user.is_superuser:
-        messages.error(request, "You cannot edit the permissions of your own role.")
+        messages.error(request, tr(request, "You cannot edit the permissions of your own role.", "Anda tidak bisa mengubah hak akses role Anda sendiri."))
         return redirect('role_list')
 
     if request.method == 'POST':
@@ -215,7 +215,7 @@ def role_edit(request, slug):
 
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Role', role.slug,
                      [{'field': 'permissions', 'old': old_permissions, 'new': permissions}])
-        messages.success(request, f"Role '{role.label}' updated successfully.")
+        messages.success(request, tr(request, f"Role '{role.label}' updated.", f"Role '{role.label}' diperbarui."))
         return redirect('role_list')
 
     counts = _user_counts()
@@ -230,10 +230,10 @@ def role_delete(request, slug):
     role = get_object_or_404(RoleDefinition, slug=slug)
 
     if role.is_system:
-        messages.error(request, f"'{role.label}' is a built-in role and cannot be deleted.")
+        messages.error(request, tr(request, f"'{role.label}' is a built-in role and cannot be deleted.", f"'{role.label}' adalah role bawaan dan tidak bisa dihapus."))
         return redirect('role_list')
     if role.slug == get_role(request.user):
-        messages.error(request, "You cannot delete the role you are currently using.")
+        messages.error(request, tr(request, "You cannot delete the role you are currently using.", "Anda tidak bisa menghapus role yang sedang Anda pakai."))
         return redirect('role_list')
 
     if request.method != 'POST':
@@ -255,8 +255,8 @@ def role_delete(request, slug):
     if moved:
         messages.success(
             request,
-            f"Role '{label}' deleted. {moved} account(s) moved to '{fallback}'.",
+            tr(request, f"Role '{label}' deleted. {moved} account(s) moved to '{fallback}'.", f"Role '{label}' dihapus. {moved} akun dipindah ke '{fallback}'."),
         )
     else:
-        messages.success(request, f"Role '{label}' deleted successfully.")
+        messages.success(request, tr(request, f"Role '{label}' deleted.", f"Role '{label}' dihapus."))
     return redirect('role_list')

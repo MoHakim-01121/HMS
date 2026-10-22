@@ -12,11 +12,19 @@ from django.test import TestCase
 from hw.branch_scope import branch_codes, covers_all, operating_branches
 from hw.finance import expense_service
 from hw.finance.errors import FinanceError
-from hw.models import ActivityLog, Branch, Expense, ExpenseCategory, UserBranchAccess
+from hw.models import (
+    ActivityLog,
+    Branch,
+    CancellationPenalty,
+    Client,
+    Expense,
+    ExpenseCategory,
+    PaymentRecord,
+    UserBranchAccess,
+)
 from hw.models.period import FinancialPeriod
 from hw.models.user import Role
 from hw.permissions import can, perms_payload
-from hw.models import CancellationPenalty, Client, PaymentRecord
 from hw.tests.factories import make_cl, make_invoice
 
 
@@ -249,7 +257,9 @@ class FinanceScopeTest(TestCase):
     def setUp(self):
         import shutil
         import tempfile
+
         from django.test import override_settings
+
         from hw.tests.factories import make_account, make_remittance
         self.media = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.media, ignore_errors=True)
@@ -305,7 +315,7 @@ class FinanceScopeTest(TestCase):
             'client_id': self.pay['own'].client_id, 'amount': '5', 'payment_date': '2026-06-06',
             'account': self.jkt_account.token, 'method': 'Transfer',
         })
-        self.assertIn('Rekening penerima di luar cabang Anda.', [str(m) for m in get_messages(resp.wsgi_request)])
+        self.assertIn('The receiving account is outside your branch.', [str(m) for m in get_messages(resp.wsgi_request)])
         self.assertEqual(PaymentRecord.objects.count(), before)
 
     def test_remittances_and_their_receipts(self):

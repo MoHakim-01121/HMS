@@ -3,8 +3,8 @@ from datetime import date, timedelta
 from django.core.cache import cache
 from django.urls import reverse
 
-from .models import ConfirmationLetter, Invoice
 from .branch_scope import scope
+from .models import ConfirmationLetter, Invoice
 from .permissions import can
 
 
@@ -53,7 +53,8 @@ def _invoice_notifs(user, today, threshold, limit, invoice_types):
 def due_soon(request):
     if not request.user.is_authenticated:
         return {}
-    cache_key = f'due_soon_u{request.user.id}'
+    # Per branch picked too: switching branch must not show the last one's.
+    cache_key = f"due_soon_u{request.user.id}_{getattr(request.user, '_active_branch', '') or ''}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

@@ -8,21 +8,21 @@ Covers the new Receive→Apply redesign:
 - Over-allocation is rejected.
 - Void posts a reversal and marks the payment voided.
 """
-import json
 import base64
+import json
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from hw.models import Client, PaymentRecord, PaymentAllocation
-from hw.models.period import FinancialPeriod
-from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
-from hw.finance import queries as fq
 from hw.finance import posting
-from hw.tests.factories import make_hotel_line, make_invoice, ensure_current_period
+from hw.finance import queries as fq
+from hw.models import Client, PaymentAllocation, PaymentRecord
+from hw.models.journal import JournalEntry, JournalLine
+from hw.models.period import FinancialPeriod
+from hw.tests.factories import ensure_current_period, make_hotel_line, make_invoice
 
 
 class ReceiveApplyFlowTest(TestCase):

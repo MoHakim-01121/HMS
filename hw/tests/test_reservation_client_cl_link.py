@@ -1,5 +1,4 @@
 """A hotel invoice line points at the reservation (CL) it bills."""
-from hw.tests.factories import make_cl, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -7,6 +6,7 @@ from django.test import TestCase
 
 from hw.models import Client, Reservation
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl, make_room
 
 
 class InvoiceFromClsLinksReservationTest(TestCase):

@@ -6,9 +6,14 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance.deposit import (
-    confirm_refund, confirm_transfer, reject_refund, request_refund, request_transfer,
+    confirm_refund,
+    confirm_transfer,
+    reject_refund,
+    request_refund,
+    request_transfer,
 )
 from hw.finance.errors import FinanceError
 from hw.models import Client

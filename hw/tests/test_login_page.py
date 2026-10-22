@@ -8,13 +8,15 @@ class LoginPageTests(TestCase):
 
     def test_empty_page(self):
         resp = self.client.get('/login/')
-        self.assertContains(resp, '<h1>Sign in</h1>', html=True)
+        self.assertContains(resp, '<h1 data-id="Masuk">Sign in</h1>', html=True)
         self.assertNotContains(resp, 'Wrong username or password')
 
     def test_wrong_password_counts_down_attempts(self):
         resp = self.client.post('/login/', {'username': 'rina', 'password': 'nope'})
         self.assertContains(resp, 'Wrong username or password')
         self.assertContains(resp, '4 attempts left before the account locks for 1 hour.')
+        # The Indonesian text rides along for the EN/ID switch.
+        self.assertContains(resp, 'Sisa 4 percobaan sebelum akun dikunci 1 jam.')
         # The username is kept, the password is not.
         self.assertContains(resp, 'value="rina"')
 

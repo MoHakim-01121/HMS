@@ -97,6 +97,7 @@ class Command(BaseCommand):
         saldo awal). Satu akun buku besar bisa dipakai beberapa rekening, jadi
         buku besar dicek per akun."""
         from django.db.models import Case, F, Q, When
+
         from hw.models.bank import MoneyAccount
         from hw.models.bank_transaction import BankTransaction
 

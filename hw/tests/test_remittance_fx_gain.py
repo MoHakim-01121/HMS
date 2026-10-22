@@ -14,8 +14,8 @@ from hw.finance import fund_flow, posting
 from hw.finance.errors import FinanceError
 from hw.models import Remittance
 from hw.models.journal import JournalEntry
+from hw.tests import test_fund_flow  # module import: its TestCases must not run twice
 from hw.tests.factories import make_remittance
-from hw.tests import test_fund_flow   # module import: its TestCases must not run twice
 
 DAY = date(2026, 9, 10)
 

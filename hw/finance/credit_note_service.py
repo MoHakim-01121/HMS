@@ -17,8 +17,7 @@ from ..models.invoice import Invoice, InvoiceLine, InvoiceRevision
 from ..models.journal import JournalEntry
 from ..models.payment import PaymentRecord
 from . import accounts as coa
-from . import invoice_revisions
-from . import queries
+from . import invoice_revisions, queries
 from .errors import FinanceError
 from .posting import _live_entries, post_entry, reverse_entry, void_invoice_charge
 

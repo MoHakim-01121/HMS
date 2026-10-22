@@ -4,12 +4,13 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance import posting
+from hw.finance import queries as fq
+from hw.finance import settlement_service as svc
+from hw.finance.errors import FinanceError
 from hw.models import Branch, Remittance
 from hw.models.journal import JournalEntry
 from hw.models.period import FinancialPeriod
-from hw.finance import posting, settlement_service as svc
-from hw.finance import queries as fq
-from hw.finance.errors import FinanceError
 from hw.tests.factories import fund_ledger_for, make_remittance
 
 

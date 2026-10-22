@@ -1,22 +1,21 @@
 from datetime import date
 
-from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404
-from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
-
 from inertia import render as inertia_render
 
+from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_view, scope
 from ..finance import queries as finance_queries
 from ..finance.seasons import season_choices
+from ..i18n import tr
 from ..models import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
-from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_view, scope
-from ..permissions import can, require_perm, _deny
-from .helpers import _parse_date, serialize_journal_entry, journal_line_dimension, pagination_props
+from ..permissions import _deny, can, require_perm
+from .helpers import _parse_date, journal_line_dimension, pagination_props, serialize_journal_entry
 
 
 @require_perm('journal', 'view')
@@ -151,6 +150,7 @@ def statements_list(request):
     overdue, customer deposits and what can be offset, then one row per client
     with its receivable debit, credit, balance and deposit."""
     from datetime import date as _date
+
     from .helpers import list_per_page
     q = request.GET.get('q', '').strip()
     show = request.GET.get('show', '')
@@ -194,7 +194,8 @@ def statements_list(request):
 def _bank_rows(request):
     """Accounts of the branch looked at, with the balance in the account's own
     currency (its posted cash-book rows) next to the SAR value on the ledger."""
-    from django.db.models import Case, IntegerField, Max, Sum, When, F
+    from django.db.models import Case, F, IntegerField, Max, Sum, When
+
     from ..models.bank_transaction import BankTransaction
     from ..models.branch import Branch
     from ..models.reconciliation import BankStatement
@@ -233,6 +234,7 @@ def bank_account_list(request):
     per currency, the book balance in the account's currency and its SAR
     value, and the total."""
     from datetime import date as _date
+
     from .helpers import csv_list
     q = request.GET.get('q', '').strip().lower()
     kinds = csv_list(request, 'kind', ['bank', 'cash', 'staff'])
@@ -434,13 +436,14 @@ def bank_account_new(request):
         return _deny(request)
     from django.contrib import messages
     from django.shortcuts import redirect
+
     from ..models.bank import MoneyAccount
     if request.method == 'POST':
         acc = MoneyAccount()
         errors, data = _save_bank_account(request, acc)
         if errors:
             return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(None, data, errors))
-        messages.success(request, f'Account {acc} added.')
+        messages.success(request, tr(request, f'Account {acc} added.', f'Rekening {acc} ditambahkan.'))
         return redirect('bank_account_list')
     return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(
         None, {'kind': 'bank', 'branch': request.GET.get('branch', ''), 'currency': 'IDR', 'is_active': True},
@@ -453,13 +456,14 @@ def bank_account_edit(request, pk):
         return _deny(request)
     from django.contrib import messages
     from django.shortcuts import redirect
+
     from ..models.bank import MoneyAccount
     acc = get_object_or_404(MoneyAccount.objects.exclude(kind=MoneyAccount.KIND_STAFF), pk=pk)
     if request.method == 'POST':
         errors, data = _save_bank_account(request, acc)
         if errors:
             return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc, data, errors))
-        messages.success(request, f'Account {acc} updated.')
+        messages.success(request, tr(request, f'Account {acc} updated.', f'Rekening {acc} diperbarui.'))
         return redirect('bank_account_list')
     return inertia_render(request, 'Finance/BankAccountForm', props=_bank_form_props(acc))
 
@@ -756,7 +760,7 @@ def branch_report_view(request):
     from ..finance import branch_report as br
     branch, branches, period = _branch_report_params(request)
     if branch is None:
-        messages.info(request, 'Tidak ada cabang untuk dilaporkan.')
+        messages.info(request, tr(request, 'No branch to report on.', 'Tidak ada cabang untuk dilaporkan.'))
         return redirect('fund_flow_report')
     report = br.branch_report(branch, period['date_from'], period['date_to'])
     previous = br.headline(branch, period['prev']['date_from'], period['prev']['date_to']) if period['prev'] else None

@@ -7,8 +7,8 @@ This guards the regression where each filled allocation row became its own
 PaymentRecord whose SAR amount was re-divided by the (non-SAR) exchange
 rate — producing "Allocation (10.000) != Amount (48.000.000)".
 """
-import json
 import base64
+import json
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -16,7 +16,7 @@ from django.contrib.messages import get_messages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
-from hw.models import Client, PaymentRecord, PaymentAllocation
+from hw.models import Client, PaymentAllocation, PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_hotel_line, make_invoice
 
@@ -86,7 +86,7 @@ class MultiAllocationSaveTest(TestCase):
         )
 
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
-        self.assertTrue(any('Payment berhasil' in m for m in msgs))
+        self.assertTrue(any(m.startswith('Payment created') for m in msgs))
 
     def test_non_sar_amount_keeps_original_currency_and_rate_for_analysis(self):
         from hw.tests.factories import make_account
@@ -118,7 +118,7 @@ class MultiAllocationSaveTest(TestCase):
         self.assertEqual(sum(a.amount_sar for a in allocs), p.amount_sar)
 
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
-        self.assertTrue(any('Payment berhasil' in m for m in msgs))
+        self.assertTrue(any(m.startswith('Payment created') for m in msgs))
 
     def test_allocation_over_payment_amount_is_rejected(self):
         resp = self._post(5000, [
@@ -127,7 +127,7 @@ class MultiAllocationSaveTest(TestCase):
         ])
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
         self.assertFalse(PaymentRecord.objects.filter(invoice=self.invoice).exists())
-        self.assertTrue(any('melebihi nilai SAR pembayaran' in m for m in msgs))
+        self.assertTrue(any("more than the payment's SAR value" in m for m in msgs))
 
     def test_success_redirects_to_invoice_filtered_list(self):
         resp = self._post(1500, [
@@ -150,4 +150,4 @@ class MultiAllocationSaveTest(TestCase):
         self.assertEqual(len(allocs), 1)
         self.assertEqual(allocs[0].reservation_id, self.r1.pk)
         msgs = [str(m) for m in get_messages(resp.wsgi_request)]
-        self.assertTrue(any('Payment berhasil' in m for m in msgs))
+        self.assertTrue(any(m.startswith('Payment created') for m in msgs))

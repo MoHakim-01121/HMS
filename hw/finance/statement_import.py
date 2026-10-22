@@ -20,7 +20,8 @@ FIELDS = ('date', 'description', 'reference', 'debit', 'credit', 'amount', 'drcr
 
 # Header keywords per field, checked in order (first hit wins per column).
 _KEYWORDS = {
-    'date': ('tanggal transaksi', 'tanggal', 'tgl', 'posting date', 'transaction date', 'date'),
+    'date': ('tanggal transaksi', 'tanggal', 'tgl', 'posting date', 'postdate', 'post date',
+             'transaction date', 'date'),
     'description': ('keterangan', 'description', 'uraian', 'remark', 'berita', 'narrative'),
     'reference': ('reference', 'referensi', 'no. ref', 'ref no', 'ref'),
     'debit': ('debit', 'debet', 'mutasi debet', 'withdrawal', 'db'),

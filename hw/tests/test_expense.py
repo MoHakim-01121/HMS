@@ -6,11 +6,18 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import expense_service, queries as fq
+from hw.finance import expense_service
+from hw.finance import queries as fq
 from hw.finance.accounts import cash_ledger_for
 from hw.finance.errors import FinanceError
 from hw.models import (
-    BankAccount, BankTransaction, Branch, CashAccount, Expense, ExpenseCategory, ExpensePayment,
+    BankAccount,
+    BankTransaction,
+    Branch,
+    CashAccount,
+    Expense,
+    ExpenseCategory,
+    ExpensePayment,
     Vendor,
 )
 from hw.models.journal import JournalEntry, JournalLine, LedgerAccount

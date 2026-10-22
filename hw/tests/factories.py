@@ -12,7 +12,15 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from hw.models import (
-    Client, ConfirmationLetter, Hotel, Invoice, MealPlan, PaymentRecord, Reservation, Room, RoomType,
+    Client,
+    ConfirmationLetter,
+    Hotel,
+    Invoice,
+    MealPlan,
+    PaymentRecord,
+    Reservation,
+    Room,
+    RoomType,
 )
 from hw.models.client import client_name_key
 from hw.signals import invoice_sync_suspended
@@ -88,9 +96,9 @@ def _priced_room(cl, total):
 
 def make_account(branch='sby', currency='SAR'):
     """Rekening bank cabang `branch` dalam `currency` (dibuat bila belum ada)."""
+    from hw.finance.accounts import cash_ledger_for
     from hw.finance.bank_ledger import default_account
     from hw.models import BankAccount
-    from hw.finance.accounts import cash_ledger_for
     existing = default_account(branch, currency)
     if existing:
         return existing
@@ -118,6 +126,7 @@ def make_remittance(**kwargs):
     rekening SAR Pusat. Nama lama diterima: `amount_idr` → amount_sent;
     `received_amount_sar` / status='received' → satu penerimaan (tanpa jurnal)."""
     from decimal import Decimal
+
     from hw.finance.bank_ledger import default_account
     from hw.models import Remittance
     from hw.models.settlement import RemittanceSettlement
@@ -341,7 +350,9 @@ def fund_ledger(account, amount, sar, day, user=None):
     remittance: dengan `amount`/`sar` = kurs kirimnya, nilai tercatat yang
     dikirim sama dengan SAR kirimnya, jadi tidak terbentuk laba/rugi kurs."""
     from django.contrib.auth.models import User
-    from hw.finance import accounts as coa, posting
+
+    from hw.finance import accounts as coa
+    from hw.finance import posting
     user = user or User.objects.get_or_create(username='factory-funder')[0]
     return posting.post_adjustment(
         lines=[{'account': account.ledger_account_id, 'debit': sar, 'branch': account.branch_id,

@@ -5,7 +5,6 @@ from django.urls import reverse
 from .uploads import RandomFileName
 
 
-
 class PaymentQuerySet(models.QuerySet):
     def with_allocated(self):
         """Annotate `allocated` = Σ allocation rows + the part moved to client deposit."""

@@ -7,9 +7,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.finance import exchange_service, fund_flow
+from hw.finance.accounts import cash_ledger_for
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import BankAccount, BankTransaction, Client, LedgerAccount, Remittance
-from hw.finance.accounts import cash_ledger_for
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
 
@@ -20,7 +20,7 @@ class FundFlowScenario(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser('ff', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
-        la = LedgerAccount.objects.get(code='1000-KAS-SBY')
+        LedgerAccount.objects.get(code='1000-KAS-SBY')
         self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
                                               bank_name='Mandiri', account_identifier='1', opening_balance=1_000_000,
                                               opening_date=date(2026, 9, 1))

@@ -72,11 +72,6 @@ class RoleDefinition(models.Model):
     def __str__(self):
         return self.label
 
-    @property
-    def locked(self):
-        """The break-glass role: shown read-only, never editable or deletable."""
-        return self.slug == ADMIN_SLUG
-
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         invalidate_matrix_cache()
@@ -85,3 +80,9 @@ class RoleDefinition(models.Model):
         result = super().delete(*args, **kwargs)
         invalidate_matrix_cache()
         return result
+
+    @property
+    def locked(self):
+        """The break-glass role: shown read-only, never editable or deletable."""
+        return self.slug == ADMIN_SLUG
+

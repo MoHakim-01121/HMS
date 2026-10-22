@@ -1,4 +1,4 @@
-﻿import json as _json
+import json as _json
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -8,13 +8,13 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
+from ..i18n import tr
 from ..models import ActivityLog, Hotel, MealPlan, RoomType, RoomView, log_activity, room_type_name
 from ..models.hotel import OCCUPANCY_BY_CAPACITY
 from ..permissions import require_perm
-from .helpers import _is_mobile, csv_export_response, pagination_props, snapshot_fields, track_changes
+from .helpers import csv_export_response, pagination_props, snapshot_fields, track_changes
 
 
 def _hotel_error(data, instance=None):
@@ -42,6 +42,22 @@ def _hotel_error(data, instance=None):
     if clash.exists():
         return f'Hotel "{name}" already exists in {dict(HotelCity.choices)[city]}.'
     return None
+
+
+def _hotel_echo(data):
+    """The submitted form, shaped like the form's `hotel` prop, so a rejected
+    save comes back with what the user typed instead of an empty form."""
+    def num(key):
+        try:
+            return float(data[key]) if data.get(key) else None
+        except (ValueError, TypeError):
+            return None
+    return {
+        "name": data.get('name', ''), "city": data.get('city', ''), "stars": int(data['stars']) if str(data.get('stars', '')).isdigit() else '',
+        "area": data.get('area', ''), "note": data.get('note', ''),
+        "is_active": data.get('is_active') == 'on', "has_allotment": data.get('has_allotment') == 'on',
+        "avg_occupancy": num('avg_occupancy'), "lat": num('lat'), "lng": num('lng'),
+    }
 
 
 def _save_hotel(h, data):
@@ -168,6 +184,7 @@ def _hotel_list_qs(request):
 def hotel_list(request):
     """Hotel list (Record View HMS canvas): no KPIs, city and stars in Filter."""
     from django.db.models import Count
+
     from .helpers import list_per_page
     base, qs, filters = _hotel_list_qs(request)
     page_obj = Paginator(qs, list_per_page(request)).get_page(request.GET.get('page'))
@@ -205,8 +222,9 @@ def hotel_new(request):
     if request.method == 'POST':
         error = _hotel_error(request.POST)
         if error:
-            messages.error(request, error)
-            return redirect('hotel_new')
+            return inertia_render(request, "Hotel/Form", props={
+                "edit": False, "hotel": _hotel_echo(request.POST), "error": error,
+            })
         h = Hotel()
         _save_hotel(h, request.POST)
         # Same starting point migration 0104 gave every existing hotel: allow
@@ -224,8 +242,9 @@ def hotel_edit(request, pk):
     if request.method == 'POST':
         error = _hotel_error(request.POST, instance=h)
         if error:
-            messages.error(request, error)
-            return redirect('hotel_edit', pk=h.pk)
+            return inertia_render(request, "Hotel/Form", props={
+                "edit": True, "hotel": {**_hotel_echo(request.POST), "id": h.id}, "error": error,
+            })
         _before = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
         _save_hotel(h, request.POST)
         _after = snapshot_fields(h, ['name', 'city', 'area', 'stars'])
@@ -246,13 +265,35 @@ def hotel_edit(request, pk):
     })
 
 
+@require_perm('hotels', 'edit')
+@require_POST
+def hotel_toggle_active(request, pk):
+    """Deactivate / activate in one click: the reversible way to retire a
+    hotel, which Delete refuses once a CL names it."""
+    h = get_object_or_404(Hotel, pk=pk)
+    h.is_active = not h.is_active
+    h.save(update_fields=['is_active', 'updated_at'])
+    log_activity(request.user, ActivityLog.ACTION_EDIT, 'Hotel', h.name,
+                 [{'label': 'Status', 'before': 'Inactive' if h.is_active else 'Active',
+                   'after': 'Active' if h.is_active else 'Inactive'}])
+    messages.success(request, tr(request, f'Hotel "{h.name}" is now {"active" if h.is_active else "inactive"}.', f'Hotel "{h.name}" sekarang {"aktif" if h.is_active else "nonaktif"}.'))
+    return redirect('hotel_detail', pk=pk)
+
+
 @require_perm('hotels', 'delete')
 @require_POST
 def hotel_delete(request, pk):
     h = get_object_or_404(Hotel, pk=pk)
     name = h.name
+    # A hotel named on a CL is PROTECTed: deleting it would leave the
+    # bookings without their hotel. Say so instead of failing with a 500.
+    used = h.confirmation_letters.count()
+    if used:
+        messages.error(request, tr(request, f'Hotel "{name}" is used by {used} CL and cannot be deleted. Set it to Inactive instead.', f'Hotel "{name}" dipakai {used} CL dan tidak bisa dihapus. Nonaktifkan saja.'))
+        return redirect('hotel_detail', pk=pk)
     h.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Hotel', name)
+    messages.success(request, tr(request, f'Hotel "{name}" deleted.', f'Hotel "{name}" dihapus.'))
     return redirect('hotel_list')
 
 
@@ -395,9 +436,9 @@ def room_type_bulk(request, hotel_pk):
         if created:
             log_activity(request.user, ActivityLog.ACTION_CREATE, 'Room Type',
                          f'{created} tipe kamar (sekaligus) — {h.name}')
-        msg = f'{created} tipe kamar ditambahkan.'
+        msg = tr(request, f'{created} room types added.', f'{created} tipe kamar ditambahkan.')
         if skipped:
-            msg += f' {skipped} dilewati karena sudah ada.'
+            msg += tr(request, f' {skipped} skipped because they already exist.', f' {skipped} dilewati karena sudah ada.')
         messages.success(request, msg)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/RoomTypeBulkForm", props=_room_type_bulk_props(h))
@@ -430,6 +471,7 @@ def room_type_delete(request, hotel_pk, pk):
     rt.is_active = False
     rt.save(update_fields=['is_active', 'updated_at'])
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Room Type', f'{rt.name} — {h.name}')
+    messages.success(request, tr(request, f'Room type "{rt.name}" removed.', f'Tipe kamar "{rt.name}" dihapus.'))
     return redirect('hotel_detail', pk=h.pk)
 
 

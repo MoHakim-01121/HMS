@@ -4,7 +4,13 @@ from decimal import Decimal
 from django.test import SimpleTestCase
 
 from hw.money import (
-    FROM_PER_TO, TO_PER_FROM, MoneyError, convert, from_minor, market_quote, to_minor,
+    FROM_PER_TO,
+    TO_PER_FROM,
+    MoneyError,
+    convert,
+    from_minor,
+    market_quote,
+    to_minor,
 )
 
 

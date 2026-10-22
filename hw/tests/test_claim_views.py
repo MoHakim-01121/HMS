@@ -112,11 +112,12 @@ class ClaimViewsTest(TestCase):
     def test_claim_list_query_count_does_not_grow(self):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
+
         from hw.finance import claim_service as svc
         sby = Branch.objects.get(code='sby')
 
         def add(n):
-            for i in range(n):
+            for _ in range(n):
                 day = date(2026, 3 + len(ExpenseClaim.objects.all()) % 9, 10)
                 paid_expense(sby, self.idr, 100_000, day, self.finance)
                 svc.create_claim(branch=sby, date_from=day, date_to=day, created_by=self.finance)

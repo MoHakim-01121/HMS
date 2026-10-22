@@ -12,15 +12,15 @@ from datetime import date
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
-from ..models.bank_transaction import BankTransaction
-from ..models.reconciliation import BankStatement, BankStatementLine
+from ..branch_scope import branch_codes, get_in_scope_or_404, in_scope, scope
 from ..finance import reconciliation_service as rs
 from ..finance import statement_import as si
 from ..finance.errors import FinanceError
-from ..branch_scope import branch_codes, get_in_scope_or_404, in_scope, scope
+from ..i18n import tr
+from ..models.bank_transaction import BankTransaction
+from ..models.reconciliation import BankStatement, BankStatementLine
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float, money_account_choices, request_data, resolve_money_account
@@ -101,6 +101,7 @@ def reconciliation_list(request):
     """Bank Reconciliation (Record View HMS canvas): no KPIs; one row per
     statement with its closing balance, lines matched and the difference."""
     from django.core.paginator import Paginator
+
     from .helpers import csv_list, list_per_page, pagination_props
     q = request.GET.get('q', '').strip().lower()
     statuses = csv_list(request, 'status', ['wip', 'done'])
@@ -167,7 +168,7 @@ def reconciliation_new(request):
         messages.error(request, str(e))
         return redirect('reconciliation_list')
 
-    messages.success(request, 'Statement tercatat.')
+    messages.success(request, tr(request, 'Statement recorded.', 'Statement tercatat.'))
     return redirect('reconciliation_detail', pk=statement.pk)
 
 
@@ -242,9 +243,11 @@ def reconciliation_import(request):
     except FinanceError as e:
         return inertia_render(request, 'Reconciliation/ImportForm', props=_import_props(request.user, form, preview, str(e)))
     left_out = len(result['lines']) - len(lines)
-    msg = f'{len(lines)} baris diimpor dari {form["filename"] or "CSV"}.'
+    msg = tr(request, f'{len(lines)} lines imported from {form["filename"] or "CSV"}.',
+             f'{len(lines)} baris diimpor dari {form["filename"] or "CSV"}.')
     if left_out:
-        msg += f' {left_out} baris di luar periode tidak diikutkan.'
+        msg += tr(request, f' {left_out} lines outside the period were left out.',
+                  f' {left_out} baris di luar periode tidak diikutkan.')
     messages.success(request, msg)
     return redirect('reconciliation_detail', pk=statement.pk)
 
@@ -265,15 +268,15 @@ def reconciliation_match(request, pk):
     data = _payload(request)
     tx = BankTransaction.objects.filter(pk=data.get('transaction_id')).first()
     if tx is None:
-        messages.error(request, 'Transaksi tidak ditemukan.')
+        messages.error(request, tr(request, 'Transaction not found.', 'Transaksi tidak ditemukan.'))
         return redirect('reconciliation_detail', pk=line.statement_id)
 
     force = str(data.get('force', '')).lower() in ('1', 'true', 'on')
     try:
         rs.match_line(line, tx, force=force)
-        messages.success(request, 'Baris berhasil dicocokkan.')
+        messages.success(request, tr(request, 'Line matched.', 'Baris berhasil dicocokkan.'))
     except rs.MatchMismatchError as e:
-        messages.error(request, f'{e} — centang "paksa cocokkan" kalau tetap ingin melanjutkan.')
+        messages.error(request, tr(request, f'{e} — tick "force match" to go ahead anyway.', f'{e} — centang "paksa cocokkan" kalau tetap ingin melanjutkan.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('reconciliation_detail', pk=line.statement_id)
@@ -285,7 +288,7 @@ def reconciliation_match_suggested(request, pk):
     statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
     try:
         n = rs.match_suggested(statement)
-        messages.success(request, f'{n} baris dicocokkan sesuai saran.')
+        messages.success(request, tr(request, f'{n} lines matched as suggested.', f'{n} baris dicocokkan sesuai saran.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('reconciliation_detail', pk=pk)
@@ -297,5 +300,5 @@ def reconciliation_unmatch(request, pk):
     if request.method != 'POST':
         return redirect('reconciliation_detail', pk=line.statement_id)
     rs.unmatch_line(line)
-    messages.success(request, 'Pencocokan dibatalkan.')
+    messages.success(request, tr(request, 'Match undone.', 'Pencocokan dibatalkan.'))
     return redirect('reconciliation_detail', pk=line.statement_id)

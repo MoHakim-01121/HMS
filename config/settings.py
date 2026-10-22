@@ -295,7 +295,10 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 # Session Security
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Strict'
-SESSION_COOKIE_AGE = 3600  # 1 hour
+SESSION_COOKIE_AGE = 3600  # 1 hour without activity
+# Sliding expiry: every request pushes the hour forward, so someone working
+# is never signed out mid-form; an idle hour still ends the session.
+SESSION_SAVE_EVERY_REQUEST = True
 
 # Password Security - Already configured above in AUTH_PASSWORD_VALIDATORS
 

@@ -1,14 +1,15 @@
-from hw.tests.factories import make_hotel_line, make_invoice
 import csv
 import io
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
-from hw.models import Invoice, CancellationPenalty, Client
-from hw.models.period import FinancialPeriod
-from hw.finance_helpers import create_payment_record, confirm_payment, allocate_payment
+
 from hw.finance import posting
+from hw.finance_helpers import allocate_payment, confirm_payment, create_payment_record
+from hw.models import CancellationPenalty, Client, Invoice
+from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_hotel_line, make_invoice
 
 
 class InvoiceTotalsTest(TestCase):

@@ -1,4 +1,3 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line, make_room
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -7,9 +6,11 @@ from django.test import TestCase
 from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import (
-    Client, ConfirmationLetter,
+    Client,
+    ConfirmationLetter,
 )
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line, make_room
 from hw.views.remittance_views import _build_ledger_rows, _prev_sent_map
 
 

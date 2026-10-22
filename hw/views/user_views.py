@@ -1,6 +1,7 @@
-﻿import re
+import re
 from urllib.parse import urlparse
 
+from axes.handlers.proxy import AxesProxyHandler
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -8,24 +9,27 @@ from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
 from django.db import transaction
 from django.db.models import ProtectedError
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_POST
-from axes.handlers.proxy import AxesProxyHandler
 from django_ratelimit.decorators import ratelimit
-
 from inertia import render as inertia_render
 
+from ..i18n import tr
 from ..models import ActivityLog, RoleDefinition, UserProfile, log_activity
 from ..models.branch import Branch
 from ..models.role import ADMIN_SLUG
 from ..models.user import Role, UserBranchAccess
 from ..permissions import (
-    get_role, is_valid_role, require_perm,
-    role_choices, role_label, role_labels,
+    get_role,
+    is_valid_role,
+    require_perm,
+    role_choices,
+    role_label,
+    role_labels,
 )
 
 
@@ -208,7 +212,7 @@ def user_new(request):
         _save_branch(user, branch)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'User', user.username,
                      [{'field': 'role', 'new': role}, {'field': 'branch', 'new': branch}])
-        messages.success(request, f"User '{user.username}' created successfully.")
+        messages.success(request, tr(request, f"User '{user.username}' created.", f"User '{user.username}' dibuat."))
         return redirect('user_list')
 
     return inertia_render(request, "User/Form", props={
@@ -236,9 +240,9 @@ def user_edit(request, pk):
             elif edit_user == request.user:
                 # Demoting yourself would revoke the very permission needed to
                 # undo it — the only way back would be a shell.
-                messages.error(request, "You cannot change your own role.")
+                messages.error(request, tr(request, "You cannot change your own role.", "Anda tidak bisa mengubah role Anda sendiri."))
             elif edit_user.is_superuser and not request.user.is_superuser:
-                messages.error(request, "Only a superuser can change a superuser's access.")
+                messages.error(request, tr(request, "Only a superuser can change a superuser's access.", "Hanya superuser yang bisa mengubah akses superuser."))
             else:
                 old_role, old_branch = get_role(edit_user), _branch_value(edit_user)
                 UserProfile.objects.update_or_create(
@@ -254,7 +258,7 @@ def user_edit(request, pk):
                 edit_user.is_staff = _grants_django_staff(role)
                 edit_user.save(update_fields=['is_staff'])
                 messages.success(
-                    request, f"Access for '{edit_user.username}' updated successfully."
+                    request, tr(request, f"Access for '{edit_user.username}' updated.", f"Akses '{edit_user.username}' diperbarui.")
                 )
                 return redirect('user_list')
 
@@ -262,29 +266,28 @@ def user_edit(request, pk):
             password = request.POST.get('password', '')
             confirm  = request.POST.get('password_confirm', '')
             if edit_user.is_superuser and not request.user.is_superuser and edit_user != request.user:
-                messages.error(request, "Only a superuser can reset a superuser's password.")
+                messages.error(request, tr(request, "Only a superuser can reset a superuser's password.", "Hanya superuser yang bisa mereset password superuser."))
             elif not password:
-                messages.error(request, "New password is required.")
+                messages.error(request, tr(request, "New password is required.", "Password baru wajib diisi."))
             elif password != confirm:
-                messages.error(request, "Passwords do not match.")
+                messages.error(request, tr(request, "Passwords do not match.", "Password tidak sama."))
             else:
                 edit_user.set_password(password)
                 edit_user.save()
                 log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
                              [{'field': 'password', 'new': 'reset'}])
-                messages.success(request, f"Password for '{edit_user.username}' has been reset.")
+                messages.success(request, tr(request, f"Password for '{edit_user.username}' has been reset.", f"Password '{edit_user.username}' sudah direset."))
                 return redirect('user_list')
 
         elif action == 'toggle_active':
             if edit_user == request.user:
-                messages.error(request, "You cannot deactivate your own account.")
+                messages.error(request, tr(request, "You cannot deactivate your own account.", "Anda tidak bisa menonaktifkan akun Anda sendiri."))
             else:
                 edit_user.is_active = not edit_user.is_active
                 edit_user.save()
                 log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
                              [{'field': 'is_active', 'old': not edit_user.is_active, 'new': edit_user.is_active}])
-                status = "activated" if edit_user.is_active else "deactivated"
-                messages.success(request, f"User '{edit_user.username}' {status} successfully.")
+                messages.success(request, tr(request, f"User '{edit_user.username}' {'activated' if edit_user.is_active else 'deactivated'}.", f"User '{edit_user.username}' {'diaktifkan' if edit_user.is_active else 'dinonaktifkan'}."))
                 return redirect('user_list')
 
     # The old 'toggle_staff' action is gone: is_staff is now derived from the
@@ -372,7 +375,7 @@ def _save_user_form(request, edit_user):
     edit_user.save()
     if changes:
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username, changes)
-    messages.success(request, f"User '{edit_user.username}' saved.")
+    messages.success(request, tr(request, f"User '{edit_user.username}' saved.", f"User '{edit_user.username}' disimpan."))
     return redirect('user_list')
 
 
@@ -380,10 +383,10 @@ def _save_user_form(request, edit_user):
 def user_delete(request, pk):
     target = get_object_or_404(User, pk=pk)
     if target == request.user:
-        messages.error(request, "You cannot delete your own account.")
+        messages.error(request, tr(request, "You cannot delete your own account.", "Anda tidak bisa menghapus akun Anda sendiri."))
         return redirect('user_list')
     if target.is_superuser:
-        messages.error(request, "You cannot delete a superuser.")
+        messages.error(request, tr(request, "You cannot delete a superuser.", "Superuser tidak bisa dihapus."))
         return redirect('user_list')
     if request.method == 'POST':
         username = target.username
@@ -394,11 +397,11 @@ def user_delete(request, pk):
             # Dokumen keuangan yang dibuatnya menunjuk akun ini; riwayat tidak boleh hilang.
             messages.error(
                 request,
-                f"User '{username}' sudah membuat dokumen keuangan dan tidak bisa dihapus — nonaktifkan saja.",
+                tr(request, f"User '{username}' has created financial documents and cannot be deleted — deactivate them instead.", f"User '{username}' sudah membuat dokumen keuangan dan tidak bisa dihapus — nonaktifkan saja."),
             )
             return redirect('user_list')
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'User', username)
-        messages.success(request, f"User '{username}' deleted successfully.")
+        messages.success(request, tr(request, f"User '{username}' deleted.", f"User '{username}' dihapus."))
         return redirect('user_list')
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect('user_list')
@@ -414,8 +417,9 @@ def user_credential_card(request, pk):
     is one-way, so the current password can never be recovered. The account's
     password is never touched: this just prints a card.
     """
-    from .pdf import _logo_file_url
     from weasyprint import HTML
+
+    from .pdf import _logo_file_url
 
     target = get_object_or_404(User, pk=pk)
 
@@ -454,6 +458,7 @@ def _activity_props(request):
     server: search (record, field or value), actions, record types and a date
     range. It opens on today, as on the Profile E2 canvas."""
     from datetime import timedelta
+
     from django.core.paginator import Paginator
     from django.db.models import Count, Q, TextField
     from django.db.models.functions import Cast, TruncDate
@@ -639,7 +644,7 @@ def account_profile_update(request):
         u.username = username
         update_fields.append("username")
     u.save(update_fields=update_fields)
-    messages.success(request, "Profile updated successfully.")
+    messages.success(request, tr(request, "Profile updated.", "Profil diperbarui."))
     return redirect("account_profile")
 
 
@@ -655,9 +660,10 @@ def avatar_upload(request):
         # The model field alone is not enough: it only validates via a form's
         # clean(), and this endpoint assigns the file directly.
         from io import BytesIO
+
         from .helpers import PROOF_MAX_SIZE
         if f.size > PROOF_MAX_SIZE:
-            messages.error(request, "Avatar terlalu besar (maks 10 MB).")
+            messages.error(request, tr(request, "Avatar too large (max 10 MB).", "Avatar terlalu besar (maks 10 MB)."))
             return redirect(_safe_redirect(request))
         try:
             from PIL import Image
@@ -665,11 +671,11 @@ def avatar_upload(request):
             img.load()
             fmt = (img.format or '').upper()
             if fmt not in ('JPEG', 'PNG', 'WEBP', 'GIF'):
-                messages.error(request, "File type not allowed. Use JPG/PNG/WEBP/GIF.")
+                messages.error(request, tr(request, "File type not allowed. Use JPG, PNG, WEBP or GIF.", "Jenis file tidak diizinkan. Gunakan JPG, PNG, WEBP atau GIF."))
                 return redirect(_safe_redirect(request))
             img = img.convert('RGB') if fmt != 'GIF' else img
         except Exception:
-            messages.error(request, "File is not a valid image.")
+            messages.error(request, tr(request, "File is not a valid image.", "File bukan gambar yang valid."))
             return redirect(_safe_redirect(request))
 
         out = BytesIO()
@@ -684,7 +690,7 @@ def avatar_upload(request):
         if profile.avatar:
             profile.avatar.delete(save=False)
         profile.avatar.save(safe_name, ContentFile(out.getvalue()), save=True)
-        messages.success(request, "Avatar diperbarui.")
+        messages.success(request, tr(request, "Avatar updated.", "Avatar diperbarui."))
     return redirect(_safe_redirect(request))
 
 

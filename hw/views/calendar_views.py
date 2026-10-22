@@ -1,15 +1,14 @@
-﻿from collections import Counter
-from datetime import date, timedelta
 import calendar
+from collections import Counter
+from datetime import date, timedelta
 
 from django.urls import reverse
-
 from inertia import render as inertia_render
 
+from ..branch_scope import scope
 from ..models import ConfirmationLetter, Invoice
 from ..models.choices import HotelCity
 from ..models.confirmation import ReservationStatus
-from ..branch_scope import scope
 from ..permissions import require_perm
 
 # The two-week timeline opens on the Sunday of the week holding the anchor day.

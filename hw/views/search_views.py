@@ -3,8 +3,8 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.urls import reverse
 
-from ..models import Client, ConfirmationLetter, Hotel, Invoice, PaymentRecord
 from ..branch_scope import scope
+from ..models import Client, ConfirmationLetter, Hotel, Invoice, PaymentRecord
 from ..permissions import can
 
 

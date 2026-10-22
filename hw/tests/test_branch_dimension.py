@@ -1,18 +1,17 @@
 """FASE C — receiving_account + branch dimension threaded into journal lines."""
-from datetime import date
-
 import base64
+from datetime import date
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
+from hw.finance import posting
+from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import CashAccount, Client
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.finance import posting
-from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.tests.factories import make_hotel_line, make_invoice
 
 

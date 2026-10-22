@@ -10,20 +10,19 @@ between branch and HQ, same sensitivity class as remittance itself (staff
 read-only, manager+ can create).
 """
 import json
-
 from datetime import date
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
-from ..models.remittance import Remittance
-from ..models.settlement import RemittanceSettlement
+from ..branch_scope import head_office_only
 from ..finance import remittance_allocation, settlement_service
 from ..finance.errors import FinanceError
-from ..branch_scope import head_office_only
+from ..i18n import tr
+from ..models.remittance import Remittance
+from ..models.settlement import RemittanceSettlement
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
@@ -151,7 +150,7 @@ def remittance_record_receipt(request, pk):
     fallback = f'/remittance/{pk}/'
     if request.method != 'POST':
         if not _can_record_receipt(remittance):
-            messages.error(request, f'Penerimaan {remittance.remittance_number} tidak bisa dicatat lagi.')
+            messages.error(request, tr(request, f'No more receipts can be recorded for {remittance.remittance_number}.', f'Penerimaan {remittance.remittance_number} tidak bisa dicatat lagi.'))
             return redirect('remittance_detail', pk=pk)
         return inertia_render(request, 'Remittance/Receipt', props=_receipt_props(
             remittance, next_url=request.GET.get('next', ''),
@@ -178,7 +177,7 @@ def remittance_record_receipt(request, pk):
     except FinanceError as e:
         return _receipt_failed(request, data, remittance, str(e), fallback=fallback)
 
-    messages.success(request, f'Penerimaan {remittance.remittance_number} tercatat.')
+    messages.success(request, tr(request, f'Receipt for {remittance.remittance_number} recorded.', f'Penerimaan {remittance.remittance_number} tercatat.'))
     return _safe_next(data, fallback)
 
 
@@ -203,7 +202,7 @@ def remittance_receipt_allocation(request, pk, sid):
     except FinanceError as e:
         return _receipt_failed(request, data, remittance, str(e), settlement=settlement, fallback=fallback)
 
-    messages.success(request, f'Alokasi penerimaan {remittance.remittance_number} disimpan.')
+    messages.success(request, tr(request, f'Receipt allocation for {remittance.remittance_number} saved.', f'Alokasi penerimaan {remittance.remittance_number} disimpan.'))
     return _safe_next(data, fallback)
 
 
@@ -216,7 +215,7 @@ def remittance_receipt_delete(request, pk, sid):
     settlement = get_object_or_404(RemittanceSettlement, pk=sid, remittance=remittance)
     try:
         settlement_service.delete_settlement(settlement, created_by=request.user)
-        messages.success(request, f'Penerimaan {remittance.remittance_number} dihapus.')
+        messages.success(request, tr(request, f'Receipt for {remittance.remittance_number} deleted.', f'Penerimaan {remittance.remittance_number} dihapus.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('remittance_detail', pk=pk)
@@ -233,7 +232,7 @@ def remittance_close_diff(request, pk):
 
     try:
         settlement_service.close_remittance_diff(remittance, created_by=request.user)
-        messages.success(request, f'Selisih {remittance.remittance_number} dibukukan.')
+        messages.success(request, tr(request, f'Difference on {remittance.remittance_number} booked.', f'Selisih {remittance.remittance_number} dibukukan.'))
     except FinanceError as e:
         messages.error(request, str(e))
 
@@ -249,7 +248,7 @@ def remittance_reopen_diff(request, pk):
     remittance = get_object_or_404(Remittance, pk=pk)
     try:
         settlement_service.reopen_remittance_diff(remittance, created_by=request.user)
-        messages.success(request, f'Selisih {remittance.remittance_number} dibuka kembali.')
+        messages.success(request, tr(request, f'Difference on {remittance.remittance_number} reopened.', f'Selisih {remittance.remittance_number} dibuka kembali.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('remittance_detail', pk=pk)

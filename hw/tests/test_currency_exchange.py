@@ -5,12 +5,14 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import accounts as coa, exchange_service as fx, posting
+from hw.finance import accounts as coa
+from hw.finance import exchange_service as fx
+from hw.finance import posting
+from hw.finance.accounts import cash_ledger_for
 from hw.finance.bank_ledger import record_bank_transaction
 from hw.finance.errors import FinanceError, InsufficientFundsError
 from hw.finance.hashing import verify_chain
 from hw.models import BankAccount, BankTransaction, CurrencyExchange, LedgerAccount
-from hw.finance.accounts import cash_ledger_for
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 
@@ -19,7 +21,7 @@ class ExchangeBase(TestCase):
     def setUp(self):
         self.user = User.objects.create_superuser('fx', password='pw12345')
         FinancialPeriod.objects.create(name='2026', date_from=date(2026, 1, 1), date_to=date(2026, 12, 31))
-        la = LedgerAccount.objects.get(code='1000-KAS-SBY')
+        LedgerAccount.objects.get(code='1000-KAS-SBY')
         self.usd = BankAccount.objects.create(branch_id='sby', name='USD', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
                                               bank_name='Mandiri', account_identifier='111')
         self.idr = BankAccount.objects.create(branch_id='sby', name='IDR', currency='IDR', ledger_account_id=cash_ledger_for('sby', 'IDR'),
@@ -132,6 +134,7 @@ class RecordExchangeTest(ExchangeBase):
 
     def test_cutover_replay_books_no_journal_for_same_currency_transfer(self):
         from io import StringIO
+
         from django.core.management import call_command
         same = fx.record_exchange(from_account=self.usd, amount_out=100, to_account=self._other_usd(), amount_in=100,
                                   exchange_date=date(2026, 9, 10), created_by=self.user)

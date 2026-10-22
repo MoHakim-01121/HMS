@@ -1,6 +1,7 @@
-from django_vite.core.asset_loader import DjangoViteAppClient
 from urllib.parse import urljoin
+
 from django.conf import settings
+from django_vite.core.asset_loader import DjangoViteAppClient
 
 
 class FixedDjangoViteAppClient(DjangoViteAppClient):

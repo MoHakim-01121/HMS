@@ -15,9 +15,9 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.templatetags.static import static
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
+from ..i18n import tr
 from ..models import ActivityLog, Hotel, Pricelist, TeamMember, log_activity
 from ..permissions import can, require_perm
 
@@ -228,7 +228,7 @@ def team_new(request):
             is_active=data['is_active'],
         )
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'TeamMember', m.name)
-        messages.success(request, 'Anggota tim ditambahkan.')
+        messages.success(request, tr(request, 'Team member added.', 'Anggota tim ditambahkan.'))
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/TeamForm', props={
         'team': None, 'edit': False,
@@ -254,7 +254,7 @@ def team_edit(request, pk):
         m.is_active = data['is_active']
         m.save()
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'TeamMember', m.name)
-        messages.success(request, 'Anggota tim diperbarui.')
+        messages.success(request, tr(request, 'Team member updated.', 'Anggota tim diperbarui.'))
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/TeamForm', props={
         'team': _team_member_payload(m), 'edit': True,
@@ -268,6 +268,7 @@ def team_delete(request, pk):
     name = m.name
     m.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'TeamMember', name)
+    messages.success(request, tr(request, f'{name} removed from the team.', f'{name} dihapus dari tim.'))
     return redirect('landing_manage')
 
 
@@ -294,7 +295,7 @@ def pricelist_new(request):
         # previous one so the public page always serves the latest file.
         Pricelist.objects.exclude(pk=p.pk).delete()
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Pricelist', p.title)
-        messages.success(request, 'Pricelist diunggah.')
+        messages.success(request, tr(request, 'Pricelist uploaded.', 'Pricelist diunggah.'))
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/PricelistForm', props={
         'pricelist': None, 'edit': False,
@@ -322,7 +323,7 @@ def pricelist_edit(request, pk):
         p.is_active = request.POST.get('is_active') == 'on'
         p.save()
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Pricelist', p.title)
-        messages.success(request, 'Pricelist diperbarui.')
+        messages.success(request, tr(request, 'Pricelist updated.', 'Pricelist diperbarui.'))
         return redirect('landing_manage')
     return inertia_render(request, 'Landing/PricelistForm', props={
         'pricelist': _pricelist_payload(p), 'edit': True,
@@ -336,4 +337,5 @@ def pricelist_delete(request, pk):
     title = p.title
     p.delete()
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Pricelist', title)
+    messages.success(request, tr(request, f'Pricelist "{title}" deleted.', f'Pricelist "{title}" dihapus.'))
     return redirect('landing_manage')

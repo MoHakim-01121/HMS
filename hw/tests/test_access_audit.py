@@ -1,10 +1,10 @@
 """Schema v2 F9 — akses cabang dan jejak audit pengelolaan user."""
 from datetime import date
+from unittest import skipUnless
 
 from django.contrib.auth.models import User
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
-from unittest import skipUnless
 
 from hw.models import ActivityLog, UserBranchAccess, UserProfile, log_activity
 from hw.models.period import FinancialPeriod
@@ -69,8 +69,8 @@ class UserManagementAuditTest(TestCase):
     def test_user_with_finance_documents_cannot_be_deleted(self):
         FinancialPeriod.objects.create(name='2040', date_from=date(2040, 1, 1), date_to=date(2040, 12, 31))
         clerk = User.objects.create_user('clerk', password='pw12345')
-        from hw.finance.posting import post_entry
         from hw.finance import accounts as coa
+        from hw.finance.posting import post_entry
         from hw.models.journal import JournalEntry
         post_entry(
             entry_type=JournalEntry.TYPE_ADJUSTMENT, description='x', entry_date=date(2040, 1, 2),

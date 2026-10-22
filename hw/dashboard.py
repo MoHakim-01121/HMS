@@ -349,8 +349,9 @@ def collection_rate(invoices, month):
 def balances(codes):
     """Today's balance of every account (bank, cash, staff cash): SAR value
     in all, and per currency in the currency and in SAR."""
-    from .models.bank_transaction import BankTransaction
     from django.db.models import Case, F, IntegerField, When
+
+    from .models.bank_transaction import BankTransaction
     rows = queries.money_accounts_overview(branches=codes)
     ids = [r['id'] for r in rows if r['kind'] != 'staff']
     native = {x['account_id']: x['n'] or 0 for x in BankTransaction.objects.filter(account_id__in=ids)
@@ -818,7 +819,15 @@ def sold_per_month(cls, today, per):
     months = [start + relativedelta(months=i) for i in range(12)]
     now_i = next((i for i, m in enumerate(months) if m == today.replace(day=1)), 11)
     sel = None if per['kind'] == 'season' else next((i for i, m in enumerate(months) if m == per['start']), None)
+    # Months before the first CL in HMS are not "nothing sold": nothing was
+    # recorded yet. The chart marks them rather than drawing empty bars.
+    first = _live_cls(cls).aggregate(m=Min('created_at'))['m']
+    first_i = 0
+    if first:
+        f = _local(first).replace(day=1)
+        first_i = max(0, min(12, (f.year - start.year) * 12 + f.month - start.month))
     return {
+        'before_hms': first_i,
         'season': s.name if s else None, 'prev_season': prev_s.name if prev_s else None,
         'has_ly': any(ly),
         'months': [{'key': m.isoformat(), 'cur': cur[i] if i <= now_i else None, 'ly': ly[i]} for i, m in enumerate(months)],
@@ -853,8 +862,31 @@ def _checkin_status(row):
     return 'paid' if row['paid'] >= row['value'] else 'partial'
 
 
-def _todo(user, codes, cls, clients, today, rec):
+def due_this_week(user, codes, today):
+    """Hotel invoices falling due in the next 7 days with money still owed:
+    what the bell's "due in N days" warns about."""
+    qs = scope(Invoice.objects.all(), user, codes=codes).filter(
+        invoice_type='hotel', due_date__gte=today, due_date__lte=today + timedelta(days=7))
+    rows = [inv for inv in qs.with_lines().order_by('due_date') if inv.remaining_sar > 0]
+    return {'count': len(rows), 'value': round(sum(inv.remaining_sar for inv in rows)),
+            'first': {'date': rows[0].due_date.isoformat(), 'client': rows[0].customer_name} if rows else None}
+
+
+def _todo(user, codes, cls, clients, today, rec, mine=False):
+    """What waits today, most urgent first. `mine`: a staff member's list,
+    which also carries today's check-ins and the invoices due this week, so it
+    tells the same story as the bell (2026-10-22)."""
     items = []
+    if mine and can(user, 'cl', 'view'):
+        arriving = list(_live_cls(cls).filter(check_in=today).with_parties().order_by('confirmation_number'))
+        if arriving:
+            items.append({'key': 'checkin_today', 'count': len(arriving), 'amount': None, 'ccy': None,
+                          'first': arriving[0].guest_name, 'url': '/calendar/'})
+    if mine and can(user, 'invoice', 'view'):
+        due = due_this_week(user, codes, today)
+        if due['count']:
+            items.append({'key': 'due_week', 'count': due['count'], 'amount': due['value'], 'ccy': 'SAR',
+                          'nearest': due['first'], 'url': '/invoice/'})
     if rec is not None and rec['past_count']:
         oldest = rec['past'][0]['days_overdue'] if rec['past'] else 0
         items.append({'key': 'past_due', 'count': rec['past_count'], 'amount': rec['past_due'], 'ccy': 'SAR',
@@ -982,8 +1014,9 @@ def _received(user, codes, start, end):
 
 def _accounts(codes):
     """Bank and cash accounts with today's balance in their own currency."""
-    from .models.bank_transaction import BankTransaction
     from django.db.models import Case, F, IntegerField, When
+
+    from .models.bank_transaction import BankTransaction
     rows = [r for r in queries.money_accounts_overview(branches=codes) if r['kind'] != 'staff' and r.get('is_active', True)]
     native = {x['account_id']: x['n'] or 0 for x in BankTransaction.objects.filter(account_id__in=[r['id'] for r in rows])
               .exclude(status=BankTransaction.STATUS_VOIDED).values('account_id')
@@ -1112,12 +1145,6 @@ def _admin_todo(user, codes, today, system):
     return items
 
 
-def my_cls(cls, user):
-    """The CLs a staff member sold. CLs made before the salesperson field
-    (2026-10-16) have none and count for nobody."""
-    return cls.filter(salesperson=user)
-
-
 def _my_payments(user, codes, limit=5):
     rows = (scope(PaymentRecord.objects.filter(created_by=user), user, codes=codes)
             .select_related('client', 'receiving_account').order_by('-created_at')[:limit])
@@ -1129,8 +1156,8 @@ def _my_payments(user, codes, limit=5):
 
 def _my_advance(user, today):
     """The staff member's own cash advance (uang muka), per currency."""
-    from .models.bank import StaffAccount
     from .finance.staff_advance import balances as advance_balances
+    from .models.bank import StaffAccount
     accounts = list(StaffAccount.objects.filter(holder=user, is_active=True).select_related('branch'))
     if not accounts:
         return None
@@ -1179,7 +1206,9 @@ def home(user, today, month=None, season=False):
         out.update(_finance(user, today, per, codes, branches, clients))
         return out
     if variant in ('staff', 'viewer'):
-        mine = my_cls(cls, user) if variant == 'staff' else cls
+        # Staff see every CL of their branch, not only the ones they sold
+        # (2026-10-21).
+        mine = cls
         if can(user, 'cl', 'view'):
             out['sales'] = {'cur': _sales_side(mine, per['start'], per['end']),
                             'prev': _sales_side(mine, per['prev_start'], per['prev_end'])}
@@ -1192,7 +1221,7 @@ def home(user, today, month=None, season=False):
                 out['uninvoiced'] = uninvoiced(mine, today, limit=1)
         if variant == 'staff':
             # Viewer reads only: no to do. Staff's to do is about their own CLs.
-            out['todo'] = _todo(user, codes, mine, clients, today, None)
+            out['todo'] = _todo(user, codes, mine, clients, today, None, mine=True)
             if can(user, 'payments', 'view'):
                 out['my_payments'] = _my_payments(user, codes)
             out['advance'] = _my_advance(user, today)

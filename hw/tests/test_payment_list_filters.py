@@ -139,8 +139,7 @@ class PaymentListFilterTests(TestCase):
     def test_every_status_has_a_group(self):
         # _payment_props looks the group up by key: a status added to the model
         # without a group would turn the whole list into a 500.
-        from hw.views.payment_views import PAYMENT_STATUS_GROUPS
-        from hw.views.payment_views import _group_of
+        from hw.views.payment_views import PAYMENT_STATUS_GROUPS, _group_of
         keys = {key for key, _, _ in PAYMENT_STATUS_GROUPS}
         for value, _label in PaymentRecord.STATUS_CHOICES:
             self.assertIn(_group_of(PaymentRecord(status=value, amount_sar=1)), keys, value)

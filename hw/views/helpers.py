@@ -2,7 +2,6 @@ import csv
 from datetime import date, datetime
 
 import magic
-
 from django.http import HttpResponse
 from django.utils.http import content_disposition_header
 
@@ -47,6 +46,7 @@ def _page_range_display(page_obj):
 
 def _render_list_pdf(request, qs, template, filename, extra_ctx=None):
     from datetime import datetime as _dt
+
     from django.conf import settings
     from django.template.loader import render_to_string
     from weasyprint import HTML

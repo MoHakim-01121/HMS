@@ -58,6 +58,7 @@ class BranchReportViewTest(TestCase):
 
     def test_csv_names_unpriced_profit(self):
         from datetime import date
+
         from hw.finance import posting
         from hw.tests.factories import make_remittance
         rem = make_remittance(from_account=self.idr, amount_sent=4_750_000, exchange_rate=4750,

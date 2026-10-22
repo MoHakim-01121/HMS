@@ -73,12 +73,12 @@ class Client(models.Model):
             kwargs['update_fields'] = {*update_fields, 'name_key'}
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        return reverse('client_detail', args=[self.pk])
+
     @property
     def display_name(self):
         return self.brand or self.name
-
-    def get_absolute_url(self):
-        return reverse('client_detail', args=[self.pk])
 
     @property
     def resolved_invoices(self):
@@ -91,6 +91,7 @@ class Client(models.Model):
         and either signal alone would silently drop it from this client's
         totals/statement."""
         from django.db.models import Q
+
         from .invoice import Invoice
         from .journal import JournalLine
         journal_invoice_ids = JournalLine.objects.filter(

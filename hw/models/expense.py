@@ -12,10 +12,8 @@ remittance. Pusat menggantinya lewat ExpenseClaim (keputusan user 2026-10-19).
 """
 from django.db import models
 
-from .uploads import RandomFileName
-
 from .currency import CURRENCY_CODES
-
+from .uploads import RandomFileName
 
 
 class ExpenseCategory(models.Model):

@@ -1,27 +1,27 @@
-from urllib.parse import urlencode
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date
+from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F
-from django.core.paginator import Paginator
 from django.shortcuts import redirect
-
 from inertia import render as inertia_render
 
-from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, InvoiceLine, log_activity
-from ..utils import round_half_up
-from ..models.choices import InvoiceType
 from ..branch_scope import get_in_scope_or_404, scope
-from ..permissions import require_perm
 from ..finance import queries as fq
 from ..finance.errors import FinanceError
+from ..i18n import tr
+from ..models import ActivityLog, Client, ConfirmationLetter, Invoice, InvoiceLine, log_activity
+from ..models.choices import InvoiceType
+from ..permissions import require_perm
+from ..utils import round_half_up
 from .context import _build_reservation_context
+from .credit_note_views import invoice_credit_props
 from .helpers import (
     _client_options,
-    _is_mobile,
     _parse_date,
     _render_list_pdf,
     csv_export_response,
@@ -31,7 +31,6 @@ from .helpers import (
     track_changes,
 )
 from .invoice_billing import _billing_props
-from .credit_note_views import invoice_credit_props
 from .pdf import _logo_file_url, _render_invoice_pdf
 
 logger = logging.getLogger(__name__)
@@ -194,7 +193,6 @@ def invoice_list(request):
     money = _invoice_money(period_invs)
     counts = {k: sum(1 for v in money.values() if v[2] == k) for k in ('paid', 'partial', 'unpaid', 'void', 'overpaid')}
     counts['paid'] += counts.pop('overpaid')
-    is_overdue = lambda inv: inv.due_date and inv.due_date < today and money[inv.pk][1] > 0 and not inv.is_void
 
     # Overdue is over every date (its KPI is not tied to the month).
     if status == 'overdue':
@@ -320,7 +318,7 @@ def invoice_new(request):
             return _reject({"finance": str(e)})
 
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Invoice Hotel', invoice.invoice_number)
-        messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
+        messages.success(request, tr(request, f"Invoice {invoice.invoice_number} created.", f"Invoice {invoice.invoice_number} dibuat."))
         return redirect("invoice_detail", pk=invoice.pk)
 
     initial = None
@@ -478,7 +476,7 @@ def invoice_detail(request, pk):
 def invoice_edit(request, pk):
     invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
     if invoice.is_void:
-        messages.error(request, f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.')
+        messages.error(request, tr(request, f'Invoice {invoice.invoice_number} is void and cannot be changed.', f'Invoice {invoice.invoice_number} sudah void dan tidak bisa diubah.'))
         return redirect('invoice_detail', pk=pk)
 
     if request.method == "POST":
@@ -541,7 +539,7 @@ def invoice_edit(request, pk):
             labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'reservations': 'Reservations'},
         )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, changes)
-        messages.success(request, f"Invoice {invoice.invoice_number} updated successfully.")
+        messages.success(request, tr(request, f"Invoice {invoice.invoice_number} updated.", f"Invoice {invoice.invoice_number} diperbarui."))
         return redirect("invoice_detail", pk=invoice.pk)
 
     return inertia_render(request, "Invoice/Form", props={
@@ -562,7 +560,7 @@ def invoice_delete(request, pk):
         # (charge/payment) tidak boleh hilang dari riwayat keuangan.
         from ..models.journal import JournalLine
         if JournalLine.objects.filter(invoice=invoice).exists():
-            messages.error(request, f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.')
+            messages.error(request, tr(request, f'Invoice {num} is in the financial journal and cannot be deleted.', f'Invoice {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan.'))
             return redirect('invoice_detail', pk=pk)
         try:
             with transaction.atomic():
@@ -575,13 +573,12 @@ def invoice_delete(request, pk):
             if isinstance(exc, ProtectedError):
                 messages.error(
                     request,
-                    f'Invoice {num} tidak bisa dihapus karena masih punya '
-                    'PaymentRecord terkait. Batalkan/balik pembayarannya dulu.',
+                    tr(request, f'Invoice {num} still has payments recorded against it and cannot be deleted. Void or reverse those payments first.', f'Invoice {num} tidak bisa dihapus karena masih punya pembayaran terkait. Batalkan/balik pembayarannya dulu.'),
                 )
                 return redirect('invoice_detail', pk=pk)
             raise
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num)
-        messages.success(request, f"Invoice {num} deleted successfully.")
+        messages.success(request, tr(request, f"Invoice {num} deleted.", f"Invoice {num} dihapus."))
         return redirect("invoice_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect("invoice_list")

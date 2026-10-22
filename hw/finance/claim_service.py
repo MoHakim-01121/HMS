@@ -73,7 +73,7 @@ def _add_items(claim, expenses):
                     amount=sum(l.amount for l in lines), amount_sar=sum(l.amount_sar for l in lines),
                 )
         except IntegrityError:
-            raise FinanceError(f'{expense.expense_number} sudah ada di klaim lain.')
+            raise FinanceError(f'{expense.expense_number} sudah ada di klaim lain.') from None
     _retotal(claim)
 
 

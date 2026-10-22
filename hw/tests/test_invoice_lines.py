@@ -9,15 +9,25 @@ from django.test import TestCase
 from django.utils import timezone
 
 from hw.finance import credit_note_service as cns
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import (
-    Client, ConfirmationLetter, Invoice, InvoiceLine, Reservation, Room,
+    Client,
+    ConfirmationLetter,
+    Invoice,
+    InvoiceLine,
+    Reservation,
+    Room,
 )
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import (
-    make_cl, make_client, make_hotel_line, make_invoice, make_room,
+    make_cl,
+    make_client,
+    make_hotel_line,
+    make_invoice,
+    make_room,
 )
 
 
@@ -152,7 +162,7 @@ class HotelLineTest(_Base):
         self.assertTrue(ConfirmationLetter.objects.filter(pk=cl.pk).exists())
 
     def test_line_shape_is_enforced_per_kind(self):
-        cl = self._cl('7007')
+        self._cl('7007')
         hotel_inv = make_invoice(client=self.client_obj)
         bad = [
             dict(invoice=hotel_inv, kind='hotel'),                                          # no reservation

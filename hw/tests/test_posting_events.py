@@ -1,5 +1,4 @@
 """Fase 3 — posting per-event di hw/finance/posting.py."""
-from hw.tests.factories import fund_cash, fund_ledger_for, make_account, make_cl, make_hotel_line, make_invoice, make_remittance, set_line_total
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -9,12 +8,24 @@ from django.test import TestCase
 from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.finance.hashing import verify_chain
+from hw.finance_helpers import FinanceError, create_payment_record
 from hw.models import (
-    CancellationPenalty, Client, PaymentAllocation,
+    CancellationPenalty,
+    Client,
+    PaymentAllocation,
 )
-from hw.finance_helpers import create_payment_record, FinanceError
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import (
+    fund_cash,
+    fund_ledger_for,
+    make_account,
+    make_cl,
+    make_hotel_line,
+    make_invoice,
+    make_remittance,
+    set_line_total,
+)
 
 
 def _net(**f):

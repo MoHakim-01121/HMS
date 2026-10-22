@@ -4,9 +4,9 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import Client, Invoice
 from hw.models.period import FinancialPeriod
-from hw.finance_helpers import create_payment_record, confirm_payment
 from hw.tests.factories import make_hotel_line, make_invoice
 
 

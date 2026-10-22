@@ -7,13 +7,13 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
-
 from inertia import render as inertia_render
 
-from ..models import CancellationPenalty, ConfirmationLetter
+from ..branch_scope import get_in_scope_or_404, scope
 from ..finance.penalty_billing import bill_penalty, penalty_state, unbill_penalty
 from ..finance_helpers import FinanceError
-from ..branch_scope import get_in_scope_or_404, scope
+from ..i18n import tr
+from ..models import CancellationPenalty, ConfirmationLetter
 from ..permissions import require_perm
 from ..utils import round_half_up
 from .helpers import _parse_date, _to_float
@@ -77,6 +77,28 @@ def _penalty_props(penalty):
     }
 
 
+def _penalty_form(request, cl, penalty, suggested_number, edit, errors=None, error=None):
+    """The penalty form. A rejected save passes the POST back as `penalty`
+    (with its field errors) so the user sees what they typed, not a blank form."""
+    if request.method == 'POST':
+        penalty = {
+            "id": penalty.pk if edit else None,
+            **{k: request.POST.get(k, '') for k in ('penalty_number', 'cancellation_date', 'reason', 'penalty_amount', 'note')},
+        }
+    elif penalty is not None:
+        penalty = _penalty_props(penalty)
+    return inertia_render(request, "Penalty/Form", props={
+        "penalty": penalty,
+        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
+        "suggested_number": suggested_number,
+        "today": date.today().isoformat(),
+        "edit": edit,
+        "billing": _billing_notice(cl),
+        "errors": errors or {},
+        "error": error,
+    })
+
+
 @require_perm('penalty', 'create')
 def penalty_new(request, cl_pk):
     cl = _get_cl(request, cl_pk)
@@ -85,7 +107,7 @@ def penalty_new(request, cl_pk):
 
     # Denda hanya ada untuk reservasi yang dibatalkan (aturan bisnis B14).
     if not cl.is_cancelled:
-        messages.error(request, 'Set the reservation status to Cancelled before adding a penalty.')
+        messages.error(request, tr(request, 'Set the reservation status to Cancelled before adding a penalty.', 'Ubah status reservasi ke Cancelled sebelum menambah denda.'))
         return redirect('cl_detail', pk=cl.pk)
 
     suggested_number = CancellationPenalty.suggest_number()
@@ -93,12 +115,12 @@ def penalty_new(request, cl_pk):
     if request.method == 'POST':
         amount = _penalty_amount(request)
         if amount is None:
-            messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
-            return redirect('penalty_new', cl_pk=cl.pk)
+            return _penalty_form(request, cl, None, suggested_number, False,
+                                 errors={'penalty_amount': 'Penalty amount must be more than 0 (in SAR).'})
         number = request.POST.get('penalty_number', suggested_number)
         if CancellationPenalty.objects.filter(penalty_number=number).exists():
-            messages.error(request, f"Penalty number '{number}' is already in use.")
-            return redirect('penalty_new', cl_pk=cl.pk)
+            return _penalty_form(request, cl, None, suggested_number, False,
+                                 errors={'penalty_number': f"Penalty number '{number}' is already in use."})
         try:
             with transaction.atomic():
                 penalty = CancellationPenalty.objects.create(
@@ -114,24 +136,14 @@ def penalty_new(request, cl_pk):
                 # reservation, or on a new invoice issued right here.
                 invoice, created = bill_penalty(penalty, user=request.user)
         except FinanceError as e:
-            messages.error(request, str(e))
-            return redirect('penalty_new', cl_pk=cl.pk)
+            return _penalty_form(request, cl, None, suggested_number, False, error=str(e))
         logger.info("ledger: penalty %s billed on invoice %s", penalty.penalty_number, invoice.invoice_number)
         messages.success(request, (
-            f"Penalty document {penalty.penalty_number} created and invoice {invoice.invoice_number} issued for it."
-            if created else
-            f"Penalty document {penalty.penalty_number} created and billed on invoice {invoice.invoice_number}."
+            tr(request, (f"Penalty document {penalty.penalty_number} created and invoice {invoice.invoice_number} issued for it." if created else f"Penalty document {penalty.penalty_number} created and billed on invoice {invoice.invoice_number}."), (f"Dokumen denda {penalty.penalty_number} dibuat dan invoice {invoice.invoice_number} diterbitkan untuknya." if created else f"Dokumen denda {penalty.penalty_number} dibuat dan ditagihkan di invoice {invoice.invoice_number}."))
         ))
         return redirect('penalty_detail', pk=penalty.pk)
 
-    return inertia_render(request, "Penalty/Form", props={
-        "penalty": None,
-        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
-        "suggested_number": suggested_number,
-        "today": date.today().isoformat(),
-        "edit": False,
-        "billing": _billing_notice(cl),
-    })
+    return _penalty_form(request, cl, None, suggested_number, False)
 
 
 @require_perm('penalty', 'view')
@@ -148,8 +160,8 @@ def penalty_edit(request, pk):
     if request.method == 'POST':
         amount = _penalty_amount(request)
         if amount is None:
-            messages.error(request, 'Penalty amount must be more than 0 (in SAR).')
-            return redirect('penalty_edit', pk=penalty.pk)
+            return _penalty_form(request, cl, penalty, penalty.penalty_number, True,
+                                 errors={'penalty_amount': 'Penalty amount must be more than 0 (in SAR).'})
         try:
             with transaction.atomic():
                 penalty.penalty_number  = request.POST.get('penalty_number', penalty.penalty_number)
@@ -161,19 +173,11 @@ def penalty_edit(request, pk):
                 CancellationPenalty.claim_number(penalty.penalty_number)
                 bill_penalty(penalty, user=request.user)
         except FinanceError as e:
-            messages.error(request, str(e))
-            return redirect('penalty_edit', pk=penalty.pk)
-        messages.success(request, f"Penalty document {penalty.penalty_number} updated successfully.")
+            return _penalty_form(request, cl, penalty, penalty.penalty_number, True, error=str(e))
+        messages.success(request, tr(request, f"Penalty document {penalty.penalty_number} updated.", f"Dokumen denda {penalty.penalty_number} diperbarui."))
         return redirect('penalty_detail', pk=penalty.pk)
 
-    return inertia_render(request, "Penalty/Form", props={
-        "penalty": _penalty_props(penalty),
-        "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
-        "suggested_number": penalty.penalty_number,
-        "today": date.today().isoformat(),
-        "edit": True,
-        "billing": _billing_notice(cl),
-    })
+    return _penalty_form(request, cl, penalty, penalty.penalty_number, True)
 
 
 @require_perm('penalty', 'delete')
@@ -189,14 +193,13 @@ def penalty_delete(request, pk):
         if JournalLine.objects.filter(penalty=penalty).exists():
             messages.error(
                 request,
-                f'Penalty {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan. '
-                'Ubah nominalnya, atau bebaskan lewat nota kredit di invoice-nya.',
+                tr(request, f'Penalty {num} is in the financial journal and cannot be deleted. Change its amount, or waive it with a credit note on its invoice.', f'Penalty {num} tidak bisa dihapus karena sudah tercatat di jurnal keuangan. Ubah nominalnya, atau bebaskan lewat nota kredit di invoice-nya.'),
             )
             return redirect('penalty_detail', pk=penalty.pk)
         with transaction.atomic():
             unbill_penalty(penalty, user=request.user)
             penalty.delete()
-        messages.success(request, f"Penalty document {num} deleted successfully.")
+        messages.success(request, tr(request, f"Penalty document {num} deleted.", f"Dokumen denda {num} dihapus."))
         return redirect('cl_detail', pk=cl_pk)
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect('cl_detail', pk=cl_pk)

@@ -1,10 +1,12 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
 from datetime import date, timedelta
+
 from django.contrib.auth.models import User
 from django.test import TestCase
+
+from hw.finance import queries as fq
 from hw.models import Client, Hotel, RoomType
 from hw.models.period import FinancialPeriod
-from hw.finance import queries as fq
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_room
 
 
 class CLTotalPriceTest(TestCase):

@@ -14,10 +14,10 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from hw.models import Client, Receipt
-from hw.models.payment import PaymentRecord, PaymentAllocation
+from hw.models.payment import PaymentAllocation, PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.views.receipt_views import _allocation_rows, _stay_label, _number_in_words
 from hw.tests.factories import make_hotel_line, make_invoice, make_payment
+from hw.views.receipt_views import _allocation_rows, _number_in_words, _stay_label
 
 
 class ReceiptPdfBase(TestCase):

@@ -4,10 +4,18 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance_helpers import create_payment_record
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice, make_remittance, make_remittance_line
+from hw.tests.factories import (
+    fund_cash,
+    fund_ledger,
+    make_hotel_line,
+    make_invoice,
+    make_remittance,
+    make_remittance_line,
+)
 
 
 class RemittanceEditViewTest(TestCase):
@@ -75,8 +83,11 @@ class RemittanceEditViewTest(TestCase):
         FinancialPeriod.objects.create(name="Feb-Des", date_from=date(2026, 2, 1), date_to=date(2026, 12, 31))
         resp = self.client.post(f'/remittance/{self.rem.pk}/edit/', {
             'date': '2026-02-03', 'receipt_reference': 'REF-X', 'note': '',
-        })
-        self.assertRedirects(resp, f'/remittance/{self.rem.pk}/edit/', fetch_redirect_response=False)
+        }, HTTP_X_INERTIA='true')
+        # The form comes back with the reason and what the user typed.
+        props = resp.json()['props']
+        self.assertIn('Tidak tersimpan', props['error'])
+        self.assertEqual((props['rem']['date'], props['rem']['receipt_reference']), ('2026-02-03', 'REF-X'))
         self.rem.refresh_from_db()
         self.assertEqual((self.rem.date, self.rem.receipt_reference), (date(2026, 1, 10), ''))
         self.assertEqual(self._send_entry_dates(), [date(2026, 1, 10)])
@@ -86,7 +97,8 @@ class RemittanceEditViewTest(TestCase):
         bad = SimpleUploadedFile('virus.exe', b'MZ', content_type='application/octet-stream')
         for url in (f'/remittance/{self.rem.pk}/edit/', f'/remittance/{self.rem.pk}/upload-proof/'):
             resp = self.client.post(url, {'date': '2026-01-10', 'proof': bad})
-            self.assertEqual(resp.status_code, 302, url)
+            # The edit form re-renders with the message; upload-proof redirects.
+            self.assertIn(resp.status_code, (200, 302), url)
             bad.seek(0)
         self.rem.refresh_from_db()
         self.assertFalse(self.rem.proof)

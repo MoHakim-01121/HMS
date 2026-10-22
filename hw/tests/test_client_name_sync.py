@@ -1,7 +1,9 @@
-from hw.tests.factories import make_cl, make_invoice
 from datetime import date, timedelta
+
 from django.test import TestCase
+
 from hw.models import Client, Invoice
+from hw.tests.factories import make_cl, make_invoice
 
 
 class ClientDisplayNameSyncTest(TestCase):

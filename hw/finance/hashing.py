@@ -9,7 +9,6 @@ import hashlib
 import json
 from decimal import Decimal
 
-
 _ENTRY_FIELDS = (
     "entry_number", "entry_type", "entry_date", "seq", "reverses_id",
     "source_invoice_id", "source_credit_note_id", "source_payment_id",

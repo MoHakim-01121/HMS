@@ -14,18 +14,24 @@ from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.utils import timezone
-
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, operating_branches, scope
 from ..finance import claim_service as svc
 from ..finance.errors import FinanceError
+from ..i18n import tr
 from ..models.expense import Expense, ExpenseClaim
 from ..models.journal import JournalEntry
 from ..permissions import require_perm
 from .helpers import (
-    _parse_date, csv_export_response, money_account_choices, pagination_props, request_data, resolve_money_account,
-    serialize_journal_entry, validate_proof_file,
+    _parse_date,
+    csv_export_response,
+    money_account_choices,
+    pagination_props,
+    request_data,
+    resolve_money_account,
+    serialize_journal_entry,
+    validate_proof_file,
 )
 
 
@@ -71,6 +77,7 @@ def _claim_props(c, items=False):
 @require_perm('expenses', 'view')
 def claim_list(request):
     from django.db.models import Count, Q
+
     from .helpers import list_per_page
     status = request.GET.get('status', '')
     qs = _visible(request).select_related('branch', 'created_by', 'decided_by', 'paid_to').annotate(
@@ -115,7 +122,7 @@ def claim_new(request):
     date_from, date_to = _range(request, data)
     if request.method == 'POST':
         if branch is None:
-            messages.error(request, 'Pilih cabang klaim.')
+            messages.error(request, tr(request, 'Choose the claiming branch.', 'Pilih cabang klaim.'))
             return redirect('claim_new')
         try:
             claim = svc.create_claim(
@@ -126,7 +133,7 @@ def claim_new(request):
         except FinanceError as e:
             messages.error(request, str(e))
             return redirect(f"{request.path}?date_from={date_from}&date_to={date_to}&branch={branch.pk}")
-        messages.success(request, f'Klaim {claim.claim_number} dibuat sebagai draft.')
+        messages.success(request, tr(request, f'Claim {claim.claim_number} saved as a draft.', f'Klaim {claim.claim_number} dibuat sebagai draft.'))
         return redirect('claim_detail', pk=claim.pk)
     expenses = []
     if branch is not None:
@@ -165,13 +172,13 @@ def _act(request, pk, action):
     try:
         if action == 'submit':
             svc.submit_claim(claim, by=request.user)
-            messages.success(request, f'{claim.claim_number} diajukan ke Pusat.')
+            messages.success(request, tr(request, f'{claim.claim_number} submitted to HQ.', f'{claim.claim_number} diajukan ke Pusat.'))
         elif action == 'cancel':
             svc.cancel_claim(claim, by=request.user, note=reason)
-            messages.success(request, f'{claim.claim_number} dibatalkan.')
+            messages.success(request, tr(request, f'{claim.claim_number} cancelled.', f'{claim.claim_number} dibatalkan.'))
         elif action == 'reject':
             svc.reject_claim(claim, by=request.user, note=reason)
-            messages.success(request, f'Penolakan {claim.claim_number} dicatat.')
+            messages.success(request, tr(request, f'Rejection of {claim.claim_number} recorded.', f'Penolakan {claim.claim_number} dicatat.'))
         elif action == 'pay':
             proof = request.FILES.get('proof')
             error = validate_proof_file(proof) if proof else None
@@ -182,12 +189,12 @@ def _act(request, pk, action):
                 paid_date=_parse_date(data.get('paid_date')) or date.today(), by=request.user,
                 reference=(data.get('reference') or '').strip(), proof=proof,
             )
-            messages.success(request, f'{claim.claim_number} lunas: penggantian dari Pusat dicatat.')
+            messages.success(request, tr(request, f'{claim.claim_number} paid: reimbursement from HQ recorded.', f'{claim.claim_number} lunas: penggantian dari Pusat dicatat.'))
         elif action == 'unpay':
             if not reason:
                 raise FinanceError('Tulis alasan membatalkan pencatatan lunas.')
             svc.unpay_claim(claim, by=request.user, reason=reason)
-            messages.success(request, f'Pencatatan lunas {claim.claim_number} dibatalkan.')
+            messages.success(request, tr(request, f'Payment of {claim.claim_number} undone.', f'Pencatatan lunas {claim.claim_number} dibatalkan.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('claim_detail', pk=pk)
@@ -238,6 +245,7 @@ def claim_export_csv(request, pk):
 def claim_pdf(request, pk):
     """Lampiran pengajuan ke Pusat: daftar beban dan totalnya."""
     from weasyprint import HTML
+
     from .pdf import _logo_file_url
     claim = get_in_scope_or_404(ExpenseClaim.objects.select_related('branch', 'created_by'), request.user, pk=pk)
     html = render_to_string('hw/claim/claim_pdf.html', {

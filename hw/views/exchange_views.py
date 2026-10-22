@@ -7,10 +7,11 @@ from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
+from ..branch_scope import branch_codes, get_in_scope_or_404, scope
 from ..finance import exchange_service
 from ..finance.errors import FinanceError
+from ..i18n import tr
 from ..models.currency_exchange import CurrencyExchange
-from ..branch_scope import branch_codes, get_in_scope_or_404, scope
 from ..permissions import require_perm
 from .helpers import _parse_date, money_account_choices, resolve_money_account, validate_proof_file
 
@@ -46,6 +47,7 @@ def exchange_list(request):
     transfers and exchanges with a summary under the table."""
     from django.core.paginator import Paginator
     from django.db.models import Q
+
     from .helpers import csv_list, list_per_page, list_period, pagination_props
     q = request.GET.get('q', '').strip()
     types = csv_list(request, 'type', ['transfer', 'exchange'])
@@ -109,8 +111,8 @@ def _form_props(user, data=None, error=None):
     # advances its staff hold. "Give to staff" lists who may receive one.
     codes = branch_codes(user)
     choices = money_account_choices(branches=codes, staff=True, balances=True)
-    from ..models.branch import Branch
     from ..finance.staff_advance import branch_holders, display_name
+    from ..models.branch import Branch
     holders = [
         {'value': f'give:{u.pk}:{b.code}', 'label': display_name(u), 'branch': b.code, 'user': u.pk}
         for b in Branch.objects.filter(is_active=True).order_by('code') if codes is None or b.code in codes
@@ -179,7 +181,7 @@ def exchange_new(request):
             error = str(e)
     if error:
         return inertia_render(request, 'Finance/ExchangeForm', props=_form_props(request.user, data, error))
-    messages.success(request, f'{ex.exchange_number} tercatat: {ex.amount_out:,} {ex.from_currency} → {ex.amount_in:,} {ex.to_currency}.')
+    messages.success(request, tr(request, f'{ex.exchange_number} recorded: {ex.amount_out:,} {ex.from_currency} → {ex.amount_in:,} {ex.to_currency}.', f'{ex.exchange_number} tercatat: {ex.amount_out:,} {ex.from_currency} → {ex.amount_in:,} {ex.to_currency}.'))
     return redirect('exchange_list')
 
 
@@ -191,7 +193,7 @@ def exchange_void(request, pk):
         exchange_service.void_exchange(
             ex, reason=(request.POST.get('reason') or '').strip(), voided_by=request.user,
         )
-        messages.success(request, f'{ex.exchange_number} dibatalkan.')
+        messages.success(request, tr(request, f'{ex.exchange_number} cancelled.', f'{ex.exchange_number} dibatalkan.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('exchange_list')

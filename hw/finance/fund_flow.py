@@ -281,6 +281,7 @@ def idr_pool(branch='sby', *, before=None):
 def branch_expenses_idr(branch, *, date_from=None, date_to=None):
     """Rupiah the branch paid for its expenses in the period (by payment date)."""
     from django.db.models import Sum
+
     from ..models.expense import Expense, ExpensePayment
     qs = ExpensePayment.objects.filter(
         status=ExpensePayment.STATUS_PAID, expense__status=Expense.STATUS_PAID,

@@ -1,6 +1,7 @@
-from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
+
+from hw.tests.factories import make_cl
 
 
 class FlashShareTests(TestCase):
@@ -113,6 +114,7 @@ class PenaltyViewTests(TestCase):
         )
         # Saving a penalty bills it on an invoice, which posts to the ledger.
         from datetime import date
+
         from hw.models.period import FinancialPeriod
         FinancialPeriod.objects.create(name="2020-2040", date_from=date(2020, 1, 1), date_to=date(2040, 12, 31))
 
@@ -121,6 +123,7 @@ class PenaltyViewTests(TestCase):
 
     def _make_penalty(self, number="PNL-001"):
         from datetime import date
+
         from hw.models import CancellationPenalty
         return CancellationPenalty.objects.create(
             cl=self.cl, penalty_number=number,
@@ -138,6 +141,7 @@ class PenaltyViewTests(TestCase):
 
     def test_new_post_creates_and_redirects(self):
         from datetime import date
+
         from hw.models import CancellationPenalty
         resp = self.client.post(
             f"/cl/{self.cl.pk}/penalty/new/",
@@ -247,6 +251,7 @@ class ClFormTests(TestCase):
 
     def test_valid_create_with_rooms(self):
         import json
+
         from hw.models import Client, ConfirmationLetter, Hotel, Room, RoomType
         customer = Client.objects.create(name="PT Budi Wisata")
         hotel = Hotel.objects.create(name="Hilton", city="makkah")

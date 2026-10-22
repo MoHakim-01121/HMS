@@ -41,6 +41,7 @@ class HomeVariantTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         from django.contrib.auth.models import User
+
         from hw.models import UserProfile
         from hw.models.user import Role
 
@@ -68,8 +69,8 @@ class HomeVariantTest(TestCase):
                               (self.staff, 'staff'), (self.viewer, 'viewer')):
             self.assertEqual(self.home(user)['variant'], variant, user.username)
 
-    def test_staff_counts_only_the_cls_they_sold(self):
-        self.assertEqual(self.home(self.staff)['sales']['cur']['cl'], 1)
+    def test_staff_count_every_cl_of_their_branch(self):
+        self.assertEqual(self.home(self.staff)['sales']['cur']['cl'], 2)
         self.assertEqual(self.home(self.viewer)['sales']['cur']['cl'], 2)
 
     def test_viewer_reads_only_and_has_no_to_do(self):
@@ -87,3 +88,37 @@ class HomeVariantTest(TestCase):
     def test_only_the_administrator_sees_users_and_access(self):
         self.assertIn('people', self.home(self.admin))
         self.assertNotIn('people', self.home(self.manager))
+
+
+class StaffTodoTest(TestCase):
+    """A staff member's To do tells the same story as the bell: today's
+    check-ins and the hotel invoices due this week (2026-10-22)."""
+
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.contrib.auth.models import User
+
+        from hw.models import UserProfile
+        from hw.models.user import Role
+        from hw.tests.factories import make_cl, make_hotel_line, make_invoice
+        self.today = date.today()
+        self.staff = User.objects.create_user('stf2', password='pw12345')
+        UserProfile.objects.update_or_create(user=self.staff, defaults={'role': Role.STAFF.value, 'all_branches': True})
+        self.staff.refresh_from_db()
+        make_cl(guest_name='Arrives Today', check_in=self.today, check_out=self.today + timedelta(days=3))
+        inv = make_invoice(customer_name='Owes Soon', due_date=self.today + timedelta(days=3))
+        make_hotel_line(inv, total_sar=1000, check_in=self.today + timedelta(days=20))
+
+    def todo(self):
+        from hw.dashboard import home
+        return {x['key']: x for x in home(self.staff, self.today)['todo']}
+
+    def test_check_ins_today_are_on_the_list(self):
+        item = self.todo()['checkin_today']
+        self.assertEqual((item['count'], item['first']), (1, 'Arrives Today'))
+
+    def test_invoices_due_this_week_are_on_the_list(self):
+        item = self.todo()['due_week']
+        self.assertEqual((item['count'], item['nearest']['client']), (1, 'Owes Soon'))
+        self.assertGreater(item['amount'], 0)

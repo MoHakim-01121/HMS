@@ -61,8 +61,9 @@ class RecordTest(ExpenseViewsBase):
         self.assertFalse(Expense.objects.exists())
 
     def test_receipts_are_kept_per_line(self):
-        from django.core.files.uploadedfile import SimpleUploadedFile
         import base64
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
         png = SimpleUploadedFile('telkom.png', base64.b64decode(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='),
             content_type='image/png')

@@ -3,8 +3,8 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from hw.db_pg import pg_only
-from hw.models import BankAccount, Branch, CashAccount, MoneyAccount
 from hw.finance.accounts import cash_ledger_for
+from hw.models import BankAccount, Branch, CashAccount, MoneyAccount
 from hw.models.journal import LedgerAccount
 from hw.views.helpers import money_account_choices, resolve_money_account
 

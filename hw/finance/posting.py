@@ -11,15 +11,17 @@ from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from ..models.journal import JournalEntry, JournalLine
-from ..models.payment import PaymentRecord, PaymentLog
+from ..models.payment import PaymentLog, PaymentRecord
 from ..models.period import FinancialPeriod
-from .errors import (
-    FinanceError, JournalImbalanceError, PeriodLockedError,
-)
+from ..utils import round_half_up
 from . import accounts as coa
 from .accounts import resolve_account_code
+from .errors import (
+    FinanceError,
+    JournalImbalanceError,
+    PeriodLockedError,
+)
 from .hashing import entry_hash
-from ..utils import round_half_up
 
 logger = logging.getLogger(__name__)
 
@@ -555,7 +557,7 @@ def post_payment(payment, *, created_by, idempotency_key=None, entry_date=None):
     segments = _payment_segments(payment)
     natives = _split_native(int(payment.amount or 0), [s for s, _ in segments])
     lines = []
-    for (seg_amt, dim), seg_native in zip(segments, natives):
+    for (seg_amt, dim), seg_native in zip(segments, natives, strict=True):
         cash_native = native(payment.receiving_account, seg_native, payment.exchange_rate)
         lines.append({"account": cash_acc, "debit": seg_amt, **base, **dim, **cash_native})
         lines.append({"account": coa.AR, "credit": seg_amt, **base, **dim})

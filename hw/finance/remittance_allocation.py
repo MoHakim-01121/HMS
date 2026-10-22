@@ -276,12 +276,12 @@ def transfer_totals():
     from ..models import Remittance
     totals = {'sent': 0, 'received': 0, 'in_transit': 0, 'received_unallocated': 0}
     remittances = list(Remittance.objects.prefetch_related('settlements'))
-    for rem, fig in figures_for(remittances):
+    for _rem, fig in figures_for(remittances):
         totals['sent'] += fig['sent']
         totals['received'] += fig['received']
         totals['in_transit'] += fig['outstanding']
     # pos None: IDR terisi tapi kurs kosong -- belum lump-sum yang bisa dihitung.
-    for rem, pos in positions_for(remittances):
+    for _rem, pos in positions_for(remittances):
         if pos:
             totals['received_unallocated'] += pos['received_unallocated']
     return totals

@@ -21,16 +21,21 @@ from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
 
+from .finance.accounts import AR, resolve_account_code
 from .finance.errors import (
-    FinanceError, PeriodLockedError, JournalImbalanceError,
-    PaymentAlreadyProcessedError, InsufficientAllocationError,
+    FinanceError,
+    InsufficientAllocationError,
+    JournalImbalanceError,
+    PaymentAlreadyProcessedError,
+    PeriodLockedError,
 )
 from .finance.posting import (
-    get_current_period, get_period_for_date, check_period_postable,
+    check_period_postable,
+    get_current_period,
+    get_period_for_date,
 )
-from .models.payment import PaymentRecord, PaymentLog
 from .models.journal import JournalEntry, JournalLine, LedgerAccount
-from .finance.accounts import resolve_account_code, AR
+from .models.payment import PaymentLog, PaymentRecord
 
 __all__ = [
     # exceptions (re-exported)

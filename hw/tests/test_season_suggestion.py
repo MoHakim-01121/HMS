@@ -31,6 +31,7 @@ class SeasonSuggestionTest(TestCase):
 class PeriodPageSuggestsSeasonTest(TestCase):
     def test_period_page_carries_the_suggestion(self):
         import json
+
         from django.contrib.auth.models import User
         self.client.force_login(User.objects.create_superuser('season-admin', password='pw12345'))
         props = json.loads(self.client.get('/finance/periods/').context['page'])['props']

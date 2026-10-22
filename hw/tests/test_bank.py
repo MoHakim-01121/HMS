@@ -5,11 +5,11 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError
 from django.test import TestCase
 
-from hw.models import BankAccount, Branch, CashAccount, Client
+from hw.finance import posting
 from hw.finance.accounts import cash_ledger_for
+from hw.models import BankAccount, Branch, CashAccount, Client
 from hw.models.journal import LedgerAccount
 from hw.models.period import FinancialPeriod
-from hw.finance import posting
 
 
 class CashAccountSeedTest(TestCase):
@@ -22,7 +22,7 @@ class CashAccountSeedTest(TestCase):
 
 class MoneyAccountConstraintTest(TestCase):
     def test_bank_account_unique_on_bank_number_currency(self):
-        la = LedgerAccount.objects.get(code='1000-KAS-SBY')
+        LedgerAccount.objects.get(code='1000-KAS-SBY')
         sby = Branch.objects.get(code='sby')
         BankAccount.objects.create(
             branch=sby, name='Ops', currency='USD', ledger_account_id=cash_ledger_for('sby', 'USD'),
@@ -35,7 +35,7 @@ class MoneyAccountConstraintTest(TestCase):
             )
 
     def test_same_bank_different_currency_is_allowed(self):
-        la = LedgerAccount.objects.get(code='1000-KAS-JKT')
+        LedgerAccount.objects.get(code='1000-KAS-JKT')
         jkt = Branch.objects.get(code='jkt')
         BankAccount.objects.create(branch=jkt, name='IDR', currency='IDR',
                                    ledger_account_id=cash_ledger_for('sby', 'IDR'), bank_name='BCA', account_identifier='999')

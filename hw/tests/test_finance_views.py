@@ -1,20 +1,22 @@
-﻿"""Halaman finance read-only baru: Journal, Trial Balance, Client Ledger,
+"""Halaman finance read-only baru: Journal, Trial Balance, Client Ledger,
 Penalty list. Fokus verifikasi: scoping company, kebenaran agregat, permission."""
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 import json
 from datetime import date
 
 from django.test import TestCase
 from django.urls import reverse
 
+from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.finance import queries as q
 from hw.finance_helpers import create_payment_record
 from hw.models import (
-    CancellationPenalty, Client, FinancialPeriod,
+    CancellationPenalty,
+    Client,
+    FinancialPeriod,
 )
 from hw.models.journal import JournalEntry, JournalLine
-from hw.finance import accounts as coa
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice
 
 
 def _props(response):

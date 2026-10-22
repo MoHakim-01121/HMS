@@ -30,9 +30,40 @@ class HotelFormTest(TestCase):
 
     def test_duplicate_is_refused_with_a_message_not_a_crash(self):
         Hotel.objects.create(name='Al Safwah', city='makkah')
-        resp = self.client.post(reverse('hotel_new'), {'name': 'al safwah', 'city': 'makkah', 'stars': '4', 'is_active': 'on'})
-        self.assertEqual(resp.status_code, 302)
+        resp = self.client.post(reverse('hotel_new'), {'name': 'al safwah', 'city': 'makkah', 'stars': '4', 'is_active': 'on'},
+                                HTTP_X_INERTIA='true')
+        self.assertEqual(resp.status_code, 200)
+        props = resp.json()['props']
+        # The form comes back with the message and what the user typed.
+        self.assertIn('already exists', props['error'])
+        self.assertEqual((props['hotel']['name'], props['hotel']['stars']), ('al safwah', 4))
         self.assertEqual(Hotel.objects.count(), 1)
+
+    def test_delete_of_a_hotel_on_a_cl_is_a_message_not_a_500(self):
+        from hw.tests.factories import make_cl
+        cl = make_cl()
+        resp = self.client.post(reverse('hotel_delete', args=[cl.hotel_id]))
+        self.assertRedirects(resp, reverse('hotel_detail', args=[cl.hotel_id]), fetch_redirect_response=False)
+        self.assertTrue(Hotel.objects.filter(pk=cl.hotel_id).exists())
+
+    def test_flash_follows_the_users_language(self):
+        from django.contrib.messages import get_messages
+
+        from hw.models import UserProfile
+        user = User.objects.get(username='admin')
+        UserProfile.objects.update_or_create(user=user, defaults={'language': 'id'})
+        h = Hotel.objects.create(name='Bahasa', city='makkah')
+        resp = self.client.post(reverse('hotel_toggle_active', args=[h.pk]))
+        self.assertEqual([str(m) for m in get_messages(resp.wsgi_request)], ['Hotel "Bahasa" sekarang nonaktif.'])
+
+    def test_toggle_active_flips_and_flips_back(self):
+        h = Hotel.objects.create(name='Toggle', city='makkah')
+        self.client.post(reverse('hotel_toggle_active', args=[h.pk]))
+        h.refresh_from_db()
+        self.assertFalse(h.is_active)
+        self.client.post(reverse('hotel_toggle_active', args=[h.pk]))
+        h.refresh_from_db()
+        self.assertTrue(h.is_active)
 
     def test_out_of_range_stars_refused(self):
         self.client.post(reverse('hotel_new'), {'name': 'New', 'city': 'makkah', 'stars': '9', 'is_active': 'on'})

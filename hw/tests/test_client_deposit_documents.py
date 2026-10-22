@@ -5,13 +5,16 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance.deposit import request_refund, request_transfer
 from hw.finance.errors import FinanceError
-from hw.models import ClientRefund, ClientTransfer, Client
+from hw.models import Client, ClientRefund, ClientTransfer
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
-from hw.tests.factories import fund_cash, make_account, refund_now as refund_deposit, transfer_now as transfer_deposit
+from hw.tests.factories import fund_cash, make_account
+from hw.tests.factories import refund_now as refund_deposit
+from hw.tests.factories import transfer_now as transfer_deposit
 
 
 class _Base(TestCase):

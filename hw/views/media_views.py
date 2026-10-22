@@ -120,7 +120,7 @@ def protected_media(request, path):
     try:
         full = safe_join(settings.MEDIA_ROOT, path)
     except Exception:
-        raise Http404
+        raise Http404 from None
     if not os.path.isfile(full):
         raise Http404
 

@@ -12,8 +12,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from hw.finance import accounts as coa
-from hw.models import Client, Remittance
 from hw.finance.accounts import cash_ledger_for
+from hw.models import Client, Remittance
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice

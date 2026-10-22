@@ -183,7 +183,7 @@ def get_in_scope_or_404(queryset, user, field=None, **lookup):
     try:
         return scope(queryset, user, field, codes=coverage(user)).get(**lookup)
     except queryset.model.DoesNotExist:
-        raise Http404
+        raise Http404 from None
 
 
 def with_head_office(user):

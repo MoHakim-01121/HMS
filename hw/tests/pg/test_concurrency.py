@@ -2,7 +2,6 @@
 
 Dilewati di SQLite. Jalankan dengan TEST_DATABASE_URL (config/settings.py).
 """
-from hw.tests.factories import make_cl
 import threading
 from datetime import date
 
@@ -18,6 +17,7 @@ from hw.finance.posting import post_entry
 from hw.models import ConfirmationLetter, DocumentSequence
 from hw.models.journal import JournalEntry, JournalLine
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl
 
 WORKERS = 8
 

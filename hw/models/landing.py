@@ -1,7 +1,6 @@
 from django.db import models
 
 
-
 def _pricelist_path(instance, filename):
     return f"landing/pricelist/{instance.pk or 'new'}/{filename}"
 

@@ -21,6 +21,7 @@ def ensure_funds(account, amount, on_date, *, exclude_pk=None):
     Rekening dikunci sampai transaksi selesai supaya dua pengeluaran paralel
     tidak sama-sama lolos."""
     from django.db.models import Case, F, Sum, When
+
     from ..models.bank import MoneyAccount
     from .errors import InsufficientFundsError
 
@@ -123,6 +124,7 @@ def void_bank_transactions(source_type, source_ids):
     statement line: that match says the money did move, so it has to be
     unmatched deliberately first rather than silently contradicted."""
     from django.db.models import Q
+
     from .errors import FinanceError
 
     if isinstance(source_ids, int):

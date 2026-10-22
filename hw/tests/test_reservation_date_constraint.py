@@ -3,12 +3,12 @@
 An invoice line stores no dates of its own since schema v2: it reads them from
 the reservation it bills, so this one constraint covers both.
 """
-from hw.tests.factories import make_cl
 from datetime import date
 
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
+from hw.tests.factories import make_cl
 
 
 class ConfirmationLetterDateConstraintTest(TestCase):

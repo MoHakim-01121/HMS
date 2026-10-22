@@ -6,10 +6,10 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
-
 from inertia import render as inertia_render
 
 from ..finance import period_checklist, seasons
+from ..i18n import tr
 from ..models.period import FinancialPeriod, Season
 from ..permissions import require_perm
 from .helpers import _parse_date, serialize_journal_entry
@@ -97,7 +97,7 @@ def period_close(request, pk):
     if request.method == 'POST':
         try:
             period.close(request.user)
-            messages.success(request, f'Periode {period.name} berhasil ditutup.')
+            messages.success(request, tr(request, f'Period {period.name} closed.', f'Periode {period.name} berhasil ditutup.'))
         except ValueError as e:
             messages.error(request, str(e))
         return redirect('period_detail', pk=pk)
@@ -110,13 +110,17 @@ def period_lock(request, pk):
     if request.method == 'POST':
         fails = [i for i in period_checklist.checklist(period)['items'] if i['status'] == period_checklist.FAIL]
         if fails:
-            why = {'pending_payments': 'pembayaran pending', 'integrity': 'temuan integritas jurnal'}
-            messages.error(request, 'Periode belum bisa di-lock — selesaikan dulu: ' + ', '.join(
+            why = {
+                'pending_payments': tr(request, 'pending payments', 'pembayaran pending'),
+                'integrity': tr(request, 'journal integrity findings', 'temuan integritas jurnal'),
+            }
+            messages.error(request, tr(request, 'The period cannot be locked yet — resolve first: ',
+                                       'Periode belum bisa di-lock — selesaikan dulu: ') + ', '.join(
                 f"{i['params']['n']} {why.get(i['key'], i['label'])}" for i in fails))
             return redirect('period_detail', pk=pk)
         try:
             period.lock(request.user)
-            messages.success(request, f'Periode {period.name} berhasil di-lock.')
+            messages.success(request, tr(request, f'Period {period.name} locked.', f'Periode {period.name} berhasil di-lock.'))
         except ValueError as e:
             messages.error(request, str(e))
         return redirect('period_detail', pk=pk)
@@ -142,10 +146,10 @@ def period_create(request):
             if not 2000 <= year <= 2100:
                 raise ValueError
         except (TypeError, ValueError):
-            messages.error(request, 'Tahun tidak valid.')
+            messages.error(request, tr(request, 'Invalid year.', 'Tahun tidak valid.'))
             return redirect('period_list')
         created = seasons.ensure_monthly_periods(date(year, 1, 1), date(year, 12, 31))
-        messages.success(request, f'{len(created)} periode untuk tahun {year} berhasil dibuat.')
+        messages.success(request, tr(request, f'{len(created)} periods created for {year}.', f'{len(created)} periode untuk tahun {year} berhasil dibuat.'))
     return redirect('period_list')
 
 
@@ -160,7 +164,7 @@ def season_save(request, pk=None):
                 season, name=data.get('name'),
                 date_from=_parse_date(data.get('date_from')), date_to=_parse_date(data.get('date_to')),
             )
-            messages.success(request, f'Musim {saved.name} tersimpan.')
+            messages.success(request, tr(request, f'Season {saved.name} saved.', f'Musim {saved.name} tersimpan.'))
         except ValidationError as e:
             messages.error(request, ' '.join(e.messages))
     return redirect('period_list')
@@ -172,5 +176,5 @@ def season_delete(request, pk):
     season = get_object_or_404(Season, pk=pk)
     if request.method == 'POST':
         season.delete()
-        messages.success(request, f'Musim {season.name} dihapus.')
+        messages.success(request, tr(request, f'Season {season.name} deleted.', f'Musim {season.name} dihapus.'))
     return redirect('period_list')

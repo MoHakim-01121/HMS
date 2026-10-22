@@ -1,4 +1,3 @@
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance
 from datetime import date
 
 from django.contrib.auth.models import User
@@ -8,6 +7,7 @@ from hw.finance import posting
 from hw.finance_helpers import create_payment_record
 from hw.models import ConfirmationLetter
 from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance
 from hw.views.remittance_views import _build_reservasi_mengendap
 
 

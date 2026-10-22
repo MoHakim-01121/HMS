@@ -1,13 +1,13 @@
-from hw.tests.factories import make_cl, make_invoice, make_room
 import json
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance import queries as fq
 from hw.models import Client, Invoice
 from hw.models.period import FinancialPeriod
-from hw.finance import queries as fq
+from hw.tests.factories import make_cl, make_invoice, make_room
 
 
 class InvoiceEditClLinkTests(TestCase):

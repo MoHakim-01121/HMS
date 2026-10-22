@@ -10,7 +10,8 @@ from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from hw.finance import credit_note_service as cns
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance.penalty_billing import penalty_state, reservation_balances
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import CancellationPenalty, Client, ConfirmationLetter, Invoice, InvoiceLine, Reservation
@@ -135,6 +136,19 @@ class UninvoicedReservationTest(_Base):
         ConfirmationLetter.objects.filter(pk=self.cl.pk).update(reservation_status='CANCELLED')
         billing = self.client.get(f'/cl/{self.cl.pk}/penalty/new/', HTTP_X_INERTIA='true').json()['props']['billing']
         self.assertEqual((billing['creates_invoice'], billing['invoice_number']), (False, inv.invoice_number))
+
+
+class RefusedPenaltyFormTest(_Base):
+    def test_a_refused_save_keeps_what_was_typed(self):
+        ConfirmationLetter.objects.filter(pk=self.cl.pk).update(reservation_status='CANCELLED')
+        resp = self.client.post(f'/cl/{self.cl.pk}/penalty/new/', {
+            'penalty_number': 'PNL-8002', 'cancellation_date': '2026-04-10',
+            'penalty_amount': '0', 'reason': 'Guest cancelled late',
+        }, HTTP_X_INERTIA='true')
+        props = resp.json()['props']
+        self.assertIn('penalty_amount', props['errors'])
+        self.assertEqual((props['penalty']['reason'], props['penalty']['penalty_number']),
+                         ('Guest cancelled late', 'PNL-8002'))
 
 
 class PenaltyLineRulesTest(_Base):

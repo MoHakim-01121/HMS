@@ -1,7 +1,6 @@
 """Payment views — list, detail, record, confirm, reject."""
 import json
 import logging
-
 from datetime import date
 
 from django.contrib import messages
@@ -10,27 +9,34 @@ from django.db.models import F, Q
 from django.http.request import RawPostDataException
 from django.shortcuts import redirect
 from django.utils import timezone
-
 from inertia import render as inertia_render
 
-from ..models.payment import PaymentRecord, PaymentLog
-from ..models.invoice import Invoice
-from ..models.client import Client
-from ..models.journal import JournalEntry
-from ..finance_helpers import (
-    create_payment_record, confirm_payment,
-    reverse_journal_entry, _payment_snapshot,
-    FinanceError,
-)
-from ..models.role import ADMIN_SLUG
 from ..branch_scope import get_in_scope_or_404, scope, with_head_office
-from ..permissions import get_role, require_perm
-from ..i18n import tr
 from ..finance import posting
+from ..finance_helpers import (
+    FinanceError,
+    _payment_snapshot,
+    confirm_payment,
+    create_payment_record,
+    reverse_journal_entry,
+)
+from ..i18n import tr
+from ..models.client import Client
+from ..models.invoice import Invoice
+from ..models.journal import JournalEntry
+from ..models.payment import PaymentLog, PaymentRecord
+from ..models.role import ADMIN_SLUG
+from ..permissions import get_role, require_perm
 from ..utils import CURRENCIES, round_half_up
 from .helpers import (
-    serialize_journal_entry, _parse_date, _parse_search_tokens, _to_float, _is_mobile,
-    pagination_props, csv_export_response, money_account_choices, resolve_money_account,
+    _parse_date,
+    _parse_search_tokens,
+    _to_float,
+    csv_export_response,
+    money_account_choices,
+    pagination_props,
+    resolve_money_account,
+    serialize_journal_entry,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,9 +150,9 @@ def _invoice_choices(queryset):
     invoice dipilih. Reservations ikut dikirim supaya ApplyPaymentSheet bisa
     menampilkan baris alokasi tanpa fetch tambahan.
     """
-    from .context import _build_reservation_context
     from ..finance import queries as fq
     from ..finance.credit_note_service import _credited_by_lines
+    from .context import _build_reservation_context
     invoices = list(queryset)
     ids = [inv.pk for inv in invoices]
     paid_map = fq.invoice_paid_map(ids)
@@ -193,18 +199,18 @@ def _resolve_target_invoice(payment, data, request, targets=()):
             return max(targets, key=lambda t: t[1])[0].invoice
         messages.error(
             request,
-            'Pilih invoice tujuan untuk pembayaran deposit ini.',
+            tr(request, 'Choose the invoice this deposit goes to.', 'Pilih invoice tujuan untuk pembayaran deposit ini.'),
         )
         return None
     try:
         invoice = Invoice.objects.get(pk=invoice_id)
     except (Invoice.DoesNotExist, TypeError, ValueError):
-        messages.error(request, 'Invoice tujuan tidak ditemukan.')
+        messages.error(request, tr(request, 'Invoice not found.', 'Invoice tujuan tidak ditemukan.'))
         return None
     if invoice.client_id != payment.client_id:
         messages.error(
             request,
-            'Invoice tujuan bukan milik client pembayaran ini.',
+            tr(request, 'That invoice does not belong to this payment\'s client.', 'Invoice tujuan bukan milik client pembayaran ini.'),
         )
         return None
     return invoice
@@ -493,8 +499,8 @@ def _unbilled_reservations(payment, limit=20):
     pun (dan tidak batal): belum bisa menerima alokasi. Ditampilkan abu-abu di
     lembar alokasi dengan alasannya, supaya tidak terlihat seperti hilang."""
     from ..models import ConfirmationLetter
-    from ..models.invoice import InvoiceLine
     from ..models.confirmation import ReservationStatus
+    from ..models.invoice import InvoiceLine
     billed = InvoiceLine.objects.filter(
         kind=InvoiceLine.KIND_HOTEL, voided_at__isnull=True, confirmation_letter__isnull=False,
     ).values('confirmation_letter_id')
@@ -589,7 +595,7 @@ def payment_record(request):
         # Deposit: invoice opsional — client wajib dipilih eksplisit.
         client_id = data.get('client_id')
         if not client_id:
-            messages.error(request, 'Pilih client untuk pembayaran tanpa invoice (deposit).')
+            messages.error(request, tr(request, 'Choose the client for a payment without an invoice (deposit).', 'Pilih client untuk pembayaran tanpa invoice (deposit).'))
             return redirect('payment_list')
         client = get_in_scope_or_404(Client.objects.all(), request.user, pk=client_id)
     amount = _to_float(data.get('amount'))
@@ -611,7 +617,7 @@ def payment_record(request):
             received_in = 'sby'
     allowed = with_head_office(request.user)
     if allowed is not None and received_in not in allowed:
-        messages.error(request, 'Rekening penerima di luar cabang Anda.')
+        messages.error(request, tr(request, 'The receiving account is outside your branch.', 'Rekening penerima di luar cabang Anda.'))
         return redirect('payment_list')
 
     # amount/amount_sar are PositiveIntegerField. A negative value passes a
@@ -620,19 +626,19 @@ def payment_record(request):
     # below does not catch, so the user gets a 500 instead of a form message.
     # A non-positive rate does the same by flipping a positive amount.
     if not amount or amount <= 0:
-        messages.error(request, 'Jumlah pembayaran harus lebih besar dari nol.')
+        messages.error(request, tr(request, 'The payment amount must be more than zero.', 'Jumlah pembayaran harus lebih besar dari nol.'))
         return redirect('payment_list')
     if amount != int(amount):
         # Money is kept in whole units (riyal, rupiah, dollar); a fraction
         # would be dropped silently when stored.
-        messages.error(request, 'Jumlah pembayaran harus bilangan bulat, tanpa desimal.')
+        messages.error(request, tr(request, 'The payment amount must be a whole number, without decimals.', 'Jumlah pembayaran harus bilangan bulat, tanpa desimal.'))
         return redirect('payment_list')
     amount = int(amount)
     if exchange_rate <= 0:
-        messages.error(request, 'Kurs harus lebih besar dari nol.')
+        messages.error(request, tr(request, 'The rate must be more than zero.', 'Kurs harus lebih besar dari nol.'))
         return redirect('payment_list')
     if currency not in CURRENCIES:
-        messages.error(request, f'Mata uang tidak dikenal: {currency}.')
+        messages.error(request, tr(request, f'Unknown currency: {currency}.', f'Mata uang tidak dikenal: {currency}.'))
         return redirect('payment_list')
 
     # Handle proof file upload — same size/type guard as every other proof
@@ -648,7 +654,7 @@ def payment_record(request):
     else:
         # Proof is required on every payment (Receive/Apply flow): the receipt
         # anchors the CR Piutang entry that auto-posts at receive time.
-        messages.error(request, 'Bukti pembayaran wajib dilampirkan.')
+        messages.error(request, tr(request, 'Attach the proof of payment.', 'Bukti pembayaran wajib dilampirkan.'))
         return redirect('payment_list')
 
     # Parse per-reservation allocations
@@ -663,14 +669,14 @@ def payment_record(request):
     if invoice is None and allocations:
         messages.error(
             request,
-            'Deposit (tanpa invoice) tidak bisa langsung dialokasikan. '
-            'Pilih invoice tujuan saat distribusi nanti.',
+            tr(request, 'A deposit (no invoice) cannot be allocated right away. Choose the invoice when distributing it later.', 'Deposit (tanpa invoice) tidak bisa langsung dialokasikan. Pilih invoice tujuan saat distribusi nanti.'),
         )
         return redirect('payment_list')
 
-    from ..models import Reservation
     from django.utils import timezone as tz
+
     from ..finance import posting
+    from ..models import Reservation
 
     if allocations:
         # Satu transfer dgn beberapa reservasi = SATU PaymentRecord
@@ -685,7 +691,7 @@ def payment_record(request):
             if _to_float(a.get('amount', 0)) and _to_float(a.get('amount', 0)) > 0
         ]
         if not valid_alloc:
-            messages.error(request, 'Tidak ada alokasi yang valid.')
+            messages.error(request, tr(request, 'No valid allocation.', 'Tidak ada alokasi yang valid.'))
             return redirect('payment_list')
 
         # PaymentAllocation per reservasi — nominal dalam SAR (riyal patokan).
@@ -706,12 +712,11 @@ def payment_record(request):
         if unknown:
             messages.error(
                 request,
-                'Reservasi berikut bukan milik invoice ini: '
-                f'{", ".join(unknown)}.',
+                tr(request, f'These reservations do not belong to this invoice: {", ".join(unknown)}.', f'Reservasi berikut bukan milik invoice ini: {", ".join(unknown)}.'),
             )
             return redirect('payment_list')
         if not targets:
-            messages.error(request, 'Tidak ada alokasi yang valid.')
+            messages.error(request, tr(request, 'No valid allocation.', 'Tidak ada alokasi yang valid.'))
             return redirect('payment_list')
 
         # Nilai SAR pembayaran (riyal patokan), untuk memvalidasi total alokasi
@@ -721,7 +726,7 @@ def payment_record(request):
         if sum(a for _, a in targets) > sar_amount:
             messages.error(
                 request,
-                f'Total alokasi melebihi nilai SAR pembayaran ({sar_amount:,}).',
+                tr(request, f'The allocations total is more than the payment\'s SAR value ({sar_amount:,}).', f'Total alokasi melebihi nilai SAR pembayaran ({sar_amount:,}).'),
             )
             return redirect('payment_list')
 
@@ -755,7 +760,7 @@ def payment_record(request):
 
         messages.success(
             request,
-            'Payment berhasil dibuat dan dialokasikan. Menunggu konfirmasi finance/admin.',
+            tr(request, 'Payment created and allocated. Waiting for Finance/Admin to confirm.', 'Payment berhasil dibuat dan dialokasikan. Menunggu konfirmasi finance/admin.'),
         )
         return redirect(f'/finance/payments/?invoice={invoice.pk}')
     else:
@@ -786,7 +791,7 @@ def payment_record(request):
 
         messages.success(
             request,
-            f'Payment {payment.payment_number} berhasil dibuat. Menunggu konfirmasi finance/admin.',
+            tr(request, f'Payment {payment.payment_number} created. Waiting for Finance/Admin to confirm.', f'Payment {payment.payment_number} berhasil dibuat. Menunggu konfirmasi finance/admin.'),
         )
         return redirect('payment_detail', pk=payment.pk)
 
@@ -810,7 +815,7 @@ def payment_confirm(request, pk):
                 if get_role(request.user) != ADMIN_SLUG:
                     messages.error(
                         request,
-                        'Pembayaran ini Anda catat sendiri — konfirmasi harus oleh user lain.',
+                        tr(request, 'You recorded this payment yourself — another user has to confirm it.', 'Pembayaran ini Anda catat sendiri — konfirmasi harus oleh user lain.'),
                     )
                     return redirect('payment_detail', pk=pk)
                 note = ('[Dikonfirmasi oleh pencatatnya sendiri (admin)] ' + note).strip()
@@ -818,12 +823,13 @@ def payment_confirm(request, pk):
             # Konfirmasi dan kwitansinya satu transaksi: tidak ada pembayaran
             # terkonfirmasi tanpa kwitansi bila pembuatan kwitansi gagal.
             from django.db import transaction
+
             from ..finance.receipt_service import ensure_receipt
             with transaction.atomic():
                 confirm_payment(payment, confirmed_by=request.user, note=note)
                 ensure_receipt(payment, created_by=request.user)
 
-            messages.success(request, f'Payment {payment.payment_number} berhasil dikonfirmasi.')
+            messages.success(request, tr(request, f'Payment {payment.payment_number} confirmed.', f'Payment {payment.payment_number} berhasil dikonfirmasi.'))
         except FinanceError as e:
             messages.error(request, str(e))
         return redirect('payment_detail', pk=pk)
@@ -842,9 +848,7 @@ def payment_reject(request, pk):
         if payment.status not in (PaymentRecord.STATUS_PENDING,):
             messages.error(
                 request,
-                f'Payment {payment.payment_number} berstatus '
-                f'{payment.display_status_label}. Hanya payment pending yang bisa '
-                'ditolak. Gunakan "Revers sebagai koreksi untuk pembayaran efektif.',
+                tr(request, f'Payment {payment.payment_number} is {payment.display_status_label}. Only a pending payment can be rejected. Use Reverse to correct an effective payment.', f'Payment {payment.payment_number} berstatus {payment.display_status_label}. Hanya payment pending yang bisa ditolak. Gunakan Reverse sebagai koreksi untuk pembayaran efektif.'),
             )
             return redirect('payment_detail', pk=pk)
 
@@ -869,7 +873,7 @@ def payment_reject(request, pk):
                 .values_list('status', flat=True).get(pk=payment.pk)
             )
             if current != PaymentRecord.STATUS_PENDING:
-                messages.error(request, f'Payment {payment.payment_number} sudah diproses.')
+                messages.error(request, tr(request, f'Payment {payment.payment_number} has already been processed.', f'Payment {payment.payment_number} sudah diproses.'))
                 return redirect('payment_detail', pk=pk)
             payment.status = PaymentRecord.STATUS_REJECTED
             payment.rejected_reason = reason
@@ -883,7 +887,7 @@ def payment_reject(request, pk):
                 performed_by=request.user,
                 note=reason or 'Payment rejected',
             )
-        messages.success(request, f'Payment {payment.payment_number} ditolak.')
+        messages.success(request, tr(request, f'Payment {payment.payment_number} rejected.', f'Payment {payment.payment_number} ditolak.'))
         return redirect('payment_detail', pk=pk)
     return redirect('payment_detail', pk=pk)
 
@@ -945,7 +949,7 @@ def _allocation_targets(payment, allocations, request):
     if unknown:
         messages.error(
             request,
-            f'Reservasi berikut bukan milik client pembayaran ini: {", ".join(unknown)}.',
+            tr(request, f'These reservations do not belong to this payment\'s client: {", ".join(unknown)}.', f'Reservasi berikut bukan milik client pembayaran ini: {", ".join(unknown)}.'),
         )
         return None
     return targets
@@ -962,32 +966,30 @@ def _save_allocations(request, pk, *, require_targets, log_action, success):
     if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
         messages.error(
             request,
-            f'Payment {payment.payment_number} berstatus '
-            f'{payment.display_status_label}. Hanya payment efektif yang bisa '
-            'dialokasikan.',
+            tr(request, f'Payment {payment.payment_number} is {payment.display_status_label}. Only an effective payment can be allocated.', f'Payment {payment.payment_number} berstatus {payment.display_status_label}. Hanya payment efektif yang bisa dialokasikan.'),
         )
         return redirect('payment_detail', pk=pk)
 
     data, allocations = _request_allocations(request)
     if allocations is None:
-        messages.error(request, 'Format alokasi tidak valid.')
+        messages.error(request, tr(request, 'Invalid allocation format.', 'Format alokasi tidak valid.'))
         return redirect('payment_detail', pk=pk)
     if require_targets and not allocations:
-        messages.error(request, 'Alokasi tidak boleh kosong.')
+        messages.error(request, tr(request, 'The allocation cannot be empty.', 'Alokasi tidak boleh kosong.'))
         return redirect('payment_detail', pk=pk)
 
     targets = _allocation_targets(payment, allocations, request)
     if targets is None:
         return redirect('payment_detail', pk=pk)
     if require_targets and not targets:
-        messages.error(request, 'Tidak ada alokasi yang valid.')
+        messages.error(request, tr(request, 'No valid allocation.', 'Tidak ada alokasi yang valid.'))
         return redirect('payment_detail', pk=pk)
 
     total = sum(amount for _, amount in targets)
     if total > payment.amount_sar:
         messages.error(
             request,
-            f'Total alokasi ({total:,}) melebihi jumlah pembayaran ({payment.amount_sar:,}).',
+            tr(request, f'The allocations total ({total:,}) is more than the payment ({payment.amount_sar:,}).', f'Total alokasi ({total:,}) melebihi jumlah pembayaran ({payment.amount_sar:,}).'),
         )
         return redirect('payment_detail', pk=pk)
 
@@ -1011,7 +1013,7 @@ def _save_allocations(request, pk, *, require_targets, log_action, success):
     except FinanceError as e:
         messages.error(request, str(e))
     else:
-        messages.success(request, success.format(number=payment.payment_number))
+        messages.success(request, tr(request, *success).format(number=payment.payment_number))
     return redirect('payment_detail', pk=pk)
 
 
@@ -1021,7 +1023,7 @@ def payment_reallocate(request, pk):
     Daftar kosong boleh: semua jadi belum teralokasi (lalu bisa ke deposit)."""
     return _save_allocations(
         request, pk, require_targets=False, log_action=PaymentLog.ACTION_ALLOCATED,
-        success='Payment {number} berhasil direalokasi.',
+        success=('Payment {number} reallocated.', 'Payment {number} berhasil direalokasi.'),
     )
 
 
@@ -1034,6 +1036,7 @@ def _retire_payment(payment, *, status, action, reversal_date, journal_note, use
     FinanceError (rolled back) for the caller to report.
     """
     from django.db import transaction
+
     from ..finance.bank_ledger import void_bank_transactions
     from ..finance.receipt_service import void_receipts_for_payment
 
@@ -1088,8 +1091,7 @@ def payment_reverse(request, pk):
         if payment.status not in PaymentRecord.EFFECTIVE_STATUSES:
             messages.error(
                 request,
-                f'Payment {payment.payment_number} berstatus '
-                f'{payment.display_status_label} dan tidak bisa di-reverse.',
+                tr(request, f'Payment {payment.payment_number} is {payment.display_status_label} and cannot be reversed.', f'Payment {payment.payment_number} berstatus {payment.display_status_label} dan tidak bisa di-reverse.'),
             )
             return redirect('payment_detail', pk=pk)
 
@@ -1101,7 +1103,7 @@ def payment_reverse(request, pk):
                 journal_note=f'Reversal for {payment.payment_number}',
                 user=request.user,
             )
-            messages.success(request, f'Payment {payment.payment_number} di-reverse.')
+            messages.success(request, tr(request, f'Payment {payment.payment_number} reversed.', f'Payment {payment.payment_number} di-reverse.'))
         except FinanceError as e:
             messages.error(request, str(e))
         return redirect('payment_detail', pk=pk)
@@ -1114,7 +1116,7 @@ def payment_apply(request, pk):
     payment_reallocate; reservasi boleh dari invoice lain milik client yang sama."""
     return _save_allocations(
         request, pk, require_targets=True, log_action=PaymentLog.ACTION_APPLIED,
-        success='Payment {number} berhasil dialokasikan.',
+        success=('Payment {number} allocated.', 'Payment {number} berhasil dialokasikan.'),
     )
 
 
@@ -1134,8 +1136,7 @@ def payment_void(request, pk):
     if payment.status not in voidable:
         messages.error(
             request,
-            f'Payment {payment.payment_number} berstatus '
-            f'{payment.display_status_label} dan tidak bisa di-void.',
+            tr(request, f'Payment {payment.payment_number} is {payment.display_status_label} and cannot be voided.', f'Payment {payment.payment_number} berstatus {payment.display_status_label} dan tidak bisa di-void.'),
         )
         return redirect('payment_detail', pk=pk)
 
@@ -1147,7 +1148,7 @@ def payment_void(request, pk):
             journal_note=f'Voided: {payment.payment_number}',
             user=request.user,
         )
-        messages.success(request, f'Payment {payment.payment_number} di-void.')
+        messages.success(request, tr(request, f'Payment {payment.payment_number} voided.', f'Payment {payment.payment_number} di-void.'))
     except FinanceError as e:
         messages.error(request, str(e))
 
@@ -1167,7 +1168,7 @@ def payment_to_deposit(request, pk):
     except FinanceError as e:
         messages.error(request, str(e))
     else:
-        messages.success(request, f'{moved:,} SAR dari {payment.payment_number} dipindahkan ke deposit {payment.client.name}.')
+        messages.success(request, tr(request, f'{moved:,} SAR from {payment.payment_number} moved to {payment.client.name}\'s deposit.', f'{moved:,} SAR dari {payment.payment_number} dipindahkan ke deposit {payment.client.name}.'))
     return redirect('payment_detail', pk=pk)
 
 

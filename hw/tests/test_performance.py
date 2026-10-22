@@ -1,8 +1,7 @@
-from django.test import TestCase, Client
 from django.contrib.auth.models import User
+from django.test import Client, TestCase
 
 from hw.models import ConfirmationLetter, Invoice
-
 
 # ── Task 1: ai_summary removed ───────────────────────────────────────────────
 

@@ -1,11 +1,11 @@
 import os
-import magic
 
+import magic
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from ..models import Attachment, ConfirmationLetter, Invoice
 from ..branch_scope import get_in_scope_or_404
+from ..models import Attachment, ConfirmationLetter, Invoice
 from ..permissions import require_perm
 
 _ALLOWED_MIME = {

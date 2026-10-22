@@ -4,12 +4,20 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Invoice, Client, Remittance
+from hw.finance import queries as fq
 from hw.finance.accounts import cash_ledger_for
+from hw.models import Client, Invoice, Remittance
 from hw.models.payment import PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.finance import queries as fq
-from hw.tests.factories import fund_cash, fund_ledger, make_hotel_line, make_invoice, make_priced_cl, set_line_total, ops_and_money_role
+from hw.tests.factories import (
+    fund_cash,
+    fund_ledger,
+    make_hotel_line,
+    make_invoice,
+    make_priced_cl,
+    ops_and_money_role,
+    set_line_total,
+)
 
 
 class DualWriteTestBase(TestCase):

@@ -2,9 +2,9 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from django.utils import timezone
 
 from django.conf import settings
+from django.utils import timezone
 
 from .models import ConfirmationLetter, Invoice
 

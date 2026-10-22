@@ -8,7 +8,11 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
 from hw.tests.factories import (
-    ensure_current_period, make_client, make_hotel_line, make_invoice, make_payment,
+    ensure_current_period,
+    make_client,
+    make_hotel_line,
+    make_invoice,
+    make_payment,
 )
 
 # Halaman → apakah nomor data terakhir harus tampil di halaman itu.

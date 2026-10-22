@@ -5,7 +5,6 @@ from django.urls import reverse
 
 from .choices import HotelCity
 
-
 HARAM_LAT  = 21.420324; HARAM_LNG  = 39.826485
 NABAWI_LAT = 24.4672;   NABAWI_LNG = 39.6112
 

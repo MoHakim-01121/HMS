@@ -13,7 +13,7 @@ cash-book rows (BankTransaction): out of the source account and into the
 target account, each in its own currency — the fund-flow report and the
 branch's realized FX profit read them from there.
 """
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import models
 

@@ -8,21 +8,24 @@ Covers the review findings that were actually implemented:
 * H2/C3/H4(delete): posted financial documents (invoice, remittance,
       penalty) cannot be silently deleted once they touch the ledger.
 """
-from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance import posting
+from hw.finance import queries as fq
+from hw.finance.penalty_billing import bill_penalty
+from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import (
-    Client, Invoice, CancellationPenalty, Remittance,
+    CancellationPenalty,
+    Client,
+    Invoice,
+    Remittance,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod
-from hw.finance import posting
-from hw.finance.penalty_billing import bill_penalty
-from hw.finance import queries as fq
-from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_remittance, make_remittance_line
 
 
 class PenaltyLedgerSyncTest(TestCase):

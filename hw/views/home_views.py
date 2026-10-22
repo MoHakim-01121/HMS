@@ -7,7 +7,6 @@ dashboard.home(); marketing pages live in landing_views.py.
 from datetime import date
 
 from django.contrib.auth.decorators import login_required
-
 from inertia import render as inertia_render
 
 from .. import dashboard

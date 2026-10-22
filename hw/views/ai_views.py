@@ -12,8 +12,8 @@ from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 
 from ..ai import CHAT_MODULES, generate_draft_message, get_chat_reply
-from ..models import ActivityLog, Invoice, log_activity
 from ..branch_scope import scope
+from ..models import ActivityLog, Invoice, log_activity
 from ..permissions import can
 
 

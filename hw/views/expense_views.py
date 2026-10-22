@@ -6,29 +6,32 @@ branch's IDR accounts. See hw/finance/expense_service.py for the posting —
 views only parse the request and translate FinanceError into a message.
 """
 import json
-
 from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.shortcuts import redirect
-
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, head_office_only, operating_branches, scope
+from ..finance import expense_service
+from ..finance.errors import FinanceError
+from ..i18n import tr
 from ..models.expense import Expense, ExpenseCategory, ExpensePayment
 from ..models.journal import JournalEntry
 from ..models.vendor import Vendor
-from ..finance import expense_service
-from ..finance.errors import FinanceError
 from ..permissions import require_perm
 from .helpers import (
-    serialize_journal_entry, _parse_date, _to_float, _is_mobile,
-    pagination_props, csv_export_response, money_account_choices, resolve_money_account,
+    _parse_date,
+    _to_float,
+    csv_export_response,
+    money_account_choices,
+    pagination_props,
+    resolve_money_account,
+    serialize_journal_entry,
     validate_proof_file,
 )
-
 
 # What _expense_props reads, fetched once for a page of expenses.
 _PROPS_PREFETCH = ('lines__category', 'lines__receipts', 'payments__source_account')
@@ -210,7 +213,7 @@ def expense_record(request):
     if branch is None and not data.get('branch') and branches.count() == 1:
         branch = branches.first()
     if branch is None:
-        messages.error(request, 'Pilih cabang pengeluaran — pengeluaran milik cabang, bukan Pusat.')
+        messages.error(request, tr(request, 'Choose the branch — expenses belong to a branch, not HQ.', 'Pilih cabang pengeluaran — pengeluaran milik cabang, bukan Pusat.'))
         return redirect('expense_list')
 
     proof = request.FILES.get('proof')
@@ -226,13 +229,13 @@ def expense_record(request):
     if data.get('spent_by'):
         spent_by = branch_holders(branch.pk).filter(pk=data.get('spent_by')).first()
         if spent_by is None:
-            messages.error(request, 'Staf yang mengeluarkan uangnya tidak aktif di cabang ini.')
+            messages.error(request, tr(request, 'The staff member who paid is not active in this branch.', 'Staf yang mengeluarkan uangnya tidak aktif di cabang ini.'))
             return redirect('expense_list')
     paid_with = None
     if (data.get('paid_with') or 'office') != 'office':
         paid_with = resolve_money_account(data.get('paid_with'), staff=True)
         if paid_with is None:
-            messages.error(request, 'Uang muka yang dipilih tidak ditemukan.')
+            messages.error(request, tr(request, 'The selected advance was not found.', 'Uang muka yang dipilih tidak ditemukan.'))
             return redirect('expense_list')
 
     raw_lines = data.get('lines', '')
@@ -259,13 +262,13 @@ def expense_record(request):
                 return redirect('expense_list')
         reason = (row.get('no_receipt_reason') or '').strip()
         if not receipts and not reason and not proof:
-            messages.error(request, f'Baris {len(lines) + 1}: lampirkan struk, atau tulis kenapa tidak ada struk.')
+            messages.error(request, tr(request, f'Line {len(lines) + 1}: attach the receipt, or say why there is none.', f'Baris {len(lines) + 1}: lampirkan struk, atau tulis kenapa tidak ada struk.'))
             return redirect('expense_list')
         lines.append({'category': category, 'description': row.get('description', ''), 'amount': int(amt),
                       'receipts': receipts, 'no_receipt_reason': '' if receipts else reason})
 
     if not lines:
-        messages.error(request, 'Minimal satu baris beban dengan kategori dan nominal harus diisi.')
+        messages.error(request, tr(request, 'Fill in at least one expense line with a category and an amount.', 'Minimal satu baris beban dengan kategori dan nominal harus diisi.'))
         return redirect('expense_list')
 
     try:
@@ -279,7 +282,7 @@ def expense_record(request):
         messages.error(request, str(e))
         return redirect('expense_list')
 
-    messages.success(request, f'Beban {expense.expense_number} dicatat, menunggu persetujuan.')
+    messages.success(request, tr(request, f'Expense {expense.expense_number} recorded, waiting for approval.', f'Beban {expense.expense_number} dicatat, menunggu persetujuan.'))
     return redirect('expense_detail', pk=expense.pk)
 
 
@@ -291,20 +294,20 @@ def _decide(request, pk, action):
     try:
         if action == 'approve':
             expense_service.approve_expense(expense, approved_by=request.user)
-            messages.success(request, f'{expense.expense_number} disetujui, siap dibayar.')
+            messages.success(request, tr(request, f'{expense.expense_number} approved, ready to pay.', f'{expense.expense_number} disetujui, siap dibayar.'))
         elif action == 'reject':
             expense_service.reject_expense(expense, rejected_by=request.user, reason=(data.get('reason') or '').strip())
-            messages.success(request, f'{expense.expense_number} ditolak.')
+            messages.success(request, tr(request, f'{expense.expense_number} rejected.', f'{expense.expense_number} ditolak.'))
         elif action == 'pay':
             account = resolve_money_account(data.get('account'))
             expense_service.pay_expense(
                 expense, account=account, payment_date=_parse_date(data.get('payment_date')) or date.today(),
                 paid_by=request.user, reference=(data.get('reference') or '').strip(),
             )
-            messages.success(request, f'{expense.expense_number} dibayar.')
+            messages.success(request, tr(request, f'{expense.expense_number} paid.', f'{expense.expense_number} dibayar.'))
         else:
             expense_service.void_expense(expense, voided_by=request.user, reason=(data.get('reason') or '').strip())
-            messages.success(request, f'{expense.expense_number} dibatalkan.')
+            messages.success(request, tr(request, f'{expense.expense_number} cancelled.', f'{expense.expense_number} dibatalkan.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('expense_detail', pk=pk)
@@ -376,7 +379,7 @@ def expense_category_new(request):
     if request.method == 'POST':
         try:
             cat = expense_service.create_category(_data(request).get('name'))
-            messages.success(request, f'Kategori "{cat.name}" ditambahkan (akun {cat.ledger_account_id}).')
+            messages.success(request, tr(request, f'Category "{cat.name}" added (account {cat.ledger_account_id}).', f'Kategori "{cat.name}" ditambahkan (akun {cat.ledger_account_id}).'))
         except FinanceError as e:
             messages.error(request, str(e))
     return redirect('expense_categories')
@@ -395,7 +398,7 @@ def expense_category_edit(request, code):
             category, name=data.get('name') if 'name' in data else None,
             is_active=None if active in (None, '') else str(active).lower() in ('1', 'true', 'on'),
         )
-        messages.success(request, f'Kategori "{category.name}" diperbarui.')
+        messages.success(request, tr(request, f'Category "{category.name}" updated.', f'Kategori "{category.name}" diperbarui.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('expense_categories')

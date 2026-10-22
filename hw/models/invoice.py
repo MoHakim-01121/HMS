@@ -121,13 +121,13 @@ class Invoice(models.Model):
     def __str__(self):
         return f"{self.invoice_number} | {self.customer_name}"
 
-    def get_absolute_url(self):
-        return reverse('invoice_detail', args=[self.pk])
-
     def save(self, *args, **kwargs):
         if not self.branch_id and self.client_id:
             self.branch_id = self.client.owner_branch_id
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse('invoice_detail', args=[self.pk])
 
     @property
     def customer_name(self):

@@ -7,11 +7,11 @@ from django.test import SimpleTestCase, TestCase
 
 from hw.finance import reconciliation_service as rs
 from hw.finance import statement_import as si
+from hw.finance.accounts import cash_ledger_for
 from hw.finance.bank_ledger import sync_opening_balance
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import BankAccount, BankStatement, Client
-from hw.finance.accounts import cash_ledger_for
 from hw.models.bank_transaction import BankTransaction
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice
@@ -35,7 +35,20 @@ SEMICOLON_ID = '''Tanggal;Keterangan;Debet;Kredit;Saldo
 '''
 
 
+# Account statement export with PostDate, month names and padded remarks.
+POSTDATE = '''AccountNo;Ccy;PostDate;Remarks;AdditionalDesc;Credit Amount;Debit Amount;Close Balance
+1400012345678;IDR;06 May 2026 10:15:00;TRF DARI PT ALPHA          ;BIZ TRANSFER   ;49000000.00;0.00;84000000.00
+1400012345678;IDR;30 May 2026 23:59:00;BIAYA ADM                  ;               ;0.00;15000.00;83985000.00
+'''
+
+
 class ParserTest(SimpleTestCase):
+    def test_postdate_export(self):
+        r = si.parse(POSTDATE)
+        self.assertEqual([(l['line_date'], l['direction'], l['amount']) for l in r['lines']],
+                         [(date(2026, 5, 6), 'in', 49_000_000), (date(2026, 5, 30), 'out', 15_000)])
+        self.assertEqual((r['opening_balance'], r['closing_balance']), (35_000_000, 83_985_000))
+
     def test_mandiri(self):
         r = si.parse(MANDIRI)
         self.assertEqual([(l['direction'], l['amount']) for l in r['lines']], [('in', 49_000_000), ('out', 15_000)])

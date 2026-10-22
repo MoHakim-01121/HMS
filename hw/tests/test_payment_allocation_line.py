@@ -12,7 +12,12 @@ from hw.finance import posting
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import (
-    CancellationPenalty, Client, ConfirmationLetter, InvoiceLine, PaymentAllocation, PaymentRecord,
+    CancellationPenalty,
+    Client,
+    ConfirmationLetter,
+    InvoiceLine,
+    PaymentAllocation,
+    PaymentRecord,
 )
 from hw.models.journal import JournalLine
 from hw.models.period import FinancialPeriod

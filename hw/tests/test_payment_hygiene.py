@@ -13,7 +13,7 @@ from django.test import TestCase
 
 from hw.finance import queries as fq
 from hw.models import Client
-from hw.models.payment import PaymentRecord, PaymentAllocation
+from hw.models.payment import PaymentAllocation, PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_hotel_line, make_invoice, make_payment
 

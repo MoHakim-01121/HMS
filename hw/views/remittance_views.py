@@ -1,25 +1,25 @@
 import logging
-
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.http import Http404
 from django.shortcuts import redirect
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
-from ..models import Remittance, RemittanceLine
+from ..branch_scope import get_in_scope_or_404, in_scope, scope
 from ..finance import fund_flow, posting, remittance_allocation
 from ..finance_helpers import FinanceError
-from ..branch_scope import get_in_scope_or_404, in_scope, scope
+from ..i18n import tr
+from ..models import Remittance, RemittanceLine
 from ..permissions import require_perm
-from .helpers import validate_proof_file, period_label as _period_label, csv_export_response, pagination_props
-from django.core.paginator import Paginator
+from .helpers import csv_export_response, pagination_props, validate_proof_file
+from .helpers import period_label as _period_label
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,9 @@ def remittance_list(request):
     and the FX gain; the table shows IDR sent against SAR received. The
     Tracking and Recap views stay as tabs."""
     from django.db.models import Q
-    from ..finance import fund_flow, queries as finance_queries
+
+    from ..finance import fund_flow
+    from ..finance import queries as finance_queries
     from .helpers import csv_list, list_per_page, list_period, pct_delta, prev_month_range
     tab = request.GET.get('tab', '')
     if tab not in ('tracking', 'recap'):
@@ -252,8 +254,8 @@ def remittance_new(request):
         .exclude(branch__is_hq=True).select_related('branch').order_by('bank_name', 'account_identifier')
     )
 
-    from ..models.bank import MoneyAccount
     from ..finance.bank_ledger import default_account
+    from ..models.bank import MoneyAccount
     hq_default = default_account('pusat', 'SAR')
     to_accounts = list(
         MoneyAccount.objects.filter(is_active=True, currency='SAR', branch__is_hq=True)
@@ -465,14 +467,12 @@ def remittance_edit(request, pk):
         proof = None if request.POST.get('remove_proof') else request.FILES.get('proof')
         proof_error = validate_proof_file(proof) if proof else None
         if proof_error:
-            messages.error(request, f'Bukti transfer: {proof_error}')
-            return redirect('remittance_edit', pk=rem.pk)
+            return _remittance_edit_page(request, rem, f'Bukti transfer: {proof_error}')
         if request.POST.get('date'):
             try:
                 rem.date = date.fromisoformat(request.POST['date'])
             except ValueError:
-                messages.error(request, 'Tanggal transfer tidak valid.')
-                return redirect('remittance_edit', pk=rem.pk)
+                return _remittance_edit_page(request, rem, 'Tanggal transfer tidak valid.')
         rem.receipt_reference = request.POST.get('receipt_reference', '').strip()
         rem.note = request.POST.get('note', '').strip()
         amount_sent, exchange_rate, _ignored = _parse_transfer_fields(request)
@@ -516,14 +516,20 @@ def remittance_edit(request, pk):
                 posting.resync_remittance(rem, created_by=request.user)
         except FinanceError as e:
             logger.warning("remittance %s: edit refused, ledger cannot follow: %s", rem.remittance_number, e)
-            messages.error(request, f'Tidak tersimpan — buku kas/jurnal tidak bisa ikut berubah: {e}')
-            return redirect('remittance_edit', pk=rem.pk)
+            rem.refresh_from_db()
+            return _remittance_edit_page(request, rem, f'Tidak tersimpan — buku kas/jurnal tidak bisa ikut berubah: {e}')
         return redirect('remittance_detail', pk=rem.pk)
 
+    return _remittance_edit_page(request, rem)
+
+
+def _remittance_edit_page(request, rem, error=None):
+    """The edit form. A rejected save (`error`) echoes the POST, so the user
+    keeps what they typed; the proof file has to be picked again."""
     # Allocations are made per receipt (Record Receipt / change allocation).
     lines_editable = False
     lines = []
-    return inertia_render(request, "Remittance/Edit", props={
+    props = {
         "rem": {
             "id": rem.id,
             "remittance_number": rem.remittance_number,
@@ -553,14 +559,21 @@ def remittance_edit(request, pk):
         } for l in lines],
         "reservasi": [],
         "lines_editable": lines_editable,
-    })
+        "error": error,
+    }
+    if error:
+        props["rem"].update({k: request.POST.get(k, '') for k in (
+            'date', 'receipt_reference', 'note', 'amount_idr', 'exchange_rate', 'original_amount') if k in request.POST})
+    return inertia_render(request, "Remittance/Edit", props=props)
+
+
 
 
 @require_perm('remittance', 'export')
 def remittance_pdf(request, pk):
+    from ..models import Reservation
     from .helpers import _render_list_pdf
     from .pdf import _logo_file_url
-    from ..models import Reservation
     rem = get_in_scope_or_404(Remittance.objects.all(), request.user, pk=pk)
     raw_lines = list(
         rem.lines.select_related('invoice_line__invoice__client', 'invoice_line__confirmation_letter', 'settlement')
@@ -594,7 +607,7 @@ def remittance_upload_proof(request, pk):
     if proof:
         proof_error = validate_proof_file(proof)
         if proof_error:
-            messages.error(request, f'Bukti transfer: {proof_error}')
+            messages.error(request, tr(request, f'Transfer proof: {proof_error}', f'Bukti transfer: {proof_error}'))
             return redirect('remittance_detail', pk=rem.pk)
         rem.proof = proof
         rem.save(update_fields=['proof'])
@@ -612,7 +625,7 @@ def remittance_delete(request, pk):
     # Entry yang sudah dibalik pun tetap menunjuk transfer ini sebagai sumbernya.
     if (rem.settlements.exists() or rem.journal_entries.exists()
             or finance_queries.remittance_has_live_entries(rem.pk)):
-        messages.error(request, f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.')
+        messages.error(request, tr(request, f'Remittance {rem.remittance_number} is in the financial ledger and cannot be deleted.', f'Remittance {rem.remittance_number} tidak bisa dihapus karena sudah tercatat di ledger keuangan.'))
         return redirect('remittance_detail', pk=pk)
     from ..finance.bank_ledger import void_bank_transactions
     try:
@@ -623,6 +636,7 @@ def remittance_delete(request, pk):
     except FinanceError as e:
         messages.error(request, str(e))
         return redirect('remittance_detail', pk=pk)
+    messages.success(request, tr(request, f'Remittance {rem.remittance_number} deleted.', f'Remittance {rem.remittance_number} dihapus.'))
     return redirect('remittance_list')
 
 
@@ -712,9 +726,9 @@ def _compute_tracking_data():
         − biaya/selisih = masih di Surabaya
     Bagian tengahnya dari transfer_position(), yang selalu berjumlah sisa
     transfer lump-sum yang belum dialokasikan."""
+    from ..finance import queries as finance_queries
     from ..models import Invoice
     from ..models.settlement import RemittanceSettlement
-    from ..finance import queries as finance_queries
 
     today = date.today()
     rows = remittance_allocation.build_reservasi_mengendap()
@@ -816,8 +830,8 @@ def _build_ledger_rows(date_from=None, date_to=None):
     uang masuk atau kiriman, supaya bisa dipakai untuk pelacakan. Reservasi
     Cancelled hanya muncul kalau uangnya terlanjur bergerak.
     """
-    from ..models import ConfirmationLetter, Reservation
     from ..finance import queries as finance_queries
+    from ..models import ConfirmationLetter, Reservation
 
     pool = defaultdict(lambda: {'debit': 0, 'credit': 0})
     direct_total = 0

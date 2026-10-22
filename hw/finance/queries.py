@@ -3,7 +3,7 @@
 Pengganti hw/ledger.py. Views memanggil fungsi di sini, tidak pernah
 Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
 """
-from django.db.models import Count, Q, Sum
+from django.db.models import Q, Sum
 
 from ..models.client import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
@@ -145,7 +145,7 @@ def payment_unallocated_map(payment_ids):
 
     Dua query untuk N payment, bukan dua query PER payment.
     """
-    from ..models.payment import PaymentRecord, PaymentAllocation
+    from ..models.payment import PaymentAllocation, PaymentRecord
 
     ids = list(payment_ids)
     if not ids:
@@ -736,6 +736,7 @@ def ar_aging(*, as_of=None, clients=None):
     total, oldest_days, invoices: [...]}]} — clients diurutkan dari total
     terbesar."""
     from datetime import date as _date
+
     from ..models.invoice import Invoice
 
     as_of = as_of or _date.today()
@@ -907,6 +908,7 @@ def money_accounts_overview(branch=None, include_inactive=False, branches=None):
     # ledger); flag those so the page doesn't pass a shared figure off as one
     # account's own.
     from collections import Counter
+
     from ..models.bank import MoneyAccount
     ledger_use = Counter(MoneyAccount.objects.values_list('ledger_account_id', flat=True))
     rows = []
@@ -933,6 +935,7 @@ def _staff_overview(*, branch=None, branches=None):
     a branch and currency share one ledger account), when money was last
     given, and whether an expense has been paid from it since."""
     from django.db.models import Max
+
     from ..models.bank import StaffAccount
     from ..models.bank_transaction import BankTransaction
     from ..models.expense import ExpensePayment
@@ -1158,6 +1161,7 @@ def reservation_remittance_map(linked_numbers=None):
     received_date}]}. `received_date` terisi untuk alokasi penerimaan
     (RemittanceLine.settlement), None untuk baris yang dialokasikan saat kirim."""
     from collections import defaultdict
+
     from ..models.remittance import RemittanceLine
     qs = RemittanceLine.objects.select_related(
         "settlement__remittance", "invoice_line__confirmation_letter",

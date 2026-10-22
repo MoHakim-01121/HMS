@@ -43,7 +43,7 @@ class RemittanceSettlement(models.Model):
     voided_at             = models.DateTimeField(null=True, blank=True)
 
     objects = LiveSettlementManager()
-    all_objects = models.Manager()
+    all_objects = models.Manager()  # noqa: DJ012 -- a manager, not a field
 
     class Meta:
         base_manager_name = 'all_objects'

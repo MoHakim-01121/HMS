@@ -279,12 +279,16 @@ def perms_payload(user):
     return {module: actions for module, actions in payload.items() if actions}
 
 
-def _deny(request, message="Access denied."):
+def _deny(request, message=None):
     """Refuse a request in the shape its caller expects.
 
     XHR/JSON callers get a 403 payload; Inertia and plain navigations get a
     flash message and a bounce to home, which the Inertia client follows.
     """
+    if message is None:
+        from .i18n import tr
+        message = tr(request, "You don't have access to that page. Ask an Administrator if you need it.",
+                     'Anda tidak punya akses ke halaman itu. Minta ke Administrator kalau perlu.')
     wants_json = (
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or request.content_type == 'application/json'

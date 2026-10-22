@@ -4,11 +4,11 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import BankTransaction, Branch, CashAccount, Client
-from hw.finance.accounts import cash_ledger_for
-from hw.models.period import FinancialPeriod
 from hw.finance import expense_service, posting, settlement_service
-from hw.finance_helpers import create_payment_record, confirm_payment
+from hw.finance.accounts import cash_ledger_for
+from hw.finance_helpers import confirm_payment, create_payment_record
+from hw.models import BankTransaction, Branch, CashAccount, Client
+from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_invoice, make_remittance
 
 
@@ -40,6 +40,7 @@ class PaymentBankTransactionTest(BankTransactionBase):
         # Schema v2: the receiving account is required, so every payment leaves
         # a bank/cash movement; there is no account-less legacy row any more.
         from django.db import IntegrityError, transaction
+
         from hw.models.payment import PaymentRecord
         client_obj = Client.objects.create( name='PT BT2')
         with self.assertRaises(IntegrityError), transaction.atomic():

@@ -2,15 +2,16 @@
 
 A user covering more than one branch sees one branch at a time: every list,
 picker and report narrows to the branch picked in the sidebar (branch_scope.
-branch_codes). The pick lives in the session; without one, head office when
-the user covers it, else their first branch. A user with a single branch has
+branch_codes). The pick lives in the session; without one, their first
+branch other than head office: head office does not run HMS itself, only the
+branches do (2026-10-20), so opening on it shows an empty system. A user with a single branch has
 nothing to pick and is unaffected.
 """
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseRedirect, JsonResponse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
-from django.contrib.auth.decorators import login_required
 
 from .branch_scope import switchable_branches
 
@@ -27,7 +28,7 @@ def resolve(request):
     by_code = {b.code: b for b in rows}
     if picked not in by_code and not getattr(settings, 'HMS_DEFAULT_BRANCH_PICK', True):
         return None, rows
-    active = by_code.get(picked) or rows[0]  # rows are HQ first
+    active = by_code.get(picked) or next((b for b in rows if not b.is_hq), rows[0])
     return active, rows
 
 

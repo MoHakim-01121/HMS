@@ -162,7 +162,7 @@ def pay_expense(expense, *, account, payment_date, paid_by, reference=''):
     # Nilai SAR = bagian yang sebanding dari nilai tercatat rekening; menolak
     # rupiah yang tidak tercatat ada di rekening itu.
     value = carrying_sar(account, total, payment_date)
-    for line, share in zip(lines, _split(value, [int(l.amount) for l in lines])):
+    for line, share in zip(lines, _split(value, [int(l.amount) for l in lines]), strict=True):
         line.amount_sar = share
         line.save(update_fields=['amount_sar'])
 

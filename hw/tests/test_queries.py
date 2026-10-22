@@ -4,12 +4,12 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
+from hw.finance import accounts as coa
 from hw.finance import posting
 from hw.finance import queries as q
-from hw.models import Client
 from hw.finance_helpers import create_payment_record
+from hw.models import Client
 from hw.models.period import FinancialPeriod
-from hw.finance import accounts as coa
 from hw.tests.factories import fund_ledger_for, make_hotel_line, make_invoice, make_remittance
 
 
@@ -94,6 +94,7 @@ class QueriesTests(TestCase):
 
     def test_client_aging_buckets(self):
         from datetime import datetime
+
         from django.utils import timezone as dj_tz
         as_of = dj_tz.make_aware(datetime(2046, 6, 1))
         st = q.client_aging(self.client_obj.id, as_of=as_of)
@@ -255,7 +256,7 @@ class QueriesTests(TestCase):
             return posting.post_payment(p, created_by=self.user)
 
         voided = deposit(50000)
-        live = deposit(100000)
+        deposit(100000)
         posting.reverse_entry(voided, reversal_date=date(2046, 2, 2), created_by=self.user)
 
         st = q.client_statement_by_reservation(self.client_obj.id)

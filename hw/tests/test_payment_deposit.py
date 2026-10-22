@@ -1,12 +1,12 @@
 """Schema v2 F5c: pembayaran X/Y/Z, kelebihan → deposit, Services ke cabang penerbit."""
-import json
 from datetime import date
 
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
-from hw.finance import posting, queries as fq
+from hw.finance import posting
+from hw.finance import queries as fq
 from hw.finance.errors import FinanceError
 from hw.finance_helpers import confirm_payment, create_payment_record
 from hw.models import CancellationPenalty, Client, ConfirmationLetter, Invoice, PaymentRecord

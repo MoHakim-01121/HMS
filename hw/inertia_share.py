@@ -8,8 +8,8 @@ share storage) and after AuthenticationMiddleware (which sets request.user).
 from django.contrib.messages import get_messages
 from inertia import share
 
-from .context_processors import due_soon
 from .branch_scope import coverage, covers_all
+from .context_processors import due_soon
 from .permissions import get_role, perms_payload, role_label
 
 
@@ -41,13 +41,13 @@ def _branch(request):
     if active:
         current = next(b for b in rows if b.code == active)
     elif rows:
-        current = rows[0]
+        current = next((b for b in rows if not b.is_hq), rows[0])
     else:
         codes = coverage(request.user)
         qs = Branch.objects.filter(is_active=True)
         if codes is not None:
             qs = qs.filter(code__in=codes)
-        current = qs.order_by("-is_hq", "name").first()
+        current = qs.order_by("is_hq", "name").first()
     row = lambda b: {"code": b.code, "name": b.name, "is_hq": b.is_hq}
     return {
         "current": row(current) if current else None,

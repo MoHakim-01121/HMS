@@ -11,13 +11,13 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, PaymentAllocation
-from hw.models.period import FinancialPeriod
-from hw.models.journal import JournalEntry, JournalLine
 from hw.finance import accounts as coa
-from hw.finance import queries as fq
 from hw.finance import posting
-from hw.tests.factories import make_hotel_line, make_invoice, ensure_current_period
+from hw.finance import queries as fq
+from hw.models import Client, PaymentAllocation
+from hw.models.journal import JournalEntry, JournalLine
+from hw.models.period import FinancialPeriod
+from hw.tests.factories import ensure_current_period, make_hotel_line, make_invoice
 
 
 class PaymentReallocateTest(TestCase):
@@ -54,7 +54,8 @@ class PaymentReallocateTest(TestCase):
 
     def _record_unallocated(self, amount_sar=20000):
         """Create an effective (confirmed+allocated) payment with NO allocations."""
-        from ..finance_helpers import create_payment_record, confirm_payment, allocate_payment as fh_allocate
+        from ..finance_helpers import allocate_payment as fh_allocate
+        from ..finance_helpers import confirm_payment, create_payment_record
         pr = create_payment_record(
             invoice=self.invoice, client=self.invoice.client,
             payment_date=date(2026, 8, 20), amount=amount_sar, currency='SAR',
@@ -78,7 +79,8 @@ class PaymentReallocateTest(TestCase):
     def test_payment_bound_directly_to_reservation_is_allocated(self):
         """A payment made for one reservation is allocated to it in full: the
         target is an allocation row, not a second kind of link on the payment."""
-        from ..finance_helpers import create_payment_record, confirm_payment, allocate_payment as fh_allocate
+        from ..finance_helpers import allocate_payment as fh_allocate
+        from ..finance_helpers import confirm_payment, create_payment_record
         pr = create_payment_record(
             invoice=self.invoice, client=self.invoice.client, reservation=self.r1,
             payment_date=date(2026, 8, 20), amount=15000, currency='SAR',

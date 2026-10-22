@@ -105,9 +105,9 @@ class Command(BaseCommand):
 
     # ── seed ────────────────────────────────────────────────────────────
     def _seed(self):
+        from hw.finance.bank_ledger import sync_opening_balance
         from hw.models import BankAccount, CashAccount, Client, LedgerAccount
         from hw.models.period import FinancialPeriod
-        from hw.finance.bank_ledger import sync_opening_balance
 
         self.start = self.today - timedelta(days=90)
         # Monthly open periods covering the whole timeline (bookings reach
@@ -289,7 +289,7 @@ class Command(BaseCommand):
         total = int(p.amount_sar)
         weights = [int(t.total_sar if hasattr(t, 'total_sar') else t.total) for t in targets]
         allocs, left = [], total
-        for i, (t, w) in enumerate(zip(targets, weights)):
+        for i, (t, w) in enumerate(zip(targets, weights, strict=True)):
             amt = left if i == len(targets) - 1 else int(total * w / sum(weights))
             allocs.append((t, amt))
             left -= amt
@@ -485,8 +485,7 @@ class Command(BaseCommand):
 
     def _report(self):
         from hw.finance import fund_flow
-        from hw.models import (ConfirmationLetter, CurrencyExchange, Expense, Invoice, Remittance,
-                               RemittanceSettlement)
+        from hw.models import ConfirmationLetter, CurrencyExchange, Expense, Invoice, Remittance, RemittanceSettlement
         from hw.models.payment import PaymentRecord
         fx = fund_flow.fx_profit(branch='sby')
         self.stdout.write(self.style.SUCCESS(
@@ -499,5 +498,6 @@ class Command(BaseCommand):
 
 def _dt(day):
     from datetime import datetime, time
+
     from django.utils import timezone
     return timezone.make_aware(datetime.combine(day, time(9, 30)))

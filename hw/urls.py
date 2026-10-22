@@ -1,6 +1,7 @@
-from django.urls import path
 from django.contrib.auth.decorators import login_required
+from django.urls import path
 from django.views.generic import RedirectView
+
 from . import views
 from .active_branch import switch_branch
 
@@ -57,6 +58,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('clients/<int:pk>/', views.client_detail, name='client_detail'),
     path('clients/<int:pk>/edit/', views.client_edit, name='client_edit'),
     path('clients/<int:pk>/delete/', views.client_delete, name='client_delete'),
+    path('clients/<int:pk>/active/', views.client_toggle_active, name='client_toggle_active'),
     # Client money actions moved to Finance (Client is information only);
     # the old URLs redirect so existing bookmarks and links keep working.
     path('clients/<int:pk>/refund/', RedirectView.as_view(pattern_name='client_refund', query_string=True)),
@@ -71,6 +73,7 @@ path('cl/<int:pk>/delete/', views.cl_delete, name='cl_delete'),
     path('hotels/<int:pk>/', views.hotel_detail, name='hotel_detail'),
     path('hotels/<int:pk>/edit/', views.hotel_edit, name='hotel_edit'),
     path('hotels/<int:pk>/delete/', views.hotel_delete, name='hotel_delete'),
+    path('hotels/<int:pk>/active/', views.hotel_toggle_active, name='hotel_toggle_active'),
     path('hotels/<int:hotel_pk>/room-types/new/', views.room_type_new, name='room_type_new'),
     path('hotels/<int:hotel_pk>/room-types/bulk/', views.room_type_bulk, name='room_type_bulk'),
     path('hotels/<int:hotel_pk>/room-types/<int:pk>/edit/', views.room_type_edit, name='room_type_edit'),

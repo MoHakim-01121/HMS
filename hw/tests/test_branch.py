@@ -4,10 +4,10 @@ from datetime import date
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Branch, Client, UserBranchAccess
-from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance.hashing import verify_chain
+from hw.models import Branch, Client, UserBranchAccess
+from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_hotel_line, make_invoice
 
 

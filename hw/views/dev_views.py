@@ -3,7 +3,6 @@ import logging
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.http import JsonResponse
-
 from inertia import render as inertia_render
 
 from ..permissions import hide_unless

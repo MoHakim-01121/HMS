@@ -33,12 +33,22 @@ from hw.finance import accounts as coa
 from hw.finance.bank_ledger import record_bank_transaction
 from hw.finance.penalty_billing import reservation_balances
 from hw.finance.posting import (
-    move_invoice_excess_to_deposit, post_exchange, post_invoice_charge, post_payment, resync_remittance,
+    move_invoice_excess_to_deposit,
+    post_exchange,
+    post_invoice_charge,
+    post_payment,
+    resync_remittance,
 )
 from hw.finance.remittance_allocation import live_allocation_entries, post_allocation
 from hw.finance.settlement_service import post_receipt
 from hw.models import (
-    BankTransaction, CurrencyExchange, FinancialPeriod, Invoice, JournalEntry, PaymentRecord, Remittance,
+    BankTransaction,
+    CurrencyExchange,
+    FinancialPeriod,
+    Invoice,
+    JournalEntry,
+    PaymentRecord,
+    Remittance,
     RemittanceSettlement,
 )
 

@@ -1,9 +1,11 @@
 from datetime import date
 from unittest.mock import patch
+
 from django.core.cache import cache
 from django.test import TestCase
-from hw.views.pdf import _render_invoice_pdf
+
 from hw.tests.factories import make_hotel_line, make_invoice
+from hw.views.pdf import _render_invoice_pdf
 
 
 class InvoicePdfCachingTest(TestCase):

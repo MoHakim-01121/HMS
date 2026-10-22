@@ -7,19 +7,19 @@ reservation, Reservation.confirmation_letter) -- and all three FKs are
 SET_NULL. So a delete-recreate silently detached the money from the row it was
 paid for, even when nothing about the row changed.
 """
-from hw.tests.factories import make_cl, make_room
 import json
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 
-from hw.models import Client, PaymentAllocation
-from hw.models.journal import JournalLine
-from hw.models.period import FinancialPeriod
 from hw.finance import posting
 from hw.finance import queries as fq
 from hw.finance_helpers import create_payment_record
+from hw.models import Client, PaymentAllocation
+from hw.models.journal import JournalLine
+from hw.models.period import FinancialPeriod
+from hw.tests.factories import make_cl, make_room
 
 
 class InvoiceEditPreservesLinksTest(TestCase):

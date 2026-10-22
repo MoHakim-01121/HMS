@@ -22,8 +22,9 @@ from django.contrib import messages
 from django.shortcuts import redirect
 from django.utils import timezone
 
-from ..models import Receipt
 from ..branch_scope import get_in_scope_or_404
+from ..i18n import tr
+from ..models import Receipt
 from ..permissions import require_perm
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def receipt_void(request, pk):
         receipt.status = Receipt.STATUS_VOIDED
         receipt.voided_reason = reason
         receipt.save(update_fields=['status', 'voided_reason'])
-        messages.success(request, f"Receipt {receipt.receipt_number} dibatalkan (voided).")
+        messages.success(request, tr(request, f"Receipt {receipt.receipt_number} voided.", f"Receipt {receipt.receipt_number} dibatalkan (voided)."))
         if receipt.payment_id:
             return redirect("payment_detail", pk=receipt.payment_id)
     return redirect("payment_list")
@@ -139,11 +140,12 @@ def receipt_pdf(request, pk):
         ),
         request.user, pk=pk,
     )
-    from .pdf import _logo_file_url
     from django.conf import settings
+    from django.http import HttpResponse
     from django.template.loader import render_to_string
     from weasyprint import HTML
-    from django.http import HttpResponse
+
+    from .pdf import _logo_file_url
 
     cl = receipt.confirmation_letter
     payment = receipt.payment

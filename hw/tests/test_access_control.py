@@ -4,13 +4,13 @@ Covers the two things RBAC has to get right:
   * the matrix itself (hw/permissions.py) resolves the role correctly,
   * guarded views actually refuse the actions a role lacks.
 """
-from hw.tests.factories import make_cl
 from django.contrib.auth.models import User
 from django.test import TestCase
 
 from hw.models import ConfirmationLetter, UserProfile
 from hw.models.user import Role
 from hw.permissions import can, get_role, perms_payload, role_matrix
+from hw.tests.factories import make_cl
 
 
 def make_user(username, role=Role.STAFF.value, superuser=False):

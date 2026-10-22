@@ -15,13 +15,14 @@ from django.urls import reverse
 from django.utils import timezone
 from inertia import render as inertia_render
 
+from ..branch_scope import get_in_scope_or_404, scope
 from ..finance import credit_note_service as cns
 from ..finance import queries as fq
 from ..finance.errors import FinanceError
+from ..i18n import tr
 from ..models import ActivityLog, log_activity
 from ..models.credit_note import CreditNote
 from ..models.invoice import Invoice
-from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
 from .helpers import _parse_date, request_data
 
@@ -56,9 +57,9 @@ def invoice_void(request, pk):
     except FinanceError as e:
         return inertia_render(request, 'Finance/VoidForm', props=_void_props(**props, error=str(e), reason=reason))
     log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice', f'{invoice.invoice_number} void')
-    msg = f'Invoice {invoice.invoice_number} di-void.'
+    msg = tr(request, f'Invoice {invoice.invoice_number} voided.', f'Invoice {invoice.invoice_number} di-void.')
     if released:
-        msg += f' CL {", ".join(released)} bisa ditagih lagi.'
+        msg += tr(request, f' CL {", ".join(released)} can be billed again.', f' CL {", ".join(released)} bisa ditagih lagi.')
     messages.success(request, msg)
     return redirect(_detail_url(invoice))
 
@@ -78,7 +79,7 @@ def invoice_excess_to_deposit(request, pk):
         messages.error(request, str(e))
     else:
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice', f'{invoice.invoice_number} excess to deposit')
-        messages.success(request, f'{moved:,} SAR kelebihan bayar dipindahkan ke deposit {invoice.client.name}.')
+        messages.success(request, tr(request, f'{moved:,} SAR overpayment moved to {invoice.client.name}\'s deposit.', f'{moved:,} SAR kelebihan bayar dipindahkan ke deposit {invoice.client.name}.'))
     return redirect(_detail_url(invoice))
 
 
@@ -100,7 +101,7 @@ def _cn_form_props(invoice, data=None, error=None):
 def credit_note_new(request, pk):
     invoice = get_in_scope_or_404(Invoice.objects.all(), request.user, pk=pk)
     if invoice.is_void:
-        messages.error(request, 'Invoice void tidak bisa diberi nota kredit.')
+        messages.error(request, tr(request, 'A void invoice cannot get a credit note.', 'Invoice void tidak bisa diberi nota kredit.'))
         return redirect(_detail_url(invoice))
     if request.method != 'POST':
         return inertia_render(request, 'Finance/CreditNoteForm', props=_cn_form_props(invoice))
@@ -129,9 +130,11 @@ def credit_note_new(request, pk):
     except FinanceError as e:
         return inertia_render(request, 'Finance/CreditNoteForm', props=_cn_form_props(invoice, data, str(e)))
     log_activity(request.user, ActivityLog.ACTION_CREATE, 'Credit Note', cn.credit_note_number)
-    msg = f'Nota kredit {cn.credit_note_number} ({cn.amount_sar:,} SAR) dibuat.'
+    msg = tr(request, f'Credit note {cn.credit_note_number} ({cn.amount_sar:,} SAR) created.',
+             f'Nota kredit {cn.credit_note_number} ({cn.amount_sar:,} SAR) dibuat.')
     if cn.to_deposit_sar:
-        msg += f' {cn.to_deposit_sar:,} SAR sudah dibayar dan kini jadi titipan client.'
+        msg += tr(request, f' {cn.to_deposit_sar:,} SAR was already paid and is now held for the client.',
+                  f' {cn.to_deposit_sar:,} SAR sudah dibayar dan kini jadi titipan client.')
     messages.success(request, msg)
     return redirect(_detail_url(invoice))
 
@@ -158,8 +161,10 @@ def credit_note_list(request):
     """Credit Notes (Record View HMS canvas): no KPIs; the month's credit
     notes with the month total under the table."""
     from datetime import date as _date
+
     from django.core.paginator import Paginator
     from django.db.models import Q
+
     from ..models import Invoice
     from .helpers import csv_list, list_per_page, list_period, pagination_props
     q = request.GET.get('q', '').strip()
@@ -224,13 +229,14 @@ def credit_note_void(request, pk):
     except FinanceError as e:
         return inertia_render(request, 'Finance/VoidForm', props=_void_props(**props, error=str(e), reason=reason))
     log_activity(request.user, ActivityLog.ACTION_EDIT, 'Credit Note', f'{cn.credit_note_number} void')
-    messages.success(request, f'Nota kredit {cn.credit_note_number} dibatalkan.')
+    messages.success(request, tr(request, f'Credit note {cn.credit_note_number} cancelled.', f'Nota kredit {cn.credit_note_number} dibatalkan.'))
     return redirect(_detail_url(cn.invoice))
 
 
 @require_perm('invoice', 'export')
 def credit_note_pdf(request, pk):
     from weasyprint import HTML
+
     from .pdf import _logo_file_url
     from .receipt_views import _number_in_words
     cn = get_in_scope_or_404(CreditNote.objects.select_related('invoice', 'client', 'created_by'), request.user, pk=pk)

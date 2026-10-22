@@ -1,7 +1,7 @@
 import json
 import logging
-from urllib.parse import urlencode
 from datetime import date
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -12,21 +12,36 @@ from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-
 from inertia import render as inertia_render
 
+from ..branch_scope import get_in_scope_or_404, scope
+from ..i18n import tr
 from ..models import (
-    ActivityLog, Client, ConfirmationLetter, Hotel, Invoice, MealPlan, ReservationStatus, Room,
-    RoomType, log_activity,
+    ActivityLog,
+    Client,
+    ConfirmationLetter,
+    Hotel,
+    Invoice,
+    MealPlan,
+    ReservationStatus,
+    Room,
+    RoomType,
+    log_activity,
 )
 from ..models.confirmation import guest_name_expr
-from ..branch_scope import get_in_scope_or_404, scope
 from ..permissions import require_perm
-from ..i18n import tr
-from .helpers import _is_mobile, _parse_date, _parse_search_tokens, _render_list_pdf, csv_export_response, pagination_props, snapshot_fields, track_changes
-from .pdf import _logo_file_url, _render_cl_pdf
-from ..utils import round_half_up
 from ..signals import invoice_sync_suspended, sync_invoice_for_cl
+from ..utils import round_half_up
+from .helpers import (
+    _parse_date,
+    _parse_search_tokens,
+    _render_list_pdf,
+    csv_export_response,
+    pagination_props,
+    snapshot_fields,
+    track_changes,
+)
+from .pdf import _logo_file_url, _render_cl_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -355,7 +370,7 @@ def cl_new(request):
             _save_cl_rooms(cl, request)
         ConfirmationLetter.claim_number(cl.confirmation_number)
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number)
-        messages.success(request, f"Confirmation Letter {cl.confirmation_number} created successfully.")
+        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number} created.", f"Confirmation Letter {cl.confirmation_number} dibuat."))
         return redirect("cl_detail", pk=cl.pk)
 
     return inertia_render(request, "Cl/Form", props={
@@ -498,7 +513,7 @@ def cl_edit(request, pk):
             labels={'hotel_name': 'Hotel', 'guest_name': 'Guest', 'guest_phone': 'Phone', 'check_in': 'Check-in', 'check_out': 'Check-out', 'reservation_status': 'Status', 'salesperson': 'Salesperson', 'Rooms': 'Rooms'},
         )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, changes)
-        messages.success(request, f"Confirmation Letter {cl.confirmation_number} updated successfully.")
+        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number} updated.", f"Confirmation Letter {cl.confirmation_number} diperbarui."))
         return redirect("cl_detail", pk=cl.pk)
 
     rooms = [{
@@ -532,13 +547,12 @@ def cl_delete(request, pk):
         if cl.invoice_lines.exists():
             messages.error(
                 request,
-                f"Confirmation Letter {num} is on an invoice and cannot be deleted. "
-                "Cancel the reservation instead.",
+                tr(request, f"Confirmation Letter {num} is on an invoice and cannot be deleted. Cancel the reservation instead.", f"Confirmation Letter {num} sudah ada di invoice dan tidak bisa dihapus. Batalkan reservasinya saja."),
             )
             return redirect("cl_detail", pk=cl.pk)
         cl.delete()
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'CL', num)
-        messages.success(request, f"Confirmation Letter {num} deleted successfully.")
+        messages.success(request, tr(request, f"Confirmation Letter {num} deleted.", f"Confirmation Letter {num} dihapus."))
         return redirect("cl_list")
     # Confirmation is handled client-side (React modal); GET just bounces back.
     return redirect("cl_list")
@@ -656,7 +670,7 @@ def cl_duplicate(request, pk):
             quantity=room.quantity,
             price=room.price,
         )
-    messages.success(request, f"CL duplicated as {new_num} (from {original.confirmation_number}).")
+    messages.success(request, tr(request, f"CL duplicated as {new_num} (from {original.confirmation_number}).", f"CL diduplikasi menjadi {new_num} (dari {original.confirmation_number})."))
     return redirect("cl_edit", pk=new_cl.pk)
 
 
@@ -665,22 +679,22 @@ def cl_duplicate(request, pk):
 def invoice_from_cls(request):
     cl_ids = request.POST.getlist("cl_ids")
     if not cl_ids:
-        messages.error(request, "Select at least one CL.")
+        messages.error(request, tr(request, "Select at least one CL.", "Pilih minimal satu CL."))
         return redirect("cl_list")
 
     cls = scope(ConfirmationLetter.objects.filter(pk__in=cl_ids), request.user).select_related('client', 'hotel').with_invoice()
     if not cls.exists():
-        messages.error(request, "CL not found.")
+        messages.error(request, tr(request, "CL not found.", "CL tidak ditemukan."))
         return redirect("cl_list")
 
     # One invoice bills one client, and a reservation is billed once.
     clients = {cl.client_id for cl in cls}
     if len(clients) > 1:
-        messages.error(request, "The selected CLs belong to different clients. One invoice bills one client.")
+        messages.error(request, tr(request, "The selected CLs belong to different clients. One invoice bills one client.", "CL yang dipilih milik client yang berbeda. Satu invoice untuk satu client."))
         return redirect("cl_list")
     billed = [cl.confirmation_number for cl in cls if cl.invoice_id]
     if billed:
-        messages.error(request, f"Already on an invoice: CL {', '.join(billed)}.")
+        messages.error(request, tr(request, f"Already on an invoice: CL {', '.join(billed)}.", f"Sudah ada di invoice: CL {', '.join(billed)}."))
         return redirect("cl_list")
 
     first_cl = cls.order_by('created_at').first()
@@ -704,7 +718,7 @@ def invoice_from_cls(request):
         "ledger: invoice %s created from %d CL(s)",
         invoice.invoice_number, cls.count(),
     )
-    messages.success(request, f"Invoice {invoice.invoice_number} created from {cls.count()} CL(s).")
+    messages.success(request, tr(request, f"Invoice {invoice.invoice_number} created from {cls.count()} CL(s).", f"Invoice {invoice.invoice_number} dibuat dari {cls.count()} CL."))
     return redirect("invoice_edit", pk=invoice.pk)
 
 

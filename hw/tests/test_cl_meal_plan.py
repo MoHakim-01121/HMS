@@ -2,7 +2,6 @@
 and saving it fills Room.meal_plan (v2.0 §10). Room.meals — what PDFs and
 exports read — is the code of that plan, or the room's free-text note when the
 board is not one the hotel sells."""
-from hw.tests.factories import make_cl, make_room
 import json
 from datetime import date
 
@@ -12,6 +11,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
 from hw.models import Client, ConfirmationLetter, Hotel, MealPlan, RoomType
+from hw.tests.factories import make_cl, make_room
 
 
 class CLMealPlanTest(TestCase):

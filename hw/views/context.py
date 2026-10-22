@@ -5,7 +5,8 @@ from ..utils import format_currency
 def _credited_by_line(invoice):
     """{('r'|'p', pk): SAR no longer billed} — active credit notes per line;
     a void invoice bills nothing, so every line counts as fully credited."""
-    from ..finance.credit_note_service import _credited_by_line as active, _line_key
+    from ..finance.credit_note_service import _credited_by_line as active
+    from ..finance.credit_note_service import _line_key
     if invoice.is_void:
         return {
             _line_key(line): int(line.amount or 0)

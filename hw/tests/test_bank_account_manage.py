@@ -188,6 +188,7 @@ class BankAccountGuardTests(TestCase):
 class InvoiceFormBranchTests(TestCase):
     def setUp(self):
         import json
+
         from hw.models import Client
         FinancialPeriod.objects.create(name='2020-2030', date_from=date(2020, 1, 1), date_to=date(2030, 12, 31))
         activate_jkt()
