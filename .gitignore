@@ -216,3 +216,12 @@ docs/
 # Editor config (local only)
 .vscode/
 
+
+# Bank statements (real account data, never commit)
+statements/
+
+# Production cutover fix scripts and dumps (local only)
+cutover/
+
+# UI screenshot baselines (scripts/ui-shots.mjs), local only
+ui-shots/
