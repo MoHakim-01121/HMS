@@ -59,6 +59,18 @@ const PAGES = [
   ["profile", "admin", "/account/profile/"],
   ["calendar", "admin", "/calendar/"],
   ["client-new", "admin", "/clients/new/"],
+  ["credit-notes", "admin", "/finance/credit-notes/"],
+  ["exchanges", "admin", "/finance/exchanges/"],
+  ["fund-flow", "admin", "/finance/fund-flow/"],
+  ["journal", "admin", "/finance/journal/"],
+  ["statements", "admin", "/finance/statements/"],
+  ["trial-balance", "admin", "/finance/trial-balance/"],
+  ["claims", "admin", "/finance/claims/"],
+  ["penalties", "admin", "/finance/penalties/"],
+  ["periods", "admin", "/finance/periods/"],
+  ["reconciliation", "admin", "/finance/reconciliation/"],
+  ["roles", "admin", "/roles/"],
+  ["users", "admin", "/users/"],
   ["claim-new", "admin", "/finance/claims/new/"],
 ].filter(([, , path]) => !path.includes("/null/")); // no such record locally
 
@@ -76,17 +88,26 @@ const ACTIONS = [
   ["dialog-access-select", "admin", "/users/", [ROW_MENU, "text=Manage access", '[role="dialog"] [data-slot="select-trigger"]']],
   ["dialog-confirm-delete", "admin", "/users/", [ROW_MENU, "text=Delete"]],
   ["search-overlay", "admin", "/cl/", ['#m-top-bar [aria-label="Search"]'], "m"],
+  ["list-filter", "admin", "/cl/", ['button:has-text("Filter")']],
+  ["list-export", "admin", "/invoice/", ['button:has-text("Export")']],
+  ["list-year", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("2026")']],
+  ["list-perpage", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("10")']],
+  ["list-kpi-flip", "admin", "/finance/payments/", ['button[aria-label^="Cash received"]']],
+  ["list-kpi-press", "admin", "/finance/payments/", ['button[aria-pressed]:has-text("Unapplied cash")']],
 ];
-const VIEWPORTS = [["d", { width: 1280, height: 900 }], ["m", { width: 390, height: 844 }]];
+// [suffix, viewport, theme]: dark is what the app ships with; light desktop
+// catches the light-only token rules.
+const VIEWPORTS = [["d", { width: 1280, height: 900 }, "dark"], ["m", { width: 390, height: 844 }, "dark"], ["dl", { width: 1280, height: 900 }, "light"]];
 
 const exe = join(homedir(), ".cache/ms-playwright/chromium-1148/chrome-linux/chrome");
 const browser = await chromium.launch(existsSync(exe) ? { executablePath: exe } : {});
 const failed = [];
-for (const [vp, viewport] of VIEWPORTS) {
+for (const [vp, viewport, theme] of VIEWPORTS) {
   const contexts = {};
   const pageFor = async (role) => {
     if (!contexts[role]) {
       contexts[role] = await browser.newContext({ viewport, reducedMotion: "reduce", locale: "id-ID" });
+      await contexts[role].addInitScript((t) => localStorage.setItem("theme", t), theme);
       await contexts[role].addCookies([{ name: meta.cookie, value: meta.sessions[role], url: BASE }]);
     }
     return contexts[role].newPage();
