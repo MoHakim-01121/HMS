@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, router } from "@inertiajs/react";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
-import "../../styles/calendar.css";
 
 // Calendar, as on the Record View HMS canvas ("Calendar (disetujui)"): every
 // hotel with a booking in the range, grouped by city, one bar per booking from
@@ -24,6 +24,16 @@ const MON = {
   en: MONTH.en.map((m) => m.slice(0, 3)),
   id: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"],
 };
+// Round icon button (week arrows, popup close).
+const ICON_BTN = "grid size-9 flex-none cursor-pointer place-content-center rounded-full border-0 bg-transparent text-foreground hover:bg-secondary [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.8]";
+const SEG_BTN = "h-[30px] cursor-pointer rounded-full border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground";
+const SEG_ON = "bg-card text-foreground shadow-pill";
+const HOTEL_CELL = "sticky left-0 z-[2] flex min-w-0 items-center justify-between gap-2 border-r border-border bg-card pr-4 pl-5";
+const CARD = "surface overflow-clip rounded-[20px] border border-border bg-card";
+const LINK = "underline decoration-border underline-offset-3 hover:decoration-current";
+// Status ink: open invoice warns, tentative is yellow, settled is quiet.
+const TONE = { wt: "text-warning-text", ty: "text-tentative-text", mt: "text-muted-foreground" };
+
 // Long In-house lists show the first eight; the rest open on request.
 const CAP = 8;
 
@@ -86,9 +96,8 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
     days.push({
       n, num: d.getUTCDate(),
       dow: monthMark && isWk ? MON[L][d.getUTCMonth()] : DOW[L][d.getUTCDay()],
-      wCls: "w" + (monthMark && isWk ? " mn" : ""),
+      mark: monthMark && isWk,
       aria: `${DAYNAME[L][d.getUTCDay()]} ${dateTxt(n)}`,
-      cls: "cal-dh" + (isWk ? "" : " mo") + (n === TODAY ? " today" : n < TODAY ? " past" : "") + (n === day ? " pick" : ""),
     });
   }
 
@@ -173,89 +182,121 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
 
   return (
     <div className="page shadcn-root">
-      <div className={"cal-main" + (loading ? " cal-loading" : "")}>
-        <h1>{t("Calendar")}</h1>
+      <div className={cn(
+        "mx-auto max-w-[1440px] text-[14px] leading-[1.5] text-foreground",
+        "[&_:is(button,a):focus-visible]:outline-2 [&_:is(button,a):focus-visible]:outline-offset-2 [&_:is(button,a):focus-visible]:outline-ring [&_:is(button,a):focus-visible]:outline-solid",
+        loading && "opacity-60 transition-opacity duration-150",
+      )}>
+        <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em]">{t("Calendar")}</h1>
 
-        <div className="cal-top">
-          <div className="cal-nv">
-            <span className="cal-rng">{rangeLabel}</span>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1">
+            <span className="mr-2 min-w-[160px] text-[16px] font-semibold tracking-[-0.01em] tabular-nums">{rangeLabel}</span>
             {isWk && (
               <>
-                <button type="button" className="cal-ib" aria-label={t("Previous week")} onClick={() => move(-7)}>
+                <button type="button" className={ICON_BTN} aria-label={t("Previous week")} onClick={() => move(-7)}>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" /></svg>
                 </button>
-                <button type="button" className="cal-ib" aria-label={t("Next week")} onClick={() => move(7)}>
+                <button type="button" className={ICON_BTN} aria-label={t("Next week")} onClick={() => move(7)}>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /></svg>
                 </button>
               </>
             )}
-            <button type="button" className="cal-txt" onClick={goToday}>{t("Today")}</button>
+            <button type="button" onClick={goToday}
+              className="ml-1 h-9 cursor-pointer rounded-full border-0 bg-transparent px-3 font-sans text-[13px] leading-[normal] font-medium text-foreground hover:bg-secondary">
+              {t("Today")}
+            </button>
           </div>
-          <div className="cal-seg" role="group" aria-label={t("Range")}>
-            <button type="button" className={isWk ? "on" : ""} aria-pressed={isWk} onClick={() => setView("weeks")}>{t("2 weeks")}</button>
-            <button type="button" className={isWk ? "" : "on"} aria-pressed={!isWk} onClick={() => setView("month")}>{t("Month")}</button>
+          <div className="inline-flex gap-0.5 rounded-full bg-secondary p-[3px]" role="group" aria-label={t("Range")}>
+            <button type="button" className={cn(SEG_BTN, isWk && SEG_ON)} aria-pressed={isWk} onClick={() => setView("weeks")}>{t("2 weeks")}</button>
+            <button type="button" className={cn(SEG_BTN, !isWk && SEG_ON)} aria-pressed={!isWk} onClick={() => setView("month")}>{t("Month")}</button>
           </div>
         </div>
 
-        <div className={"cal-lay" + (isWk ? "" : " mo")}>
-          <section className="cal-card" aria-label={t("Timeline")}>
-            <div className={"cal-tl" + (isWk ? "" : " mo")}>
-              <div className={"cal-occ" + (isWk ? "" : " mo")}>
-                {sel && <div className="cal-scrim" aria-hidden="true" onClick={() => setSel(null)} />}
-                {day >= S && day <= E && <div className="cal-col" style={colStyle} aria-hidden="true" />}
-                <div className="cal-row head">
-                  <div className="cal-hc"><span className="c">{t("Hotel")}</span></div>
-                  <div className="cal-days" style={{ gridTemplateColumns: `repeat(${W}, minmax(0, 1fr))` }}>
-                    {days.map((d) => (
-                      <button type="button" key={d.n} className={d.cls} aria-pressed={d.n === day} aria-label={d.aria}
-                        onClick={() => { setDay(d.n); setSel(null); setAll(false); }}>
-                        <span className={d.wCls}>{d.dow}</span><span className="d">{d.num}</span>
-                      </button>
-                    ))}
+        {/* The panel sits beside the timeline from 1280px (1800px for a month,
+            which needs ~24px a day), under it below that. */}
+        <div className={cn("mt-4 grid grid-cols-[minmax(0,1fr)_320px] items-stretch gap-6 max-[1279px]:grid-cols-[minmax(0,1fr)]", !isWk && "max-[1799px]:grid-cols-[minmax(0,1fr)]")}>
+          <section className={CARD} aria-label={t("Timeline")}>
+            <div className={cn("overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", isWk && "min-[1280px]:overflow-visible")}>
+              <div className={cn("relative", isWk ? "min-w-[760px] min-[1280px]:min-w-0" : "min-w-[940px]")}>
+                {sel && <div className="absolute inset-0 z-[5]" aria-hidden="true" onClick={() => setSel(null)} />}
+                {day >= S && day <= E && <div className="pointer-events-none absolute top-0 bottom-0 bg-foreground/4" style={colStyle} aria-hidden="true" />}
+                <div className="sticky top-0 z-[5] grid grid-cols-[184px_minmax(0,1fr)] border-b border-border bg-card">
+                  <div className={HOTEL_CELL}><span className="flex-none text-[12px] text-muted-foreground tabular-nums">{t("Hotel")}</span></div>
+                  <div className="grid" style={{ gridTemplateColumns: `repeat(${W}, minmax(0, 1fr))` }}>
+                    {days.map((d) => {
+                      const today = d.n === TODAY, past = d.n < TODAY;
+                      return (
+                        <button type="button" key={d.n} aria-pressed={d.n === day} aria-label={d.aria}
+                          className="group/dh flex cursor-pointer flex-col items-center gap-0.5 border-0 bg-transparent pt-3 pb-2 text-foreground [font:inherit]"
+                          onClick={() => { setDay(d.n); setSel(null); setAll(false); }}>
+                          <span className={cn("text-[12px] text-muted-foreground", (d.mark || d.n === day) && "font-semibold text-foreground")}>{d.dow}</span>
+                          <span className={cn(
+                            "grid h-7 min-w-7 place-content-center rounded-full text-[13px] font-semibold tabular-nums group-hover/dh:bg-secondary",
+                            !isWk && "h-[22px] min-w-[22px] text-[12px]",
+                            past && "font-medium text-muted-foreground",
+                            today && "bg-primary text-primary-foreground group-hover/dh:bg-primary",
+                          )}>{d.num}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {groups.map((g) => (
+                {groups.map((g, gi) => (
                   <Fragment key={g.value}>
-                    <div className="cal-city">{t(g.label)}</div>
-                    {g.rows.map((h) => {
+                    <div className={cn("border-t border-border px-5 pt-4 pb-2 text-[12px] font-semibold text-muted-foreground", gi === 0 && "border-t-0")}>{t(g.label)}</div>
+                    {g.rows.map((h, hi) => {
                       const hit = h.shown.find((r) => r.id === sel);
                       return (
-                        <div className="cal-row ht" key={h.id}>
-                          <div className="cal-hc"><Link href={h.url} title={h.name}>{h.name}</Link></div>
-                          <div className="cal-lw">
-                            <div className="cal-lanes" style={{ gridTemplateColumns: `repeat(${2 * W}, minmax(0, 1fr))` }}>
+                        <div className={cn("grid grid-cols-[184px_minmax(0,1fr)]", hi > 0 && "border-t border-hairline")} key={h.id}>
+                          <div className={HOTEL_CELL}>
+                            <Link href={h.url} title={h.name}
+                              className="min-w-0 overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-foreground no-underline hover:underline hover:underline-offset-3">
+                              {h.name}
+                            </Link>
+                          </div>
+                          <div className="relative min-w-0">
+                            <div className="box-border grid min-h-[46px] auto-rows-[28px] items-center gap-y-2 py-2" style={{ gridTemplateColumns: `repeat(${2 * W}, minmax(0, 1fr))` }}>
                               {h.shown.map((r) => {
                                 const [a, b] = edges(r);
                                 return (
                                   <button type="button" key={r.id}
-                                    className={"cal-bar " + (r.tentative ? "ten" : "def") + (r.e <= TODAY ? " past" : "") + (isWk ? "" : " mo") + (sel === r.id ? " on" : "")}
+                                    className={cn(
+                                      "mx-0.5 box-border flex h-7 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-[7px] border-0 px-3 text-left font-sans text-[12px] leading-[normal] font-medium whitespace-nowrap",
+                                      r.tentative ? "bg-booking-tentative text-on-warning hover:bg-booking-tentative-hover"
+                                        : r.e <= TODAY ? "bg-secondary text-muted-foreground"
+                                        : "bg-booking-definite text-white hover:bg-booking-definite-hover",
+                                      sel === r.id && "outline-2 outline-offset-1 outline-foreground outline-solid",
+                                    )}
                                     style={{ gridColumn: `${a} / ${b}`, gridRow: r.lane }}
                                     aria-expanded={sel === r.id}
                                     aria-label={`${r.ref}, ${r.client}, ${dateTxt(r.s)} ${t("to")} ${dateTxt(r.e)}, ${rooms(r.rooms)}${r.tentative ? ", " + t("tentative") : ""}`}
                                     onClick={() => setSel(sel === r.id ? null : r.id)}>
-                                    <span className="t">{r.client}</span><span className="k">{r.rooms}</span>
+                                    <span className="min-w-0 overflow-hidden text-ellipsis">{r.client}</span>
+                                    <span className={cn("ml-auto flex-none tabular-nums opacity-70", !isWk && "hidden")}>{r.rooms}</span>
                                   </button>
                                 );
                               })}
                             </div>
                             {hit && (
-                              <div className="cal-pop" role="dialog" aria-label={hit.ref} style={popStyle(hit, hotelIdx(h))}>
-                                <div className="cal-pop-h">
-                                  <div><b>{hit.client}</b></div>
-                                  <button type="button" className="cal-ib" style={{ width: 32, height: 32 }} aria-label={t("Close")} autoFocus onClick={() => setSel(null)}>
+                              <div className="surface absolute z-[6] w-[280px] rounded-[14px] border border-border bg-popover text-left text-[13px] shadow-popover"
+                                role="dialog" aria-label={hit.ref} style={popStyle(hit, hotelIdx(h))}>
+                                <div className="flex items-start justify-between gap-3 pt-4 pr-3 pb-3 pl-4">
+                                  <div><b className="block text-[14px] leading-[1.3] font-semibold">{hit.client}</b></div>
+                                  <button type="button" className={cn(ICON_BTN, "size-8")} aria-label={t("Close")} autoFocus onClick={() => setSel(null)}>
                                     <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" /></svg>
                                   </button>
                                 </div>
-                                <dl>
-                                  <dt>{t("CL No")}</dt><dd><Link className="lk" href={hit.url}>{hit.ref}</Link></dd>
-                                  <dt>{t("Status")}</dt><dd><span className={hit.tentative ? "ty" : ""}>{t(hit.tentative ? "Tentative" : "Definite")}</span></dd>
+                                <dl className="m-0 grid grid-cols-[64px_1fr] gap-x-3 gap-y-2 px-4 pt-0.5 pb-4 text-[13px] tabular-nums [&_dd]:m-0 [&_dd]:font-medium [&_dt]:text-muted-foreground">
+                                  <dt>{t("CL No")}</dt><dd><Link className={cn("font-semibold text-foreground", LINK)} href={hit.url}>{hit.ref}</Link></dd>
+                                  <dt>{t("Status")}</dt><dd><span className={hit.tentative ? TONE.ty : undefined}>{t(hit.tentative ? "Tentative" : "Definite")}</span></dd>
                                   <dt>{t("Stay")}</dt><dd>{`${dateTxt(hit.s)} ${t("to")} ${dateTxt(hit.e)}, ${nights(hit.e - hit.s)}`}</dd>
                                   <dt>{t("Rooms")}</dt><dd>{(hit.room_types ? hit.room_types + ", " : "") + rooms(hit.rooms)}</dd>
                                   <dt>{t("Invoice")}</dt>
                                   <dd>
-                                    {hit.inv_number && <><Link className="lk" href={hit.inv_url}>{hit.inv_number}</Link>, </>}
-                                    <span className={!hit.inv_number || hit.inv_open > 0 ? "wt" : ""}>{invTxt(hit)}</span>
+                                    {hit.inv_number && <><Link className={cn("font-semibold text-foreground", LINK)} href={hit.inv_url}>{hit.inv_number}</Link>, </>}
+                                    <span className={!hit.inv_number || hit.inv_open > 0 ? TONE.wt : undefined}>{invTxt(hit)}</span>
                                   </dd>
                                 </dl>
                               </div>
@@ -266,36 +307,50 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
                     })}
                   </Fragment>
                 ))}
-                {!groups.length && <div className="cal-empty">{t("No bookings in these dates")}</div>}
+                {!groups.length && <div className="px-6 py-14 text-center text-[13px] text-muted-foreground">{t("No bookings in these dates")}</div>}
               </div>
             </div>
           </section>
 
-          <aside className="cal-pn cal-card" aria-label={t("Selected day")}>
-            <div className="cal-pin">
-              <div className="cal-ph">
-                <h2>{`${DAYNAME[L][dowOf(day)]}, ${dateTxt(day)}`}</h2>
-                <p>{t("{when}, {rooms} tonight", { when: rel, rooms: rooms(tonight) })}</p>
+          {/* The panel takes the timeline's height exactly: its inner box is laid
+              over the grid cell, so a long list never makes the row taller. The
+              list scrolls with no scrollbar; a fade at the foot says there is more. */}
+          <aside className={cn(CARD, "relative min-h-[320px] max-[1279px]:min-h-0", !isWk && "max-[1799px]:min-h-0")} aria-label={t("Selected day")}>
+            <div className={cn("absolute inset-0 flex flex-col max-[1279px]:static", !isWk && "max-[1799px]:static")}>
+              <div className="px-6 pt-6 pb-2">
+                <h2 className="m-0 text-[20px] leading-[1.2] font-semibold tracking-[-0.02em]">{`${DAYNAME[L][dowOf(day)]}, ${dateTxt(day)}`}</h2>
+                <p className="mt-1 mb-0 text-[13px] text-muted-foreground tabular-nums">{t("{when}, {rooms} tonight", { when: rel, rooms: rooms(tonight) })}</p>
               </div>
-              <div className="cal-pb">
-                {sections.map((s) => (
-                  <div className="cal-sec" key={s.kind}>
-                    <h3 className={s.count ? "" : "empty"}>{t(s.label)}<span>{s.count}</span></h3>
+              <div className={cn("min-h-0 flex-1 overflow-y-auto pb-7 mask-b-from-[calc(100%-28px)] [scrollbar-width:none] max-[1279px]:mask-none [&::-webkit-scrollbar]:hidden", !isWk && "max-[1799px]:mask-none")}>
+                {sections.map((s, si) => (
+                  <div className={cn("pt-4 pb-1", si > 0 && "border-t border-hairline")} key={s.kind}>
+                    <h3 className={cn("m-0 flex justify-between px-6 pt-0 pb-2 text-[13px] font-semibold", !s.count && "font-medium text-muted-foreground")}>
+                      {t(s.label)}<span className="font-normal text-muted-foreground tabular-nums">{s.count}</span>
+                    </h3>
                     {s.list.map((r) => {
                       const open = !r.tentative && !(r.inv_number && !(r.inv_open > 0));
                       return (
-                        <button type="button" key={r.id} className={"cal-it" + (sel === r.id ? " on" : "")} onClick={() => pickRow(r)}
+                        <button type="button" key={r.id} onClick={() => pickRow(r)}
+                          className={cn(
+                            "box-border grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-0 bg-transparent px-6 py-2 text-left text-inherit [font:inherit]",
+                            "hover:bg-[color:color-mix(in_oklch,var(--foreground)_3.5%,var(--card))]",
+                            sel === r.id && "bg-[color:color-mix(in_oklch,var(--foreground)_3.5%,var(--card))]",
+                          )}
                           aria-label={`${r.client}, ${hotelOf[r.hotel].name}, ${rooms(r.rooms)}, ${r.tentative ? t("tentative") : invTxt(r)}`}>
-                          <span style={{ minWidth: 0 }}><span className="nm">{r.client}</span><span className="sb">{sub(r, s.kind)}</span></span>
+                          <span className="min-w-0">
+                            <span className="block overflow-hidden text-[14px] font-medium text-ellipsis whitespace-nowrap">{r.client}</span>
+                            <span className="block overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground">{sub(r, s.kind)}</span>
+                          </span>
                           <span>
-                            <span className="rm">{rooms(r.rooms)}</span>
-                            <span className={"st " + (r.tentative ? "ty" : open ? "wt" : "mt")}>{r.tentative ? t("Tentative") : open ? invTxt(r) : ""}</span>
+                            <span className="block text-right text-[13px] font-semibold tabular-nums">{rooms(r.rooms)}</span>
+                            <span className={cn("block text-right text-[12px] font-medium whitespace-nowrap", TONE[r.tentative ? "ty" : open ? "wt" : "mt"])}>{r.tentative ? t("Tentative") : open ? invTxt(r) : ""}</span>
                           </span>
                         </button>
                       );
                     })}
                     {s.more && (
-                      <button type="button" className="cal-more" onClick={() => setAll(!all)}>
+                      <button type="button" onClick={() => setAll(!all)}
+                        className={cn("mt-0.5 mb-1 w-full cursor-pointer border-0 bg-transparent px-6 py-2 text-left font-sans text-[13px] leading-[normal] font-medium text-foreground", LINK)}>
                         {s.cut ? t("Show all {n}", { n: s.count }) : t("Show fewer")}
                       </button>
                     )}

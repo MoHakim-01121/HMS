@@ -97,6 +97,14 @@
   --success-tint: #D6F2E1;
   --warning: oklch(0.72 0.16 62);
   --on-warning: #37352F;
+  /* Calendar booking bars, both themes: definite green, tentative yellow,
+     shades that keep their labels at 4.5:1. --tentative-text is the same
+     yellow dark enough to read on a card. */
+  --booking-definite: oklch(0.50 0.13 152);
+  --booking-definite-hover: oklch(0.45 0.13 152);
+  --booking-tentative: oklch(0.87 0.15 95);
+  --booking-tentative-hover: oklch(0.83 0.16 93);
+  --tentative-text: oklch(0.50 0.11 90);
   --warning-text: #A14800;
   --warning-tint: #FFE9D1;
   --danger: var(--destructive);
@@ -168,6 +176,7 @@
   --success-text: #6FE0A0;
   --success-tint: #13321F;
   --on-warning: #191919;
+  --tentative-text: oklch(0.86 0.13 95);
   --warning-text: #FFB86B;
   --warning-tint: #3A2712;
   --danger: var(--destructive);
@@ -250,6 +259,11 @@
   --color-success-tint: var(--success-tint);
   --color-warning: var(--warning);
   --color-on-warning: var(--on-warning);
+  --color-booking-definite: var(--booking-definite);
+  --color-booking-definite-hover: var(--booking-definite-hover);
+  --color-booking-tentative: var(--booking-tentative);
+  --color-booking-tentative-hover: var(--booking-tentative-hover);
+  --color-tentative-text: var(--tentative-text);
   --color-warning-text: var(--warning-text);
   --color-warning-tint: var(--warning-tint);
   --color-red: var(--red);
@@ -266,6 +280,7 @@
   --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
   --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
   --shadow-float: 0 1px 2px rgba(10,12,16,.04);
+  --shadow-pill: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.04);
   --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
 
   /* Motion: one enter curve, one exit curve, one drawer curve (iOS sheet). */
@@ -1025,7 +1040,7 @@ body.public-page {
    Give the canvas a firmer fill and one step more supporting ink, then hand
    card surfaces their own values back. Portalled popovers live outside
    .page-shell and keep the defaults untouched. */
-[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .bc .tip) {
+[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .bc .tip) {
   --muted-foreground: #64675A;
   --secondary: #EEF0E6;
 }

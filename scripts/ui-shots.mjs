@@ -61,6 +61,7 @@ const PAGES = [
   ["role-new", "admin", "/roles/new/"],
   ["profile", "admin", "/account/profile/"],
   ["calendar", "admin", "/calendar/"],
+  ["calendar-month", "admin", "/calendar/?view=month"],
   ["client-new", "admin", "/clients/new/"],
   ["credit-notes", "admin", "/finance/credit-notes/"],
   ["exchanges", "admin", "/finance/exchanges/"],
@@ -112,6 +113,8 @@ const ACTIONS = [
   ["list-perpage", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("10")']],
   ["list-kpi-flip", "admin", "/finance/payments/", ['button[aria-label^="Cash received"]']],
   ["list-kpi-press", "admin", "/finance/payments/", ['button[aria-pressed]:has-text("Unapplied cash")']],
+  ["calendar-pop", "admin", "/calendar/", ['section button[aria-expanded="false"]']],
+  ["calendar-pick", "admin", "/calendar/", ['button[aria-pressed="false"] >> nth=3']],
 ];
 // [suffix, viewport, theme]: dark is what the app ships with; light desktop
 // catches the light-only token rules.
