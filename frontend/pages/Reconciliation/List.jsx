@@ -4,7 +4,7 @@ import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primar
 import FormField, { amountText, amountValue } from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
-  Dialog, DialogContent, DialogFooter, DialogTitle,
+  Dialog, DialogFooter,
 } from "../../components/shadcn/ui/dialog.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -14,7 +14,7 @@ import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
-import { useFormModal } from "../../components/shadcn/form-modal.jsx";
+import { useFormModal, ModalContent, ModalHead, ModalTitle, ModalBody } from "../../components/shadcn/form-modal.jsx";
 
 const CSS = `
 .rec-line-row { display:grid; grid-template-columns: 120px 90px 1fr 110px 32px; gap:8px; align-items:start; }
@@ -124,12 +124,12 @@ export default function List({ statements = [], account_choices = [], filters: f
 
       {newOpen && (
         <Dialog open onOpenChange={(v) => { if (!v) setNewOpen(false); }}>
-          <DialogContent className="sm:max-w-2xl form-modal-content" showCloseButton={false}>
+          <ModalContent className="sm:max-w-2xl">
             <style>{CSS}</style>
-            <div className="hms-modal-head">
-              <DialogTitle className="hms-modal-title">{t("New Statement")}</DialogTitle>
-            </div>
-            <div className="hms-modal-body">
+            <ModalHead>
+              <ModalTitle>{t("New Statement")}</ModalTitle>
+            </ModalHead>
+            <ModalBody>
               <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div className="fg-3">
                   <FormField label={t("Account")} name="account" required>
@@ -180,12 +180,12 @@ export default function List({ statements = [], account_choices = [], filters: f
                   <Textarea rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
                 </FormField>
               </form>
-            </div>
+            </ModalBody>
             <DialogFooter className="pay-footer">
               <Button variant="outline" onClick={() => setNewOpen(false)}>{t("Cancel")}</Button>
               <Button onClick={submit} disabled={!form.account || !form.period_start || !form.period_end}>{t("Save")}</Button>
             </DialogFooter>
-          </DialogContent>
+          </ModalContent>
         </Dialog>
       )}
     </ListPage>

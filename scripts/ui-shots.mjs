@@ -186,14 +186,20 @@ if (compare) {
       const [ia, ib] = await Promise.all([load(a), load(b)]);
       if (ia.width !== ib.width || ia.height !== ib.height) return { size: `${ia.width}x${ia.height} -> ${ib.width}x${ib.height}` };
       const px = (img) => { const c = document.createElement("canvas"); c.width = img.width; c.height = img.height; const x = c.getContext("2d"); x.drawImage(img, 0, 0); return x.getImageData(0, 0, c.width, c.height).data; };
-      const da = px(ia), db = px(ib);
+      const da = px(ia), db = px(ib), W = ia.width, H = ia.height;
       let diff = 0;
       for (let i = 0; i < da.length; i += 4) if (Math.abs(da[i] - db[i]) + Math.abs(da[i + 1] - db[i + 1]) + Math.abs(da[i + 2] - db[i + 2]) > 24) diff++;
-      return { diff, pct: (100 * diff / (da.length / 4)).toFixed(3) };
+      // Text rasterised a touch differently (another compositing layer, a
+      // sub-pixel offset) differs at glyph edges only. A 3x3 box blur of the
+      // grey levels removes that; what still differs by more than 40 is real.
+      const grey = (d) => { const g = new Float32Array(W * H); for (let i = 0; i < W * H; i++) g[i] = (d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11); return g; };
+      const blur = (g) => { const o = new Float32Array(W * H); for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) { let s = 0; for (let j = -1; j <= 1; j++) for (let k = -1; k <= 1; k++) s += g[(y + j) * W + x + k]; o[y * W + x] = s / 9; } return o; };
+      let strong = 0;
+      if (diff) { const ga = blur(grey(da)), gb = blur(grey(db)); for (let i = 0; i < W * H; i++) if (Math.abs(ga[i] - gb[i]) > 40) strong++; }
+      return { diff, strong, pct: (100 * diff / (da.length / 4)).toFixed(3) };
     }, ["data:image/png;base64," + readFileSync(a).toString("base64"), "data:image/png;base64," + readFileSync(b).toString("base64")]);
-    // Sub-pixel bar edges and text anti-aliasing move a few hundred pixels at
-    // most between identical renders; anything above 0.05% is a real change.
-    const verdict = r.size ? "CHANGED size " + r.size : !r.diff ? "same" : r.pct <= 0.05 ? `noise ${r.diff}px` : `CHANGED ${r.diff}px (${r.pct}%)`;
+    // Raw pixel differences that vanish once blurred are anti-aliasing.
+    const verdict = r.size ? "CHANGED size " + r.size : !r.diff ? "same" : !r.strong ? `noise ${r.diff}px` : `CHANGED ${r.strong}px after blur (${r.diff}px raw)`;
     rows.push(`${file}\t${verdict}`);
   }
   writeFileSync(join(outDir, "diff.txt"), rows.join("\n") + "\n");

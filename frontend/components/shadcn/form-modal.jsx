@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createContext, forwardRef, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
 import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from "./ui/dialog.jsx";
 import ConfirmDialog from "./confirm-dialog.jsx";
 import { resolvePage } from "../../utils/resolvePage.js";
 import { useI18n } from "../../utils/i18n.jsx";
+import { cn } from "@/lib/utils";
 
 // Consumed by page-back.jsx/form-actions.jsx/form-panel.jsx so the SAME
 // Form.jsx page component can render either as a real full page (direct URL
@@ -37,6 +38,54 @@ export const FormModalContext =
 // height transition in tailwind.css turns the hand-off into an eased grow
 // rather than the 455px snap it used to be.
 const SKELETON_DELAY = 16;
+
+// ── The form dialog's chrome ────────────────────────────────────────────────
+// A header bar that stays put, a body that scrolls, and the form's action row
+// stuck to the bottom of that body. `layout="a"` is the approved CL/Invoice
+// form (form-a.jsx): 760px wide, a borderless header, tighter body padding.
+// Exported for the dialogs that build this chrome themselves.
+export function ModalContent({ layout, className, ...props }) {
+  return (
+    <DialogContent showCloseButton={false} {...props} className={cn(
+      "flex max-h-[min(86vh,820px)] flex-col gap-0 overflow-hidden rounded-[24px] p-0 max-[600px]:max-h-[92vh] max-[600px]:rounded-[20px]",
+      className,
+      layout === "a" && "max-w-[760px] rounded-[20px] sm:max-w-[760px]",
+    )} />
+  );
+}
+
+export const ModalHead = forwardRef(({ layout, className, ...props }, ref) => (
+  <div ref={ref} {...props} className={cn(
+    layout === "a"
+      ? "flex shrink-0 items-center justify-between gap-4 pt-4 pr-4 pb-0 pl-6 max-[640px]:pr-3 max-[640px]:pl-4"
+      : "flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 max-[600px]:p-4",
+    className,
+  )} />
+));
+ModalHead.displayName = "ModalHead";
+
+export const ModalTitle = ({ className, ...props }) => (
+  <DialogTitle {...props} className={cn("text-[16px] leading-[1.4] font-semibold tracking-[-0.01em] text-foreground", className)} />
+);
+
+export const ModalSub = ({ children }) => <div className="mt-0.5 text-[14px] leading-[1.45] text-muted-foreground">{children}</div>;
+
+// The body's height is written by ModalFrame and eased here; a deliberately
+// gentle curve, since over ~400px a sharp ease-out reads as a jump.
+export const ModalBody = forwardRef(({ layout, className, ...props }, ref) => (
+  <div ref={ref} data-slot="modal-body" {...props} className={cn(
+    "min-h-0 flex-[1_1_auto] overflow-y-auto [scrollbar-gutter:stable] transition-[height] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+    layout === "a" ? "px-6 pt-4 pb-5 max-[640px]:px-4" : "px-5 py-6 max-[600px]:px-4 max-[600px]:py-5",
+    className,
+  )} />
+));
+ModalBody.displayName = "ModalBody";
+
+// The action row at the bottom of a form: inside a dialog body it sticks to
+// the bottom edge, bleeding over the body's padding so it spans the dialog.
+export const actionsClass = (layout) => layout === "a"
+  ? "flex items-center justify-end gap-2 in-data-[slot=modal-body]:sticky in-data-[slot=modal-body]:-bottom-5 in-data-[slot=modal-body]:mx-[-24px] in-data-[slot=modal-body]:mt-5 in-data-[slot=modal-body]:mb-[-20px] in-data-[slot=modal-body]:border-t in-data-[slot=modal-body]:border-border in-data-[slot=modal-body]:bg-card in-data-[slot=modal-body]:px-5 in-data-[slot=modal-body]:py-4 max-[640px]:flex-wrap max-[640px]:in-data-[slot=modal-body]:mx-[-16px] max-[640px]:in-data-[slot=modal-body]:px-4 max-[640px]:in-data-[slot=modal-body]:py-3"
+  : "flex justify-end gap-2 in-data-[slot=modal-body]:sticky in-data-[slot=modal-body]:-bottom-6 in-data-[slot=modal-body]:mx-[-20px] in-data-[slot=modal-body]:mt-2 in-data-[slot=modal-body]:mb-[-24px] in-data-[slot=modal-body]:border-t in-data-[slot=modal-body]:border-border in-data-[slot=modal-body]:bg-card in-data-[slot=modal-body]:px-5 in-data-[slot=modal-body]:py-4 max-[600px]:in-data-[slot=modal-body]:-bottom-5 max-[600px]:in-data-[slot=modal-body]:mx-[-16px] max-[600px]:in-data-[slot=modal-body]:mb-[-20px] max-[600px]:in-data-[slot=modal-body]:px-4";
 
 // A prefetched payload is only worth reusing for as long as it is plausibly
 // still current. Anything that mutates data goes through an Inertia visit, and
@@ -178,11 +227,12 @@ export function FormModalProvider({ children }) {
             overlay in HMS without blur, chasing Homlu's measured flat scrim,
             which read as inconsistent next to the ⌘K palette and every other
             dialog. See dialog.jsx. */}
-        <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}
+        <ModalContent className="sm:max-w-3xl" layout={header?.layout}
           onInputCapture={() => { dirty.current = true; }}>
           <ModalFrame
             title={header?.title || (shown?.status === "loading" ? t("Loading…") : t("Form"))}
             sub={header?.sub}
+            layout={header?.layout}
             status={shown?.status}
             body={shown?.status === "ready" && shown.Component ? (
               <FormModalContext.Provider value={{ openForm: trigger, inModal: true, close: requestClose, setHeader }}>
@@ -190,7 +240,7 @@ export function FormModalProvider({ children }) {
               </FormModalContext.Provider>
             ) : <FormSkeleton />}
           />
-        </DialogContent>
+        </ModalContent>
       </Dialog>
       <DiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={close} />
     </FormModalContext.Provider>
@@ -249,15 +299,16 @@ export function StandaloneFormModal({ closeHref = "/", children }) {
   return (
     <>
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
-      <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}
+      <ModalContent className="sm:max-w-3xl" layout={header?.layout}
         onInputCapture={() => { dirty.current = true; }}>
         <ModalFrame
           title={header?.title || t("Form")}
           sub={header?.sub}
+          layout={header?.layout}
           status="ready"
           body={<FormModalContext.Provider value={value}>{children}</FormModalContext.Provider>}
         />
-      </DialogContent>
+      </ModalContent>
     </Dialog>
     <DiscardDialog open={asking} onKeep={() => setAsking(false)} onDiscard={close} />
     </>
@@ -287,13 +338,13 @@ export function withStandaloneModal(Body, closeHref) {
 // form, that happened one frame after the entrance animation had finished. It
 // read as the modal glitching rather than opening. Fixing it means the body's
 // height has to be an animatable length, so it is measured off the content and
-// written here; `.hms-modal-body`'s transition in tailwind.css does the rest.
+// written here; ModalBody's height transition does the rest.
 //
 // The observer stays live for the lifetime of the dialog rather than running
 // once on swap, so the same easing covers content that changes later — adding
 // a reservation or payment row on the Invoice form, or an error summary
 // appearing above the fields.
-function ModalFrame({ title, sub, status, body }) {
+function ModalFrame({ title, sub, status, body, layout }) {
   const headRef = useRef(null);
   const bodyRef = useRef(null);
   const innerRef = useRef(null);
@@ -311,7 +362,7 @@ function ModalFrame({ title, sub, status, body }) {
       // transition is mid-flight — which showed up as the box snapping to the
       // new size and then easing only the last few pixels. The wrapper's own
       // height is unaffected by the animation, so it can be read at any time.
-      // .hms-modal-inner is a flow-root so the sticky action bar's negative
+      // The inner wrapper is a flow-root so the sticky action bar's negative
       // bottom margin (which exists to cancel this padding) is counted inside
       // that height instead of collapsing out of it.
       const cs = getComputedStyle(bodyEl);
@@ -348,19 +399,20 @@ function ModalFrame({ title, sub, status, body }) {
 
   return (
     <>
-      <div className="hms-modal-head" ref={headRef}>
-        <div style={{ minWidth: 0 }}>
-          <DialogTitle className="hms-modal-title">{title}</DialogTitle>
-          {sub && <div className="hms-modal-sub">{sub}</div>}
+      <ModalHead layout={layout} ref={headRef}>
+        <div className="min-w-0">
+          <ModalTitle>{title}</ModalTitle>
+          {sub && <ModalSub>{sub}</ModalSub>}
         </div>
         <DialogCloseButton />
-      </div>
-      <div className="hms-modal-body" ref={bodyRef}>
+      </ModalHead>
+      <ModalBody layout={layout} ref={bodyRef}>
         {/* Static wrapper: the body itself carries an animating height, so the
             natural height of the content has to be measurable somewhere that
             isn't being animated. */}
-        <div ref={innerRef} className="hms-modal-inner" data-state={status}>{body}</div>
-      </div>
+        {/* Content arriving into an already-open dialog fades rather than pops. */}
+        <div ref={innerRef} className="flow-root data-[state=ready]:animate-content-in motion-reduce:animate-none" data-state={status}>{body}</div>
+      </ModalBody>
     </>
   );
 }
@@ -368,20 +420,21 @@ function ModalFrame({ title, sub, status, body }) {
 // Shown only when a form takes longer than SKELETON_DELAY to arrive. Shaped
 // like a form rather than spelling out "Loading…" so the swap to real fields is
 // a change of content, not a change of layout.
+const SKEL = "rounded-[8px] bg-muted animate-skel motion-reduce:animate-none motion-reduce:opacity-55";
 function FormSkeleton() {
   return (
-    <div className="hms-modal-skel" aria-hidden="true">
+    <div className="flex flex-col gap-[26px]" aria-hidden="true">
       {/* Sized to land near where a real form lands (every form in the app
           currently fills the dialog's max height), so the hand-off is a short
           eased correction rather than a long one. */}
       {[["38%", 4], ["30%", 4], ["34%", 2]].map(([w, fields], s) => (
-        <div key={s} className="hms-skel-sec">
-          <div className="hms-skel-bar" style={{ width: w, height: 13 }} />
-          <div className="hms-skel-grid">
+        <div key={s} className="flex flex-col gap-3.5">
+          <div className={cn(SKEL, "h-[13px]")} style={{ width: w }} />
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 max-[640px]:grid-cols-1">
             {Array.from({ length: fields }, (_, i) => (
-              <div key={i} className="hms-skel-field">
-                <div className="hms-skel-bar" style={{ width: `${34 + ((i * 7) % 18)}%`, height: 9 }} />
-                <div className="hms-skel-bar" style={{ height: 40 }} />
+              <div key={i} className="flex flex-col gap-[7px]">
+                <div className={cn(SKEL, "h-[9px]")} style={{ width: `${34 + ((i * 7) % 18)}%` }} />
+                <div className={cn(SKEL, "h-10")} />
               </div>
             ))}
           </div>

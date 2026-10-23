@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { Button } from "./ui/button.jsx";
-import { FormModalContext } from "./form-modal.jsx";
+import { FormModalContext, actionsClass } from "./form-modal.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // shadcn Button-based rebuild of ../form/FormActions.jsx — same props.
@@ -10,14 +10,14 @@ import { useI18n } from "../../utils/i18n.jsx";
 // draws its secondary controls as 2px-stroked surfaces, so `outline` is the
 // match — and both sit at `lg` (48px) to line up with the fields above them.
 //
-// The .hms-form-actions class is what tailwind.css sticks to the bottom of the
-// dialog's scroll area, so the submit row stays reachable in a long form
-// instead of being stranded below the fold.
+// Inside a dialog the row sticks to the bottom of the scroll area (see
+// actionsClass), so the submit button stays reachable in a long form instead
+// of being stranded below the fold.
 export default function FormActions({ cancelHref, submitLabel, processing }) {
   const { t } = useI18n();
   const ctx = useContext(FormModalContext);
   return (
-    <div className="hms-form-actions" style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+    <div className={actionsClass()}>
       {ctx?.inModal ? (
         <Button type="button" variant="outline" size="lg" onClick={ctx.close}>{t("Cancel")}</Button>
       ) : (

@@ -9,7 +9,7 @@ const twMerge = extendTailwindMerge({
       shadow: ["menu", "popover", "palette"],
       radius: ["control", "card"],
       ease: ["out-quint", "in-quick", "drawer"],
-      animate: ["menu-in", "menu-out", "panel-in", "fade-in", "rise-in"],
+      animate: ["menu-in", "menu-out", "panel-in", "fade-in", "rise-in", "content-in", "skel"],
     },
   },
 });

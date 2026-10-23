@@ -5,19 +5,6 @@
    field grid, a framed table and a note; the footer says why the primary
    button is not ready yet. */
 
-.form-modal-content:has(.fa-form) { max-width: 760px; border-radius: 20px; }
-@media (min-width: 640px) { .form-modal-content:has(.fa-form) { max-width: 760px; } }
-.form-modal-content:has(.fa-form) .hms-modal-head { border-bottom: 0; padding: 16px 16px 0 24px; align-items: center; }
-.form-modal-content:has(.fa-form) .hms-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-.form-modal-content:has(.fa-form) .hms-modal-body { padding: 16px 24px 20px; }
-.hms-modal-body .fa-form .hms-form-actions.fa-foot {
-  margin: 20px -24px -20px; padding: 16px 20px; bottom: -20px;
-  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  background: var(--card); border-top: 1px solid var(--border);
-}
-.fa-foot .fa-why { margin-right: auto; font-size: 13px; color: var(--muted-foreground); }
-
-.fa-form { font-size: 14px; line-height: 1.5; color: var(--foreground); }
 .fa-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 16px; }
 .fa-fields .wide { grid-column: 1 / -1; }
 .fa-of { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -182,10 +169,6 @@
 
 @media (max-width: 640px) {
   .fa-fields { grid-template-columns: 1fr; }
-  .hms-modal-body .fa-form .hms-form-actions.fa-foot { flex-wrap: wrap; margin: 20px -16px -20px; padding: 12px 16px; }
-  .fa-foot .fa-why { flex-basis: 100%; }
-  .form-modal-content:has(.fa-form) .hms-modal-body { padding: 16px 16px 20px; }
-  .form-modal-content:has(.fa-form) .hms-modal-head { padding: 16px 12px 0 16px; }
 }
 
 /* Amount, read-only field, proof upload (Payment, Remittance, Transfer forms) */

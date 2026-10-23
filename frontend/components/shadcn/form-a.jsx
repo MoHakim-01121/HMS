@@ -1,7 +1,7 @@
 import { Fragment, useContext, useMemo, useRef, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.jsx";
-import { Dialog, DialogCloseButton, DialogContent, DialogTitle } from "./ui/dialog.jsx";
-import { FormModalContext } from "./form-modal.jsx";
+import { Dialog, DialogCloseButton } from "./ui/dialog.jsx";
+import { FormModalContext, ModalContent, ModalHead, ModalTitle, ModalBody, actionsClass } from "./form-modal.jsx";
 import FormHeader from "./form-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import "../../styles/form-a.css";
@@ -376,8 +376,8 @@ export function Foot({ why, note, cancelHref, onCancel, submitLabel, processing,
   const { t } = useI18n();
   const ctx = useContext(FormModalContext);
   return (
-    <div className="hms-form-actions fa-foot">
-      {why || note ? <span className="fa-why" role="status">{why || note}</span> : null}
+    <div className={actionsClass("a")}>
+      {why || note ? <Why>{why || note}</Why> : null}
       {onCancel ? <button type="button" className="fa-btn o" onClick={onCancel}>{t("Cancel")}</button>
         : ctx?.inModal ? <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
           : <a className="fa-btn o" href={cancelHref}>{t("Cancel")}</a>}
@@ -387,17 +387,30 @@ export function Foot({ why, note, cancelHref, onCancel, submitLabel, processing,
   );
 }
 
+// Why the primary button is not ready yet, at the start of the action row.
+export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full" role="status">{children}</span>;
+
+// The approved form layout's frame: hands the title (and the layout, which
+// the dialog frames a little differently) up to the modal header.
+export function FormAFrame({ title, children }) {
+  return (
+    <div data-slot="form-a" className="text-[14px] leading-normal text-foreground">
+      <FormHeader title={title} layout="a" />
+      {children}
+    </div>
+  );
+}
+
 // A whole form in the approved layout: the title in the modal header, a
 // two-column field grid, then whatever the form adds below it.
 export function FormA({ title, onSubmit, error, children }) {
   return (
-    <div className="fa-form">
-      <FormHeader title={title} />
+    <FormAFrame title={title}>
       <form method="post" onSubmit={onSubmit} noValidate>
         {error ? <div className="fa-alert fa-alert-top" role="alert">{error}</div> : null}
         {children}
       </form>
-    </div>
+    </FormAFrame>
   );
 }
 
@@ -410,13 +423,13 @@ const TrashIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="no
 export function FaDialog({ title, onClose, children }) {
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="sm:max-w-3xl form-modal-content" showCloseButton={false}>
-        <div className="hms-modal-head">
-          <div style={{ minWidth: 0 }}><DialogTitle className="hms-modal-title">{title}</DialogTitle></div>
+      <ModalContent className="sm:max-w-3xl" layout="a">
+        <ModalHead layout="a">
+          <div className="min-w-0"><ModalTitle>{title}</ModalTitle></div>
           <DialogCloseButton />
-        </div>
-        <div className="hms-modal-body"><div className="fa-form">{children}</div></div>
-      </DialogContent>
+        </ModalHead>
+        <ModalBody layout="a"><div data-slot="form-a" className="text-[14px] leading-normal text-foreground">{children}</div></ModalBody>
+      </ModalContent>
     </Dialog>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
+import { withStandaloneModal, actionsClass } from "../../components/shadcn/form-modal.jsx";
 import { FormA, Field, ReadOnly, TextIn, Foot } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -151,7 +151,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
       </div>
 
       {locked ? (
-        <div className="hms-form-actions fa-foot"><a className="fa-btn o" href="/roles/">{t("Close")}</a></div>
+        <div className={actionsClass("a")}><a className="fa-btn o" href="/roles/">{t("Close")}</a></div>
       ) : (
         <Foot why={why} note={editing ? t(role.user_count === 1 ? "1 account holds this role" : "{n} accounts hold this role", { n: role.user_count }) : ""}
           cancelHref="/roles/" submitLabel={editing ? t("Save role") : t("Create role")} processing={processing} />

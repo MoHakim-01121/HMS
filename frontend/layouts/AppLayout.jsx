@@ -252,7 +252,7 @@ export default function AppLayout({ children }) {
       const f = e.target.closest?.("form");
       if (!f) return;
       const scope = f.closest('[role="dialog"]') || document.querySelector(".page-shell");
-      const title = scope?.querySelector("h1, h2, .hms-modal-title, .htitle")?.textContent?.trim();
+      const title = scope?.querySelector("h1, h2, [data-slot=dialog-title], .htitle")?.textContent?.trim();
       dirty.current = title || t("this page");
     };
     document.addEventListener("input", onInput, true);

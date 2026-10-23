@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { router } from "@inertiajs/react";
 import {
-  Dialog, DialogCloseButton, DialogContent, DialogTitle,
+  Dialog, DialogCloseButton,
 } from "./ui/dialog.jsx";
 import { Button } from "./ui/button.jsx";
 import { Input } from "./ui/input.jsx";
@@ -9,10 +9,11 @@ import { showToast } from "./toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { fmt } from "../../utils/format.js";
+import { ModalContent, ModalHead, ModalTitle, ModalBody } from "./form-modal.jsx";
 import { cn } from "../../lib/utils.js";
 
-/* Chorded onto the shared form-modal chrome (.form-modal-content +
-   .hms-modal-head + .hms-modal-body, tailwind.css), so padding, scrolling and
+/* Chorded onto the shared form-modal chrome (ModalContent, ModalHead,
+   ModalBody in form-modal.jsx), so padding, scrolling and
    the always-visible footer come for free. Only the inner layout is new.
 
    Summary reads like a Progress … Allocated / Remaining pair; the reservations
@@ -236,18 +237,18 @@ export default function ApplyPaymentSheet({
           if (!v) { reset(); onOpenChange(false); }
         }}
       >
-        <DialogContent className="sm:max-w-xl form-modal-content apply-sheet" showCloseButton={false}>
-          <div className="hms-modal-head">
+        <ModalContent className="apply-sheet sm:max-w-xl">
+          <ModalHead>
             <div className="apply-head">
-              <DialogTitle className="hms-modal-title">{t("Apply to reservations")}</DialogTitle>
+              <ModalTitle>{t("Apply to reservations")}</ModalTitle>
               <span className="apply-head-sub">
                 {payment?.payment_number ?? ""} · <strong>{fmt(total)} SAR</strong>
               </span>
             </div>
             <DialogCloseButton />
-          </div>
+          </ModalHead>
 
-          <div className="hms-modal-body">
+          <ModalBody>
             <div className="apply-summary">
               <div className="apply-track" aria-hidden="true">
                 <div className={cn("apply-track-fill", err && "is-err")} style={{ width: `${pct}%` }} />
@@ -348,7 +349,7 @@ export default function ApplyPaymentSheet({
                 {t("This payment has no reservations to allocate to.")}
               </p>
             )}
-          </div>
+          </ModalBody>
 
           <div className="apply-footer">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
@@ -358,7 +359,7 @@ export default function ApplyPaymentSheet({
               {busy ? t("Saving…") : t("Apply")}
             </Button>
           </div>
-        </DialogContent>
+        </ModalContent>
       </Dialog>
     </>
   );

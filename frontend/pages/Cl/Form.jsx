@@ -1,8 +1,7 @@
 import { useContext } from "react";
 import { useForm } from "@inertiajs/react";
-import FormHeader from "../../components/shadcn/form-header.jsx";
-import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Field, Picker, CellPicker, DateRangePicker, nightsBetween, todayIso } from "../../components/shadcn/form-a.jsx";
+import { actionsClass, FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
+import { Field, Picker, CellPicker, DateRangePicker, nightsBetween, todayIso, FormAFrame, Why } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -111,8 +110,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   const nightsLabel = (n) => (n === 1 ? t("1 night") : t("{n} nights", { n }));
 
   const page = (
-    <div className="fa-form">
-      <FormHeader title={edit ? t("Edit Confirmation Letter") : t("New Confirmation Letter")} />
+    <FormAFrame title={edit ? t("Edit Confirmation Letter") : t("New Confirmation Letter")}>
+      
       <form method="post" onSubmit={submit} noValidate>
         <div className="fa-fields">
           <Field label={t("Client")} required error={errors.guest_name && t(errors.guest_name)}>
@@ -218,8 +217,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
             value={d.note} onChange={(e) => form.setData("note", e.target.value)} />
         </div>
 
-        <div className="hms-form-actions fa-foot">
-          {why && <span className="fa-why" role="status">{why}</span>}
+        <div className={actionsClass("a")}>
+          {why && <Why>{why}</Why>}
           {inModal ? (
             <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
@@ -230,7 +229,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
           </button>
         </div>
       </form>
-    </div>
+    </FormAFrame>
   );
 
   return inModal ? page : <StandaloneFormModal closeHref={closeHref}>{page}</StandaloneFormModal>;

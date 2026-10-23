@@ -17,7 +17,7 @@
 // by every form page.
 export const REM_FORM_CSS = `
 @media (min-width: 1080px) {
-  .form-modal-content:has(.rem-form) { max-width: 1024px; }
+  [data-slot=dialog-content]:has(.rem-form) { max-width: 1024px; }
 }
 `;
 
@@ -60,17 +60,17 @@ export const REM_TABLE_CSS = `
 // alokasi + tombol simpan tetap terlihat saat menggulir daftar reservasi.
 export const RECEIPT_CSS = `
 @media (min-width: 1100px) {
-  .form-modal-content:has(.rcp-form) { max-width: 1120px; }
+  [data-slot=dialog-content]:has(.rcp-form) { max-width: 1120px; }
 }
 .rcp-form form { margin-top: 22px; }
-.hms-modal-body .rcp-form form { margin-top: 0; }
+[data-slot=modal-body] .rcp-form form { margin-top: 0; }
 
 .rcp-card {
   display: flex; align-items: stretch;
   border: 1px solid var(--border); border-radius: var(--radius-card, 22px);
   background: var(--card);
 }
-.hms-modal-body .rcp-card { border: none; border-radius: 0; margin: -24px -20px; }
+[data-slot=modal-body] .rcp-card { border: none; border-radius: 0; margin: -24px -20px; }
 .rcp-main { flex: 1; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 22px; }
 
 .rcp-alert {

@@ -1,8 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
-import FormHeader from "../../components/shadcn/form-header.jsx";
-import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso } from "../../components/shadcn/form-a.jsx";
+import { actionsClass, FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
+import { Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso, FormAFrame, Why } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -106,8 +105,8 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
   const closeHref = edit ? `/invoice/${invoice.pk}/` : "/invoice/";
 
   const page = (
-    <div className="fa-form">
-      <FormHeader title={edit ? t("Edit Invoice {number}", { number: invoice.invoice_number }) : t("New Invoice")} />
+    <FormAFrame title={edit ? t("Edit Invoice {number}", { number: invoice.invoice_number }) : t("New Invoice")}>
+      
       <form method="post" onSubmit={submit} noValidate>
         <div className="fa-fields">
           <Field label={t("Bill to")} required className="wide" error={errs.client_id && t(errs.client_id)}>
@@ -167,8 +166,8 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
         {errs.finance && <div className="fa-alert" role="alert">{errs.finance}</div>}
         {errs.invoice_number && <div className="fa-alert" role="alert">{t(errs.invoice_number)}</div>}
 
-        <div className="hms-form-actions fa-foot">
-          {why && <span className="fa-why" role="status">{why}</span>}
+        <div className={actionsClass("a")}>
+          {why && <Why>{why}</Why>}
           {inModal ? (
             <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
@@ -182,7 +181,7 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
           </button>
         </div>
       </form>
-    </div>
+    </FormAFrame>
   );
 
   return inModal ? page : <StandaloneFormModal closeHref={closeHref}>{page}</StandaloneFormModal>;

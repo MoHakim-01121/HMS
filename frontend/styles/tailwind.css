@@ -275,6 +275,10 @@
   @keyframes panel-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
   @keyframes fade-in { from { opacity: 0; } }
   @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } }
+  --animate-content-in: content-in 200ms ease-out both;
+  --animate-skel: skel 1.4s ease-in-out infinite;
+  @keyframes content-in { from { opacity: 0; transform: translateY(4px); } }
+  @keyframes skel { 0%, 100% { opacity: .45; } 50% { opacity: .8; } }
 }
 
 /* design.css's body already defaults to Fira Sans now that every page carries this class,
@@ -293,10 +297,10 @@
    is narrower, and at 3+ columns the fields get too tight to read their own
    values — placeholders were being truncated mid-word ("Receipt cod…",
    "Transfer BC…"). Drop to two columns inside the modal, one on phones. */
-.hms-modal-body .fg-3 { grid-template-columns: repeat(2, 1fr); }
+[data-slot=modal-body] .fg-3 { grid-template-columns: repeat(2, 1fr); }
 @media (max-width: 640px) {
-  .hms-modal-body .fg-2,
-  .hms-modal-body .fg-3 { grid-template-columns: 1fr; }
+  [data-slot=modal-body] .fg-2,
+  [data-slot=modal-body] .fg-3 { grid-template-columns: 1fr; }
 }
 
 /* A form page's root wrapper carries full-page chrome — design.css gives both
@@ -309,146 +313,17 @@
    those three kept the 60px bottom padding — a dead band below the sticky
    action row, inside the dialog, with nothing in it. Same for the 28px on top.
 
-   Scoped through .hms-modal-body rather than .form-modal-content alone so this
-   sits at (0,3,0): a page's own stylesheet reaching its root by class lands at
+   Scoped through the dialog body (ModalBody's data-slot) so this
+   sits at (0,2,0)+: a page's own stylesheet reaching its root by class lands at
    (0,2,0) and would otherwise win on document order, since page <style> blocks
    mount into the body long after this file. Invoice's own
    `.inv-form.page { padding-bottom: 112px }` phone rule did exactly that. */
-.form-modal-content .hms-modal-body .form-page,
-.form-modal-content .hms-modal-body .page {
+[data-slot=modal-body] .form-page,
+[data-slot=modal-body] .page {
   max-width: none;
   padding: 0;
   margin: 0;
   animation: none;
-}
-
-/* ── Form modal chrome ────────────────────────────────────────────────────
-   Structure copied from Homlu's appearance sheet, which is the one overlay
-   its live site exposes publicly (measured markup):
-
-       sheet-content : p-0, flex-col              — no padding of its own
-       sheet-header  : px-5 py-5, border-b        — stays put
-       body          : flex-1 overflow-y-auto px-5 py-6   — the only scroller
-
-   Previously the whole DialogContent was the scroller with the close button
-   absolutely positioned inside it, so the X scrolled up out of view along
-   with the fields and there was no visible title at all — the modal opened
-   as a bare stack of inputs. Splitting header/body/footer fixes both.
-
-   Radius sits between the 16px controls and the 32px page cards: the same
-   family, stepped up for the largest floating surface. */
-.form-modal-content {
-  padding: 0;
-  gap: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-height: min(86vh, 820px);
-  border-radius: 24px;
-}
-.hms-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.hms-modal-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--foreground);
-  letter-spacing: -0.01em;
-  line-height: 1.4;
-}
-.hms-modal-sub {
-  margin-top: 2px;
-  font-size: 14px;
-  color: var(--muted-foreground);
-  line-height: 1.45;
-}
-.hms-modal-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 24px 20px;
-  /* form-modal.jsx measures the content and writes this height, so the dialog
-     eases between sizes instead of snapping. Without it, a form arriving after
-     its skeleton resized the box by ~455px in a single frame — the modal looked
-     like it glitched rather than opened. Also covers content changing later
-     (adding an Invoice reservation/payment row, an error summary appearing).
-     scrollbar-gutter keeps the fields from shifting sideways at the moment the
-     growing box first overflows. */
-  /* Deliberately not one of the sharp ease-outs used elsewhere in this sheet:
-     over ~400px of travel those put most of the distance into the first two
-     frames, which still reads as a jump. A gentler curve spreads it. */
-  transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
-  scrollbar-gutter: stable;
-}
-@media (prefers-reduced-motion: reduce) {
-  .hms-modal-body { transition: none; }
-}
-/* flow-root, not plain block: form-modal.jsx measures this wrapper to drive the
-   body's height, and the sticky action bar's negative bottom margin has to be
-   counted inside that measurement rather than collapsing through it. */
-.hms-modal-inner { display: flow-root; }
-/* Content arriving into an already-open dialog fades rather than pops. Keyed
-   off the attribute so it replays on the skeleton → form swap. */
-.hms-modal-inner[data-state="ready"] { animation: hmsModalIn 200ms ease-out both; }
-@keyframes hmsModalIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: none; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hms-modal-inner[data-state="ready"] { animation: none; }
-}
-
-/* Placeholder for the cold-open case only (see SKELETON_DELAY). Shaped like a
-   form so the swap to real fields changes content, not layout. */
-.hms-modal-skel { display: flex; flex-direction: column; gap: 26px; }
-.hms-modal-skel .hms-skel-sec { display: flex; flex-direction: column; gap: 14px; }
-.hms-modal-skel .hms-skel-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px 16px;
-}
-@media (max-width: 640px) {
-  .hms-modal-skel .hms-skel-grid { grid-template-columns: 1fr; }
-}
-.hms-modal-skel .hms-skel-field { display: flex; flex-direction: column; gap: 7px; }
-.hms-skel-bar {
-  border-radius: 8px;
-  background: var(--muted);
-  animation: hmsSkelPulse 1.4s ease-in-out infinite;
-}
-@keyframes hmsSkelPulse {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 0.8; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hms-skel-bar { animation: none; opacity: 0.55; }
-}
-/* The submit row lives inside each page's own <form>, so it can't be lifted
-   into a real sibling footer without editing all 11 form pages. Sticking it
-   to the bottom of the scroller gives the same always-reachable footer, and
-   the negative margins let its background span the full width so fields
-   scrolling underneath are covered edge to edge. */
-.hms-modal-body .hms-form-actions {
-  position: sticky;
-  bottom: -24px;
-  margin: 8px -20px -24px;
-  padding: 16px 20px;
-  /* --card, not --background: this strip is part of the dialog surface, and
-     the dialog is pure white (--card) so the strip must match it. */
-  background: var(--card);
-  border-top: 1px solid var(--border);
-}
-@media (max-width: 600px) {
-  .form-modal-content { max-height: 92vh; border-radius: 20px; }
-  .hms-modal-body { padding: 20px 16px; }
-  .hms-modal-head { padding: 16px; }
-  .hms-modal-body .hms-form-actions { margin: 8px -16px -20px; padding: 16px 16px; bottom: -20px; }
 }
 
 /* ── Scroll-lock shell compensation ───────────────────────────────────────
