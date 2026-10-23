@@ -115,6 +115,9 @@ const ACTIONS = [
   ["list-kpi-press", "admin", "/finance/payments/", ['button[aria-pressed]:has-text("Unapplied cash")']],
   ["calendar-pop", "admin", "/calendar/", ['section button[aria-expanded="false"]']],
   ["calendar-pick", "admin", "/calendar/", ['button[aria-pressed="false"] >> nth=3']],
+  ["profile-filter", "admin", "/account/profile/", ['button[aria-haspopup="dialog"]:has-text("Filter")']],
+  ["profile-edit", "admin", "/account/profile/", ['button[aria-label^="Edit"] >> nth=0']],
+  ["profile-photo", "admin", "/account/profile/", ['button[aria-label="View photo"], button[aria-label="Add a photo"]']],
 ];
 // [suffix, viewport, theme]: dark is what the app ships with; light desktop
 // catches the light-only token rules.
