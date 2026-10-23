@@ -250,6 +250,7 @@
   --color-on-warning: var(--on-warning);
   --color-warning-text: var(--warning-text);
   --color-warning-tint: var(--warning-tint);
+  --color-red: var(--red);
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-tint: var(--danger-tint);

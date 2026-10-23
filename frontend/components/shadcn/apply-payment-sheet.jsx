@@ -21,82 +21,32 @@ import { cn } from "../../lib/utils.js";
    tabular money, 14px bordered cells, red "Max {n}" overflow hint). The
    progress fill turns red while an allocation overshoots the payment, the same
    cue the MoneyField used historically, so the error reads at a glance. */
-const CSS = `
-.apply-sheet { min-width: 0; }
-.apply-head { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.apply-head-sub { font-size: 13px; color: var(--muted-foreground); }
-.apply-head-sub strong { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-.apply-summary { display:flex; flex-direction:column; gap:13px; }
-
-
-.apply-track { height:8px; border-radius:999px; background:color-mix(in oklch, var(--muted) 70%, transparent); overflow:hidden; }
-.apply-track-fill { height:100%; border-radius:999px; background:var(--primary); transition:width 200ms ease; }
-.apply-track-fill.is-err { background:var(--red); }
-
-.apply-figs { display:flex; gap:8px; }
-.apply-fig { flex:1; min-width:0; }
-.apply-fig dt { font-size:12px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--muted-foreground); }
-.apply-fig dd { margin-top:4px; font-size:18px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--foreground); white-space:nowrap; }
-.apply-fig dd span { margin-left:5px; font-size:11px; font-weight:600; color:var(--muted-foreground); letter-spacing:0; }
-.apply-fig.is-key { min-width:0; }
-.apply-fig.is-key dd { font-size:21px; }
-.apply-fig.is-zero dd { color:var(--muted-foreground); }
-
-.apply-note { margin:0; font-size:12px; line-height:1.5; padding:9px 11px; border-radius:10px; }
-.apply-note.is-warn { color:var(--foreground); background:color-mix(in oklch, var(--muted) 55%, var(--card)); border:1px solid var(--border); }
-.apply-note.is-err { color:var(--red); background:color-mix(in oklch, var(--red) 8%, var(--card)); border:1px solid color-mix(in oklch, var(--red) 30%, var(--border)); }
-.apply-note.is-muted { color:var(--muted-foreground); background:var(--card); border:1px solid var(--border); }
-
-.apply-res { display:flex; flex-direction:column; gap:10px; margin-top:22px; }
-.apply-res-h { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.apply-res-title { margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-foreground); }
-.apply-res-title span { color:var(--foreground); font-variant-numeric:tabular-nums; }
-.apply-tools { display:flex; gap:6px; }
-.apply-tool {
-  height:30px; padding:0 12px; border-radius:999px;
-  border:1px solid var(--input); background:var(--card);
-  font:inherit; font-size:12px; font-weight:600; color:var(--foreground);
-  cursor:pointer; transition:border-color .12s, background .12s;
-}
-.apply-tool:hover { border-color:var(--foreground); }
-.apply-tool:disabled { opacity:.45; cursor:default; border-color:var(--input); }
-.apply-tool:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
-
-.apply-list { border:1px solid var(--border); border-radius:14px; background:var(--card); overflow:hidden; }
-.apply-row { display:flex; align-items:center; gap:14px; padding:11px 14px; }
-.apply-row + .apply-row, .apply-group + .apply-row { border-top:1px solid var(--border); }
-.apply-group {
-  padding:8px 14px; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
-  color:var(--muted-foreground); background:color-mix(in oklch, var(--muted) 45%, var(--card));
-}
-.apply-row + .apply-group { border-top:1px solid var(--border); }
-.apply-row-rem.is-over strong { color:var(--red); }
-.apply-row.is-blocked { opacity:.55; }
-.apply-row-why { font-size:12px; color:var(--muted-foreground); text-align:right; max-width:150px; }
-.apply-foot-note { margin:10px 2px 0; font-size:12px; line-height:1.5; color:var(--muted-foreground); }
-.apply-row-meta { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.apply-row-no { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--foreground); }
-.apply-row-sub { font-size:12px; color:var(--muted-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.apply-row-rem { font-size:12px; color:var(--muted-foreground); font-variant-numeric:tabular-nums; }
-.apply-row-rem strong { color:var(--foreground); font-weight:600; }
-.apply-row-in { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
-.apply-row-in .aps-input { width:118px; text-align:right; }
-.apply-row-max { font-size:12px; color:var(--red); white-space:nowrap; }
-
-.apply-footer {
-  display:flex; justify-content:flex-end; gap:10px;
-  padding:16px 20px; border-top:1px solid var(--border);
-  background:var(--card); flex-shrink:0;
-}
-
-@media (max-width: 600px) {
-  .apply-row { padding:10px 12px; gap:10px; }
-  .apply-row-in .aps-input { width:112px; }
-  .apply-tool { height:32px; }
-  .apply-footer { padding:14px 16px; }
-}
-`;
+const NOTE = {
+  warn: "border-border bg-[color:color-mix(in_oklch,var(--muted)_55%,var(--card))] text-foreground",
+  err: "border-[color:color-mix(in_oklch,var(--red)_30%,var(--border))] bg-[color:color-mix(in_oklch,var(--red)_8%,var(--card))] text-red",
+  muted: "border-border bg-card text-muted-foreground",
+};
+const Note = ({ tone, className, ...props }) => (
+  <p className={cn("m-0 rounded-[10px] border px-[11px] py-[9px] text-[12px] leading-[1.5]", NOTE[tone], className)} {...props} />
+);
+const Fig = ({ label, value, big, zero }) => (
+  <div className="min-w-0 flex-1">
+    <dt className="text-[12px] font-semibold tracking-[.07em] text-muted-foreground uppercase">{label}</dt>
+    <dd className={cn("mt-1 text-[18px] font-semibold tracking-[-.02em] whitespace-nowrap text-foreground tabular-nums", big && "text-[21px]", zero && "text-muted-foreground")}>
+      {value}<span className="ml-[5px] text-[11px] font-semibold tracking-normal text-muted-foreground">SAR</span>
+    </dd>
+  </div>
+);
+const toolClass = cn(
+  "h-[30px] cursor-pointer rounded-full border border-input bg-card px-3 font-[family-name:inherit] text-[12px] leading-[inherit] font-semibold text-foreground",
+  "transition-[border-color,background-color] duration-[120ms] hover:border-foreground disabled:cursor-default disabled:border-input disabled:opacity-45",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid max-[600px]:h-8",
+);
+const GROUP = "bg-[color:color-mix(in_oklch,var(--muted)_45%,var(--card))] px-[14px] py-2 text-[12px] font-semibold tracking-[.08em] text-muted-foreground uppercase";
+const ROW = "flex items-center gap-[14px] px-[14px] py-[11px] max-[600px]:gap-2.5 max-[600px]:px-3 max-[600px]:py-2.5";
+const ROW_META = "flex min-w-0 flex-1 flex-col gap-0.5";
+const ROW_NO = "font-mono text-[12px] font-bold text-foreground";
+const ROW_SUB = "truncate text-[12px] text-muted-foreground";
 
 /**
  * ApplyPaymentSheet — split a payment across reservations.
@@ -230,87 +180,80 @@ export default function ApplyPaymentSheet({
 
   return (
     <>
-      <style>{CSS}</style>
       <Dialog
         open={open}
         onOpenChange={(v) => {
           if (!v) { reset(); onOpenChange(false); }
         }}
       >
-        <ModalContent className="apply-sheet sm:max-w-xl">
+        <ModalContent className="min-w-0 sm:max-w-xl">
           <ModalHead>
-            <div className="apply-head">
+            <div className="flex min-w-0 flex-col gap-0.5">
               <ModalTitle>{t("Apply to reservations")}</ModalTitle>
-              <span className="apply-head-sub">
-                {payment?.payment_number ?? ""} · <strong>{fmt(total)} SAR</strong>
+              <span className="text-[13px] text-muted-foreground">
+                {payment?.payment_number ?? ""} · <strong className="font-semibold text-foreground tabular-nums">{fmt(total)} SAR</strong>
               </span>
             </div>
             <DialogCloseButton />
           </ModalHead>
 
           <ModalBody>
-            <div className="apply-summary">
-              <div className="apply-track" aria-hidden="true">
-                <div className={cn("apply-track-fill", err && "is-err")} style={{ width: `${pct}%` }} />
+            <div className="flex flex-col gap-[13px]">
+              <div className="h-2 overflow-hidden rounded-full bg-muted/70" aria-hidden="true">
+                <div className={cn("h-full rounded-full bg-primary transition-[width] duration-200 ease-out-quint", err && "bg-red")} style={{ width: `${pct}%` }} />
               </div>
 
-              <dl className="apply-figs">
-                <div className="apply-fig">
-                  <dt>{t("Allocated")}</dt>
-                  <dd>{fmt(allocated)}<span>SAR</span></dd>
-                </div>
-                <div className={cn("apply-fig", "is-key", remainder <= 0 && "is-zero")}>
-                  <dt>{t("Remaining")}</dt>
-                  <dd>{fmt(Math.max(0, remainder))}<span>SAR</span></dd>
-                </div>
+              <dl className="flex gap-2">
+                <Fig label={t("Allocated")} value={fmt(allocated)} />
+                <Fig label={t("Remaining")} value={fmt(Math.max(0, remainder))} big zero={remainder <= 0} />
               </dl>
 
               {err ? (
-                <p className="apply-note is-err" role="alert">{err}</p>
+                <Note tone="err" role="alert">{err}</Note>
               ) : allocated > 0 && allocated < total ? (
-                <p className="apply-note is-warn">
+                <Note tone="warn">
                   {t("{n} SAR unallocated", { n: fmt(remainder) })}
-                </p>
+                </Note>
               ) : null}
             </div>
 
             {resRows.length > 0 ? (
-              <section className="apply-res" aria-labelledby="apply-res-title">
-                <div className="apply-res-h">
-                  <h3 id="apply-res-title" className="apply-res-title">
-                    {t("Reservations")} <span>{resRows.length}</span>
+              <section className="mt-[22px] flex flex-col gap-2.5" aria-labelledby="apply-res-title">
+                <div className="flex items-center justify-between gap-2.5">
+                  <h3 id="apply-res-title" className="m-0 text-[11px] font-semibold tracking-[.1em] text-muted-foreground uppercase">
+                    {t("Reservations")} <span className="text-foreground tabular-nums">{resRows.length}</span>
                   </h3>
-                  <div className="apply-tools">
-                    <button type="button" className="apply-tool" onClick={autoFill} disabled={busy || !canEdit}>
+                  <div className="flex gap-1.5">
+                    <button type="button" className={toolClass} onClick={autoFill} disabled={busy || !canEdit}>
                       {t("Auto-fill")}
                     </button>
-                    <button type="button" className="apply-tool" onClick={clear} disabled={busy || !canEdit}>
+                    <button type="button" className={toolClass} onClick={clear} disabled={busy || !canEdit}>
                       {t("Clear")}
                     </button>
                   </div>
                 </div>
 
-                <div className="apply-list">
+                <div className="overflow-hidden rounded-[14px] border border-border bg-card [&>*+*]:border-t [&>*+*]:border-border">
                   {resRows.map((res, i) => {
                     const over = rowOver(res);
                     const overpaid = (res.remaining_int ?? 0) < 0;
                     const newGroup = res.invoice_number && res.invoice_number !== resRows[i - 1]?.invoice_number;
                     return (
                       <Fragment key={res.id}>
-                        {newGroup && <div className="apply-group">{res.invoice_number}</div>}
-                      <div className="apply-row">
-                        <div className="apply-row-meta">
-                          <span className="apply-row-no">{res.number}</span>
-                          <span className="apply-row-sub">{res.hotel}</span>
-                          <span className={cn("apply-row-rem", overpaid && "is-over")}>
+                        {newGroup && <div className={GROUP}>{res.invoice_number}</div>}
+                      <div className={ROW}>
+                        <div className={ROW_META}>
+                          <span className={ROW_NO}>{res.number}</span>
+                          <span className={ROW_SUB}>{res.hotel}</span>
+                          <span className="text-[12px] text-muted-foreground tabular-nums">
                             {overpaid
-                              ? <>{t("Overpaid")}: <strong>{fmt(-res.remaining_int)} SAR</strong></>
-                              : <>{t("Remaining")}: <strong>{fmt(res.remaining_int ?? 0)} SAR</strong></>}
+                              ? <>{t("Overpaid")}: <strong className="font-semibold text-red">{fmt(-res.remaining_int)} SAR</strong></>
+                              : <>{t("Remaining")}: <strong className="font-semibold text-foreground">{fmt(res.remaining_int ?? 0)} SAR</strong></>}
                           </span>
                         </div>
-                        <div className="apply-row-in">
+                        <div className="flex flex-col items-end gap-[3px]">
                           <Input
-                            className="aps-input"
+                            className="w-[118px] text-right max-[600px]:w-[112px]"
                             type="number"
                             min="0"
                             max={capOf(res) ?? undefined}
@@ -324,34 +267,34 @@ export default function ApplyPaymentSheet({
                             aria-label={`${res.number} — ${t("Amount (SAR)")}`}
                           />
                           {over != null && (
-                            <span className="apply-row-max">{t("Max {n}", { n: fmt(over) })}</span>
+                            <span className="text-[12px] whitespace-nowrap text-red">{t("Max {n}", { n: fmt(over) })}</span>
                           )}
                         </div>
                       </div>
                       </Fragment>
                     );
                   })}
-                  {unbilled.length > 0 && <div className="apply-group">{t("Not invoiced yet")}</div>}
+                  {unbilled.length > 0 && <div className={GROUP}>{t("Not invoiced yet")}</div>}
                   {unbilled.map((cl) => (
-                    <div className="apply-row is-blocked" key={`cl-${cl.id}`}>
-                      <div className="apply-row-meta">
-                        <span className="apply-row-no">{cl.number}</span>
-                        <span className="apply-row-sub">{cl.hotel}</span>
+                    <div className={cn(ROW, "opacity-55")} key={`cl-${cl.id}`}>
+                      <div className={ROW_META}>
+                        <span className={ROW_NO}>{cl.number}</span>
+                        <span className={ROW_SUB}>{cl.hotel}</span>
                       </div>
-                      <span className="apply-row-why">{t("Create its invoice first")}</span>
+                      <span className="max-w-[150px] text-right text-[12px] text-muted-foreground">{t("Create its invoice first")}</span>
                     </div>
                   ))}
                 </div>
-                <p className="apply-foot-note">{t("Fully paid reservations are not listed: they cannot take more money.")}</p>
+                <p className="mx-0.5 mt-2.5 mb-0 text-[12px] leading-[1.5] text-muted-foreground">{t("Fully paid reservations are not listed: they cannot take more money.")}</p>
               </section>
             ) : (
-              <p className="apply-note is-muted" style={{ marginTop: "22px" }}>
+              <Note tone="muted" className="mt-[22px]">
                 {t("This payment has no reservations to allocate to.")}
-              </p>
+              </Note>
             )}
           </ModalBody>
 
-          <div className="apply-footer">
+          <div className="flex shrink-0 justify-end gap-2.5 border-t border-border bg-card px-5 py-4 max-[600px]:px-4 max-[600px]:py-3.5">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               {t("Cancel")}
             </Button>

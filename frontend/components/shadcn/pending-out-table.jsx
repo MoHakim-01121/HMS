@@ -16,12 +16,8 @@ import { fmt, fmtDate } from "../../utils/format.js";
    (finance_views._pending_out_rows). Money leaves only once someone other
    than the recorder confirms; an admin may approve their own entry. Rows the
    viewer may not decide show who recorded them instead of the buttons. */
-const CSS = `
-.pot-actions { display:inline-flex; gap:6px; justify-content:flex-end; }
-.pot-sub { display:block; font-size:12px; color:var(--muted-foreground); }
-.pot-dlgdesc { font-size:13px; color:var(--muted-foreground); margin:6px 0 0; line-height:1.6; }
-.pot-dlglabel { display:block; font-size:12px; color:var(--muted-foreground); margin:16px 0 6px; }
-`;
+const ACTIONS = "inline-flex justify-end gap-1.5";
+const SUB = "block text-[12px] text-muted-foreground";
 
 const base = (row) => (row.kind === "refund" ? `/finance/refunds/${row.id}` : `/finance/deposit-transfers/${row.id}`);
 
@@ -52,8 +48,8 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
       header: t("Document"),
       render: (r) => (
         <span>
-          <span className="mono">{r.number}</span>
-          <span className="pot-sub">{r.kind === "refund" ? t("Refund") : t("Deposit transfer")} · {fmtDate(r.date)}</span>
+          <span className="tabular-nums">{r.number}</span>
+          <span className={SUB}>{r.kind === "refund" ? t("Refund") : t("Deposit transfer")} · {fmtDate(r.date)}</span>
         </span>
       ),
     },
@@ -66,7 +62,7 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
       render: (r) => (
         <span>
           {r.detail}
-          {r.note ? <span className="pot-sub">{r.note}</span> : null}
+          {r.note ? <span className={SUB}>{r.note}</span> : null}
         </span>
       ),
     },
@@ -76,12 +72,12 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
       header: "",
       align: "right",
       render: (r) => (r.can_decide ? (
-        <span className="pot-actions">
+        <span className={ACTIONS}>
           <Button size="sm" variant="outline" onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</Button>
           <Button size="sm" onClick={() => approve(r)}>{t("Approve")}</Button>
         </span>
       ) : (
-        <span className="pot-sub">{t("Awaiting another user")}</span>
+        <span className={SUB}>{t("Awaiting another user")}</span>
       )),
     },
   ];
@@ -101,14 +97,14 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
         <tbody>
           {rows.map((r) => (
             <tr key={`${r.kind}-${r.id}`} className={DA.rowMid}>
-              <td style={{ verticalAlign: "middle" }}><span className={DC.mono}>{r.number}</span><span className={DC.sub}>{r.kind === "refund" ? t("Refund") : t("Deposit transfer")}, {fmtDate(r.date)}</span></td>
-              {showClient ? <td style={{ verticalAlign: "middle" }}><Link href={`/finance/clients/${r.client_id}/statement/`}>{r.client}</Link></td> : null}
-              <td style={{ verticalAlign: "middle" }}>{r.detail}{r.note ? <span className={DC.sub}>{r.note}</span> : null}</td>
-              <td style={{ verticalAlign: "middle" }}>{r.created_by}</td>
-              <td className={DC.n} style={{ verticalAlign: "middle", fontWeight: 600 }}>{fmt(r.amount_sar)}</td>
-              <td className={DC.n} style={{ verticalAlign: "middle" }}>
+              <td className="align-middle"><span className={DC.mono}>{r.number}</span><span className={DC.sub}>{r.kind === "refund" ? t("Refund") : t("Deposit transfer")}, {fmtDate(r.date)}</span></td>
+              {showClient ? <td className="align-middle"><Link href={`/finance/clients/${r.client_id}/statement/`}>{r.client}</Link></td> : null}
+              <td className="align-middle">{r.detail}{r.note ? <span className={DC.sub}>{r.note}</span> : null}</td>
+              <td className="align-middle">{r.created_by}</td>
+              <td className={cn(DC.n, "align-middle font-semibold")}>{fmt(r.amount_sar)}</td>
+              <td className={cn(DC.n, "align-middle")}>
                 {r.can_decide ? (
-                  <span className="pot-actions">
+                  <span className={ACTIONS}>
                     <button type="button" className={cn(dBtnClass(), "h-8 border border-input")} onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</button>
                     <button type="button" className={cn(dBtnClass({ primary: true }), "h-8")} onClick={() => approve(r)}>{t("Approve")}</button>
                   </span>
@@ -125,7 +121,6 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
 
   return (
     <>
-      <style>{CSS}</style>
       {table}
       {confirmDialog}
       {rejecting && (
@@ -134,8 +129,8 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
             <DialogHeader>
               <DialogTitle>{t("Reject {number}?", { number: rejecting.number })}</DialogTitle>
             </DialogHeader>
-            <p className="pot-dlgdesc">{t("No money moves. The document stays on record as rejected.")}</p>
-            <label className="pot-dlglabel" htmlFor="pot-reason">{t("Reason")}</label>
+            <p className="mt-1.5 mb-0 text-[13px] leading-[1.6] text-muted-foreground">{t("No money moves. The document stays on record as rejected.")}</p>
+            <label className="mt-4 mb-1.5 block text-[12px] text-muted-foreground" htmlFor="pot-reason">{t("Reason")}</label>
             <Textarea id="pot-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setRejecting(null)}>{t("Cancel")}</Button>

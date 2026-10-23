@@ -1,5 +1,4 @@
 {
-  "frontend/components/shadcn/apply-payment-sheet.jsx": 1,
   "frontend/components/shadcn/detail-a.jsx": 2,
   "frontend/components/shadcn/detail-amount.jsx": 5,
   "frontend/components/shadcn/detail-card.jsx": 8,
@@ -13,7 +12,6 @@
   "frontend/components/shadcn/page-back.jsx": 1,
   "frontend/components/shadcn/page-header.jsx": 5,
   "frontend/components/shadcn/pagination.jsx": 23,
-  "frontend/components/shadcn/pending-out-table.jsx": 2,
   "frontend/components/shadcn/record-view.jsx": 53,
   "frontend/components/shadcn/row-actions.jsx": 1,
   "frontend/components/shadcn/search-box.jsx": 2,
