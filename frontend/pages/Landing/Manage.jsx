@@ -55,19 +55,19 @@ export default function Manage({ team_members, pricelist }) {
           <Table
             columns={[
               {
-                header: t("Photo"), className: "col-m-meta",
+                header: t("Photo"), mobile: "meta",
                 render: (v) => (v.photo_url ? (
                   <img src={v.photo_url} alt={v.name} style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", display: "block" }} />
                 ) : (
                   <Icon name="user" size={18} style={{ color: "var(--muted-foreground)" }} />
                 )),
               },
-              { header: t("Name"), className: "col-m-primary", render: (v) => v.name },
-              { header: t("Position"), className: "col-m-secondary", render: (v) => v.position || "—" },
+              { header: t("Name"), mobile: "primary", render: (v) => v.name },
+              { header: t("Position"), mobile: "secondary", render: (v) => v.position || "—" },
               { header: t("WhatsApp"), className: "col-muted col-nowrap", render: (v) => (v.wa ? <a href={`https://wa.me/${v.wa}`} target="_blank" rel="noreferrer">{v.wa}</a> : "—") },
-              { header: t("Order"), className: "col-muted col-m-meta", render: (v) => v.order },
+              { header: t("Order"), className: "col-muted", mobile: "meta", render: (v) => v.order },
               {
-                header: "", className: "col-m-actions",
+                header: "", mobile: "actions",
                 render: (v) => (
                   <RowActions actions={[
                     perms.can("landing", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/manage-landing/team/${v.id}/edit/`) },
@@ -96,14 +96,14 @@ export default function Manage({ team_members, pricelist }) {
         {file ? (
           <Table
             columns={[
-              { header: t("Title"), className: "col-m-primary", render: (v) => v.title },
+              { header: t("Title"), mobile: "primary", render: (v) => v.title },
               {
-                header: t("File"), className: "col-m-secondary",
+                header: t("File"), mobile: "secondary",
                 render: (v) => (v.file_url ? <a href={v.file_url} target="_blank" rel="noreferrer">{v.filename}</a> : "—"),
               },
               { header: t("Updated"), className: "col-muted col-nowrap", render: (v) => v.updated_at },
               {
-                header: "", className: "col-m-actions",
+                header: "", mobile: "actions",
                 render: (v) => (
                   <RowActions actions={[
                     perms.can("landing", "edit") && { icon: "edit", label: t("Edit"), onClick: () => openForm(`/manage-landing/pricelist/${v.id}/edit/`) },

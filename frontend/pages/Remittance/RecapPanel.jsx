@@ -29,21 +29,22 @@ export default function RecapPanel({ monthly, t }) {
               <a className="recap-pdf" href={`/remittance/export/pdf/?month=${m.period}`} target="_blank" rel="noreferrer">PDF</a>
             </span>
           </div>
-          <div className="hms-list-card">
-            <Table
+          <Table
+              framed
               columns={[
-                { header: t("Remittance No"), className: "col-m-primary col-nowrap", render: (x) => x.remittance_number },
+                { header: t("Remittance No"), mobile: "primary", render: (x) => x.remittance_number },
                 {
                   header: t("Status"),
-                  className: "col-m-badge",
+                  mobile: "badge",
                   render: (x) => <StatusPill tone={RECAP_PILL[x.state].tone} label={t(RECAP_PILL[x.state].label)} />,
                 },
-                { header: t("Date"), className: "col-m-hide col-nowrap", render: (x) => x.date },
-                { header: t("Lines"), className: "col-m-hide", render: (x) => x.lines_count },
-                { header: t("Sent"), className: "mono col-m-hide col-nowrap", render: (x) => fmt(x.sent) },
+                { header: t("Date"), mobile: "hide", render: (x) => x.date },
+                { header: t("Lines"), mobile: "hide", render: (x) => x.lines_count },
+                { header: t("Sent"), mobile: "hide", className: "tabular-nums", render: (x) => fmt(x.sent) },
                 {
                   header: t("Received"),
-                  className: "mono col-m-amount",
+                  mobile: "amount",
+                  className: "tabular-nums",
                   render: (x) => (
                     <>
                       <span className="m-only recap-m-label">{t("Received")}</span>
@@ -54,7 +55,7 @@ export default function RecapPanel({ monthly, t }) {
                 },
                 {
                   header: "",
-                  className: "col-m-actions",
+                  mobile: "actions",
                   render: (x) => (
                     <RowActions
                       actions={[
@@ -69,7 +70,6 @@ export default function RecapPanel({ monthly, t }) {
               rowKey={(x) => x.id}
               onRowClick={(x) => router.visit(`/remittance/${x.id}/`)}
             />
-          </div>
         </div>
       ))}
     </div>

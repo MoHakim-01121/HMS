@@ -28,17 +28,17 @@ export default function ExpenseCategories({ categories = [] }) {
   const toggle = (c) => router.post(`/finance/expenses/categories/${c.code}/edit/`, { is_active: c.is_active ? "0" : "1" });
 
   const columns = [
-    { header: t("Category"), className: "col-m-primary", render: (c) => <span className="col-bold">{c.name}</span> },
-    { header: t("Ledger account"), className: "col-m-meta", render: (c) => <span className="font-mono text-xs">{c.ledger_account}</span> },
-    { header: t("Used"), className: "col-m-meta text-right", render: (c) => c.used },
+    { header: t("Category"), mobile: "primary", render: (c) => <span className="font-semibold">{c.name}</span> },
+    { header: t("Ledger account"), mobile: "meta", render: (c) => <span className="font-mono text-xs">{c.ledger_account}</span> },
+    { header: t("Used"), mobile: "meta", className: "text-right", render: (c) => c.used },
     {
       header: t("Status"),
-      className: "col-m-badge",
+      mobile: "badge",
       render: (c) => <StatusPill tone={c.is_active ? "green" : "gray"} label={c.is_active ? t("Active") : t("Inactive")} />,
     },
     {
       header: "",
-      className: "col-m-actions",
+      mobile: "actions",
       render: (c) => (
         <RowActions actions={[
           { icon: "edit", label: t("Rename"), onClick: () => setEditing({ code: c.code, name: c.name }) },
@@ -56,9 +56,7 @@ export default function ExpenseCategories({ categories = [] }) {
         sub={t("Each category has its own ledger account, so it shows as its own line in the Trial Balance.")}
         actions={<Button size="lg" onClick={() => setEditing({ name: "" })}>+ {t("New category")}</Button>}
       />
-      <div className="hms-list-card">
-        <Table columns={columns} rows={categories} rowKey={(c) => c.code} />
-      </div>
+      <Table framed columns={columns} rows={categories} rowKey={(c) => c.code} />
 
       {editing && (
         <Dialog open onOpenChange={(v) => { if (!v) setEditing(null); }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, isValidElement, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
   Table as ShadcnTable,
   TableBody,
@@ -10,6 +10,7 @@ import {
 } from "./ui/table.jsx";
 import { Checkbox } from "./ui/checkbox.jsx";
 import { Button } from "./ui/button.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 
 function useIsMobile(bp = 600) {
@@ -24,54 +25,27 @@ function useIsMobile(bp = 600) {
   return m;
 }
 
-function classify(col, row) {
-  const cls = typeof col.className === "function" ? col.className(row) : col.className;
-  if (!cls) return "meta";
-  if (cls.includes("col-m-primary")) return "primary";
-  if (cls.includes("col-m-badge")) return "badge";
-  if (cls.includes("col-m-secondary")) return "secondary";
-  if (cls.includes("col-m-meta")) return "meta";
-  if (cls.includes("col-m-amount")) return "amount";
-  if (cls.includes("col-m-actions")) return "actions";
-  if (cls.includes("col-m-hide")) return "hide";
-  return "meta";
-}
+// Where a column goes in the mobile card: `mobile` on the column is one of
+// primary | badge | secondary | meta | amount | actions | hide (default meta).
+// Actions are dropped on mobile: the whole card is the tap target.
+const ROLES = new Set(["primary", "badge", "secondary", "meta", "amount", "actions", "hide"]);
+const roleOf = (col) => (ROLES.has(col.mobile) ? col.mobile : "meta");
 
-// Mobile cards can render one badge as a colored ticket-stub instead of an
-// inline pill (opt-in via the `mobileStub` prop) — read its semantic color
-// straight off the element so existing badge markup (<span className="badge
-// badge-green">, <StatusPill tone="green" label=.../>) works without
-// changes. Anything unrecognized (a count, a currency code, 2+ badges)
-// falls back to showing inline.
 // Roles whose content is "label ... value" within a single column (Total,
-// or Hotel+dates) need justify-content:space-between at the per-column
-// level too, not just across columns. Give that inner span a bare spread
-// helper instead of the full role class — reusing the role class on both
-// the outer row and the inner span double-applies its margin/border/padding,
-// which is what made the amount row's dashed divider render twice.
+// or Hotel+dates) spread that column's own children apart too.
 const SPREAD_ROLES = new Set(["meta", "amount"]);
 
-function extractStub(node) {
-  if (!isValidElement(node)) return null;
-  const { tone, label, className, children } = node.props || {};
-  if (tone && typeof label === "string") return { tone, label };
-  if (typeof className === "string" && typeof children === "string") {
-    const m = /badge-(green|red|yellow|blue|gray)\b/.exec(className);
-    if (m) return { tone: m[1], label: children };
-  }
-  return null;
-}
+// Uppercase band that opens a group (the `section` prop), in both layouts.
+const BAND = "text-[11px] font-semibold tracking-[.08em] uppercase text-muted-foreground";
 
-// `mobileStub`: opt-in ticket-stub treatment for the mobile card list (a
-// colored strip carries the row's status, read off its badge column). Off
-// by default — every list gets the plain rounded card; CL passes this prop
-// explicitly since it's the one page this was designed for.
+// `framed`: draw the white card surface around the table (list pages that
+// have no card of their own).
 //
 // `section`: optional row => label. When the label changes between rows a
 // grouping band opens the new section — a full-width muted row above the
 // table (a card-list header on mobile) — for lists grouped by a key such as
 // the Trial Balance's account type. The label may be a string or a node.
-export default function Table({ columns, rows, rowKey, onRowClick, empty, footer, bulkActions, mobileStub, section }) {
+export default function Table({ columns, rows, rowKey, onRowClick, empty, footer, bulkActions, section, framed }) {
   const { t } = useI18n();
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState(() => new Set());
@@ -90,28 +64,28 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
   const clearSelection = () => setSelected(new Set());
   const selectedRows = rows.filter((r, i) => selected.has(rowKey(r, i)));
 
+  const frame = (node) => (framed ? <div className="overflow-hidden rounded-card border border-border bg-card">{node}</div> : node);
+
   /* ── Mobile card list ─────────────────────────────────────────────────── */
   if (isMobile) {
     let lastSection;
-    return (
-      <div className="m-card-list">
+    return frame(
+      <div className="flex flex-col overflow-hidden rounded-card border border-border bg-card">
         {rows.length ? rows.map((row, i) => {
           const key = rowKey(row, i);
           const primary = [];
-          const badgeRaw = [];
+          const badges = [];
           const secondary = [];
           const meta = [];
           const amount = [];
-          let actions = null;
 
           columns.forEach((col, ci) => {
-            const role = classify(col, row);
+            const role = roleOf(col);
+            if (role === "hide" || role === "actions") return;
             const content = col.render(row, i);
-            if (role === "hide") return;
-            if (role === "actions") { actions = content; return; }
-            if (role === "badge") { badgeRaw.push(content); return; }
+            if (role === "badge") { badges.push(<span key={ci}>{content}</span>); return; }
             const item = SPREAD_ROLES.has(role)
-              ? <span key={ci} className="m-card-row">{content}</span>
+              ? <span key={ci} className="flex min-w-0 flex-auto items-center justify-between gap-2">{content}</span>
               : <span key={ci}>{content}</span>;
             if (role === "primary") primary.push(item);
             else if (role === "secondary") secondary.push(item);
@@ -119,18 +93,15 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
             else meta.push(item);
           });
 
-          const stub = mobileStub && badgeRaw.length === 1 ? extractStub(badgeRaw[0]) : null;
-          const inlineBadges = stub ? [] : badgeRaw;
-
           const sec = section ? section(row, i) : null;
           const showSection = sec != null && sec !== lastSection;
           lastSection = sec;
 
           return (
             <Fragment key={key}>
-              {showSection && <div className="m-card-section">{sec}</div>}
+              {showSection && <div className={cn("border-b border-hairline px-[15px] pt-[14px] pb-[6px]", BAND)}>{sec}</div>}
               <div
-                className={"m-card" + (stub ? "" : " m-card--no-stub")}
+                className="flex cursor-pointer flex-col overflow-hidden border-b border-hairline last:border-b-0 active:bg-secondary"
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 role={onRowClick ? "button" : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
@@ -138,40 +109,42 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
                   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRowClick(row); }
                 } : undefined}
               >
-                {stub && (
-                  <div className={`m-card-stub st-${stub.tone}`}>
-                    <span className="m-card-stub-label">{stub.label}</span>
+                <div className="flex min-w-0 flex-col gap-2 px-[15px] py-[13px]">
+                  <div className="flex min-h-[22px] items-center justify-between gap-[10px]">
+                    <div className="min-w-0 flex-[1_1_0%] truncate text-[13.5px] leading-[1.3] font-semibold tracking-[-0.01em] text-foreground">{primary}</div>
+                    {badges.length > 0 && <div className="flex flex-none items-center gap-1">{badges}</div>}
                   </div>
-                )}
-                <div className="m-card-main">
-                  <div className="m-card-head">
-                    <div className="m-card-primary">{primary}</div>
-                    {inlineBadges.length > 0 && <div className="m-card-badge">{inlineBadges.map((b, bi) => <span key={bi}>{b}</span>)}</div>}
-                    {actions && <div className="m-card-actions" onClick={(e) => e.stopPropagation()}>{actions}</div>}
-                  </div>
-                  {secondary.length > 0 && <div className="m-card-secondary">{secondary}</div>}
-                  {meta.length > 0 && <div className="m-card-meta">{meta}</div>}
-                  {amount.length > 0 && <div className="m-card-amount">{amount}</div>}
+                  {secondary.length > 0 && <div className="truncate text-[13px] leading-[1.4] font-medium text-foreground">{secondary}</div>}
+                  {meta.length > 0 && <div className="flex items-center justify-between gap-2 text-[11.5px] leading-[1.4] text-muted-foreground">{meta}</div>}
+                  {amount.length > 0 && (
+                    <div className="mt-px flex items-end justify-between gap-3 border-t border-hairline pt-[9px] text-[15px] font-semibold text-foreground tabular-nums">{amount}</div>
+                  )}
                 </div>
               </div>
             </Fragment>
           );
         }) : (
-          <div className="m-card-empty">{empty || t("No data")}</div>
+          <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">{empty || t("No data")}</div>
         )}
       </div>
     );
   }
 
   /* ── Desktop table ────────────────────────────────────────────────────── */
+  // The "ledger" skin: one hairline under the header, hairlines between body
+  // rows (on the <td>s — a <tr> draws no border in the separate-borders
+  // model), a firmer --input rule over group bands and the total row.
+  const head = "px-3 [&:has([role=checkbox])]:pr-3 py-[10px] text-[11.5px] font-semibold text-foreground bg-transparent border-b border-b-hairline";
+  const cell = "p-3 [&:has([role=checkbox])]:pr-3 font-normal bg-card border-t border-t-hairline";
+  const rowHover = "[&:hover>td]:bg-accent";
   let lastSection;
-  return (
-    <div className="table-wrap hms-table-v2">
+  return frame(
+    <div className="overflow-x-auto">
       <ShadcnTable>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {selectable && (
-              <TableHead className="hms-th-select" style={{ width: 36 }}>
+              <TableHead className={cn(head, "w-9")}>
                 <Checkbox
                   checked={rows.length > 0 && selected.size === rows.length}
                   onCheckedChange={toggleAll}
@@ -184,7 +157,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
               return (
                 <TableHead
                   key={i}
-                  className={[staticColClassName, col.headerClassName, col.header ? null : "hms-th-blank"].filter(Boolean).join(" ") || undefined}
+                  className={cn(head, staticColClassName, col.headerClassName)}
                   // A column that aligns its cells (style.textAlign) aligns its
                   // header the same way unless it says otherwise.
                   style={col.headerStyle ?? (col.style?.textAlign ? { textAlign: col.style.textAlign } : undefined)}
@@ -195,7 +168,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
             })}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="[&>tr:first-child>td]:border-t-0">
           {rows.length ? rows.map((row, i) => {
             const key = rowKey(row, i);
             const sec = section ? section(row, i) : null;
@@ -204,12 +177,12 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
             return (
               <Fragment key={key}>
                 {showSection && (
-                  <TableRow className="hms-tsec">
-                    <TableCell colSpan={columns.length + (selectable ? 1 : 0)}>{sec}</TableCell>
+                  <TableRow>
+                    <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className={cn(cell, "border-t-input pt-[15px] pb-[5px]", BAND)}>{sec}</TableCell>
                   </TableRow>
                 )}
                 <TableRow
-                  style={onRowClick ? { cursor: "pointer" } : undefined}
+                  className={cn(rowHover, onRowClick && "cursor-pointer")}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={onRowClick ? (e) => {
@@ -218,16 +191,15 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
                   } : undefined}
                 >
                   {selectable && (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell className={cell} onClick={(e) => e.stopPropagation()}>
                       <Checkbox checked={selected.has(key)} onCheckedChange={() => toggleOne(key)} aria-label={t("Select row")} />
                     </TableCell>
                   )}
                   {columns.map((col, ci) => {
                     const cls = typeof col.className === "function" ? col.className(row) : col.className;
-                    const content = col.render(row, i);
                     return (
-                      <TableCell key={ci} className={cls} style={col.style} data-label={col.header || undefined}>
-                        {col.hoverReveal ? <span className="hms-row-reveal">{content}</span> : content}
+                      <TableCell key={ci} className={cn(cell, cls)} style={col.style} data-label={col.header || undefined}>
+                        {col.render(row, i)}
                       </TableCell>
                     );
                   })}
@@ -235,20 +207,23 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
               </Fragment>
             );
           }) : (
-            <TableRow>
-              <TableCell colSpan={columns.length + (selectable ? 1 : 0)} style={{ textAlign: "center", color: "var(--muted-foreground)", padding: 20 }}>
+            <TableRow className={rowHover}>
+              <TableCell colSpan={columns.length + (selectable ? 1 : 0)} className={cn(cell, "p-5 text-center text-muted-foreground")}>
                 {empty || t("No data")}
               </TableCell>
             </TableRow>
           )}
         </TableBody>
-        {footer && <TableFooter>{footer}</TableFooter>}
+        {footer && <TableFooter className="[&_td]:border-t [&_td]:border-t-input [&_td]:bg-card [&_td]:p-3 [&_td]:font-semibold">{footer}</TableFooter>}
       </ShadcnTable>
 
       {selectable && selected.size > 0 && (
-        <div className="hms-bulk-bar" role="toolbar">
-          <span className="hms-bulk-count">{t("{count} selected", { count: selected.size })}</span>
-          <div className="hms-bulk-actions">
+        <div
+          role="toolbar"
+          className="fixed bottom-6 left-1/2 z-[300] flex -translate-x-1/2 animate-rise-in items-center gap-[14px] rounded-2xl border border-border bg-popover px-4 py-[10px] shadow-menu max-[600px]:bottom-[calc(72px+env(safe-area-inset-bottom))]"
+        >
+          <span className="font-mono text-[12px] whitespace-nowrap text-muted-foreground">{t("{count} selected", { count: selected.size })}</span>
+          <div className="flex gap-2">
             {bulkActions.map((a, i) => (
               <Button key={i} size="sm" variant={a.variant || "outline"} onClick={() => a.onClick(selectedRows, clearSelection)}>
                 {a.label}
