@@ -4,6 +4,8 @@
 //   node scripts/ui-shots.mjs baseline            -> ui-shots/baseline/*.png
 //   node scripts/ui-shots.mjs current --compare   -> ui-shots/current/*.png + diff report
 //   node scripts/ui-shots.mjs current --only=dash  (substring filter on shot names)
+//   UI_SHOTS_URL=http://localhost:8001 node scripts/ui-shots.mjs head
+//   node scripts/ui-shots.mjs current --compare --against=head  (diff against ui-shots/head/)
 //
 // Needs the local dev stack running (runserver :8000 + vite :5173) and logs in
 // through sessions minted by scripts/ui_shots_sessions.py.
@@ -19,6 +21,7 @@ const BASE = process.env.UI_SHOTS_URL || "http://localhost:8000";
 const [name = "current", ...flags] = process.argv.slice(2);
 const compare = flags.includes("--compare");
 const only = (flags.find((f) => f.startsWith("--only=")) || "").slice(7);
+const against = (flags.find((f) => f.startsWith("--against=")) || "--against=baseline").slice(10);
 const outDir = join(ROOT, "ui-shots", name);
 mkdirSync(outDir, { recursive: true });
 
@@ -179,7 +182,7 @@ if (compare) {
   const rows = [];
   for (const [shot] of [...PAGES, ...ACTIONS]) for (const [vp] of VIEWPORTS) {
     const file = `${shot}-${vp}.png`;
-    const a = join(ROOT, "ui-shots/baseline", file), b = join(outDir, file);
+    const a = join(ROOT, "ui-shots", against, file), b = join(outDir, file);
     if ((only && !file.includes(only)) || !existsSync(a) || !existsSync(b)) continue;
     const r = await page.evaluate(async ([a, b]) => {
       const load = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.src = src; });

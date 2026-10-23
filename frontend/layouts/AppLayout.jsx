@@ -410,7 +410,7 @@ export default function AppLayout({ children }) {
       <a className="skip-link" href="#main">{t("Skip to content")}</a>
       {user && (
         <>
-          <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />
+          {!isMap && <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />}
 
           <header className={"hms-topbar ks-tb" + (lift ? " lift" : "")}>
             <div className="ks-tl">

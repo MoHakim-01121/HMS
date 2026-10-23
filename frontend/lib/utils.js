@@ -6,10 +6,10 @@ import { extendTailwindMerge } from "tailwind-merge";
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
-      shadow: ["menu", "popover", "palette"],
+      shadow: ["menu", "popover", "palette", "float"],
       radius: ["control", "card"],
       ease: ["out-quint", "in-quick", "drawer"],
-      animate: ["menu-in", "menu-out", "panel-in", "fade-in", "rise-in", "content-in", "skel"],
+      animate: ["menu-in", "menu-out", "panel-in", "fade-in", "rise-in", "tip-in", "content-in", "skel"],
     },
   },
 });

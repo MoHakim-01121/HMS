@@ -260,6 +260,7 @@
 
   --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
   --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
+  --shadow-float: 0 1px 2px rgba(10,12,16,.04);
   --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
 
   /* Motion: one enter curve, one exit curve, one drawer curve (iOS sheet). */
@@ -271,6 +272,8 @@
   --animate-panel-in: panel-in 200ms var(--ease-out-quint) both;
   --animate-fade-in: fade-in 180ms var(--ease-out-quint) both;
   --animate-rise-in: rise-in 180ms var(--ease-out-quint) both;
+  --animate-tip-in: tip-in 140ms var(--ease-out-quint) both;
+  @keyframes tip-in { from { opacity: 0; transform: translateX(-4px); } }
   @keyframes menu-in { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
   @keyframes menu-out { to { opacity: 0; transform: translateY(-4px) scale(.98); } }
   @keyframes panel-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
@@ -542,10 +545,6 @@
    names used inside the sidebar (icon buttons, account dropdown, etc). */
 .topbar { display: none !important; }
 
-.hms-sidebar {
-  display: none;
-}
-
 /* Hidden by default (mobile uses .m-top-bar instead); shown at 601px+
    inside the @media block below. Missing this base rule was letting the
    desktop <header> fall back to its default block display on mobile,
@@ -561,94 +560,6 @@
   :root { --sidebar-w: 256px; --sidebar-w-collapsed: 72px; }
   body { padding-top: 0; padding-left: var(--sidebar-w); }
   body.sidebar-collapsed { padding-left: var(--sidebar-w-collapsed); }
-
-  .hms-sidebar {
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0; left: 0; bottom: 0;
-    width: var(--sidebar-w);
-    padding: 20px;
-    gap: 8px;
-    border-right: 1px solid var(--border);
-    /* Chrome/content separation (2026-08-29): the whole shell previously
-       shared --background (ivory), so the sidebar visually merged with the
-       page cards and the app read as one undifferentiated field of ivory.
-       Chrome (sidebar + topbar) now paints the white surface (--card) while
-       the content column keeps the warm-tinted --background canvas — the
-       "white shell over a tinted content plane" pattern profiled dashboards
-       use to make the two meet with a crisp joint instead of a wash. */
-    background: var(--card);
-    z-index: var(--z-sticky, 200);
-    overflow-y: auto;
-    /* Keep scrolling but hide the scrollbar — sidebar reads cleaner and the
-       nav rows already communicate scrollability visually. */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    transition: width .18s ease;
-  }
-  .hms-sidebar::-webkit-scrollbar { display: none; }
-  /* Horizontal padding is trimmed 20px→12px here so the usable row width
-     (72 - 24 = 48px) matches .hms-sidebar-link's own 48px min-height —
-     equal width/height is what makes the active/hover highlight read as a
-     square instead of a tall rounded rectangle. */
-  body.sidebar-collapsed .hms-sidebar { width: var(--sidebar-w-collapsed); padding-left: 12px; padding-right: 12px; }
-
-  
-  /* 32px visible, 40px hit target — keeps the chrome compact without a
-     sub-spec tap area. */
-  
-  
-  
-
-  /* Grouped nav (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference,
-     arunjdass): headed clusters (Operations/Schedule/Admin) instead of one
-     flat list under a single "Modules" label. Row sizing (min-height 48px,
-     20px icons, 14px labels) is kept at its pre-existing Homlu-direction
-     values on purpose — the grouping/heading structure is new, the physical
-     size of each row is not. */
-  /* Brand block (v2.1) — replaces the empty space above the nav: a 34px
-     rounded near-black mark + the two-line product name. */
-  
-  
-  
-  
-  
-  
-  
-
-  
-  
-  
-
-  
-  
-
-  
-
-  
-  /* v2.1: hover only shifts the ink — no champagne fill. */
-  
-  /* Icons are flex children of the link; without this they inherit the
-     default flex-shrink:1 and get visually squeezed down in the collapsed
-     rail, where the link's own padding leaves less width than the icon's
-     20px intrinsic size. */
-  
-  /* Active nav item (v2.1): a plain white card on the tinted rail — full ink,
-     weight 600, hairline border. No gold wash; the rail is the only "second
-     surface" and it earns its place through the shell/canvas split, not hue.
-     Identical in light and dark (dark card 0.18 reads against canvas 0.145). */
-  
-
-  /* Collapsed state: icon-only rail — hide every text label, center icons. */
-  
-  /* Collapsed row is 48px wide (see .hms-sidebar's own collapsed padding
-     override above) — the link's normal 12px horizontal padding would leave
-     just 24px for a 20px icon with barely any breathing room, so it's
-     dropped here in favor of centering. Radius 10px on this now-square
-     48x48 box reads as a rounded box; var(--radius) (12px) was tuned for
-     the wider expanded row and looked stadium-like at this size. */
-  
 
   /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
      h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
@@ -1082,20 +993,6 @@ table.hms-dv-table { width:100%; border-collapse:collapse; font-size:13px; }
    appear on hover only. Each fact appears exactly once (name = card title,
    distance/reference/avg = meta row). */
 
-/* ── Map mode ────────────────────────────────────────────────────────────
-   /hotels/map/ and /clients/map/ render as an immersive fullscreen map:
-   AppLayout toggles body.map-mode, which strips the app sidebar + topbar
-   padding and hides that chrome entirely so Leaflet gets the whole
-   viewport. The map pages' own topbar/filter bar becomes the only chrome,
-   and the map-back button (mobile-only by default) is re-shown on desktop
-   as the escape hatch back to the list pages. */
-body.map-mode { padding-left: 0 !important; padding-top: 0 !important; overflow: hidden; }
-body.map-mode .hms-sidebar { display: none !important; }
-body.map-mode .hms-topbar { display: none !important; }
-body.map-mode .m-top-bar { display: none !important; }
-body.map-mode #map-wrap { height: 100dvh !important; }
-body.map-mode .map-back-btn { display: flex !important; }
-
 /* ── Segmented control (Homlu v2.1, library sheet 4) ──────────────────────
    Grey track, radius 999, 3px inset; each option h30 / 0 14px / 600 12px,
    muted when idle; the active option is a white card lifted on a hairline
@@ -1147,7 +1044,7 @@ body.map-fullscreen {
   padding-left: 0 !important;
   padding-top: 0 !important;
 }
-body.map-fullscreen .hms-sidebar,
+
 body.map-fullscreen .hms-topbar,
 body.map-fullscreen .m-top-bar,
 body.map-fullscreen #m-bottom-nav {
@@ -1681,9 +1578,30 @@ body.public-page {
   --muted-foreground: #5F6353;
   --secondary: #E3E6D9;
 }
-[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .ks-sp, .ks-bm, .ks-dd, .ks-cdlg, .bc .tip) {
+[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .ks-sp, .ks-dd, .ks-cdlg, .bc .tip) {
   --muted-foreground: #64675A;
   --secondary: #EEF0E6;
+}
+
+/* The olive sidebar card maps the ink tokens onto its own, so every row
+   inside reads them unchanged. */
+@utility ink-sidebar {
+  color: var(--sidebar-fg);
+  --card: var(--sidebar);
+  --foreground: var(--sidebar-fg);
+  --muted-foreground: var(--sidebar-muted);
+  --secondary: rgba(255,255,255,.08);
+  --border: rgba(255,255,255,.14);
+}
+/* A light menu opened inside the sidebar takes the page's ink back. */
+@utility ink-menu {
+  --foreground: var(--popover-foreground);
+  --muted-foreground: var(--menu-muted);
+  --secondary: var(--menu-hover);
+  --border: var(--menu-line);
+  --hairline: var(--menu-hair);
+  --card: var(--popover);
+  color: var(--foreground);
 }
 
 /* The same hand-back as a utility, for components: `surface` on any card,
