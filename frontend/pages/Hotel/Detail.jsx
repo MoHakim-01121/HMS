@@ -3,7 +3,7 @@ import { Menu, MenuItem } from "../../components/shadcn/list-a.jsx";
 import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { distColor, MAP } from "../../components/mapColors.js";
-import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
@@ -185,7 +185,7 @@ export default function Detail({ hotel }) {
         ]}
       />
 
-      <div className="da-pair">
+      <div className={DA.pair}>
         <DCard
           title={t("Room types")}
           count={groups.length || null}
@@ -198,14 +198,14 @@ export default function Detail({ hotel }) {
         >
           {groups.length ? (
             <>
-              <div className="da-scroll">
-                <table className="da-t mid">
-                  <thead><tr><th>{t("Room type")}</th><th className="n">{t("Capacity")}</th><th>{t("Views")}</th></tr></thead>
+              <div className={DA.scroll}>
+                <table data-slot="detail-table" className={DA.table}>
+                  <thead><tr><th>{t("Room type")}</th><th className={DC.n}>{t("Capacity")}</th><th>{t("Views")}</th></tr></thead>
                   <tbody>
                     {shown.map((g) => (
-                      <tr key={g.name} className="mid">
-                        <td className="strong" style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{g.name}</td>
-                        <td className="n" style={{ verticalAlign: "middle" }}>{g.capacity} {t("pax")}</td>
+                      <tr key={g.name} className={DA.rowMid}>
+                        <td className={DC.strong} style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{g.name}</td>
+                        <td className={DC.n} style={{ verticalAlign: "middle" }}>{g.capacity} {t("pax")}</td>
                         <td style={{ paddingTop: 10, paddingBottom: 10 }}>
                           {g.items.map((rt) => (
                             <ViewChip key={rt.id} rt={rt} canEdit={canEdit} onEdit={(x) => openForm(`${base}/room-types/${x.id}/edit/`)} onRemove={removeRoomType} />
@@ -224,30 +224,30 @@ export default function Detail({ hotel }) {
                 </div>
               ) : null}
             </>
-          ) : <div className="da-empty">{t("This hotel has no room types yet.")}</div>}
+          ) : <div className={DA.empty}>{t("This hotel has no room types yet.")}</div>}
         </DCard>
 
         <DCard title={t("Location")} actions={<a href="/hotels/map/">{t("See full map")} ↗</a>}>
           {hasCoords ? (
             <>
-              <div className="da-map" role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} style={{ marginTop: 4 }}>
+              <div className={DA.map} role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} style={{ marginTop: 4 }}>
                 <HotelMiniMap hotel={hotel} />
               </div>
               <div style={{ padding: "12px 24px 18px", fontSize: 13, color: "var(--muted-foreground)" }}>
                 {t("Distance measured from {ref}.", { ref: hotel.ref_label })}
               </div>
             </>
-          ) : <div className="da-empty">{t("Location not set — add coordinates on the edit page to show this hotel on the map.")}</div>}
+          ) : <div className={DA.empty}>{t("Location not set — add coordinates on the edit page to show this hotel on the map.")}</div>}
         </DCard>
       </div>
 
-      <div className={hotel.avg_occupancy ? "da-pair" : undefined}>
+      <div className={hotel.avg_occupancy ? DA.pair : undefined}>
         <DCard
           title={t("Meal plans")}
           actions={canEdit ? <button type="button" onClick={() => openForm(`${base}/meal-plans/`)} onPointerEnter={() => openForm.prefetch?.(`${base}/meal-plans/`)}>{t("Manage")}</button> : null}
         >
           {mealPlans.length ? (
-            <div className="da-rows">
+            <div className={DA.rows}>
               {mealPlans.map((mp) => (
                 <div key={mp.code}>
                   <span style={{ width: 32, fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: "var(--muted-foreground)" }}>{mp.code}</span>
@@ -255,7 +255,7 @@ export default function Detail({ hotel }) {
                 </div>
               ))}
             </div>
-          ) : <div className="da-empty">{t("No meal plans set — the CL form falls back to free-text Meals for this hotel.")}</div>}
+          ) : <div className={DA.empty}>{t("No meal plans set — the CL form falls back to free-text Meals for this hotel.")}</div>}
         </DCard>
 
         {hotel.avg_occupancy ? (
@@ -267,7 +267,7 @@ export default function Detail({ hotel }) {
 
       {hotel.note ? (
         <DCard pad title={t("Notes")}>
-          <p className="da-text">{hotel.note}</p>
+          <p className={DA.text}>{hotel.note}</p>
         </DCard>
       ) : null}
 

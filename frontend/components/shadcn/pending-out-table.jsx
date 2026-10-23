@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { DA, DC, dBtnClass } from "./detail-a.jsx";
 import { Link, router } from "@inertiajs/react";
 import DetailTable from "./detail-table.jsx";
 import { useConfirm } from "./confirm-dialog.jsx";
@@ -84,33 +86,33 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
     },
   ];
 
-  // `plain`: the detail-page table (detail-a.css), as on the Client Ledger.
+  // `plain`: the detail-page table (DA.table in detail-a.jsx), as on the Client Ledger.
   const table = plain ? (
-    <div className="da-scroll">
-      <table className="da-t">
+    <div className={DA.scroll}>
+      <table data-slot="detail-table" className={DA.table}>
         <thead>
           <tr>
             <th>{t("Document")}</th>
             {showClient ? <th>{t("Client")}</th> : null}
-            <th>{t("Details")}</th><th>{t("Recorded by")}</th><th className="n">{t("Amount (SAR)")}</th>
-            <th className="n"><span className="sr-only">{t("Decision")}</span></th>
+            <th>{t("Details")}</th><th>{t("Recorded by")}</th><th className={DC.n}>{t("Amount (SAR)")}</th>
+            <th className={DC.n}><span className="sr-only">{t("Decision")}</span></th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={`${r.kind}-${r.id}`} className="mid">
-              <td style={{ verticalAlign: "middle" }}><span className="mono">{r.number}</span><span className="sub">{r.kind === "refund" ? t("Refund") : t("Deposit transfer")}, {fmtDate(r.date)}</span></td>
+            <tr key={`${r.kind}-${r.id}`} className={DA.rowMid}>
+              <td style={{ verticalAlign: "middle" }}><span className={DC.mono}>{r.number}</span><span className={DC.sub}>{r.kind === "refund" ? t("Refund") : t("Deposit transfer")}, {fmtDate(r.date)}</span></td>
               {showClient ? <td style={{ verticalAlign: "middle" }}><Link href={`/finance/clients/${r.client_id}/statement/`}>{r.client}</Link></td> : null}
-              <td style={{ verticalAlign: "middle" }}>{r.detail}{r.note ? <span className="sub">{r.note}</span> : null}</td>
+              <td style={{ verticalAlign: "middle" }}>{r.detail}{r.note ? <span className={DC.sub}>{r.note}</span> : null}</td>
               <td style={{ verticalAlign: "middle" }}>{r.created_by}</td>
-              <td className="n" style={{ verticalAlign: "middle", fontWeight: 600 }}>{fmt(r.amount_sar)}</td>
-              <td className="n" style={{ verticalAlign: "middle" }}>
+              <td className={DC.n} style={{ verticalAlign: "middle", fontWeight: 600 }}>{fmt(r.amount_sar)}</td>
+              <td className={DC.n} style={{ verticalAlign: "middle" }}>
                 {r.can_decide ? (
                   <span className="pot-actions">
-                    <button type="button" className="da-btn" style={{ height: 32, border: "1px solid var(--input)" }} onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</button>
-                    <button type="button" className="da-btn primary" style={{ height: 32 }} onClick={() => approve(r)}>{t("Approve")}</button>
+                    <button type="button" className={cn(dBtnClass(), "h-8 border border-input")} onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</button>
+                    <button type="button" className={cn(dBtnClass({ primary: true }), "h-8")} onClick={() => approve(r)}>{t("Approve")}</button>
                   </span>
-                ) : <span className="sub">{t("Awaiting another user")}</span>}
+                ) : <span className={DC.sub}>{t("Awaiting another user")}</span>}
               </td>
             </tr>
           ))}

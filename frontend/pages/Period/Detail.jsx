@@ -1,6 +1,7 @@
 import { router } from "@inertiajs/react";
+import { cn } from "@/lib/utils";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
@@ -95,18 +96,18 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
           title={t("Month-end checklist")}
           meta={checklist.fails ? t("{n} blocking", { n: checklist.fails }) : checklist.warns ? t("{n} to review", { n: checklist.warns }) : t("All clear")}
         >
-          <div className="da-scroll">
-            <table className="da-t">
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
               <tbody>
                 {checklist.items.map((i) => (
                   <tr key={i.key}>
                     <td style={{ width: 96 }}><DPill sm tone={CHECK[i.status]?.tone}>{t(CHECK[i.status]?.label || i.status)}</DPill></td>
                     <td>
-                      <span className="strong">{t(i.label)}</span>
-                      <span className="sub">{t(i.detail, i.params)}</span>
-                      {i.status !== "ok" && i.rows.length ? i.rows.map((r) => <span key={r} className="sub">{r}</span>) : null}
+                      <span className={DC.strong}>{t(i.label)}</span>
+                      <span className={DC.sub}>{t(i.detail, i.params)}</span>
+                      {i.status !== "ok" && i.rows.length ? i.rows.map((r) => <span key={r} className={DC.sub}>{r}</span>) : null}
                     </td>
-                    <td className="n">{i.link && i.status !== "ok" ? <a href={i.link}>{t("Open")}</a> : null}</td>
+                    <td className={DC.n}>{i.link && i.status !== "ok" ? <a href={i.link}>{t("Open")}</a> : null}</td>
                   </tr>
                 ))}
               </tbody>
@@ -117,13 +118,13 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
 
       {account_balances.length ? (
         <DCard title={t("Account Balances")} count={account_balances.length} meta="SAR">
-          <div className="da-scroll">
-            <table className="da-t">
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
               <tbody>
                 {account_balances.map((ab) => (
                   <tr key={ab.account}>
                     <td>{ab.label}</td>
-                    <td className="n bold" style={{ color: ab.balance > 0 ? "var(--success-text)" : ab.balance < 0 ? "var(--danger-text)" : undefined }}>{fmt(ab.balance)}</td>
+                    <td className={cn(DC.n, DC.bold)} style={{ color: ab.balance > 0 ? "var(--success-text)" : ab.balance < 0 ? "var(--danger-text)" : undefined }}>{fmt(ab.balance)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -134,47 +135,47 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
 
       <DCard title={t("Journal Entries")} count={entries.length}>
         {entries.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th><th className="n">{t("Balanced")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th><th className={DC.n}>{t("Balanced")}</th></tr></thead>
               <tbody>
                 {entries.map((e) => (
                   <tr key={e.id}>
-                    <td className="mono">{e.entry_number}</td>
-                    <td className="strong">{e.entry_type_display}</td>
-                    <td className="mut">{e.description}</td>
-                    <td className="nw">{e.entry_date}</td>
-                    <td className="n">{fmt(e.total_debit)}</td>
-                    <td className="n">{fmt(e.total_credit)}</td>
-                    <td className="n">{e.is_balanced ? <span className="good">{t("Yes")}</span> : <span className="late">{t("No")}</span>}</td>
+                    <td className={DC.mono}>{e.entry_number}</td>
+                    <td className={DC.strong}>{e.entry_type_display}</td>
+                    <td className={DC.mut}>{e.description}</td>
+                    <td className={DC.nw}>{e.entry_date}</td>
+                    <td className={DC.n}>{fmt(e.total_debit)}</td>
+                    <td className={DC.n}>{fmt(e.total_credit)}</td>
+                    <td className={DC.n}>{e.is_balanced ? <span className={DC.good}>{t("Yes")}</span> : <span className={DC.late}>{t("No")}</span>}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className="n">{fmt(total_debit)}</td><td className="n">{fmt(total_credit)}</td><td /></tr></tfoot>
+              <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className={DC.n}>{fmt(total_debit)}</td><td className={DC.n}>{fmt(total_credit)}</td><td /></tr></tfoot>
             </table>
           </div>
-        ) : <div className="da-empty">{t("No journal entries in this period.")}</div>}
+        ) : <div className={DA.empty}>{t("No journal entries in this period.")}</div>}
       </DCard>
 
       <DCard title={t("Payments")} count={payments.length}>
         {payments.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Payment")}</th><th>{t("Client")}</th><th>{t("Date")}</th><th>{t("Status")}</th><th className="n">{t("Amount (SAR)")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Payment")}</th><th>{t("Client")}</th><th>{t("Date")}</th><th>{t("Status")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>
               <tbody>
                 {payments.map((p) => (
                   <tr key={p.id}>
                     <td><a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a></td>
                     <td>{p.client_name}</td>
-                    <td className="nw">{p.payment_date}</td>
+                    <td className={DC.nw}>{p.payment_date}</td>
                     <td><DPill sm tone={PAY_TONE[p.status] || "gray"}>{p.status_display}</DPill></td>
-                    <td className="n">{fmt(p.amount_sar)}</td>
+                    <td className={DC.n}>{fmt(p.amount_sar)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : <div className="da-empty">{t("No payments in this period.")}</div>}
+        ) : <div className={DA.empty}>{t("No payments in this period.")}</div>}
       </DCard>
 
       {confirmDialog}

@@ -33,15 +33,15 @@
 .db-g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
 .db-g3.two, .db-g2.one { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .db-g2.one { grid-template-columns: minmax(0, 1fr); }
-.db-g2b > .da-card, .db-g3 > .da-card { display: flex; flex-direction: column; }
-.db-g2b .da-card-foot, .db-g3 .da-card-foot { margin-top: auto; }
+.db-g2b > [data-slot=card], .db-g3 > [data-slot=card] { display: flex; flex-direction: column; }
+.db-g2b [data-slot=card-foot], .db-g3 [data-slot=card-foot] { margin-top: auto; }
 .db-g2b [data-slot=empty], .db-g3 [data-slot=empty] { margin: auto 0; }
-.db .da-card-h a { font-size: 12px; font-weight: 500; color: var(--muted-foreground); text-decoration: none; }
-.db .da-card-h a:hover { color: var(--foreground); }
-.db .da-card-foot a { color: var(--foreground); font-weight: 600; text-decoration: none; }
+.db [data-slot=card-head] a { font-size: 12px; font-weight: 500; color: var(--muted-foreground); text-decoration: none; }
+.db [data-slot=card-head] a:hover { color: var(--foreground); }
+.db [data-slot=card-foot] a { color: var(--foreground); font-weight: 600; text-decoration: none; }
 .db [data-slot=empty] { padding: 32px 24px; }
 
-/* Repeating rows as a grid styled like .da-t: headers in ink (2026-10-20), set apart by size. */
+/* Repeating rows as a grid styled like [data-slot=detail-table]: headers in ink (2026-10-20), set apart by size. */
 .dt { font-size: 13px; }
 .dt-h, .dt-r { display: grid; gap: 12px; align-items: center; padding: 0 24px; }
 .dt-todo .dt-h, .dt-todo .dt-r { grid-template-columns: minmax(0, 1fr) 56px 140px 16px; }
@@ -137,8 +137,8 @@
 .mn-r b.warn { color: var(--warning-text); }
 .mn-r b.zero { font-weight: 500; color: var(--muted-foreground); }
 
-.db .da-t .ell { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db .da-t .late { color: var(--danger-text); }
+.db [data-slot=detail-table] .ell { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db [data-slot=detail-table] .late { color: var(--danger-text); }
 
 /* Finance, Administrator, Staff (HMS Dashboard canvas, 2026-10-20). */
 .db-kpis.nohero { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -147,8 +147,8 @@
 .db-hero .lines b { font-weight: 600; color: #fff; }
 .db-g2b.one { grid-template-columns: minmax(0, 1fr); }
 .db-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.db-stack > .da-card { display: flex; flex-direction: column; }
-.db-stack .da-card-foot { margin-top: auto; }
+.db-stack > [data-slot=card] { display: flex; flex-direction: column; }
+.db-stack [data-slot=card-foot] { margin-top: auto; }
 .dt-pay .dt-h, .dt-pay .dt-r { grid-template-columns: minmax(0, 1fr) 140px 16px; }
 .dt-pd .dt-h, .dt-pd .dt-r { grid-template-columns: minmax(0, 1fr) 48px 80px 80px; }
 .dt-mypay .dt-h, .dt-mypay .dt-r { grid-template-columns: minmax(0, 1fr) 128px 152px; }

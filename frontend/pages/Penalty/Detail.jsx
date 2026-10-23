@@ -1,6 +1,6 @@
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { DPage, DTop, DHead, DBanner, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DCard, DA } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -46,14 +46,14 @@ export default function Detail({ penalty: p }) {
           p.is_paid && p.payment_date && { k: t("Payment date"), v: p.payment_date },
           { k: t("Guest"), v: p.cl.guest_name },
           { k: t("Confirmation Letter"), v: <a href={`/cl/${p.cl.id}/`}>{p.cl.confirmation_number}</a> },
-          { k: t("Invoice"), v: p.invoice ? <a href={`/invoice/${p.invoice.id}/`}>{p.invoice.invoice_number}</a> : <span className="dim">{t("Not billed")}</span> },
+          { k: t("Invoice"), v: p.invoice ? <a href={`/invoice/${p.invoice.id}/`}>{p.invoice.invoice_number}</a> : <span className="font-normal text-muted-foreground">{t("Not billed")}</span> },
         ]}
         note={p.note ? { label: t("Notes"), text: p.note } : null}
       />
 
       {p.reason ? (
         <DCard pad title={t("Reason")}>
-          <p className="da-text">{p.reason}</p>
+          <p className={DA.text}>{p.reason}</p>
         </DCard>
       ) : null}
 

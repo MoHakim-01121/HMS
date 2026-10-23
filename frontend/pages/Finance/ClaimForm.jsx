@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { DateRange } from "../../components/shadcn/list-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -64,27 +65,27 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
 
       <DCard title={t("Paid expenses not claimed yet")} count={expenses.length}>
         {expenses.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
               <thead><tr>
                 <th style={{ width: 40 }}><span className="sr-only">{t("Include")}</span></th>
-                <th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className="n">{t("Amount (IDR)")}</th>
+                <th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className={DC.n}>{t("Amount (IDR)")}</th>
               </tr></thead>
               <tbody>
                 {expenses.map((e) => (
-                  <tr key={e.id} className={excluded.includes(e.id) ? "dim" : ""}>
+                  <tr key={e.id} className={cn(excluded.includes(e.id) ? "dim" : undefined)}>
                     <td><input type="checkbox" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
                       aria-label={t("Include {n}", { n: e.expense_number })} /></td>
-                    <td className="mono">{e.expense_number}</td>
-                    <td className="nw">{fmtDate(e.expense_date)}</td>
+                    <td className={DC.mono}>{e.expense_number}</td>
+                    <td className={DC.nw}>{fmtDate(e.expense_date)}</td>
                     <td>{e.description}</td>
-                    <td className="n">{fmt(e.amount)}</td>
+                    <td className={DC.n}>{fmt(e.amount)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot><tr>
                 <td colSpan={4} style={{ paddingBottom: 16 }}>{t("Total")}</td>
-                <td className="n" style={{ paddingBottom: 16 }}>{fmt(total)} IDR</td>
+                <td className={DC.n} style={{ paddingBottom: 16 }}>{fmt(total)} IDR</td>
               </tr></tfoot>
             </table>
           </div>

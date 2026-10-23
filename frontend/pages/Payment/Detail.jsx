@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DTabs, DLog, dayMonth } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DTabs, DLog, dayMonth, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import ApplyPaymentSheet from "../../components/shadcn/apply-payment-sheet.jsx";
 import {
@@ -159,7 +160,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
     proof && <DChip key="proof" href={proof.url} icon="clip" label={t("Open payment proof, {name}", { name: proof.name })}>{proof.name || t("Proof")}</DChip>,
     ...receipts.map((r) => (
       <DChip key={r.id} href={`/receipts/${r.id}/pdf/`} icon="receipt" label={t("Open receipt {number} PDF", { number: r.receipt_number })}>
-        {t("Receipt")} <span className="da-mono" style={{ fontSize: 12 }}>{r.receipt_number}</span>
+        {t("Receipt")} <span className={cn(DA.mono, "text-[12px]")}>{r.receipt_number}</span>
         {r.status !== "active" ? <span style={{ color: "var(--muted-foreground)" }}>· {r.status_display}</span> : null}
       </DChip>
     )),
@@ -207,7 +208,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
 
       <DHead title={payment.payment_number} badge={pill} menu={menu} chips={chips} cols={4} facts={facts} note={noteBox} />
 
-      <section className="da-card">
+      <section data-slot="card" className={DA.card}>
         <DTabs
           label={t("Payment records")}
           value={tab}
@@ -220,56 +221,56 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
         />
 
         {tab === "allocation" ? (
-          <div role="tabpanel" className="da-scroll">
+          <div role="tabpanel" className={DA.scroll}>
             {allocations.length ? (
-              <table className="da-t">
-                <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className="n">{t("Amount (SAR)")}</th></tr></thead>
+              <table data-slot="detail-table" className={DA.table}>
+                <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>
                 <tbody>
                   {allocations.map((a) => (
                     <tr key={a.id}>
                       <td>
-                        <span className="mono">{a.reservation_number || `#${a.reservation_id}`}</span>
-                        {a.invoice_number && a.invoice_number !== payment.invoice_number ? <span className="sub">{a.invoice_number}</span> : null}
+                        <span className={DC.mono}>{a.reservation_number || `#${a.reservation_id}`}</span>
+                        {a.invoice_number && a.invoice_number !== payment.invoice_number ? <span className={DC.sub}>{a.invoice_number}</span> : null}
                       </td>
-                      <td className="strong">{a.hotel || ""}</td>
-                      <td className="mut nw">{fmtStay(a.check_in, a.check_out)}</td>
-                      <td className="n">{fmt(a.amount_sar)}</td>
+                      <td className={DC.strong}>{a.hotel || ""}</td>
+                      <td className={cn(DC.nw, DC.mut)}>{fmtStay(a.check_in, a.check_out)}</td>
+                      <td className={DC.n}>{fmt(a.amount_sar)}</td>
                     </tr>
                   ))}
                   {unallocatedRow ? (
                     <tr>
-                      <td className="mut">{t("Unallocated")}</td>
-                      <td className="mut">{t("Held on the client balance")}</td>
+                      <td className={DC.mut}>{t("Unallocated")}</td>
+                      <td className={DC.mut}>{t("Held on the client balance")}</td>
                       <td />
-                      <td className="n" style={{ color: "var(--danger-text)" }}>{fmt(payment.unallocated_sar)}</td>
+                      <td className={DC.n} style={{ color: "var(--danger-text)" }}>{fmt(payment.unallocated_sar)}</td>
                     </tr>
                   ) : null}
                 </tbody>
-                <tfoot><tr><td colSpan={3}>{t("Total received")}</td><td className="n">{fmt(payment.amount_sar)} SAR</td></tr></tfoot>
+                <tfoot><tr><td colSpan={3}>{t("Total received")}</td><td className={DC.n}>{fmt(payment.amount_sar)} SAR</td></tr></tfoot>
               </table>
-            ) : <div className="da-empty">{t("Not yet allocated to a reservation.")}</div>}
+            ) : <div className={DA.empty}>{t("Not yet allocated to a reservation.")}</div>}
           </div>
         ) : null}
 
         {tab === "journal" ? (
-          <div role="tabpanel" className="da-scroll">
+          <div role="tabpanel" className={DA.scroll}>
             {journal_entries.length ? (
-              <table className="da-t">
-                <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th></tr></thead>
+              <table data-slot="detail-table" className={DA.table}>
+                <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th></tr></thead>
                 <tbody>
                   {journal_entries.map((e) => (
                     <tr key={e.id}>
-                      <td className="mono">{e.entry_number}</td>
-                      <td className="strong">{e.entry_type_display}</td>
-                      <td className="mut">{e.description}</td>
-                      <td className="nw">{e.entry_date}</td>
-                      <td className="n">{fmt(e.total_debit)}</td>
-                      <td className="n">{fmt(e.total_credit)}</td>
+                      <td className={DC.mono}>{e.entry_number}</td>
+                      <td className={DC.strong}>{e.entry_type_display}</td>
+                      <td className={DC.mut}>{e.description}</td>
+                      <td className={DC.nw}>{e.entry_date}</td>
+                      <td className={DC.n}>{fmt(e.total_debit)}</td>
+                      <td className={DC.n}>{fmt(e.total_credit)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            ) : <div className="da-empty">{t("No journal entry yet — it is posted when the payment is confirmed.")}</div>}
+            ) : <div className={DA.empty}>{t("No journal entry yet — it is posted when the payment is confirmed.")}</div>}
           </div>
         ) : null}
 
@@ -281,7 +282,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
               rows={logs.map((l, i) => ({
                 key: i,
                 when: stamp(l.performed_at),
-                body: <>{l.action_display}{l.note ? <span className="by">: {l.note}</span> : null}</>,
+                body: <>{l.action_display}{l.note ? <span className="text-muted-foreground">: {l.note}</span> : null}</>,
                 by: l.performed_by,
               }))}
             />

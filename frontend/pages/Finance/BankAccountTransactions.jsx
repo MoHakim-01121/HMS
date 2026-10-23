@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DCard, DPill } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 
@@ -48,52 +49,52 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
             <input type="date" aria-label={t("From")} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
             <span>–</span>
             <input type="date" aria-label={t("To")} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
-            <button type="submit" className="da-btn soft">{t("Apply")}</button>
-            {filtered ? <button type="button" className="da-btn" onClick={() => { setFrom(""); setTo(""); apply("", ""); }}>{t("Reset")}</button> : null}
+            <button type="submit" className={dBtnClass({ soft: true })}>{t("Apply")}</button>
+            {filtered ? <button type="button" className={dBtnClass()} onClick={() => { setFrom(""); setTo(""); apply("", ""); }}>{t("Reset")}</button> : null}
           </form>
         )}
       >
         {rows.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
               <thead>
                 <tr>
-                  <th className="d">{t("Date")}</th><th>{t("Source")}</th><th>{t("Status")}</th>
-                  <th className="n w">{t("Money in")}</th><th className="n w">{t("Money out")}</th><th className="n w">{t("Balance")}</th>
+                  <th className={DC.date}>{t("Date")}</th><th>{t("Source")}</th><th>{t("Status")}</th>
+                  <th className={cn(DC.n, DC.nWide)}>{t("Money in")}</th><th className={cn(DC.n, DC.nWide)}>{t("Money out")}</th><th className={cn(DC.n, DC.nWide)}>{t("Balance")}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
-                    <td className="d">{fmtDate(r.transaction_date)}</td>
+                    <td className={DC.date}>{fmtDate(r.transaction_date)}</td>
                     <td>
-                      <span className="strong">{r.source_type} #{r.source_id}</span>
-                      {r.reference ? <span className="sub">{r.reference}</span> : null}
+                      <span className={DC.strong}>{r.source_type} #{r.source_id}</span>
+                      {r.reference ? <span className={DC.sub}>{r.reference}</span> : null}
                     </td>
                     <td><DPill sm tone={r.matched ? "green" : "gray"}>{r.matched ? t("Reconciled") : t("Unmatched")}</DPill></td>
-                    <td className="n good">{r.direction === "in" ? fmt(r.amount_sar) : ""}</td>
-                    <td className="n">{r.direction !== "in" ? fmt(r.amount_sar) : ""}</td>
-                    <td className="n bold" style={r.running_balance_sar < 0 ? { color: "var(--danger-text)" } : undefined}>{fmt(r.running_balance_sar)}</td>
+                    <td className={cn(DC.n, DC.good)}>{r.direction === "in" ? fmt(r.amount_sar) : ""}</td>
+                    <td className={DC.n}>{r.direction !== "in" ? fmt(r.amount_sar) : ""}</td>
+                    <td className={cn(DC.n, DC.bold)} style={r.running_balance_sar < 0 ? { color: "var(--danger-text)" } : undefined}>{fmt(r.running_balance_sar)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
                   <td colSpan={3}>{t("Total")}</td>
-                  <td className="n good">{fmt(moneyIn)}</td>
-                  <td className="n">{fmt(moneyOut)}</td>
+                  <td className={cn(DC.n, DC.good)}>{fmt(moneyIn)}</td>
+                  <td className={DC.n}>{fmt(moneyOut)}</td>
                   <td />
                 </tr>
               </tfoot>
             </table>
           </div>
-        ) : <div className="da-empty">{t("No bank transactions recorded for this account yet.")}</div>}
+        ) : <div className={DA.empty}>{t("No bank transactions recorded for this account yet.")}</div>}
       </DCard>
 
       <style>{`
 .bt-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 400; color: var(--muted-foreground); }
 .bt-range input { width: 150px !important; flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); }
-.da-card-h:has(.bt-range) { align-items: center; flex-wrap: wrap; padding-bottom: 12px; }
+[data-slot=card-head]:has(.bt-range) { align-items: center; flex-wrap: wrap; padding-bottom: 12px; }
 `}</style>
     </DPage>
   );

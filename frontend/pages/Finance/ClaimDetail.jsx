@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -102,22 +102,22 @@ export default function ClaimDetail({ claim = {}, account_choices = [], journal_
       />
 
       <DCard title={t("Expenses")} count={items.length}>
-        <div className="da-scroll">
-          <table className="da-t">
-            <thead><tr><th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className="n">{t("Amount (IDR)")}</th></tr></thead>
+        <div className={DA.scroll}>
+          <table data-slot="detail-table" className={DA.table}>
+            <thead><tr><th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className={DC.n}>{t("Amount (IDR)")}</th></tr></thead>
             <tbody>
               {items.map((e) => (
                 <tr key={e.id}>
-                  <td className="mono"><a href={`/finance/expenses/${e.id}/`}>{e.expense_number}</a></td>
-                  <td className="nw">{fmtDate(e.expense_date)}</td>
+                  <td className={DC.mono}><a href={`/finance/expenses/${e.id}/`}>{e.expense_number}</a></td>
+                  <td className={DC.nw}>{fmtDate(e.expense_date)}</td>
                   <td>{e.description}</td>
-                  <td className="n">{fmt(e.amount)}</td>
+                  <td className={DC.n}>{fmt(e.amount)}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot><tr>
               <td colSpan={3} style={{ paddingBottom: 16 }}>{t("Total")}</td>
-              <td className="n" style={{ paddingBottom: 16 }}>{idr(claim.total_amount)}</td>
+              <td className={DC.n} style={{ paddingBottom: 16 }}>{idr(claim.total_amount)}</td>
             </tr></tfoot>
           </table>
         </div>
@@ -125,15 +125,15 @@ export default function ClaimDetail({ claim = {}, account_choices = [], journal_
 
       {journal_entries.length ? (
         <DCard title={t("Journal Entries")} count={journal_entries.length}>
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th></tr></thead>
               <tbody>
                 {journal_entries.map((e) => (
                   <tr key={e.id}>
-                    <td className="mono">{e.entry_number}</td><td className="strong">{e.entry_type_display}</td>
-                    <td className="mut">{e.description}</td><td className="nw">{e.entry_date}</td>
-                    <td className="n">{fmt(e.total_debit)}</td><td className="n">{fmt(e.total_credit)}</td>
+                    <td className={DC.mono}>{e.entry_number}</td><td className={DC.strong}>{e.entry_type_display}</td>
+                    <td className={DC.mut}>{e.description}</td><td className={DC.nw}>{e.entry_date}</td>
+                    <td className={DC.n}>{fmt(e.total_debit)}</td><td className={DC.n}>{fmt(e.total_credit)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -1,6 +1,7 @@
 import { Fragment } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DMenu } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DMenu, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -144,20 +145,20 @@ export default function Detail({ rem, lines = [], fx }) {
 
       {lines.length ? (
         <DCard title={t("Allocated when sent")} count={lines.length}>
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th className="n">{t("Sent before")}</th><th className="n">{t("Sent now")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Sent before")}</th><th className={DC.n}>{t("Sent now")}</th></tr></thead>
               <tbody>
                 {lines.map((row, i) => (
                   <tr key={i}>
-                    <td><span className="mono">{row.linked_number}</span>{row.invoice ? <span className="sub">{row.invoice.customer_name}</span> : null}</td>
+                    <td><span className={DC.mono}>{row.linked_number}</span>{row.invoice ? <span className={DC.sub}>{row.invoice.customer_name}</span> : null}</td>
                     <td>{[row.hotel, row.check_in].filter(Boolean).join(", ") || t("Not set")}</td>
-                    <td className="n">{row.prev_sent ? fmt(row.prev_sent) : ""}</td>
-                    <td className="n bold">{fmt(row.amount_sar)}</td>
+                    <td className={DC.n}>{row.prev_sent ? fmt(row.prev_sent) : ""}</td>
+                    <td className={cn(DC.n, DC.bold)}>{fmt(row.amount_sar)}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={3}>{t("Total sent")}</td><td className="n">{fmt(rem.total_sar)} SAR</td></tr></tfoot>
+              <tfoot><tr><td colSpan={3}>{t("Total sent")}</td><td className={DC.n}>{fmt(rem.total_sar)} SAR</td></tr></tfoot>
             </table>
           </div>
         </DCard>
@@ -165,12 +166,12 @@ export default function Detail({ rem, lines = [], fx }) {
 
       <DCard title={t("Receipts at HQ")} count={settlements.length || null}>
         {settlements.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
               <thead>
                 <tr>
-                  <th>{t("Reservation")}</th><th>{t("Stay")}</th><th className="n">{t("Amount (SAR)")}</th>
-                  <th className="acts" style={{ paddingLeft: 4, paddingRight: 12 }}><span className="sr-only">{t("Actions")}</span></th>
+                  <th>{t("Reservation")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Amount (SAR)")}</th>
+                  <th className={DC.acts} style={{ paddingLeft: 4, paddingRight: 12 }}><span className="sr-only">{t("Actions")}</span></th>
                 </tr>
               </thead>
               {settlements.map((s) => {
@@ -179,14 +180,14 @@ export default function Detail({ rem, lines = [], fx }) {
                 return (
                   <Fragment key={s.id}>
                     <tbody>
-                      <tr className="grp">
+                      <tr className={DA.rowGroup}>
                         <td colSpan={2}>
                           <span style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                             <span style={{ fontWeight: 600, color: "var(--foreground)" }}>{t("Received {date}", { date: fmtDate(s.received_date) })}</span>
                             {s.reference ? <span>{t("Ref {ref}", { ref: s.reference })}</span> : null}
                           </span>
                         </td>
-                        <td className="n" style={{ fontWeight: 600, color: "var(--foreground)" }}>{fmt(s.received_amount_sar)}</td>
+                        <td className={DC.n} style={{ fontWeight: 600, color: "var(--foreground)" }}>{fmt(s.received_amount_sar)}</td>
                         <td style={{ paddingTop: 4, paddingBottom: 4, paddingLeft: 4, paddingRight: 12 }}>
                           <DMenu small label={t("Receipt actions")} items={[
                             canReceive && rem.can_allocate && { label: t("Change allocation"), icon: "edit", onClick: () => openForm(allocationUrl(s)) },
@@ -195,37 +196,37 @@ export default function Detail({ rem, lines = [], fx }) {
                         </td>
                       </tr>
                       {rem.can_allocate ? s.allocations.map((a, i) => (
-                        <tr key={i} className={i === s.allocations.length - 1 && !gap ? "last" : undefined}>
-                          <td><span className="mono">{a.linked_number}</span>{a.customer_name ? <span className="sub">{a.customer_name}</span> : null}</td>
-                          <td>{a.hotel || t("Not set")}{a.check_in ? <span className="sub">{t("Check-in {date}", { date: fmtDate(a.check_in) })}</span> : null}</td>
-                          <td className="n">{fmt(a.amount_sar)}</td>
+                        <tr key={i} className={cn(i === s.allocations.length - 1 && !gap ? DA.rowLast : undefined)}>
+                          <td><span className={DC.mono}>{a.linked_number}</span>{a.customer_name ? <span className={DC.sub}>{a.customer_name}</span> : null}</td>
+                          <td>{a.hotel || t("Not set")}{a.check_in ? <span className={DC.sub}>{t("Check-in {date}", { date: fmtDate(a.check_in) })}</span> : null}</td>
+                          <td className={DC.n}>{fmt(a.amount_sar)}</td>
                           <td />
                         </tr>
                       )) : null}
                       {rem.can_allocate && gap ? (
-                        <tr className="last">
-                          <td colSpan={2} className="mut">{gap > 0 ? t("Not allocated yet") : t("Allocated beyond this receipt")}</td>
-                          <td className="n" style={{ color: "var(--warning-text)" }}>{fmt(Math.abs(gap))}</td>
+                        <tr className={DA.rowLast}>
+                          <td colSpan={2} className={DC.mut}>{gap > 0 ? t("Not allocated yet") : t("Allocated beyond this receipt")}</td>
+                          <td className={DC.n} style={{ color: "var(--warning-text)" }}>{fmt(Math.abs(gap))}</td>
                           <td />
                         </tr>
                       ) : null}
                       {rem.can_allocate && !s.allocations.length && !gap ? (
-                        <tr className="last"><td colSpan={4} className="mut">{t("Not allocated to any reservation yet.")}</td></tr>
+                        <tr className={DA.rowLast}><td colSpan={4} className={DC.mut}>{t("Not allocated to any reservation yet.")}</td></tr>
                       ) : null}
                     </tbody>
                   </Fragment>
                 );
               })}
               <tfoot>
-                <tr><td colSpan={2}>{t("Total received")}</td><td className="n">{fmt(receivedSar)} SAR</td><td /></tr>
+                <tr><td colSpan={2}>{t("Total received")}</td><td className={DC.n}>{fmt(receivedSar)} SAR</td><td /></tr>
                 {pos && pos.in_transit > 0 ? (
-                  <tr className="soft after"><td colSpan={2} style={{ paddingBottom: 16 }}>{t("Still in transit")}</td><td className="n" style={{ paddingBottom: 16 }}>{fmt(pos.in_transit)} SAR</td><td /></tr>
+                  <tr className={cn(DA.rowSoft, DA.rowAfter)}><td colSpan={2} style={{ paddingBottom: 16 }}>{t("Still in transit")}</td><td className={DC.n} style={{ paddingBottom: 16 }}>{fmt(pos.in_transit)} SAR</td><td /></tr>
                 ) : null}
               </tfoot>
             </table>
           </div>
         ) : (
-          <div className="da-empty">{t("No receipt yet. Money is allocated to reservations when HQ records the receipt.")}</div>
+          <div className={DA.empty}>{t("No receipt yet. Money is allocated to reservations when HQ records the receipt.")}</div>
         )}
       </DCard>
 

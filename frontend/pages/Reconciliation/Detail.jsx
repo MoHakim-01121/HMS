@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
@@ -50,7 +51,7 @@ export default function Detail({ statement = {} }) {
         <span className="rd-match">
           <DPill sm tone="info">{t("Suggested")}</DPill>
           <span className="rd-ref">{txLabel(l.suggested)}</span>
-          <button type="button" className="da-btn primary" style={{ height: 30 }} onClick={() => doMatch(l, l.suggested.id)}>{t("Match")}</button>
+          <button type="button" className={cn(dBtnClass({ primary: true }), "h-[30px]")} onClick={() => doMatch(l, l.suggested.id)}>{t("Match")}</button>
           <button type="button" className="rd-lnk" onClick={() => setPicks({ ...picks, [l.id]: "other" })}>{t("Other…")}</button>
         </span>
       );
@@ -72,7 +73,7 @@ export default function Detail({ statement = {} }) {
           <Checkbox checked={!!forceLine[l.id]} onCheckedChange={(v) => setForceLine({ ...forceLine, [l.id]: !!v })} />
           {t("Force match")}
         </label>
-        <button type="button" className="da-btn primary" style={{ height: 30 }} disabled={!pick} onClick={() => doMatch(l, pick)}>{t("Match")}</button>
+        <button type="button" className={cn(dBtnClass({ primary: true }), "h-[30px]")} disabled={!pick} onClick={() => doMatch(l, pick)}>{t("Match")}</button>
       </span>
     );
   };
@@ -108,22 +109,22 @@ export default function Detail({ statement = {} }) {
 
       <DCard title={t("Statement lines")} count={lines.length || null} meta={agrees ? t("Bank and books agree") : t("Bank vs books: find the missing entry")}>
         {lines.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th className="d">{t("Date")}</th><th>{t("Description")}</th><th className="n">{t("Amount ({cur})", { cur })}</th><th>{t("Match")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th className={DC.date}>{t("Date")}</th><th>{t("Description")}</th><th className={DC.n}>{t("Amount ({cur})", { cur })}</th><th>{t("Match")}</th></tr></thead>
               <tbody>
                 {lines.map((l) => (
                   <tr key={l.id}>
-                    <td className="d">{fmtDate(l.line_date)}</td>
-                    <td>{l.description || l.reference || ""}{l.description && l.reference ? <span className="sub">{l.reference}</span> : null}</td>
-                    <td className="n" style={{ color: l.direction === "in" ? "var(--success-text)" : undefined }}>{l.direction === "in" ? "+" : "−"}{fmt(l.amount)}</td>
+                    <td className={DC.date}>{fmtDate(l.line_date)}</td>
+                    <td>{l.description || l.reference || ""}{l.description && l.reference ? <span className={DC.sub}>{l.reference}</span> : null}</td>
+                    <td className={DC.n} style={{ color: l.direction === "in" ? "var(--success-text)" : undefined }}>{l.direction === "in" ? "+" : "−"}{fmt(l.amount)}</td>
                     <td>{matchCell(l)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        ) : <div className="da-empty">{t("This statement has no lines.")}</div>}
+        ) : <div className={DA.empty}>{t("This statement has no lines.")}</div>}
       </DCard>
     </DPage>
   );

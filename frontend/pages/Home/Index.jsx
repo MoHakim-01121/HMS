@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { Link, router, usePage } from "@inertiajs/react";
 import { Spark, LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import "../../styles/detail-a.css";
 import "../../styles/dashboard.css";
 
 // Dashboards of the HMS Dashboard canvas, one per role (`variant`):
@@ -264,9 +265,9 @@ function SoldPerMonth({ sm, isSeason, title }) {
         ? t("sold so far in {m}, {n} in {m} last season", { m: t(MONTHS[p.d.getMonth()]), n: p.ly })
         : t("sold in {m}, {n} in {m} last season", { m: t(MONTHS[p.d.getMonth()]), n: p.ly });
   return (
-    <section className="da-card pad">
-      <div className="da-card-h" style={{ padding: 0 }}>
-        <h2>{title || t("CL sold per month")}{sm.season && <span className="c">{t("Season {s}", { s: sm.season })}</span>}</h2>
+    <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
+        <h2>{title || t("CL sold per month")}{sm.season && <span className={DA.count}>{t("Season {s}", { s: sm.season })}</span>}</h2>
         <span className="db-lg">
           <span><i style={{ background: GREEN }} />{isSeason ? t("This season") : t(MONTHS[p.d.getMonth()])}</span>
           <span><i style={{ background: "var(--chart-bar)" }} />{t("Other months")}</span>
@@ -308,8 +309,8 @@ function Collected({ col, deposits }) {
   const { t } = useI18n();
   const pct = col.pct ?? 0;
   return (
-    <section className="da-card pad">
-      <div className="da-card-h" style={{ padding: 0 }}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
+    <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
       {col.billed > 0 ? (
         <>
           <div className="gauge">
@@ -361,8 +362,8 @@ function todoText(x, t) {
 function Todo({ items, count }) {
   const { t } = useI18n();
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("To do")}{count > 0 && <span className="c">{count}</span>}</h2><span className="meta">{t("Today, most urgent first")}</span></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("To do")}{count > 0 && <span className={DA.count}>{count}</span>}</h2><span className={DA.meta}>{t("Today, most urgent first")}</span></div>
       {items.length ? (
         <div className="dt dt-todo" role="table" aria-label={t("To do")}>
           <div className="dt-h" role="row"><span role="columnheader">{t("What")}</span><span className="n" role="columnheader">{t("Count")}</span><span className="n" role="columnheader">{t("Amount")}</span><span /></div>
@@ -393,8 +394,8 @@ function Checkins({ data, title }) {
   const rows = data.rows;
   const rooms = rows.reduce((a, r) => a + r.rooms, 0);
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{title || t("Check-ins this week")}{rows.length > 0 && <span className="c">{rows.length}</span>}</h2><Link href="/calendar/">{t("Calendar")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{title || t("Check-ins this week")}{rows.length > 0 && <span className={DA.count}>{rows.length}</span>}</h2><Link href="/calendar/">{t("Calendar")}</Link></div>
       {rows.length ? (
         <>
           <div className="dt dt-ci" role="table" aria-label={t("Check-ins this week")}>
@@ -412,7 +413,7 @@ function Checkins({ data, title }) {
               );
             })}
           </div>
-          <div className="da-card-foot"><span className="l">{t("{n} rooms arriving this week", { n: rooms })}</span><Link href="/calendar/" style={{ marginLeft: "auto" }}>{t("See all in Calendar")}</Link></div>
+          <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("{n} rooms arriving this week", { n: rooms })}</span><Link href="/calendar/" style={{ marginLeft: "auto" }}>{t("See all in Calendar")}</Link></div>
         </>
       ) : (
         <Empty title={t("No check-ins this week")} sub={t("Arrivals of the next 7 days show here.")} />
@@ -425,25 +426,25 @@ function ByBranch({ rows, period }) {
   const { t } = useI18n();
   const sum = (k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("By branch")}<span className="c">{rows.length}</span></h2><span className="meta">{period.kind === "season" ? t("Season {s}", { s: period.label }) : t(period.label)}, {t("SAR unless noted")}</span></div>
-      <div className="da-scroll">
-        <table className="da-t">
-          <thead><tr><th>{t("Branch")}</th><th className="n">{t("CL sold")}</th><th className="n">{t("Booked value")}</th><th className="n">{t("Past due")}</th><th className="n">{t("Not sent to HQ")}</th><th className="n">{t("Profit")}</th></tr></thead>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("By branch")}<span className={DA.count}>{rows.length}</span></h2><span className={DA.meta}>{period.kind === "season" ? t("Season {s}", { s: period.label }) : t(period.label)}, {t("SAR unless noted")}</span></div>
+      <div className={DA.scroll}>
+        <table data-slot="detail-table" className={DA.table}>
+          <thead><tr><th>{t("Branch")}</th><th className={DC.n}>{t("CL sold")}</th><th className={DC.n}>{t("Booked value")}</th><th className={DC.n}>{t("Past due")}</th><th className={DC.n}>{t("Not sent to HQ")}</th><th className={DC.n}>{t("Profit")}</th></tr></thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.code} className="mid">
-                <td><span className="strong">{r.name}</span></td>
-                <td className="n">{fmtN(r.cl)}</td>
-                <td className="n bold">{fmtN(r.value)}</td>
-                <td className={"n" + (r.past_due ? " late" : "")}>{r.past_due == null ? "–" : fmtN(r.past_due)}</td>
-                <td className="n">{r.not_sent == null ? "–" : `${millions(r.not_sent)} IDR`}</td>
-                <td className="n bold">{r.profit == null ? "–" : `${millions(r.profit)} IDR`}</td>
+              <tr key={r.code} className={DA.rowMid}>
+                <td><span className={DC.strong}>{r.name}</span></td>
+                <td className={DC.n}>{fmtN(r.cl)}</td>
+                <td className={cn(DC.n, DC.bold)}>{fmtN(r.value)}</td>
+                <td className={cn(DC.n, r.past_due && DC.late)}>{r.past_due == null ? "–" : fmtN(r.past_due)}</td>
+                <td className={DC.n}>{r.not_sent == null ? "–" : `${millions(r.not_sent)} IDR`}</td>
+                <td className={cn(DC.n, DC.bold)}>{r.profit == null ? "–" : `${millions(r.profit)} IDR`}</td>
               </tr>
             ))}
           </tbody>
           {rows.length > 1 && (
-            <tfoot><tr><td>{t("All branches")}</td><td className="n">{fmtN(sum("cl"))}</td><td className="n">{fmtN(sum("value"))}</td><td className="n">{fmtN(sum("past_due"))}</td><td className="n">{`${millions(sum("not_sent"))} IDR`}</td><td className="n">{`${millions(sum("profit"))} IDR`}</td></tr></tfoot>
+            <tfoot><tr><td>{t("All branches")}</td><td className={DC.n}>{fmtN(sum("cl"))}</td><td className={DC.n}>{fmtN(sum("value"))}</td><td className={DC.n}>{fmtN(sum("past_due"))}</td><td className={DC.n}>{`${millions(sum("not_sent"))} IDR`}</td><td className={DC.n}>{`${millions(sum("profit"))} IDR`}</td></tr></tfoot>
           )}
         </table>
       </div>
@@ -456,8 +457,8 @@ function Ranking({ title, meta, rows, empty, hasPrev }) {
   const max = Math.max(1, ...rows.map((r) => r.v));
   const chg = (r) => (r.new ? (hasPrev ? [t("New"), "nw"] : ["", ""]) : r.chg == null ? ["", ""] : [`${r.chg >= 0 ? "+" : "−"}${Math.abs(r.chg)}%`, r.chg >= 0 ? "up" : "dn"]);
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{title}</h2><span className="meta">{meta}</span></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{title}</h2><span className={DA.meta}>{meta}</span></div>
       {rows.length ? (
         <div className="rk">
           {rows.map((r, i) => {
@@ -489,8 +490,8 @@ function MoneyNow({ m }) {
   ];
   if (m.not_sent) rows.push({ label: t("Not sent to HQ"), sub: m.not_sent.last_sent ? t("Last sent {d}", { d: dDay(m.not_sent.last_sent) }) : t("Nothing sent yet"), v: millions(m.not_sent.idr), unit: "IDR", href: "/remittance/", warn: m.not_sent.idr > 0, zero: !m.not_sent.idr });
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Money now")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Money now")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
       <div className="mn">
         {rows.map((r) => (
           <Link key={r.label} className="mn-r" href={r.href}>
@@ -511,8 +512,8 @@ function People({ p }) {
     ...p.idle.slice(0, 6).map((u) => ({ key: `i-${u.id}`, name: u.name, sub: u.never ? t("Never signed in") : t("Last seen {d} days ago", { d: u.days }), tone: "gray", pill: t("Idle"), href: `/users/${u.id}/edit/` })),
   ];
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Users and access")}</h2><Link href="/users/">{t("Users")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Users and access")}</h2><Link href="/users/">{t("Users")}</Link></div>
       {rows.length ? (
         <div className="mn">
           {rows.map((r) => (
@@ -569,8 +570,8 @@ function StaffHome(props) {
 function MyPayments({ rows }) {
   const { t } = useI18n();
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Payments I uploaded")}</h2><Link href="/finance/payments/">{t("Payment List")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Payments I uploaded")}</h2><Link href="/finance/payments/">{t("Payment List")}</Link></div>
       {rows.length ? (
         <div className="dt dt-mypay" role="table" aria-label={t("Payments I uploaded")}>
           <div className="dt-h" role="row"><span role="columnheader">{t("Client")}</span><span className="n" role="columnheader">{t("Amount")}</span><span role="columnheader">{t("Status")}</span></div>
@@ -595,8 +596,8 @@ function MyPayments({ rows }) {
 function MyAdvance({ rows }) {
   const { t } = useI18n();
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("My cash advance")}</h2></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("My cash advance")}</h2></div>
       <div className="mn">
         {rows.map((a) => (
           <div key={a.id} className="mn-r">
@@ -605,7 +606,7 @@ function MyAdvance({ rows }) {
           </div>
         ))}
       </div>
-      <div className="da-card-foot"><span className="l">{t("Return what is left to the office cash when done.")}</span></div>
+      <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("Return what is left to the office cash when done.")}</span></div>
     </section>
   );
 }
@@ -701,9 +702,9 @@ function MoneyInOut({ flow }) {
   const last = months.length - 1;
   const net = flow.cur.in - flow.cur.out;
   return (
-    <section className="da-card pad">
-      <div className="da-card-h" style={{ padding: 0 }}>
-        <h2>{t("Money in and out")}<span className="c">{t("per month, M IDR")}</span></h2>
+    <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
+        <h2>{t("Money in and out")}<span className={DA.count}>{t("per month, M IDR")}</span></h2>
         <span className="db-lg"><span><i style={{ background: GREEN }} />{t("Received")}</span><span><i style={{ background: "var(--foreground)" }} />{t("Paid out")}</span></span>
       </div>
       <div className="db-big"><b>{net >= 0 ? "+" : "−"}{millions(Math.abs(net))} IDR</b><span>{t("net in the branch accounts this period")}</span></div>
@@ -734,8 +735,8 @@ function MoneyInOut({ flow }) {
 function ToConfirm({ pay }) {
   const { t } = useI18n();
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Payments to confirm")}{pay.count > 0 && <span className="c">{pay.count}</span>}</h2><span className="meta">{t("Check the money arrived, then confirm")}</span></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Payments to confirm")}{pay.count > 0 && <span className={DA.count}>{pay.count}</span>}</h2><span className={DA.meta}>{t("Check the money arrived, then confirm")}</span></div>
       {pay.rows.length ? (
         <div className="dt dt-pay" role="table" aria-label={t("Payments to confirm")}>
           <div className="dt-h" role="row"><span role="columnheader">{t("Client")}</span><span className="n" role="columnheader">{t("Amount")}</span><span /></div>
@@ -757,8 +758,8 @@ function ToConfirm({ pay }) {
 function ToChase({ chase }) {
   const { t } = useI18n();
   return (
-    <section className="da-card" style={{ flex: 1 }}>
-      <div className="da-card-h"><h2>{t("Invoices to chase")}{chase.clients > 0 && <span className="c">{chase.clients}</span>}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
+    <section data-slot="card" className={cn(DA.card, "flex-1")}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Invoices to chase")}{chase.clients > 0 && <span className={DA.count}>{chase.clients}</span>}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
       {chase.rows.length ? (
         <>
           <div className="dt dt-pd" role="table" aria-label={t("Invoices past due")}>
@@ -772,7 +773,7 @@ function ToChase({ chase }) {
               </Link>
             ))}
           </div>
-          <div className="da-card-foot"><span className="l">{t("{v} SAR past due", { v: fmtN(chase.total) })}</span></div>
+          <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("{v} SAR past due", { v: fmtN(chase.total) })}</span></div>
         </>
       ) : (
         <Empty title={t("Nothing past due")} sub={t("Invoices past their due date show here.")} />
@@ -784,8 +785,8 @@ function ToChase({ chase }) {
 function ProfitCard({ profit, toPay }) {
   const { t } = useI18n();
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Branch profit and expenses")}</h2><Link href="/finance/fund-flow/">{t("Fund Flow")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Branch profit and expenses")}</h2><Link href="/finance/fund-flow/">{t("Fund Flow")}</Link></div>
       <div className="mn">
         <Link className="mn-r" href="/finance/fund-flow/"><span>{t("Branch profit, FX gain")}<small>{t("On rupiah sent to HQ this period")}</small></span><b className={profit.cur < 0 ? "warn" : ""}>{profit.cur == null ? "–" : millions(profit.cur)}<small>IDR</small></b></Link>
         <Link className="mn-r" href="/finance/expenses/"><span>{t("Expenses paid")}<small>{t("From branch cash, claimed back from Pusat")}</small></span><b>{millions(profit.expenses)}<small>IDR</small></b></Link>
@@ -799,8 +800,8 @@ function Accounts({ cash }) {
   const { t } = useI18n();
   const st = cash.staff;
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Accounts")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Accounts")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
       <div className="mn">
         {cash.accounts.map((a) => (
           <Link key={a.id} className="mn-r" href="/finance/bank-accounts/">
@@ -821,8 +822,8 @@ function OwedHq({ owed, deposits }) {
   const { t } = useI18n();
   const tr = owed.transit;
   return (
-    <section className="da-card">
-      <div className="da-card-h"><h2>{t("Owed to HQ")}</h2><Link href="/remittance/">{t("Remittance")}</Link></div>
+    <section data-slot="card" className={DA.card}>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Owed to HQ")}</h2><Link href="/remittance/">{t("Remittance")}</Link></div>
       <div className="mn">
         <Link className="mn-r" href="/remittance/"><span>{t("Not sent yet")}<small>{owed.last_sent ? t("Last sent {d}", { d: dDay(owed.last_sent) }) : t("Nothing sent yet")}</small></span><b className={owed.not_sent > 0 ? "warn" : ""}>{millions(owed.not_sent)}<small>IDR</small></b></Link>
         <Link className="mn-r" href="/remittance/"><span>{t("In transit")}<small>{tr.count ? t("Sent to HQ, not received yet, since {d}", { d: dDay(tr.first.date) }) : t("Nothing in transit")}</small></span><b>{fmtN(tr.count)}<small>{t("remittances")}</small></b></Link>

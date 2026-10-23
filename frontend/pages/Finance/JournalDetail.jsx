@@ -1,4 +1,5 @@
-import { DPage, DTop, DHead, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 
@@ -29,25 +30,25 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
       />
 
       <DCard title={t("Lines")} count={lines.length} meta={t("Amounts in SAR")}>
-        <div className="da-scroll">
-          <table className="da-t">
-            <thead><tr><th>{t("Account")}</th><th>{t("Reference")}</th><th>{t("Note")}</th><th className="n w">{t("Debit")}</th><th className="n w">{t("Credit")}</th></tr></thead>
+        <div className={DA.scroll}>
+          <table data-slot="detail-table" className={DA.table}>
+            <thead><tr><th>{t("Account")}</th><th>{t("Reference")}</th><th>{t("Note")}</th><th className={cn(DC.n, DC.nWide)}>{t("Debit")}</th><th className={cn(DC.n, DC.nWide)}>{t("Credit")}</th></tr></thead>
             <tbody>
               {lines.length ? lines.map((l) => (
                 <tr key={l.id}>
-                  <td className="strong" style={{ whiteSpace: "nowrap" }}>{l.account_display}</td>
-                  <td className="mut">{l.dim || ""}</td>
-                  <td className="mut">{l.note || ""}{l.native ? <span className="sub">{l.native}</span> : null}</td>
-                  <td className="n">{l.amount_sar > 0 ? fmt(l.amount_sar) : ""}</td>
-                  <td className="n">{l.amount_sar < 0 ? fmt(-l.amount_sar) : ""}</td>
+                  <td className={DC.strong} style={{ whiteSpace: "nowrap" }}>{l.account_display}</td>
+                  <td className={DC.mut}>{l.dim || ""}</td>
+                  <td className={DC.mut}>{l.note || ""}{l.native ? <span className={DC.sub}>{l.native}</span> : null}</td>
+                  <td className={DC.n}>{l.amount_sar > 0 ? fmt(l.amount_sar) : ""}</td>
+                  <td className={DC.n}>{l.amount_sar < 0 ? fmt(-l.amount_sar) : ""}</td>
                 </tr>
-              )) : <tr><td colSpan={5} className="empty">{t("No lines")}</td></tr>}
+              )) : <tr><td colSpan={5} className={DC.empty}>{t("No lines")}</td></tr>}
             </tbody>
             <tfoot>
               <tr>
                 <td colSpan={3}>{balanced ? t("Total") : t("Total, not balanced")}</td>
-                <td className="n">{fmt(totalDebit)}</td>
-                <td className="n" style={balanced ? undefined : { color: "var(--danger-text)" }}>{fmt(totalCredit)}</td>
+                <td className={DC.n}>{fmt(totalDebit)}</td>
+                <td className={DC.n} style={balanced ? undefined : { color: "var(--danger-text)" }}>{fmt(totalCredit)}</td>
               </tr>
             </tfoot>
           </table>

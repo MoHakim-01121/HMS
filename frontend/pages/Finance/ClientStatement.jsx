@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
 import Pagination from "../../components/shadcn/pagination.jsx";
 import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { SearchTool, ExportMenu, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
@@ -116,10 +117,10 @@ export default function ClientStatement({
       k: t("Oldest past due"),
       v: oldest ? (
         <>
-          {invHref(oldest) ? <a className="da-mono" href={invHref(oldest)}>{oldest.invoice_number}</a> : <span className="da-mono">{oldest.invoice_number}</span>}{" "}
+          {invHref(oldest) ? <a className={DA.mono} href={invHref(oldest)}>{oldest.invoice_number}</a> : <span className={DA.mono}>{oldest.invoice_number}</span>}{" "}
           <span style={{ color: "var(--danger-text)", fontWeight: 600 }}>{t("{n} days late", { n: oldest.days_overdue })}</span>
         </>
-      ) : <span className="dim">{t("None")}</span>,
+      ) : <span className="font-normal text-muted-foreground">{t("None")}</span>,
     },
     client.total_billed != null && { k: t("Total billed"), v: `${fmt(client.total_billed)} SAR` },
     client.avg_days_to_pay != null && { k: t("Avg days to pay"), v: t(Math.round(client.avg_days_to_pay) === 1 ? "1 day" : "{n} days", { n: Math.round(client.avg_days_to_pay) }) },
@@ -196,7 +197,7 @@ export default function ClientStatement({
   const tools = (
     <>
       {!isOpen && groups.length > 1 ? (
-        <button type="button" className="ghost" onClick={() => setFolded(anyFolded ? new Set() : new Set(groups.map((g) => g.key)))}>
+        <button type="button" className="h-9 cursor-pointer rounded-full border-0 bg-transparent px-3 font-sans text-[13px] leading-[normal] font-semibold text-foreground hover:bg-secondary" onClick={() => setFolded(anyFolded ? new Set() : new Set(groups.map((g) => g.key)))}>
           {anyFolded ? t("Expand all") : t("Fold all")}
         </button>
       ) : null}
@@ -245,7 +246,7 @@ export default function ClientStatement({
         </DCard>
       ) : null}
 
-      <section className="da-card">
+      <section data-slot="card" className={DA.card}>
         <DTabs
           tall
           label={t("Ledger view")}
@@ -259,52 +260,52 @@ export default function ClientStatement({
         />
 
         {!isOpen && (hidden_voided > 0 || show_voided) ? (
-          <p className="da-notice">
+          <p className={DA.notice}>
             {show_voided
               ? t("Reversed entries are shown, struck through.")
               : t(hidden_voided === 1
                 ? "1 reversed entry is hidden. It cancels its pair, so the balances stay the same."
                 : "{n} reversed entries are hidden. Each cancels its pair, so the balances stay the same.", { n: hidden_voided })}
-            <button type="button" className="da-lnk" onClick={() => go({ voided: show_voided ? "" : "1" })}>
+            <button type="button" className={DA.link} onClick={() => go({ voided: show_voided ? "" : "1" })}>
               {show_voided ? t("Hide") : t("Show")}
             </button>
           </p>
         ) : null}
 
-        <div className="da-scroll">
+        <div className={DA.scroll}>
           {isOpen ? (
-            <table className="da-t">
+            <table data-slot="detail-table" className={DA.table}>
               <thead>
-                <tr><th>{t("Invoice")}</th><th>{t("Due")}</th><th>{t("Late")}</th><th className="n w">{t("Billed")}</th><th className="n w">{t("Paid")}</th><th className="n w">{t("Open")}</th></tr>
+                <tr><th>{t("Invoice")}</th><th>{t("Due")}</th><th>{t("Late")}</th><th className={cn(DC.n, DC.nWide)}>{t("Billed")}</th><th className={cn(DC.n, DC.nWide)}>{t("Paid")}</th><th className={cn(DC.n, DC.nWide)}>{t("Open")}</th></tr>
               </thead>
               <tbody>
                 {openRows.length ? openRows.map((r) => (
                   <tr key={r.invoice_number}>
-                    <td>{invHref(r) ? <a className="mono" href={invHref(r)}>{r.invoice_number}</a> : <span className="mono">{r.invoice_number}</span>}</td>
-                    <td className="nw" style={{ color: "var(--foreground)" }}>{r.due_date ? fmtDate(r.due_date) : t("Not set")}</td>
-                    <td className={r.overdue ? "late" : "mut"}>{r.overdue ? t("{n} days", { n: r.days_overdue }) : t("Not yet due")}</td>
-                    <td className="n">{fmt(r.billed)}</td>
-                    <td className="n">{fmt(r.paid)}</td>
-                    <td className="n bold">{fmt(r.remaining)}</td>
+                    <td>{invHref(r) ? <a className={DC.mono} href={invHref(r)}>{r.invoice_number}</a> : <span className={DC.mono}>{r.invoice_number}</span>}</td>
+                    <td className={DC.nw} style={{ color: "var(--foreground)" }}>{r.due_date ? fmtDate(r.due_date) : t("Not set")}</td>
+                    <td className={cn(r.overdue ? DC.late : DC.mut)}>{r.overdue ? t("{n} days", { n: r.days_overdue }) : t("Not yet due")}</td>
+                    <td className={DC.n}>{fmt(r.billed)}</td>
+                    <td className={DC.n}>{fmt(r.paid)}</td>
+                    <td className={cn(DC.n, DC.bold)}>{fmt(r.remaining)}</td>
                   </tr>
-                )) : <tr><td colSpan={6} className="empty">{t("No open invoices. Every charge on this client has been paid.")}</td></tr>}
+                )) : <tr><td colSpan={6} className={DC.empty}>{t("No open invoices. Every charge on this client has been paid.")}</td></tr>}
               </tbody>
               {openRows.length ? (
-                <tfoot><tr><td colSpan={5} className="fl" style={{ color: "var(--foreground)", fontWeight: 600 }}>{t("Total open")}</td><td className="n">{fmt(total_open)}</td></tr></tfoot>
+                <tfoot><tr><td colSpan={5} className={DC.footLabel} style={{ color: "var(--foreground)", fontWeight: 600 }}>{t("Total open")}</td><td className={DC.n}>{fmt(total_open)}</td></tr></tfoot>
               ) : null}
             </table>
           ) : (
-            <table className="da-t">
+            <table data-slot="detail-table" className={DA.table}>
               <thead>
-                <tr><th className="d">{t("Date")}</th><th>{t("Description")}</th><th className="n w">{t("Charge")}</th><th className="n w">{t("Payment")}</th><th className="n w">{t("Balance")}</th></tr>
+                <tr><th className={DC.date}>{t("Date")}</th><th>{t("Description")}</th><th className={cn(DC.n, DC.nWide)}>{t("Charge")}</th><th className={cn(DC.n, DC.nWide)}>{t("Payment")}</th><th className={cn(DC.n, DC.nWide)}>{t("Balance")}</th></tr>
               </thead>
               {firstPage && !q ? (
                 <tbody>
-                  <tr className="last">
-                    <td className="d">{date_from ? fmtDateShort(date_from) : ""}</td>
-                    <td className="mut">{openingLabel}</td>
+                  <tr className={DA.rowLast}>
+                    <td className={DC.date}>{date_from ? fmtDateShort(date_from) : ""}</td>
+                    <td className={DC.mut}>{openingLabel}</td>
                     <td /><td />
-                    <td className="n" style={credit(opening_balance)}>{fmt(opening_balance)}</td>
+                    <td className={DC.n} style={credit(opening_balance)}>{fmt(opening_balance)}</td>
                   </tr>
                 </tbody>
               ) : null}
@@ -313,32 +314,32 @@ export default function ClientStatement({
                 const isFolded = folded.has(g.key);
                 return (
                   <tbody key={g.key}>
-                    <tr className="grp ruled">
+                    <tr className={cn(DA.rowGroup, DA.rowGroupRuled)}>
                       <th colSpan={2} scope="rowgroup">
-                        <button type="button" className="da-mt" aria-expanded={!isFolded} onClick={() => toggle(g.key)}>
-                          {DIcon.chev}<span style={{ textTransform: "capitalize" }}>{monthName(g.key)}</span><span className="cnt">{monthNote(g, i)}</span>
+                        <button type="button" className="-ml-1.5 inline-flex h-[30px] cursor-pointer items-center gap-2 rounded-[8px] border-0 bg-transparent pr-2 pl-1 font-sans text-[13px] leading-[normal] font-semibold text-foreground hover:bg-card [&_svg]:text-muted-foreground [&_svg]:transition-[rotate] [&_svg]:duration-150 [&_svg]:ease-[ease] aria-expanded:[&_svg]:rotate-90" aria-expanded={!isFolded} onClick={() => toggle(g.key)}>
+                          {DIcon.chev}<span className="capitalize">{monthName(g.key)}</span><span className="font-normal text-muted-foreground">{monthNote(g, i)}</span>
                         </button>
                       </th>
-                      <td className="n">{Number(m.debit) ? fmt(m.debit) : ""}</td>
-                      <td className="n">{Number(m.credit) ? fmt(m.credit) : ""}</td>
-                      <td className="n" style={credit(m.closing)}>{m.closing != null ? fmt(m.closing) : ""}</td>
+                      <td className={DC.n}>{Number(m.debit) ? fmt(m.debit) : ""}</td>
+                      <td className={DC.n}>{Number(m.credit) ? fmt(m.credit) : ""}</td>
+                      <td className={DC.n} style={credit(m.closing)}>{m.closing != null ? fmt(m.closing) : ""}</td>
                     </tr>
                     {isFolded ? null : g.rows.map((r, j) => <LedgerRow key={`${r.entry_number}-${j}`} r={r} t={t} last={j === g.rows.length - 1} />)}
                   </tbody>
                 );
               }) : (
-                <tbody><tr><td colSpan={5} className="empty">{q ? t("No entries match “{q}”.", { q }) : t("No entries in this period.")}</td></tr></tbody>
+                <tbody><tr><td colSpan={5} className={DC.empty}>{q ? t("No entries match “{q}”.", { q }) : t("No entries in this period.")}</td></tr></tbody>
               )}
               <tfoot>
                 <tr>
-                  <td colSpan={2} className="fl">{t("Total for period")}</td>
-                  <td className="n">{fmt(total_debit)}</td>
-                  <td className="n">{fmt(total_credit)}</td>
+                  <td colSpan={2} className={DC.footLabel}>{t("Total for period")}</td>
+                  <td className={DC.n}>{fmt(total_debit)}</td>
+                  <td className={DC.n}>{fmt(total_credit)}</td>
                   <td />
                 </tr>
-                <tr className="after">
-                  <td colSpan={4} className="fl" style={{ paddingBottom: 18 }}>{date_to ? t("Closing balance on {date}", { date: fmtDate(date_to) }) : t("Closing balance")}</td>
-                  <td className="n" style={{ paddingBottom: 18, fontSize: 14.5, ...credit(closing_balance) }}>{fmt(closing_balance)}</td>
+                <tr className={DA.rowAfter}>
+                  <td colSpan={4} className={DC.footLabel} style={{ paddingBottom: 18 }}>{date_to ? t("Closing balance on {date}", { date: fmtDate(date_to) }) : t("Closing balance")}</td>
+                  <td className={DC.n} style={{ paddingBottom: 18, fontSize: 14.5, ...credit(closing_balance) }}>{fmt(closing_balance)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -438,7 +439,7 @@ const CSS = `
 .cl-custom-row { display: flex; align-items: center; gap: 8px; }
 .cl-custom-row input { min-width: 0; }
 .cl-custom-act { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
-.da-main .hms-pag { border-top: 1px solid var(--border); }
+.hms-pag { border-top: 1px solid var(--border); }
 @media (max-width: 600px) {
   .cl-period-label { display: none; }
   .cl-pop input { font-size: 16px !important; }

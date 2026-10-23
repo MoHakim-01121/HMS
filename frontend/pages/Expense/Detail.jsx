@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -106,37 +107,37 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
       />
 
       <DCard title={t("Lines")} count={lines.length}>
-        <div className="da-scroll">
-          <table className="da-t">
+        <div className={DA.scroll}>
+          <table data-slot="detail-table" className={DA.table}>
             <thead>
               <tr>
                 <th>{t("Category")}</th><th>{t("Description")}</th><th>{t("Receipt")}</th>
-                <th className="n">{t("Amount (IDR)")}</th>
-                {paid ? <th className="n">{t("Booked (SAR)")}</th> : null}
+                <th className={DC.n}>{t("Amount (IDR)")}</th>
+                {paid ? <th className={DC.n}>{t("Booked (SAR)")}</th> : null}
               </tr>
             </thead>
             <tbody>
               {lines.map((l) => (
                 <tr key={l.id}>
-                  <td className="strong">{l.category_name}</td>
+                  <td className={DC.strong}>{l.category_name}</td>
                   <td>{l.description || ""}</td>
                   <td>
                     {l.receipts?.length ? l.receipts.map((r) => (
                       <a key={r.url} href={r.url} target="_blank" rel="noreferrer" style={{ display: "block" }}>{r.name}</a>
                     )) : l.no_receipt_reason ? (
-                      <span style={{ color: "var(--warning-text)" }}>{t("No receipt")}<span className="sub">{l.no_receipt_reason}</span></span>
-                    ) : <span className="mut">{expense.proof_url ? t("See the expense receipt") : ""}</span>}
+                      <span style={{ color: "var(--warning-text)" }}>{t("No receipt")}<span className={DC.sub}>{l.no_receipt_reason}</span></span>
+                    ) : <span className={DC.mut}>{expense.proof_url ? t("See the expense receipt") : ""}</span>}
                   </td>
-                  <td className="n">{fmt(l.amount)}</td>
-                  {paid ? <td className="n mut">{fmt(l.amount_sar)}</td> : null}
+                  <td className={DC.n}>{fmt(l.amount)}</td>
+                  {paid ? <td className={cn(DC.n, DC.mut)}>{fmt(l.amount_sar)}</td> : null}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
                 <td colSpan={3} style={{ paddingBottom: 16 }}>{t("Total")}</td>
-                <td className="n" style={{ paddingBottom: 16 }}>{idr(expense.total_amount)}</td>
-                {paid ? <td className="n" style={{ paddingBottom: 16 }}>{fmt(expense.total_amount_sar)} SAR</td> : null}
+                <td className={DC.n} style={{ paddingBottom: 16 }}>{idr(expense.total_amount)}</td>
+                {paid ? <td className={DC.n} style={{ paddingBottom: 16 }}>{fmt(expense.total_amount_sar)} SAR</td> : null}
               </tr>
             </tfoot>
           </table>
@@ -145,18 +146,18 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
 
       {journal_entries.length ? (
         <DCard title={t("Journal Entries")} count={journal_entries.length}>
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className="n">{t("Debit")}</th><th className="n">{t("Credit")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th></tr></thead>
               <tbody>
                 {journal_entries.map((e) => (
                   <tr key={e.id}>
-                    <td className="mono">{e.entry_number}</td>
-                    <td className="strong">{e.entry_type_display}</td>
-                    <td className="mut">{e.description}</td>
-                    <td className="nw">{e.entry_date}</td>
-                    <td className="n">{fmt(e.total_debit)}</td>
-                    <td className="n">{fmt(e.total_credit)}</td>
+                    <td className={DC.mono}>{e.entry_number}</td>
+                    <td className={DC.strong}>{e.entry_type_display}</td>
+                    <td className={DC.mut}>{e.description}</td>
+                    <td className={DC.nw}>{e.entry_date}</td>
+                    <td className={DC.n}>{fmt(e.total_debit)}</td>
+                    <td className={DC.n}>{fmt(e.total_credit)}</td>
                   </tr>
                 ))}
               </tbody>

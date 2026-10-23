@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { DPage, DTop, DHead, DCard, DPill } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -106,16 +106,16 @@ export default function Detail({ client, cls }) {
         ]}
       />
 
-      <div className="da-pair">
+      <div className={DA.pair}>
         <DCard pad title={t("Contact")}>
-          <dl className="da-kv">
+          <dl className={DA.kv}>
             <dt>PIC</dt><dd>{c.pic || <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>{t("Not set")}</span>}</dd>
             <dt>WhatsApp</dt>
-            <dd className={c.wa ? undefined : "mut"}>{c.wa ? <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{c.wa}</a> : t("Not set")}</dd>
-            <dt>{t("WhatsApp group")}</dt><dd className={c.wa_group ? undefined : "mut"}>{c.wa_group || t("Not set")}</dd>
-            <dt>Email</dt><dd className={c.email ? undefined : "mut"}>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : t("Not set")}</dd>
+            <dd className={c.wa ? undefined : "font-normal text-muted-foreground"}>{c.wa ? <a href={`https://wa.me/${c.wa}`} target="_blank" rel="noreferrer">{c.wa}</a> : t("Not set")}</dd>
+            <dt>{t("WhatsApp group")}</dt><dd className={c.wa_group ? undefined : "font-normal text-muted-foreground"}>{c.wa_group || t("Not set")}</dd>
+            <dt>Email</dt><dd className={c.email ? undefined : "font-normal text-muted-foreground"}>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : t("Not set")}</dd>
             <dt>{t("Reminders to")}</dt><dd>{t(REMINDER[c.reminder_target] || c.reminder_target)}</dd>
-            <dt>{t("Address")}</dt><dd className={address ? undefined : "mut"}>{address || t("Not set")}</dd>
+            <dt>{t("Address")}</dt><dd className={address ? undefined : "font-normal text-muted-foreground"}>{address || t("Not set")}</dd>
           </dl>
           {needsWaGroup(c) ? (
             <div style={{ marginTop: "auto", paddingTop: 14 }}>
@@ -132,38 +132,38 @@ export default function Detail({ client, cls }) {
         >
           {hasCoords ? (
             <>
-              <div className="da-map" role="img" aria-label={t("Map showing {name}", { name: c.name })} style={{ marginTop: 4 }}>
+              <div className={DA.map} role="img" aria-label={t("Map showing {name}", { name: c.name })} style={{ marginTop: 4 }}>
                 <PinMap lat={c.lat} lng={c.lng} label={c.brand || c.name} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "14px 24px 18px", fontSize: 13 }}>
                 <span style={{ color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</span>
                 <span style={{ display: "flex", gap: 6 }}>
-                  {address ? <button type="button" className="da-btn soft" onClick={copyAddress}>{copied ? t("Copied") : t("Copy address")}</button> : null}
-                  <a className="da-btn soft" href="/clients/map/">{t("View on client map")}</a>
+                  {address ? <button type="button" className={dBtnClass({ soft: true })} onClick={copyAddress}>{copied ? t("Copied") : t("Copy address")}</button> : null}
+                  <a className={dBtnClass({ soft: true })} href="/clients/map/">{t("View on client map")}</a>
                 </span>
               </div>
             </>
           ) : (
-            <div className="da-empty">{t("Location not set. Add coordinates on the edit form to show this client on the map.")}</div>
+            <div className={DA.empty}>{t("Location not set. Add coordinates on the edit form to show this client on the map.")}</div>
           )}
         </DCard>
       </div>
 
       <DCard title={t("Reservation history")} meta={t(cls.length === 1 ? "1 reservation" : "{n} reservations", { n: cls.length })}>
         {cls.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className="n">{t("Nights")}</th><th className="n">{t("Pax")}</th><th>{t("Status")}</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Nights")}</th><th className={DC.n}>{t("Pax")}</th><th>{t("Status")}</th></tr></thead>
               <tbody>
                 {cls.map((cl) => {
                   const st = STATUS[cl.status] || STATUS.TENTATIVE;
                   return (
                     <tr key={cl.pk}>
-                      <td><a href={`/cl/${cl.pk}/`}>{cl.confirmation_number}</a>{cl.guest_name && cl.guest_name !== c.name ? <span className="sub">{cl.guest_name}</span> : null}</td>
+                      <td><a href={`/cl/${cl.pk}/`}>{cl.confirmation_number}</a>{cl.guest_name && cl.guest_name !== c.name ? <span className={DC.sub}>{cl.guest_name}</span> : null}</td>
                       <td>{cl.hotel_name || t("Not set")}</td>
-                      <td className="nw">{fmtStay(cl.check_in, cl.check_out) || t("Not set")}</td>
-                      <td className="n">{cl.num_nights ?? ""}</td>
-                      <td className="n">{cl.num_guests ?? ""}</td>
+                      <td className={DC.nw}>{fmtStay(cl.check_in, cl.check_out) || t("Not set")}</td>
+                      <td className={DC.n}>{cl.num_nights ?? ""}</td>
+                      <td className={DC.n}>{cl.num_guests ?? ""}</td>
                       <td><DPill sm tone={st.tone}>{t(st.label)}</DPill></td>
                     </tr>
                   );
@@ -171,12 +171,12 @@ export default function Detail({ client, cls }) {
               </tbody>
             </table>
           </div>
-        ) : <div className="da-empty">{t("No confirmation letters yet")}</div>}
+        ) : <div className={DA.empty}>{t("No confirmation letters yet")}</div>}
       </DCard>
 
       {c.note ? (
         <DCard pad title={t("Notes")}>
-          <p className="da-text">{c.note}</p>
+          <p className={DA.text}>{c.note}</p>
         </DCard>
       ) : null}
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DLog, DPill, dayMonth } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DLog, DPill, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -41,7 +42,7 @@ function PayTo({ t, acc }) {
         <div style={{ marginTop: 2, fontSize: 14, fontVariantNumeric: "tabular-nums" }}>{acc.account_identifier}</div>
         {acc.account_name ? <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{acc.account_name}</div> : null}
       </div>
-      <button type="button" className="da-btn soft" onClick={copy} aria-label={t("Copy account details")}>{copied ? t("Copied") : t("Copy")}</button>
+      <button type="button" className={dBtnClass({ soft: true })} onClick={copy} aria-label={t("Copy account details")}>{copied ? t("Copied") : t("Copy")}</button>
     </div>
   );
 }
@@ -113,7 +114,7 @@ export default function Detail({
       strong: true,
       v: isVoid
         ? <s>{fmt(invoice.total_sar)} SAR</s>
-        : <>{fmt(Math.max(0, invoice.remaining_sar))} SAR <span className="dim">· {t("{pct}% paid", { pct })}</span></>,
+        : <>{fmt(Math.max(0, invoice.remaining_sar))} SAR <span className="font-normal text-muted-foreground">· {t("{pct}% paid", { pct })}</span></>,
     },
     !isVoid && (paid
       ? invoice.settled_date && { k: t("Settled"), v: invoice.settled_date }
@@ -143,14 +144,14 @@ export default function Detail({
       key: `cn-${cn.id}`,
       iso: cn.date,
       when: dayMonth(cn.date),
-      body: <>{cn.status === "voided" ? t("Credit note voided") : t("Credit note issued")} <a href={`/finance/credit-notes/${cn.id}/pdf/`} target="_blank" rel="noreferrer">{cn.number}</a> <span className="by">· {cn.reason}, −{fmt(cn.amount_sar)} SAR</span></>,
+      body: <>{cn.status === "voided" ? t("Credit note voided") : t("Credit note issued")} <a href={`/finance/credit-notes/${cn.id}/pdf/`} target="_blank" rel="noreferrer">{cn.number}</a> <span className="text-muted-foreground">· {cn.reason}, −{fmt(cn.amount_sar)} SAR</span></>,
       by: t("Finance"),
     })),
     ...payments.map((p) => ({
       key: `pay-${p.id}`,
       iso: p.payment_iso,
       when: dayMonth(p.payment_iso || p.payment_label),
-      body: <>{t("Payment recorded")} <a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a> <span className="by">· {[p.method, p.proof_url ? t("proof attached") : null, `${fmt(p.amount_sar_int)} SAR`].filter(Boolean).join(", ")}</span></>,
+      body: <>{t("Payment recorded")} <a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a> <span className="text-muted-foreground">· {[p.method, p.proof_url ? t("proof attached") : null, `${fmt(p.amount_sar_int)} SAR`].filter(Boolean).join(", ")}</span></>,
       by: p.confirmed_by || t("Finance"),
     })),
   ].sort((a, b) => (b.iso || "").localeCompare(a.iso || ""));
@@ -187,9 +188,9 @@ export default function Detail({
       <DHead title={invoice.invoice_number} badge={{ label: t(badge.label), tone: badge.tone }} menu={menu} facts={facts} />
 
       <DCard title={t("Reservations")} meta={t("Amounts in SAR")}>
-        <div className="da-scroll">
-          <table className="da-t">
-            <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th>{t("Status")}</th><th className="n">{t("Total")}</th><th className="n">{t("Paid")}</th><th className="n">{t("Remaining")}</th></tr></thead>
+        <div className={DA.scroll}>
+          <table data-slot="detail-table" className={DA.table}>
+            <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th>{t("Status")}</th><th className={DC.n}>{t("Total")}</th><th className={DC.n}>{t("Paid")}</th><th className={DC.n}>{t("Remaining")}</th></tr></thead>
             <tbody>
               {reservations.length ? reservations.map((r) => {
                 const st = isVoid ? { label: "Void", tone: "gray" } : resStatus(r);
@@ -200,40 +201,40 @@ export default function Detail({
                   <tr key={r.id}>
                     <td>
                       {r.cl_pk ? <a href={`/cl/${r.cl_pk}/`}>{r.number}</a> : <b>{r.number}</b>}
-                      <span className="sub">{r.hotel}</span>
+                      <span className={DC.sub}>{r.hotel}</span>
                       {r.penalty_int > 0 ? (
-                        <span className="sub">
+                        <span className={DC.sub}>
                           {t("incl. cancellation penalty {n}", { n: fmt(r.penalty_int) })}
                           {r.penalty_pk ? <> · <a href={`/penalty/${r.penalty_pk}/`}>{r.penalty_number}</a></> : null}
                         </span>
                       ) : null}
                     </td>
-                    <td className="nw">
+                    <td className={DC.nw}>
                       {fmtStay(a, b) || t("Not set")}
-                      {nights != null ? <span className="sub">{nights} {t(nights === 1 ? "night" : "nights")}</span> : null}
+                      {nights != null ? <span className={DC.sub}>{nights} {t(nights === 1 ? "night" : "nights")}</span> : null}
                     </td>
                     <td><DPill sm tone={st.tone}>{t(st.label)}</DPill></td>
-                    <td className="n">{fmt(r.total_int)}</td>
-                    <td className="n mut">{fmt(r.paid_int)}</td>
-                    <td className="n bold">
+                    <td className={DC.n}>{fmt(r.total_int)}</td>
+                    <td className={cn(DC.n, DC.mut)}>{fmt(r.paid_int)}</td>
+                    <td className={cn(DC.n, DC.bold)}>
                       {fmt(Math.max(0, r.remaining_int || 0))}
-                      {r.credited_int > 0 && !isVoid ? <span className="sub">{t("−{n} credited", { n: fmt(r.credited_int) })}</span> : null}
+                      {r.credited_int > 0 && !isVoid ? <span className={DC.sub}>{t("−{n} credited", { n: fmt(r.credited_int) })}</span> : null}
                     </td>
                   </tr>
                 );
-              }) : <tr><td colSpan={6} className="empty">{t("No reservations")}</td></tr>}
+              }) : <tr><td colSpan={6} className={DC.empty}>{t("No reservations")}</td></tr>}
             </tbody>
             <tfoot>
               {credited_sar > 0 ? (
                 <>
-                  <tr className="soft"><td colSpan={5}>{t("Invoice total")}</td><td className="n">{fmt(invoice.total_sar)} SAR</td></tr>
-                  <tr className="soft after"><td colSpan={5}>{t("Credit notes")}</td><td className="n">−{fmt(credited_sar)} SAR</td></tr>
-                  <tr className="after"><td colSpan={5}>{t("Amount due")}</td><td className="n">{fmt(dueSar)} SAR</td></tr>
+                  <tr className={DA.rowSoft}><td colSpan={5}>{t("Invoice total")}</td><td className={DC.n}>{fmt(invoice.total_sar)} SAR</td></tr>
+                  <tr className={cn(DA.rowSoft, DA.rowAfter)}><td colSpan={5}>{t("Credit notes")}</td><td className={DC.n}>−{fmt(credited_sar)} SAR</td></tr>
+                  <tr className={DA.rowAfter}><td colSpan={5}>{t("Amount due")}</td><td className={DC.n}>{fmt(dueSar)} SAR</td></tr>
                 </>
               ) : (
                 <tr>
                   <td colSpan={5}>{isVoid ? t("Invoice total (void)") : t("Invoice total")}</td>
-                  <td className="n">{isVoid ? <s>{fmt(invoice.total_sar)}</s> : fmt(invoice.total_sar)} SAR</td>
+                  <td className={DC.n}>{isVoid ? <s>{fmt(invoice.total_sar)}</s> : fmt(invoice.total_sar)} SAR</td>
                 </tr>
               )}
             </tfoot>
@@ -243,55 +244,55 @@ export default function Detail({
 
       <DCard title={t("Payments")} meta={t("Read-only, managed in Finance")}>
         {payments.length ? (
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Payment")}</th><th>{t("Method")}</th><th className="n">{t("Amount")}</th><th className="n">SAR</th></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Payment")}</th><th>{t("Method")}</th><th className={DC.n}>{t("Amount")}</th><th className={DC.n}>SAR</th></tr></thead>
               <tbody>
                 {payments.map((p) => (
                   <tr key={p.id}>
-                    <td><a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a><span className="sub nw">{p.payment_label || t("Not set")}</span></td>
+                    <td><a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a><span className={cn(DC.nw, DC.sub)}>{p.payment_label || t("Not set")}</span></td>
                     <td>
                       {p.method || t("Payment")}
-                      {p.proof_url ? <a className="da-tag xs" style={{ marginLeft: 6 }} href={p.proof_url} target="_blank" rel="noreferrer">{t("Proof")}</a> : null}
-                      {p.unallocated_sar > 0 ? <a className="da-tag xs" style={{ marginLeft: 6, color: "var(--warning-text)" }} href={`/finance/payments/${p.id}/`}>{t("Apply")}</a> : null}
+                      {p.proof_url ? <a className={cn(DA.tag, DA.tagSm, "ml-1.5")} href={p.proof_url} target="_blank" rel="noreferrer">{t("Proof")}</a> : null}
+                      {p.unallocated_sar > 0 ? <a className={cn(DA.tag, DA.tagSm, "ml-1.5 text-warning-text")} href={`/finance/payments/${p.id}/`}>{t("Apply")}</a> : null}
                     </td>
-                    <td className="n">
+                    <td className={DC.n}>
                       {fmt(p.amount_int)} {p.currency}
-                      {p.currency !== "SAR" ? <span className="sub">1 SAR = {fmt(p.exchange_rate)} {p.currency}</span> : null}
+                      {p.currency !== "SAR" ? <span className={DC.sub}>1 SAR = {fmt(p.exchange_rate)} {p.currency}</span> : null}
                     </td>
-                    <td className="n bold">{fmt(p.amount_sar_int)}</td>
+                    <td className={cn(DC.n, DC.bold)}>{fmt(p.amount_sar_int)}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={3}>{t("Total received")}</td><td className="n good">{fmt(invoice.total_paid_sar)} SAR</td></tr></tfoot>
+              <tfoot><tr><td colSpan={3}>{t("Total received")}</td><td className={cn(DC.n, DC.good)}>{fmt(invoice.total_paid_sar)} SAR</td></tr></tfoot>
             </table>
           </div>
-        ) : <div className="da-empty">{t("No payments recorded yet.")}</div>}
+        ) : <div className={DA.empty}>{t("No payments recorded yet.")}</div>}
       </DCard>
 
       {credit_notes.length ? (
         <DCard title={t("Credit notes")} meta={t("Reduce what this invoice bills")}>
-          <div className="da-scroll">
-            <table className="da-t">
-              <thead><tr><th>{t("Credit note")}</th><th>{t("Reason")}</th><th className="n">SAR</th><th className="acts" /></tr></thead>
+          <div className={DA.scroll}>
+            <table data-slot="detail-table" className={DA.table}>
+              <thead><tr><th>{t("Credit note")}</th><th>{t("Reason")}</th><th className={DC.n}>SAR</th><th className={DC.acts} /></tr></thead>
               <tbody>
-                {credit_notes.map((cn) => {
-                  const voided = cn.status === "voided";
+                {credit_notes.map((note) => {
+                  const voided = note.status === "voided";
                   return (
-                    <tr key={cn.id} className={voided ? "void" : undefined}>
+                    <tr key={note.id} className={voided ? DA.rowVoid : undefined}>
                       <td>
-                        <a href={`/finance/credit-notes/${cn.id}/pdf/`} target="_blank" rel="noreferrer">{cn.number}</a>
+                        <a href={`/finance/credit-notes/${note.id}/pdf/`} target="_blank" rel="noreferrer">{note.number}</a>
                         {voided ? <> <DPill sm>{t("Void")}</DPill></> : null}
-                        <span className="sub nw">{cn.date}</span>
+                        <span className={cn(DC.nw, DC.sub)}>{note.date}</span>
                       </td>
-                      <td className="desc">
-                        {voided && cn.voided_reason ? `${cn.reason} · ${t("voided")}: ${cn.voided_reason}` : cn.reason}
-                        {cn.to_deposit_sar > 0 && !voided ? <span className="sub">{t("{n} SAR to client deposit", { n: fmt(cn.to_deposit_sar) })}</span> : null}
+                      <td className={voided ? "line-through" : undefined}>
+                        {voided && note.voided_reason ? `${note.reason} · ${t("voided")}: ${note.voided_reason}` : note.reason}
+                        {note.to_deposit_sar > 0 && !voided ? <span className={DC.sub}>{t("{n} SAR to client deposit", { n: fmt(note.to_deposit_sar) })}</span> : null}
                       </td>
-                      <td className="n bold">{voided ? fmt(cn.amount_sar) : `−${fmt(cn.amount_sar)}`}</td>
-                      <td className="n">
+                      <td className={cn(DC.n, DC.bold)}>{voided ? fmt(cn.amount_sar) : `−${fmt(cn.amount_sar)}`}</td>
+                      <td className={DC.n}>
                         {canCredit && !voided ? (
-                          <button type="button" className="da-btn soft" onClick={() => openForm(`/finance/credit-notes/${cn.id}/void/`)}>{t("Void")}</button>
+                          <button type="button" className={dBtnClass({ soft: true })} onClick={() => openForm(`/finance/credit-notes/${cn.id}/void/`)}>{t("Void")}</button>
                         ) : null}
                       </td>
                     </tr>
@@ -303,7 +304,7 @@ export default function Detail({
         </DCard>
       ) : null}
 
-      <section className="da-card">
+      <section data-slot="card" className={DA.card}>
         <DTabs
           value={tab}
           onChange={setTab}
@@ -313,7 +314,7 @@ export default function Detail({
           ]}
         />
         {tab === "pay" ? (
-          <div role="tabpanel" className="da-rows" style={{ paddingTop: 8, paddingBottom: 12 }}>
+          <div role="tabpanel" className={cn(DA.rows, "pt-2 pb-3")}>
             {pay_to.map((acc) => <div key={acc.id} style={{ display: "block", padding: "12px 0" }}><PayTo t={t} acc={acc} /></div>)}
           </div>
         ) : (

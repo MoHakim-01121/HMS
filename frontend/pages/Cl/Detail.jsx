@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
 import Attachments from "../../components/ui/Attachments.jsx";
-import { DPage, DTop, DHead, DCard, DTabs, DLog, DBtn, DPill, dayMonth } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DTabs, DLog, DBtn, DPill, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -133,7 +134,7 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
     { k: t("Client"), v: cl.client ? <a href={`/clients/${cl.client.pk}/`}>{cl.client.name}</a> : cl.guest_name || t("Not set") },
     cl.client && cl.guest_name && cl.guest_name !== cl.client.name && { k: t("Guest"), v: cl.guest_name },
     cl.num_guests != null && { k: t("Pax"), v: cl.num_guests },
-    { k: t("Invoice"), v: cl.invoice ? <a href={`/invoice/${cl.invoice.pk}/`}>{cl.invoice.invoice_number}</a> : <span className="dim">{t("Not invoiced yet")}</span> },
+    { k: t("Invoice"), v: cl.invoice ? <a href={`/invoice/${cl.invoice.pk}/`}>{cl.invoice.invoice_number}</a> : <span className="font-normal text-muted-foreground">{t("Not invoiced yet")}</span> },
     cl.guest_phone && { k: t("Phone"), v: cl.guest_phone },
   ];
 
@@ -161,24 +162,24 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
           ) : null}
         >
           {penalty ? (
-            <div className="da-scroll">
-              <table className="da-t">
-                <thead><tr><th>{t("Document")}</th><th>{t("Cancelled")}</th><th>{t("Status")}</th><th className="n">{t("Penalty")}</th></tr></thead>
+            <div className={DA.scroll}>
+              <table data-slot="detail-table" className={DA.table}>
+                <thead><tr><th>{t("Document")}</th><th>{t("Cancelled")}</th><th>{t("Status")}</th><th className={DC.n}>{t("Penalty")}</th></tr></thead>
                 <tbody>
                   <tr>
-                    <td><a className="mono" href={`/penalty/${penalty.pk}/`}>{penalty.penalty_number}</a></td>
-                    <td className="nw">{penalty.cancellation_date ? fmtDate(penalty.cancellation_date) : t("Not set")}</td>
+                    <td><a className={DC.mono} href={`/penalty/${penalty.pk}/`}>{penalty.penalty_number}</a></td>
+                    <td className={DC.nw}>{penalty.cancellation_date ? fmtDate(penalty.cancellation_date) : t("Not set")}</td>
                     <td><DPill sm tone={penalty.is_paid ? "green" : "red"}>{t(penalty.is_paid ? "Paid" : "Unpaid")}</DPill></td>
-                    <td className="n bold">{fmt(penalty.penalty_amount)} {penalty.penalty_currency}</td>
+                    <td className={cn(DC.n, DC.bold)}>{fmt(penalty.penalty_amount)} {penalty.penalty_currency}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="da-card-foot" style={{ borderTop: 0, justifyContent: "space-between" }}>
-              <span className="l">{t("No penalty document for this CL yet.")}</span>
+            <div data-slot="card-foot" className={cn(DA.cardFoot, "justify-between border-t-0")}>
+              <span className={DA.footLabel}>{t("No penalty document for this CL yet.")}</span>
               {perms.can("penalty", "create") && (
-                <DBtn className="da-btn soft" onClick={() => openForm(`/cl/${cl.pk}/penalty/new/`)}>{t("+ Create penalty document")}</DBtn>
+                <DBtn className={dBtnClass({ soft: true })} onClick={() => openForm(`/cl/${cl.pk}/penalty/new/`)}>{t("+ Create penalty document")}</DBtn>
               )}
             </div>
           )}
@@ -186,34 +187,34 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
       ) : null}
 
       <DCard title={t("Rooms")} meta={t("Rates in SAR, per room-night")}>
-        <div className="da-scroll">
-          <table className="da-t">
-            <thead><tr><th>{t("Room type")}</th><th>{t("Meal")}</th><th className="n">{t("Qty")}</th><th className="n">{t("Rate")}</th><th className="n">{t("Subtotal")}</th></tr></thead>
+        <div className={DA.scroll}>
+          <table data-slot="detail-table" className={DA.table}>
+            <thead><tr><th>{t("Room type")}</th><th>{t("Meal")}</th><th className={DC.n}>{t("Qty")}</th><th className={DC.n}>{t("Rate")}</th><th className={DC.n}>{t("Subtotal")}</th></tr></thead>
             <tbody>
               {rooms.length ? rooms.map((r, i) => (
                 <tr key={i}>
-                  <td className="strong">{r.room_type}</td>
-                  <td className="mut">{r.meals || t("Not set")}</td>
-                  <td className="n">{r.quantity}</td>
-                  <td className="n">{fmtRate(r.price)} / {t("night")}</td>
-                  <td className="n strong">{fmt(r.subtotal)}</td>
+                  <td className={DC.strong}>{r.room_type}</td>
+                  <td className={DC.mut}>{r.meals || t("Not set")}</td>
+                  <td className={DC.n}>{r.quantity}</td>
+                  <td className={DC.n}>{fmtRate(r.price)} / {t("night")}</td>
+                  <td className={cn(DC.n, DC.strong)}>{fmt(r.subtotal)}</td>
                 </tr>
-              )) : <tr><td colSpan={5} className="empty">{t("No room data")}</td></tr>}
+              )) : <tr><td colSpan={5} className={DC.empty}>{t("No room data")}</td></tr>}
             </tbody>
-            {rooms.length ? <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className="n">{fmt(cl.total_price)} SAR</td></tr></tfoot> : null}
+            {rooms.length ? <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className={DC.n}>{fmt(cl.total_price)} SAR</td></tr></tfoot> : null}
           </table>
         </div>
         {related.length ? (
-          <div className="da-card-foot">
-            <span className="l">{t("Related documents")}</span>
+          <div data-slot="card-foot" className={DA.cardFoot}>
+            <span className={DA.footLabel}>{t("Related documents")}</span>
             {related.map((d) => (
-              <a key={d.href} className="da-tag" href={d.href}>{d.no} <span className="s">{d.kind}</span></a>
+              <a key={d.href} className={DA.tag} href={d.href}>{d.no} <span className={DA.tagSub}>{d.kind}</span></a>
             ))}
           </div>
         ) : null}
       </DCard>
 
-      <section className="da-card">
+      <section data-slot="card" className={DA.card}>
         <DTabs
           value={tab}
           onChange={setTab}
@@ -223,12 +224,12 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
             { key: "history", label: t("History"), count: logs.length },
           ]}
         />
-        <div role="tabpanel" hidden={tab !== "notes"} className="da-panel" style={{ paddingTop: 20, paddingBottom: 20 }}>
+        <div role="tabpanel" hidden={tab !== "notes"} className={cn(DA.panel, "py-5")}>
           {cl.note
-            ? <p className="da-text" style={{ margin: 0, maxWidth: 640 }}>{cl.note}</p>
+            ? <p className={cn(DA.text, "m-0 max-w-[640px]")}>{cl.note}</p>
             : <span className="mut" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{t("No notes.")}</span>}
         </div>
-        <div role="tabpanel" hidden={tab !== "files"} className="da-files">
+        <div role="tabpanel" hidden={tab !== "files"} className={DA.files}>
           <Attachments targetType="cl" targetId={cl.pk} initial={attachments} compact dashedAdd onCountChange={setAttCount} />
         </div>
         <div role="tabpanel" hidden={tab !== "history"}>
