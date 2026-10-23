@@ -230,7 +230,7 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
             : <span className="mut" style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{t("No notes.")}</span>}
         </div>
         <div role="tabpanel" hidden={tab !== "files"} className={DA.files}>
-          <Attachments targetType="cl" targetId={cl.pk} initial={attachments} compact dashedAdd onCountChange={setAttCount} />
+          <Attachments targetType="cl" targetId={cl.pk} initial={attachments} onCountChange={setAttCount} />
         </div>
         <div role="tabpanel" hidden={tab !== "history"}>
           <DLog rows={history} empty={t("No changes recorded yet.")} />
