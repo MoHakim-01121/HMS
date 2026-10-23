@@ -114,9 +114,9 @@ function MobileMore({ page, perms, onClose }) {
   }, [query, perms, t]);
 
   return (
-    <div className="m-more">
-      <div className="m-more-head">
-        <div className="m-more-search">
+    <div className="fixed top-[calc(48px_+_env(safe-area-inset-top))] right-0 bottom-[calc(56px_+_env(safe-area-inset-bottom))] left-0 z-[calc(var(--z-sticky,200)_+_1)] hidden animate-rise-in flex-col bg-background max-[600px]:flex">
+      <div className="flex-shrink-0 px-4 pt-3 pb-0">
+        <div className="flex h-10 items-center gap-2 rounded-[12px] border border-border bg-secondary px-3 text-muted-foreground">
           <Icon name="search" size={16} strokeWidth={1.8} />
           <input
             ref={inputRef}
@@ -124,29 +124,35 @@ function MobileMore({ page, perms, onClose }) {
             placeholder={t("Search modules...")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            className="h-full w-auto min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 font-[family-name:inherit] text-[15px] text-foreground shadow-none outline-none placeholder:text-muted-foreground"
           />
           {query && (
-            <button type="button" className="m-more-clear" onClick={() => setQuery("")}>
+            <button type="button" onClick={() => setQuery("")}
+              className="flex size-5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-muted-foreground">
               <Icon name="close" size={14} />
             </button>
           )}
         </div>
       </div>
-      <div className="m-more-body">
+      <div className="flex-1 overflow-y-auto px-4 pt-2 pb-5">
         {groups.map((g) => (
-          <div key={g.id} className="m-more-group">
-            <div className="m-more-heading">{t(g.heading)}</div>
-            <div className="m-more-card">
+          <div key={g.id} className="pb-1.5">
+            <div className="px-1 pt-3.5 pb-2 text-[11px] font-semibold tracking-[0.13em] text-muted-foreground uppercase">{t(g.heading)}</div>
+            <div className="overflow-hidden rounded-card border border-border bg-card">
               {g.items.map((item) => (
                 <div key={item.key}>
                   <Link
                     href={item.href}
-                    className={"m-more-item" + (page === item.key ? " active" : "")}
+                    className={cn(
+                      "flex h-12 items-center gap-3 px-[15px] text-[13.5px] font-medium text-foreground no-underline transition-[background-color] duration-[120ms] ease-[ease] active:bg-secondary",
+                      "[&>svg:first-child]:flex-none [&>svg:first-child]:text-muted-foreground",
+                      page === item.key && "font-semibold [&>svg:first-child]:text-foreground",
+                    )}
                     onClick={onClose}
                   >
                     <NavIcon name={item.icon || item.key} />
-                    <span className="m-more-label">{t(item.label)}</span>
-                    <Icon name="chevron" size={15} strokeWidth={1.8} className="m-more-chev" />
+                    <span className="flex-1">{t(item.label)}</span>
+                    <Icon name="chevron" size={15} strokeWidth={1.8} className="flex-none text-muted-foreground" />
                   </Link>
                 </div>
               ))}
@@ -181,6 +187,15 @@ const MENU_ROW = cn(
 );
 const MENU_META = "ml-auto text-[12px] text-muted-foreground";
 const ACCT_LINE = "overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground";
+
+// Phone chrome (600px and below): top bar, bottom nav, More page and the
+// account / notification bottom sheets.
+const M_BTN = "relative flex size-11 cursor-pointer appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent text-foreground transition-[background-color] duration-[120ms] ease-[ease] active:bg-secondary";
+const SCRIM = "fixed inset-0 z-[calc(var(--z-sticky,200)_+_4)] hidden animate-fade-in bg-scrim-soft max-[600px]:block";
+const SHEET = "fixed right-0 bottom-0 left-0 z-[calc(var(--z-sticky,200)_+_5)] hidden translate-y-full flex-col rounded-t-[20px] bg-card pt-3.5 pb-[calc(18px_+_env(safe-area-inset-bottom))] transition-[translate] duration-[240ms] ease-drawer max-[600px]:flex";
+const GRAB = "mx-auto mt-0 mb-3.5 h-1 w-[38px] rounded-full bg-border";
+const SHEET_ROW = "flex h-[52px] w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-[18px] font-[family-name:inherit] text-[13.5px] font-medium text-foreground no-underline active:bg-secondary [&_svg]:flex-none [&_svg]:text-muted-foreground";
+const SHEET_CLOSE = "mx-[18px] mt-3.5 mb-0 h-12 cursor-pointer rounded-full border border-input bg-card font-[family-name:inherit] text-[13px] font-semibold text-foreground";
 
 const READ_KEY = "hms.notif.read";
 const MINI_KEY = "hms.sidebar.mini";
@@ -529,55 +544,68 @@ export default function AppLayout({ children }) {
       {user && (
         <>
           {/* ── Mobile top bar ── */}
-          <header className="m-top-bar" id="m-top-bar">
-            <div className="m-top-bar-left">
-              <span className="m-top-bar-title">{pageTitle}</span>
+          {!isMap && (
+          <header id="m-top-bar"
+            className="fixed top-0 right-0 left-0 z-[var(--z-sticky,200)] flex h-[calc(48px_+_env(safe-area-inset-top))] items-center justify-between gap-3 border-b border-border bg-card px-4 pt-[env(safe-area-inset-top)] min-[601px]:hidden">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <span className="overflow-hidden text-[17px] font-semibold tracking-[-0.01em] text-ellipsis whitespace-nowrap text-foreground">{pageTitle}</span>
             </div>
-            <div className="m-top-bar-right">
-              <button type="button" className="m-top-bar-btn" aria-label="Search"
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <button type="button" className={M_BTN} aria-label="Search"
                 onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
                 <Icon name="search" size={19} strokeWidth={1.8} />
               </button>
-              <button type="button" className="m-top-bar-btn" aria-label="Notifications"
+              <button type="button" className={M_BTN} aria-label="Notifications"
                 aria-haspopup="true" aria-expanded={mNotif}
                 onClick={(e) => { e.stopPropagation(); setMNotif((v) => !v); setMAccount(false); setMMore(false); }}>
                 <Icon name="bell" size={19} strokeWidth={1.8} />
-                {dueNotifs.length > 0 && <span className="m-top-bar-badge">{dueNotifs.length}</span>}
+                {dueNotifs.length > 0 && (
+                  <span className="pointer-events-none absolute top-1.5 right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border-[1.5px] border-card bg-destructive px-[3px] text-[9px] font-semibold text-destructive-foreground">
+                    {dueNotifs.length}
+                  </span>
+                )}
               </button>
-              <button type="button" className="m-top-bar-btn" aria-label="Account"
+              <button type="button" className={M_BTN} aria-label="Account"
                 aria-haspopup="true" aria-expanded={mAccount}
                 onClick={(e) => { e.stopPropagation(); setMAccount((v) => !v); setMNotif(false); setMMore(false); }}>
-                <span className="m-top-bar-avatar">
+                <span className="size-[30px] flex-shrink-0 overflow-hidden rounded-full">
                   {user.avatar
-                    ? <img src={user.avatar} alt={user.username} />
-                    : <span className="m-top-bar-avatar-default">{<UserGlyph />}</span>}
+                    ? <img className="block size-full object-cover" src={user.avatar} alt={user.username} />
+                    : <span className="flex size-full items-center justify-center bg-foreground text-[11px] font-semibold text-background"><UserGlyph /></span>}
                 </span>
               </button>
             </div>
           </header>
+          )}
 
           {/* ── Mobile bottom nav ── */}
-          <nav className="m-bottom-nav" id="m-bottom-nav">
+          {!isMap && (
+          <nav id="m-bottom-nav"
+            className="fixed right-0 bottom-0 left-0 z-[var(--z-sticky,200)] grid h-[calc(64px_+_env(safe-area-inset-bottom))] grid-cols-5 items-center border-t border-border bg-card px-1.5 pt-0 pb-[env(safe-area-inset-bottom)] min-[601px]:hidden">
             {BNAV_TABS.map((tab) => {
               const isMore = tab.key === "_more";
               const isActive = isMore ? mMore : page === tab.key;
+              const inner = (
+                <>
+                  <span className="relative flex size-6 items-center justify-center [&_svg]:size-[22px]"><Icon name={tab.icon} strokeWidth={isActive ? 2 : 1.8} /></span>
+                  <span className={cn("text-[10px] leading-none font-medium tracking-[0.01em]", isActive && "font-semibold")}>{t(tab.label)}</span>
+                </>
+              );
+              const cls = cn(
+                "flex h-[52px] cursor-pointer appearance-none flex-col items-center justify-center gap-1 rounded-[12px] border-0 bg-transparent font-[family-name:inherit] text-muted-foreground no-underline transition-[color] duration-[120ms] ease-[ease] active:opacity-70",
+                isActive && "text-foreground",
+              );
               return isMore ? (
-                <button key={tab.key}
-                  type="button"
-                  className={"m-bnav-tab" + (isActive ? " active" : "")}
+                <button key={tab.key} type="button" className={cls}
                   onClick={() => { setMMore((v) => !v); setMNotif(false); setMAccount(false); }}>
-                  <span className="m-bnav-icon"><Icon name={tab.icon} strokeWidth={isActive ? 2 : 1.8} /></span>
-                  <span className="m-bnav-label">{t(tab.label)}</span>
+                  {inner}
                 </button>
               ) : (
-                <Link key={tab.key} href={NAV[tab.key]}
-                  className={"m-bnav-tab" + (isActive ? " active" : "")}>
-                  <span className="m-bnav-icon"><Icon name={tab.icon} strokeWidth={isActive ? 2 : 1.8} /></span>
-                  <span className="m-bnav-label">{t(tab.label)}</span>
-                </Link>
+                <Link key={tab.key} href={NAV[tab.key]} className={cls}>{inner}</Link>
               );
             })}
           </nav>
+          )}
 
           {/* ── Mobile More page (full-screen module grid) ── */}
           {mMore && (
@@ -585,62 +613,69 @@ export default function AppLayout({ children }) {
           )}
 
           {/* ── Mobile account sheet (v2.1 bottom sheet) ── */}
-          {mAccount && <div className="m-sheet-scrim" onClick={() => setMAccount(false)} />}
-          <div className={"m-acct-sheet" + (mAccount ? " open" : "")} onClick={(e) => e.stopPropagation()}
+          {mAccount && <div className={SCRIM} onClick={() => setMAccount(false)} />}
+          <div className={cn(SHEET, mAccount && "translate-y-0")} onClick={(e) => e.stopPropagation()}
             ref={(el) => { if (el) el.inert = !mAccount; }} role={mAccount ? "dialog" : undefined} aria-hidden={!mAccount} aria-label={t("Account")}>
-            <span className="m-sheet-grab" aria-hidden="true" />
-            <div className="m-acct-sheet-head">
-              <span className="m-acct-sheet-avatar">
-                {user.avatar ? <img src={user.avatar} alt={user.username} /> : <UserGlyph />}
+            <span className={GRAB} aria-hidden="true" />
+            <div className="flex items-center gap-[11px] border-b border-hairline px-[18px] pt-0 pb-3.5">
+              <span className="flex size-10 flex-none items-center justify-center overflow-hidden rounded-full bg-foreground text-[13px] font-semibold text-background">
+                {user.avatar ? <img className="size-full object-cover" src={user.avatar} alt={user.username} /> : <UserGlyph />}
               </span>
-              <span className="m-acct-sheet-id">
-                <span className="m-acct-sheet-name">{user.username}</span>
-                <span className="m-acct-sheet-full">{user.name && user.name !== user.username ? user.name : user.role_label}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-[14px] font-semibold text-foreground">{user.username}</span>
+                <span className="overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground">{user.name && user.name !== user.username ? user.name : user.role_label}</span>
               </span>
-              <span className="hms-acct-role">{user.role_label || (user.is_superuser ? t("Admin") : user.is_staff ? t("Staff") : t("Member"))}</span>
+              <span>{user.role_label || (user.is_superuser ? t("Admin") : user.is_staff ? t("Staff") : t("Member"))}</span>
             </div>
-            <a href={NAV.account} className="m-acct-row"><Icon name="user" size={18} /><span>{t("My Profile")}</span></a>
-            <button type="button" className="m-acct-row" onClick={toggle}>
-              <Icon name={theme === "light" ? "sun" : "moon"} size={18} /><span>{t("Theme")}</span>
-              <span className="hms-acct-meta">{theme === "light" ? t("Light") : t("Dark")}</span>
+            {/* Rows divide only where a hairline reads as a break: above Language. */}
+            <a href={NAV.account} className={SHEET_ROW}><Icon name="user" size={18} /><span className="flex-1 text-left">{t("My Profile")}</span></a>
+            <button type="button" className={SHEET_ROW} onClick={toggle}>
+              <Icon name={theme === "light" ? "sun" : "moon"} size={18} /><span className="flex-1 text-left">{t("Theme")}</span>
+              <span>{theme === "light" ? t("Light") : t("Dark")}</span>
             </button>
-            <div className="m-acct-row m-acct-row--lang">
-              <Icon name="globe" size={18} /><span>{t("Language")}</span>
+            <div className={cn(SHEET_ROW, "cursor-default border-t border-hairline")}>
+              <Icon name="globe" size={18} /><span className="flex-1 text-left">{t("Language")}</span>
               <LanguageSwitcher variant="mini" />
             </div>
-            <form method="post" action={NAV.logout} style={{ margin: 0 }}>
+            <form method="post" action={NAV.logout} className="m-0">
               <Csrf />
-              <button type="submit" className="m-acct-row m-acct-row--danger"><Icon name="logout" size={18} /><span>{t("Log out")}</span></button>
+              <button type="submit" className={cn(SHEET_ROW, "text-danger-ink [&_svg]:text-current")}><Icon name="logout" size={18} /><span className="flex-1 text-left">{t("Log out")}</span></button>
             </form>
-            <button type="button" className="m-acct-sheet-close" onClick={() => setMAccount(false)}>{t("Close")}</button>
+            <button type="button" className={SHEET_CLOSE} onClick={() => setMAccount(false)}>{t("Close")}</button>
           </div>
 
           {/* ── Mobile notification sheet: the account sheet's frame, the desktop list's groups ── */}
-          {mNotif && <div className="m-sheet-scrim" onClick={() => setMNotif(false)} />}
-          <div className={"m-acct-sheet m-ntf-sheet" + (mNotif ? " open" : "")} onClick={(e) => e.stopPropagation()}
+          {mNotif && <div className={SCRIM} onClick={() => setMNotif(false)} />}
+          <div className={cn(SHEET, "max-h-[80dvh]", mNotif && "translate-y-0")} onClick={(e) => e.stopPropagation()}
             ref={(el) => { if (el) el.inert = !mNotif; }} role={mNotif ? "dialog" : undefined} aria-hidden={!mNotif} aria-label={t("Notifications")}>
-            <span className="m-sheet-grab" aria-hidden="true" />
-            <div className="m-ntf-head">
+            <span className={GRAB} aria-hidden="true" />
+            <div className="flex flex-none items-center justify-between border-b border-hairline px-[18px] pt-0 pb-3 text-[15px] font-semibold text-foreground">
               <span>{t("Notifications")}</span>
-              {unread > 0 && <button type="button" className="m-ntf-mark" onClick={markRead}>{t("Mark all as read")}</button>}
+              {unread > 0 && (
+                <button type="button" onClick={markRead}
+                  className="-mr-2 h-8 cursor-pointer rounded-[8px] border-0 bg-transparent px-2 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground active:bg-secondary">
+                  {t("Mark all as read")}
+                </button>
+              )}
             </div>
-            <div className="m-ntf-body">
-              {dueNotifs.length === 0 && <div className="m-ntf-empty">{t("No notifications")}</div>}
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-0">
+              {dueNotifs.length === 0 && <div className="px-2.5 py-5 text-[13px] text-muted-foreground">{t("No notifications")}</div>}
               {[[t("New"), fresh], [t("Earlier"), earlier]].map(([title, rows]) => rows.length > 0 && (
                 <div key={title} role="group" aria-label={title}>
-                  <div className="m-ntf-group">{title}</div>
+                  <div className="px-2.5 pt-3.5 pb-1 text-[12px] font-medium text-muted-foreground">{title}</div>
                   {rows.map((n, i) => (
-                    <Link key={i} className="m-ntf-row" href={n.url} onClick={() => setMNotif(false)}>
-                      <span className="nm">{n.title}</span>
-                      <span className={"when" + (n.days <= 1 ? " hot" : "")}>{notifLabel(n)}</span>
-                      <span className="ref">{n.ref}</span>
-                      {n.type === "invoice_due" && <span className="amt">{fmtSar(n.remaining)} SAR</span>}
+                    <Link key={i} href={n.url} onClick={() => setMNotif(false)}
+                      className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] content-center gap-x-3 gap-y-0.5 rounded-[10px] px-2.5 py-[9px] text-foreground no-underline active:bg-secondary">
+                      <span className="overflow-hidden text-[14px] font-medium text-ellipsis whitespace-nowrap">{n.title}</span>
+                      <span className={cn("text-right text-[12.5px] whitespace-nowrap text-muted-foreground", n.days <= 1 && "font-medium text-warning-text")}>{notifLabel(n)}</span>
+                      <span className="col-start-1 font-mono text-[12px] text-muted-foreground">{n.ref}</span>
+                      {n.type === "invoice_due" && <span className="col-start-2 text-right text-[12.5px] font-semibold tabular-nums">{fmtSar(n.remaining)} SAR</span>}
                     </Link>
                   ))}
                 </div>
               ))}
             </div>
-            <button type="button" className="m-acct-sheet-close" onClick={() => setMNotif(false)}>{t("Close")}</button>
+            <button type="button" className={SHEET_CLOSE} onClick={() => setMNotif(false)}>{t("Close")}</button>
           </div>
         </>
       )}
