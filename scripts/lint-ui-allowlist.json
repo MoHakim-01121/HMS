@@ -16,8 +16,7 @@
   "frontend/components/shadcn/section.jsx": 6,
   "frontend/components/shadcn/status-pill.jsx": 2,
   "frontend/components/shell/LanguageSwitcher.jsx": 4,
-  "frontend/components/shell/TopbarSearch.jsx": 18,
-  "frontend/layouts/AppLayout.jsx": 116,
+  "frontend/layouts/AppLayout.jsx": 66,
   "frontend/pages/Account/Profile.jsx": 192,
   "frontend/pages/Calendar/Index.jsx": 68,
   "frontend/pages/Cl/Detail.jsx": 1,
@@ -47,7 +46,7 @@
   "frontend/pages/Hotel/RoomTypeForm.jsx": 3,
   "frontend/pages/Invoice/Form.jsx": 4,
   "frontend/pages/Penalty/Form.jsx": 5,
-  "frontend/pages/Reconciliation/Detail.jsx": 2,
+  "frontend/pages/Reconciliation/Detail.jsx": 1,
   "frontend/pages/Reconciliation/ImportForm.jsx": 12,
   "frontend/pages/Reconciliation/List.jsx": 2,
   "frontend/pages/Remittance/AllocationTable.jsx": 2,
@@ -57,5 +56,5 @@
   "frontend/pages/Remittance/Receipt.jsx": 3,
   "frontend/pages/Remittance/TrackingPanel.jsx": 3,
   "frontend/pages/Role/Form.jsx": 11,
-  "frontend/pages/User/Form.jsx": 4
+  "frontend/pages/User/Form.jsx": 3
 }

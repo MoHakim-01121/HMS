@@ -79,7 +79,7 @@
   /* Chart bars that are not the picked one: visible on the card, still under --data. */
   --chart-bar: #D3D8C6;
   /* The sidebar card: olive, with a cream pill on the page you are on. Inside
-     it, shell.css maps the ink tokens onto these. */
+     it, the ink-sidebar utility maps the ink tokens onto these. */
   --sidebar: #2F3A1F;
   --sidebar-fg: #F3F5EC;                  /* 10.9:1 on the sidebar */
   --sidebar-muted: #B4BF9E;               /* 6.2:1 */
@@ -257,6 +257,7 @@
   --color-info: var(--info);
   --color-info-text: var(--info-text);
   --color-info-tint: var(--info-tint);
+  --color-scrim: rgba(10,12,16,.42);
 
   --shadow-menu: 0 22px 50px -22px rgba(55,53,47,.32);
   --shadow-popover: 0 22px 50px -24px rgba(55,53,47,.26);
@@ -343,30 +344,17 @@
 
    design.css sets `body { margin: 0 }`, so those first three land as a flat
    `padding: 0` — and being an attribute selector they outrank the plain `body`
-   rules that hold the shell offsets (padding-left for the fixed sidebar,
-   padding-top for the fixed topbar). That is why the page behind a dialog
-   jumped: 256px left + 56px up on desktop, 48px up on mobile, sliding under
-   its own chrome. Restored below; the library's padding rules carry no
+   rule that holds the phone's top-bar offset, so the page behind a dialog
+   jumped 48px up. Restored below; the library's padding rules carry no
    !important, but it injects its <style> into <head> after this sheet, so
-   winning the tie needs it.
+   winning the tie needs it. On desktop the offsets sit on AppLayout's root,
+   out of the library's reach.
 
    Its margin-right compensation is left alone — that one is doing the right
    thing, keeping normal-flow content still while the scrollbar is gone. Fixed
    chrome sits outside that flow, so anything anchored to the right edge has to
    shift itself by the same gap, which the library publishes as
-   --removed-body-scroll-bar-size. */
-@media (min-width: 601px) {
-  body[data-scroll-locked] {
-    padding-left: var(--sidebar-w) !important;
-    padding-top: var(--topbar-h) !important;
-  }
-  body.sidebar-collapsed[data-scroll-locked] {
-    padding-left: var(--sidebar-w-collapsed) !important;
-  }
-  body[data-scroll-locked] .hms-topbar {
-    right: var(--removed-body-scroll-bar-size, 0px);
-  }
-}
+   --removed-body-scroll-bar-size (the topbar does). */
 @media (max-width: 600px) {
   /* Mobile top bar offset — matches the 48px fixed strip */
   body[data-scroll-locked] { padding-top: calc(48px + env(safe-area-inset-top)) !important; }
@@ -534,87 +522,15 @@
 
 :root { --hms-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L19 7'/%3E%3C/svg%3E"); }
 
-/* ── Desktop sidebar shell (Homlu direction) ──────────────────────────
-   Global chrome change (2026-07-24, restyled 2026-07-26): replaces the old fixed topbar with a
-   persistent left sidebar nav on desktop widths. Mobile chrome
-   (.m-top-bar + .m-bottom-nav) lives in the MOBILE REDESIGN section
-   below — same 600px boundary the rest of the app already uses.
-   introduces no new breakpoint. The old .topbar element is retired (hidden
-   at all widths) rather than deleted from CSS, since design.css is a large
-   shared stylesheet and other selectors may still reference .topbar-* class
-   names used inside the sidebar (icon buttons, account dropdown, etc). */
-.topbar { display: none !important; }
-
-/* Hidden by default (mobile uses .m-top-bar instead); shown at 601px+
-   inside the @media block below. Missing this base rule was letting the
-   desktop <header> fall back to its default block display on mobile,
-   rendering as a second navbar under .m-top-bar. */
-.hms-topbar {
-  display: none;
-}
-
+/* ── Shell layout tokens (desktop) ─────────────────────────────────────
+   --sidebar-w is the sidebar's whole slot (the card plus the gap on each
+   side, --shell-gap); --topbar-h the topbar. AppLayout's root pads itself by
+   these, so body keeps no offset of its own: legacy.css gives it a 48px top
+   padding for phones, zeroed here until legacy.css goes. Phones use the
+   mobile top bar and bottom nav below. */
 @media (min-width: 601px) {
-  /* Sidebar width still measured off the live Homlu reference; internal
-     spacing/nav-row sizing below now follows 21st.dev's "Dashboard Sidebar"
-     reference instead (see the grouped-nav block further down). */
-  :root { --sidebar-w: 256px; --sidebar-w-collapsed: 72px; }
-  body { padding-top: 0; padding-left: var(--sidebar-w); }
-  body.sidebar-collapsed { padding-left: var(--sidebar-w-collapsed); }
-
-  /* ── Topbar (2026-07-27, from 21st.dev's "Dashboard Sidebar" reference) ──
-     h-14 (56px) bar with a breadcrumb-style "workspace / page" title (text-sm,
-     muted ws + medium foreground page) instead of the old 64px/28px-title bar. */
-  :root { --topbar-h: 60px; }
-  body { padding-top: var(--topbar-h); }
-  .hms-topbar {
-    position: fixed;
-    top: 0; right: 0; left: var(--sidebar-w);
-    height: var(--topbar-h);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 0 20px;
-    background: var(--card);
-    border-bottom: 1px solid var(--border);
-    z-index: var(--z-sticky, 200);
-    transition: left .18s ease;
-  }
-  body.sidebar-collapsed .hms-topbar { left: var(--sidebar-w-collapsed); }
-  
-  
-  
-  
-  
-  
-  
-
-  /* Icon buttons (bell/theme) restyled desktop-only to a circular hit-target
-     with a transparent idle state — .topbar-icon-btn's base rules live in
-     design.css (shared with mobile chrome), so this only overrides inside
-     .hms-topbar. 40px clears the desktop min hit area (was 36); the base rule
-     already transitions colour/background, this adds the press response. */
-  
-  
-  
-
-  /* Search — v2.1 doc 1a: 36px white pill, 1px control border, muted prompt,
-     and a keycap chip (22px, radius 7) on the neutral fill. */
-  
-  
-  
-  
-  
-  
-
-  /* Account trigger — v2.1 doc 1a: a bordered pill, 34px, with a 24px
-     near-black monogram avatar + username + chevron. */
-  
-  
-  
-  
-  
-  
+  :root { --topbar-h: 70px; --sidebar-w: 276px; --sidebar-w-collapsed: 104px; --shell-gap: 14px; }
+  body { padding-top: 0; }
 
   /* Account menu — v2.1 doc 1e: card radius 20, modal elevation, 266px.
      Header carries avatar 38 + username + full name + a filled ink role
@@ -1045,7 +961,7 @@ body.map-fullscreen {
   padding-top: 0 !important;
 }
 
-body.map-fullscreen .hms-topbar,
+
 body.map-fullscreen .m-top-bar,
 body.map-fullscreen #m-bottom-nav {
   display: none !important;
@@ -1573,12 +1489,7 @@ body.public-page {
    Give the canvas a firmer fill and one step more supporting ink, then hand
    card surfaces their own values back. Portalled popovers live outside
    .page-shell and keep the defaults untouched. */
-[data-theme="light"] .page-shell,
-[data-theme="light"] .hms-topbar.ks-tb {
-  --muted-foreground: #5F6353;
-  --secondary: #E3E6D9;
-}
-[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .ks-sp, .ks-dd, .ks-cdlg, .bc .tip) {
+[data-theme="light"] :is(.pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .bc .tip) {
   --muted-foreground: #64675A;
   --secondary: #EEF0E6;
 }
@@ -1604,6 +1515,21 @@ body.public-page {
   color: var(--foreground);
 }
 
+/* The light canvas's firmer fill and supporting ink (see above), for the
+   page column and the topbar that floats over it. */
+@utility canvas {
+  [data-theme="light"] & {
+    --muted-foreground: #5F6353;
+    --secondary: #E3E6D9;
+  }
+}
+/* A thin scrollbar in the field-border ink, for lists inside menus. */
+@utility scrollbar-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--input) transparent;
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-thumb { background: var(--input); border-radius: 9999px; border: 2px solid var(--popover); }
+}
 /* The same hand-back as a utility, for components: `surface` on any card,
    menu or control that sits on the light canvas. */
 @utility surface {
@@ -1614,6 +1540,3 @@ body.public-page {
 }
 
 /* Keyboard: the first Tab offers to skip the sidebar (UX audit 2026-10-22). */
-.skip-link { position: fixed; top: 8px; left: 8px; z-index: 1000; padding: 8px 16px; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font: 600 13px var(--font-sans); text-decoration: none; transform: translateY(-200%); transition: transform .15s ease; }
-.skip-link:focus { transform: none; outline: 2px solid var(--ring); outline-offset: 2px; }
-.page-shell:focus { outline: none; }

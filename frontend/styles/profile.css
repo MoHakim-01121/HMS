@@ -208,3 +208,11 @@
   .pf-sf .pf-btn { flex: 1; }
   .pf-crop { width: 296px; height: 296px; }
 }
+
+/* Inputs that sit inside a drawn control (profile search, form fields) take
+   nothing from legacy.css's global input skin: the control around them is the
+   field. */
+.pf-search input, .pf-fld input {
+  background: transparent !important; border: 0 !important; box-shadow: none !important;
+  border-radius: 0 !important; padding: 0 !important; min-height: 0 !important; outline: none;
+}

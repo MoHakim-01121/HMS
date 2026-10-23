@@ -10,11 +10,11 @@ import ShellSidebar from "../components/shell/ShellSidebar.jsx";
 import TopbarSearch from "../components/shell/TopbarSearch.jsx";
 import { NAV_TOP, NAV_GROUPS, NavIcon, allowed } from "../components/shell/nav.jsx";
 import { usePresence } from "../components/shell/usePresence.js";
-import "../styles/shell.css";
 import DraftModal from "../components/shadcn/draft-modal.jsx";
 import Toast, { showToast } from "../components/shadcn/toast.jsx";
 import LanguageSwitcher from "../components/shell/LanguageSwitcher.jsx";
 import { FormModalProvider } from "../components/shadcn/form-modal.jsx";
+import { cn } from "@/lib/utils";
 
 const NAV = {
   home: "/dashboard/",
@@ -158,6 +158,30 @@ function MobileMore({ page, perms, onClose }) {
   );
 }
 
+// Desktop topbar: floats over a blurred strip of the page, its title and icons
+// lined up with the page's own edges (--page-max wide, 1320px on list pages,
+// centred in what the sidebar leaves).
+const TOPBAR = cn(
+  "canvas fixed top-0 right-0 z-[var(--z-sticky,200)] hidden h-(--topbar-h) items-center justify-between gap-4 min-[601px]:flex",
+  "pt-(--shell-gap) pr-[calc(var(--tb-x)_-_4px)] pb-0 pl-(--tb-x) [body:has([data-slot=list-main])_&]:[--page-max:1320px]",
+  "border-b border-b-transparent bg-background/86 backdrop-blur-[20px] backdrop-saturate-[1.4]",
+  "transition-[left,border-color] duration-[300ms,200ms] ease-[cubic-bezier(.32,.72,0,1),ease] in-data-[scroll-locked]:right-[var(--removed-body-scroll-bar-size,0px)]",
+);
+const TOPBAR_X = "[--tb-x:max(20px,calc((100vw_-_var(--sidebar-w)_-_var(--page-max,1040px))_/_2_+_20px))]";
+const TOPBAR_X_MINI = "[--tb-x:max(20px,calc((100vw_-_var(--sidebar-w-collapsed)_-_var(--page-max,1040px))_/_2_+_20px))]";
+const PRESS = "transition-[background-color,scale] duration-[160ms,120ms] ease-[ease] active:scale-[.94] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid";
+const ICON_BTN = cn(PRESS, "relative grid size-10 flex-none cursor-pointer place-content-center rounded-[12px] border-0 bg-transparent text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground");
+// Topbar menus (notifications, account) drop from the right.
+const MENU = "surface absolute top-[50px] right-0 z-40 origin-top-right animate-menu-in rounded-[16px] border border-border bg-popover shadow-menu";
+const MENU_CLOSING = "pointer-events-none animate-menu-out";
+const MENU_GROUP = "px-2.5 pt-3 pb-1 text-[11.5px] font-medium text-muted-foreground";
+const MENU_ROW = cn(
+  "box-border flex w-full cursor-pointer items-center gap-2.5 rounded-[8px] border-0 bg-transparent px-2.5 py-[9px] text-left font-sans text-[13px] leading-[normal] font-medium text-foreground no-underline",
+  "transition-[background-color,color] duration-[160ms] ease-[ease] hover:bg-secondary [:where(&)_svg]:flex-none [:where(&)_svg]:text-muted-foreground",
+);
+const MENU_META = "ml-auto text-[12px] text-muted-foreground";
+const ACCT_LINE = "overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground";
+
 const READ_KEY = "hms.notif.read";
 const MINI_KEY = "hms.sidebar.mini";
 const TOAST_KEY = "hms.branch.toast";
@@ -192,16 +216,18 @@ export default function AppLayout({ children }) {
   const [readKeys, setReadKeys] = useState(() => readSet(READ_KEY));
   const [confirmTo, setConfirmTo] = useState(null);
   const [toast, setToast] = useState("");
+  const [switching, setSwitching] = useState(false);
   const accountWrap = useRef(null);
   const notifWrap = useRef(null);
   const searchRef = useRef(null);
   const dirty = useRef(null);
+  const main = useRef(null);
 
   // The browser tab names the page: its heading ("INV-090", "Journal
   // Entries"), Home on the dashboard, so tabs and history can be told apart.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
-      const h1 = ["/", "/dashboard/"].includes(url.split("?")[0]) ? "" : document.querySelector(".page-shell h1")?.textContent?.trim();
+      const h1 = ["/", "/dashboard/"].includes(url.split("?")[0]) ? "" : main.current?.querySelector("h1")?.textContent?.trim();
       document.title = `${h1 || t(PAGE_TITLES[page] || "Home")} — Konoz United`;
     });
     return () => cancelAnimationFrame(id);
@@ -251,7 +277,7 @@ export default function AppLayout({ children }) {
     const onInput = (e) => {
       const f = e.target.closest?.("form");
       if (!f) return;
-      const scope = f.closest('[role="dialog"]') || document.querySelector(".page-shell");
+      const scope = f.closest('[role="dialog"]') || main.current;
       const title = scope?.querySelector("h1, h2, [data-slot=dialog-title], .htitle")?.textContent?.trim();
       dirty.current = title || t("this page");
     };
@@ -291,17 +317,17 @@ export default function AppLayout({ children }) {
   // Collapsing re-lays the page once, then slides the content from where it
   // was (FLIP) on the sidebar's own curve: a transform, not a padding
   // transition that re-lays every table on every frame.
-  const collapseMounted = useRef(false);
+  // toggleMini reads the left edge before the padding changes, this effect
+  // after.
+  const shellLeft = useRef(null);
   useEffect(() => {
-    const shell = document.querySelector(".page-shell");
-    const before = shell?.getBoundingClientRect().left;
-    document.body.classList.toggle("sidebar-collapsed", collapsed);
-    if (!collapseMounted.current) { collapseMounted.current = true; return; }
-    if (!shell || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const shell = main.current;
+    const before = shellLeft.current;
+    shellLeft.current = null;
+    if (!shell || before == null || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const dx = before - shell.getBoundingClientRect().left;
     if (dx) shell.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(.32,.72,0,1)" });
   }, [collapsed]);
-  useEffect(() => () => document.body.classList.remove("sidebar-collapsed"), []);
 
   // The topbar stays put; once the page scrolls under it, a hairline shows.
   useEffect(() => {
@@ -328,6 +354,7 @@ export default function AppLayout({ children }) {
 
   const toggleMini = () => {
     const m = !collapsed;
+    shellLeft.current = main.current?.getBoundingClientRect().left ?? null;
     try { window.localStorage.setItem(MINI_KEY, m ? "1" : "0"); } catch { /* storage blocked */ }
     setCollapsed(m);
   };
@@ -336,7 +363,7 @@ export default function AppLayout({ children }) {
     setConfirmTo(null);
     dirty.current = null;
     try { window.sessionStorage.setItem(TOAST_KEY, b.name); } catch { /* storage blocked */ }
-    document.body.classList.add("ks-switching");
+    setSwitching(true);
     const form = document.createElement("form");
     form.method = "post";
     form.action = "/account/branch/";
@@ -386,19 +413,21 @@ export default function AppLayout({ children }) {
   const perms = { ...(user?.perms || {}), branch_report: user?.report_branches ? (user?.perms?.statements || []) : [] };
   const displayName = user ? (user.name || user.username) : "";
   const roleBranch = [user?.role_label, branch.current?.name].filter(Boolean).join(", ");
-  const avatar = (lg) => (
-    <span className={"ks-av" + (lg ? " lg" : "")}>
-      {user.avatar ? <img src={user.avatar} alt="" /> : <UserGlyph />}
+  const avatar = (lg, className) => (
+    <span className={cn("grid size-9 flex-none place-content-center overflow-hidden rounded-full bg-info-tint text-[12.5px] font-bold tracking-[.02em] text-info-text", lg && "size-10 text-[13.5px]", className)}>
+      {user.avatar ? <img className="block size-full object-cover" src={user.avatar} alt="" /> : <UserGlyph />}
     </span>
   );
   const notifGroup = (title, rows) => rows.length > 0 && (
     <div role="group" aria-label={title}>
-      <div className="ks-sg">{title}</div>
+      <div className={MENU_GROUP}>{title}</div>
       {rows.map((n, i) => (
-        <Link key={i} className="ks-nr" href={n.url} onClick={() => setNotif(false)}>
-          <span className="mono">{n.ref}</span><span className="nm">{n.title}</span>
-          <span className={"smeta" + (n.days <= 1 ? " hot" : "")}>{notifLabel(n)}</span>
-          {n.type === "invoice_due" && <span className="amt">{fmtSar(n.remaining)} SAR</span>}
+        <Link key={i} href={n.url} onClick={() => setNotif(false)}
+          className="grid min-h-10 grid-cols-[92px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-px rounded-[8px] px-2.5 py-1.5 text-[13.5px] whitespace-nowrap text-foreground no-underline transition-[background-color,color] duration-[160ms] ease-[ease] hover:bg-secondary">
+          <span className="overflow-hidden font-mono text-[12.5px] font-medium text-ellipsis text-muted-foreground">{n.ref}</span>
+          <span className="overflow-hidden font-medium text-ellipsis">{n.title}</span>
+          <span className={cn("text-right text-[12.5px] text-muted-foreground", n.days <= 1 && "font-medium text-warning-text")}>{notifLabel(n)}</span>
+          {n.type === "invoice_due" && <span className="col-start-3 text-right text-[12.5px] font-semibold tabular-nums">{fmtSar(n.remaining)} SAR</span>}
         </Link>
       ))}
     </div>
@@ -406,31 +435,47 @@ export default function AppLayout({ children }) {
 
   return (
     <FormModalProvider>
-      <div data-page={page}>
-      <a className="skip-link" href="#main">{t("Skip to content")}</a>
+      <div data-page={page} className={cn(!isMap && "min-[601px]:pt-(--topbar-h)", !isMap && (collapsed ? "min-[601px]:pl-(--sidebar-w-collapsed)" : "min-[601px]:pl-(--sidebar-w)"))}>
+      <a href="#main"
+        className="fixed top-2 left-2 z-[1000] -translate-y-[200%] rounded-full bg-primary px-4 py-2 font-sans text-[13px] leading-[normal] font-semibold text-primary-foreground no-underline transition-[translate] duration-150 ease-[ease] focus:translate-y-0 focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:outline-solid">
+        {t("Skip to content")}
+      </a>
       {user && (
         <>
           {!isMap && <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />}
 
-          <header className={"hms-topbar ks-tb" + (lift ? " lift" : "")}>
-            <div className="ks-tl">
-              <span className="ks-pt day">{dayLabel}</span>
+          {!isMap && (
+          <header className={cn(TOPBAR, collapsed ? TOPBAR_X_MINI : TOPBAR_X, collapsed ? "left-(--sidebar-w-collapsed)" : "left-(--sidebar-w)", lift && "border-b-[color:color-mix(in_oklch,var(--border)_80%,transparent)]")}>
+            <div className="flex min-w-0 items-center gap-1">
+              <span className="overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-muted-foreground tabular-nums">{dayLabel}</span>
             </div>
-            <div className="ks-tr">
+            <div className="flex min-w-0 items-center gap-1">
               <TopbarSearch ref={searchRef} perms={perms} branchName={branch.current?.name} />
 
-              <div className="ks-anchor" ref={notifWrap}>
-                <button type="button" className="ks-ib" aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
+              <div className="relative" ref={notifWrap}>
+                <button type="button" className={ICON_BTN} aria-label={unread ? t("Notifications, {n} unread", { n: unread }) : t("Notifications")}
                   aria-haspopup="true" aria-expanded={notif}
                   onClick={() => { setNotif((v) => !v); setAccount(false); }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 16v-5a6 6 0 0112 0v5l2 2H4zM10 21h4" /></svg>
-                  {unread > 0 && <span className="ks-nb">{unread > 9 ? "9+" : unread}</span>}
+                  {unread > 0 && (
+                    <span className="absolute top-[3px] right-[3px] box-border grid h-[18px] min-w-[18px] place-content-center rounded-full border-2 border-background bg-primary px-[5px] text-[10.5px] font-semibold text-primary-foreground tabular-nums">
+                      {unread > 9 ? "9+" : unread}
+                    </span>
+                  )}
                 </button>
                 {notifShown && (
-                  <div className={"ks-dd ks-ndd" + (notifClosing ? " is-closing" : "")}>
-                    <div className="ks-nh">{t("Notifications")}{unread > 0 && <button type="button" className="ks-nlink" onClick={markRead}>{t("Mark all as read")}</button>}</div>
-                    <div className="ks-nbody">
-                      {dueNotifs.length === 0 && <div className="ks-nempty">{t("No notifications")}</div>}
+                  <div className={cn(MENU, "flex max-h-[min(480px,calc(100vh_-_96px))] w-[420px] flex-col px-1.5 pt-0 pb-1.5", notifClosing && MENU_CLOSING)}>
+                    <div className="-mx-1.5 flex h-12 flex-none items-center justify-between border-b border-hairline px-4 text-[14px] font-semibold">
+                      {t("Notifications")}
+                      {unread > 0 && (
+                        <button type="button" onClick={markRead}
+                          className="-mr-2 h-7 cursor-pointer rounded-[8px] border-0 bg-transparent px-2 font-sans text-[12.5px] leading-[normal] font-medium text-muted-foreground hover:bg-secondary hover:text-foreground">
+                          {t("Mark all as read")}
+                        </button>
+                      )}
+                    </div>
+                    <div className="scrollbar-quiet min-h-0 flex-1 overflow-y-auto overscroll-contain pb-0.5">
+                      {dueNotifs.length === 0 && <div className="px-2.5 pt-3.5 pb-[18px] text-[13px] text-muted-foreground">{t("No notifications")}</div>}
                       {notifGroup(t("New"), fresh)}
                       {notifGroup(t("Earlier"), earlier)}
                     </div>
@@ -438,29 +483,37 @@ export default function AppLayout({ children }) {
                 )}
               </div>
 
-              <span className="ks-div" aria-hidden="true" />
-              <div className="ks-anchor" ref={accountWrap}>
-                <button type="button" className="ks-acct" aria-label={t("Account, {name}", { name: displayName })} title={displayName}
+              <span className="mx-1.5 h-[22px] w-px bg-border" aria-hidden="true" />
+              <div className="relative" ref={accountWrap}>
+                <button type="button" aria-label={t("Account, {name}", { name: displayName })} title={displayName}
                   aria-haspopup="menu" aria-expanded={account}
+                  className={cn(PRESS, "group/acct grid size-11 cursor-pointer place-content-center rounded-full border-0 bg-transparent p-0")}
                   onClick={() => { setAccount((v) => !v); setNotif(false); }}>
-                  {avatar(false)}
+                  {avatar(false, "ring-1 ring-border ring-offset-2 ring-offset-card transition-shadow duration-150 ease-[ease] group-hover/acct:ring-2 group-hover/acct:ring-input group-aria-expanded/acct:ring-2 group-aria-expanded/acct:ring-input")}
                 </button>
                 {acctShown && (
-                  <div className={"ks-dd" + (acctClosing ? " is-closing" : "")} role="menu" style={{ width: 260 }}>
-                    <div className="ks-ah">{avatar(true)}<span className="an"><b>{displayName}</b><span>{roleBranch}</span><span>{user.username}</span></span></div>
-                    <Link className="ks-ar" href={NAV.account} role="menuitem" onClick={() => setAccount(false)}>
+                  <div className={cn(MENU, "w-[260px] p-1.5", acctClosing && MENU_CLOSING)} role="menu">
+                    <div className="mb-1 flex items-center gap-2.5 border-b border-hairline px-2.5 pt-2.5 pb-3">
+                      {avatar(true)}
+                      <span className="flex min-w-0 flex-col leading-[1.3]">
+                        <b className="text-[13.5px]">{displayName}</b>
+                        <span className={ACCT_LINE}>{roleBranch}</span>
+                        <span className={ACCT_LINE}>{user.username}</span>
+                      </span>
+                    </div>
+                    <Link className={MENU_ROW} href={NAV.account} role="menuitem" onClick={() => setAccount(false)}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>{t("My Profile")}
                     </Link>
-                    <button type="button" className="ks-ar" role="menuitem" onClick={toggle}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>{t("Theme")}<span className="am">{theme === "light" ? t("Light") : t("Dark")}</span>
+                    <button type="button" className={MENU_ROW} role="menuitem" onClick={toggle}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>{t("Theme")}<span className={MENU_META}>{theme === "light" ? t("Light") : t("Dark")}</span>
                     </button>
-                    <button type="button" className="ks-ar" role="menuitem" onClick={() => setLanguage(locale === "en" ? "id" : "en")}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z" /></svg>{t("Language")}<span className="am">{locale === "en" ? "English" : "Indonesia"}</span>
+                    <button type="button" className={MENU_ROW} role="menuitem" onClick={() => setLanguage(locale === "en" ? "id" : "en")}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z" /></svg>{t("Language")}<span className={MENU_META}>{locale === "en" ? "English" : "Indonesia"}</span>
                     </button>
-                    <div className="ks-sep" />
-                    <form method="post" action={NAV.logout} style={{ margin: 0 }}>
+                    <div className="my-1 h-px bg-hairline" />
+                    <form method="post" action={NAV.logout} className="m-0">
                       <Csrf />
-                      <button type="submit" className="ks-ar danger" role="menuitem">
+                      <button type="submit" className={cn(MENU_ROW, "text-danger-text [&_svg]:text-danger-text")} role="menuitem">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" /></svg>{t("Log out")}
                       </button>
                     </form>
@@ -469,6 +522,7 @@ export default function AppLayout({ children }) {
               </div>
             </div>
           </header>
+          )}
         </>
       )}
 
@@ -592,24 +646,35 @@ export default function AppLayout({ children }) {
       )}
 
       {/* v2.1 is a flat solid canvas — no ambient blobs, gradients, or texture. */}
-      <div className="page-shell" id="main" tabIndex={-1}>{children}</div>
+      <div ref={main} id="main" tabIndex={-1} className={cn("canvas transition-opacity duration-200 ease-[ease] focus:outline-none", switching && "opacity-35")}>{children}</div>
 
       {confirmTo && (
-        <div className="ks-cq" onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmTo(null); }}>
-          <div className="ks-cdlg" role="alertdialog" aria-modal="true" aria-labelledby="ks-cdt">
-            <h2 id="ks-cdt">{t("Switch to {name}?", { name: confirmTo.name })}</h2>
-            <p>{t("You have unsaved changes in")} <b>{dirty.current}</b>. {t("Switching branch reloads the page and these changes will be lost.")}</p>
-            <div className="ks-cda">
-              <button type="button" className="ks-b2" autoFocus onClick={() => setConfirmTo(null)}>{t("Stay on {name}", { name: branch.current?.name || "" })}</button>
-              <button type="button" className="ks-bd" onClick={() => doSwitch(confirmTo)}>{t("Discard and switch")}</button>
+        <div className="fixed inset-0 z-[80] box-border flex animate-fade-in items-start justify-center bg-scrim px-6 pt-[120px] pb-6"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setConfirmTo(null); }}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="ks-cdt"
+            className="surface box-border w-full max-w-[420px] animate-panel-in rounded-[20px] border border-border bg-popover px-[22px] pt-[22px] pb-[18px] shadow-palette">
+            <h2 id="ks-cdt" className="m-0 text-[16px] font-semibold tracking-[-0.01em]">{t("Switch to {name}?", { name: confirmTo.name })}</h2>
+            <p className="mt-2 mb-0 text-[13.5px] leading-[1.6] text-pretty text-muted-foreground">
+              {t("You have unsaved changes in")} <b>{dirty.current}</b>. {t("Switching branch reloads the page and these changes will be lost.")}
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button type="button" autoFocus onClick={() => setConfirmTo(null)}
+                className="h-[38px] cursor-pointer rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-semibold text-foreground hover:border-foreground">
+                {t("Stay on {name}", { name: branch.current?.name || "" })}
+              </button>
+              <button type="button" onClick={() => doSwitch(confirmTo)}
+                className="h-[38px] cursor-pointer rounded-full border-0 bg-destructive px-4 font-sans text-[13px] leading-[normal] font-semibold text-destructive-foreground">
+                {t("Discard and switch")}
+              </button>
             </div>
           </div>
         </div>
       )}
       {toast && (
-        <div className="ks-toast" role="status">
+        <div role="status"
+          className="fixed bottom-7 left-1/2 z-[90] flex h-[42px] -translate-x-1/2 animate-rise-in items-center gap-[9px] rounded-full bg-foreground pr-[18px] pl-3.5 font-sans text-[13.5px] leading-[normal] font-medium text-background shadow-popover">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>
-          <span>{t("Now showing")} <b>{toast}</b></span>
+          <span>{t("Now showing")} <b className="font-semibold">{toast}</b></span>
         </div>
       )}
       <Toast />
