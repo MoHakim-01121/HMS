@@ -1,6 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, TextIn, NoteField, Foot } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, TextIn, NoteField, Foot, FA } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
@@ -87,21 +87,21 @@ function HotelFormBody({ hotel, edit, error }) {
 
   return (
     <FormA title={edit ? t("Edit hotel") : t("New hotel")} onSubmit={submit} error={error ? t(error) : null}>
-      <div className="fa-fields">
-        <Field label={t("Hotel name")} required className="wide">
+      <div className={FA.fields}>
+        <Field label={t("Hotel name")} required className={FA.wide}>
           <TextIn value={d.name} onChange={set("name")} placeholder={t("For example, Hotel Sawaaed")} autoFocus={!edit} />
         </Field>
         <Field label={t("City")} required>
           <Picker searchable={false} value={d.city} heading={t("City")} placeholder={t("Choose the city")}
             options={Object.entries(REF).map(([v, r]) => ({ value: v, label: v === "makkah" ? "Makkah" : "Madinah", meta: t("Distance measured to {place}", { place: r.label }) }))}
             onPick={(o) => form.setData("city", o.value)}
-            extra={ref ? <span className="fa-om">{ref.label}</span> : null} />
+            extra={ref ? <span className={FA.meta}>{ref.label}</span> : null} />
         </Field>
         <Field label={t("Stars")} required>
           <Picker searchable={false} value={d.stars} heading={t("Stars")} placeholder={t("Choose the stars")}
             options={[5, 4, 3, 2, 1].map((n) => ({ value: n, label: stars(n), meta: "★".repeat(n) }))}
             onPick={(o) => form.setData("stars", o.value)}
-            extra={d.stars ? <span className="fa-om">{"★".repeat(d.stars)}</span> : null} />
+            extra={d.stars ? <span className={FA.meta}>{"★".repeat(d.stars)}</span> : null} />
         </Field>
         <Field label={t("Area")}>
           <TextIn value={d.area} onChange={set("area")} placeholder={t("Misfalah, Ajyad…")} list="hotel-areas" />
@@ -109,9 +109,9 @@ function HotelFormBody({ hotel, edit, error }) {
         <Field label={t("Hotel average")} hint={occ > 0 ? t("35 pilgrims need {n} rooms", { n: Math.ceil(35 / occ) }) : t("People per room, used to estimate rooms")}>
           <TextIn value={d.avg_occupancy} onChange={(v) => form.setData("avg_occupancy", v.replace(/[^\d.]/g, ""))} placeholder="3.4" inputMode="decimal" aria-label={t("Hotel average, people per room")} />
         </Field>
-        <Field label={t("Coordinates")} className="wide"
+        <Field label={t("Coordinates")} className={FA.wide}
           error={coordsBad ? t("Couldn't read that. Use \"21.41816, 39.82877\" or paste a Google Maps link.") : null}>
-          <TextIn value={d.coords} onChange={set("coords")} icon={<PinIcon />} invalid={coordsBad} className="fa-num"
+          <TextIn value={d.coords} onChange={set("coords")} icon={<PinIcon />} invalid={coordsBad}
             onBlur={() => point && form.setData("coords", coordText(point.lat, point.lng))}
             placeholder={t("Paste coordinates or a Google Maps link")} aria-label={t("Coordinates")} />
           {point ? (
@@ -123,7 +123,7 @@ function HotelFormBody({ hotel, edit, error }) {
               <a href={`https://www.google.com/maps?q=${point.lat},${point.lng}`} target="_blank" rel="noopener noreferrer">{t("Open in Google Maps")} ↗</a>
             </span>
           ) : !coordsBad ? (
-            <span className="fa-ohint">{t("In Google Maps, right-click the hotel and click the numbers to copy them. Without coordinates, lists show no distance.")}</span>
+            <span className="text-[12px] text-muted-foreground">{t("In Google Maps, right-click the hotel and click the numbers to copy them. Without coordinates, lists show no distance.")}</span>
           ) : null}
         </Field>
       </div>

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, DatePicker, AmountIn, TextIn, NoteField, Foot } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, TextIn, NoteField, Foot, FA } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const CUR_NAME = { IDR: "Rupiah", USD: "US dollar", SAR: "Riyal" };
@@ -73,7 +74,7 @@ function BankAccountFormBody({
           ))}
         </div>
       ) : null}
-      <div className="fa-fields" style={{ marginTop: edit ? 0 : 18 }}>
+      <div className={cn(FA.fields, !edit && "mt-[18px]")}>
         {bank ? (
           <>
             <Field label={t("Bank name")} required error={err("bank_name")}>
@@ -91,7 +92,7 @@ function BankAccountFormBody({
           <Picker searchable={false} value={d.currency} heading={t("Currency")}
             options={currency_choices.map((c) => ({ value: c, label: t(CUR_NAME[c] || c), meta: c }))}
             onPick={(o) => !locked && form.setData("currency", o.value)}
-            extra={<span className="fa-om">{d.currency}</span>} />
+            extra={<span className={FA.meta}>{d.currency}</span>} />
         </Field>
         <Field label={t("Branch")} required error={err("branch")} hint={lockedHint}>
           <Picker searchable={false} value={d.branch} placeholder={t("Pick a branch")} heading={t("Branch")}
@@ -132,8 +133,8 @@ function BankAccountFormBody({
           {t("Accounting")}
         </button>
         {adv ? (
-          <div className="fa-fields" style={{ marginTop: 12 }}>
-            <Field label={t("Ledger account")} error={err("ledger_account")} hint={lockedHint} className="wide">
+          <div className={cn(FA.fields, "mt-3")}>
+            <Field label={t("Ledger account")} error={err("ledger_account")} hint={lockedHint} className={FA.wide}>
               <Picker value={d.ledger_account || "auto"} heading={t("Ledger account")}
                 options={[...(!edit ? [{ value: "auto", label: t("Automatic"), meta: t("The branch's cash ledger for this currency") }] : []),
                   ...ledger_choices.map((l) => ({ value: l.value, label: l.label }))]}

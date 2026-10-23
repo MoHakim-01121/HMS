@@ -1,8 +1,7 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso,
-} from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -49,7 +48,7 @@ function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
   const error = Object.values(errors).filter(Boolean).map((x) => t(x)).join(" ");
   return (
     <FormA title={t("Refund to Client")} onSubmit={submit} error={error || null}>
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("Client")} required>
           <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{client.name}</span></ReadOnly>
         </Field>
@@ -57,11 +56,11 @@ function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
           <Picker searchable={false} value={d.from_account} placeholder={t("Choose account")} heading={t("Paid from")}
             options={accounts.map((a) => ({ value: a.value, label: a.label, meta: [a.branch_name, a.currency].filter(Boolean).join(", ") }))}
             onPick={(o) => form.setData((x) => ({ ...x, from_account: o.value, amount_paid: "" }))}
-            extra={account ? <span className="fa-om">{account.currency}</span> : null} />
+            extra={account ? <span className={FA.meta}>{account.currency}</span> : null} />
         </Field>
         <Field label={t("From client deposit")} required>
           <AmountIn ccy="SAR" value={d.amount_sar} onChange={set("amount_sar")}
-            hint={<button type="button" className="fa-btn o sm" onClick={() => form.setData("amount_sar", String(Math.max(held, 0)))}>{t("All")}</button>} />
+            hint={<button type="button" className={btnClass("o", true)} onClick={() => form.setData("amount_sar", String(Math.max(held, 0)))}>{t("All")}</button>} />
         </Field>
         {foreign ? (
           <Field label={t("Amount paid out")} required>
@@ -80,11 +79,11 @@ function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
         </Field>
       </div>
 
-      <div className="fa-rh"><span className="fa-cap">{t("Deposit of {name}", { name: client.name })}</span></div>
+      <div className={FA.sectionHead}><Caption>{t("Deposit of {name}", { name: client.name })}</Caption></div>
       <div className="rf-eff">
-        <div><span>{t("Deposit held now")}</span><span className="fa-num">{fmt(held)} SAR</span></div>
-        <div><span>{t("This refund")}</span><span className="fa-num">−{fmt(amount)} SAR</span></div>
-        <div className="res"><span>{t("Deposit left after approval")}</span><span className={"fa-num" + (held - amount < 0 ? " neg" : "")}><b>{fmt(held - amount)}</b> SAR</span></div>
+        <div><span>{t("Deposit held now")}</span><span className={FA.num}>{fmt(held)} SAR</span></div>
+        <div><span>{t("This refund")}</span><span className={FA.num}>−{fmt(amount)} SAR</span></div>
+        <div className="res"><span>{t("Deposit left after approval")}</span><span className={cn(FA.num, held - amount < 0 && "neg")}><b>{fmt(held - amount)}</b> SAR</span></div>
       </div>
 
       <NoteField label={t("Transfer proof")} optional>

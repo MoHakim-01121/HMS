@@ -258,9 +258,7 @@
 /* Inputs that sit inside a drawn control (search pill, form fields, profile
    search) take nothing from design.css's global input skin: the control
    around them is the field. */
-.ks-tsi input, .fa-oin input, .fa-psearch input, .fa-pill-in input, .fa-price input, .fa-qin,
-.pf-search input, .pf-fld input {
+.ks-tsi input, .pf-search input, .pf-fld input {
   background: transparent !important; border: 0 !important; box-shadow: none !important;
   border-radius: 0 !important; padding: 0 !important; min-height: 0 !important; outline: none;
 }
-.fa-qin { width: 34px !important; height: 24px !important; text-align: center; }

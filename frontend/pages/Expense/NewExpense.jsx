@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import {
-  FaDialog, Field, Picker, CellPicker, DatePicker, TextIn, NoteField, Foot, fileSize, groupDigits, digitsOf, todayIso,
+  FaDialog, Field, Picker, CellPicker, DatePicker, TextIn, NoteField, Foot, fileSize, groupDigits, digitsOf, todayIso, FA, Caption,
 } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -47,29 +48,29 @@ function Receipt({ line, onChange }) {
       <input ref={ref} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{btn}</PopoverTrigger>
-        <PopoverContent align="end" sideOffset={6} className="fa-pop" style={{ width: 280 }}>
+        <PopoverContent align="end" sideOffset={6} className={cn(FA.popover, "w-[280px]")}>
           {line.files.map((f, i) => (
             <div key={i} className="ex-rfile">
               <span className="fn">{f.name}<br /><small>{fileSize(f.size)}</small></span>
-              <button type="button" className="fa-trash" aria-label={t("Remove file")}
+              <button type="button" className={FA.trash} aria-label={t("Remove file")}
                 onClick={() => onChange({ files: line.files.filter((_, j) => j !== i) })}>{I.trash}</button>
             </div>
           ))}
-          <button type="button" className="fa-opt addnew" onClick={() => { setOpen(false); ref.current?.click(); }}>
+          <button type="button" className={FA.option} onClick={() => { setOpen(false); ref.current?.click(); }}>
             {I.plus}<span className="t">{has ? t("Add another file") : t("Attach receipt")}<small>{t("Photo or PDF, up to 3 MB each")}</small></span>
           </button>
           {!has && !line.noReceipt ? (
             <>
-              <div className="fa-psep" />
-              <button type="button" className="fa-opt addnew" onClick={() => { setOpen(false); onChange({ noReceipt: true }); }}>
+              <div className={FA.popSep} />
+              <button type="button" className={FA.option} onClick={() => { setOpen(false); onChange({ noReceipt: true }); }}>
                 {I.warn}<span className="t">{t("No receipt for this cost")}<small>{t("Give a reason, the approver will check it")}</small></span>
               </button>
             </>
           ) : null}
           {line.noReceipt && !has ? (
             <>
-              <div className="fa-psep" />
-              <button type="button" className="fa-opt addnew" onClick={() => { setOpen(false); onChange({ noReceipt: false, reason: "" }); }}>
+              <div className={FA.popSep} />
+              <button type="button" className={FA.option} onClick={() => { setOpen(false); onChange({ noReceipt: false, reason: "" }); }}>
                 <span className="t">{t("There is a receipt after all")}</span>
               </button>
             </>
@@ -152,8 +153,8 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
   return (
     <FaDialog title={t("New Expense")} onClose={onClose}>
       <form method="post" onSubmit={submit} noValidate>
-        <div className="fa-fields">
-          <Field label={t("Description")} required className={branch_choices.length > 1 ? undefined : "wide"}>
+        <div className={FA.fields}>
+          <Field label={t("Description")} required className={branch_choices.length > 1 ? undefined : FA.wide}>
             <TextIn value={description} onChange={setDescription} placeholder={t("For example, Sales team visit to Malang")} autoFocus />
           </Field>
           {branch_choices.length > 1 ? (
@@ -169,7 +170,7 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
                 value: s.value, label: s.label,
                 meta: [s.value === String(me) ? t("you") : null, s.advance ? t("holds {n} IDR", { n: fmt(s.balance) }) : null].filter(Boolean).join(", "),
               }))}
-              extra={staff && staff.value === String(me) ? <span className="fa-om">{t("You")}</span> : null} />
+              extra={staff && staff.value === String(me) ? <span className={FA.meta}>{t("You")}</span> : null} />
           </Field>
           <Field label={t("Paid with")} required>
             <Picker searchable={false} value={useAdv ? "adv" : "office"} heading={t("Paid with")}
@@ -189,12 +190,12 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
           </Field>
         </div>
 
-        <div className="fa-rh">
-          <span className="fa-cap">{t("Lines")}</span>
-          <span className="fa-mut">{t(lines.length === 1 ? "1 line" : "{n} lines", { n: lines.length })}</span>
+        <div className={FA.sectionHead}>
+          <Caption>{t("Lines")}</Caption>
+          <span className={FA.muted}>{t(lines.length === 1 ? "1 line" : "{n} lines", { n: lines.length })}</span>
         </div>
-        <div className="fa-box">
-          <div className="fa-scroll">
+        <div className={FA.box}>
+          <div className={FA.scroll}>
             <div className="ex-row h"><span>{t("Category")}</span><span>{t("Description")}</span><span className="r">{t("Amount")}</span><span>{t("Receipt")}</span><span /></div>
             {lines.map((l, i) => (
               <div key={i} className="ex-line">
@@ -202,10 +203,10 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
                   <CellPicker value={l.category} options={catOpts} placeholder={t("Category")} label={t("Category")}
                     onPick={(o) => setLine(i, { category: o.value })} />
                   <label className="ex-in"><input placeholder={t("What was it")} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} /></label>
-                  <label className="ex-in"><span className="u">IDR</span><input className="r fa-num" inputMode="numeric" value={groupDigits(l.amount)}
+                  <label className="ex-in"><span className="u">IDR</span><input className={cn("r", FA.num)} inputMode="numeric" value={groupDigits(l.amount)}
                     onChange={(e) => setLine(i, { amount: digitsOf(e.target.value) })} aria-label={t("Amount")} /></label>
                   <Receipt line={l} onChange={(patch) => setLine(i, patch)} />
-                  <button type="button" className="fa-trash" aria-label={t("Remove line")} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>{I.trash}</button>
+                  <button type="button" className={FA.trash} aria-label={t("Remove line")} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>{I.trash}</button>
                 </div>
                 {l.noReceipt && !l.files.length ? (
                   <div className="ex-why">
@@ -215,20 +216,20 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
               </div>
             ))}
           </div>
-          {!lines.length ? <div className="fa-note-empty">{t("No lines yet. Add the first cost.")}</div> : null}
+          {!lines.length ? <div className={FA.noteEmpty}>{t("No lines yet. Add the first cost.")}</div> : null}
           <div className="ex-foot">
-            <button type="button" className="fa-phantom" onClick={() => setLines((ls) => [...ls, blank()])}>{I.plus}{t("Add line")}</button>
+            <button type="button" className={cn(FA.addRow, "mt-0 w-auto border-t-0")} onClick={() => setLines((ls) => [...ls, blank()])}>{I.plus}{t("Add line")}</button>
             <input ref={bulkRef} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { bulk(e.target.files); e.target.value = ""; }} />
             <button type="button" className="ex-upl" onClick={() => bulkRef.current?.click()}>{I.up}{t("Upload receipts")}<small>{t("each photo becomes a line")}</small></button>
           </div>
-          <div className="fa-ctot" style={useAdv ? { borderRadius: 0 } : undefined}><b>{t("Total")}</b><span className="fa-num"><b style={{ fontSize: 17 }}>{fmt(total)}</b><span className="fa-unit">IDR</span></span></div>
+          <div className={cn(FA.checkTotal, useAdv && "rounded-none")}><b>{t("Total")}</b><span className={FA.num}><b className="text-[17px]">{fmt(total)}</b><span className={FA.unit}>IDR</span></span></div>
           {useAdv ? (
             <div className="ex-set">
-              <div><span>{t("Advance held by {name}", { name: first })}</span><span className="fa-num"><b>{fmt(staff.balance)}</b> IDR</span></div>
-              <div><span>{t("This expense")}</span><span className="fa-num"><b>−{fmt(total)}</b> IDR</span></div>
+              <div><span>{t("Advance held by {name}", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance)}</b> IDR</span></div>
+              <div><span>{t("This expense")}</span><span className={FA.num}><b>−{fmt(total)}</b> IDR</span></div>
               {total <= staff.balance
-                ? <div className="res"><span>{t("Still with {name} after this", { name: first })}</span><span className="fa-num"><b>{fmt(staff.balance - total)}</b> IDR</span></div>
-                : <div className="res over"><span>{t("Over the advance, owed to {name}", { name: first })}</span><span className="fa-num"><b>{fmt(total - staff.balance)}</b> IDR</span></div>}
+                ? <div className="res"><span>{t("Still with {name} after this", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance - total)}</b> IDR</span></div>
+                : <div className="res over"><span>{t("Over the advance, owed to {name}", { name: first })}</span><span className={FA.num}><b>{fmt(total - staff.balance)}</b> IDR</span></div>}
             </div>
           ) : null}
         </div>
@@ -268,7 +269,6 @@ const CSS = `
 .ex-rfile .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .ex-rfile small { color: var(--muted-foreground); font-size: 12px; }
 .ex-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed var(--border); margin-top: 2px; }
-.ex-foot .fa-phantom { width: auto; border-top: 0; margin-top: 0; }
 .ex-upl { display: flex; align-items: center; gap: 8px; height: 32px; margin-right: 4px; padding: 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); cursor: pointer; }
 .ex-upl small { font-size: 12px; font-weight: 400; color: var(--muted-foreground); }
 .ex-upl:hover { border-color: var(--foreground); }

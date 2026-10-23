@@ -2030,7 +2030,7 @@ body.public-page {
   --muted-foreground: #5F6353;
   --secondary: #E3E6D9;
 }
-[data-theme="light"] :is(.da-card, .pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .fa-pop, .fa-drop, .ks-sp, .ks-bm, .ks-dd, .ks-cdlg, .bc .tip) {
+[data-theme="light"] :is(.da-card, .pf-card, .pf-fpanel, .pf-sheet, .cal-card, .cal-pop, .ks-sp, .ks-bm, .ks-dd, .ks-cdlg, .bc .tip) {
   --muted-foreground: #64675A;
   --secondary: #EEF0E6;
 }

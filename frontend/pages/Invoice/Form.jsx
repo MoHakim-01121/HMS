@@ -1,7 +1,8 @@
 import { useContext, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { actionsClass, FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso, FormAFrame, Why } from "../../components/shadcn/form-a.jsx";
+import { Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso, FormAFrame, Why, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -108,8 +109,8 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
     <FormAFrame title={edit ? t("Edit Invoice {number}", { number: invoice.invoice_number }) : t("New Invoice")}>
       
       <form method="post" onSubmit={submit} noValidate>
-        <div className="fa-fields">
-          <Field label={t("Bill to")} required className="wide" error={errs.client_id && t(errs.client_id)}>
+        <div className={FA.fields}>
+          <Field label={t("Bill to")} required className={FA.wide} error={errs.client_id && t(errs.client_id)}>
             <Picker icon={ICON.client} value={clientId} placeholder={t("Select a client")} heading={t("Clients")}
               options={clients.map((c) => ({ value: String(c.id), label: c.name, meta: c.city || "" }))}
               onPick={(o) => { if (o.value !== clientId) { setClientId(o.value); setSel([]); } }}
@@ -120,7 +121,7 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
           </Field>
           <Field label={t("Payment terms")} required>
             <Picker searchable={false} icon={ICON.clock} value={curTerm.id} heading={t("Payment terms")}
-              extra={due ? <span className="fa-om">{t("Due {date}", { date: dateLabel(due) })}</span> : null}
+              extra={due ? <span className={FA.meta}>{t("Due {date}", { date: dateLabel(due) })}</span> : null}
               options={terms.map((x) => {
                 const d = dueOf(x);
                 const meta = x.id === "receipt" ? t("Due on the issue date")
@@ -132,51 +133,51 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
           </Field>
         </div>
 
-        <div className="fa-rh">
-          <span className="fa-cap">{t("Confirmation letters")}</span>
-          <span className="fa-mut">{t("{n} of {m} selected", { n: chosen.length, m: avail.length })}</span>
+        <div className={FA.sectionHead}>
+          <Caption>{t("Confirmation letters")}</Caption>
+          <span className={FA.muted}>{t("{n} of {m} selected", { n: chosen.length, m: avail.length })}</span>
         </div>
-        <div className="fa-box">
-          <div className="fa-scroll">
-            <div className="fa-crow hd">
+        <div className={FA.box}>
+          <div className={FA.scroll}>
+            <div className={cn(FA.checkRow, FA.checkRowHead)}>
               <button type="button" role="checkbox" aria-checked={allOn ? "true" : someOn ? "mixed" : "false"} aria-label={t("Select all")}
-                className={"fa-cbox" + (allOn ? " on" : someOn ? " mid" : "")} onClick={toggleAll} disabled={!avail.length}>{ICON.tick}</button>
-              <span>CL</span><span>{t("Hotel")}</span><span>{t("Stay")}</span><span className="r">{t("Amount")}</span>
+                className={cn(FA.checkBox, allOn ? FA.checkBoxOn : someOn && FA.checkBoxMid)} onClick={toggleAll} disabled={!avail.length}>{ICON.tick}</button>
+              <span>CL</span><span>{t("Hotel")}</span><span>{t("Stay")}</span><span className="text-right">{t("Amount")}</span>
             </div>
             {avail.map((c) => {
               const on = sel.includes(c.id);
               return (
-                <button type="button" key={c.id} className={"fa-crow" + (on ? " on" : "")} role="checkbox" aria-checked={on} onClick={() => toggle(c.id)}>
-                  <span className="fa-cbox">{ICON.tick}</span>
-                  <span className="mono">{c.ref}</span>
-                  <span className="ell">{c.hotel}</span>
-                  <span className="fa-num">{stayLabel(c.check_in, c.check_out, t)}</span>
-                  <span className="r fa-num" style={{ fontWeight: 600 }}>{fmt(c.total || 0)}<span className="fa-unit">SAR</span></span>
+                <button type="button" key={c.id} className={cn(FA.checkRow, on && FA.checkRowOn)} role="checkbox" aria-checked={on} onClick={() => toggle(c.id)}>
+                  <span className={cn(FA.checkBox, on && FA.checkBoxOn)}>{ICON.tick}</span>
+                  <span className="font-mono text-[13px] font-semibold">{c.ref}</span>
+                  <span className="truncate font-medium">{c.hotel}</span>
+                  <span className={FA.num}>{stayLabel(c.check_in, c.check_out, t)}</span>
+                  <span className="text-right font-semibold tabular-nums">{fmt(c.total || 0)}<span className={FA.unit}>SAR</span></span>
                 </button>
               );
             })}
           </div>
-          {!clientId && <div className="fa-cnote">{t("Select a client to see their confirmation letters.")}</div>}
-          {clientId && avail.length === 0 && <div className="fa-cnote">{t("No uninvoiced confirmation letters for this client.")}</div>}
-          <div className="fa-ctot"><b>{t("Total")}</b><span className="fa-num"><b style={{ fontSize: 17 }}>{fmt(total)}</b><span className="fa-unit">SAR</span></span></div>
+          {!clientId && <div className={FA.checkNote}>{t("Select a client to see their confirmation letters.")}</div>}
+          {clientId && avail.length === 0 && <div className={FA.checkNote}>{t("No uninvoiced confirmation letters for this client.")}</div>}
+          <div className={FA.checkTotal}><b>{t("Total")}</b><span className={FA.num}><b className="text-[17px]">{fmt(total)}</b><span className={FA.unit}>SAR</span></span></div>
         </div>
-        {errs.reservations && <div className="fa-alert" role="alert">{t(errs.reservations)}</div>}
+        {errs.reservations && <div className={FA.alert} role="alert">{t(errs.reservations)}</div>}
         {/* The server refuses a save the ledger cannot follow (a reservation
             with money on it taken off the invoice, a closed period). */}
-        {errs.finance && <div className="fa-alert" role="alert">{errs.finance}</div>}
-        {errs.invoice_number && <div className="fa-alert" role="alert">{t(errs.invoice_number)}</div>}
+        {errs.finance && <div className={FA.alert} role="alert">{errs.finance}</div>}
+        {errs.invoice_number && <div className={FA.alert} role="alert">{t(errs.invoice_number)}</div>}
 
         <div className={actionsClass("a")}>
           {why && <Why>{why}</Why>}
           {inModal ? (
-            <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
+            <button type="button" className={btnClass("o")} onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
-            <a className="fa-btn o" href={closeHref}>{t("Cancel")}</a>
+            <a className={btnClass("o")} href={closeHref}>{t("Cancel")}</a>
           )}
           {edit && (
-            <a className="fa-btn o" href={`/invoice/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">{ICON.doc}{t("Preview PDF")}</a>
+            <a className={btnClass("o")} href={`/invoice/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">{ICON.doc}{t("Preview PDF")}</a>
           )}
-          <button type="submit" className="fa-btn p" aria-disabled={!!why || form.processing} disabled={form.processing}>
+          <button type="submit" className={btnClass("p")} aria-disabled={!!why || form.processing} disabled={form.processing}>
             {edit ? t("Save changes") : t("Issue invoice")}
           </button>
         </div>

@@ -1,6 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, NoteField, Foot, todayIso } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, NoteField, Foot, todayIso, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 import { EFF_CSS } from "./ClientRefund.jsx";
@@ -39,7 +39,7 @@ function DepositTransferBody({ client, clients = [], initial, errors: serverErro
   const error = Object.values(errors).filter(Boolean).map((x) => t(x)).join(" ");
   return (
     <FormA title={t("Move Deposit to Another Client")} onSubmit={submit} error={error || null}>
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("From client")} required>
           <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{client.name}</span></ReadOnly>
         </Field>
@@ -50,20 +50,20 @@ function DepositTransferBody({ client, clients = [], initial, errors: serverErro
         </Field>
         <Field label={t("Amount")} required>
           <AmountIn ccy="SAR" value={d.amount_sar} onChange={set("amount_sar")}
-            hint={<button type="button" className="fa-btn o sm" onClick={() => form.setData("amount_sar", String(Math.max(held, 0)))}>{t("All")}</button>} />
+            hint={<button type="button" className={btnClass("o", true)} onClick={() => form.setData("amount_sar", String(Math.max(held, 0)))}>{t("All")}</button>} />
         </Field>
         <Field label={t("Transfer date")} required>
           <DatePicker value={d.transfer_date} onChange={set("transfer_date")} label={t("Choose transfer date")} />
         </Field>
-        <Field label={t("Reason")} required className="wide">
+        <Field label={t("Reason")} required className={FA.wide}>
           <TextIn value={d.reason} onChange={set("reason")} placeholder={t("For example, the agency moved this booking to its partner")} />
         </Field>
       </div>
 
-      <div className="fa-rh"><span className="fa-cap">{t("Deposits after approval")}</span></div>
+      <div className={FA.sectionHead}><Caption>{t("Deposits after approval")}</Caption></div>
       <div className="rf-eff">
-        <div><span>{client.name}</span><span className="fa-num">{fmt(held)} {t("to")} <b style={{ color: held - amount < 0 ? "var(--danger-text)" : "var(--foreground)" }}>{fmt(held - amount)}</b> SAR</span></div>
-        <div><span>{to ? to.name : t("Receiving client")}</span><span className="fa-num">{to ? <>{fmt(to.deposit || 0)} {t("to")} <b style={{ color: "var(--foreground)" }}>{fmt((to.deposit || 0) + amount)}</b> SAR</> : "—"}</span></div>
+        <div><span>{client.name}</span><span className={FA.num}>{fmt(held)} {t("to")} <b style={{ color: held - amount < 0 ? "var(--danger-text)" : "var(--foreground)" }}>{fmt(held - amount)}</b> SAR</span></div>
+        <div><span>{to ? to.name : t("Receiving client")}</span><span className={FA.num}>{to ? <>{fmt(to.deposit || 0)} {t("to")} <b style={{ color: "var(--foreground)" }}>{fmt((to.deposit || 0) + amount)}</b> SAR</> : "—"}</span></div>
       </div>
 
       <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Another user approves it before it is posted.")} />

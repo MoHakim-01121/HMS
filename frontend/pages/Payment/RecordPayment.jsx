@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  FaDialog, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso,
-} from "../../components/shadcn/form-a.jsx";
+import { FaDialog, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA } from "../../components/shadcn/form-a.jsx";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -89,7 +87,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
   return (
     <FaDialog title={t("Record Payment")} onClose={onClose}>
       <form method="post" onSubmit={submit} noValidate>
-        <div className="fa-fields">
+        <div className={FA.fields}>
           <Field label={t("Client")} required>
             <Picker value={clientId} placeholder={t("Select a client")} heading={t("Client")} onPick={pickClient}
               options={client_choices.map((c) => ({ value: String(c.id), label: c.name, meta: c.city || "" }))} />
@@ -102,7 +100,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
                 ...theirs.map((i) => ({ value: String(i.id), label: i.label.split(" - ")[0], meta: t("{n} SAR remaining", { n: fmt(i.remaining) }) })),
                 { value: "deposit", label: t("Deposit, no invoice"), meta: t("Held on the client balance") },
               ] : []}
-              extra={inv ? <span className="fa-om">{t("{n} SAR left", { n: fmt(inv.remaining) })}</span> : null} />
+              extra={inv ? <span className={FA.meta}>{t("{n} SAR left", { n: fmt(inv.remaining) })}</span> : null} />
           </Field>
           <Field label={t("Received at")} required>
             <Picker searchable={false} value={branch} placeholder={t("Choose branch")} heading={t("Received at")}
@@ -114,7 +112,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
               options={account_choices.filter((a) => a.branch === branch).map((a) => ({
                 value: a.value, label: a.label, meta: a.kind === "cash" ? t("Cash, {c}", { c: a.currency }) : [a.number, a.currency].filter(Boolean).join(", "),
               }))}
-              extra={acc ? <span className="fa-om">{acc.currency}</span> : null} />
+              extra={acc ? <span className={FA.meta}>{acc.currency}</span> : null} />
           </Field>
           <Field label={t("Amount received")} required>
             <AmountIn ccy={ccy} value={amount} onChange={setAmount}
@@ -123,7 +121,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
           {ccy !== "SAR" ? (
             <Field label={t("Exchange rate")} required>
               <TextIn value={rate} onChange={(v) => setRate(v.replace(/[^\d.]/g, ""))} inputMode="decimal"
-                icon={<span className="fa-om">1 SAR =</span>} suffix={<span className="fa-om">{ccy}</span>} />
+                icon={<span className={FA.meta}>1 SAR =</span>} suffix={<span className={FA.meta}>{ccy}</span>} />
             </Field>
           ) : (
             <Field label={t("Exchange rate")}>
@@ -137,7 +135,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
             <Picker searchable={false} value={method} heading={t("Method")} onPick={(o) => setMethod(o.value)}
               options={METHODS.map((m) => ({ value: m, label: t(m === "Transfer" ? "Bank transfer" : m) }))} />
           </Field>
-          <Field label={t("Reference")} optional className="wide">
+          <Field label={t("Reference")} optional className={FA.wide}>
             <TextIn value={reference} onChange={setReference} placeholder={t("Bank transfer or receipt number")} />
           </Field>
         </div>

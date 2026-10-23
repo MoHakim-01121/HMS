@@ -1,7 +1,8 @@
 import { useContext } from "react";
 import { useForm } from "@inertiajs/react";
 import { actionsClass, FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Field, Picker, CellPicker, DateRangePicker, nightsBetween, todayIso, FormAFrame, Why } from "../../components/shadcn/form-a.jsx";
+import { Field, Picker, CellPicker, DateRangePicker, nightsBetween, todayIso, FormAFrame, Why, FA, Caption, StatusDot, TextIn, btnClass } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 
@@ -79,10 +80,10 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
   const total = perNight * nights;
 
   const statusOpts = [
-    { value: "TENTATIVE", label: t("Tentative"), meta: t("Rooms held, not confirmed yet"), lead: <span className="fa-dot TENTATIVE" /> },
-    { value: "DEFINITE", label: t("Definite"), meta: t("Confirmed by the hotel"), lead: <span className="fa-dot DEFINITE" /> },
+    { value: "TENTATIVE", label: t("Tentative"), meta: t("Rooms held, not confirmed yet"), lead: <StatusDot status="TENTATIVE" /> },
+    { value: "DEFINITE", label: t("Definite"), meta: t("Confirmed by the hotel"), lead: <StatusDot status="DEFINITE" /> },
     // Cancelling is a change to an existing CL: a new one starts held or confirmed.
-    ...(edit ? [{ value: "CANCELLED", label: t("Cancelled"), meta: t("Released, no longer held"), lead: <span className="fa-dot CANCELLED" /> }] : []),
+    ...(edit ? [{ value: "CANCELLED", label: t("Cancelled"), meta: t("Released, no longer held"), lead: <StatusDot status="CANCELLED" /> }] : []),
   ];
 
   const filledRooms = rooms.filter((r) => r.room_type_id);
@@ -111,9 +112,8 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
 
   const page = (
     <FormAFrame title={edit ? t("Edit Confirmation Letter") : t("New Confirmation Letter")}>
-      
       <form method="post" onSubmit={submit} noValidate>
-        <div className="fa-fields">
+        <div className={FA.fields}>
           <Field label={t("Client")} required error={errors.guest_name && t(errors.guest_name)}>
             <Picker icon={ICON.client} value={d.client_id} placeholder={t("Select a client")} heading={t("Clients")}
               options={clientList.map((o) => ({ value: String(o.id), label: o.brand || o.name, meta: o.city || (o.brand ? o.name : "") }))}
@@ -132,15 +132,12 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
               onChange={(ci, co) => { form.setData((prev) => ({ ...prev, check_in: ci, check_out: co })); form.clearErrors("check_out", "check_in"); }} />
           </Field>
           <Field label={t("Confirmation no.")} required error={errors.confirmation_number && t(errors.confirmation_number)}>
-            <span className={"fa-oi fa-oin" + (errors.confirmation_number ? " bad" : "")}>
-              {ICON.number}
-              <input className="fa-num" aria-label={t("Confirmation no.")} placeholder={t("From the hotel")} required
-                value={d.confirmation_number} onChange={(e) => form.setData("confirmation_number", e.target.value)} />
-            </span>
+            <TextIn icon={ICON.number} invalid={!!errors.confirmation_number} aria-label={t("Confirmation no.")} placeholder={t("From the hotel")} required
+              value={d.confirmation_number} onChange={(v) => form.setData("confirmation_number", v)} />
           </Field>
           <Field label={t("Status")} required error={errors.reservation_status && t(errors.reservation_status)}>
             <Picker searchable={false} value={d.reservation_status} options={statusOpts}
-              icon={<span className={"fa-dot " + d.reservation_status} />}
+              icon={<StatusDot status={d.reservation_status} />}
               onPick={(o) => form.setData("reservation_status", o.value)} />
           </Field>
           <Field label={t("Salesperson")} required={!edit || !!c.salesperson_id} error={errors.salesperson_id && t(errors.salesperson_id)}>
@@ -150,26 +147,26 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
           </Field>
         </div>
 
-        <div className="fa-rh">
-          <span className="fa-cap">{t("Rooms")}</span>
-          <span className="fa-mut">{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}, {pax} Pax</span>
+        <div className={FA.sectionHead}>
+          <Caption>{t("Rooms")}</Caption>
+          <span className={FA.muted}>{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}, {pax} Pax</span>
         </div>
-        <div className="fa-box">
-          <div className="fa-scroll">
-            <div className="fa-row hd" aria-hidden="true">
+        <div className={FA.box}>
+          <div className={FA.scroll}>
+            <div data-row className={cn(FA.row, FA.rowHead)} aria-hidden="true">
               <span>{t("Room type")}</span><span>{t("Meal plan")}</span><span>{t("Qty")}</span>
-              <span className="r">{t("Price per night")}</span><span className="r">{t("Subtotal")}</span><span />
+              <span className="text-right">{t("Price per night")}</span><span className="text-right">{t("Subtotal")}</span><span />
             </div>
-            {!hotel && <div className="fa-note-empty">{t("Choose the hotel first; its room types fill this list.")}</div>}
+            {!hotel && <div className={FA.noteEmpty}>{t("Choose the hotel first; its room types fill this list.")}</div>}
             {hotel && roomTypes.length === 0 && (
-              <div className="fa-note-empty">{t("This hotel has no room types yet.")} <a href={`/hotels/${hotel.id}/edit/`} target="_blank" rel="noreferrer">{t("Add them on the hotel's page")}</a></div>
+              <div className={FA.noteEmpty}>{t("This hotel has no room types yet.")} <a href={`/hotels/${hotel.id}/edit/`} target="_blank" rel="noreferrer">{t("Add them on the hotel's page")}</a></div>
             )}
-            {hotel && roomTypes.length > 0 && rooms.length === 0 && <div className="fa-note-empty">{t("No rooms yet. Add the first room type.")}</div>}
+            {hotel && roomTypes.length > 0 && rooms.length === 0 && <div className={FA.noteEmpty}>{t("No rooms yet. Add the first room type.")}</div>}
             {hotel && roomTypes.length > 0 && rooms.map((r, i) => {
               const sub = (Number(r.quantity) || 0) * (Number(r.price) || 0) * nights;
               const mealValue = r.meal_plan_code || r.meals;
               return (
-                <div className="fa-row" key={i}>
+                <div data-row className={FA.row} key={i}>
                   <CellPicker value={r.room_type_id} placeholder={t("Room type")} label={t("Room type")}
                     options={roomTypes.map((rt) => ({ value: String(rt.id), label: rt.name, meta: t("{n} guests", { n: rt.capacity }) }))}
                     onPick={(o) => setRoom(i, { room_type_id: o.value, room_type: o.label })} />
@@ -182,49 +179,49 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
                       ]}
                       onPick={(o) => setRoom(i, { meal_plan_code: mealPlans.some((mp) => mp.code === o.value) ? o.value : "", meals: o.value })} />
                   ) : (
-                    <label className="fa-pill fa-pill-in"><input aria-label={t("Meal plan")} placeholder="BB, HB…" value={r.meals} onChange={(e) => setRoom(i, { meals: e.target.value })} /></label>
+                    <label className={cn(FA.pill, "cursor-text px-3")}><input className={FA.pillInput} aria-label={t("Meal plan")} placeholder="BB, HB…" value={r.meals} onChange={(e) => setRoom(i, { meals: e.target.value })} /></label>
                   )}
-                  <span className="fa-stp">
-                    <button type="button" aria-label={t("Fewer")} onClick={() => setRoom(i, { quantity: Math.max(1, (Number(r.quantity) || 1) - 1) })}>{ICON.minus}</button>
-                    <input className="fa-qin" aria-label={t("Quantity")} inputMode="numeric" value={r.quantity}
+                  <span className={FA.stepper}>
+                    <button type="button" className={FA.stepperButton} aria-label={t("Fewer")} onClick={() => setRoom(i, { quantity: Math.max(1, (Number(r.quantity) || 1) - 1) })}>{ICON.minus}</button>
+                    <input className={FA.qty} aria-label={t("Quantity")} inputMode="numeric" value={r.quantity}
                       onChange={(e) => { const n = parseInt(e.target.value, 10); setRoom(i, { quantity: Number.isNaN(n) ? "" : Math.max(1, Math.min(999, n)) }); }} />
-                    <button type="button" aria-label={t("More")} onClick={() => setRoom(i, { quantity: (Number(r.quantity) || 0) + 1 })}>{ICON.plus}</button>
+                    <button type="button" className={FA.stepperButton} aria-label={t("More")} onClick={() => setRoom(i, { quantity: (Number(r.quantity) || 0) + 1 })}>{ICON.plus}</button>
                   </span>
-                  <label className="fa-price"><input aria-label={t("Price per night")} inputMode="decimal" value={r.price} placeholder="0"
-                    onChange={(e) => setRoom(i, { price: e.target.value.replace(/[^\d.]/g, "") })} /><span className="fa-unit">SAR</span></label>
-                  <span className="fa-sub"><b>{fmt(sub)}</b><span className="fa-unit">SAR</span></span>
-                  <button type="button" className="fa-trash" aria-label={t("Remove room")} onClick={() => removeRoom(i)}>{ICON.trash}</button>
+                  <label className={FA.price}><input className={FA.priceInput} aria-label={t("Price per night")} inputMode="decimal" value={r.price} placeholder="0"
+                    onChange={(e) => setRoom(i, { price: e.target.value.replace(/[^\d.]/g, "") })} /><span className={FA.unit}>SAR</span></label>
+                  <span className={FA.subtotal}><b>{fmt(sub)}</b><span className={FA.unit}>SAR</span></span>
+                  <button type="button" className={FA.trash} aria-label={t("Remove room")} onClick={() => removeRoom(i)}>{ICON.trash}</button>
                 </div>
               );
             })}
             {hotel && roomTypes.length > 0 && (
-              <button type="button" className="fa-phantom" onClick={addRoom}>{ICON.plus}{t("Add room")}</button>
+              <button type="button" className={FA.addRow} onClick={addRoom}>{ICON.plus}{t("Add room")}</button>
             )}
-            <div className="fa-row tot">
-              <span style={{ gridColumn: "span 2" }}><b>{t("Total")}</b>{nights > 0 && <span className="fa-mut" style={{ marginLeft: 8, fontSize: 12 }}>{nightsLabel(nights)}</span>}</span>
-              <span className="fa-num">{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}</span>
-              <span className="fa-tpn">{fmt(perNight)}<span className="fa-unit">SAR</span></span>
-              <span className="fa-sub"><b>{fmt(total)}</b><span className="fa-unit">SAR</span></span>
+            <div data-row className={cn(FA.row, FA.rowTotal)}>
+              <span className="col-span-2"><b>{t("Total")}</b>{nights > 0 && <span className={cn(FA.muted, "ml-2 text-[12px]")}>{nightsLabel(nights)}</span>}</span>
+              <span className={FA.num}>{roomCount === 1 ? t("1 room") : t("{n} rooms", { n: roomCount })}</span>
+              <span className={FA.totalPerNight}>{fmt(perNight)}<span className={FA.unit}>SAR</span></span>
+              <span className={FA.subtotal}><b className="text-[16px] tracking-[-0.01em]">{fmt(total)}</b><span className={FA.unit}>SAR</span></span>
               <span />
             </div>
           </div>
         </div>
-        {errors.rooms && <div className="fa-alert" role="alert">{t(errors.rooms)}</div>}
+        {errors.rooms && <div className={FA.alert} role="alert">{t(errors.rooms)}</div>}
 
-        <div className="fa-notewrap">
-          <span className="fa-cap">{t("Note")}</span>
-          <textarea className="fa-note" aria-label={t("Note for the hotel")} placeholder={t("Add a note for the hotel")}
+        <div className={FA.noteWrap}>
+          <Caption>{t("Note")}</Caption>
+          <textarea className={FA.note} aria-label={t("Note for the hotel")} placeholder={t("Add a note for the hotel")}
             value={d.note} onChange={(e) => form.setData("note", e.target.value)} />
         </div>
 
         <div className={actionsClass("a")}>
           {why && <Why>{why}</Why>}
           {inModal ? (
-            <button type="button" className="fa-btn o" onClick={ctx.close}>{t("Cancel")}</button>
+            <button type="button" className={btnClass("o")} onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
-            <a className="fa-btn o" href={closeHref}>{t("Cancel")}</a>
+            <a className={btnClass("o")} href={closeHref}>{t("Cancel")}</a>
           )}
-          <button type="submit" className="fa-btn p" aria-disabled={!!why || form.processing} disabled={form.processing}>
+          <button type="submit" className={btnClass("p")} aria-disabled={!!why || form.processing} disabled={form.processing}>
             {edit ? t("Save changes") : t("Create CL")}
           </button>
         </div>

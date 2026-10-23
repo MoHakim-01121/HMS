@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { withStandaloneModal, actionsClass } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, ReadOnly, TextIn, Foot } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, ReadOnly, TextIn, Foot, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // New / edit role, the "Role Form" artboard on the Record View HMS canvas:
@@ -85,7 +85,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
       {locked ? (
         <div className="ro-info"><b>{t("This role always has full access")}</b><span>{t("It cannot be edited or deleted, so no one can lock the last administrator out.")}</span></div>
       ) : null}
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("Name")} required error={errors.label ? t(errors.label) : null}>
           {locked ? <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{label}</span></ReadOnly>
             : <TextIn value={label} onChange={setLabel} placeholder={t("Branch supervisor")} autoFocus invalid={!!errors.label} />}
@@ -96,13 +96,13 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
         </Field>
       </div>
 
-      <div className="fa-rh">
-        <span className="fa-cap">{t("Permissions")}</span>
-        <span className="fa-mut"><b style={{ color: "var(--foreground)" }}>{granted.size}</b> {t("of {n} ticked", { n: total })}</span>
+      <div className={FA.sectionHead}>
+        <Caption>{t("Permissions")}</Caption>
+        <span className={FA.muted}><b className="text-foreground">{granted.size}</b> {t("of {n} ticked", { n: total })}</span>
       </div>
-      {errors.permissions ? <div className="fa-alert" role="alert">{t(errors.permissions)}</div> : null}
+      {errors.permissions ? <div className={FA.alert} role="alert">{t(errors.permissions)}</div> : null}
       <div className="ro-mx">
-        <div className="fa-scroll" style={{ margin: 0, padding: 0 }}>
+        <div className="overflow-x-auto">
           <div className="ro-r ro-h" style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${actions.length}, 76px) 64px` }}>
             <span className="mn">{t("Module")}</span>
             {actions.map((a) => (
@@ -113,7 +113,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
             <span className="c"><span className="ro-colb">{t("All")}</span></span>
           </div>
           {groups.map(([name, rows]) => [
-            <div key={"g" + name} className="ro-g"><span className="fa-cap">{t(name)}</span></div>,
+            <div key={"g" + name} className="ro-g"><Caption>{t(name)}</Caption></div>,
             ...rows.map((m) => {
               const n = rowCount(m);
               return (
@@ -135,7 +135,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
               );
             }),
           ])}
-          <div className="ro-g"><span className="fa-cap">{t("Admin only")}</span></div>
+          <div className="ro-g"><Caption>{t("Admin only")}</Caption></div>
           <div className="ro-r ro-lock">
             <span className="mn">{t("Users and Roles")}</span>
             <span className="lk">{t("Only the Administrator role manages accounts and roles. It cannot be granted here.")}</span>
@@ -143,7 +143,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
         </div>
       </div>
 
-      <div className="fa-rh"><span className="fa-cap">{t("Other access")}</span></div>
+      <div className={FA.sectionHead}><Caption>{t("Other access")}</Caption></div>
       <div className="ro-prow">
         <span><b>{t("Django admin")}</b><span>{t("Members of this role can also open the Django admin site.")}</span></span>
         <button type="button" role="switch" aria-checked={locked || djangoStaff} aria-label={t("Django admin")} disabled={locked}
@@ -151,7 +151,7 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
       </div>
 
       {locked ? (
-        <div className={actionsClass("a")}><a className="fa-btn o" href="/roles/">{t("Close")}</a></div>
+        <div className={actionsClass("a")}><a className={btnClass("o")} href="/roles/">{t("Close")}</a></div>
       ) : (
         <Foot why={why} note={editing ? t(role.user_count === 1 ? "1 account holds this role" : "{n} accounts hold this role", { n: role.user_count }) : ""}
           cancelHref="/roles/" submitLabel={editing ? t("Save role") : t("Create role")} processing={processing} />
@@ -171,7 +171,6 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
 .ro-colb:hover:not(:disabled) { background: var(--secondary); color: var(--foreground); }
 .ro-colb:disabled, span.ro-colb { cursor: default; }
 .ro-g { display: flex; align-items: center; min-height: 34px; padding: 0 14px; border-top: 1px solid var(--border); background: var(--background); min-width: 640px; }
-.ro-g .fa-cap { font-size: 12px; }
 /* input.ro-cb, not .ro-cb: the global input[type="checkbox"] reset outranks a bare class. */
 .ro-r input.ro-cb { appearance: none; margin: 0; width: 18px; height: 18px; border: 2px solid var(--input); border-radius: 5px; display: grid; place-content: center; cursor: pointer; background: var(--card); }
 .ro-r input.ro-cb:checked { background: var(--primary); border-color: var(--primary); }

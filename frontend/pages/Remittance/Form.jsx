@@ -1,8 +1,7 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  FormA, Field, Picker, DatePicker, AmountIn, TextIn, FileDrop, NoteField, Foot,
-} from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, TextIn, FileDrop, NoteField, Foot, FA } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDec } from "../../utils/format.js";
@@ -52,24 +51,24 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
   return (
     <FormA title={t("Send to HQ")} onSubmit={submit} error={error ? t(error) : null}>
       {pending > 0 ? (
-        <div className="fa-alert fa-alert-top" role="status" style={{ color: "var(--warning-text)" }}>
+        <div className={cn(FA.alertTop, "text-warning-text")} role="status">
           {t("{n} SAR from {list} is still in transit or not yet allocated. Make sure this is not the same transfer.", {
             n: fmt(pending), list: open_transfers.map((r) => r.remittance_number).join(", "),
           })}
         </div>
       ) : null}
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("From account")} required>
           <Picker searchable={false} value={d.from_bank_account} placeholder={t("Choose IDR account")} heading={t("From account")}
             options={from_accounts.map((a) => ({ value: a.value, label: a.name || a.label, meta: a.label }))}
             onPick={(o) => form.setData("from_bank_account", o.value)}
-            extra={from ? <span className="fa-om">IDR</span> : null} />
+            extra={from ? <span className={FA.meta}>IDR</span> : null} />
         </Field>
         <Field label={t("Send to")} required>
           <Picker searchable={false} value={d.to_account} placeholder={t("Choose HQ account")} heading={t("Send to")}
             options={to_accounts.map((a) => ({ value: a.value, label: a.label, meta: a.number || "" }))}
             onPick={(o) => form.setData("to_account", o.value)}
-            extra={<span className="fa-om">SAR</span>} />
+            extra={<span className={FA.meta}>SAR</span>} />
         </Field>
         <Field label={t("Transfer date")} required>
           <DatePicker value={d.date} onChange={set("date")} label={t("Choose transfer date")} />
@@ -82,29 +81,29 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
         </Field>
         <Field label={t("Exchange rate")} required>
           <TextIn value={d.exchange_rate} onChange={(v) => form.setData("exchange_rate", v.replace(/[^\d.]/g, ""))} inputMode="decimal"
-            icon={<span className="fa-om">1 SAR =</span>} suffix={<span className="fa-om">IDR</span>} />
+            icon={<span className={FA.meta}>1 SAR =</span>} suffix={<span className={FA.meta}>IDR</span>} />
         </Field>
         <Field label={t("Book rate")}>
-          <div className="fa-oi fa-ro">
-            <span className="fa-ot fa-num" style={{ color: "var(--foreground)", fontWeight: 600 }}>
+          <div className={cn(FA.control, FA.readOnly)}>
+            <span className={cn(FA.text, FA.num, "font-semibold text-foreground")}>
               {fx_pool?.rate ? `1 SAR = ${fmt(fx_pool.rate)} IDR` : t("No client rupiah yet")}
             </span>
-            <span className="fa-om">{t("Average of client payments")}</span>
+            <span className={FA.meta}>{t("Average of client payments")}</span>
           </div>
         </Field>
         <Field label={t("FX result")}>
-          <div className={"fa-oi fa-ro" + (profit > 0 ? " rm-gain" : profit < 0 ? " rm-loss" : "")}>
-            <span className="fa-ot fa-num">
+          <div className={cn(FA.control, FA.readOnly)}>
+            <span className={cn(FA.text, FA.num, profit > 0 && "font-semibold text-success-text", profit < 0 && "font-semibold text-danger-text")}>
               {profit == null ? t("Enter the amount and rate")
                 : profit === 0 ? t("No gain or loss")
                   : t(profit > 0 ? "{n} IDR gain" : "{n} IDR loss", { n: fmt(Math.abs(profit)) })}
             </span>
-            {fx?.originRate ? <span className="fa-om">{t("sent at {r}", { r: fmtDec(idr / sar, 2) })}</span> : null}
+            {fx?.originRate ? <span className={FA.meta}>{t("sent at {r}", { r: fmtDec(idr / sar, 2) })}</span> : null}
           </div>
         </Field>
       </div>
       {fx && fx.uncovered > 0 ? (
-        <div className="fa-alert" role="status" style={{ color: "var(--warning-text)" }}>
+        <div className={cn(FA.alert, "text-warning-text")} role="status">
           {t("{n} SAR of this transfer has no client rupiah behind it, so no original rate.", { n: fmt(fx.uncovered) })}
         </div>
       ) : null}
@@ -116,10 +115,6 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
       <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Anything HQ should know about this transfer")} />
 
       <Foot why={why} cancelHref="/remittance/" submitLabel={t("Save remittance")} processing={form.processing} />
-      <style>{`
-.rm-gain .fa-ot { color: var(--success-text) !important; font-weight: 600 !important; }
-.rm-loss .fa-ot { color: var(--danger-text) !important; font-weight: 600 !important; }
-`}</style>
     </FormA>
   );
 }

@@ -1,8 +1,7 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import {
-  FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso,
-} from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -92,18 +91,18 @@ function ExchangeFormBody({ account_choices = [], staff_choices = [], last_rates
 
   return (
     <FormA title={t("New Transfer")} onSubmit={submit} error={error ? t(error) : null}>
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("From account")} required>
           <Picker value={d.from_account} options={fromOptions} placeholder={t("Choose account")} onPick={pickFrom}
-            extra={from ? <span className="fa-om">{fmt(from.balance)} {from.currency}</span> : null} />
+            extra={from ? <span className={FA.meta}>{fmt(from.balance)} {from.currency}</span> : null} />
         </Field>
         <Field label={t("To account")} required>
           <Picker value={d.to_account} options={toOptions} placeholder={from ? t("Choose account") : t("Choose the source first")}
             onPick={(o) => form.setData((x) => ({ ...x, to_account: o.value, amount_in: "" }))}
             emptyText={t("No other account in this branch.")}
             extra={to ? (to.fresh
-              ? <><span className="fa-newtag">{t("New")}</span><span className="fa-om">{to.currency}</span></>
-              : <span className="fa-om">{fmt(to.balance)} {to.currency}</span>) : null} />
+              ? <><span className={FA.newTag}>{t("New")}</span><span className={FA.meta}>{to.currency}</span></>
+              : <span className={FA.meta}>{fmt(to.balance)} {to.currency}</span>) : null} />
         </Field>
         <Field label={t("Amount sent")} required>
           <AmountIn ccy={from?.currency || "IDR"} value={d.amount_out} onChange={set("amount_out")} />
@@ -127,7 +126,7 @@ function ExchangeFormBody({ account_choices = [], staff_choices = [], last_rates
         </Field>
       </div>
       {deviation != null && deviation > warning_pct ? (
-        <div className="fa-alert" role="status" style={{ color: "var(--warning-text)" }}>
+        <div className={cn(FA.alert, "text-warning-text")} role="status">
           {t("This rate is {pct}% away from the last {from}→{to} exchange ({prev}). Check both amounts.", {
             pct: deviation.toFixed(1), from: from.currency, to: to.currency,
             prev: prev.toLocaleString("en-US", { maximumFractionDigits: 4 }),

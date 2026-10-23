@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router, useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { FormA, Field, Picker, ReadOnly, TextIn, Foot } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, ReadOnly, TextIn, Foot, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // New and edit user, the "User Form" artboard on the Record View HMS canvas:
@@ -64,10 +64,10 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
 
   return (
     <FormA title={edit ? edit.username : t("New User")} onSubmit={submit}>
-      <div className="fa-fields">
+      <div className={FA.fields}>
         <Field label={t("Full name")} required error={err("full_name")}>
           <TextIn value={d.full_name} onChange={set("full_name")} placeholder={t("Enter the full name.")} autoFocus
-            invalid={!!errors.full_name} suffix={isSelf ? <span className="fa-newtag">{t("You")}</span> : null} />
+            invalid={!!errors.full_name} suffix={isSelf ? <span className={FA.newTag}>{t("You")}</span> : null} />
         </Field>
         <Field label={t("Username")} required={!edit} error={err("username")} hint={edit ? t("Username cannot be changed.") : null}>
           {edit ? <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{d.username}</span></ReadOnly>
@@ -85,14 +85,14 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
         </Field>
       </div>
 
-      <div className="fa-rh"><span className="fa-cap">{t("Password")}</span></div>
+      <div className={FA.sectionHead}><Caption>{t("Password")}</Caption></div>
       {edit && !resetting ? (
         <div className="us-box">
           <span><b>{t("Password is set")}</b><span>{t("Reset it when the user forgets it. They sign in with the new one right away.")}</span></span>
-          <button type="button" className="fa-btn o sm" onClick={() => setResetting(true)}>{t("Reset password")}</button>
+          <button type="button" className={btnClass("o", true)} onClick={() => setResetting(true)}>{t("Reset password")}</button>
         </div>
       ) : (
-        <div className="fa-fields">
+        <div className={FA.fields}>
           <Field label={edit ? t("New password") : t("Password")} required error={err("password")}>
             <TextIn type="password" value={d.password} onChange={set("password")} autoComplete="new-password" invalid={!!errors.password} />
           </Field>
@@ -100,20 +100,20 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
             <TextIn type="password" value={d.password_confirm} onChange={set("password_confirm")} autoComplete="new-password" invalid={!!mismatch || !!errors.password_confirm} />
           </Field>
           {edit ? (
-            <div className="wide"><button type="button" className="us-link" onClick={() => { setResetting(false); form.setData((x) => ({ ...x, password: "", password_confirm: "" })); }}>{t("Keep current password")}</button></div>
+            <div className={FA.wide}><button type="button" className="us-link" onClick={() => { setResetting(false); form.setData((x) => ({ ...x, password: "", password_confirm: "" })); }}>{t("Keep current password")}</button></div>
           ) : null}
         </div>
       )}
 
       {edit ? (
         <>
-          <div className="fa-rh"><span className="fa-cap">{t("Account")}</span></div>
+          <div className={FA.sectionHead}><Caption>{t("Account")}</Caption></div>
           <div className="us-box">
             <span><b>{t("Active")}</b><span>{isSelf ? t("You cannot deactivate your own account.") : edit.is_superuser ? t("A superuser stays active.") : t("An inactive user cannot sign in.")}</span></span>
             <button type="button" role="switch" aria-checked={d.is_active} aria-label={t("Active")} disabled={isSelf || edit.is_superuser}
               className={"us-tg" + (d.is_active ? " on" : "")} onClick={() => form.setData("is_active", !d.is_active)} />
           </div>
-          {err("is_active") ? <div className="fa-alert" role="alert">{err("is_active")}</div> : null}
+          {err("is_active") ? <div className={FA.alert} role="alert">{err("is_active")}</div> : null}
         </>
       ) : null}
 
