@@ -19,7 +19,7 @@ The app (not the public landing page) has one way to style things. Consistency c
 - `leading-normal` is 1.5, not the `normal` keyword; a CSS `font:` shorthand meant `leading-[normal]`.
 - `outline-none` empties `--tw-outline-style`, so a focus ring needs `outline-solid` next to `outline-2`.
 - `rotate-*`, `translate-*` and `scale-*` set their own CSS properties: transition `rotate`/`translate`, not `transform`.
-- A descendant variant on a parent (`[&_th]:text-left`) outranks a utility on the child, so cells, rows and items are components that merge the page's classes with `cn()`.
+- A descendant variant on a parent (`[&_th]:text-left`) outranks a utility on the child. Either make the child a component that merges the page's classes with `cn()` (list-a `Th`/`Td`), or write the parent's default as `[:where(&)_th]:…`, which weighs no more than the element so the child's own utility wins (detail-a `DA.table`).
 - Class names that equal a Tailwind utility (`outline`, `static`, `hidden`, …) get that utility's CSS too.
 - `cn()` is extended with the theme tokens in `frontend/lib/utils.js`; add a new theme token there too, or `twMerge` keeps both classes.
 - Arbitrary colours that tailwind-merge cannot classify need a type hint: `bg-[color:color-mix(...)]`.
