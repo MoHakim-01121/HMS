@@ -276,10 +276,10 @@ class ClFormTests(TestCase):
         page = self._post("/cl/new/", {"confirmation_number": "CLX-SP", "rooms": "[]"}).json()
         self.assertIn("salesperson_id", page["props"]["errors"])
 
-    def test_salesperson_list_names_where_people_work(self):
+    def test_salesperson_list_is_just_the_name(self):
         props = self.client.get("/cl/new/", HTTP_X_INERTIA="true").json()["props"]
         me = next(s for s in props["salespeople"] if s["id"] == self.user.pk)
-        self.assertEqual(me["meta"], "HQ")
+        self.assertEqual(set(me), {"id", "name"})
 
     def test_old_cl_without_salesperson_saves_without_one(self):
         from hw.tests.factories import cl_form_payload

@@ -1,13 +1,12 @@
 import json
 import logging
-from datetime import date
 from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -15,6 +14,7 @@ from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, scope
+from ..finance.errors import FinanceError
 from ..i18n import tr
 from ..models import (
     ActivityLog,
@@ -65,14 +65,41 @@ def _order(qs, sort, default='-check_in'):
     return qs.order_by(*_SORT_MAP.get(sort, _SORT_MAP[default]))
 
 
+def _cl_salesperson_filter(request):
+    """The Salesperson filter: a user id, 'me' for the signed-in user's own
+    CLs, 'none' for the legacy CLs that were made before the field existed,
+    or '' for every salesperson. Their own id is normalised to 'me' so a
+    link/copy of the URL keeps naming the option the menu shows."""
+    value = request.GET.get('salesperson', '').strip()
+    if value == 'none':
+        return 'none'
+    if value == 'me' or value == str(request.user.pk):
+        return 'me'
+    if value.isdigit() and int(value) > 0:
+        return value
+    return ''
+
+
+def _apply_salesperson(qs, value, user):
+    if value == 'none':
+        return qs.filter(salesperson__isnull=True)
+    if value == 'me':
+        return qs.filter(salesperson=user)
+    if value:
+        return qs.filter(salesperson_id=int(value))
+    return qs
+
+
 def _cl_filter_params(request):
-    """Read the standard CL list filters (q/status/date range/basis) off the querystring."""
+    """Read the standard CL list filters (q/status/date range/basis/salesperson)
+    off the querystring."""
     return (
         request.GET.get('q', '').strip(),
         [s.upper() for s in request.GET.getlist('status') if s.upper() in ('DEFINITE', 'TENTATIVE', 'CANCELLED')],
         _parse_date(request.GET.get('date_from', '').strip()),
         _parse_date(request.GET.get('date_to', '').strip()),
         'sold' if request.GET.get('by') == 'sold' else 'check_in',
+        _cl_salesperson_filter(request),
     )
 
 
@@ -99,9 +126,10 @@ def _apply_cl_filters(qs, q, status_list, date_from, date_to, by='check_in'):
 def _filter_cl_qs(qs, request):
     """`qs` narrowed to the user's branches and the list filters, ordered."""
     qs = scope(qs, request.user)
-    q, status_list, date_from, date_to, by = _cl_filter_params(request)
+    q, status_list, date_from, date_to, by, salesperson = _cl_filter_params(request)
     sort = request.GET.get('sort', '-check_in')
     qs = _apply_cl_filters(qs, q, status_list, date_from, date_to, by)
+    qs = _apply_salesperson(qs, salesperson, request.user)
     return _order(qs, sort)
 
 
@@ -146,11 +174,12 @@ def cl_list(request):
     status_list = [s.upper() for s in csv_list(request, 'status', ['definite', 'tentative', 'cancelled'])]
     inv = request.GET.get('inv', '')
     sort = request.GET.get('sort', 'check_in')
+    salesperson = _cl_salesperson_filter(request)
     date_from, date_to, period = list_period(request)
 
     by = 'check_in' if (period['from'] or period['to']) else 'sold'
     period_qs = _apply_cl_filters(base_qs, q, [], date_from, date_to, by)
-    qs = period_qs
+    qs = _apply_salesperson(period_qs, salesperson, request.user)
     if status_list:
         qs = qs.filter(reservation_status__in=status_list)
     if inv == 'yes':
@@ -159,13 +188,34 @@ def cl_list(request):
         qs = qs.uninvoiced()
     qs = _order(qs, sort if sort in _SORT_MAP else 'check_in')
 
-    # Filter counts over the period (before the status/invoice filter).
+    # Filter counts over the period (before the status/invoice/salesperson
+    # filters), so the menu's numbers do not collapse to the picked option.
     by_status = {r['reservation_status']: r['n'] for r in period_qs.values('reservation_status').annotate(n=Count('id'))}
     invoiced_n = period_qs.invoiced().count()
+    sp_rows = list(period_qs.values('salesperson_id').annotate(n=Count('id')).order_by())
+    # The signed-in user gets the "My CLs" option at the top of the menu, so
+    # their name is left out of the list below it.
+    sp_ids = [r['salesperson_id'] for r in sp_rows
+              if r['salesperson_id'] and r['salesperson_id'] != request.user.pk]
+    sp_names = {u.pk: (u.get_full_name() or u.username) for u in User.objects.filter(pk__in=sp_ids)}
+    salespeople = sorted(
+        ({'id': r['salesperson_id'], 'name': sp_names[r['salesperson_id']], 'count': r['n']}
+         for r in sp_rows if r['salesperson_id'] in sp_names),
+        key=lambda r: r['name'].lower(),
+    )
+    # A salesperson picked in another month has no row this month; keep them
+    # in the menu (at zero) so the active filter stays visible and switchable.
+    if salesperson.isdigit() and int(salesperson) not in {r['id'] for r in salespeople}:
+        picked = User.objects.filter(pk=int(salesperson)).first()
+        if picked and picked.pk != request.user.pk:
+            salespeople.append({'id': picked.pk, 'name': picked.get_full_name() or picked.username, 'count': 0})
+            salespeople.sort(key=lambda r: r['name'].lower())
     counts = {
         'definite': by_status.get('DEFINITE', 0), 'tentative': by_status.get('TENTATIVE', 0),
         'cancelled': by_status.get('CANCELLED', 0), 'all': sum(by_status.values()),
         'invoiced': invoiced_n, 'not_invoiced': sum(by_status.values()) - invoiced_n,
+        'unassigned': next((r['n'] for r in sp_rows if r['salesperson_id'] is None), 0),
+        'mine': period_qs.filter(salesperson=request.user).count(),
     }
 
     # KPIs: a calendar month only (the period of the month nav).
@@ -197,18 +247,20 @@ def cl_list(request):
         "invoice_id": cl.invoice.pk if cl.invoice_id else None,
     } for cl in page_obj]
 
-    years = sorted({d.year for d in base_qs.datetimes('created_at', 'year')} | {date.today().year})
+    years = sorted({d.year for d in base_qs.datetimes('created_at', 'year')} | {timezone.localdate().year})
     return inertia_render(request, "Cl/List", props={
         "letters": letters,
         "filters": {"q": q, "status": [s.lower() for s in status_list], "inv": inv, "sort": sort,
+                    "salesperson": salesperson,
                     "per": list_per_page(request), **period},
         "years": years,
         "counts": counts,
+        "salespeople": salespeople,
         "kpis": kpis,
         "export_qs": "?" + urlencode([(k, v) for k, v in [
             ("q", q), ("date_from", date_from.isoformat() if date_from else ""),
             ("date_to", date_to.isoformat() if date_to else ""), ("sort", sort),
-            ("by", "sold" if by == "sold" else ""),
+            ("by", "sold" if by == "sold" else ""), ("salesperson", salesperson),
         ] + [("status", s.lower()) for s in status_list] if v]),
         "pagination": pagination_props(page_obj),
     })
@@ -237,18 +289,9 @@ def _form_context_data():
 
 
 def _salespeople():
-    """Active HMS users for the CL's Salesperson picker: name, and where they
-    work (head office, or their branches)."""
-    users = (User.objects.filter(is_active=True)
-             .select_related('profile').prefetch_related('profile__branch_access__branch'))
-    out = []
-    for u in users:
-        profile = getattr(u, 'profile', None)
-        if u.is_superuser or profile is None or profile.all_branches:
-            where = "HQ"
-        else:
-            where = ", ".join(sorted(a.branch.name for a in profile.branch_access.all())) or "HQ"
-        out.append({"id": u.pk, "name": u.get_full_name() or u.username, "meta": where})
+    """Active HMS users for the CL's Salesperson picker, by name."""
+    users = User.objects.filter(is_active=True)
+    out = [{"id": u.pk, "name": u.get_full_name() or u.username} for u in users]
     return sorted(out, key=lambda r: r["name"].lower())
 
 
@@ -288,7 +331,7 @@ def _validate_cl(data, exclude_pk=None, need_salesperson=True):
         errors["check_in"] = "Check-in date is required."
     if not check_out:
         errors["check_out"] = "Check-out date is required."
-    status = (data.get("reservation_status") or "DEFINITE").upper()
+    status = (data.get("reservation_status") or "TENTATIVE").upper()
     if status not in ReservationStatus.values:
         errors["reservation_status"] = "Unknown reservation status."
     rooms = _posted_rooms(data)
@@ -309,12 +352,15 @@ def _validate_cl(data, exclude_pk=None, need_salesperson=True):
         # v2.0 §11) so a same-day date surfaces as a clean form error instead
         # of an IntegrityError from the save.
         errors["check_out"] = "Check-out must be after check-in."
-    number = data.get("confirmation_number", "")
-    qs = ConfirmationLetter.objects.filter(confirmation_number=number)
-    if exclude_pk:
-        qs = qs.exclude(pk=exclude_pk)
-    if number and qs.exists():
-        errors["confirmation_number"] = f"CL number '{number}' is already in use."
+    number = (data.get("confirmation_number") or "").strip()
+    if not number:
+        errors["confirmation_number"] = "Confirmation number is required."
+    else:
+        duplicate = ConfirmationLetter.objects.filter(confirmation_number=number)
+        if exclude_pk is not None:
+            duplicate = duplicate.exclude(pk=exclude_pk)
+        if duplicate.exists():
+            errors["confirmation_number"] = "Confirmation number already exists."
     return errors
 
 
@@ -332,7 +378,7 @@ def _cl_echo(data):
         "check_in": data.get("check_in", ""),
         "check_out": data.get("check_out", ""),
         "confirmation_number": data.get("confirmation_number", ""),
-        "reservation_status": data.get("reservation_status", "DEFINITE"),
+        "reservation_status": data.get("reservation_status", "TENTATIVE"),
         "salesperson_id": data.get("salesperson_id", ""),
         "note": data.get("note", ""),
         "rooms": rooms,
@@ -346,7 +392,7 @@ def _salesperson_name(cl):
 
 @require_perm('cl', 'create')
 def cl_new(request):
-    suggested_number = ConfirmationLetter.suggest_number()
+    suggested_number = ""
     if request.method == "POST":
         errors = _validate_cl(request.POST)
         if errors:
@@ -355,22 +401,30 @@ def cl_new(request):
                 "suggested_number": request.POST.get("confirmation_number", suggested_number),
                 **_form_context_data(),
             })
-        with transaction.atomic():
-            cl = ConfirmationLetter.objects.create(
-                client_id=request.POST.get("client_id"),
-                hotel_id=_resolve_hotel_id(request),
-                guest_phone=request.POST.get("guest_phone", ""),
-                check_in=_parse_date(request.POST.get("check_in")),
-                check_out=_parse_date(request.POST.get("check_out")),
-                confirmation_number=request.POST.get("confirmation_number", ""),
-                reservation_status=(request.POST.get("reservation_status") or "DEFINITE").upper(),
-                salesperson_id=request.POST.get("salesperson_id") or None,
-                note=request.POST.get("note", ""),
-            )
-            _save_cl_rooms(cl, request)
-        ConfirmationLetter.claim_number(cl.confirmation_number)
-        log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number)
-        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number} created.", f"Confirmation Letter {cl.confirmation_number} dibuat."))
+        num = (request.POST.get("confirmation_number") or "").strip()
+        try:
+            with transaction.atomic():
+                cl = ConfirmationLetter.objects.create(
+                    client_id=request.POST.get("client_id"),
+                    hotel_id=_resolve_hotel_id(request),
+                    guest_phone=request.POST.get("guest_phone", ""),
+                    check_in=_parse_date(request.POST.get("check_in")),
+                    check_out=_parse_date(request.POST.get("check_out")),
+                    confirmation_number=num,
+                    reservation_status=(request.POST.get("reservation_status") or "TENTATIVE").upper(),
+                    salesperson_id=request.POST.get("salesperson_id") or None,
+                    note=request.POST.get("note", ""),
+                )
+                _save_cl_rooms(cl, request)
+        except IntegrityError:
+            messages.error(request, tr(request, "Could not create CL. Confirmation number may already be used.", "Tidak bisa membuat CL. Nomor CL mungkin sudah digunakan."))
+            return inertia_render(request, "Cl/Form", props={
+                "cl": _cl_echo(request.POST), "edit": False, "errors": {"confirmation_number": "Confirmation number already exists or is invalid."},
+                "suggested_number": num,
+                **_form_context_data(),
+            })
+        log_activity(request.user, ActivityLog.ACTION_CREATE, 'CL', cl.confirmation_number or str(cl.pk))
+        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number or cl.pk} created.", f"Confirmation Letter {cl.confirmation_number or cl.pk} dibuat."))
         return redirect("cl_detail", pk=cl.pk)
 
     return inertia_render(request, "Cl/Form", props={
@@ -466,7 +520,7 @@ def cl_edit(request, pk):
                 f"This reservation is billed on invoice {billed_on.invoice_number}, "
                 "so its client cannot be changed. Void the invoice first."
             )
-        new_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
+        new_status = (request.POST.get("reservation_status") or "TENTATIVE").upper()
         if hasattr(cl, 'penalty') and new_status != ReservationStatus.CANCELLED and not errors:
             errors["reservation_status"] = (
                 f"This reservation has cancellation penalty {cl.penalty.penalty_number}, "
@@ -486,23 +540,39 @@ def cl_edit(request, pk):
 
         # One transaction, one invoice sync: the rooms are rewritten row by
         # row, and the invoice should follow the finished CL, not each step.
-        with transaction.atomic(), invoice_sync_suspended():
-            cl.client_id = request.POST.get("client_id")
-            cl.hotel_id = _resolve_hotel_id(request)
-            cl.guest_phone = request.POST.get("guest_phone", "")
-            cl.check_in = _parse_date(request.POST.get("check_in"))
-            cl.check_out = _parse_date(request.POST.get("check_out"))
-            cl.confirmation_number = request.POST.get("confirmation_number", "")
-            cl.reservation_status = (request.POST.get("reservation_status") or "DEFINITE").upper()
-            cl.salesperson_id = request.POST.get("salesperson_id") or None
-            cl.note = request.POST.get("note", "")
-            cl.save()
-            ConfirmationLetter.claim_number(cl.confirmation_number)
+        try:
+            with transaction.atomic(), invoice_sync_suspended():
+                cl.client_id = request.POST.get("client_id")
+                cl.hotel_id = _resolve_hotel_id(request)
+                cl.guest_phone = request.POST.get("guest_phone", "")
+                cl.check_in = _parse_date(request.POST.get("check_in"))
+                cl.check_out = _parse_date(request.POST.get("check_out"))
+                cl.confirmation_number = (request.POST.get("confirmation_number") or "").strip()
+                cl.reservation_status = (request.POST.get("reservation_status") or "TENTATIVE").upper()
+                cl.salesperson_id = request.POST.get("salesperson_id") or None
+                cl.note = request.POST.get("note", "")
+                cl.save()
 
-            cl.rooms.all().delete()
-            _save_cl_rooms(cl, request)
-            cl = ConfirmationLetter.objects.get(pk=cl.pk)   # drop cached rooms
-            sync_invoice_for_cl(cl, request.user)
+                cl.rooms.all().delete()
+                _save_cl_rooms(cl, request)
+                cl = ConfirmationLetter.objects.get(pk=cl.pk)   # drop cached rooms
+                sync_invoice_for_cl(cl, request.user)
+        except IntegrityError:
+            messages.error(request, tr(request, "Could not update CL. Confirmation number may already be used.", "Tidak bisa memperbarui CL. Nomor CL mungkin sudah digunakan."))
+            echo = _cl_echo(request.POST); echo["id"] = cl.pk
+            return inertia_render(request, "Cl/Form", props={
+                "cl": echo, "edit": True, "errors": {"confirmation_number": "Confirmation number already exists or is invalid."},
+                "suggested_number": request.POST.get("confirmation_number", cl.confirmation_number),
+                **_form_context_data(),
+            })
+        except (FinanceError, ValueError) as exc:
+            messages.error(request, tr(request, f"Could not update CL: {exc}", f"Tidak bisa memperbarui CL: {exc}"))
+            echo = _cl_echo(request.POST); echo["id"] = cl.pk
+            return inertia_render(request, "Cl/Form", props={
+                "cl": echo, "edit": True, "errors": {"finance": str(exc)},
+                "suggested_number": request.POST.get("confirmation_number", cl.confirmation_number),
+                **_form_context_data(),
+            })
 
         _after = {**snapshot_fields(cl, ['hotel_name', 'guest_name', 'guest_phone', 'check_in', 'check_out', 'reservation_status']),
                   'salesperson': _salesperson_name(cl)}
@@ -512,8 +582,8 @@ def cl_edit(request, pk):
             {**_after, 'Rooms': _rooms_after},
             labels={'hotel_name': 'Hotel', 'guest_name': 'Guest', 'guest_phone': 'Phone', 'check_in': 'Check-in', 'check_out': 'Check-out', 'reservation_status': 'Status', 'salesperson': 'Salesperson', 'Rooms': 'Rooms'},
         )
-        log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number, changes)
-        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number} updated.", f"Confirmation Letter {cl.confirmation_number} diperbarui."))
+        log_activity(request.user, ActivityLog.ACTION_EDIT, 'CL', cl.confirmation_number or str(cl.pk), changes)
+        messages.success(request, tr(request, f"Confirmation Letter {cl.confirmation_number or cl.pk} updated.", f"Confirmation Letter {cl.confirmation_number or cl.pk} diperbarui."))
         return redirect("cl_detail", pk=cl.pk)
 
     rooms = [{
@@ -699,12 +769,13 @@ def invoice_from_cls(request):
 
     first_cl = cls.order_by('created_at').first()
     with transaction.atomic():
+        issued_d = timezone.localdate()
         invoice = Invoice.objects.create(
             invoice_type="hotel",
-            invoice_number=Invoice.generate_number("hotel"),
+            invoice_number=Invoice.generate_number("hotel", issued_date=issued_d),
             client_id=first_cl.client_id,
             branch_id=first_cl.client.owner_branch_id,
-            issued_date=date.today(),
+            issued_date=issued_d,
             currency="SAR",
             created_by=request.user,
         )

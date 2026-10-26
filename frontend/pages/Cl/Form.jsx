@@ -35,7 +35,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
     check_in: c.check_in || "",
     check_out: c.check_out || "",
     confirmation_number: c.confirmation_number || suggested_number || "",
-    reservation_status: c.reservation_status || "DEFINITE",
+    reservation_status: c.reservation_status || "TENTATIVE",
     salesperson_id: c.salesperson_id ? String(c.salesperson_id) : "",
     note: c.note || "",
     rooms: (c.rooms && c.rooms.length) ? c.rooms : [{ ...EMPTY_ROOM }],
@@ -132,7 +132,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
               onChange={(ci, co) => { form.setData((prev) => ({ ...prev, check_in: ci, check_out: co })); form.clearErrors("check_out", "check_in"); }} />
           </Field>
           <Field label={t("Confirmation no.")} required error={errors.confirmation_number && t(errors.confirmation_number)}>
-            <TextIn icon={ICON.number} invalid={!!errors.confirmation_number} aria-label={t("Confirmation no.")} placeholder={t("From the hotel")} required
+            <TextIn icon={ICON.number} invalid={!!errors.confirmation_number} aria-label={t("Confirmation no.")} placeholder={t("From HQ")} required
               value={d.confirmation_number} onChange={(v) => form.setData("confirmation_number", v)} />
           </Field>
           <Field label={t("Status")} required error={errors.reservation_status && t(errors.reservation_status)}>
@@ -142,7 +142,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
           </Field>
           <Field label={t("Salesperson")} required={!edit || !!c.salesperson_id} error={errors.salesperson_id && t(errors.salesperson_id)}>
             <Picker icon={ICON.person} value={d.salesperson_id} placeholder={t("Select a salesperson")} heading={t("Salespeople")}
-              options={salespeople.map((s) => ({ value: String(s.id), label: s.name, meta: s.meta === "HQ" ? t("HQ") : t("{branch} branch", { branch: s.meta }) }))}
+              options={salespeople.map((s) => ({ value: String(s.id), label: s.name }))}
               onPick={(o) => form.setData("salesperson_id", o.value)} invalid={!!errors.salesperson_id} />
           </Field>
         </div>
