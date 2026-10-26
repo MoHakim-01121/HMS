@@ -225,3 +225,6 @@ cutover/
 
 # UI screenshot baselines (scripts/ui-shots.mjs), local only
 ui-shots/
+
+# Motion audit reports, local only
+motion-audits/
