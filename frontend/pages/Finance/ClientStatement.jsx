@@ -219,7 +219,6 @@ export default function ClientStatement({
 
   return (
     <DPage>
-      <style>{CSS}</style>
       <DTop href="/finance/statements/" />
 
       {canMoveMoney && (fundHeld > 0 || balance < 0) ? (
@@ -246,7 +245,7 @@ export default function ClientStatement({
         </DCard>
       ) : null}
 
-      <section data-slot="card" className={DA.card}>
+      <section data-slot="card" className={cn(DA.card, "[&>nav]:border-t-border!")}>
         <DTabs
           tall
           label={t("Ledger view")}
@@ -324,7 +323,7 @@ export default function ClientStatement({
                       <td className={DC.n}>{Number(m.credit) ? fmt(m.credit) : ""}</td>
                       <td className={DC.n} style={credit(m.closing)}>{m.closing != null ? fmt(m.closing) : ""}</td>
                     </tr>
-                    {isFolded ? null : g.rows.map((r, j) => <LedgerRow key={`${r.entry_number}-${j}`} r={r} t={t} last={j === g.rows.length - 1} />)}
+                    {isFolded ? null : g.rows.map((r, j) => <LedgerRow key={`${r.entry_number}-${j}`} r={r} t={t} />)}
                   </tbody>
                 );
               }) : (
@@ -352,25 +351,24 @@ export default function ClientStatement({
   );
 }
 
-function LedgerRow({ r, t, last }) {
+function LedgerRow({ r, t }) {
   const kind = t(LINE_KIND[r.entry_type] || r.entry_type_display || "");
   // The journal description usually restates the kind and number ("Charge
   // INV-009"); keep it only when it adds something (a payment reference).
   const restates = !r.description
     || r.description.startsWith(kind)
     || (r.invoice_number && r.description.trim().split(/\s+/).length <= 2 && r.description.includes(r.invoice_number));
-  const cls = [r.is_voided ? "void" : "", last ? "last" : ""].filter(Boolean).join(" ") || undefined;
   return (
-    <tr className={cls}>
-      <td className="d">{r.date ? fmtDateShort(r.date) : ""}</td>
-      <td className="desc">
-        <span className="kind">{kind}</span>
-        {r.invoice_number ? <span className="mono">{r.invoice_number}</span> : null}
-        {restates ? null : <span className="sub">{r.description}</span>}
+    <tr>
+      <td>{r.date ? fmtDateShort(r.date) : ""}</td>
+      <td>
+        <span>{kind}</span>
+        {r.invoice_number ? <span className="tabular-nums">{r.invoice_number}</span> : null}
+        {restates ? null : <span>{r.description}</span>}
       </td>
-      <td className="n">{r.amount_sar > 0 ? fmt(r.amount_sar) : ""}</td>
-      <td className="n">{r.amount_sar < 0 ? fmt(-r.amount_sar) : ""}</td>
-      <td className="n" style={credit(r.balance)}>{fmt(r.balance)}</td>
+      <td>{r.amount_sar > 0 ? fmt(r.amount_sar) : ""}</td>
+      <td>{r.amount_sar < 0 ? fmt(-r.amount_sar) : ""}</td>
+      <td style={credit(r.balance)}>{fmt(r.balance)}</td>
     </tr>
   );
 }
@@ -387,25 +385,28 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <ToolButton className="cl-period" aria-haspopup="dialog">
+        <ToolButton className="max-w-[260px]" aria-haspopup="dialog">
           {DIcon.calendar}
-          <span className="cl-period-label">{label}</span>
+          <span className="max-[600px]:hidden overflow-hidden text-ellipsis whitespace-nowrap tabular-nums">{label}</span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </ToolButton>
       </PopoverTrigger>
-      <PopoverContent align="end" className="cl-pop">
+      <PopoverContent align="end" className="w-[340px] p-2">
         {!isOpen ? (
-          <div className="cl-presets" role="group" aria-label={t("Period")}>
+          <div className="flex flex-col gap-[2px] border-0 border-b border-b-border pb-2" role="group" aria-label={t("Period")}>
             {presets.map((p) => (
-              <button key={p.key} type="button" className={`cl-preset${active === p.key ? " is-on" : ""}`} aria-pressed={active === p.key} onClick={() => apply(p.from, p.to)}>
+              <button key={p.key} type="button" aria-pressed={active === p.key} onClick={() => apply(p.from, p.to)} className={cn(
+                "flex h-9 cursor-pointer items-center rounded-[6px] border-0 bg-transparent px-2.5 font-sans text-start text-[13px] leading-[inherit] text-foreground",
+                active === p.key ? "font-semibold bg-secondary" : "hover:bg-secondary",
+              )}>
                 {p.raw ? p.label : t(p.label)}
               </button>
             ))}
           </div>
         ) : null}
-        <form className="cl-custom" onSubmit={(e) => { e.preventDefault(); apply(isOpen ? "" : from, to); }}>
-          <div className="cl-custom-lbl">{isOpen ? t("As of") : t("Custom range")}</div>
-          <div className="cl-custom-row">
+        <form className="[&_input]:min-w-0 px-1 pt-3 pb-1" onSubmit={(e) => { e.preventDefault(); apply(isOpen ? "" : from, to); }}>
+          <div className="mb-2 text-[12px] font-medium text-muted-foreground">{isOpen ? t("As of") : t("Custom range")}</div>
+          <div className="flex items-center gap-2">
             {!isOpen ? (
               <>
                 <Input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} aria-label={t("From")} />
@@ -414,7 +415,7 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
             ) : null}
             <Input type="date" value={to} min={(!isOpen && from) || undefined} onChange={(e) => setTo(e.target.value)} aria-label={t("To")} />
           </div>
-          <div className="cl-custom-act">
+          <div className="mt-3 flex justify-end gap-2">
             {isOpen && dateTo ? (
               <Button type="button" variant="ghost" size="lg" onClick={() => apply("", "")}>{t("Today")}</Button>
             ) : null}
@@ -426,22 +427,3 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
   );
 }
 
-const CSS = `
-.cl-period { max-width: 260px; }
-.cl-period-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cl-pop { width: 340px; padding: 8px !important; }
-.cl-presets { display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.cl-preset { display: flex; align-items: center; height: 36px; padding: 0 10px; border: none; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; color: var(--foreground); cursor: pointer; text-align: start; }
-.cl-preset:hover, .cl-preset.is-on { background: var(--secondary); }
-.cl-preset.is-on { font-weight: 600; }
-.cl-custom { padding: 12px 4px 4px; }
-.cl-custom-lbl { font-size: 12px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 8px; }
-.cl-custom-row { display: flex; align-items: center; gap: 8px; }
-.cl-custom-row input { min-width: 0; }
-.cl-custom-act { margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
-.hms-pag { border-top: 1px solid var(--border); }
-@media (max-width: 600px) {
-  .cl-period-label { display: none; }
-  .cl-pop input { font-size: 16px !important; }
-}
-`;

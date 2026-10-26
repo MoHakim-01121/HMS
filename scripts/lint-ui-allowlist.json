@@ -21,7 +21,6 @@
   "frontend/pages/Dev/StyleGuide.jsx": 4,
   "frontend/pages/Expense/NewExpense.jsx": 1,
   "frontend/pages/Finance/BankAccountForm.jsx": 1,
-  "frontend/pages/Finance/ClientStatement.jsx": 3,
   "frontend/pages/Finance/ExpenseCategories.jsx": 2,
   "frontend/pages/Finance/VoidForm.jsx": 4,
   "frontend/pages/Hotel/Detail.jsx": 1,
