@@ -22,7 +22,7 @@ export default function ArAging({ aging }) {
   const [picked, setPicked] = useState(null);
   const client = picked && aging.clients.find((c) => c.client_id === picked);
 
-  const amount = (v, late) => (v ? <span className={late ? "late" : undefined}>{fmtN(v)}</span> : <span className="mut">–</span>);
+  const amount = (v, late) => (v ? <span>{fmtN(v)}</span> : <span>–</span>);
   const late = LATE.reduce((s, k) => s + aging.buckets[k], 0);
   const overdue = aging.total - aging.buckets.current;
 

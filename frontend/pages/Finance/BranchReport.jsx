@@ -84,7 +84,7 @@ export default function BranchReport({
         <SelectTrigger style={{ width: 180 }}><SelectValue /></SelectTrigger>
         <SelectContent>{seasons.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
       </Select>
-    ) : <span className="mut">{t("No seasons yet")}</span>;
+    ) : <span>{t("No seasons yet")}</span>;
   } else if (period.kind === "range") {
     valuePicker = (
       <>

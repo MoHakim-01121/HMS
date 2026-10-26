@@ -5,7 +5,11 @@ import { Link, router, usePage } from "@inertiajs/react";
 import { LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
-import "../../styles/dashboard.css";
+import {
+  DH, HERO, DGT, KV, GAUGE, BC, FC, DashGrid, DashStack, DashKpis, HeroCard,
+  GridTable, GridRow, Count, OK_BADGE, RankBars, MoneyRows, MoneyRow, MoneyValue,
+  MONEY_UNIT, BigFigure, Legend,
+} from "../../components/shadcn/dash.jsx";
 
 // Dashboards of the HMS Dashboard canvas, one per role (`variant`):
 // - Manager (ManagerHomlu): the period's sales (booked value as the one accent
@@ -23,7 +27,6 @@ import "../../styles/dashboard.css";
 
 const MON = MONTHS.map((m) => m.slice(0, 3));
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const GREEN = "var(--data)";
 const ARC = 289; // length of the gauge's half circle (r = 92)
 
 const iso = (s) => new Date(s + "T00:00:00");
@@ -34,6 +37,9 @@ const money = (v, ccy) => (ccy === "IDR" && Math.abs(v) >= 1e6 ? millions(v) : f
 const pctOf = (cur, prev) => (prev ? Math.round(((cur - prev) * 100) / prev) : null);
 const pastDueSub = (t, c, d) => (c === 1 ? t("1 client, {d} days late", { d }) : t("{c} clients, oldest {d} days", { c, d }));
 const greeting = (t) => { const h = new Date().getHours(); return h < 11 ? t("Good morning") : h < 15 ? t("Good afternoon") : t("Good evening"); };
+// On a phone, staff's day is ordered: booked value, today's work, the other
+// figures, the charts, their own payments.
+const ORDER = { work: "max-[600px]:order-2", charts: "max-[600px]:order-4", mine: "max-[600px]:order-5" };
 
 export default function Home(props) {
   const [loading, setLoading] = useState(false);
@@ -42,8 +48,8 @@ export default function Home(props) {
   });
   const Body = props.variant === "finance" ? FinanceHome : props.variant === "staff" || props.variant === "viewer" ? StaffHome : ManagerHome;
   return (
-    <PageFrame className="db">
-      <PageMain loading={loading} className={"db-v-" + props.variant}>
+    <PageFrame>
+      <PageMain loading={loading}>
         <Body {...props} onGo={go} />
       </PageMain>
     </PageFrame>
@@ -59,8 +65,8 @@ function Head({ todo, readOnly, scopeNote, period, seasons, today, onGo }) {
   return (
     <>
       <div>
-        <h1 className="db-hi">{greeting(t)}, {firstName}</h1>
-        <div className="db-sub">
+        <h1 className={DH.hi}>{greeting(t)}, {firstName}</h1>
+        <div className={DH.sub}>
           {branch?.current ? `${branch.current.name} · ` : ""}
           {readOnly ? t("Read only.") : n ? t("{n} things wait for you today.", { n }) : t("Nothing waits for you today.")}
         </div>
@@ -86,30 +92,30 @@ function ManagerHome(props) {
         {sales && <KpiRow period={period} sales={sales} profit={profit} sm={sm} isSeason={isSeason} kind={admin ? "admin" : "manager"} receivable={receivable} />}
 
         {(sm || col) && (
-          <div className={"db-g2" + (sm && col ? "" : " one")}>
+          <DashGrid g={sm && col ? "2" : "2-one"}>
             {sm && <SoldPerMonth sm={sm} sales={sales} period={period} isSeason={isSeason} />}
             {col && <Collected col={col} />}
-          </div>
+          </DashGrid>
         )}
 
         {(todo.length > 0 || checkins) && (
-          <div className={"db-g2b" + (todo.length && checkins ? "" : " one")}>
+          <DashGrid g={todo.length && checkins ? "2b" : "2b-one"}>
             {todo.length > 0 && <Todo items={todo} count={todoCount} />}
             {checkins && <Checkins data={checkins} />}
-          </div>
+          </DashGrid>
         )}
 
         {branches?.length > 0 && <ByBranch rows={branches} period={period} />}
 
         {(top || mon || access) && (
-          <div className={"db-g3" + ([top, admin ? access : top, mon].filter(Boolean).length === 3 ? "" : " two")}>
+          <DashGrid g={[top, admin ? access : top, mon].filter(Boolean).length === 3 ? "3" : "3-two"}>
             {top && <TopClients top={top} />}
             {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, ${t("room nights")}`}
               rows={top.hotels.map((r) => ({ ...r, href: `/hotels/${r.id}/`, sub: r.city, v: r.rn }))}
               empty={[t("No stays yet"), t("Hotels appear here after the first check-in.")]} hasPrev={top.has_prev} />}
             {mon && <MoneyNow m={mon} />}
             {access && <People p={access} />}
-          </div>
+          </DashGrid>
         )}
     </>
   );
@@ -139,7 +145,7 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
   const atNow = period.start.slice(0, 7) === thisMonth;
   return (
     <Toolbar left={<>
-      <MonthLabel>{isSeason ? t("Whole season") : `${t(MONTHS[start.getMonth()])} ${start.getFullYear()}`}</MonthLabel>
+      <MonthLabel className="min-w-[124px]">{isSeason ? t("Whole season") : `${t(MONTHS[start.getMonth()])} ${start.getFullYear()}`}</MonthLabel>
       <NavButton aria-label={t("Previous month")} disabled={isSeason} onClick={() => shift(-1)}>{LIcon.prev}</NavButton>
       <NavButton aria-label={t("Next month")} disabled={isSeason || atNow} onClick={() => shift(1)}>{LIcon.next}</NavButton>
       <Popover open={open} onOpenChange={setOpen}>
@@ -157,7 +163,7 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
         </Menu>
       </Popover>
     </>}>
-      {note && <Note>{note}</Note>}
+      {note && <Note className="text-[12px]">{note}</Note>}
     </Toolbar>
   );
 }
@@ -190,14 +196,14 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
 
   const kpis = [
     { label: t("CL sold"), v: fmtN(cur.cl), d: pct(cur.cl, prev?.cl), good: !prev || cur.cl >= prev.cl,
-      foot: cmp(fmtN(prev?.cl)), spark: [cur.spark.cl, prev?.spark.cl], href: "/cl/" },
+      foot: cmp(fmtN(prev?.cl)), href: "/cl/" },
     { label: t("Room nights"), v: fmtN(cur.rn), d: pct(cur.rn, prev?.rn), good: !prev || cur.rn >= prev.rn,
-      foot: cmp(fmtN(prev?.rn)), spark: [cur.spark.rn, prev?.spark.rn], href: "/calendar/" },
+      foot: cmp(fmtN(prev?.rn)), href: "/calendar/" },
   ];
   const cancelled = { label: t("Cancelled"), v: fmtN(cur.cancelled), unit: "CL", d: pct(cur.cancelled, prev?.cancelled),
     good: !prev || cur.cancelled <= prev.cancelled,
     foot: `${t("{v} SAR lost", { v: fmtN(cur.lost) })}. ${prev ? `${prevLabel}: ${prev.cancelled}` : ""}`,
-    spark: [cur.spark.cancelled, prev?.spark.cancelled], href: "/cl/" };
+    href: "/cl/" };
   if (kind === "staff" || kind === "viewer") {
     if (checkins) {
       const rooms = checkins.rows.reduce((a, r) => a + r.rooms, 0);
@@ -224,23 +230,20 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   }
 
   return (
-    <div className={"db-kpis" + (kpis.length === 3 ? " k3" : "")}>
-      <Link className={"db-hero" + (heroBad ? " bad" : "")} href="/cl/">
-        <span className="l">{isSeason ? t("Booked value, season {s}", { s: period.label }) : t("Booked value, {m}", { m: t(period.label) })}
-          {heroPct && <span className={"chip" + (heroBad ? " bad" : "")}>{heroPct}</span>}</span>
-        <span className="v">{fmtN(cur.value)}<small>SAR</small></span>
-        <span className="bars" role="img" aria-label={t("Booked value building up over the period")}>
-          {bars.map((b, i) => <i key={i} className={b.on ? "on" : ""} style={{ height: `${Math.max(b.h, 4)}%` }} />)}
-        </span>
-        <span className="ax"><span>{axis[0]}</span><span>{axis[1]}</span></span>
-        <span className="f">{prev ? `${prevLabel}: ${fmtN(prev.value)}` : t("First season in HMS, nothing to compare")}</span>
-      </Link>
+    <DashKpis staff={mine} hero={
+      <HeroCard href="/cl/"
+        label={isSeason ? t("Booked value, season {s}", { s: period.label }) : t("Booked value, {m}", { m: t(period.label) })}
+        chip={heroPct ? { text: heroPct, bad: !!heroBad } : null}
+        value={fmtN(cur.value)} unit="SAR"
+        bars={{ data: bars, label: t("Booked value building up over the period") }} axis={axis}
+        foot={prev ? `${prevLabel}: ${fmtN(prev.value)}` : t("First season in HMS, nothing to compare")} />
+    }>
       {kpis.map((k) => (
         <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
           delta={k.d && { text: k.d, good: k.good }}
           tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined} />
       ))}
-    </div>
+    </DashKpis>
   );
 }
 
@@ -267,39 +270,39 @@ function SoldPerMonth({ sm, isSeason, title }) {
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
       <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
         <h2>{title || t("CL sold per month")}{sm.season && <span className={DA.count}>{t("Season {s}", { s: sm.season })}</span>}</h2>
-        <span className="db-lg">
-          <span><i style={{ background: GREEN }} />{isSeason ? t("This season") : t(MONTHS[p.d.getMonth()])}</span>
-          <span><i style={{ background: "var(--chart-bar)" }} />{t("Other months")}</span>
-          {sm.has_ly && <span><i className="ly" />{lyName}</span>}
-        </span>
+        <Legend items={[
+          { label: isSeason ? t("This season") : t(MONTHS[p.d.getMonth()]), bg: "bg-data" },
+          { label: t("Other months"), bg: "bg-chart-bar" },
+          sm.has_ly && { label: lyName, dashed: true },
+        ].filter(Boolean)} />
       </div>
-      <div className="db-big"><b>{isSeason ? seasonSum : p.cur ?? 0} CL</b><span>{note}</span></div>
-      <div className="bc" role="img" aria-label={t("CL sold per month: {list}.", { list: months.map((m, i) => (i < pre ? "-" : m.cur ?? "-")).join(", ") })}>
-        <div className="gl" style={{ bottom: 0 }} />
-        {pre > 0 && <span className="pre" style={{ width: `calc(${(pre / 12) * 100}% - 8px)` }}>{t("Not in HMS yet")}</span>}
+      <BigFigure value={`${isSeason ? seasonSum : p.cur ?? 0} CL`} note={note} />
+      <div className={BC.chart} role="img" aria-label={t("CL sold per month: {list}.", { list: months.map((m, i) => (i < pre ? "-" : m.cur ?? "-")).join(", ") })}>
+        <div className={cn(BC.gl, "bottom-0")} />
+        {pre > 0 && <span className={BC.pre} style={{ width: `calc(${(pre / 12) * 100}% - 8px)` }}>{t("Not in HMS yet")}</span>}
         {months.map((m, i) => {
           const on = isSeason ? i <= sm.now : i === pick;
           const down = sm.has_ly && m.cur != null && m.cur < m.ly;
           return (
-            i < pre ? <div key={m.key} className="col" /> :
-            <div key={m.key} className={"col" + (on ? " on" : "") + (on && down ? " down" : "")}
+            i < pre ? <div key={m.key} className={BC.col} /> :
+            <div key={m.key} className={BC.col}
               onMouseEnter={() => setHv(i)} onMouseLeave={() => setHv(-1)}>
-              <span className="b" style={{ height: `${((m.cur || 0) / scale) * 100}%` }}>
-                {m.cur > 0 && <span className="val">{m.cur}</span>}
+              <span className={cn(BC.bar, on && (down ? BC.onDown : BC.on))} style={{ height: `${((m.cur || 0) / scale) * 100}%` }}>
+                {m.cur > 0 && <span className={BC.val}>{m.cur}</span>}
               </span>
-              {sm.has_ly && <span className="ly" style={{ bottom: `${(m.ly / scale) * 100}%` }} />}
+              {sm.has_ly && <span className={BC.ly} style={{ bottom: `${(m.ly / scale) * 100}%` }} />}
               {hv === i && (
-                <span className={"tip" + (i < 2 ? " l" : i > 8 ? " r" : "")}>
-                  <span className="h">{t(MONTHS[m.d.getMonth()])} {m.d.getFullYear()}</span>
-                  <span className="r2"><span>{m.cur == null ? t("Not yet") : i === sm.now ? t("Sold so far") : t("Sold")}</span><b>{m.cur == null ? "-" : `${m.cur} CL`}</b></span>
-                  {sm.has_ly && <span className="r2"><span>{lyName}</span><b>{m.ly} CL</b></span>}
+                <span className={cn(BC.tip, i < 2 && BC.tipL, i > 8 && BC.tipR)}>
+                  <span className={BC.tipH}>{t(MONTHS[m.d.getMonth()])} {m.d.getFullYear()}</span>
+                  <span className={BC.tipRow}><span>{m.cur == null ? t("Not yet") : i === sm.now ? t("Sold so far") : t("Sold")}</span><b className={BC.tipVal}>{m.cur == null ? "-" : `${m.cur} CL`}</b></span>
+                  {sm.has_ly && <span className={BC.tipRow}><span>{lyName}</span><b className={BC.tipVal}>{m.ly} CL</b></span>}
                 </span>
               )}
             </div>
           );
         })}
       </div>
-      <div className="bx">{months.map((m, i) => <span key={m.key} className={i < pre ? "pre" : (isSeason ? i <= sm.now : i === pick) || hv === i ? "on" : ""}>{MON[m.d.getMonth()]}</span>)}</div>
+      <div className={BC.x}>{months.map((m, i) => <span key={m.key} className={i < pre ? BC.xPre : (isSeason ? i <= sm.now : i === pick) || hv === i ? BC.xOn : undefined}>{MON[m.d.getMonth()]}</span>)}</div>
     </section>
   );
 }
@@ -309,27 +312,27 @@ function Collected({ col, deposits }) {
   const pct = col.pct ?? 0;
   return (
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
-      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/" className={DH.link}>{t("AR aging")}</Link></div>
       {col.billed > 0 ? (
         <>
-          <div className="gauge">
+          <div className={GAUGE.wrap}>
             <svg width="220" height="124" viewBox="0 0 220 124" role="img" aria-label={t("{p} percent of billed is paid", { p: pct })}>
               <path d="M18 110 A92 92 0 0 1 202 110" fill="none" stroke="var(--chart-bar)" strokeWidth="16" strokeLinecap="round" />
               <path d="M18 110 A92 92 0 0 1 202 110" fill="none" strokeWidth="16" strokeLinecap="round"
-                stroke={pct < 60 ? "oklch(0.72 0.16 62)" : GREEN} strokeDasharray={`${((ARC * pct) / 100).toFixed(1)} ${ARC}`} />
+                stroke={pct < 60 ? "var(--warning)" : "var(--data)"} strokeDasharray={`${((ARC * pct) / 100).toFixed(1)} ${ARC}`} />
             </svg>
-            <span className="gpct">{pct}%</span><span className="glab">{t("of billed is paid")}</span>
+            <span className={GAUGE.pct}>{pct}%</span><span className={GAUGE.label}>{t("of billed is paid")}</span>
           </div>
-          <div style={{ marginTop: 12 }}>
-            <div className="kv"><span><i style={{ background: GREEN }} />{t("Paid")}</span><b>{fmtN(col.paid)}</b></div>
-            <div className="kv"><span><i style={{ background: "var(--chart-bar)" }} />{t("Not due yet")}</span><b>{fmtN(col.not_due)}</b></div>
-            <div className="kv"><span><i style={{ background: "var(--warning)" }} />{t("Past due")}</span><b style={{ color: col.past_due ? "var(--warning-text)" : undefined }}>{fmtN(col.past_due)}</b></div>
-            <div className="kv tot"><span>{t("Billed")}</span><b>{fmtN(col.billed)}</b></div>
-            {deposits?.total > 0 && <div className="kv"><span>{t("Client deposits, not applied")}</span><b>{fmtN(deposits.total)}</b></div>}
+          <div className="mt-3">
+            <div className={KV.row}><span className={KV.key}><i className={cn(KV.dot, "bg-data")} />{t("Paid")}</span><b className={KV.val}>{fmtN(col.paid)}</b></div>
+            <div className={KV.row}><span className={KV.key}><i className={cn(KV.dot, "bg-chart-bar")} />{t("Not due yet")}</span><b className={KV.val}>{fmtN(col.not_due)}</b></div>
+            <div className={KV.row}><span className={KV.key}><i className={cn(KV.dot, "bg-warning")} />{t("Past due")}</span><b className={cn(KV.val, col.past_due && "text-warning-text")}>{fmtN(col.past_due)}</b></div>
+            <div className={KV.tot}><span>{t("Billed")}</span><b className={KV.val}>{fmtN(col.billed)}</b></div>
+            {deposits?.total > 0 && <div className={KV.row}><span>{t("Client deposits, not applied")}</span><b className={KV.val}>{fmtN(deposits.total)}</b></div>}
           </div>
         </>
       ) : (
-        <Empty title={t("Nothing billed yet")} sub={t("Invoices issued in this period show here.")} />
+        <Empty className="py-8" title={t("Nothing billed yet")} sub={t("Invoices issued in this period show here.")} />
       )}
     </section>
   );
@@ -364,22 +367,27 @@ function Todo({ items, count }) {
     <section data-slot="card" className={DA.card}>
       <div data-slot="card-head" className={DA.cardHead}><h2>{t("To do")}{count > 0 && <span className={DA.count}>{count}</span>}</h2><span className={DA.meta}>{t("Today, most urgent first")}</span></div>
       {items.length ? (
-        <div className="dt dt-todo" role="table" aria-label={t("To do")}>
-          <div className="dt-h" role="row"><span role="columnheader">{t("What")}</span><span className="n" role="columnheader">{t("Count")}</span><span className="n" role="columnheader">{t("Amount")}</span><span /></div>
+        <GridTable cols="todo" label={t("To do")}
+          head={<>
+            <span role="columnheader">{t("What")}</span>
+            <span role="columnheader" className={DGT.n}>{t("Count")}</span>
+            <span role="columnheader" className={DGT.n}>{t("Amount")}</span>
+            <span />
+          </>}>
           {items.map((x) => {
             const [title, sub, tone] = todoText(x, t);
             return (
-              <Link key={x.key} className="dt-r" role="row" href={x.url}>
-                <span role="cell" style={{ minWidth: 0 }}><span className="strong">{title}</span><span className="sub ell">{sub}</span></span>
-                <span className="n" role="cell"><span className={"cnt" + (tone === "r" ? " r" : "")}>{x.count}</span></span>
-                <span className="n" role="cell">{x.amount != null && <><span className="bold">{money(x.amount, x.ccy)}</span><span className="mut">{x.ccy}</span></>}</span>
-                <span className="go" aria-hidden="true">{LIcon.next}</span>
-              </Link>
+              <GridRow key={x.key} href={x.url}>
+                <span role="cell" className="min-w-0"><span className={DGT.strong}>{title}</span><span className={cn(DGT.sub, DGT.ell)}>{sub}</span></span>
+                <span role="cell" className={DGT.n}><Count red={tone === "r"}>{x.count}</Count></span>
+                <span role="cell" className={DGT.n}>{x.amount != null && <><span className={DGT.bold}>{money(x.amount, x.ccy)}</span><span className={DGT.mut}>{x.ccy}</span></>}</span>
+                <span className={DGT.go} aria-hidden="true">{LIcon.next}</span>
+              </GridRow>
             );
           })}
-        </div>
+        </GridTable>
       ) : (
-        <Empty lead={<div className="db-ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg></div>}
+        <Empty className="py-8" lead={<div className={OK_BADGE}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg></div>}
           title={t("Nothing waits for you")} sub={t("Past-due invoices, missing DPs and approvals show up here.")} />
       )}
     </section>
@@ -394,28 +402,33 @@ function Checkins({ data, title }) {
   const rooms = rows.reduce((a, r) => a + r.rooms, 0);
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{title || t("Check-ins this week")}{rows.length > 0 && <span className={DA.count}>{rows.length}</span>}</h2><Link href="/calendar/">{t("Calendar")}</Link></div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{title || t("Check-ins this week")}{rows.length > 0 && <span className={DA.count}>{rows.length}</span>}</h2><Link href="/calendar/" className={DH.link}>{t("Calendar")}</Link></div>
       {rows.length ? (
         <>
-          <div className="dt dt-ci" role="table" aria-label={t("Check-ins this week")}>
-            <div className="dt-h" role="row"><span role="columnheader">{t("Date")}</span><span role="columnheader">{t("Client")}</span><span className="n" role="columnheader">{t("Rooms")}</span><span role="columnheader">{t("Status")}</span></div>
+          <GridTable cols="ci" label={t("Check-ins this week")}
+            head={<>
+              <span role="columnheader">{t("Date")}</span>
+              <span role="columnheader">{t("Client")}</span>
+              <span role="columnheader" className={DGT.n}>{t("Rooms")}</span>
+              <span role="columnheader">{t("Status")}</span>
+            </>}>
             {rows.map((r) => {
               const [tone, label] = CI_PILL[r.state] || ["gray", r.state];
               const d = iso(r.check_in);
               return (
-                <Link key={r.id} className="dt-r" role="row" href={`/cl/${r.id}/`}>
-                  <span className="d" role="cell">{r.in_days === 0 ? t("Today") : `${t(DAYS[d.getDay()])} ${d.getDate()}`}</span>
-                  <span role="cell" style={{ minWidth: 0 }}><span className="strong ell">{r.client}</span><span className="sub ell">{r.hotel}</span></span>
-                  <span className="n" role="cell">{r.rooms}</span>
+                <GridRow key={r.id} href={`/cl/${r.id}/`}>
+                  <span role="cell" className={DGT.d}>{r.in_days === 0 ? t("Today") : `${t(DAYS[d.getDay()])} ${d.getDate()}`}</span>
+                  <span role="cell" className="min-w-0"><span className={cn(DGT.strong, DGT.ell)}>{r.client}</span><span className={cn(DGT.sub, DGT.ell)}>{r.hotel}</span></span>
+                  <span role="cell" className={DGT.n}>{r.rooms}</span>
                   <span role="cell"><Pill tone={tone} sm>{t(label)}</Pill></span>
-                </Link>
+                </GridRow>
               );
             })}
-          </div>
-          <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("{n} rooms arriving this week", { n: rooms })}</span><Link href="/calendar/" style={{ marginLeft: "auto" }}>{t("See all in Calendar")}</Link></div>
+          </GridTable>
+          <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("{n} rooms arriving this week", { n: rooms })}</span><Link href="/calendar/" className={cn(DH.footLink, "ml-auto")}>{t("See all in Calendar")}</Link></div>
         </>
       ) : (
-        <Empty title={t("No check-ins this week")} sub={t("Arrivals of the next 7 days show here.")} />
+        <Empty className="py-8" title={t("No check-ins this week")} sub={t("Arrivals of the next 7 days show here.")} />
       )}
     </section>
   );
@@ -453,28 +466,13 @@ function ByBranch({ rows, period }) {
 
 function Ranking({ title, meta, rows, empty, hasPrev }) {
   const { t } = useI18n();
-  const max = Math.max(1, ...rows.map((r) => r.v));
-  const chg = (r) => (r.new ? (hasPrev ? [t("New"), "nw"] : ["", ""]) : r.chg == null ? ["", ""] : [`${r.chg >= 0 ? "+" : "−"}${Math.abs(r.chg)}%`, r.chg >= 0 ? "up" : "dn"]);
   return (
     <section data-slot="card" className={DA.card}>
       <div data-slot="card-head" className={DA.cardHead}><h2>{title}</h2><span className={DA.meta}>{meta}</span></div>
       {rows.length ? (
-        <div className="rk">
-          {rows.map((r, i) => {
-            const [c, tone] = chg(r);
-            return (
-              <Link key={r.id} className="rk-r" href={r.href}>
-                <span className="no">{i + 1}</span>
-                <span className="nm">{r.name}<small>{r.sub}</small></span>
-                <span className={"chg " + tone}>{c}</span>
-                <b>{fmtN(r.v)}</b>
-                <span className="bar"><i style={{ width: `${(r.v / max) * 100}%` }} /></span>
-              </Link>
-            );
-          })}
-        </div>
+        <RankBars rows={rows} hasPrev={hasPrev} />
       ) : (
-        <Empty title={empty[0]} sub={empty[1]} />
+        <Empty className="py-8" title={empty[0]} sub={empty[1]} />
       )}
     </section>
   );
@@ -490,15 +488,13 @@ function MoneyNow({ m }) {
   if (m.not_sent) rows.push({ label: t("Not sent to HQ"), sub: m.not_sent.last_sent ? t("Last sent {d}", { d: dDay(m.not_sent.last_sent) }) : t("Nothing sent yet"), v: millions(m.not_sent.idr), unit: "IDR", href: "/remittance/", warn: m.not_sent.idr > 0, zero: !m.not_sent.idr });
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Money now")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
-      <div className="mn">
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Money now")}</h2><Link href="/finance/bank-accounts/" className={DH.link}>{t("Bank and Cash")}</Link></div>
+      <MoneyRows>
         {rows.map((r) => (
-          <Link key={r.label} className="mn-r" href={r.href}>
-            <span>{r.label}<small>{r.sub}</small></span>
-            <b className={r.warn ? "warn" : r.zero ? "zero" : ""}>{r.v}<small>{r.unit}</small></b>
-          </Link>
+          <MoneyRow key={r.label} href={r.href} label={r.label} sub={r.sub}
+            value={<MoneyValue tone={r.warn ? "warn" : r.zero ? "zero" : undefined}>{r.v}<small className={MONEY_UNIT}>{r.unit}</small></MoneyValue>} />
         ))}
-      </div>
+      </MoneyRows>
     </section>
   );
 }
@@ -512,18 +508,15 @@ function People({ p }) {
   ];
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Users and access")}</h2><Link href="/users/">{t("Users")}</Link></div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Users and access")}</h2><Link href="/users/" className={DH.link}>{t("Users")}</Link></div>
       {rows.length ? (
-        <div className="mn">
+        <MoneyRows>
           {rows.map((r) => (
-            <Link key={r.key} className="mn-r" href={r.href}>
-              <span>{r.name}<small>{r.sub}</small></span>
-              <Pill tone={r.tone} sm>{r.pill}</Pill>
-            </Link>
+            <MoneyRow key={r.key} href={r.href} label={r.name} sub={r.sub} value={<Pill tone={r.tone} sm>{r.pill}</Pill>} />
           ))}
-        </div>
+        </MoneyRows>
       ) : (
-        <Empty title={t("Everyone can sign in")} sub={t("Locked and idle accounts show here.")} />
+        <Empty className="py-8" title={t("Everyone can sign in")} sub={t("Locked and idle accounts show here.")} />
       )}
     </section>
   );
@@ -545,22 +538,22 @@ function StaffHome(props) {
         scopeNote={staff ? null : t("Read only")} />
       {sales && <KpiRow period={period} sales={sales} sm={sm} isSeason={isSeason} kind={variant} checkins={checkins} uninvoiced={uninvoiced} />}
       {(sm || top) && (
-        <div className={"db-g2 db-charts" + (sm && top ? "" : " one")}>
+        <DashGrid g={sm && top ? "2" : "2-one"} className={staff ? ORDER.charts : undefined}>
           {sm && <SoldPerMonth sm={sm} sales={sales} period={period} isSeason={isSeason} />}
           {top && <TopClients top={top} />}
-        </div>
+        </DashGrid>
       )}
       {(work || checkins) && (
-        <div className={"db-g2b db-work" + (work && checkins ? "" : " one")}>
+        <DashGrid g={work && checkins ? "2b" : "2b-one"} className={staff ? ORDER.work : undefined}>
           {work && <Todo items={todo} count={todo.reduce((a, x) => a + x.count, 0)} />}
           {checkins && <Checkins data={checkins} />}
-        </div>
+        </DashGrid>
       )}
       {staff && (pays || advance) && (
-        <div className={"db-g2b db-mine" + (pays && advance ? "" : " one")}>
+        <DashGrid g={pays && advance ? "2b" : "2b-one"} className={ORDER.mine}>
           {pays && <MyPayments rows={pays} />}
           {advance && <MyAdvance rows={advance} />}
-        </div>
+        </DashGrid>
       )}
     </>
   );
@@ -570,23 +563,27 @@ function MyPayments({ rows }) {
   const { t } = useI18n();
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Payments I uploaded")}</h2><Link href="/finance/payments/">{t("Payment List")}</Link></div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Payments I uploaded")}</h2><Link href="/finance/payments/" className={DH.link}>{t("Payment List")}</Link></div>
       {rows.length ? (
-        <div className="dt dt-mypay" role="table" aria-label={t("Payments I uploaded")}>
-          <div className="dt-h" role="row"><span role="columnheader">{t("Client")}</span><span className="n" role="columnheader">{t("Amount")}</span><span role="columnheader">{t("Status")}</span></div>
+        <GridTable cols="mypay" label={t("Payments I uploaded")}
+          head={<>
+            <span role="columnheader">{t("Client")}</span>
+            <span role="columnheader" className={DGT.n}>{t("Amount")}</span>
+            <span role="columnheader">{t("Status")}</span>
+          </>}>
           {rows.map((p) => {
             const [tone, label] = PAY_PILL[p.status] || ["gray", p.status];
             return (
-              <Link key={p.id} className="dt-r" role="row" href={`/finance/payments/${p.id}/`}>
-                <span role="cell" style={{ minWidth: 0 }}><span className="strong ell">{p.client}</span><span className="sub ell">{[p.account, t("uploaded {d}", { d: dDay(p.uploaded) })].filter(Boolean).join(", ")}</span></span>
-                <span className="n" role="cell"><span className="bold">{money(p.amount, p.ccy)}</span><span className="mut">{p.ccy}</span></span>
+              <GridRow key={p.id} href={`/finance/payments/${p.id}/`}>
+                <span role="cell" className="min-w-0"><span className={cn(DGT.strong, DGT.ell)}>{p.client}</span><span className={cn(DGT.sub, DGT.ell)}>{[p.account, t("uploaded {d}", { d: dDay(p.uploaded) })].filter(Boolean).join(", ")}</span></span>
+                <span role="cell" className={DGT.n}><span className={DGT.bold}>{money(p.amount, p.ccy)}</span><span className={DGT.mut}>{p.ccy}</span></span>
                 <span role="cell"><Pill tone={tone} sm>{t(label)}</Pill></span>
-              </Link>
+              </GridRow>
             );
           })}
-        </div>
+        </GridTable>
       ) : (
-        <Empty title={t("No payments uploaded yet")} sub={t("Client payments you record show here until Finance confirms them.")} />
+        <Empty className="py-8" title={t("No payments uploaded yet")} sub={t("Client payments you record show here until Finance confirms them.")} />
       )}
     </section>
   );
@@ -597,14 +594,14 @@ function MyAdvance({ rows }) {
   return (
     <section data-slot="card" className={DA.card}>
       <div data-slot="card-head" className={DA.cardHead}><h2>{t("My cash advance")}</h2></div>
-      <div className="mn">
+      <MoneyRows>
         {rows.map((a) => (
-          <div key={a.id} className="mn-r">
-            <span>{a.held < 0 ? t("The office owes you") : t("Holding now")}<small>{a.given_on ? t("Last given {d}, {b}", { d: dDay(a.given_on), b: a.branch }) : a.branch}</small></span>
-            <b className={a.held < 0 ? "warn" : ""}>{fmtN(Math.abs(a.held))}<small>{a.ccy}</small></b>
-          </div>
+          <MoneyRow key={a.id}
+            label={a.held < 0 ? t("The office owes you") : t("Holding now")}
+            sub={a.given_on ? t("Last given {d}, {b}", { d: dDay(a.given_on), b: a.branch }) : a.branch}
+            value={<MoneyValue tone={a.held < 0 ? "warn" : undefined}>{fmtN(Math.abs(a.held))}<small className={MONEY_UNIT}>{a.ccy}</small></MoneyValue>} />
         ))}
-      </div>
+      </MoneyRows>
       <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("Return what is left to the office cash when done.")}</span></div>
     </section>
   );
@@ -618,26 +615,26 @@ function FinanceHome(props) {
       <Head todo={todo} period={period} seasons={seasons} today={props.today} onGo={props.onGo} />
       <FinanceKpis period={period} cash={cash} received={received} flow={flow} receivable={receivable} profit={profit} />
       {(flow || col) && (
-        <div className={"db-g2" + (flow && col ? "" : " one")}>
+        <DashGrid g={flow && col ? "2" : "2-one"}>
           {flow && <MoneyInOut flow={flow} />}
           {col && <Collected col={col} deposits={deposits} />}
-        </div>
+        </DashGrid>
       )}
-      <div className={"db-g2b" + (pay || chase ? "" : " one")}>
+      <DashGrid g={pay || chase ? "2b" : "2b-one"}>
         <Todo items={todo} count={todo.reduce((a, x) => a + x.count, 0)} />
         {(pay || chase) && (
-          <div className="db-stack">
+          <DashStack>
             {pay && <ToConfirm pay={pay} />}
             {chase && <ToChase chase={chase} />}
-          </div>
+          </DashStack>
         )}
-      </div>
+      </DashGrid>
       {(profit || cash || owed) && (
-        <div className={"db-g3" + ([profit, cash, owed].filter(Boolean).length === 3 ? "" : " two")}>
+        <DashGrid g={[profit, cash, owed].filter(Boolean).length === 3 ? "3" : "3-two"}>
           {profit && <ProfitCard profit={profit} toPay={toPay} />}
           {cash && <Accounts cash={cash} />}
           {owed && <OwedHq owed={owed} deposits={deposits} />}
-        </div>
+        </DashGrid>
       )}
     </>
   );
@@ -651,7 +648,7 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
   if (received) {
     const c = received.cur, p = received.prev;
     kpis.push({ label: t("Received"), v: fmtN(c.sar), unit: "SAR", d: pct(c.sar, p?.sar), good: !p || c.sar >= p.sar,
-      foot: p ? `${prevLabel}: ${fmtN(p.sar)}` : t("{n} payments confirmed", { n: c.count }), spark: [c.spark, p?.spark], href: "/finance/payments/" });
+      foot: p ? `${prevLabel}: ${fmtN(p.sar)}` : t("{n} payments confirmed", { n: c.count }), href: "/finance/payments/" });
   }
   if (flow) {
     const c = flow.cur, p = flow.prev;
@@ -669,23 +666,18 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
   }
   const ccy = (cash?.currencies || []).filter((c) => c.native);
   return (
-    <div className={"db-kpis" + (cash ? (kpis.length === 3 ? " k3" : "") : " nohero")}>
-      {cash && (
-        <Link className="db-hero" href="/finance/bank-accounts/">
-          <span className="l">{t("Bank and Cash")}</span>
-          <span className="v">{fmtN(cash.sar)}<small>SAR</small></span>
-          <span className="lines">
-            {ccy.map((c) => <span key={c.ccy}><span>{c.ccy}</span><b>{money(c.native, c.ccy)}</b></span>)}
-          </span>
-          <span className="f">{t("{n} accounts, today's rate", { n: cash.accounts.length })}</span>
-        </Link>
-      )}
+    <DashKpis hero={cash ? (
+      <HeroCard href="/finance/bank-accounts/" label={t("Bank and Cash")}
+        value={fmtN(cash.sar)} unit="SAR"
+        lines={ccy.map((c) => ({ k: c.ccy, v: money(c.native, c.ccy) }))}
+        foot={t("{n} accounts, today's rate", { n: cash.accounts.length })} />
+    ) : undefined}>
       {kpis.map((k) => (
         <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
           delta={k.d && { text: k.d, good: k.good }}
           tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined} />
       ))}
-    </div>
+    </DashKpis>
   );
 }
 
@@ -703,29 +695,32 @@ function MoneyInOut({ flow }) {
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
       <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
         <h2>{t("Money in and out")}<span className={DA.count}>{t("per month, M IDR")}</span></h2>
-        <span className="db-lg"><span><i style={{ background: GREEN }} />{t("Received")}</span><span><i style={{ background: "var(--foreground)" }} />{t("Paid out")}</span></span>
+        <Legend items={[
+          { label: t("Received"), bg: "bg-data" },
+          { label: t("Paid out"), bg: "bg-foreground" },
+        ]} />
       </div>
-      <div className="db-big"><b>{net >= 0 ? "+" : "−"}{millions(Math.abs(net))} IDR</b><span>{t("net in the branch accounts this period")}</span></div>
-      <div className="fc" role="img" aria-label={t("Received and paid out per month: {list}.", { list: months.map((m) => `${MON[m.d.getMonth()]} ${millions(m.in)} / ${millions(m.out)}`).join(", ") })}>
+      <BigFigure value={`${net >= 0 ? "+" : "−"}${millions(Math.abs(net))} IDR`} note={t("net in the branch accounts this period")} />
+      <div className={FC.chart} role="img" aria-label={t("Received and paid out per month: {list}.", { list: months.map((m) => `${MON[m.d.getMonth()]} ${millions(m.in)} / ${millions(m.out)}`).join(", ") })}>
         {[1, 2 / 3, 1 / 3, 0].map((f) => (
-          <div key={f} className="gl" style={{ bottom: `${f * 100}%` }}><span>{Math.round(scale * f)}</span></div>
+          <div key={f} className={FC.gl} style={{ bottom: `${f * 100}%` }}><span className={FC.glNum}>{Math.round(scale * f)}</span></div>
         ))}
         {months.map((m, i) => (
-          <div key={m.key} className={"fcol" + (i === last ? " on" : "")} onMouseEnter={() => setHv(i)} onMouseLeave={() => setHv(-1)}>
-            <span className="fin" style={{ height: `${Math.min(100, (m.in / 1e6 / scale) * 100)}%` }} />
-            <span className="fout" style={{ height: `${Math.min(100, (m.out / 1e6 / scale) * 100)}%` }} />
+          <div key={m.key} className={FC.col} onMouseEnter={() => setHv(i)} onMouseLeave={() => setHv(-1)}>
+            <span className={cn(FC.in, i === last && FC.onIn)} style={{ height: `${Math.min(100, (m.in / 1e6 / scale) * 100)}%` }} />
+            <span className={cn(FC.out, i === last && FC.onOut)} style={{ height: `${Math.min(100, (m.out / 1e6 / scale) * 100)}%` }} />
             {hv === i && (
-              <span className={"tip" + (i > 3 ? " r" : "")}>
-                <span className="h">{t(MONTHS[m.d.getMonth()])} {m.d.getFullYear()}</span>
-                <span className="r2"><span>{t("Received")}</span><b>{millions(m.in)}</b></span>
-                <span className="r2"><span>{t("Paid out")}</span><b>{millions(m.out)}</b></span>
-                <span className="r2"><span>{t("Net")}</span><b>{m.in >= m.out ? "+" : "−"}{millions(Math.abs(m.in - m.out))}</b></span>
+              <span className={cn(FC.tip, i > 3 && FC.tipR)}>
+                <span className={FC.tipH}>{t(MONTHS[m.d.getMonth()])} {m.d.getFullYear()}</span>
+                <span className={FC.tipRow}><span>{t("Received")}</span><b className={FC.tipVal}>{millions(m.in)}</b></span>
+                <span className={FC.tipRow}><span>{t("Paid out")}</span><b className={FC.tipVal}>{millions(m.out)}</b></span>
+                <span className={FC.tipRow}><span>{t("Net")}</span><b className={FC.tipVal}>{m.in >= m.out ? "+" : "−"}{millions(Math.abs(m.in - m.out))}</b></span>
               </span>
             )}
           </div>
         ))}
       </div>
-      <div className="fx">{months.map((m, i) => <span key={m.key} className={i === last || hv === i ? "on" : ""}>{MON[m.d.getMonth()]}</span>)}</div>
+      <div className={FC.x}>{months.map((m, i) => <span key={m.key} className={i === last || hv === i ? FC.xOn : undefined}>{MON[m.d.getMonth()]}</span>)}</div>
     </section>
   );
 }
@@ -736,18 +731,22 @@ function ToConfirm({ pay }) {
     <section data-slot="card" className={DA.card}>
       <div data-slot="card-head" className={DA.cardHead}><h2>{t("Payments to confirm")}{pay.count > 0 && <span className={DA.count}>{pay.count}</span>}</h2><span className={DA.meta}>{t("Check the money arrived, then confirm")}</span></div>
       {pay.rows.length ? (
-        <div className="dt dt-pay" role="table" aria-label={t("Payments to confirm")}>
-          <div className="dt-h" role="row"><span role="columnheader">{t("Client")}</span><span className="n" role="columnheader">{t("Amount")}</span><span /></div>
+        <GridTable cols="pay" label={t("Payments to confirm")}
+          head={<>
+            <span role="columnheader">{t("Client")}</span>
+            <span role="columnheader" className={DGT.n}>{t("Amount")}</span>
+            <span />
+          </>}>
           {pay.rows.map((p) => (
-            <Link key={p.id} className="dt-r" role="row" href={`/finance/payments/${p.id}/`}>
-              <span role="cell" style={{ minWidth: 0 }}><span className="strong ell">{p.client}</span><span className="sub ell">{t("Into {a}, waiting {d} days", { a: p.account, d: p.waiting })}</span></span>
-              <span className="n" role="cell"><span className="bold">{money(p.amount, p.ccy)}</span><span className="mut">{p.ccy}</span></span>
-              <span className="go" aria-hidden="true">{LIcon.next}</span>
-            </Link>
+            <GridRow key={p.id} href={`/finance/payments/${p.id}/`}>
+              <span role="cell" className="min-w-0"><span className={cn(DGT.strong, DGT.ell)}>{p.client}</span><span className={cn(DGT.sub, DGT.ell)}>{t("Into {a}, waiting {d} days", { a: p.account, d: p.waiting })}</span></span>
+              <span role="cell" className={DGT.n}><span className={DGT.bold}>{money(p.amount, p.ccy)}</span><span className={DGT.mut}>{p.ccy}</span></span>
+              <span className={DGT.go} aria-hidden="true">{LIcon.next}</span>
+            </GridRow>
           ))}
-        </div>
+        </GridTable>
       ) : (
-        <Empty title={t("No payments to confirm")} sub={t("Payments recorded by staff wait here for you.")} />
+        <Empty className="py-8" title={t("No payments to confirm")} sub={t("Payments recorded by staff wait here for you.")} />
       )}
     </section>
   );
@@ -757,24 +756,29 @@ function ToChase({ chase }) {
   const { t } = useI18n();
   return (
     <section data-slot="card" className={cn(DA.card, "flex-1")}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Invoices to chase")}{chase.clients > 0 && <span className={DA.count}>{chase.clients}</span>}</h2><Link href="/finance/ar-aging/">{t("AR aging")}</Link></div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Invoices to chase")}{chase.clients > 0 && <span className={DA.count}>{chase.clients}</span>}</h2><Link href="/finance/ar-aging/" className={DH.link}>{t("AR aging")}</Link></div>
       {chase.rows.length ? (
         <>
-          <div className="dt dt-pd" role="table" aria-label={t("Invoices past due")}>
-            <div className="dt-h" role="row"><span role="columnheader">{t("Client and invoice")}</span><span className="n" role="columnheader">{t("Late")}</span><span role="columnheader">{t("Reminded")}</span><span className="n" role="columnheader">SAR</span></div>
+          <GridTable cols="pd" label={t("Invoices past due")}
+            head={<>
+              <span role="columnheader">{t("Client and invoice")}</span>
+              <span role="columnheader" className={DGT.n}>{t("Late")}</span>
+              <span role="columnheader">{t("Reminded")}</span>
+              <span role="columnheader" className={DGT.n}>SAR</span>
+            </>}>
             {chase.rows.map((r) => (
-              <Link key={r.client_id} className="dt-r" role="row" href={`/invoice/${r.invoice.id}/`}>
-                <span role="cell" style={{ minWidth: 0 }}><span className="strong ell">{r.client}</span><span className="sub ell">{t("{n}, due {d}", { n: r.invoice.number, d: dDay(r.due_date) })}</span></span>
-                <span className="n late-n" role="cell">{t("{d} d", { d: r.late })}</span>
-                <span className="d" role="cell">{r.reminded ? dDay(r.reminded) : t("Never")}</span>
-                <span className="n bold" role="cell">{fmtN(r.open)}</span>
-              </Link>
+              <GridRow key={r.client_id} href={`/invoice/${r.invoice.id}/`}>
+                <span role="cell" className="min-w-0"><span className={cn(DGT.strong, DGT.ell)}>{r.client}</span><span className={cn(DGT.sub, DGT.ell)}>{t("{n}, due {d}", { n: r.invoice.number, d: dDay(r.due_date) })}</span></span>
+                <span role="cell" className={cn(DGT.n, DGT.late)}>{t("{d} d", { d: r.late })}</span>
+                <span role="cell" className={DGT.d}>{r.reminded ? dDay(r.reminded) : t("Never")}</span>
+                <span role="cell" className={cn(DGT.n, DGT.bold)}>{fmtN(r.open)}</span>
+              </GridRow>
             ))}
-          </div>
+          </GridTable>
           <div data-slot="card-foot" className={DA.cardFoot}><span className={DA.footLabel}>{t("{v} SAR past due", { v: fmtN(chase.total) })}</span></div>
         </>
       ) : (
-        <Empty title={t("Nothing past due")} sub={t("Invoices past their due date show here.")} />
+        <Empty className="py-8" title={t("Nothing past due")} sub={t("Invoices past their due date show here.")} />
       )}
     </section>
   );
@@ -784,12 +788,16 @@ function ProfitCard({ profit, toPay }) {
   const { t } = useI18n();
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Branch profit and expenses")}</h2><Link href="/finance/fund-flow/">{t("Fund Flow")}</Link></div>
-      <div className="mn">
-        <Link className="mn-r" href="/finance/fund-flow/"><span>{t("Branch profit, FX gain")}<small>{t("On rupiah sent to HQ this period")}</small></span><b className={profit.cur < 0 ? "warn" : ""}>{profit.cur == null ? "–" : millions(profit.cur)}<small>IDR</small></b></Link>
-        <Link className="mn-r" href="/finance/expenses/"><span>{t("Expenses paid")}<small>{t("From branch cash, claimed back from Pusat")}</small></span><b>{millions(profit.expenses)}<small>IDR</small></b></Link>
-        {toPay && <Link className="mn-r" href="/finance/expenses/?status=approved"><span>{t("Expenses to pay")}<small>{toPay.count ? t("{n} approved, not paid yet", { n: toPay.count }) : t("None")}</small></span><b className={toPay.count ? "warn" : ""}>{millions(toPay.total)}<small>IDR</small></b></Link>}
-      </div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Branch profit and expenses")}</h2><Link href="/finance/fund-flow/" className={DH.link}>{t("Fund Flow")}</Link></div>
+      <MoneyRows>
+        <MoneyRow href="/finance/fund-flow/" label={t("Branch profit, FX gain")} sub={t("On rupiah sent to HQ this period")}
+          value={<MoneyValue tone={profit.cur < 0 ? "warn" : undefined}>{profit.cur == null ? "–" : millions(profit.cur)}<small className={MONEY_UNIT}>IDR</small></MoneyValue>} />
+        <MoneyRow href="/finance/expenses/" label={t("Expenses paid")} sub={t("From branch cash, claimed back from Pusat")}
+          value={<MoneyValue>{millions(profit.expenses)}<small className={MONEY_UNIT}>IDR</small></MoneyValue>} />
+        {toPay && <MoneyRow href="/finance/expenses/?status=approved" label={t("Expenses to pay")}
+          sub={toPay.count ? t("{n} approved, not paid yet", { n: toPay.count }) : t("None")}
+          value={<MoneyValue tone={toPay.count ? "warn" : undefined}>{millions(toPay.total)}<small className={MONEY_UNIT}>IDR</small></MoneyValue>} />}
+      </MoneyRows>
     </section>
   );
 }
@@ -799,19 +807,17 @@ function Accounts({ cash }) {
   const st = cash.staff;
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Accounts")}</h2><Link href="/finance/bank-accounts/">{t("Bank and Cash")}</Link></div>
-      <div className="mn">
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Accounts")}</h2><Link href="/finance/bank-accounts/" className={DH.link}>{t("Bank and Cash")}</Link></div>
+      <MoneyRows>
         {cash.accounts.map((a) => (
-          <Link key={a.id} className="mn-r" href="/finance/bank-accounts/">
-            <span className="ell">{a.name}<small>{a.kind === "cash" ? t("Cash in the office") : t("Bank, {c}", { c: a.ccy })}</small></span>
-            <b className={a.native < 0 ? "warn" : ""}>{money(a.native, a.ccy)}<small>{a.ccy}</small></b>
-          </Link>
+          <MoneyRow key={a.id} href="/finance/bank-accounts/" ell label={a.name}
+            sub={a.kind === "cash" ? t("Cash in the office") : t("Bank, {c}", { c: a.ccy })}
+            value={<MoneyValue tone={a.native < 0 ? "warn" : undefined}>{money(a.native, a.ccy)}<small className={MONEY_UNIT}>{a.ccy}</small></MoneyValue>} />
         ))}
-        <Link className="mn-r" href="/finance/bank-accounts/">
-          <span>{t("Held by staff")}<small>{st.people ? t("{n} staff, oldest {d} days", { n: st.people, d: st.oldest ?? 0 }) : t("None")}</small></span>
-          <b className={(st.oldest || 0) > 14 ? "warn" : ""}>{fmtN(st.sar)}<small>SAR</small></b>
-        </Link>
-      </div>
+        <MoneyRow href="/finance/bank-accounts/" label={t("Held by staff")}
+          sub={st.people ? t("{n} staff, oldest {d} days", { n: st.people, d: st.oldest ?? 0 }) : t("None")}
+          value={<MoneyValue tone={(st.oldest || 0) > 14 ? "warn" : undefined}>{fmtN(st.sar)}<small className={MONEY_UNIT}>SAR</small></MoneyValue>} />
+      </MoneyRows>
     </section>
   );
 }
@@ -821,12 +827,17 @@ function OwedHq({ owed, deposits }) {
   const tr = owed.transit;
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Owed to HQ")}</h2><Link href="/remittance/">{t("Remittance")}</Link></div>
-      <div className="mn">
-        <Link className="mn-r" href="/remittance/"><span>{t("Not sent yet")}<small>{owed.last_sent ? t("Last sent {d}", { d: dDay(owed.last_sent) }) : t("Nothing sent yet")}</small></span><b className={owed.not_sent > 0 ? "warn" : ""}>{millions(owed.not_sent)}<small>IDR</small></b></Link>
-        <Link className="mn-r" href="/remittance/"><span>{t("In transit")}<small>{tr.count ? t("Sent to HQ, not received yet, since {d}", { d: dDay(tr.first.date) }) : t("Nothing in transit")}</small></span><b>{fmtN(tr.count)}<small>{t("remittances")}</small></b></Link>
-        {deposits && <Link className="mn-r" href="/finance/statements/"><span>{t("Client deposits")}<small>{t("Paid ahead, not applied yet")}</small></span><b>{fmtN(deposits.total)}<small>SAR</small></b></Link>}
-      </div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("Owed to HQ")}</h2><Link href="/remittance/" className={DH.link}>{t("Remittance")}</Link></div>
+      <MoneyRows>
+        <MoneyRow href="/remittance/" label={t("Not sent yet")}
+          sub={owed.last_sent ? t("Last sent {d}", { d: dDay(owed.last_sent) }) : t("Nothing sent yet")}
+          value={<MoneyValue tone={owed.not_sent > 0 ? "warn" : undefined}>{millions(owed.not_sent)}<small className={MONEY_UNIT}>IDR</small></MoneyValue>} />
+        <MoneyRow href="/remittance/" label={t("In transit")}
+          sub={tr.count ? t("Sent to HQ, not received yet, since {d}", { d: dDay(tr.first.date) }) : t("Nothing in transit")}
+          value={<MoneyValue>{fmtN(tr.count)}<small className={MONEY_UNIT}>{t("remittances")}</small></MoneyValue>} />
+        {deposits && <MoneyRow href="/finance/statements/" label={t("Client deposits")} sub={t("Paid ahead, not applied yet")}
+          value={<MoneyValue>{fmtN(deposits.total)}<small className={MONEY_UNIT}>SAR</small></MoneyValue>} />}
+      </MoneyRows>
     </section>
   );
 }

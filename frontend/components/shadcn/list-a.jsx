@@ -238,7 +238,9 @@ export function Toolbar({ left, children, spaced }) {
 export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full">{children}</div>;
 
 // The month label of a month navigator.
-export const MonthLabel = ({ children }) => <span data-slot="month" className="mr-2 min-w-[76px] text-[14px] font-semibold">{children}</span>;
+export const MonthLabel = ({ className, children }) => (
+  <span data-slot="month" className={cn("mr-2 min-w-[76px] text-[14px] font-semibold", className)}>{children}</span>
+);
 
 // ‹ › beside the month.
 export const NavButton = (props) => (
