@@ -31,6 +31,7 @@ from ..permissions import (
     role_label,
     role_labels,
 )
+from .helpers import request_data
 
 
 class CompanyLoginView(LoginView):
@@ -300,6 +301,13 @@ def user_edit(request, pk):
     return redirect('user_list')
 
 
+def _can_edit_username(user):
+    """Who may rename an account: a Django superuser or the app's Admin role.
+    Everyone else sees the username read-only, and the server ignores any
+    username posted by the form."""
+    return user.is_superuser or get_role(user) == ADMIN_SLUG
+
+
 def _user_form_page(request, edit_user, form_data=None, errors=None):
     """The edit form (canvas "User Form"): name, role and branch, a password
     reset, and whether the account is active, saved together."""
@@ -307,6 +315,7 @@ def _user_form_page(request, edit_user, form_data=None, errors=None):
         "edit": {
             "id": edit_user.pk, "username": edit_user.username,
             "is_self": edit_user == request.user, "is_superuser": edit_user.is_superuser,
+            "can_edit_username": _can_edit_username(request.user),
         },
         "form_data": form_data or {
             "username": edit_user.username, "full_name": edit_user.get_full_name(),
@@ -323,11 +332,26 @@ def _save_user_form(request, edit_user):
     P = request.POST
     is_self = edit_user == request.user
     full_name = (P.get('full_name') or '').strip()
+    username = edit_user.username
     role = _clean_role(P.get('role'), get_role(edit_user))
     branch, branch_error = _clean_branch(P.get('branch', _branch_value(edit_user)), role)
     password, confirm = P.get('password', ''), P.get('password_confirm', '')
     is_active = P.get('is_active') == 'on'
     errors = {}
+    if _can_edit_username(request.user) and 'username' in P:
+        username = (P.get('username') or '').strip()
+        if not username:
+            errors['username'] = "Username is required."
+        elif len(username) > 150:
+            errors['username'] = "Username must be 150 characters or fewer."
+        else:
+            try:
+                User.username_validator(username)
+            except ValidationError:
+                errors['username'] = "Enter a valid username. This value may contain only letters, numbers, and @/./+/-/_ characters."
+            else:
+                if User.objects.filter(username__iexact=username).exclude(pk=edit_user.pk).exists():
+                    errors['username'] = f"Username '{username}' is already taken."
     if not full_name:
         errors['full_name'] = "Enter the full name."
     elif len(full_name) > 150:
@@ -349,11 +373,14 @@ def _save_user_form(request, edit_user):
         errors['role'] = "Only a superuser can change a superuser's account."
     if errors:
         return _user_form_page(request, edit_user, {
-            "username": edit_user.username, "full_name": full_name, "role": role,
+            "username": username, "full_name": full_name, "role": role,
             "branch": P.get('branch') or ALL_BRANCHES, "is_active": is_active,
         }, errors)
 
     changes = []
+    if username != edit_user.username:
+        changes.append({'field': 'username', 'old': edit_user.username, 'new': username})
+        edit_user.username = username
     if access_changes:
         changes += [{'field': f, 'old': o, 'new': n} for f, o, n in
                     (('role', get_role(edit_user), role), ('branch', _branch_value(edit_user), branch)) if o != n]
@@ -560,6 +587,7 @@ def _profile_props(request):
             "email":        u.email,
             "uid":          f"UID-{u.pk:04d}",
             "is_superuser": u.is_superuser,
+            "can_edit_username": _can_edit_username(u),
             "is_staff":     u.is_staff,
             "is_active":    u.is_active,
             "role":         role,
@@ -583,7 +611,9 @@ def account_profile(request):
 @require_POST
 def account_profile_update(request):
     u = request.user
-    data = request.POST
+    # Inertia posts JSON for plain objects; reading only request.POST here
+    # silently saved nothing while still flashing "Profile updated".
+    data = request_data(request)
     errors = {}
 
     # Only the fields actually sent are touched, so each section on the page
@@ -605,11 +635,13 @@ def account_profile_update(request):
             if User.objects.filter(email__iexact=email).exclude(pk=u.pk).exists():
                 errors["email"] = "This email is already in use."
 
-    # Usernames identify an account, so only an administrator may change them —
-    # enforced server-side, not just hidden in the UI.
+    # Usernames identify an account, so only an administrator (superuser or
+    # the app's Admin role) may change them — enforced server-side, not just
+    # hidden in the UI.
     username = None
+    old_username = u.username
     if "username" in data:
-        if not u.is_superuser:
+        if not _can_edit_username(u):
             errors["username"] = "Only an administrator can change the username."
         else:
             username = data.get("username", "").strip()
@@ -644,6 +676,9 @@ def account_profile_update(request):
         u.username = username
         update_fields.append("username")
     u.save(update_fields=update_fields)
+    if username is not None and username != old_username:
+        log_activity(u, ActivityLog.ACTION_EDIT, 'User', username,
+                     [{'field': 'username', 'old': old_username, 'new': username}])
     messages.success(request, tr(request, "Profile updated.", "Profil diperbarui."))
     return redirect("account_profile")
 

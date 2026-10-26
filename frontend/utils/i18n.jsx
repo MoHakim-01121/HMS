@@ -13,6 +13,8 @@ export function LocaleProvider({ children }) {
   const dict = DICTS[locale] || en;
 
   // t("Send recap to {name}?", { name: client }) → interpolates {name}.
+  // Depend on `dict`, not `locale`: the callback reads `dict`, and the two
+  // change together anyway (DICTS[locale]).
   const t = useCallback(
     (str, vars) => {
       let out = (dict && dict[str]) || str;
@@ -23,7 +25,7 @@ export function LocaleProvider({ children }) {
       }
       return out;
     },
-    [locale],
+    [dict],
   );
 
   const value = useMemo(() => ({ locale, t }), [locale, t]);

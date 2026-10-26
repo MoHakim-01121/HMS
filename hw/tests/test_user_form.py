@@ -15,12 +15,48 @@ class UserFormTest(TestCase):
     def save(self, user, **over):
         data = {'action': 'save', 'full_name': 'Siti Aminah', 'role': 'staff', 'branch': 'sby', 'is_active': 'on'}
         data.update(over)
-        return self.client.post(f'/users/{user.pk}/edit/', data)
+        return self.client.post(f'/users/{user.pk}/edit/', data, HTTP_X_INERTIA='true')
 
     def test_edit_page_opens_with_the_users_data(self):
         props = self.client.get(f'/users/{self.siti.pk}/edit/', HTTP_X_INERTIA='true').json()['props']
         self.assertEqual((props['edit']['username'], props['form_data']['branch'], props['form_data']['is_active']),
                          ('siti', 'sby', True))
+        # An Admin-role account (not a Django superuser) may rename accounts.
+        self.assertTrue(props['edit']['can_edit_username'])
+
+    def test_admin_role_renames_another_user(self):
+        resp = self.save(self.siti, username='siti.baru')
+        self.assertRedirects(resp, '/users/', fetch_redirect_response=False)
+        self.assertEqual(User.objects.get(pk=self.siti.pk).username, 'siti.baru')
+        from hw.models import ActivityLog
+        entry = ActivityLog.objects.filter(model_name='User').latest('id')
+        self.assertIn({'field': 'username', 'old': 'siti', 'new': 'siti.baru'}, entry.changes)
+
+    def test_admin_role_renames_their_own_account(self):
+        resp = self.save(self.admin, full_name='Chief', role='admin', branch='all', username='chief.baru')
+        self.assertRedirects(resp, '/users/', fetch_redirect_response=False)
+        self.assertEqual(User.objects.get(pk=self.admin.pk).username, 'chief.baru')
+
+    def test_superuser_renames_an_account(self):
+        root = User.objects.create_superuser('root', password='rootpw123')
+        self.client.force_login(root)
+        resp = self.save(self.siti, username='siti.super')
+        self.assertRedirects(resp, '/users/', fetch_redirect_response=False)
+        self.assertEqual(User.objects.get(pk=self.siti.pk).username, 'siti.super')
+
+    def test_duplicate_username_saves_nothing(self):
+        User.objects.create_user('taken', password='pw12345')
+        resp = self.save(self.siti, full_name='Siti Baru', username='TAKEN')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('username', resp.json()['props']['errors'])
+        siti = User.objects.get(pk=self.siti.pk)
+        self.assertEqual((siti.username, siti.get_full_name()), ('siti', ''))
+
+    def test_invalid_username_saves_nothing(self):
+        resp = self.save(self.siti, username='bad name!')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('username', resp.json()['props']['errors'])
+        self.assertEqual(User.objects.get(pk=self.siti.pk).username, 'siti')
 
     def test_saves_name_role_password_and_active_together(self):
         resp = self.save(self.siti, role='manager', password='baru12345', password_confirm='baru12345', is_active='')

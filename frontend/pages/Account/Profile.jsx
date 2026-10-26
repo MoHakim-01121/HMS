@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
 import { router } from "@inertiajs/react";
 import { Dialog, DialogContent, DialogTitle } from "../../components/shadcn/ui/dialog.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { saveLanguage } from "../../utils/language.js";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +126,8 @@ const short = (iso) => { const p = iso.split("-"); return `${+p[2]} ${MON[+p[1] 
 
 export default function Profile({ profile, account, activity, errors: serverErrors = {} }) {
   const { t, locale } = useI18n();
-  const isAdmin = account.is_superuser;
+  const isSuperuser = account.is_superuser;
+  const canEditUsername = account.can_edit_username ?? isSuperuser;
   const [toast, setToast] = useState("");
   const [ok, setOk] = useState(null);
   const [edit, setEdit] = useState(null);
@@ -139,17 +140,16 @@ export default function Profile({ profile, account, activity, errors: serverErro
   const fields = [
     { key: "full_name", label: t("Name"), value: account.full_name, editable: true },
     { key: "email", label: t("Email"), value: account.email, editable: true },
-    { key: "username", label: t("Username"), value: account.username, editable: isAdmin,
-      sub: isAdmin ? t("Used to sign in") : t("Used to sign in. Only an administrator can change it.") },
+    { key: "username", label: t("Username"), value: account.username, editable: canEditUsername,
+      sub: canEditUsername ? t("Used to sign in") : t("Used to sign in. Only an administrator can change it.") },
   ];
 
   const pickLang = async (v) => {
     if (v === lang) return;
     setLang(v);
     try {
-      await axios.post("/account/language/", new URLSearchParams({ language: v }));
+      await saveLanguage(v, { preserveScroll: true });
       setLangOk(true);
-      router.reload({ preserveScroll: true });
     } catch { setLang(lang); }
   };
 
@@ -178,7 +178,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
               <span className={pill("info")}>{account.role_badge}</span>
               <span className={pill()}>{t(account.branch)}</span>
               <span className={pill(account.is_active && "ok")}>{account.is_active ? t("Active") : t("Inactive")}</span>
-              {isAdmin && <span className={pill()}>{t("Superuser")}</span>}
+              {isSuperuser && <span className={pill()}>{t("Superuser")}</span>}
             </div>
           </div>
           <dl className="m-0 ml-auto flex flex-wrap gap-y-3 max-[900px]:ml-0 max-[900px]:w-full">

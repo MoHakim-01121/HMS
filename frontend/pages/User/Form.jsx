@@ -26,13 +26,14 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
   const errors = { ...serverErrors, ...form.errors };
   const [resetting, setResetting] = useState(!edit || !!errors.password || !!errors.password_confirm);
   const isSelf = !!edit?.is_self;
+  const canEditUsername = !edit || !!edit.can_edit_username;
   const admin = d.role === "admin";
   const err = (k) => (errors[k] ? t(errors[k]) : null);
   const roleHint = role_choices.find((c) => c.value === d.role)?.description || "";
 
   const mismatch = d.password && d.password_confirm && d.password !== d.password_confirm;
   const why = !d.full_name.trim() ? t("Enter the full name.")
-    : !edit && !d.username.trim() ? t("Choose a username.")
+    : canEditUsername && !d.username.trim() ? t(edit ? "Username is required." : "Choose a username.")
       : !edit && !d.password ? t("Set a password.")
         : resetting && edit && !d.password ? t("Type the new password, or keep the current one.")
           : resetting && d.password && !d.password_confirm ? t("Confirm the password.")
@@ -44,7 +45,8 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
     if (why) return;
     if (edit) {
       form.transform((x) => ({
-        action: "save", full_name: x.full_name, role: x.role, branch: admin ? "all" : x.branch,
+        action: "save", username: canEditUsername ? x.username : edit.username,
+        full_name: x.full_name, role: x.role, branch: admin ? "all" : x.branch,
         password: resetting ? x.password : "", password_confirm: resetting ? x.password_confirm : "",
         is_active: x.is_active ? "on" : "",
       }));
@@ -69,9 +71,12 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
           <TextIn value={d.full_name} onChange={set("full_name")} placeholder={t("Enter the full name.")} autoFocus
             invalid={!!errors.full_name} suffix={isSelf ? <span className={FA.newTag}>{t("You")}</span> : null} />
         </Field>
-        <Field label={t("Username")} required={!edit} error={err("username")} hint={edit ? t("Username cannot be changed.") : null}>
-          {edit ? <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{d.username}</span></ReadOnly>
-            : <TextIn value={d.username} onChange={set("username")} placeholder={t("Username")} autoComplete="off" invalid={!!errors.username} />}
+        <Field label={t("Username")} required={!edit || canEditUsername} error={err("username")}
+          hint={!canEditUsername ? t("Username cannot be changed.")
+            : edit ? t("You sign in with this. Use the new one the next time you sign in.") : null}>
+          {canEditUsername
+            ? <TextIn value={d.username} onChange={set("username")} placeholder={t("Username")} autoComplete="off" invalid={!!errors.username} />
+            : <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{d.username}</span></ReadOnly>}
         </Field>
         <Field label={t("Role")} required error={err("role")} hint={isSelf ? t("You cannot change your own role.") : roleHint || null}>
           <Picker searchable={false} value={d.role} heading={t("Role")}

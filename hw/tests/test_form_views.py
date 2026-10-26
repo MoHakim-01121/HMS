@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 
@@ -298,6 +300,7 @@ class ProfileTests(TestCase):
         page = resp.json()
         self.assertEqual(page["component"], "Account/Profile")
         self.assertEqual(page["props"]["account"]["username"], "profiler")
+        self.assertFalse(page["props"]["account"]["can_edit_username"])
         self.assertIn("activity", page["props"])
         # Profile E2 opens the activity on today.
         self.assertEqual(page["props"]["activity"]["filters"]["range"], "today")
@@ -382,6 +385,50 @@ class ProfileTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "newprofiler")
+
+    def test_profile_update_username_for_admin_role(self):
+        # The app's Admin role (not a Django superuser) may rename itself too.
+        self.user.profile.role = "admin"
+        self.user.profile.save(update_fields=["role"])
+        page = self.client.get("/account/profile/", HTTP_X_INERTIA="true").json()
+        self.assertTrue(page["props"]["account"]["can_edit_username"])
+        resp = self._post("/account/profile/update/", {"username": "newprofiler"})
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "newprofiler")
+
+    def test_profile_username_change_is_audited(self):
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.user.refresh_from_db()
+        self._post("/account/profile/update/", {"username": "newprofiler"})
+        from hw.models import ActivityLog
+        entry = ActivityLog.objects.filter(model_name="User").latest("id")
+        self.assertEqual(entry.changes, [{"field": "username", "old": "profiler", "new": "newprofiler"}])
+
+    def test_profile_update_reads_the_json_body_inertia_sends(self):
+        # Inertia posts plain objects as JSON; request.POST is empty then.
+        resp = self.client.post(
+            "/account/profile/update/",
+            data=json.dumps({"full_name": "Budi Santoso"}),
+            content_type="application/json",
+            HTTP_X_INERTIA="true",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.get_full_name(), "Budi Santoso")
+
+    def test_profile_username_change_reads_the_json_body(self):
+        User.objects.filter(pk=self.user.pk).update(is_superuser=True)
+        self.user.refresh_from_db()
+        resp = self.client.post(
+            "/account/profile/update/",
+            data=json.dumps({"username": "json.name"}),
+            content_type="application/json",
+            HTTP_X_INERTIA="true",
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "json.name")
 
     def test_profile_update_rejects_duplicate_username(self):
         User.objects.create_user("taken_name", password="pw12345")

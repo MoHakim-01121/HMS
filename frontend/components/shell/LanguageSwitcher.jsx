@@ -1,7 +1,6 @@
-import axios from "axios";
-import { router } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
+import { saveLanguage } from "../../utils/language.js";
 
 // Homlu v2.1 (doc 1e): one component, two shapes.
 //  - default  → segmented control for a wide topbar / settings row
@@ -20,8 +19,7 @@ export default function LanguageSwitcher({ variant = "default" }) {
   const change = async (value) => {
     if (value === locale) return;
     try {
-      await axios.post("/account/language/", new URLSearchParams({ language: value }));
-      router.reload();
+      await saveLanguage(value);
     } catch {
       /* keep current language on failure */
     }
