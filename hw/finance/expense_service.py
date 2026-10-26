@@ -211,7 +211,7 @@ def void_expense(expense, *, voided_by, reason='', date=None):
     _check_branch(expense.branch_id, voided_by)
     from .claim_service import drop_voided_expense
     drop_voided_expense(expense)
-    date = date or timezone.now().date()
+    date = date or timezone.localdate()
     for ep in expense.payments.filter(status=ExpensePayment.STATUS_PAID):
         for entry in JournalEntry.objects.for_source('ExpensePayment', ep.pk).live():
             reverse_entry(entry, reversal_date=date, created_by=voided_by)

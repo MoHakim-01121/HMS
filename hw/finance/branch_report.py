@@ -12,6 +12,7 @@ import calendar
 from datetime import date, timedelta
 
 from django.db.models import Case, F, IntegerField, Sum, When
+from django.utils import timezone
 
 from ..models.bank import MoneyAccount
 from ..models.bank_transaction import BankTransaction
@@ -59,7 +60,7 @@ def _span(date_from, date_to, label):
 def period_bounds(kind, value, *, today=None):
     """{'kind', 'value', 'date_from', 'date_to', 'label', 'prev'}. Nilai yang
     kosong atau tidak terbaca jatuh ke bulan berjalan."""
-    today = today or date.today()
+    today = today or timezone.localdate()
     value = (value or '').strip()
     if kind == 'quarter':
         try:

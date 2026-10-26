@@ -5,7 +5,6 @@ mengajukan klaim, lalu mencatat penolakan Pusat atau menandainya lunas saat
 rupiah penggantiannya masuk. Logika di hw/finance/claim_service.py; view hanya
 membaca request dan menerjemahkan FinanceError menjadi pesan.
 """
-from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
@@ -107,7 +106,7 @@ def _ids(data, key):
 
 
 def _range(request, data):
-    today = date.today()
+    today = timezone.localdate()
     return (_parse_date(data.get('date_from')) or today.replace(day=1),
             _parse_date(data.get('date_to')) or today)
 
@@ -186,7 +185,7 @@ def _act(request, pk, action):
                 raise FinanceError(error)
             svc.mark_paid(
                 claim, account=resolve_money_account(data.get('account')),
-                paid_date=_parse_date(data.get('paid_date')) or date.today(), by=request.user,
+                paid_date=_parse_date(data.get('paid_date')) or timezone.localdate(), by=request.user,
                 reference=(data.get('reference') or '').strip(), proof=proof,
             )
             messages.success(request, tr(request, f'{claim.claim_number} paid: reimbursement from HQ recorded.', f'{claim.claim_number} lunas: penggantian dari Pusat dicatat.'))

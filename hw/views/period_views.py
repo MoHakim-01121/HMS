@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..finance import period_checklist, seasons
@@ -142,7 +143,7 @@ def period_create(request):
     """Create the monthly periods of a year that do not exist yet."""
     if request.method == 'POST':
         try:
-            year = int(_post_data(request).get('year', date.today().year))
+            year = int(_post_data(request).get('year', timezone.localdate().year))
             if not 2000 <= year <= 2100:
                 raise ValueError
         except (TypeError, ValueError):

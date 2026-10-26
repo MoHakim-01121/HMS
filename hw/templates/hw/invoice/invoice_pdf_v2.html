@@ -236,9 +236,11 @@
   <table>
     <thead>
       <tr>
-        <th>Ref</th>
+        <th>Payment ID</th>
         <th>Date</th>
+        <th>Ref</th>
         <th>Method</th>
+        <th>Received by (office)</th>
         <th class="r">Amount</th>
         <th class="r">Amount (SAR)</th>
       </tr>
@@ -246,9 +248,11 @@
     <tbody>
       {% for p in payments %}
       <tr>
-        <td><div class="td-name">{{ p.reservation_no }}</div></td>
+        <td><div class="td-name">{{ p.payment_id }}</div></td>
         <td>{% if p.date %}{{ p.date|date:"d M Y" }}{% else %}—{% endif %}</td>
+        <td>{{ p.reservation_no }}</td>
         <td>{{ p.method }}</td>
+        <td>{{ p.received_in }}</td>
         <td class="r">
           {{ p.amount }} {{ p.currency }}
           {% if p.currency != 'SAR' %}<div class="td-sub">@ {{ p.exchange }}</div>{% endif %}

@@ -4,7 +4,6 @@ Both reduce revenue, so both sit behind invoice/delete: managers and admins
 only, never day-to-day staff.
 """
 import json
-from datetime import date
 
 from django.conf import settings
 from django.contrib import messages
@@ -92,7 +91,7 @@ def _cn_form_props(invoice, data=None, error=None):
         },
         'lines': cns.creditable_lines(invoice),
         'cancel': _detail_url(invoice),
-        'form': data or {'issued_date': date.today().isoformat(), 'reason': '', 'amounts': {}},
+        'form': data or {'issued_date': timezone.localdate().isoformat(), 'reason': '', 'amounts': {}},
         'error': error,
     }
 
@@ -160,7 +159,6 @@ def credit_note_rows(qs):
 def credit_note_list(request):
     """Credit Notes (Record View HMS canvas): no KPIs; the month's credit
     notes with the month total under the table."""
-    from datetime import date as _date
 
     from django.core.paginator import Paginator
     from django.db.models import Q
@@ -189,7 +187,7 @@ def credit_note_list(request):
         return [{'id': i.pk, 'number': i.invoice_number, 'client': i.customer_name}
                 for i in scope(Invoice.objects.exclude(status=Invoice.STATUS_VOID), request.user).order_by('-created_at')[:200]]
 
-    years = sorted({d.year for d in scope(CreditNote.objects.all(), request.user).dates('issued_date', 'year')} | {_date.today().year})
+    years = sorted({d.year for d in scope(CreditNote.objects.all(), request.user).dates('issued_date', 'year')} | {timezone.localdate().year})
     return inertia_render(request, 'Finance/CreditNotes', props={
         'credit_notes': list(page_obj),
         'filters': {'q': q, 'applied': applied, 'voided': '1' if voided else '', 'per': list_per_page(request), **period},

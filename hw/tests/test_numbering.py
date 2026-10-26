@@ -54,7 +54,20 @@ class AllocateTest(TestCase):
         client = Client.objects.create(name='PT A')
         make_invoice(invoice_type=InvoiceType.HOTEL, invoice_number='INV-004', client=client, customer_name='PT A')
         with transaction.atomic():
-            self.assertEqual(Invoice.generate_number(InvoiceType.HOTEL), 'INV-005')
+            # No financial period covers this date, so the month is the key.
+            self.assertEqual(
+                Invoice.generate_number(InvoiceType.HOTEL, issued_date=date(2041, 5, 1)),
+                'INV-204105-001',
+            )
+
+    def test_invoice_suggestion_uses_the_allocation_key(self):
+        with transaction.atomic():
+            suggested = Invoice.suggest_number(InvoiceType.HOTEL, issued_date=date(2041, 5, 1))
+            self.assertEqual(suggested, 'INV-204105-001')
+            self.assertEqual(
+                Invoice.generate_number(InvoiceType.HOTEL, issued_date=date(2041, 5, 1)),
+                suggested,
+            )
 
     def test_explicit_key_for_monthly_numbers(self):
         with transaction.atomic():

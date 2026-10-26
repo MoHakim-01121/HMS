@@ -4,9 +4,9 @@ Setiap kali pembayaran menjadi efektif (uang benar-benar masuk, status dalam
 PaymentRecord.EFFECTIVE_STATUSES), sebuah receipt otomatis dibuat. Ini
 memastikan setiap pembayaran punya kwitansi tanpa langkah manual tambahan.
 """
-from datetime import date
 
 from django.db import transaction
+from django.utils import timezone
 
 
 def _resolve_confirmation(payment):
@@ -60,7 +60,7 @@ def ensure_receipt(payment, created_by=None):
 
     return Receipt.objects.create(
         receipt_number=Receipt.generate_number(),
-        receipt_date=payment.payment_date or date.today(),
+        receipt_date=payment.payment_date or timezone.localdate(),
         payment=payment,
         invoice=payment.invoice,
         client=payment.client,

@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..branch_scope import branch_codes, covers_all, get_in_scope_or_404, in_view, scope
@@ -149,7 +150,6 @@ def statements_list(request):
     """Client Ledger list (Record View HMS canvas): receivables, what is
     overdue, customer deposits and what can be offset, then one row per client
     with its receivable debit, credit, balance and deposit."""
-    from datetime import date as _date
 
     from .helpers import list_per_page
     q = request.GET.get('q', '').strip()
@@ -185,7 +185,7 @@ def statements_list(request):
     page_obj = Paginator(shown, list_per_page(request)).get_page(request.GET.get('page'))
     return inertia_render(request, 'Finance/Statements', props={
         'clients': list(page_obj), 'totals': totals, 'kpis': kpis, 'counts': counts,
-        'as_of': _date.today().isoformat(),
+        'as_of': timezone.localdate().isoformat(),
         'filters': {'q': q, 'show': show, 'sort': sort, 'per': list_per_page(request)},
         'pagination': pagination_props(page_obj),
     })
@@ -233,7 +233,6 @@ def bank_account_list(request):
     """Bank and Cash (Record View HMS canvas): no KPIs; the accounts in bands
     per currency, the book balance in the account's currency and its SAR
     value, and the total."""
-    from datetime import date as _date
 
     from .helpers import csv_list
     q = request.GET.get('q', '').strip().lower()
@@ -252,7 +251,7 @@ def bank_account_list(request):
         'accounts': shown,
         'filters': {'q': q, 'kind': kinds, 'cur': currencies, 'branch': branches},
         'counts': counts,
-        'as_of': _date.today().isoformat(),
+        'as_of': timezone.localdate().isoformat(),
         'can_set_up': sets_up_accounts(request.user),
     })
 
@@ -648,7 +647,7 @@ def _report_branches(request):
 def _fund_flow_params(request):
     """(branch, from, to). The branch is one the user covers: Surabaya by
     default, otherwise the user's first branch."""
-    today = date.today()
+    today = timezone.localdate()
     date_from = _parse_date(request.GET.get('from')) or today.replace(day=1)
     date_to = _parse_date(request.GET.get('to')) or today
     branches = _report_branches(request)
@@ -701,7 +700,7 @@ def fund_flow_csv(request):
 
 
 def _aging_as_of(request):
-    return _parse_date(request.GET.get('as_of')) or date.today()
+    return _parse_date(request.GET.get('as_of')) or timezone.localdate()
 
 
 @require_perm('statements', 'view')

@@ -7,6 +7,7 @@ dashboard.home(); marketing pages live in landing_views.py.
 from datetime import date
 
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from .. import dashboard
@@ -26,7 +27,7 @@ def home(request):
     running season (`?season=1`). Each block is computed only for a user who
     may view the module it comes from, over the branch being looked at; the
     rest are left out and not drawn."""
-    today = date.today()
+    today = timezone.localdate()
     data = dashboard.home(
         request.user, today,
         month=_month_param(request.GET.get('month')),

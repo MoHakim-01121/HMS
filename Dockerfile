@@ -1,5 +1,5 @@
 # ---- Builder stage: compile/Pillow/cffi wheels, discard toolchain afterward ----
-FROM python:3.11-slim AS builder
+FROM python:3.12-slim AS builder
 
 # Build-time deps only — cffi/Pillow fall back to compiling here when no wheel
 # is available. None of these -dev packages ship in the runtime image.
@@ -21,10 +21,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- Runtime stage: minimal, non-root, health-checked ----
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
+    TZ=Asia/Jakarta \
     PORT=10000
 
 # Runtime libs for WeasyPrint (cairo/pango) + file-type sniffing only.
@@ -34,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     libgobject-2.0-0 \
     shared-mime-info \
+    tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /usr/sbin/nologin hms
 

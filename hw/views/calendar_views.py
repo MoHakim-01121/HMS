@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import date, timedelta
 
 from django.urls import reverse
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..branch_scope import scope
@@ -55,7 +56,7 @@ def calendar_view(request):
     draws the bars and works out Arriving, Leaving and In-house for the picked
     day. A cancelled booking holds no rooms, so it is left out.
     """
-    today = date.today()
+    today = timezone.localdate()
     view, first, last = _window(request, today)
 
     cls_list = list(

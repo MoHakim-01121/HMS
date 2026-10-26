@@ -6,12 +6,12 @@ branch's IDR accounts. See hw/finance/expense_service.py for the posting —
 views only parse the request and translate FinanceError into a message.
 """
 import json
-from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.shortcuts import redirect
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, head_office_only, operating_branches, scope
@@ -115,7 +115,7 @@ def expense_list(request):
     people = csv_list(request, 'by')
     sort = request.GET.get('sort', '-date')
     date_from, date_to, period = list_period(request)
-    today = date.today()
+    today = timezone.localdate()
     base = _visible(request).select_related('branch', 'created_by', 'vendor', 'decided_by').prefetch_related(*_PROPS_PREFETCH)
     qs = base
     if q:
@@ -273,7 +273,7 @@ def expense_record(request):
 
     try:
         expense = expense_service.submit_expense(
-            branch=branch, expense_date=_parse_date(data.get('expense_date')) or date.today(), lines=lines,
+            branch=branch, expense_date=_parse_date(data.get('expense_date')) or timezone.localdate(), lines=lines,
             created_by=request.user, vendor=data.get('vendor', ''),
             description=data.get('description', ''), note=data.get('note', ''), proof=proof,
             spent_by=spent_by or (None if paid_with else request.user), paid_with=paid_with,
@@ -301,7 +301,7 @@ def _decide(request, pk, action):
         elif action == 'pay':
             account = resolve_money_account(data.get('account'))
             expense_service.pay_expense(
-                expense, account=account, payment_date=_parse_date(data.get('payment_date')) or date.today(),
+                expense, account=account, payment_date=_parse_date(data.get('payment_date')) or timezone.localdate(),
                 paid_by=request.user, reference=(data.get('reference') or '').strip(),
             )
             messages.success(request, tr(request, f'{expense.expense_number} paid.', f'{expense.expense_number} dibayar.'))
@@ -354,7 +354,7 @@ def expense_export_csv(request):
         e.vendor.name if e.vendor_id else '', e.description, e.total_amount, e.total_amount_sar,
         e.get_status_display(), e.payment.payment_date if e.payment else '', e.created_at,
     ] for e in expenses)
-    return csv_export_response(f'expenses-{date.today().isoformat()}.csv', headers, rows)
+    return csv_export_response(f'expenses-{timezone.localdate().isoformat()}.csv', headers, rows)
 
 
 # ── Kategori beban (Finance Pusat dan Admin) ─────────────────────────

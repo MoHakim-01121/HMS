@@ -9,6 +9,7 @@ from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.http import Http404
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
@@ -160,7 +161,7 @@ def remittance_list(request):
     statuses = csv_list(request, 'status', ['transit', 'partial', 'received'])
     accounts = csv_list(request, 'acct')
     date_from, date_to, period = list_period(request)
-    today = date.today()
+    today = timezone.localdate()
 
     rows, kpis, counts, account_counts, page_obj, totals = [], None, {}, [], None, None
     if tab == 'transfers':
@@ -266,7 +267,7 @@ def remittance_new(request):
         return inertia_render(request, "Remittance/Form", props={
             'open_transfers': remittance_allocation.open_transfers(),
             'error': error,
-            'today': str(date.today()),
+            'today': str(timezone.localdate()),
             # Uang client rupiah yang belum disetor + kurs asalnya (laba kurs di form).
             'fx_pool': fund_flow.idr_pool('sby'),
             'from_accounts': [{
@@ -281,7 +282,7 @@ def remittance_new(request):
     if request.method != 'POST':
         return form_page()
 
-    remittance_date = request.POST.get('date') or str(date.today())
+    remittance_date = request.POST.get('date') or str(timezone.localdate())
     receipt_reference = request.POST.get('receipt_reference', '').strip()
     note = request.POST.get('note', '').strip()
     proof = request.FILES.get('proof')
@@ -730,7 +731,7 @@ def _compute_tracking_data():
     from ..models import Invoice
     from ..models.settlement import RemittanceSettlement
 
-    today = date.today()
+    today = timezone.localdate()
     rows = remittance_allocation.build_reservasi_mengendap()
     history = finance_queries.reservation_remittance_map([r['linked_number'] for r in rows])
     client_names = dict(

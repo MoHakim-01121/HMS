@@ -110,7 +110,7 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
     ]
 
     if not lunas and invoice.due_date:
-        today = timezone.now().date()
+        today = timezone.localdate()
         days_late = (today - invoice.due_date).days
         parts.append("")
         parts.append(f"*Jatuh Tempo: {_fmt_date_id(invoice.due_date)}*")
@@ -152,7 +152,7 @@ def get_chat_reply(
     `modules` is what the user may view: data of any other module or branch is
     not even read, so it can reach neither the answer nor the model provider."""
     from .branch_scope import scope
-    today = timezone.now().date()
+    today = timezone.localdate()
     month = today.month
     year  = today.year
 

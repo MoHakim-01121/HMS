@@ -37,7 +37,7 @@ class MissingDimensionError(FinanceError):
 
 def get_current_period():
     """Return the current open period (with row lock). Raises PeriodLockedError if none open."""
-    now = timezone.now().date()
+    now = timezone.localdate()
     period = FinancialPeriod.objects.select_for_update().filter(
         date_from__lte=now,
         date_to__gte=now,
@@ -406,7 +406,7 @@ def post_invoice_charge(invoice, *, created_by, entry_date=None, reason=None):
     """
     from . import invoice_revisions
 
-    entry_date = entry_date or invoice.issued_date or timezone.now().date()
+    entry_date = entry_date or invoice.issued_date or timezone.localdate()
     if invoice.status == invoice.STATUS_VOID:
         return None  # a void invoice bills nothing; its charge was reversed
     lines = _invoice_charge_lines(invoice)
@@ -457,7 +457,7 @@ def clear_payment_allocations(payment):
 @transaction.atomic
 def void_invoice_charge(invoice, *, created_by, entry_date=None):
     """Reverse semua charge entry invoice yang masih hidup (invoice void)."""
-    entry_date = entry_date or timezone.now().date()
+    entry_date = entry_date or timezone.localdate()
     for e in _live_entries("Invoice", invoice.pk, JournalEntry.TYPE_CHARGE):
         reverse_entry(e, reversal_date=entry_date, created_by=created_by)
 
@@ -763,7 +763,7 @@ def _remittance_send_lines(remittance, amount_sar, entry_date):
 def post_remittance_send(remittance, *, amount_sar, created_by, entry_date=None):
     """Uang keluar dari rekening cabang asal → Kas Dalam Perjalanan (Transit),
     dengan laba/rugi kurs cabang (_remittance_send_lines)."""
-    entry_date = entry_date or remittance.date or timezone.now().date()
+    entry_date = entry_date or remittance.date or timezone.localdate()
     return post_entry(
         entry_type=JournalEntry.TYPE_REMITTANCE,
         description=f"Remittance {remittance.remittance_number} kirim",
@@ -785,7 +785,7 @@ def resync_remittance(remittance, *, created_by):
     Entry lama dibalik pada tanggalnya sendiri, supaya tanggal yang dikoreksi
     benar-benar memindahkan uangnya; periode lama yang sudah ditutup menolak
     koreksi itu (PeriodLockedError)."""
-    entry_date = remittance.date or timezone.now().date()
+    entry_date = remittance.date or timezone.localdate()
     want = int(remittance.expected_sar or 0)
     live = _live_entries("Remittance", remittance.pk, JournalEntry.TYPE_REMITTANCE)
     # Decide on what the transfer is, not on its valuation: money that reached
@@ -941,7 +941,7 @@ def move_payment_excess_to_deposit(payment, *, created_by, entry_date=None, amou
     post_entry(
         entry_type=JournalEntry.TYPE_TRANSFER,
         description=f"Kelebihan {payment.payment_number} → deposit client",
-        entry_date=entry_date or timezone.now().date(),
+        entry_date=entry_date or timezone.localdate(),
         lines=[
             {"account": coa.AR, "debit": excess, "branch": payment.receiving_branch_code, **dims},
             {"account": coa.CUST_CREDIT, "credit": excess, **dims},
@@ -975,7 +975,7 @@ def return_payment_deposit(payment, *, created_by, entry_date=None):
             "client dan sebagian sudah dipakai. Pembayarannya tidak bisa dibatalkan."
         )
     for e in _live_entries("PaymentRecord", payment.pk, JournalEntry.TYPE_TRANSFER):
-        reverse_entry(e, reversal_date=entry_date or timezone.now().date(), created_by=created_by)
+        reverse_entry(e, reversal_date=entry_date or timezone.localdate(), created_by=created_by)
     returned = payment.deposited_sar
     payment.deposited_sar = 0
     payment.save(update_fields=["deposited_sar"])
@@ -1062,7 +1062,7 @@ def move_invoice_excess_to_deposit(invoice, *, created_by, entry_date=None):
         post_entry(
             entry_type=JournalEntry.TYPE_TRANSFER,
             description=f"Kelebihan bayar {invoice.invoice_number} → deposit client",
-            entry_date=entry_date or timezone.now().date(),
+            entry_date=entry_date or timezone.localdate(),
             lines=lines,
             source_type="Invoice",
             source_id=invoice.pk,
@@ -1130,7 +1130,7 @@ def reallocate_payment(payment, allocations, *, created_by, log_action=None, not
         )
     check_allocation_caps(payment, allocations)
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     before = allocation_snapshot(payment)
 
     # Reverse live payment journal entry(ies).

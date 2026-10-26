@@ -10,10 +10,10 @@ between branch and HQ, same sensitivity class as remittance itself (staff
 read-only, manager+ can create).
 """
 import json
-from datetime import date
 
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
@@ -79,7 +79,7 @@ def _receipt_props(remittance, *, settlement=None, next_url='', form=None, error
         else:
             form = {
                 'received_amount_sar': max((basis or 0) - settled, 0) or '',
-                'received_date': date.today().isoformat(),
+                'received_date': timezone.localdate().isoformat(),
                 'reference': '',
                 'allocations': None,
             }
@@ -161,7 +161,7 @@ def remittance_record_receipt(request, pk):
     if not amount:
         return _receipt_failed(request, data, remittance, 'Nominal diterima harus diisi.', fallback=fallback)
     raw_date = data.get('received_date')
-    received_date = _parse_date(raw_date) if raw_date else date.today()
+    received_date = _parse_date(raw_date) if raw_date else timezone.localdate()
     if received_date is None:
         return _receipt_failed(request, data, remittance, 'Tanggal diterima tidak valid.', fallback=fallback)
 

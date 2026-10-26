@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
@@ -76,7 +77,7 @@ def client_list(request):
     statuses = csv_list(request, 'status', ['new', 'active', 'dormant', 'inactive'])
     city = request.GET.get('city', '').strip()
     sort = request.GET.get('sort', '-last')
-    today = date.today()
+    today = timezone.localdate()
 
     seasons = list(Season.objects.order_by('-date_from'))
     season = next((x for x in seasons if x.name == request.GET.get('season')), None) \
@@ -446,7 +447,7 @@ def client_refund(request, pk):
     account = resolve_money_account(P.get('from_account'))
     amount = round_half_up(_to_float(P.get('amount_sar')))
     note = _reason_note(P)
-    refund_date = _parse_date(P.get('refund_date')) or date.today()
+    refund_date = _parse_date(P.get('refund_date')) or timezone.localdate()
     proof = request.FILES.get('proof')
 
     errors = {}
@@ -516,7 +517,7 @@ def client_deposit_transfer(request, pk):
         return page()
     P = request.POST
     note = _reason_note(P)
-    transfer_date = _parse_date(P.get('transfer_date')) or date.today()
+    transfer_date = _parse_date(P.get('transfer_date')) or timezone.localdate()
     amount = round_half_up(_to_float(P.get('amount_sar')))
     to_client = scope(Client.objects.all(), request.user).filter(pk=P.get('to_client') or 0).exclude(pk=client_obj.pk).first()
     errors = {}
@@ -618,7 +619,7 @@ def client_statement_pdf(request, pk):
         return _render_list_pdf(
             request, Client.objects.none(),
             template='hw/client/client_open_items_pdf.html',
-            filename=f'open_items_{c.name}_{date.today()}.pdf'.replace(' ', '_'),
+            filename=f'open_items_{c.name}_{timezone.localdate()}.pdf'.replace(' ', '_'),
             extra_ctx={
                 'client': c,
                 'open_items': open_items['rows'],
@@ -700,7 +701,7 @@ def client_statement_pdf(request, pk):
     return _render_list_pdf(
         request, Client.objects.none(),
         template='hw/client/client_statement_pdf.html',
-        filename=f'statement_{c.name}_{date.today()}.pdf'.replace(' ', '_'),
+        filename=f'statement_{c.name}_{timezone.localdate()}.pdf'.replace(' ', '_'),
         extra_ctx={
             'client': c,
             'rows': formatted_rows,

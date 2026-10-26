@@ -1,9 +1,9 @@
 """Transfer & currency exchange (Penukaran Valas) pages — hw/finance/exchange_service.py."""
-from datetime import date
 
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
@@ -82,7 +82,7 @@ def exchange_list(request):
         'idr_out': sum(ex.amount_out for ex in idr_to_sar), 'sar_in': sum(ex.amount_in for ex in idr_to_sar),
     }
     summary['avg_rate'] = round(summary['idr_out'] / summary['sar_in']) if summary['sar_in'] else None
-    years = sorted({d.year for d in scope(CurrencyExchange.objects.all(), request.user).dates('exchange_date', 'year')} | {date.today().year})
+    years = sorted({d.year for d in scope(CurrencyExchange.objects.all(), request.user).dates('exchange_date', 'year')} | {timezone.localdate().year})
     return inertia_render(request, 'Finance/Exchanges', props={
         'exchanges': [_row(ex) for ex in page_obj],
         'filters': {'q': q, 'type': types, 'acct': accounts, 'voided': '1' if voided else '', 'sort': sort,
@@ -127,7 +127,7 @@ def _form_props(user, data=None, error=None):
         'staff_choices': holders,
         'last_rates': last_rates,
         'warning_pct': float(exchange_service.RATE_WARNING_PCT),
-        'form': data or {'exchange_date': date.today().isoformat()},
+        'form': data or {'exchange_date': timezone.localdate().isoformat()},
         'error': error,
     }
 

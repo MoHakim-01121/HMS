@@ -1,9 +1,10 @@
 """Derivasi keuangan — baca JournalLine, satu-satunya sumber angka.
 
 Pengganti hw/ledger.py. Views memanggil fungsi di sini, tidak pernah
-Sum() tabel jurnal sendiri. Belum di-wire (Fase 6).
+Sum() tabel jurnal sendiri.
 """
 from django.db.models import Q, Sum
+from django.utils import timezone
 
 from ..models.client import Client
 from ..models.journal import JournalEntry, JournalLine, LedgerAccount
@@ -199,6 +200,7 @@ def payment_history_rows(invoice):
     prs = list(
         PaymentRecord.objects
         .filter(invoice=invoice, status__in=PaymentRecord.EFFECTIVE_STATUSES)
+        .select_related('receiving_account__branch', 'confirmed_by')
         .prefetch_related('allocations__invoice_line__confirmation_letter')
         .order_by('payment_date', 'pk')
     )
@@ -209,14 +211,27 @@ def payment_history_rows(invoice):
         for a in pr.allocations.all():
             if a.reservation_id and a.reservation and a.reservation.reservation_number not in refs:
                 refs.append(a.reservation.reservation_number)
+        received_in_display = ''
+        try:
+            received_in_display = pr.get_received_in_display()
+        except Exception:
+            if getattr(pr, 'receiving_account_id', None):
+                try:
+                    received_in_display = str(pr.receiving_account.branch)
+                except Exception:
+                    received_in_display = pr.receiving_branch_code or ''
         rows.append({
             'pk': pr.pk,
+            'payment_id': pr.payment_number,
             'status': pr.status,
             'unallocated_sar': pr.amount_sar - sum(a.amount_sar for a in pr.allocations.all()),
             'ref': ', '.join(refs) or pr.reference or pr.payment_number,
             'payment_number': pr.payment_number,
             'payment_date': pr.payment_date,
             'method': pr.method,
+            'received_in': getattr(pr, 'receiving_branch_code', None),
+            'received_in_display': received_in_display,
+            'receiving_office': received_in_display,
             'amount': pr.amount,
             'currency': pr.currency,
             'exchange_rate': float(pr.exchange_rate) or 1,
@@ -658,9 +673,8 @@ def client_aging(client_id, *, as_of=None, date_to=None):
     [...]} — bucket yang sama dengan AGING_BUCKETS, jadi klien ini dan AR
     Aging page selalu bisa dibandingkan langsung.
     """
-    from datetime import date as _date
 
-    today = date_to or (as_of.date() if as_of else _date.today())
+    today = date_to or (as_of.date() if as_of else timezone.localdate())
 
     # Net AR lines per invoice (charge - payment/reversal)
     ar_lines = _scoped(_ar_qs(client_id=client_id), as_of=as_of)
@@ -735,11 +749,10 @@ def ar_aging(*, as_of=None, clients=None):
     Returns {as_of, buckets: {...}, total, clients: [{client_id, name, buckets,
     total, oldest_days, invoices: [...]}]} — clients diurutkan dari total
     terbesar."""
-    from datetime import date as _date
 
     from ..models.invoice import Invoice
 
-    as_of = as_of or _date.today()
+    as_of = as_of or timezone.localdate()
     nets = _ar_qs(journal_entry__entry_date__lte=as_of, client_id__isnull=False)
     if clients is not None:
         nets = nets.filter(client_id__in=clients.values("id"))
@@ -793,12 +806,11 @@ def open_items(client_id, *, date_to=None, as_of=None):
     jumlah dibayar, dan sisa yang masih terbuka. Hanya invoice dengan
     remaining > 0 yang tampil. Konsisten dengan balance-forward (angka dari
     JournalLine), jadi kedua mode selalu reconciled."""
-    from datetime import date as _date
 
     # Sama seperti client_aging(): "overdue" berarti lewat tanggal yang sedang
     # dipakai, bukan lewat hari ini — kalau statement-nya di-lock ke periode
     # lama, daftar open item-nya harus Seasam itu juga.
-    today = date_to or (as_of.date() if as_of else _date.today())
+    today = date_to or (as_of.date() if as_of else timezone.localdate())
 
     ar_net = _scoped(_ar_qs(client_id=client_id), as_of=as_of).values(
         "invoice_id",

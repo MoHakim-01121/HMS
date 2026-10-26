@@ -9,6 +9,7 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from ..models.period import FinancialPeriod, Season
 
@@ -88,7 +89,7 @@ def suggest_next_season(today=None):
         # A season opening from Syawal onwards is next year's season.
         year = h.year + 1 if h.month >= 10 else h.year
     else:
-        today = today or date.today()
+        today = today or timezone.localdate()
         year = Gregorian.fromdate(today).to_hijri().year + 1
         if today < _season_start(year):
             year -= 1

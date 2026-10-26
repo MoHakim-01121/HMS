@@ -48,7 +48,7 @@ def void_invoice(invoice, *, reason, created_by, void_date=None):
     blockers = void_blockers(invoice)
     if blockers:
         raise FinanceError(blockers[0])
-    void_invoice_charge(invoice, created_by=created_by, entry_date=void_date or timezone.now().date())
+    void_invoice_charge(invoice, created_by=created_by, entry_date=void_date or timezone.localdate())
     released = list(invoice.confirmation_letters.values_list('confirmation_number', flat=True))
     # Potret baris SEBELUM di-void: nilai baris yang sudah void dibaca dari sini.
     billed = invoice_revisions.snapshot(invoice)
@@ -219,7 +219,7 @@ def void_credit_note(cn, *, reason, created_by, void_date=None):
             'sudah dipakai (refund/transfer). Tidak bisa dibatalkan.'
         )
     for e in _live_entries('CreditNote', cn.pk, JournalEntry.TYPE_CREDIT_NOTE):
-        reverse_entry(e, reversal_date=void_date or timezone.now().date(), created_by=created_by)
+        reverse_entry(e, reversal_date=void_date or timezone.localdate(), created_by=created_by)
     cn.status = CreditNote.STATUS_VOIDED
     cn.voided_reason = reason
     cn.voided_by = created_by

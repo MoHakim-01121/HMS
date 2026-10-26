@@ -1,8 +1,9 @@
 import csv
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import magic
 from django.http import HttpResponse
+from django.utils import timezone
 from django.utils.http import content_disposition_header
 
 PROOF_MAX_SIZE = 10 * 1024 * 1024  # 10 MB, matches attachment_upload
@@ -318,7 +319,7 @@ def due_soon_alert(due_date, remaining=0):
     if not due_date or remaining <= 0:
         return None
 
-    days = (due_date - date.today()).days
+    days = (due_date - timezone.localdate()).days
 
     if days < 0:
         return {'type': 'red', 'msg': f'Payment is {abs(days)} day(s) overdue.'}
@@ -342,7 +343,7 @@ def request_data(request):
     return request.POST
 
 
-def list_period(request, field_from=None, field_to=None):
+def list_period(request):
     """The period a list page shows, from ?month=YYYY-MM | ?year=YYYY|all.
 
     Defaults to the current month. A filter range (?from=&to=) wins over the
@@ -354,7 +355,7 @@ def list_period(request, field_from=None, field_to=None):
     g = request.GET
     rng_from, rng_to = _parse_date(g.get('from', '')), _parse_date(g.get('to', ''))
     month, year = g.get('month', ''), g.get('year', '')
-    today = _date.today()
+    today = timezone.localdate()
     props = {'month': '', 'year': '', 'from': g.get('from', ''), 'to': g.get('to', '')}
     if rng_from or rng_to:
         props['year'] = 'all'
@@ -393,7 +394,7 @@ def csv_list(request, key, allowed=None):
 def prev_month_range(date_from):
     """First and last day of the month before date_from's month."""
     import calendar
-    first = (date_from.replace(day=1) - __import__('datetime').timedelta(days=1)).replace(day=1)
+    first = (date_from.replace(day=1) - timedelta(days=1)).replace(day=1)
     return first, first.replace(day=calendar.monthrange(first.year, first.month)[1])
 
 

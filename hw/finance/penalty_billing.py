@@ -50,7 +50,7 @@ def bill_penalty(penalty, *, user=None):
         invoice = Invoice.objects.create(
             invoice_type='hotel', invoice_number=Invoice.generate_number('hotel'),
             client_id=cl.client_id, branch_id=cl.client.owner_branch_id,
-            issued_date=penalty.cancellation_date or timezone.now().date(),
+            issued_date=penalty.cancellation_date or timezone.localdate(),
             currency='SAR', created_by=user,
         )
         invoice.add_hotel_line(cl)   # menambahkan baris dendanya juga

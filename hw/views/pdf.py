@@ -85,10 +85,13 @@ def _render_invoice_pdf(invoice):
     for p in payments:
         amt = float(p["amount"])
         ex = p["exchange_rate"]
+        received_in_display = p.get("received_in_display") or p.get("receiving_office") or p.get("received_in") or "-"
         payments_ctx.append({
+            "payment_id": p.get("payment_id") or p.get("payment_number") or p.get("pk"),
             "reservation_no": p["ref"],
             "date": p["payment_date"],
             "method": p["method"],
+            "received_in": received_in_display,
             "amount": format_currency(int(round(amt))),
             "currency": p["currency"],
             "exchange": f"{ex:,.2f}" if p["currency"] != "SAR" else "-",

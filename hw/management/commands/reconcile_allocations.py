@@ -80,7 +80,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f'{len(plan)} entry akan diperbaiki. Jalankan dengan --apply.'))
             return
 
-        today = timezone.now().date()
+        today = timezone.localdate()
         with transaction.atomic():
             for entry, debits in plan:
                 posting.reverse_entry(entry, reversal_date=today, created_by=user,

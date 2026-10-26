@@ -108,7 +108,7 @@ def set_settlement_allocations(settlement, allocations, *, created_by=None, entr
     )
     remittance = Remittance.objects.select_for_update().get(pk=settlement.remittance_id)
     validated = remittance_allocation.validate(remittance, allocations, settlement=settlement)
-    entry_date = entry_date or timezone.now().date()
+    entry_date = entry_date or timezone.localdate()
     for entry in remittance_allocation.live_allocation_entries(settlement):
         reverse_entry(entry, reversal_date=entry_date, created_by=created_by)
     settlement.allocations.all().delete()
@@ -149,7 +149,7 @@ def delete_settlement(settlement, *, created_by=None, entry_date=None):
             'batalkan pencocokannya dulu.'
         )
 
-    entry_date = entry_date or timezone.now().date()
+    entry_date = entry_date or timezone.localdate()
     entries = (
         _live_entries('RemittanceSettlement', settlement.pk, JournalEntry.TYPE_REMITTANCE)
         + remittance_allocation.live_allocation_entries(settlement)
@@ -180,7 +180,7 @@ def reopen_remittance_diff(remittance, *, created_by=None, entry_date=None):
         raise FinanceError(f'Selisih {remittance.remittance_number} belum ditutup.')
     for entry in entries:
         reverse_entry(
-            entry, reversal_date=entry_date or timezone.now().date(), created_by=created_by,
+            entry, reversal_date=entry_date or timezone.localdate(), created_by=created_by,
             note=f'Selisih {remittance.remittance_number} dibuka kembali',
         )
 
@@ -236,7 +236,7 @@ def close_remittance_diff(remittance, *, created_by=None, entry_date=None):
         entry = post_entry(
             entry_type=JournalEntry.TYPE_REMITTANCE_DIFF,
             description=desc,
-            entry_date=entry_date or timezone.now().date(),
+            entry_date=entry_date or timezone.localdate(),
             lines=lines,
             source_type='RemittanceDiff',
             source_id=remittance.pk,

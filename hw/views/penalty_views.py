@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 from django.contrib import messages
 from django.db import transaction
@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, scope
@@ -91,7 +92,7 @@ def _penalty_form(request, cl, penalty, suggested_number, edit, errors=None, err
         "penalty": penalty,
         "cl": {"id": cl.pk, "confirmation_number": cl.confirmation_number, "guest_name": cl.guest_name},
         "suggested_number": suggested_number,
-        "today": date.today().isoformat(),
+        "today": timezone.localdate().isoformat(),
         "edit": edit,
         "billing": _billing_notice(cl),
         "errors": errors or {},
@@ -126,7 +127,7 @@ def penalty_new(request, cl_pk):
                 penalty = CancellationPenalty.objects.create(
                     cl=cl,
                     penalty_number=number,
-                    cancellation_date=_parse_date(request.POST.get('cancellation_date')) or date.today(),
+                    cancellation_date=_parse_date(request.POST.get('cancellation_date')) or timezone.localdate(),
                     reason=request.POST.get('reason', ''),
                     penalty_amount=amount,
                     note=request.POST.get('note', ''),

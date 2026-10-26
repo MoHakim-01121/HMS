@@ -246,16 +246,19 @@ export default function Detail({
         {payments.length ? (
           <div className={DA.scroll}>
             <table data-slot="detail-table" className={DA.table}>
-              <thead><tr><th>{t("Payment")}</th><th>{t("Method")}</th><th className={DC.n}>{t("Amount")}</th><th className={DC.n}>SAR</th></tr></thead>
+              <thead><tr><th>{t("Payment ID")}</th><th>{t("Date")}</th><th>{t("Ref")}</th><th>{t("Method")}</th><th>{t("Received by (office)")}</th><th className={DC.n}>{t("Amount")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>
               <tbody>
                 {payments.map((p) => (
                   <tr key={p.id}>
-                    <td><a href={`/finance/payments/${p.id}/`}>{p.payment_number}</a><span className={cn(DC.nw, DC.sub)}>{p.payment_label || t("Not set")}</span></td>
+                    <td><a href={`/finance/payments/${p.id}/`}>{p.payment_id || p.payment_number}</a></td>
+                    <td className={DC.nw}>{p.payment_label || p.payment_date || "-"}</td>
+                    <td>{p.linked_number || "-"}</td>
                     <td>
                       {p.method || t("Payment")}
                       {p.proof_url ? <a className={cn(DA.tag, DA.tagSm, "ml-1.5")} href={p.proof_url} target="_blank" rel="noreferrer">{t("Proof")}</a> : null}
                       {p.unallocated_sar > 0 ? <a className={cn(DA.tag, DA.tagSm, "ml-1.5 text-warning-text")} href={`/finance/payments/${p.id}/`}>{t("Apply")}</a> : null}
                     </td>
+                    <td>{p.receiving_office || p.received_in_display || p.received_in || "-"}</td>
                     <td className={DC.n}>
                       {fmt(p.amount_int)} {p.currency}
                       {p.currency !== "SAR" ? <span className={DC.sub}>1 SAR = {fmt(p.exchange_rate)} {p.currency}</span> : null}
@@ -264,10 +267,10 @@ export default function Detail({
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={3}>{t("Total received")}</td><td className={cn(DC.n, DC.good)}>{fmt(invoice.total_paid_sar)} SAR</td></tr></tfoot>
+              <tfoot><tr><td colSpan={6}>{t("Total received")}</td><td className={cn(DC.n, DC.good)}>{fmt(invoice.total_paid_sar)} SAR</td></tr></tfoot>
             </table>
           </div>
-        ) : <div className={DA.empty}>{t("No payments recorded yet.")}</div>}
+        ) : <div className={DA.empty}>{t("No payments recorded yet.")}</div>} 
       </DCard>
 
       {credit_notes.length ? (

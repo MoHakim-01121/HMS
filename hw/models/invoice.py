@@ -263,11 +263,10 @@ class Invoice(models.Model):
     @property
     def financial_state(self):
         """Payment state, computed fresh every read from the ledger."""
-        from datetime import date
         total, paid = self.due_sar, self.applied_paid_sar
         if total > 0 and paid >= total:
             return self.FINANCIAL_STATE_PAID
-        if self.due_date and self.due_date < date.today() and paid < total:
+        if self.due_date and self.due_date < timezone.localdate() and paid < total:
             return self.FINANCIAL_STATE_OVERDUE
         if paid > 0:
             return self.FINANCIAL_STATE_PARTIAL
@@ -275,34 +274,54 @@ class Invoice(models.Model):
 
     # ── Numbering ─────────────────────────────────────────────
 
+    @staticmethod
+    def _sequence_key(issued_date=None):
+        """Counter key for the month of `issued_date`, e.g. ``INV-2026-10``.
+
+        Uses the financial period's name when one covers that date (the format
+        periods have always been named in), else the plain year-month. Read
+        without a row lock: only allocation needs the lock, and the suggestion
+        shown on a GET must use the same key the POST will allocate from.
+        """
+        from .period import FinancialPeriod
+
+        d = issued_date or timezone.localdate()
+        period = (
+            FinancialPeriod.objects.filter(date_from__lte=d, date_to__gte=d)
+            .values_list('name', flat=True)
+            .first()
+        )
+        if period:
+            return f'INV-{period.replace(" ", "-").replace("/", "-")}'
+        return f'INV-{d:%Y%m}'
+
     @classmethod
-    def generate_number(cls, invoice_type):
+    def generate_number(cls, invoice_type, issued_date=None):
         from ..numbering import generate_sequential_number
+
         return generate_sequential_number(
-            cls, cls._number_prefix(invoice_type), field='invoice_number', padding=3,
+            cls, cls._sequence_key(issued_date), field='invoice_number', padding=3,
             extra_filter={'invoice_type': invoice_type},
         )
 
     @classmethod
-    def suggest_number(cls, invoice_type):
+    def suggest_number(cls, invoice_type, issued_date=None):
         from ..numbering import peek_number
+
         return peek_number(
-            cls, cls._number_prefix(invoice_type), field='invoice_number', padding=3,
+            cls, cls._sequence_key(issued_date), field='invoice_number', padding=3,
             extra_filter={'invoice_type': invoice_type},
         )
 
     @classmethod
-    def claim_number(cls, invoice_type, number):
+    def claim_number(cls, invoice_type, number, issued_date=None):
         """Counter mengikuti nomor yang diketik user."""
         from ..numbering import advance_number
+
         advance_number(
-            cls, cls._number_prefix(invoice_type), number, field='invoice_number',
+            cls, cls._sequence_key(issued_date), number, field='invoice_number',
             extra_filter={'invoice_type': invoice_type},
         )
-
-    @staticmethod
-    def _number_prefix(invoice_type):
-        return 'INV'
 
 
 class InvoiceLineQuerySet(models.QuerySet):

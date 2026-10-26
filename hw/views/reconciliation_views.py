@@ -7,10 +7,10 @@ entering a statement and matching lines need edit.
 Amounts are in the account's own currency throughout.
 """
 import json
-from datetime import date
 
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from inertia import render as inertia_render
 
@@ -212,7 +212,7 @@ def reconciliation_import(request):
     except ValueError:
         mapping = None
     # Some exports print dd/mm only; the year comes from the period, else today.
-    hint = _parse_date(form['period_start']) or _parse_date(form['period_end']) or date.today()
+    hint = _parse_date(form['period_start']) or _parse_date(form['period_end']) or timezone.localdate()
     try:
         result = si.parse(form['csv_text'], mapping=mapping, default_year=hint.year)
     except si.ImportError_ as e:

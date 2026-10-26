@@ -1,6 +1,5 @@
 import re
 import unicodedata
-from datetime import date
 
 from django.db import models
 from django.urls import reverse
@@ -185,7 +184,7 @@ class Client(models.Model):
                 key=lambda i: i.due_date,
             )
             if due_invs:
-                overdue = (date.today() - due_invs[0].due_date).days
+                overdue = (timezone.localdate() - due_invs[0].due_date).days
                 if overdue > 60: return 'high'
                 if overdue > 0:  return 'medium'
         days = self.days_since_last_order

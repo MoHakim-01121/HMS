@@ -1,7 +1,6 @@
 """Payment views — list, detail, record, confirm, reject."""
 import json
 import logging
-from datetime import date
 
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -436,7 +435,7 @@ def payment_list(request):
         return [{'id': c.pk, 'name': c.name, 'city': c.city}
                 for c in scope(Client.objects.filter(is_active=True), request.user).order_by('name')]
 
-    years = sorted({d.year for d in _payments(request).dates('payment_date', 'year')} | {date.today().year})
+    years = sorted({d.year for d in _payments(request).dates('payment_date', 'year')} | {timezone.localdate().year})
     return inertia_render(request, 'Payment/List', props={
         'payments': rows,
         'filters': {'q': q, 'status': groups, 'cur': currencies, 'method': methods, 'sort': sort,
@@ -1099,7 +1098,7 @@ def payment_reverse(request, pk):
             _retire_payment(
                 payment, status=PaymentRecord.STATUS_REVERSED,
                 action=PaymentLog.ACTION_REVERSED,
-                reversal_date=timezone.now().date(),
+                reversal_date=timezone.localdate(),
                 journal_note=f'Reversal for {payment.payment_number}',
                 user=request.user,
             )
@@ -1204,4 +1203,4 @@ def payment_export_csv(request):
         p.note,
         p.created_at,
     ] for p in payments)
-    return csv_export_response(f'payments-{date.today().isoformat()}.csv', headers, rows)
+    return csv_export_response(f'payments-{timezone.localdate().isoformat()}.csv', headers, rows)

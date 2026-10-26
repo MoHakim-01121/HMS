@@ -5,9 +5,10 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.shortcuts import redirect
+from django.utils import timezone
 from inertia import render as inertia_render
 
 from ..branch_scope import get_in_scope_or_404, scope
@@ -177,7 +178,7 @@ def invoice_list(request):
     status = request.GET.get('status', '')
     sort = request.GET.get('sort', 'due')
     date_from, date_to, period = list_period(request)
-    today = date.today()
+    today = timezone.localdate()
 
     qs = base_qs
     if q:
@@ -277,7 +278,8 @@ def invoice_new(request):
     if request.method == "POST":
         # The approved form has no number field: the next number is issued
         # with the invoice. A number posted by an older client still wins.
-        invoice_number = request.POST.get("invoice_number", "").strip() or suggested_number
+        posted_number = request.POST.get("invoice_number", "").strip()
+        invoice_number = posted_number or suggested_number
 
         def _reject(errors):
             return inertia_render(request, "Invoice/Form", props={
@@ -291,8 +293,8 @@ def invoice_new(request):
                 "errors": errors,
             })
 
-        if Invoice.objects.filter(invoice_number=invoice_number).exists():
-            return _reject({"invoice_number": f"Invoice number '{invoice_number}' is already in use."})
+        if posted_number and Invoice.objects.filter(invoice_number=posted_number).exists():
+            return _reject({"invoice_number": f"Invoice number '{posted_number}' is already in use."})
 
         cl_ids = _billable_cl_ids(request)
         client = _resolve_client_from_post(request)
@@ -302,18 +304,29 @@ def invoice_new(request):
 
         try:
             with transaction.atomic():
+                issued_d = _parse_date(request.POST.get("issued_date"))
+                if posted_number:
+                    invoice_number = posted_number
+                else:
+                    # Allocate inside the transaction that inserts the invoice,
+                    # from the issued date the user picked (not from the date
+                    # the form was opened).
+                    invoice_number = Invoice.generate_number(InvoiceType.HOTEL, issued_date=issued_d)
                 invoice = Invoice.objects.create(
                     invoice_type=InvoiceType.HOTEL,
                     invoice_number=invoice_number,
                     client=client,
                     branch_id=_posted_branch(request, client),
-                    issued_date=_parse_date(request.POST.get("issued_date")),
+                    issued_date=issued_d,
                     due_date=_parse_date(request.POST.get("due_date")),
                     currency="SAR",
                     created_by=request.user,
                 )
-                Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
+                if posted_number:
+                    Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number, issued_date=issued_d)
                 _sync_hotel_lines(invoice, cl_ids, request.user)
+        except IntegrityError:
+            return _reject({"invoice_number": f"Invoice number '{invoice_number}' is already in use."})
         except (FinanceError, ValueError) as e:
             return _reject({"finance": str(e)})
 
@@ -521,10 +534,11 @@ def invoice_edit(request, pk):
                 invoice.invoice_number = new_number
                 invoice.client = client
                 invoice.branch_id = _posted_branch(request, client, current=invoice.branch_id)
-                invoice.issued_date = _parse_date(request.POST.get("issued_date"))
+                issued_d = _parse_date(request.POST.get("issued_date"))
+                invoice.issued_date = issued_d
                 invoice.due_date = _parse_date(request.POST.get("due_date"))
                 invoice.save()
-                Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number)
+                Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number, issued_date=issued_d or invoice.issued_date)
                 _sync_hotel_lines(invoice, cl_ids, request.user)
         except (FinanceError, ValueError) as e:
             # A finance failure (e.g. PeriodLockedError when a payment falls in a

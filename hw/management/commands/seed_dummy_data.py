@@ -20,7 +20,7 @@ Usage:
     python manage.py seed_dummy_data --reset
 """
 import random
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.apps import apps
@@ -28,6 +28,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
+from django.utils import timezone
 
 KEEP_MODELS = {
     'Branch', 'UserProfile', 'RoleDefinition', 'LedgerAccount', 'ExpenseCategory',
@@ -74,7 +75,7 @@ class Command(BaseCommand):
         if self.user is None:
             raise CommandError('No superuser to record the seed as.')
         self.rng = random.Random(20260927)
-        self.today = date.today()
+        self.today = timezone.localdate()
         self._wipe()
         with transaction.atomic():
             self._seed()

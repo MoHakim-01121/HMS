@@ -192,6 +192,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Hashing dominates the test suite's runtime and tests never need a strong
+# hash. Production keeps Django's default PBKDF2. Run tests with --keepdb too.
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/

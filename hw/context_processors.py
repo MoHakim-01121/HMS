@@ -1,7 +1,8 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.core.cache import cache
 from django.urls import reverse
+from django.utils import timezone
 
 from .branch_scope import scope
 from .models import ConfirmationLetter, Invoice
@@ -59,7 +60,7 @@ def due_soon(request):
     if cached is not None:
         return cached
 
-    today = date.today()
+    today = timezone.localdate()
     threshold = today + timedelta(days=7)
     limit = 20
 

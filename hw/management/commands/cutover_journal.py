@@ -28,6 +28,7 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from hw.finance import accounts as coa
 from hw.finance.bank_ledger import record_bank_transaction
@@ -81,7 +82,7 @@ class Command(BaseCommand):
             coa.seed_chart_of_accounts()
             stats = self._replay()
             for spec in options['saldo']:
-                self._adjust_balance(spec, options['tanggal'] or date.today())
+                self._adjust_balance(spec, options['tanggal'] or timezone.localdate())
             self._report(stats)
             if not commit:
                 transaction.set_rollback(True)
@@ -111,7 +112,7 @@ class Command(BaseCommand):
 
     def _replay(self):
         events = self._events()
-        self._ensure_periods([e[0] for e in events] + [date.today()])
+        self._ensure_periods([e[0] for e in events] + [timezone.localdate()])
         stats = {'charge': 0, 'payment': 0, 'exchange': 0, 'send': 0, 'receive': 0, 'allocate': 0, 'deposit': 0}
         for day, kind, _, obj in events:
             if kind == CHARGE:
@@ -162,7 +163,7 @@ class Command(BaseCommand):
         for inv in Invoice.objects.filter(invoice_type='hotel').exclude(status=Invoice.STATUS_VOID):
             rows = reservation_balances(inv).values()
             if any(r['remaining'] < 0 and r['line'].confirmation_letter.is_cancelled for r in rows):
-                moved += move_invoice_excess_to_deposit(inv, created_by=self.user, entry_date=date.today())
+                moved += move_invoice_excess_to_deposit(inv, created_by=self.user, entry_date=timezone.localdate())
         return moved
 
     def _adjust_balance(self, spec, day):
