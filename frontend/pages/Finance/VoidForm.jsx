@@ -30,7 +30,7 @@ function VoidFormBody({ kicker, title, number, sub, action, cancel, blockers = [
         <FormPanel>
           <FormSection label={t("Details")}>
             {blocked ? (
-              <ul className="vf-blockers">
+              <ul className="m-0 pl-[18px] text-[13px] leading-[1.6] text-yellow">
                 {blockers.map((b) => <li key={b}>{t(b)}</li>)}
               </ul>
             ) : (
@@ -46,9 +46,6 @@ function VoidFormBody({ kicker, title, number, sub, action, cancel, blockers = [
           />
         </FormPanel>
       </form>
-      <style>{`
-.vf-blockers { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--yellow); }
-`}</style>
     </div>
   );
 }

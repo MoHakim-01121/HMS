@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { Link, router, usePage } from "@inertiajs/react";
-import { Spark, LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
+import { LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import "../../styles/dashboard.css";
@@ -238,8 +238,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
       {kpis.map((k) => (
         <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
           delta={k.d && { text: k.d, good: k.good }}
-          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined}
-          spark={k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />} />
+          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined} />
       ))}
     </div>
   );
@@ -684,8 +683,7 @@ function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
       {kpis.map((k) => (
         <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
           delta={k.d && { text: k.d, good: k.good }}
-          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined}
-          spark={k.spark && <Spark cur={k.spark[0]} prev={k.spark[1] || []} label={t("{k}, this period against the one before", { k: k.label })} />} />
+          tone={k.none ? "none" : k.loss ? "loss" : k.warn ? "warn" : undefined} />
       ))}
     </div>
   );

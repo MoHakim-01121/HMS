@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import { Icon } from "@/components/icons.jsx";
@@ -175,19 +175,19 @@ export default function LandingHotels({ hotels, q, city_filter, stars_filter, st
   const [distance, setDistance] = useState("");
   const [sort, setSort] = useState("stars");
 
-  const go = (extra = {}) =>
+  const go = useCallback((extra = {}) =>
     router.get(
       buildQuery({ q: query, city: city_filter, stars: stars_filter, ...extra }),
       {},
       { preserveState: true, preserveScroll: true, replace: true }
-    );
+    ), [query, city_filter, stars_filter]);
 
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     clearTimeout(debounce.current);
     debounce.current = setTimeout(() => go({ q: query }), 300);
     return () => clearTimeout(debounce.current);
-  }, [query]);
+  }, [query, go]);
 
   // Distance filter and sort run client-side over the server-filtered list —
   // they're view-only conveniences, so the shareable URL keeps only the real

@@ -8,11 +8,13 @@ import { LocaleProvider } from "./utils/i18n.jsx";
 axios.defaults.xsrfHeaderName = "X-CSRFToken";
 axios.defaults.xsrfCookieName = "csrftoken";
 
-const pages = import.meta.glob("./pages/**/*.jsx", { eager: true });
+// Lazy: each page is its own chunk, so the first screen does not download
+// every other screen's code. Inertia accepts a promise from `resolve`.
+const pages = import.meta.glob("./pages/**/*.jsx");
 
 createInertiaApp({
-  resolve: (name) => {
-    const page = pages[`./pages/${name}.jsx`].default;
+  resolve: async (name) => {
+    const page = (await pages[`./pages/${name}.jsx`]()).default;
     page.layout = page.layout || ((p) => (
       <LocaleProvider>
         <AppLayout>{p}</AppLayout>

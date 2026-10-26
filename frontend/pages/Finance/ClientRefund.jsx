@@ -1,6 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA, Caption, btnClass, Effect, EffectRow } from "../../components/shadcn/form-a.jsx";
 import { cn } from "@/lib/utils";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -80,11 +80,11 @@ function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
       </div>
 
       <div className={FA.sectionHead}><Caption>{t("Deposit of {name}", { name: client.name })}</Caption></div>
-      <div className="rf-eff">
-        <div><span>{t("Deposit held now")}</span><span className={FA.num}>{fmt(held)} SAR</span></div>
-        <div><span>{t("This refund")}</span><span className={FA.num}>−{fmt(amount)} SAR</span></div>
-        <div className="res"><span>{t("Deposit left after approval")}</span><span className={cn(FA.num, held - amount < 0 && "neg")}><b>{fmt(held - amount)}</b> SAR</span></div>
-      </div>
+      <Effect>
+        <EffectRow><span>{t("Deposit held now")}</span><span className={FA.num}>{fmt(held)} SAR</span></EffectRow>
+        <EffectRow><span>{t("This refund")}</span><span className={FA.num}>−{fmt(amount)} SAR</span></EffectRow>
+        <EffectRow result><span>{t("Deposit left after approval")}</span><span className={cn(FA.num, held - amount < 0 && "[&_b]:text-danger-text")}><b>{fmt(held - amount)}</b> SAR</span></EffectRow>
+      </Effect>
 
       <NoteField label={t("Transfer proof")} optional>
         <FileDrop file={d.proof} onFile={set("proof")} title={t("Upload the bank slip")}
@@ -93,17 +93,8 @@ function RefundBody({ client, accounts = [], initial, errors: serverErrors }) {
       <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Another user approves it before it is posted.")} />
 
       <Foot why={why} cancelHref={back} submitLabel={t("Submit for approval")} processing={form.processing} />
-      <style>{EFF_CSS}</style>
     </FormA>
   );
 }
-
-export const EFF_CSS = `
-.rf-eff { border: 1px solid var(--border); border-radius: 14px; padding: 6px 14px; font-size: 13px; }
-.rf-eff > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 30px; color: var(--muted-foreground); }
-.rf-eff .res { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; color: var(--foreground); font-weight: 500; }
-.rf-eff .res b { font-weight: 700; font-size: 16px; }
-.rf-eff .neg b { color: var(--danger-text); }
-`;
 
 export default withStandaloneModal(RefundBody, (p) => `/finance/clients/${p.client.pk}/statement/`);

@@ -69,7 +69,7 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
               <Td>{h.city_display}</Td>
               <Td className="truncate">{h.area || <span className="text-muted-foreground">—</span>}</Td>
               <Td><span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 500 }}><Star />{h.stars}</span></Td>
-              <Td><span className={"hl-al" + (h.has_allotment ? "" : " no")}>{h.has_allotment ? t("Allotment") : t("No allotment")}</span></Td>
+              <Td><span className={cn("inline-flex h-[22px] items-center rounded-full px-[9px] text-[12px] font-semibold whitespace-nowrap", h.has_allotment ? "bg-success-tint text-success-text" : "bg-warning-tint text-warning-text")}>{h.has_allotment ? t("Allotment") : t("No allotment")}</span></Td>
               <Td className="text-right">{h.avg_occupancy != null ? h.avg_occupancy.toFixed(1) : <span className="text-muted-foreground">—</span>}</Td>
               <Td>{h.distance == null ? <span className="text-muted-foreground">{t("No location")}</span>
                 : <span className={cn(h.distance <= 500 ? "text-success-text" : h.distance <= 1500 ? "text-warning-text" : "font-medium text-danger-text")} style={{ fontWeight: 600 }}>{h.distance_label}</span>}</Td>
@@ -87,8 +87,6 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
 
       <Pager p={pagination} perPage={f.per} onPage={(page) => go({ page })} onPerPage={(per) => go({ per })} />
       {confirmDialog}
-      <style>{`.hl-al { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 9999px; background: var(--success-tint); color: var(--success-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
-.hl-al.no { background: var(--warning-tint); color: var(--warning-text); }`}</style>
     </ListPage>
   );
 }

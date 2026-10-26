@@ -38,27 +38,27 @@ export default function Detail({ statement = {} }) {
       const m = l.matched_transaction;
       const ref = m.reference || `${m.source_type} #${m.source_id}`;
       return (
-        <span className="rd-match">
+        <span className="flex flex-wrap items-center gap-2">
           <DPill sm tone="green">{t("Matched")}</DPill>
-          {m.link ? <a href={m.link}>{ref}</a> : <span className="rd-ref">{ref}</span>}
-          {canEdit ? <button type="button" className="rd-lnk danger" onClick={() => post(`/finance/reconciliation/lines/${l.id}/unmatch/`)}>{t("Unmatch")}</button> : null}
+          {m.link ? <a href={m.link}>{ref}</a> : <span className="text-[12px] text-muted-foreground">{ref}</span>}
+          {canEdit ? <button type="button" className="cursor-pointer border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-semibold text-danger-text" onClick={() => post(`/finance/reconciliation/lines/${l.id}/unmatch/`)}>{t("Unmatch")}</button> : null}
         </span>
       );
     }
     if (!canEdit) return <DPill sm tone="amber">{t("Unmatched")}</DPill>;
     if (l.suggested && !picks[l.id]) {
       return (
-        <span className="rd-match">
+        <span className="flex flex-wrap items-center gap-2">
           <DPill sm tone="info">{t("Suggested")}</DPill>
-          <span className="rd-ref">{txLabel(l.suggested)}</span>
+          <span className="text-[12px] text-muted-foreground">{txLabel(l.suggested)}</span>
           <button type="button" className={cn(dBtnClass({ primary: true }), "h-[30px]")} onClick={() => doMatch(l, l.suggested.id)}>{t("Match")}</button>
-          <button type="button" className="rd-lnk" onClick={() => setPicks({ ...picks, [l.id]: "other" })}>{t("Other…")}</button>
+          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-semibold text-muted-foreground hover:text-foreground" onClick={() => setPicks({ ...picks, [l.id]: "other" })}>{t("Other…")}</button>
         </span>
       );
     }
     const pick = picks[l.id] === "other" ? "" : picks[l.id] || "";
     return (
-      <span className="rd-match">
+      <span className="flex flex-wrap items-center gap-2">
         <Select value={pick} onValueChange={(v) => v && setPicks({ ...picks, [l.id]: v })}>
           <SelectTrigger className="w-72"><SelectValue placeholder={t("Select transaction...")} /></SelectTrigger>
           <SelectContent>
@@ -69,7 +69,7 @@ export default function Detail({ statement = {} }) {
             ))}
           </SelectContent>
         </Select>
-        <label className="rd-force">
+        <label className="flex items-center gap-1 text-[12px] text-muted-foreground">
           <Checkbox checked={!!forceLine[l.id]} onCheckedChange={(v) => setForceLine({ ...forceLine, [l.id]: !!v })} />
           {t("Force match")}
         </label>
@@ -80,7 +80,6 @@ export default function Detail({ statement = {} }) {
 
   return (
     <DPage>
-      <style>{CSS}</style>
       <DTop href="/finance/reconciliation/" />
 
       {statement.statement_gap !== 0 ? (
@@ -129,12 +128,3 @@ export default function Detail({ statement = {} }) {
     </DPage>
   );
 }
-
-const CSS = `
-.rd-match { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rd-ref { font-size: 12px; color: var(--muted-foreground); }
-.rd-force { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); }
-.rd-lnk { padding: 0; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
-.rd-lnk:hover { color: var(--foreground); }
-.rd-lnk.danger { color: var(--danger-text); }
-`;

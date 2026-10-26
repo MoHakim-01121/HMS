@@ -88,6 +88,10 @@ const PAGES = [
   ["bank-account-new", "admin", "/finance/bank-accounts/new/"],
   ["user-new", "admin", "/users/new/"],
   ["claim-new", "admin", "/finance/claims/new/"],
+  ["void-payment", "admin", `/finance/payments/${id.payment}/void/`],
+  ["bank-account-tx", "admin", `/finance/bank-accounts/bank/${id.bank}/`],
+  ["reconciliation-import", "admin", "/finance/reconciliation/import/"],
+  ["client-statement", "admin", `/finance/clients/${id.client}/statement/`],
 ].filter(([, , path]) => !path.includes("/null/")); // no such record locally
 
 // Open overlays (menus, selects, dialogs): [shot name, role, path, clicks].

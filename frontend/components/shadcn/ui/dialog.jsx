@@ -106,7 +106,12 @@ const DialogContent = React.forwardRef(function DialogContent({
           // bg-card, not bg-background: the dialog is a floating surface and
           // should read pure white (--card) against the cool canvas, not a
           // second slab of the same off-white the page sits on.
-          "fixed top-[50%] left-[50%] z-(--z-modal) grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-card p-6 font-sans shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
+          // Desktop centres this primitive on the content column
+          // (--content-left), not the window: a dialog centred on the viewport
+          // sits half a sidebar to the left of the page it covers. AppLayout
+          // publishes the offset and ModalContent adds the matching vertical
+          // centring for forms.
+          "fixed top-[50%] left-[50%] min-[601px]:left-[calc(50%_+_var(--content-left,0px)/2)] z-(--z-modal) grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-card p-6 font-sans shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}>

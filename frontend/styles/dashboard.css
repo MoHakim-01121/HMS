@@ -18,7 +18,7 @@
 /* The one accent card: booked value. Padding matches the KPI cards beside it. */
 .db-hero { border-radius: 20px; padding: 16px; background: var(--hero); color: #fff; display: flex; flex-direction: column; text-decoration: none; min-width: 0; }
 .db-hero .l { font-size: 13px; font-weight: 500; color: rgba(255,255,255,.72); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.db-hero .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 9999px; background: rgba(255,255,255,.14); font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; }
+.db-hero .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 6px; background: rgba(255,255,255,.14); font-size: 12px; font-weight: 500; color: #fff; white-space: nowrap; }
 .db-hero .chip.bad { background: oklch(0.85 0.12 70); color: oklch(0.25 0.05 70); }
 .db-hero .v { margin-top: 8px; font-size: 32px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .db-hero .v small { margin-left: 4px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.72); letter-spacing: 0; }
@@ -199,3 +199,4 @@ div.mn-r:hover { background: none; }
   .dt-ci .dt-h, .dt-ci .dt-r { grid-template-columns: 48px minmax(0, 1fr) auto; }
   .dt-ci .dt-r > :nth-child(3), .dt-ci .dt-h > :nth-child(3) { display: none; }
 }
+

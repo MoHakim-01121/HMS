@@ -13,7 +13,7 @@ from django.conf import settings
 from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY, SESSION_KEY, get_user_model
 from django.contrib.sessions.backends.db import SessionStore
 
-from hw.models import Client, ConfirmationLetter, Expense, Hotel, Invoice, PaymentRecord, Remittance, UserProfile
+from hw.models import Client, ConfirmationLetter, Expense, Hotel, Invoice, MoneyAccount, PaymentRecord, Remittance, UserProfile
 
 assert settings.DEBUG, "ui shots run against the local dev database only"
 
@@ -52,5 +52,6 @@ print(json.dumps({
         "cl": last_id(ConfirmationLetter), "invoice": last_id(Invoice), "payment": last_id(PaymentRecord),
         "expense": last_id(Expense), "client": last_id(Client), "hotel": last_id(Hotel),
         "remittance": last_id(Remittance),
+        "bank": MoneyAccount.objects.filter(kind="bank").order_by("pk").values_list("pk", flat=True).first(),
     },
 }))

@@ -63,7 +63,7 @@ export default function BranchReport({
   // inputs from the period the server settled on.
   useEffect(() => {
     if (period.kind === "range") setRange({ from: period.date_from, to: period.date_to });
-  }, [period.kind, period.value]);
+  }, [period.kind, period.value, period.date_from, period.date_to]);
   const go = (p) => router.get("/finance/branch-report/", { branch, kind: period.kind, value: period.value, ...p }, { preserveScroll: true });
   const profit = report.profit || {};
   const exp = report.expenses || {};
@@ -107,7 +107,6 @@ export default function BranchReport({
 
   return (
     <ListPage title={t("Branch report")}>
-      <style>{CSS}</style>
       <Toolbar left={<>{kindPicker}{valuePicker}</>}>
         {branch_choices.length > 1 && (
           <Select value={branch} onValueChange={(b) => go({ branch: b })}>
@@ -131,7 +130,7 @@ export default function BranchReport({
         <Kpi label={t("Rupiah cash")} value={fmtN(pos.cash_idr)} unit="IDR" foot={t("Bank and cash accounts, as of {d}", { d: dayMonth(pos.as_of, loc) })} />
       </Kpis>
 
-      <h2 className="br-h2">{t("FX profit per transfer")}</h2>
+      <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("FX profit per transfer")}</h2>
       <TableCard cols={[110, 76, 110, 140, 96, 96, 130]}
         empty={!transfers.length && <Empty title={t("No transfers to head office")} sub={t("The branch earns its FX profit when it sends money to head office.")} />}>
         <thead><Tr>
@@ -153,7 +152,7 @@ export default function BranchReport({
         </tbody>
       </TableCard>
 
-      <h2 className="br-h2">{t("Operating expenses")}</h2>
+      <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Operating expenses")}</h2>
       <TableCard cols={[null, 160]}
         empty={!exp.by_category?.length && <Empty title={t("No expenses paid")} sub={t("Nothing was paid in this period.")} />}>
         <thead><Tr><Th>{t("Category")}</Th><Th className="text-right">{t("Amount (IDR)")}</Th></Tr></thead>
@@ -168,7 +167,7 @@ export default function BranchReport({
         </tbody>
       </TableCard>
 
-      <h2 className="br-h2">{t("Position as of {d}", { d: dayMonth(pos.as_of, loc) })}</h2>
+      <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Position as of {d}", { d: dayMonth(pos.as_of, loc) })}</h2>
       <TableCard cols={[null, 90, 160]}>
         <thead><Tr><Th>{t("Account")}</Th><Th>{t("Currency")}</Th><Th className="text-right">{t("Balance")}</Th></Tr></thead>
         <tbody>
@@ -186,6 +185,3 @@ export default function BranchReport({
 }
 
 // Section headings between the tables; the list pages have none of their own.
-const CSS = `
-.br-h2 { font-size: 16px; font-weight: 600; margin: 32px 0 12px; color: var(--foreground); }
-`;

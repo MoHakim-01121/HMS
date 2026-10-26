@@ -2880,4 +2880,11 @@ export const id = {
   "{line} in {currency}: see its transactions": "{line} dalam {currency}: lihat transaksinya",
   "Remove your profile photo?": "Hapus foto profil Anda?",
   "Your initials show instead until you upload a new one.": "Inisial Anda yang tampil sampai Anda mengunggah foto baru.",
+  "View details": "Lihat detail",
+  "Show in table": "Tampilkan di tabel",
+  "Clear filter": "Hapus filter",
+  "Needs attention": "Perlu perhatian",
+  "Loss": "Rugi",
+  "Show by currency": "Lihat per mata uang",
+  "Show total": "Lihat total",
 };

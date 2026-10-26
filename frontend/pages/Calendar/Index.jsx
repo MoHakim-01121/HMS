@@ -65,7 +65,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
     setDay(c?.day ?? (TODAY >= S && TODAY <= E ? TODAY : S));
     setSel(c?.sel ?? null);
     setAll(false);
-  }, [start, end]);
+  }, [start, end, S, E, TODAY]);
 
   const go = (params, keep) => {
     carry.current = keep || null;

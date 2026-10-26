@@ -1,9 +1,8 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, NoteField, Foot, todayIso, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, NoteField, Foot, todayIso, FA, Caption, btnClass, Effect, EffectRow } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
-import { EFF_CSS } from "./ClientRefund.jsx";
 
 // Move Deposit to Another Client, the "Deposit Transfer Form" artboard on the
 // Record View HMS canvas: part of one client's deposit goes to another, shown
@@ -61,15 +60,14 @@ function DepositTransferBody({ client, clients = [], initial, errors: serverErro
       </div>
 
       <div className={FA.sectionHead}><Caption>{t("Deposits after approval")}</Caption></div>
-      <div className="rf-eff">
-        <div><span>{client.name}</span><span className={FA.num}>{fmt(held)} {t("to")} <b style={{ color: held - amount < 0 ? "var(--danger-text)" : "var(--foreground)" }}>{fmt(held - amount)}</b> SAR</span></div>
-        <div><span>{to ? to.name : t("Receiving client")}</span><span className={FA.num}>{to ? <>{fmt(to.deposit || 0)} {t("to")} <b style={{ color: "var(--foreground)" }}>{fmt((to.deposit || 0) + amount)}</b> SAR</> : "—"}</span></div>
-      </div>
+      <Effect>
+        <EffectRow><span>{client.name}</span><span className={FA.num}>{fmt(held)} {t("to")} <b className={held - amount < 0 ? "text-danger-text" : "text-foreground"}>{fmt(held - amount)}</b> SAR</span></EffectRow>
+        <EffectRow><span>{to ? to.name : t("Receiving client")}</span><span className={FA.num}>{to ? <>{fmt(to.deposit || 0)} {t("to")} <b className="text-foreground">{fmt((to.deposit || 0) + amount)}</b> SAR</> : "—"}</span></EffectRow>
+      </Effect>
 
       <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Another user approves it before it is posted.")} />
 
       <Foot why={why} cancelHref={back} submitLabel={t("Submit for approval")} processing={form.processing} />
-      <style>{EFF_CSS}</style>
     </FormA>
   );
 }

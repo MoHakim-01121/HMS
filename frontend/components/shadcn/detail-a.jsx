@@ -265,11 +265,11 @@ const ACTS = cn(
   "[&_:is(a,button):not([data-slot=dbtn])]:cursor-pointer [&_:is(a,button):not([data-slot=dbtn])]:border-0 [&_:is(a,button):not([data-slot=dbtn])]:bg-transparent [&_:is(a,button):not([data-slot=dbtn])]:p-0 [&_:is(a,button):not([data-slot=dbtn])]:font-sans [&_:is(a,button):not([data-slot=dbtn])]:text-[13px] [&_:is(a,button):not([data-slot=dbtn])]:leading-[normal] [&_:is(a,button):not([data-slot=dbtn])]:font-semibold [&_:is(a,button):not([data-slot=dbtn])]:text-muted-foreground [&_button:not([data-slot=dbtn]):hover]:text-foreground",
 );
 
-export function DCard({ title, count, meta, sub, actions, children, className, pad }) {
+export function DCard({ title, count, meta, sub, actions, children, className, headClassName, pad }) {
   return (
     <section data-slot="card" className={cn(DA.card, pad && DA.cardPad, className)}>
       {title || meta || actions ? (
-        <div data-slot="card-head" className={cn("flex items-baseline justify-between gap-3", pad ? "p-0" : "px-6 pt-4 pb-2 max-[600px]:px-4")}>
+        <div data-slot="card-head" className={cn("flex items-baseline justify-between gap-3", pad ? "p-0" : "px-6 pt-4 pb-2 max-[600px]:px-4", headClassName)}>
           <h2 className="m-0 text-[14px] font-semibold">{title}{count != null ? <span className="ml-2 text-[12px] font-medium text-muted-foreground tabular-nums">{count}</span> : null}</h2>
           {meta ? <span className="text-[12px] text-muted-foreground">{meta}</span> : null}
           {actions ? <span className={cn(ACTS, !meta && "ml-auto")}>{actions}</span> : null}

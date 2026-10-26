@@ -126,6 +126,12 @@
   --green-muted: rgba(18,161,80,.1);
   --red: oklch(0.577 0.215 27.3);
   --yellow: oklch(0.554 0.121 66.4);
+  /* The app shell's canvas (every AppLayout page): white paper under the gold
+     #C6A66B Islamic lattice, exactly the reference — 55% lines on a 100px
+     tile. The colour is baked into the SVG because a data URI cannot read a
+     CSS variable. */
+  --page-canvas: #FFFFFF;
+  --islamic-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23C6A66B' stroke-width='0.65' stroke-opacity='0.55'%3E%3Cpath d='M50 0 L100 50 L50 100 L0 50 Z'/%3E%3Cpath d='M0 0 L100 100 M100 0 L0 100'/%3E%3Cpath d='M50 0 L35.35 35.35 L0 50 L35.35 64.65 L50 100 L64.65 64.65 L100 50 L64.65 35.35 Z'/%3E%3Cpath d='M0 0 H100 V100 H0 Z'/%3E%3C/g%3E%3C/svg%3E");
   --r: 6px;
   --z-base: 1;
   --z-dropdown: 100;
@@ -192,6 +198,10 @@
   --green-muted: rgba(82,183,136,.14);
   --red: #FF453A;
   --yellow: #F5A623;
+  /* Same lattice in dark, at a lower alpha because the dark olive canvas
+     absorbs so much of the gold; the canvas itself stays dark. */
+  --page-canvas: var(--background);
+  --islamic-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill='none' stroke='%23C6A66B' stroke-width='0.65' stroke-opacity='0.32'%3E%3Cpath d='M50 0 L100 50 L50 100 L0 50 Z'/%3E%3Cpath d='M0 0 L100 100 M100 0 L0 100'/%3E%3Cpath d='M50 0 L35.35 35.35 L0 50 L35.35 64.65 L50 100 L64.65 64.65 L100 50 L64.65 35.35 Z'/%3E%3Cpath d='M0 0 H100 V100 H0 Z'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 @theme inline {
@@ -273,6 +283,7 @@
   --color-warning-text: var(--warning-text);
   --color-warning-tint: var(--warning-tint);
   --color-red: var(--red);
+  --color-yellow: var(--yellow);
   --color-danger: var(--danger);
   --color-danger-text: var(--danger-text);
   --color-danger-tint: var(--danger-tint);
@@ -312,6 +323,19 @@
   --animate-skel: skel 1.4s ease-in-out infinite;
   @keyframes content-in { from { opacity: 0; transform: translateY(4px); } }
   @keyframes skel { 0%, 100% { opacity: .45; } 50% { opacity: .8; } }
+}
+
+/* The app shell (every AppLayout page, marked by #main) sits on white paper
+   with the gold Islamic lattice behind the content. It goes on body, not
+   html — legacy.css paints an opaque body background that would cover a
+   pattern set on html. Public pages (no #main) and the fullscreen maps are
+   left alone. */
+body:has(#main):not(.map-fullscreen) {
+  background-color: var(--page-canvas);
+  background-image: var(--islamic-pattern);
+  background-size: 100px 100px;
+  background-repeat: repeat;
+  background-attachment: fixed;
 }
 
 /* design.css's body already defaults to Fira Sans now that every page carries this class,

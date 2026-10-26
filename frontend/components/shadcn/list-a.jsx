@@ -110,49 +110,80 @@ export const Kpis = ({ children, dense }) => (
   <div data-dense={dense ? "" : undefined} className="group/kpis flex gap-3 max-[900px]:flex-wrap">{children}</div>
 );
 
-// The card a KPI sits in. Pressable when it is a button or link.
+// The card a KPI sits in (pick B of the "HMS KPI Cards" canvas). Pressable
+// when it is a button or link.
 export const kpiFrame = (pressable, on) => cn(
-  "surface box-border flex min-w-0 flex-[1_1_0] flex-col rounded-[20px] border border-border bg-card p-4 text-left text-inherit no-underline [font:inherit]",
-  "[transition:border-color_.15s_ease,box-shadow_.15s_ease,transform_.1s_ease] max-[900px]:flex-[1_1_calc(50%-6px)] max-[600px]:flex-[1_1_100%]",
+  "box-border flex min-w-0 flex-[1_1_0] flex-col rounded-card border border-border bg-card px-[18px] pt-4 pb-3 text-left text-inherit no-underline [font:inherit]",
+  "transition-[border-color,box-shadow,scale] duration-150 ease-out-quint max-[900px]:flex-[1_1_calc(50%-6px)] max-[600px]:flex-[1_1_100%]",
   FOCUS,
-  pressable && "cursor-pointer hover:border-input active:[transform:scale(.995)]",
-  on && "border-foreground shadow-[inset_0_0_0_1px_var(--foreground)]",
+  pressable && "cursor-pointer hover:border-input active:scale-[.995]",
+  on && "border-foreground ring-1 ring-inset ring-foreground",
 );
 
+// Label on the left, the card's one badge (a delta or a status) on the right.
 export const KpiHead = ({ label, children }) => (
   <span className="flex items-center justify-between gap-2">
-    <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
+    <span className="min-w-0 truncate text-[13px] text-muted-foreground">{label}</span>
     {children}
   </span>
 );
 
 export const KpiRow = ({ children }) => <span className="mt-2 flex items-center justify-between gap-3">{children}</span>;
 
-const TONE = { warn: "text-warning-text", good: "text-success-text", loss: "text-danger-text" };
+const BADGE = {
+  good: "bg-success-tint text-success-text",
+  bad: "bg-danger-tint text-danger-text",
+  warn: "bg-warning-tint text-warning-text",
+  neutral: "bg-secondary text-muted-foreground",
+};
 
-// The figure. A KPI with nothing to show yet (`tone="none"`) says so in words.
+export const KpiBadge = ({ tone = "neutral", title, children }) => (
+  <span title={title} className={cn("inline-flex h-5 flex-none items-center rounded-[6px] px-1.5 text-[12px] font-medium whitespace-nowrap tabular-nums", BADGE[tone])}>{children}</span>
+);
+
+// The figure, always in ink: the badge carries the state. A KPI with nothing
+// to show yet (`tone="none"`) says so in words.
 export function KpiValue({ tone, unit, children }) {
   const cls = tone === "none"
-    ? "text-[13px] leading-[34px] font-medium tracking-normal text-muted-foreground"
-    : cn("text-[28px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums max-[600px]:text-[24px] group-data-[dense]/kpis:text-[20px]", TONE[tone]);
+    ? "text-[13px] leading-[29px] font-medium text-muted-foreground"
+    : "text-[24px] leading-[1.2] font-semibold tracking-[-0.01em] whitespace-nowrap tabular-nums group-data-[dense]/kpis:text-[20px]";
   return (
     <span className={cls}>
       {children}
-      {unit && <small className="ml-1 text-[13px] font-semibold tracking-normal whitespace-nowrap text-muted-foreground">{unit}</small>}
+      {unit && <small className="ml-1 text-[13px] font-medium tracking-normal whitespace-nowrap text-muted-foreground">{unit}</small>}
     </span>
   );
 }
 
-export const KpiFoot = ({ children }) => <span className="mt-3 block text-[12px] text-muted-foreground tabular-nums">{children}</span>;
+export const KpiFoot = ({ children }) => <span className="mt-1 block text-[12px] text-muted-foreground tabular-nums">{children}</span>;
+
+// The foot of every card: a rule, and what pressing the card does when it
+// can be pressed. Cards that cannot keep the rule so a row reads as one.
+export const KpiAction = ({ children }) => (
+  <span className="mt-auto block w-full self-stretch pt-3.5">
+    <span className="box-border flex h-[29px] w-full items-center justify-end gap-0.5 border-t border-border pt-2.5 text-[12px] font-medium text-foreground [&_svg]:size-[13px]">{children}{children && LIcon.next}</span>
+  </span>
+);
+
+// A status badge for a card that has no delta, from its tone.
+const TONE_BADGE = { warn: ["warn", "Needs attention"], loss: ["bad", "Loss"] };
 
 // One KPI. Pressable when `onClick`/`href` (it then filters the table), `on`
-// while its filter is the one applied.
-export function Kpi({ label, value, unit, delta, foot, tone, onClick, href, on, spark, title }) {
+// while its filter is the one applied. `status` = { text, tone } names the
+// badge when the tone's default words do not fit.
+export function Kpi({ label, value, unit, delta, status, foot, tone, onClick, href, on, title }) {
+  const { t } = useI18n();
+  const fromTone = TONE_BADGE[tone];
+  const badge = delta?.text ? <Delta {...delta} />
+    : status ? <KpiBadge tone={status.tone}>{status.text}</KpiBadge>
+    : fromTone ? <KpiBadge tone={fromTone[0]}>{t(fromTone[1])}</KpiBadge> : null;
+  const action = href ? t("View details") : onClick ? (on ? t("Clear filter") : t("Show in table")) : null;
   const body = (
     <>
-      <KpiHead label={label}>{delta && <Delta {...delta} />}</KpiHead>
-      <KpiRow><KpiValue tone={tone} unit={unit}>{value}</KpiValue>{spark}</KpiRow>
+      <KpiHead label={label}>{badge}</KpiHead>
+      <KpiRow><KpiValue tone={tone} unit={unit}>{value}</KpiValue></KpiRow>
       {foot && <KpiFoot>{foot}</KpiFoot>}
+      <KpiAction>{action}</KpiAction>
     </>
   );
   if (href) return <Link data-slot="kpi" className={kpiFrame(true, on)} href={href} title={title}>{body}</Link>;
@@ -162,15 +193,11 @@ export function Kpi({ label, value, unit, delta, foot, tone, onClick, href, on, 
 
 // A KPI that turns over to show its figure by currency: rows = [{ code, amount, sar }].
 export function FlipKpi({ label, ariaLabel, delta, flipped, onToggle, front, rows }) {
-  const face = "col-start-1 row-start-1 flex flex-col transition-[opacity,translate] duration-[220ms] ease-[cubic-bezier(.2,.7,.2,1)]";
+  const { t } = useI18n();
+  const face = "col-start-1 row-start-1 flex flex-col transition-[opacity,translate] duration-[180ms] ease-out-quint";
   return (
-    <button data-slot="kpi" type="button" className={cn(kpiFrame(true), "group/flip")} aria-expanded={flipped} aria-label={ariaLabel} onClick={onToggle}>
-      <KpiHead label={label}>
-        <span className="inline-flex items-center gap-2">
-          {!flipped && delta}
-          <span className={cn("-mr-1 grid size-[22px] place-content-center rounded-full text-muted-foreground transition-[rotate,background-color] duration-[220ms,150ms] ease-[cubic-bezier(.2,.7,.2,1),ease] group-hover/flip:bg-secondary group-hover/flip:text-foreground", flipped && "rotate-180")}>{LIcon.chev}</span>
-        </span>
-      </KpiHead>
+    <button data-slot="kpi" type="button" className={kpiFrame(true)} aria-expanded={flipped} aria-label={ariaLabel} onClick={onToggle}>
+      <KpiHead label={label}>{!flipped && delta}</KpiHead>
       <span className="grid">
         <span className={cn(face, flipped && "-translate-y-1.5 opacity-0")} aria-hidden={flipped}>{front}</span>
         <span className={cn(face, !flipped && "pointer-events-none translate-y-1.5 opacity-0")} aria-hidden={!flipped}>
@@ -185,38 +212,19 @@ export function FlipKpi({ label, ariaLabel, delta, flipped, onToggle, front, row
           </span>
         </span>
       </span>
+      <KpiAction>{flipped ? t("Show total") : t("Show by currency")}</KpiAction>
     </button>
   );
 }
 
+// A change against the previous period, signed, coloured by whether it is
+// good news (`good`), not by its direction.
 export function Delta({ text, good, title }) {
   if (!text) return null;
-  const up = !String(text).startsWith("-");
-  // The arrow carries the direction, so the sign is not repeated.
-  return (
-    <span title={title} className={cn(
-      "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[12px] font-semibold whitespace-nowrap tabular-nums [&_svg]:size-[11px] [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[2.6]",
-      good ? "bg-success-tint text-success-text" : "bg-warning-tint text-warning-text",
-    )}>{up ? LIcon.up : LIcon.down}{String(text).replace(/^[-+−]/, "")}</span>
-  );
+  const s = String(text);
+  return <KpiBadge tone={good ? "good" : "bad"} title={title}>{/^[-−+]/.test(s) ? s.replace(/^-/, "−") : `+${s}`}</KpiBadge>;
 }
 
-// Two cumulative series (this period, the one before) as a tiny line chart.
-export function Spark({ cur = [], prev = [], label }) {
-  const all = [...cur, ...prev].map(Number);
-  const max = Math.max(1, ...all);
-  const n = Math.max(cur.length, prev.length, 2);
-  const pts = (arr) => arr.map((v, i) => `${(4 + (i * 75) / (n - 1)).toFixed(1)},${(28 - (Number(v) / max) * 24).toFixed(1)}`).join(" ");
-  const last = cur.length ? pts(cur).split(" ").pop().split(",") : null;
-  return (
-    <svg width="84" height="32" viewBox="0 0 84 32" role="img" aria-label={label}>
-      <title>{label}</title>
-      {prev.length > 1 && <polyline points={pts(prev)} fill="none" className="stroke-muted-foreground opacity-45" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
-      {cur.length > 1 && <polyline points={pts(cur)} fill="none" className="stroke-foreground" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
-      {last && <circle cx={last[0]} cy={last[1]} r="4" fill="var(--foreground)" stroke="var(--card)" strokeWidth="2" />}
-    </svg>
-  );
-}
 
 export function Toolbar({ left, children, spaced }) {
   return (

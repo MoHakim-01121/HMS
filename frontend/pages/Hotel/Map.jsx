@@ -304,7 +304,7 @@ export default function HotelMap() {
       if (window.__hotelMapCleanup) { window.__hotelMapCleanup(); delete window.__hotelMapCleanup; }
       if (map) map.remove();
     };
-  }, []);
+  }, [t]);
 
   return (
     <div id="map-wrap">

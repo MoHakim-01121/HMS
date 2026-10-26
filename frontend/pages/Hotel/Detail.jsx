@@ -65,7 +65,7 @@ function HotelMiniMap({ hotel }) {
       if (observer) observer.disconnect();
       if (map) map.remove();
     };
-  }, [hotel]);
+  }, [hotel, t]);
 
   return <div ref={ref} />;
 }

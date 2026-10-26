@@ -16,13 +16,6 @@ import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useFormModal, ModalContent, ModalHead, ModalTitle, ModalBody } from "../../components/shadcn/form-modal.jsx";
 
-const CSS = `
-.rec-line-row { display:grid; grid-template-columns: 120px 90px 1fr 110px 32px; gap:8px; align-items:start; }
-@media (max-width: 640px) { .rec-line-row { grid-template-columns: 1fr; } }
-.rec-line-del { display:flex; align-items:center; justify-content:center; height:36px; color:var(--muted-foreground); }
-.rec-line-del:hover { color:var(--red); }
-`;
-
 const EMPTY_LINE = { line_date: new Date().toISOString().split("T")[0], direction: "in", description: "", amount: "" };
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -125,7 +118,6 @@ export default function List({ statements = [], account_choices = [], filters: f
       {newOpen && (
         <Dialog open onOpenChange={(v) => { if (!v) setNewOpen(false); }}>
           <ModalContent className="sm:max-w-2xl">
-            <style>{CSS}</style>
             <ModalHead>
               <ModalTitle>{t("New Statement")}</ModalTitle>
             </ModalHead>
@@ -154,7 +146,7 @@ export default function List({ statements = [], account_choices = [], filters: f
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{t("Lines")}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {lines.map((l, i) => (
-                      <div key={i} className="rec-line-row">
+                      <div key={i} className="grid grid-cols-[120px_90px_1fr_110px_32px] items-start gap-2 max-[640px]:grid-cols-1">
                         <Input type="date" value={l.line_date} onChange={(e) => updateLine(i, "line_date", e.target.value)} />
                         <Select value={l.direction} onValueChange={(v) => updateLine(i, "direction", v)}>
                           <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
@@ -165,7 +157,7 @@ export default function List({ statements = [], account_choices = [], filters: f
                         </Select>
                         <Input placeholder={t("Description")} value={l.description} onChange={(e) => updateLine(i, "description", e.target.value)} />
                         <Input inputMode="numeric" aria-label={t("Amount")} placeholder={currency || "0"} value={amountText(l.amount)} onChange={(e) => updateLine(i, "amount", amountValue(e.target.value))} />
-                        <button type="button" className="rec-line-del" onClick={() => removeLine(i)} aria-label={t("Remove line")}>
+                        <button type="button" className="flex h-9 items-center justify-center text-muted-foreground hover:text-red" onClick={() => removeLine(i)} aria-label={t("Remove line")}>
                           <Icon name="trash" size={14} />
                         </button>
                       </div>

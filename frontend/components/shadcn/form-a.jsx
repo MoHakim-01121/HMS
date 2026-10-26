@@ -528,6 +528,13 @@ export function NoteField({ label, value, onChange, placeholder, required, optio
 }
 
 // Why the primary button is not ready yet, at the start of the action row.
+// Before / after figures under a money form (deposit held, after approval):
+// muted rows; the `result` row is ruled off, in ink, its figure in bold 16px.
+export const Effect = ({ children }) => <div className="rounded-[14px] border border-border px-3.5 py-1.5 text-[13px]">{children}</div>;
+export const EffectRow = ({ result, children }) => (
+  <div className={cn("flex min-h-[30px] items-center justify-between gap-3 text-muted-foreground", result && "mt-1 border-t border-border pt-1.5 font-medium text-foreground [&_b]:text-[16px] [&_b]:font-bold")}>{children}</div>
+);
+
 export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full" role="status">{children}</span>;
 
 // The footer: why the primary button is not ready yet (or, when it is, an

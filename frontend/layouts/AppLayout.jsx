@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, useMemo } from "react";
-import axios from "axios";
+import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { Link, router, usePage } from "@inertiajs/react";
 import { useTheme } from "./useTheme.js";
 import { Icon } from "../components/icons.jsx";
 import { getCsrf } from "../utils/csrf.js";
 import { useI18n } from "../utils/i18n.jsx";
+import { saveLanguage } from "../utils/language.js";
 import SearchOverlay from "../components/shadcn/search-overlay.jsx";
 import ShellSidebar from "../components/shell/ShellSidebar.jsx";
 import TopbarSearch from "../components/shell/TopbarSearch.jsx";
@@ -170,8 +170,8 @@ function MobileMore({ page, perms, onClose }) {
 const TOPBAR = cn(
   "canvas fixed top-0 right-0 z-[var(--z-sticky,200)] hidden h-(--topbar-h) items-center justify-between gap-4 min-[601px]:flex",
   "pt-(--shell-gap) pr-[calc(var(--tb-x)_-_4px)] pb-0 pl-(--tb-x) [body:has([data-slot=list-main])_&]:[--page-max:1320px]",
-  "border-b border-b-transparent bg-background/86 backdrop-blur-[20px] backdrop-saturate-[1.4]",
-  "transition-[left,border-color] duration-[300ms,200ms] ease-[cubic-bezier(.32,.72,0,1),ease] in-data-[scroll-locked]:right-[var(--removed-body-scroll-bar-size,0px)]",
+  "border-b border-b-transparent",
+  "transition-[left] duration-300 ease-[cubic-bezier(.32,.72,0,1)] in-data-[scroll-locked]:right-[var(--removed-body-scroll-bar-size,0px)]",
 );
 const TOPBAR_X = "[--tb-x:max(20px,calc((100vw_-_var(--sidebar-w)_-_var(--page-max,1040px))_/_2_+_20px))]";
 const TOPBAR_X_MINI = "[--tb-x:max(20px,calc((100vw_-_var(--sidebar-w-collapsed)_-_var(--page-max,1040px))_/_2_+_20px))]";
@@ -227,7 +227,6 @@ export default function AppLayout({ children }) {
   const [mAccount, setMAccount] = useState(false);
   const [mMore, setMMore] = useState(false);
   const [collapsed, setCollapsed] = useState(readMini);
-  const [lift, setLift] = useState(false);
   const [readKeys, setReadKeys] = useState(() => readSet(READ_KEY));
   const [confirmTo, setConfirmTo] = useState(null);
   const [toast, setToast] = useState("");
@@ -237,6 +236,7 @@ export default function AppLayout({ children }) {
   const searchRef = useRef(null);
   const dirty = useRef(null);
   const main = useRef(null);
+  const topbar = useRef(null);
 
   // The browser tab names the page: its heading ("INV-090", "Journal
   // Entries"), Home on the dashboard, so tabs and history can be told apart.
@@ -344,12 +344,40 @@ export default function AppLayout({ children }) {
     if (dx) shell.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(.32,.72,0,1)" });
   }, [collapsed]);
 
-  // The topbar stays put; once the page scrolls under it, a hairline shows.
+  // Dialogs are portaled to <body>, outside this shell's padding, so they
+  // cannot see which slot the sidebar currently occupies. Publish it on body,
+  // which the portal does inherit: DialogContent centres itself on the content
+  // the sidebar leaves (--content-left) instead of on the viewport, and the
+  // offset follows the rail when it collapses. Removed when the shell unmounts
+  // (the public landing pages have no sidebar); the fullscreen map has none
+  // either, so it gets no offset.
+  useLayoutEffect(() => {
+    document.body.style.setProperty(
+      "--content-left",
+      isMap ? "0px" : collapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)"
+    );
+    return () => document.body.style.removeProperty("--content-left");
+  }, [collapsed, isMap]);
+
+  // The topbar stays put; its scrim follows the scroll instead of snapping on
+  // at 4px. --tb-scrim runs 0 → 1 across the topbar's own height and drives
+  // the scrim's opacity, so the frosting arrives as the page slides under it.
   useEffect(() => {
-    const onScroll = () => setLift(window.scrollY > 4);
-    onScroll();
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      const progress = Math.min(1, Math.max(0, (window.scrollY - 4) / 66));
+      topbar.current?.style.setProperty("--tb-scrim", progress.toFixed(3));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    paint();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -394,8 +422,7 @@ export default function AppLayout({ children }) {
 
   const setLanguage = async (value) => {
     try {
-      await axios.post("/account/language/", new URLSearchParams({ language: value }));
-      router.reload();
+      await saveLanguage(value);
     } catch { /* keep current language */ }
   };
 
@@ -460,7 +487,14 @@ export default function AppLayout({ children }) {
           {!isMap && <ShellSidebar page={page} perms={perms} theme={theme} branch={branch} mini={collapsed} onPickBranch={pickBranch} onToggleMini={toggleMini} />}
 
           {!isMap && (
-          <header className={cn(TOPBAR, collapsed ? TOPBAR_X_MINI : TOPBAR_X, collapsed ? "left-(--sidebar-w-collapsed)" : "left-(--sidebar-w)", lift && "border-b-[color:color-mix(in_oklch,var(--border)_80%,transparent)]")}>
+          <header ref={topbar} className={cn(TOPBAR, collapsed ? TOPBAR_X_MINI : TOPBAR_X, collapsed ? "left-(--sidebar-w-collapsed)" : "left-(--sidebar-w)")}>
+            {/* The bar itself is transparent so the lattice shows at rest; this
+                sheet frosts in as the page scrolls under, fading out 20px below
+                the bar instead of ending on a hard line. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 -bottom-5 -z-10 bg-[color:color-mix(in_oklch,var(--page-canvas)_82%,transparent)] opacity-[var(--tb-scrim,0)] backdrop-blur-[18px] backdrop-saturate-[1.4] [mask-image:linear-gradient(to_bottom,#000_0%,#000_72%,#000b_85%,transparent_100%)]"
+            />
             <div className="flex min-w-0 items-center gap-1">
               <span className="overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-muted-foreground tabular-nums">{dayLabel}</span>
             </div>
@@ -680,7 +714,9 @@ export default function AppLayout({ children }) {
         </>
       )}
 
-      {/* v2.1 is a flat solid canvas — no ambient blobs, gradients, or texture. */}
+      {/* v2.1 is a flat solid canvas — no ambient blobs or gradients. The one
+          texture is the gold Islamic lattice, painted on body by tailwind.css
+          for every page that mounts this shell. */}
       <div ref={main} id="main" tabIndex={-1} className={cn("canvas transition-opacity duration-200 ease-[ease] focus:outline-none", switching && "opacity-35")}>{children}</div>
 
       {confirmTo && (

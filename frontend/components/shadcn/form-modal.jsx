@@ -48,6 +48,13 @@ export function ModalContent({ layout, className, ...props }) {
   return (
     <DialogContent showCloseButton={false} {...props} className={cn(
       "flex max-h-[min(86vh,820px)] flex-col gap-0 overflow-hidden rounded-[24px] p-0 max-[600px]:max-h-[92vh] max-[600px]:rounded-[20px]",
+      // Centre in what the shell leaves, not in the window: a dialog centred on
+      // the viewport sits half a sidebar to the left of the content it belongs
+      // to on desktop. --content-left is published by AppLayout (it follows
+      // the rail when the sidebar collapses); --topbar-h is the shell's own
+      // content offset. Both are desktop-only, so phones keep the plain
+      // viewport-centred dialog they already had.
+      "min-[601px]:left-[calc(50%_+_var(--content-left,0px)/2)] min-[601px]:top-[calc(50%_+_var(--topbar-h,0px)/2)]",
       className,
       layout === "a" && "max-w-[760px] rounded-[20px] sm:max-w-[760px]",
     )} />
@@ -138,7 +145,7 @@ export function FormModalProvider({ children }) {
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = await res.json();
-      const Component = resolvePage(data.component);
+      const Component = await resolvePage(data.component);
       if (!Component) throw new Error(`unresolved page component: ${data.component}`);
       return { Component, props: data.props, title: data.component };
     })();

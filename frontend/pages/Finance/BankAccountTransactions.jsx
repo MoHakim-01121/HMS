@@ -44,11 +44,12 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
       <DCard
         title={t("Transactions")}
         count={rows.length || null}
+        headClassName="flex-wrap items-center pb-3"
         actions={(
-          <form className="bt-range" onSubmit={(e) => { e.preventDefault(); apply(from, to); }}>
-            <input type="date" aria-label={t("From")} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
+          <form className="flex flex-wrap items-center gap-1.5 font-normal text-muted-foreground" onSubmit={(e) => { e.preventDefault(); apply(from, to); }}>
+            <input className="h-8 w-[150px] flex-none rounded-[10px] border border-input bg-card px-2.5 font-sans text-[13px] leading-[normal] font-medium text-foreground" type="date" aria-label={t("From")} value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} />
             <span>–</span>
-            <input type="date" aria-label={t("To")} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+            <input className="h-8 w-[150px] flex-none rounded-[10px] border border-input bg-card px-2.5 font-sans text-[13px] leading-[normal] font-medium text-foreground" type="date" aria-label={t("To")} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
             <button type="submit" className={dBtnClass({ soft: true })}>{t("Apply")}</button>
             {filtered ? <button type="button" className={dBtnClass()} onClick={() => { setFrom(""); setTo(""); apply("", ""); }}>{t("Reset")}</button> : null}
           </form>
@@ -74,7 +75,7 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
                     <td><DPill sm tone={r.matched ? "green" : "gray"}>{r.matched ? t("Reconciled") : t("Unmatched")}</DPill></td>
                     <td className={cn(DC.n, DC.good)}>{r.direction === "in" ? fmt(r.amount_sar) : ""}</td>
                     <td className={DC.n}>{r.direction !== "in" ? fmt(r.amount_sar) : ""}</td>
-                    <td className={cn(DC.n, DC.bold)} style={r.running_balance_sar < 0 ? { color: "var(--danger-text)" } : undefined}>{fmt(r.running_balance_sar)}</td>
+                    <td className={cn(DC.n, DC.bold, r.running_balance_sar < 0 && "text-danger-text")}>{fmt(r.running_balance_sar)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -91,11 +92,6 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
         ) : <div className={DA.empty}>{t("No bank transactions recorded for this account yet.")}</div>}
       </DCard>
 
-      <style>{`
-.bt-range { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 400; color: var(--muted-foreground); }
-.bt-range input { width: 150px !important; flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); }
-[data-slot=card-head]:has(.bt-range) { align-items: center; flex-wrap: wrap; padding-bottom: 12px; }
-`}</style>
     </DPage>
   );
 }
