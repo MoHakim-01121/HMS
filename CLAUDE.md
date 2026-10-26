@@ -25,7 +25,7 @@ The app (not the public landing page) has one way to style things. Consistency c
 - Arbitrary colours that tailwind-merge cannot classify need a type hint: `bg-[color:color-mix(...)]`.
 - Dark mode is `[data-theme="dark"]`, not the `dark:` variant (that follows the OS).
 
-**Migration in progress.** Legacy CSS (`frontend/styles/legacy.css`, `list-a.css`, `form-a.css`, `detail-a.css`, `shell.css`, `dashboard.css`, `profile.css`, `calendar.css`, the custom-class sections of `tailwind.css`) is being moved into components; the plan lives in `~/.claude/plans/kita-plan-dulu-sebelum-robust-newell.md`. Do not add to those files or use their classes in new code. `npm run lint:ui` fails on new violations; files still being migrated are listed in `scripts/lint-ui-allowlist.json`, which may only shrink.
+**Migration in progress.** Legacy CSS (`frontend/styles/legacy.css`, `list-a.css`, `form-a.css`, `detail-a.css`, `shell.css`, `profile.css`, `calendar.css`, the custom-class sections of `tailwind.css`) is being moved into components; the plan lives in `~/.claude/plans/kita-plan-dulu-sebelum-robust-newell.md`. Do not add to those files or use their classes in new code. `npm run lint:ui` fails on new violations; files still being migrated are listed in `scripts/lint-ui-allowlist.json`, which may only shrink.
 
 ## Checking UI changes
 
