@@ -8,6 +8,7 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 export default function TeamForm({ team, edit, errors: serverErrors }) {
   const { t } = useI18n();
@@ -29,7 +30,7 @@ export default function TeamForm({ team, edit, errors: serverErrors }) {
   const closeHref = "/manage-landing/";
 
   const page = (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <FormHeader
         kicker={t("Manage Landing")}
         title={edit ? t("Edit Member") : t("New Member")}
@@ -76,7 +77,7 @@ export default function TeamForm({ team, edit, errors: serverErrors }) {
           />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 
   return inModal ? page : <StandaloneFormModal closeHref={closeHref}>{page}</StandaloneFormModal>;

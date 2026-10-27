@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FE = join(ROOT, "frontend");
 const ALLOW = join(ROOT, "scripts/lint-ui-allowlist.json");
-const SKIP = [/^frontend\/pages\/Landing\//, /^frontend\/components\/landing\//, /^frontend\/main\.jsx$/];
+const SKIP = [/^frontend\/pages\/Landing\/(Index|Hotels)\.jsx$/, /^frontend\/components\/landing\//, /^frontend\/main\.jsx$/];
 
 const walk = (dir) => readdirSync(dir).flatMap((f) => {
   const p = join(dir, f);
