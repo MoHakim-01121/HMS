@@ -5,6 +5,7 @@ import { FormModalContext } from "./form-modal.jsx";
 import { LIcon, Menu, MenuItem, MenuSep } from "./list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
+import Page from "./page.jsx";
 
 // Building blocks of the detail pages on the Record View HMS canvas (row
 // "CL, Invoice, Client, Hotel, Payment, Remittance, Client Ledger dan
@@ -118,9 +119,9 @@ export const DC = {
 
 export function DPage({ children, className }) {
   return (
-    <div className="page shadcn-root">
+    <Page>
       <div className={cn(DA.main, className)}>{children}</div>
-    </div>
+    </Page>
   );
 }
 

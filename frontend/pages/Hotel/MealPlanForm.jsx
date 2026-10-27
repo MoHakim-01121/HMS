@@ -7,6 +7,7 @@ import FormSection from "../../components/shadcn/form-section.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 // Picks from the global MealPlan master rather than creating anything — the
 // codes are fixed (RO/BB/HB/FB), so this is one checkbox set saved at once,
@@ -33,7 +34,7 @@ function MealPlanFormBody({ hotel, available = [], selected = [] }) {
   };
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={back} />
       <FormHeader kicker={hotel.name} title={t("Manage Meal Plans")} sub={t("Board types this hotel offers. Only these appear in the CL form's Meals column.")} />
       <form method="post" onSubmit={submit}>
@@ -53,7 +54,7 @@ function MealPlanFormBody({ hotel, available = [], selected = [] }) {
           <FormActions cancelHref={back} submitLabel={t("Save")} processing={form.processing} />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

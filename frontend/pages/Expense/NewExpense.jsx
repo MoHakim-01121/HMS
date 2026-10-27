@@ -27,6 +27,21 @@ const I = {
   up: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M5 20h14" /></svg>,
 };
 
+// A cost line: category, description, amount, receipt, remove.
+const ROW = "grid min-h-[52px] min-w-[640px] grid-cols-[156px_minmax(0,1fr)_140px_132px_28px] items-center gap-2.5 px-2 text-[14px]";
+// A typed cell: a bordered box around a bare input.
+const CELL_IN = "box-border flex h-[34px] items-center gap-1.5 rounded-[10px] border-[1.5px] border-input bg-card px-2.5 transition-[border-color] duration-[120ms] ease-[ease] hover:border-[color:color-mix(in_oklch,var(--foreground)_45%,var(--input))] focus-within:border-foreground [&>svg]:flex-none [&>svg]:text-warning-text";
+const BARE_IN = "h-full min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 font-sans text-[14px] font-medium text-foreground shadow-none outline-none";
+const RCP = "box-border flex h-[34px] w-full cursor-pointer items-center gap-1.5 rounded-[10px] py-0 pr-2 pl-2.5 text-left font-sans text-[13px] leading-[normal] font-medium";
+const RCP_TONE = {
+  ok: "border-[1.5px] border-input bg-card text-foreground [&>svg]:flex-none [&>svg]:text-success-text",
+  nr: "border-[1.5px] border-[color:color-mix(in_oklch,var(--warning)_45%,var(--input))] bg-warning-tint text-warning-text",
+  miss: "border-[1.5px] border-dashed border-input bg-transparent text-muted-foreground hover:border-foreground hover:text-foreground",
+};
+const FN = "min-w-0 flex-1 truncate";
+const SET_ROW = "flex min-h-[30px] items-center justify-between text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground";
+const SET_RES = "mt-1 border-t border-border pt-1.5 font-medium text-foreground";
+
 // The receipt cell: what is attached, and a menu to add files or say there is none.
 function Receipt({ line, onChange }) {
   const { t } = useI18n();
@@ -39,10 +54,10 @@ function Receipt({ line, onChange }) {
   };
   const has = line.files.length > 0;
   const btn = has
-    ? <button type="button" className="ex-rcp ok" aria-haspopup="dialog">{I.ok}<span className="fn">{line.files.length === 1 ? line.files[0].name : t("{n} files", { n: line.files.length })}</span></button>
+    ? <button type="button" className={cn(RCP, RCP_TONE.ok)} aria-haspopup="dialog">{I.ok}<span className={FN}>{line.files.length === 1 ? line.files[0].name : t("{n} files", { n: line.files.length })}</span></button>
     : line.noReceipt
-      ? <button type="button" className="ex-rcp nr" aria-haspopup="dialog">{I.warn}<span className="fn">{t("No receipt")}</span></button>
-      : <button type="button" className="ex-rcp miss" aria-haspopup="dialog">{I.clip}<span className="fn">{t("Attach")}</span></button>;
+      ? <button type="button" className={cn(RCP, RCP_TONE.nr)} aria-haspopup="dialog">{I.warn}<span className={FN}>{t("No receipt")}</span></button>
+      : <button type="button" className={cn(RCP, RCP_TONE.miss)} aria-haspopup="dialog">{I.clip}<span className={FN}>{t("Attach")}</span></button>;
   return (
     <>
       <input ref={ref} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
@@ -50,8 +65,8 @@ function Receipt({ line, onChange }) {
         <PopoverTrigger asChild>{btn}</PopoverTrigger>
         <PopoverContent align="end" sideOffset={6} className={cn(FA.popover, "w-[280px]")}>
           {line.files.map((f, i) => (
-            <div key={i} className="ex-rfile">
-              <span className="fn">{f.name}<br /><small>{fileSize(f.size)}</small></span>
+            <div key={i} className="flex items-center gap-2.5 rounded-[8px] py-1.5 pr-1.5 pl-2.5 text-[13px] hover:bg-secondary">
+              <span className={cn(FN, "font-medium")}>{f.name}<br /><small className="text-[12px] text-muted-foreground">{fileSize(f.size)}</small></span>
               <button type="button" className={FA.trash} aria-label={t("Remove file")}
                 onClick={() => onChange({ files: line.files.filter((_, j) => j !== i) })}>{I.trash}</button>
             </div>
@@ -196,40 +211,40 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
         </div>
         <div className={FA.box}>
           <div className={FA.scroll}>
-            <div className="ex-row h"><span>{t("Category")}</span><span>{t("Description")}</span><span className="r">{t("Amount")}</span><span>{t("Receipt")}</span><span /></div>
+            <div className={cn(ROW, "min-h-[34px] text-[12px] font-medium text-muted-foreground")}><span>{t("Category")}</span><span>{t("Description")}</span><span className="text-right">{t("Amount")}</span><span>{t("Receipt")}</span><span /></div>
             {lines.map((l, i) => (
-              <div key={i} className="ex-line">
-                <div className="ex-row">
+              <div key={i} className="border-hairline not-first:border-t">
+                <div className={ROW}>
                   <CellPicker value={l.category} options={catOpts} placeholder={t("Category")} label={t("Category")}
                     onPick={(o) => setLine(i, { category: o.value })} />
-                  <label className="ex-in"><input placeholder={t("What was it")} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} /></label>
-                  <label className="ex-in"><span className="u">IDR</span><input className={cn("r", FA.num)} inputMode="numeric" value={groupDigits(l.amount)}
+                  <label className={CELL_IN}><input className={BARE_IN} placeholder={t("What was it")} value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} /></label>
+                  <label className={CELL_IN}><span className="text-[11px] font-semibold text-muted-foreground">IDR</span><input className={cn(BARE_IN, "text-right font-semibold", FA.num)} inputMode="numeric" value={groupDigits(l.amount)}
                     onChange={(e) => setLine(i, { amount: digitsOf(e.target.value) })} aria-label={t("Amount")} /></label>
                   <Receipt line={l} onChange={(patch) => setLine(i, patch)} />
                   <button type="button" className={FA.trash} aria-label={t("Remove line")} onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>{I.trash}</button>
                 </div>
                 {l.noReceipt && !l.files.length ? (
-                  <div className="ex-why">
-                    <label className="ex-in">{I.warn}<input placeholder={t("Why there is no receipt")} value={l.reason} onChange={(e) => setLine(i, { reason: e.target.value })} /></label>
+                  <div className="-mt-1 flex pr-[46px] pb-3 pl-[174px] max-[640px]:px-2">
+                    <label className={cn(CELL_IN, "flex-1")}>{I.warn}<input className={BARE_IN} placeholder={t("Why there is no receipt")} value={l.reason} onChange={(e) => setLine(i, { reason: e.target.value })} /></label>
                   </div>
                 ) : null}
               </div>
             ))}
           </div>
           {!lines.length ? <div className={FA.noteEmpty}>{t("No lines yet. Add the first cost.")}</div> : null}
-          <div className="ex-foot">
+          <div className="mt-0.5 flex items-center justify-between border-0 border-t border-dashed border-border">
             <button type="button" className={cn(FA.addRow, "mt-0 w-auto border-t-0")} onClick={() => setLines((ls) => [...ls, blank()])}>{I.plus}{t("Add line")}</button>
             <input ref={bulkRef} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { bulk(e.target.files); e.target.value = ""; }} />
-            <button type="button" className="ex-upl" onClick={() => bulkRef.current?.click()}>{I.up}{t("Upload receipts")}<small>{t("each photo becomes a line")}</small></button>
+            <button type="button" className="mr-1 flex h-8 cursor-pointer items-center gap-2 rounded-[10px] border-[1.5px] border-input bg-card px-3 font-sans text-[13px] leading-[normal] font-medium text-foreground hover:border-foreground" onClick={() => bulkRef.current?.click()}>{I.up}{t("Upload receipts")}<small className="text-[12px] font-normal text-muted-foreground max-[640px]:hidden">{t("each photo becomes a line")}</small></button>
           </div>
           <div className={cn(FA.checkTotal, useAdv && "rounded-none")}><b>{t("Total")}</b><span className={FA.num}><b className="text-[17px]">{fmt(total)}</b><span className={FA.unit}>IDR</span></span></div>
           {useAdv ? (
-            <div className="ex-set">
-              <div><span>{t("Advance held by {name}", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance)}</b> IDR</span></div>
-              <div><span>{t("This expense")}</span><span className={FA.num}><b>−{fmt(total)}</b> IDR</span></div>
+            <div className="-mx-1.5 rounded-b-[13px] bg-background px-3.5 pt-1 pb-2.5 text-[13px]">
+              <div className={SET_ROW}><span>{t("Advance held by {name}", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance)}</b> IDR</span></div>
+              <div className={SET_ROW}><span>{t("This expense")}</span><span className={FA.num}><b>−{fmt(total)}</b> IDR</span></div>
               {total <= staff.balance
-                ? <div className="res"><span>{t("Still with {name} after this", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance - total)}</b> IDR</span></div>
-                : <div className="res over"><span>{t("Over the advance, owed to {name}", { name: first })}</span><span className={FA.num}><b>{fmt(total - staff.balance)}</b> IDR</span></div>}
+                ? <div className={cn(SET_ROW, SET_RES)}><span>{t("Still with {name} after this", { name: first })}</span><span className={FA.num}><b>{fmt(staff.balance - total)}</b> IDR</span></div>
+                : <div className={cn(SET_ROW, SET_RES, "[&_b]:text-warning-text")}><span>{t("Over the advance, owed to {name}", { name: first })}</span><span className={FA.num}><b>{fmt(total - staff.balance)}</b> IDR</span></div>}
             </div>
           ) : null}
         </div>
@@ -238,44 +253,7 @@ export default function NewExpense({ onClose, branch_choices = [], category_choi
 
         <Foot why={why} onCancel={onClose} submitLabel={t("Submit for approval")} processing={busy} />
       </form>
-      <style>{CSS}</style>
     </FaDialog>
   );
 }
 
-const CSS = `
-.ex-row { display: grid; grid-template-columns: 156px minmax(0,1fr) 140px 132px 28px; align-items: center; gap: 10px; min-height: 52px; padding: 0 8px; font-size: 14px; min-width: 640px; }
-.ex-line + .ex-line { border-top: 1px solid var(--hairline); }
-.ex-row.h { min-height: 34px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
-.ex-row .r { text-align: right; }
-.ex-in { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); box-sizing: border-box; transition: border-color 120ms ease; }
-.ex-in:hover { border-color: color-mix(in oklch, var(--foreground) 45%, var(--input)); }
-.ex-in:focus-within { border-color: var(--foreground); }
-.ex-in input { flex: 1; min-width: 0; border: 0 !important; background: transparent !important; padding: 0 !important; font: 500 14px var(--font-sans); color: var(--foreground); outline: none; box-shadow: none !important; height: 100%; border-radius: 0 !important; }
-.ex-in input.r { text-align: right; font-weight: 600; }
-.ex-in .u { font-size: 11px; font-weight: 600; color: var(--muted-foreground); }
-.ex-in svg { color: var(--warning-text); flex: none; }
-.ex-rcp { display: flex; align-items: center; gap: 6px; width: 100%; height: 34px; padding: 0 8px 0 10px; border-radius: 10px; box-sizing: border-box; font: 500 13px var(--font-sans); text-align: left; cursor: pointer; }
-.ex-rcp .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ex-rcp.miss { border: 1.5px dashed var(--input); background: none; color: var(--muted-foreground); }
-.ex-rcp.miss:hover { border-color: var(--foreground); color: var(--foreground); }
-.ex-rcp.ok { border: 1.5px solid var(--input); background: var(--card); color: var(--foreground); }
-.ex-rcp.ok svg { color: var(--success-text); flex: none; }
-.ex-rcp.nr { border: 1.5px solid color-mix(in oklch, var(--warning) 45%, var(--input)); background: var(--warning-tint); color: var(--warning-text); }
-.ex-why { display: flex; padding: 0 46px 12px 174px; margin-top: -4px; }
-.ex-why .ex-in { flex: 1; }
-.ex-rfile { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 10px; border-radius: 8px; font-size: 13px; }
-.ex-rfile:hover { background: var(--secondary); }
-.ex-rfile .fn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.ex-rfile small { color: var(--muted-foreground); font-size: 12px; }
-.ex-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px dashed var(--border); margin-top: 2px; }
-.ex-upl { display: flex; align-items: center; gap: 8px; height: 32px; margin-right: 4px; padding: 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); font: 500 13px var(--font-sans); color: var(--foreground); cursor: pointer; }
-.ex-upl small { font-size: 12px; font-weight: 400; color: var(--muted-foreground); }
-.ex-upl:hover { border-color: var(--foreground); }
-.ex-set { margin: 0 -6px; padding: 4px 14px 10px; background: var(--background); border-radius: 0 0 13px 13px; font-size: 13px; }
-.ex-set > div { display: flex; justify-content: space-between; align-items: center; min-height: 30px; color: var(--muted-foreground); }
-.ex-set > div b { color: var(--foreground); font-weight: 600; }
-.ex-set > div.res { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; color: var(--foreground); font-weight: 500; }
-.ex-set > div.res.over b { color: var(--warning-text); }
-@media (max-width: 640px) { .ex-why { padding-left: 8px; padding-right: 8px; } .ex-upl small { display: none; } }
-`;

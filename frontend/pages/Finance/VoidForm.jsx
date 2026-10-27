@@ -8,6 +8,8 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { Alert } from "../../components/shadcn/ui/alert.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 // Void a finance document (an invoice or a credit note) with a required
 // reason. When the server lists blockers, the form explains them instead.
@@ -22,10 +24,10 @@ function VoidFormBody({ kicker, title, number, sub, action, cancel, blockers = [
   };
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={cancel} label={t("Back")} />
       <FormHeader kicker={t(kicker)} title={`${t(title)} ${number}`} sub={t(sub)} />
-      {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{t(error)}</div>}
+      {error && <Alert variant="destructive" className="mb-3">{t(error)}</Alert>}
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label={t("Details")}>
@@ -46,7 +48,7 @@ function VoidFormBody({ kicker, title, number, sub, action, cancel, blockers = [
           />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

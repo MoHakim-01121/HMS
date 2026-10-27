@@ -5,6 +5,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
+import { cn } from "@/lib/utils";
 
 // Tab Tracking: uang klien di Surabaya yang belum dialokasikan, per reservasi,
 // dikelompokkan menurut dekatnya check-in. Angka ringkasan membentuk hitungan
@@ -17,34 +18,40 @@ const BUCKETS = [
   { key: "later", label: "Later" },
 ];
 
+const TINT = "bg-[color:color-mix(in_oklch,var(--muted)_45%,var(--card))]";
+const COLS = { 4: "grid-cols-4", 5: "grid-cols-5" };
+const AMT = "ml-auto font-medium tabular-nums";
+const DOT = "absolute top-[5px] -left-4 size-2 rounded-full border-[1.5px] border-muted-foreground";
+
 function Row({ row, open, onToggle, t }) {
   const partial = row.paid_sar < row.total_sar;
   return (
-    <li className={open ? "tq-row is-open" : "tq-row"}>
-      <button type="button" className="tq-row-btn" aria-expanded={open} onClick={onToggle}>
-        <span className="tq-row-main">
-          <span className="tq-row-t"><span className="tq-no">{row.linked_number}</span>{row.client_name}</span>
-          <span className="tq-row-sub">
+    <li className="border-border not-first:border-t">
+      <button type="button" aria-expanded={open} onClick={onToggle}
+        className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-3 text-left [font:inherit] text-inherit hover:bg-[color:color-mix(in_oklch,var(--muted)_45%,transparent)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-[13px] font-medium"><span className="mr-2 font-mono text-[12px] font-bold">{row.linked_number}</span>{row.client_name}</span>
+          <span className="truncate text-[12px] text-muted-foreground">
             {[row.hotel, row.check_in ? t("in {date}", { date: row.check_in }) : null].filter(Boolean).join(" · ")}
             {partial ? ` · ${t("paid {paid} of {total}", { paid: fmt(row.paid_sar), total: fmt(row.total_sar) })}` : ""}
           </span>
         </span>
-        <span className={row.unallocated > 0 ? "tq-amt" : "tq-amt is-zero"}>{fmt(row.unallocated)}</span>
-        <Icon name="chevron" size={14} className="tq-chev" />
+        <span className={cn("flex-none text-[14px] font-semibold tabular-nums", row.unallocated <= 0 && "font-medium text-muted-foreground")}>{fmt(row.unallocated)}</span>
+        <Icon name="chevron" size={14} className={cn("flex-none text-muted-foreground transition-[rotate] duration-150", open && "rotate-180")} />
       </button>
       {open && (
-        <ol className="tq-timeline">
-          <li><span className="tq-dot is-done" />{t("Paid by client")}<span className="tq-tl-amt">{fmt(row.paid_sar)}</span></li>
+        <ol className="m-0 flex list-none flex-col gap-2 pt-0.5 pr-4 pb-3.5 pl-9 [&>li]:relative [&>li]:flex [&>li]:items-baseline [&>li]:gap-2 [&>li]:text-[13px]">
+          <li><span className={cn(DOT, "border-foreground bg-foreground")} />{t("Paid by client")}<span className={AMT}>{fmt(row.paid_sar)}</span></li>
           {row.history.map((h, i) => (
             <li key={`${h.rmt_id}-${i}`}>
-              <span className="tq-dot is-done" />
+              <span className={cn(DOT, "border-foreground bg-foreground")} />
               {h.kind === "receipt" ? t("Received at HQ {date}", { date: h.date }) : t("Sent {date}", { date: h.date })}
-              <a className="tq-rmt" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
-              <span className="tq-tl-amt">{fmt(h.amount_sar)}</span>
+              <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
+              <span className={AMT}>{fmt(h.amount_sar)}</span>
             </li>
           ))}
           {row.unallocated > 0 && (
-            <li className="is-todo"><span className="tq-dot" />{t("Not allocated yet")}<span className="tq-tl-amt">{fmt(row.unallocated)}</span></li>
+            <li className="text-muted-foreground"><span className={DOT} />{t("Not allocated yet")}<span className={AMT}>{fmt(row.unallocated)}</span></li>
           )}
         </ol>
       )}
@@ -86,33 +93,36 @@ export default function TrackingPanel({ tracking }) {
   const allocationUrl = (p) => `/remittance/${p.remittance_id}/receipt/${p.settlement_id}/allocation/?next=${encodeURIComponent("/remittance/?tab=tracking")}`;
 
   return (
-    <div className="tq">
-      <style>{CSS}</style>
-      <dl className="tq-bridge" style={{ "--tq-cols": figures.length }}>
+    <div>
+      <dl className={cn("m-0 mb-3.5 grid overflow-hidden rounded-[18px] border border-border bg-card max-[760px]:grid-cols-2", COLS[figures.length])}>
         {figures.map((f) => (
-          <div key={f.label} className={f.strong ? "tq-fig is-strong" : "tq-fig"}>
-            <dt>{f.op ? <span className="tq-op" aria-hidden="true">{f.op}</span> : null}{f.label}</dt>
-            <dd>{fmt(f.value)}<span className="tq-cur">SAR</span></dd>
+          <div key={f.label} className={cn(
+            "min-w-0 border-l border-border px-4 py-3.5 first:border-l-0",
+            "max-[760px]:border-t max-[760px]:border-l-0 max-[760px]:even:border-l max-[760px]:nth-[-n+2]:border-t-0",
+            f.strong && cn(TINT, "max-[760px]:odd:col-span-full"),
+          )}>
+            <dt className="truncate text-[12px] text-muted-foreground">{f.op ? <span className="inline-block w-3.5 font-semibold text-foreground" aria-hidden="true">{f.op}</span> : null}{f.label}</dt>
+            <dd className="m-0 mt-1.5 text-[18px] font-semibold tracking-[-.02em] tabular-nums max-[760px]:text-[16px]">{fmt(f.value)}<span className="ml-[5px] text-[12px] font-semibold tracking-normal text-muted-foreground">SAR</span></dd>
           </div>
         ))}
       </dl>
 
       {pending.map((p) => (
-        <div className="tq-callout" key={p.settlement_id} role="status">
-          <Icon name="alert-circle" size={15} />
-          <span>{t("{number}: {n} SAR received {date} but not allocated", { number: p.remittance_number, n: fmt(p.amount_sar), date: p.received_date })}</span>
+        <div key={p.settlement_id} role="status" className="mb-2.5 flex items-center gap-2 rounded-xl border border-border bg-[color:color-mix(in_oklch,var(--muted)_55%,var(--card))] px-3 py-2.5 text-[13px]">
+          <Icon name="alert-circle" size={15} className="flex-none text-yellow" />
+          <span className="min-w-0 flex-1">{t("{number}: {n} SAR received {date} but not allocated", { number: p.remittance_number, n: fmt(p.amount_sar), date: p.received_date })}</span>
           {perms.can("remittance", "edit") && perms.headOffice && (
-            <button type="button" className="tq-callout-act" onClick={() => openForm(allocationUrl(p))}>
+            <button type="button" className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 [font:inherit] text-[13px] font-semibold whitespace-nowrap text-foreground hover:underline" onClick={() => openForm(allocationUrl(p))}>
               {t("Allocate")}<Icon name="arrow-right" size={13} />
             </button>
           )}
         </div>
       ))}
 
-      <div className="filter-bar">
+      <div className="mb-3.5 flex flex-wrap items-start gap-2.5 max-[600px]:items-center max-[600px]:gap-2">
         <SearchBox value={query} onChange={setQuery} placeholder="Search reservation, client, hotel" />
-        <div className="fbar-actions">
-          <select className="tq-select" value={client} onChange={(e) => setClient(e.target.value)} aria-label={t("Client")}>
+        <div className="flex items-center gap-2 max-[600px]:w-full max-[600px]:flex-[1_1_100%]">
+          <select className="h-9 min-w-[130px] flex-none rounded-full border border-input bg-card px-3 font-[inherit] text-[12.5px] text-foreground max-[600px]:block max-[600px]:h-10 max-[600px]:w-full" value={client} onChange={(e) => setClient(e.target.value)} aria-label={t("Client")}>
             <option value="">{t("All clients")}</option>
             {clients.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
@@ -123,12 +133,12 @@ export default function TrackingPanel({ tracking }) {
         const rows = visible.filter((r) => r.bucket === b.key);
         if (!rows.length) return null;
         return (
-          <section key={b.key} className="tq-group" aria-labelledby={`tq-${b.key}`}>
-            <h3 id={`tq-${b.key}`} className="tq-group-h">
+          <section key={b.key} className="mt-[18px]" aria-labelledby={`tq-${b.key}`}>
+            <h3 id={`tq-${b.key}`} className="mx-1 mt-0 mb-2 flex justify-between gap-3 text-[11px] font-semibold tracking-[.07em] text-muted-foreground uppercase">
               <span>{t(b.label)} · {rows.length}</span>
-              <span className="tq-group-sum">{fmt(rows.reduce((sum, r) => sum + r.unallocated, 0))}</span>
+              <span className="tracking-normal text-foreground tabular-nums">{fmt(rows.reduce((sum, r) => sum + r.unallocated, 0))}</span>
             </h3>
-            <ul className="tq-list">
+            <ul className="m-0 list-none overflow-hidden rounded-2xl border border-border bg-card p-0">
               {rows.map((row) => {
                 const key = `${row.linked_number}|${row.invoice_id}`;
                 return <Row key={key} row={row} t={t} open={openKey === key} onToggle={() => setOpenKey(openKey === key ? null : key)} />;
@@ -137,7 +147,7 @@ export default function TrackingPanel({ tracking }) {
           </section>
         );
       }) : (
-        <div className="tq-empty">
+        <div className="mt-4 rounded-2xl border border-dashed border-border p-7 text-center text-[13px] text-muted-foreground">
           {query || client ? t("No matching reservation.") : t("All client money has been allocated.")}
         </div>
       )}
@@ -145,82 +155,3 @@ export default function TrackingPanel({ tracking }) {
   );
 }
 
-const CSS = `
-.tq-bridge {
-  display: grid; grid-template-columns: repeat(var(--tq-cols), minmax(0, 1fr)); margin: 0 0 14px;
-  border: 1px solid var(--border); border-radius: 18px; background: var(--card); overflow: hidden;
-}
-.tq-fig { padding: 14px 16px; border-left: 1px solid var(--border); min-width: 0; }
-.tq-fig:first-child { border-left: none; }
-.tq-fig dt { font-size: 12px; color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tq-fig dd { margin: 6px 0 0; font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.tq-fig.is-strong { background: color-mix(in oklch, var(--muted) 45%, var(--card)); }
-.tq-op { display: inline-block; width: 14px; font-weight: 600; color: var(--foreground); }
-.tq-cur { margin-left: 5px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); letter-spacing: 0; }
-
-.tq-callout {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 10px 12px;
-  border-radius: 12px; font-size: 13px;
-  background: color-mix(in oklch, var(--muted) 55%, var(--card)); border: 1px solid var(--border);
-}
-.tq-callout > svg { flex: none; color: var(--yellow); }
-.tq-callout > span { flex: 1; min-width: 0; }
-.tq-callout-act {
-  display: inline-flex; align-items: center; gap: 4px; border: none; background: none; padding: 0;
-  font: inherit; font-size: 13px; font-weight: 600; color: var(--foreground); cursor: pointer; white-space: nowrap;
-}
-.tq-callout-act:hover { text-decoration: underline; }
-
-.tq-select {
-  height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--input);
-  background: var(--card); font: inherit; font-size: 13px; color: var(--foreground);
-}
-.tq-group { margin-top: 18px; }
-.tq-group-h {
-  display: flex; justify-content: space-between; gap: 12px; margin: 0 4px 8px;
-  font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted-foreground);
-}
-.tq-group-sum { font-variant-numeric: tabular-nums; letter-spacing: 0; color: var(--foreground); }
-.tq-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--card); overflow: hidden; }
-.tq-row + .tq-row { border-top: 1px solid var(--border); }
-.tq-row-btn {
-  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px;
-  border: none; background: none; font: inherit; text-align: left; cursor: pointer; color: inherit;
-}
-.tq-row-btn:hover { background: color-mix(in oklch, var(--muted) 45%, transparent); }
-.tq-row-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
-.tq-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.tq-row-t { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tq-no { font-family: var(--font-mono); font-size: 12px; font-weight: 700; margin-right: 8px; }
-.tq-row-sub { font-size: 12px; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tq-amt { flex: none; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.tq-amt.is-zero { color: var(--muted-foreground); font-weight: 500; }
-.tq-chev { flex: none; color: var(--muted-foreground); transition: transform .15s; }
-.tq-row.is-open .tq-chev { transform: rotate(180deg); }
-
-.tq-timeline { list-style: none; margin: 0; padding: 2px 16px 14px 36px; display: flex; flex-direction: column; gap: 8px; }
-.tq-timeline li { position: relative; display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
-.tq-timeline li.is-todo { color: var(--muted-foreground); }
-.tq-dot { position: absolute; left: -16px; top: 5px; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted-foreground); }
-.tq-dot.is-done { background: var(--foreground); border-color: var(--foreground); }
-.tq-rmt { font-family: var(--font-mono); font-size: 12px; color: var(--muted-foreground); text-decoration: none; }
-.tq-rmt:hover { color: var(--foreground); text-decoration: underline; }
-.tq-tl-amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 500; }
-.tq-empty { margin-top: 16px; padding: 28px; text-align: center; font-size: 13px; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: 16px; }
-
-@media (max-width: 760px) {
-  .tq-bridge { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tq-fig { border-left: none; border-top: 1px solid var(--border); }
-  .tq-fig:nth-child(-n+2) { border-top: none; }
-  .tq-fig:nth-child(even) { border-left: 1px solid var(--border); }
-  .tq-fig.is-strong:nth-child(odd) { grid-column: 1 / -1; }
-  .tq-fig dd { font-size: 16px; }
-}
-@media (max-width: 600px) {
-  .shadcn-root .tq .filter-bar { flex-wrap: wrap; }
-  .shadcn-root .tq .filter-bar .fbar-actions { flex: 1 1 100%; width: 100%; }
-  /* aturan lama (.filter-bar select { display:none !important }) menyembunyikan
-     semua select di filter-bar mobile; dropdown client ini tetap dibutuhkan */
-  .shadcn-root .tq .filter-bar select.tq-select { display: block !important; width: 100%; height: 40px; }
-}
-`;

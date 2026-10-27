@@ -8,6 +8,8 @@ import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { suggestRoomTypeName } from "./roomTypeName.js";
+import { Pill } from "../../components/shadcn/list-a.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 // Hotels in Makkah/Madinah mostly sell the same grid — Double…Quint across a
 // few views — so this builds it in one go. The preview mirrors what the
@@ -63,7 +65,7 @@ function RoomTypeBulkFormBody({ hotel, capacity_choices = [], view_choices = [],
   );
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={back} />
       <FormHeader
         kicker={hotel.name}
@@ -86,20 +88,20 @@ function RoomTypeBulkFormBody({ hotel, capacity_choices = [], view_choices = [],
 
           <FormSection label={t("Preview")}>
             {preview.length ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className="flex flex-wrap gap-1.5">
                 {preview.map((p) => (
-                  <span
+                  <Pill
                     key={p.name}
-                    className={p.exists ? "hms-dv-pill tone-gray" : "hms-dv-pill outline tone-green"}
+                    tone={p.exists ? "gray" : "green"}
+                    className={p.exists ? "line-through" : undefined}
                     title={p.exists ? t("Already in this hotel — will be skipped") : undefined}
-                    style={p.exists ? { textDecoration: "line-through" } : undefined}
                   >
                     {p.exists ? "✓ " : ""}{p.name}
-                  </span>
+                  </Pill>
                 ))}
               </div>
             ) : (
-              <div className="hms-dv-empty">{t("Tick at least one capacity to see the room types.")}</div>
+              <div className="py-3 text-[13px] text-muted-foreground">{t("Tick at least one capacity to see the room types.")}</div>
             )}
           </FormSection>
 
@@ -110,7 +112,7 @@ function RoomTypeBulkFormBody({ hotel, capacity_choices = [], view_choices = [],
           />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

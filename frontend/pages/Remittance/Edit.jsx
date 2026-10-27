@@ -4,14 +4,15 @@ import { useForm } from "@inertiajs/react";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid } from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
-import { REM_FORM_CSS } from "./remittanceStyles.js";
-import FxPanel, { FX_CSS } from "./FxPanel.jsx";
+import FxPanel from "./FxPanel.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
+import { Alert } from "../../components/shadcn/ui/alert.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 const num = (v) => Number(String(v ?? "").replace(/,/g, "")) || 0;
 const rateText = (amount, sar) => (amount && sar ? (amount / sar).toFixed(2) : "");
@@ -61,26 +62,25 @@ function EditBody({ rem, fx_pool = null, error = null }) {
   };
 
   return (
-    <div className="page rem-form shadcn-root">
-      <style>{REM_FORM_CSS + FX_CSS}</style>
+    <Page data-modal-width="wide">
       <PageBack href={`/remittance/${rem.id}/`} />
       <FormHeader kicker={t("Remittance")} title={t("Edit {number}", { number: rem.remittance_number })} />
 
       <form method="post" onSubmit={submit}>
-        {error && <div className="alert alert-error" role="alert" style={{ marginBottom: 12 }}>{t(error)}</div>}
+        {error && <Alert variant="destructive" className="mb-3">{t(error)}</Alert>}
         <FormPanel>
           {legacy ? (
-            <div className="rem-received-note">
+            <div className="rounded-[calc(var(--radius)-2px)] border border-border bg-muted px-3 py-2.5 text-[13px] leading-[1.6] text-foreground">
               {t("Legacy transfer from before the system: HQ received {n} SAR. Fill in the rupiah actually sent and what the clients paid to see its FX profit.", { n: fmt(sar) })}
             </div>
           ) : rem.status === "received" && (
-            <div className="rem-received-note">
+            <div className="rounded-[calc(var(--radius)-2px)] border border-border bg-muted px-3 py-2.5 text-[13px] leading-[1.6] text-foreground">
               {t("This transfer has been marked")}{" "}<strong>{t("Received")}</strong>{" "}{t("by HQ. Changes here will alter already-confirmed records.")}
             </div>
           )}
 
           <FormSection label={t("Transfer Info")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <FieldGrid className="mb-3">
               <FormField
                 label={t("Transfer Date")} name="date" type="date" required
                 value={form.data.date} onChange={(v) => form.setData("date", v)}
@@ -89,10 +89,10 @@ function EditBody({ rem, fx_pool = null, error = null }) {
                 label={t("Bank Reference")} name="receipt_reference"
                 value={form.data.receipt_reference} onChange={(v) => form.setData("receipt_reference", v)}
               />
-            </div>
+            </FieldGrid>
 
             {legacy ? (
-              <div className="fg-2">
+              <FieldGrid>
                 <FormField
                   label={t("Rupiah sent")} name="amount_idr" type="number" min="1"
                   value={form.data.amount_idr} onChange={setLegacyAmount("amount_idr", setSentRate)}
@@ -110,9 +110,9 @@ function EditBody({ rem, fx_pool = null, error = null }) {
                   label={t("Original rate (IDR/SAR)")} name="origin_rate" type="number" step="0.01" min="0.01"
                   value={originRate} onChange={setLegacyRate("original_amount", setOriginRate)}
                 />
-              </div>
+              </FieldGrid>
             ) : (
-              <div className="fg-2">
+              <FieldGrid>
                 <FormField
                   label={t("Amount IDR")} name="amount_idr" type="number" min="1" required
                   value={form.data.amount_idr} onChange={(v) => form.setData("amount_idr", v)}
@@ -124,12 +124,12 @@ function EditBody({ rem, fx_pool = null, error = null }) {
                   value={form.data.exchange_rate} onChange={(v) => form.setData("exchange_rate", v)}
                   disabled={amountsLocked}
                 />
-              </div>
+              </FieldGrid>
             )}
 
             <FxPanel pool={fx_pool} sentIdr={sentIdr} sar={sarNow} original={original} legacy={legacy} />
 
-            <div className="fg-2">
+            <FieldGrid>
               <FormField name="proof" label={t("Receipt")}>
                 <Input
                   id="proof" name="proof" type="file" accept="image/*,.pdf"
@@ -140,16 +140,16 @@ function EditBody({ rem, fx_pool = null, error = null }) {
                 label={t("Note")} name="note"
                 value={form.data.note} onChange={(v) => form.setData("note", v)}
               />
-            </div>
+            </FieldGrid>
             {rem.proof_url && !removeProof && (
-              <div style={{ marginTop: 6, display: "flex", gap: 10, fontSize: 12 }}>
-                <a href={rem.proof_url} target="_blank" rel="noreferrer" style={{ color: "var(--foreground)", textDecoration: "underline" }}>{t("View receipt")} ↗</a>
-                <button type="button" onClick={() => setRemoveProof(true)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--destructive)", cursor: "pointer", padding: 0 }}>{t("Remove")}</button>
+              <div className="mt-1.5 flex gap-2.5 text-[12px]">
+                <a href={rem.proof_url} target="_blank" rel="noreferrer" className="text-foreground underline">{t("View receipt")} ↗</a>
+                <button type="button" onClick={() => setRemoveProof(true)} className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-destructive">{t("Remove")}</button>
               </div>
             )}
             {removeProof && (
-              <div style={{ marginTop: 6, fontSize: 12, color: "var(--destructive)" }}>
-                {t("Receipt will be removed on save.")} <button type="button" onClick={() => setRemoveProof(false)} style={{ background: "none", border: "none", fontSize: 12, color: "var(--foreground)", textDecoration: "underline", cursor: "pointer", padding: 0 }}>{t("Undo")}</button>
+              <div className="mt-1.5 text-[12px] text-destructive">
+                {t("Receipt will be removed on save.")} <button type="button" onClick={() => setRemoveProof(false)} className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-foreground underline">{t("Undo")}</button>
               </div>
             )}
           </FormSection>
@@ -161,7 +161,7 @@ function EditBody({ rem, fx_pool = null, error = null }) {
           />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

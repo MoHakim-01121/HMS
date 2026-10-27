@@ -5,11 +5,12 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid } from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { suggestRoomTypeName } from "./roomTypeName.js";
+import Page from "../../components/shadcn/page.jsx";
 
 // Native <select>, styled like shadcn's Input — same reason as Hotel/Form.jsx:
 // view is optional, and a Radix Select cannot carry the empty "— Optional —"
@@ -69,7 +70,7 @@ function RoomTypeFormBody({ hotel, room_type, occupancy_labels = {}, view_choice
       : null;
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={back} />
       <FormHeader kicker={hotel.name} title={edit ? t("Edit Room Type") : t("New Room Type")} />
       <form method="post" onSubmit={submit}>
@@ -86,7 +87,7 @@ function RoomTypeFormBody({ hotel, room_type, occupancy_labels = {}, view_choice
                 aria-invalid={errors.name ? "true" : undefined}
               />
             </FormField>
-            <div className="fg-2" style={{ marginTop: 12 }}>
+            <FieldGrid className="mt-3">
               <FormField label={t("Room View")} name="view">
                 <select id="view" name="view" className={SELECT_CLASS} value={form.data.view} onChange={(e) => setDimension("view")(e.target.value)}>
                   <option value="">{t("— Optional —")}</option>
@@ -97,13 +98,13 @@ function RoomTypeFormBody({ hotel, room_type, occupancy_labels = {}, view_choice
                 label={t("Capacity (guests)")} name="capacity" type="number" inputMode="numeric" required
                 value={form.data.capacity} onChange={setDimension("capacity")} error={errors.capacity}
               />
-            </div>
+            </FieldGrid>
           </FormSection>
 
           <FormActions cancelHref={back} submitLabel={edit ? t("Save Changes") : t("Add Room Type")} processing={form.processing} />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

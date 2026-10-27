@@ -3,6 +3,7 @@ import { Link, router } from "@inertiajs/react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
+import Page from "./page.jsx";
 
 // Building blocks of the approved list pages (Record View HMS canvas, row
 // "Halaman list"). Pages compose these; the server owns filtering and paging.
@@ -60,9 +61,9 @@ const FOCUS = "focus-visible:outline-2 focus-visible:outline-solid focus-visible
 
 // The page frame of a list page or the dashboard: fills what the sidebar
 // leaves, up to 1280px of content, so collapsing the sidebar widens it. The
-// topbar follows the same column (shell.css keys off data-slot="list-main").
+// topbar follows the same column (it keys off data-slot="list-main").
 export function PageFrame({ className, children }) {
-  return <div className={cn("page shadcn-root max-w-[1320px]", className)}>{children}</div>;
+  return <Page className={cn("max-w-[1320px]", className)}>{children}</Page>;
 }
 
 export function PageMain({ loading, className, children }) {
@@ -512,8 +513,8 @@ const PILL = {
   "info-o": "border border-info text-info-text",
   dark: "bg-primary text-primary-foreground",
 };
-export const Pill = ({ tone = "gray", sm, className, children }) => (
-  <span className={cn("box-border inline-flex h-6 items-center rounded-full px-3 text-[12px] font-semibold whitespace-nowrap", PILL[tone], sm && "h-[22px] px-2", className)}>{children}</span>
+export const Pill = ({ tone = "gray", sm, className, children, ...rest }) => (
+  <span className={cn("box-border inline-flex h-6 items-center rounded-full px-3 text-[12px] font-semibold whitespace-nowrap", PILL[tone], sm && "h-[22px] px-2", className)} {...rest}>{children}</span>
 );
 
 export function Amt({ code, value }) {

@@ -55,6 +55,8 @@ export function ModalContent({ layout, className, ...props }) {
       // content offset. Both are desktop-only, so phones keep the plain
       // viewport-centred dialog they already had.
       "min-[601px]:left-[calc(50%_+_var(--content-left,0px)/2)] min-[601px]:top-[calc(50%_+_var(--topbar-h,0px)/2)]",
+      // A form with a wide table asks for room on its root: data-modal-width.
+      "min-[1080px]:has-[[data-modal-width=wide]]:max-w-[1024px] min-[1100px]:has-[[data-modal-width=wider]]:max-w-[1120px]",
       className,
       layout === "a" && "max-w-[760px] rounded-[20px] sm:max-w-[760px]",
     )} />

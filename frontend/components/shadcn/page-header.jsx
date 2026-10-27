@@ -1,16 +1,14 @@
-// Canonical list-page header (Homlu v2.1) — replaces the legacy
-// `.page-header` / `.page-title` / `.page-sub` / `.page-actions` block from
-// design.css. `title` and `sub` are already-translated nodes/strings.
-// See the .hms-ph-* rules in tailwind.css (incl. the mobile treatment:
-// 18px title, actions hidden, per doc 02d).
+// List-page header (Homlu v2.1): title, an optional line under it, and the
+// page's actions on the right. `title` and `sub` are already-translated
+// nodes/strings. Phones get an 18px title and no action buttons (doc 02d).
 export default function PageHeader({ title, sub, actions }) {
   return (
-    <div className="hms-ph">
-      <div className="hms-ph-text">
-        <div className="hms-ph-title">{title}</div>
-        {sub && <div className="hms-ph-sub">{sub}</div>}
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 max-[600px]:mb-3.5">
+      <div className="min-w-0">
+        <div className="text-[21px] leading-[1.15] font-semibold tracking-[-.02em] text-foreground max-[600px]:text-[18px]">{title}</div>
+        {sub && <div className="mt-1 text-[12.5px] leading-normal text-muted-foreground">{sub}</div>}
       </div>
-      {actions && <div className="hms-ph-actions">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 max-[600px]:hidden">{actions}</div>}
     </div>
   );
 }

@@ -4,10 +4,12 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid } from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { Alert } from "../../components/shadcn/ui/alert.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 
 function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, errors: serverErrors = {} }) {
@@ -30,7 +32,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, 
   };
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={`/cl/${cl.id}/`} label={t("Back to CL")} />
       <FormHeader
         kicker={t("Cancellation Penalty")}
@@ -39,13 +41,13 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, 
       />
 
       <form method="post" onSubmit={submit}>
-        {error && <div className="alert alert-error" role="alert" style={{ marginBottom: 12 }}>{t(error)}</div>}
+        {error && <Alert variant="destructive" className="mb-3">{t(error)}</Alert>}
         <FormPanel>
           <FormSection label={t("Penalty Information")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <FieldGrid className="mb-3">
               <FormField label={t("Penalty Number")} name="penalty_number" value={form.data.penalty_number} onChange={set("penalty_number")} error={errors.penalty_number} />
               <FormField label={t("Cancellation Date")} name="cancellation_date" type="date" value={form.data.cancellation_date} onChange={set("cancellation_date")} />
-            </div>
+            </FieldGrid>
             <FormField name="reason" label={t("Reason")}>
               <Textarea name="reason" rows={2} value={form.data.reason} onChange={(e) => form.setData("reason", e.target.value)} placeholder={t("Cancellation reason…")} />
             </FormField>
@@ -81,7 +83,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, 
             processing={form.processing} />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

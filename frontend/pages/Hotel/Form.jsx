@@ -1,6 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, Picker, TextIn, NoteField, Foot, FA } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, TextIn, NoteField, Foot, FA, SwitchRow } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const AREAS = ["Misfalah", "Ajyad", "Ajyad Selatan", "Ajyad Utara", "Syisyah", "Kudai", "Jarwal", "Aziziyah", "Ibrahim Khalil", "Nakasa", "Bakhutmaz"];
@@ -115,12 +115,12 @@ function HotelFormBody({ hotel, edit, error }) {
             onBlur={() => point && form.setData("coords", coordText(point.lat, point.lng))}
             placeholder={t("Paste coordinates or a Google Maps link")} aria-label={t("Coordinates")} />
           {point ? (
-            <span className="ht-loc">
+            <span className="flex flex-wrap items-center gap-3 text-[13px] text-muted-foreground">
               {!ref ? <span>{t("Choose the city to see the distance.")}</span>
                 : dist > FAR_M
-                  ? <span className="ht-far" role="status">{t("{d} from {place}. Check the coordinates or the city.", { d: distLabel(dist), place: ref.label })}</span>
-                  : <span><b>{distLabel(dist)}</b> {t("from {place}, straight line", { place: ref.label })}</span>}
-              <a href={`https://www.google.com/maps?q=${point.lat},${point.lng}`} target="_blank" rel="noopener noreferrer">{t("Open in Google Maps")} ↗</a>
+                  ? <span className="font-medium text-warning-text" role="status">{t("{d} from {place}. Check the coordinates or the city.", { d: distLabel(dist), place: ref.label })}</span>
+                  : <span><b className="font-semibold text-foreground tabular-nums">{distLabel(dist)}</b> {t("from {place}, straight line", { place: ref.label })}</span>}
+              <a className="ml-auto font-semibold text-foreground no-underline hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring" href={`https://www.google.com/maps?q=${point.lat},${point.lng}`} target="_blank" rel="noopener noreferrer">{t("Open in Google Maps")} ↗</a>
             </span>
           ) : !coordsBad ? (
             <span className="text-[12px] text-muted-foreground">{t("In Google Maps, right-click the hotel and click the numbers to copy them. Without coordinates, lists show no distance.")}</span>
@@ -129,39 +129,16 @@ function HotelFormBody({ hotel, edit, error }) {
       </div>
       <datalist id="hotel-areas">{AREAS.map((a) => <option key={a} value={a} />)}</datalist>
 
-      <div className="ht-sws">
-        <div className="ht-sw">
-          <span><b>{t("Allotment contract")}</b><span>{t("Holds rooms for us this season")}</span></span>
-          <button type="button" role="switch" aria-checked={d.has_allotment} aria-label={t("Allotment contract")}
-            className={"ht-tg" + (d.has_allotment ? " on" : "")} onClick={() => form.setData("has_allotment", !d.has_allotment)} />
-        </div>
-        <div className="ht-sw">
-          <span><b>{t("Active")}</b><span>{t("Shown when making a CL")}</span></span>
-          <button type="button" role="switch" aria-checked={d.is_active} aria-label={t("Active")}
-            className={"ht-tg" + (d.is_active ? " on" : "")} onClick={() => form.setData("is_active", !d.is_active)} />
-        </div>
+      <div className="mt-[18px] grid grid-cols-2 gap-x-4 gap-y-3.5 max-[640px]:grid-cols-1">
+        <SwitchRow title={t("Allotment contract")} note={t("Holds rooms for us this season")}
+          checked={d.has_allotment} aria-label={t("Allotment contract")} onCheckedChange={(v) => form.setData("has_allotment", v)} />
+        <SwitchRow title={t("Active")} note={t("Shown when making a CL")}
+          checked={d.is_active} aria-label={t("Active")} onCheckedChange={(v) => form.setData("is_active", v)} />
       </div>
 
       <NoteField label={t("Note")} value={d.note} onChange={set("note")} placeholder={t("Anything worth knowing about this hotel")} />
 
       <Foot why={why} cancelHref={edit ? `/hotels/${h.id}/` : "/hotels/"} submitLabel={edit ? t("Save hotel") : t("Add hotel")} processing={form.processing} />
-      <style>{`
-.ht-loc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted-foreground); }
-.ht-loc b { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
-.ht-far { color: var(--warning-text); font-weight: 500; }
-.ht-loc a { margin-left: auto; color: var(--foreground); font-weight: 600; text-decoration: none; }
-.ht-loc a:hover { text-decoration: underline; }
-.ht-sws { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; margin-top: 18px; }
-.ht-sw { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; }
-.ht-sw b { display: block; font-size: 14px; font-weight: 500; }
-.ht-sw span span { display: block; font-size: 12px; color: var(--muted-foreground); }
-.ht-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
-.ht-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
-.ht-tg.on { background: var(--foreground); }
-.ht-tg.on::after { transform: translateX(16px); }
-.ht-tg:focus-visible, .ht-loc a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-@media (max-width: 640px) { .ht-sws { grid-template-columns: 1fr; } }
-`}</style>
     </FormA>
   );
 }

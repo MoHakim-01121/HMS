@@ -5,6 +5,7 @@ import { useI18n } from "../../utils/i18n.jsx";
 import { saveLanguage } from "../../utils/language.js";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { cn } from "@/lib/utils";
+import Page from "../../components/shadcn/page.jsx";
 
 // My Profile, as approved on the Record View HMS canvas (Profile E2): who you
 // are with your photo, two cards side by side (personal info, access), the
@@ -154,7 +155,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
   };
 
   return (
-    <div className="page shadcn-root">
+    <Page>
       <div className="mx-auto flex max-w-[1040px] flex-col gap-4 pt-1 pb-16 text-[14px] leading-[1.5] text-foreground [&_:is(button,input,a):focus-visible]:outline-2 [&_:is(button,input,a):focus-visible]:outline-offset-2 [&_:is(button,input,a):focus-visible]:outline-ring [&_:is(button,input,a):focus-visible]:outline-solid">
         <div>
           <a href="/" className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground no-underline hover:text-foreground"
@@ -252,7 +253,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
       <ViewSheet open={photo === "view"} url={profile.avatar_url} name={account.full_name}
         onClose={() => setPhoto(null)} onChange={() => setPhoto("pick")}
         onRemoved={() => { setPhoto(null); setToast(t("Photo removed.")); }} />
-    </div>
+    </Page>
   );
 }
 

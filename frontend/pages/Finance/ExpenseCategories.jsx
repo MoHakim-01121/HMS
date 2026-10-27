@@ -4,13 +4,14 @@ import PageBack from "../../components/shadcn/page-back.jsx";
 import PageHeader from "../../components/shadcn/page-header.jsx";
 import Table from "../../components/shadcn/table.jsx";
 import RowActions from "../../components/shadcn/row-actions.jsx";
-import StatusPill from "../../components/shadcn/status-pill.jsx";
+import { Pill } from "../../components/shadcn/list-a.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 // Expense categories every branch picks from. Each has its own ledger
 // account, so it shows as its own line in the Trial Balance. A category that
@@ -34,7 +35,7 @@ export default function ExpenseCategories({ categories = [] }) {
     {
       header: t("Status"),
       mobile: "badge",
-      render: (c) => <StatusPill tone={c.is_active ? "green" : "gray"} label={c.is_active ? t("Active") : t("Inactive")} />,
+      render: (c) => <Pill tone={c.is_active ? "green" : "gray"}>{c.is_active ? t("Active") : t("Inactive")}</Pill>,
     },
     {
       header: "",
@@ -49,7 +50,7 @@ export default function ExpenseCategories({ categories = [] }) {
   ];
 
   return (
-    <div className="page shadcn-root">
+    <Page>
       <PageBack href="/finance/expenses/" label={t("Back")} />
       <PageHeader
         title={t("Expense Categories")}
@@ -74,6 +75,6 @@ export default function ExpenseCategories({ categories = [] }) {
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </Page>
   );
 }

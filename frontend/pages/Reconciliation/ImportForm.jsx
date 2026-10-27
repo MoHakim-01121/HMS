@@ -3,7 +3,7 @@ import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid } from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
@@ -11,6 +11,8 @@ import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
+import { Alert } from "../../components/shadcn/ui/alert.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 const FIELD_LABELS = {
   date: "Date", description: "Description", reference: "Reference", debit: "Debit (out)",
@@ -69,18 +71,18 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
     : null;
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href="/finance/reconciliation/" label={t("Back")} />
       <FormHeader
         kicker={t("Reconciliation")}
         title={t("Import Bank CSV")}
         sub={t("Upload the statement export from internet banking (Mandiri, BCA and similar). Amounts stay in the account's currency.")}
       />
-      {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{t(error)}</div>}
+      {error && <Alert variant="destructive" className="mb-3">{t(error)}</Alert>}
       <form method="post" onSubmit={(e) => { e.preventDefault(); send(preview ? "save" : "preview"); }}>
         <FormPanel>
           <FormSection label={t("File")}>
-            <div className="fg-2">
+            <FieldGrid>
               <FormField label={t("Account")} name="account" required>
                 <Select value={form.data.account} onValueChange={(v) => v && form.setData("account", v)}>
                   <SelectTrigger id="account" className="w-full"><SelectValue placeholder={t("Choose account")} /></SelectTrigger>
@@ -92,7 +94,7 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
               <FormField label={t("CSV file")} name="csv" required hint={form.data.filename || t("Exported from internet banking")}>
                 <Input id="csv" type="file" accept=".csv,.txt,text/csv" onChange={(e) => readFile(e.target.files[0])} />
               </FormField>
-            </div>
+            </FieldGrid>
             {form.data.csv_text && (
               <Button type="button" variant="outline" onClick={() => send("preview")} disabled={form.processing}>
                 {preview ? t("Preview again") : t("Preview")}
@@ -103,8 +105,8 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
           {preview && (
             <>
               <FormSection label={t("Columns")}>
-                <p className="imp-hint">{t("Guessed from the header row. Change a column if a value lands in the wrong place.")}</p>
-                <div className="imp-map">
+                <p className="m-0 mb-2.5 text-[13px] text-muted-foreground">{t("Guessed from the header row. Change a column if a value lands in the wrong place.")}</p>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-2.5">
                   {fields.map((f) => (
                     <FormField key={f} label={t(FIELD_LABELS[f] || f)} name={`map-${f}`}>
                       <Select value={mapping[f] != null ? String(mapping[f]) : NONE} onValueChange={(v) => v && setColumn(f, v)}>
@@ -120,42 +122,42 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
               </FormSection>
 
               <FormSection label={t("Preview")}>
-                <p className="imp-hint">
+                <p className="m-0 mb-2.5 text-[13px] text-muted-foreground">
                   {t("{n} lines read · in {in} · out {out}", { n: preview.lines.length, in: fmt(inOut.in), out: fmt(inOut.out) })}
                   {currency ? ` ${currency}` : ""}
                   {preview.skipped.length ? ` · ${t("{n} rows skipped (no date or amount, e.g. pending or balance rows)", { n: preview.skipped.length })}` : ""}
                 </p>
-                <div className="imp-table">
-                  <table>
+                <div className="max-h-80 overflow-auto rounded-[10px] border border-border">
+                  <table className="w-full border-collapse text-[13px] [:where(&)_th]:sticky [:where(&)_th]:top-0 [:where(&)_th]:bg-secondary [:where(&)_th]:px-2.5 [:where(&)_th]:py-[7px] [:where(&)_th]:text-left [:where(&)_th]:font-medium [:where(&)_th]:text-muted-foreground [:where(&)_td]:border-t [:where(&)_td]:border-border [:where(&)_td]:px-2.5 [:where(&)_td]:py-[7px] [:where(&)_td]:align-top">
                     <thead>
-                      <tr><th>{t("Date")}</th><th>{t("Description")}</th><th className="r">{t("In")}</th><th className="r">{t("Out")}</th></tr>
+                      <tr><th>{t("Date")}</th><th>{t("Description")}</th><th className="text-right tabular-nums whitespace-nowrap">{t("In")}</th><th className="text-right tabular-nums whitespace-nowrap">{t("Out")}</th></tr>
                     </thead>
                     <tbody>
                       {preview.lines.slice(0, 50).map((l, i) => (
                         <tr key={i}>
-                          <td className="nw">{l.line_date}</td>
-                          <td>{l.description}{l.reference ? <span className="dim"> · {l.reference}</span> : null}</td>
-                          <td className="r">{l.direction === "in" ? fmt(l.amount) : ""}</td>
-                          <td className="r">{l.direction === "out" ? fmt(l.amount) : ""}</td>
+                          <td className="whitespace-nowrap">{l.line_date}</td>
+                          <td>{l.description}{l.reference ? <span className="text-muted-foreground"> · {l.reference}</span> : null}</td>
+                          <td className="text-right tabular-nums whitespace-nowrap">{l.direction === "in" ? fmt(l.amount) : ""}</td>
+                          <td className="text-right tabular-nums whitespace-nowrap">{l.direction === "out" ? fmt(l.amount) : ""}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {preview.lines.length > 50 ? <p className="imp-hint">{t("…and {n} more", { n: preview.lines.length - 50 })}</p> : null}
+                  {preview.lines.length > 50 ? <p className="m-0 mb-2.5 text-[13px] text-muted-foreground">{t("…and {n} more", { n: preview.lines.length - 50 })}</p> : null}
                 </div>
               </FormSection>
 
               <FormSection label={t("Statement")}>
-                <div className="fg-2">
+                <FieldGrid>
                   <FormField label={t("Period Start")} name="period_start" type="date" required value={form.data.period_start} onChange={(v) => form.setData("period_start", v)} />
                   <FormField label={t("Period End")} name="period_end" type="date" required value={form.data.period_end} onChange={(v) => form.setData("period_end", v)} />
                   <FormField label={currency ? `${t("Opening Balance")} (${currency})` : t("Opening Balance")} name="opening_balance" amount signed required
                     value={form.data.opening_balance} onChange={(v) => form.setData("opening_balance", v)} />
                   <FormField label={currency ? `${t("Closing Balance")} (${currency})` : t("Closing Balance")} name="closing_balance" amount signed required
                     value={form.data.closing_balance} onChange={(v) => form.setData("closing_balance", v)} />
-                </div>
+                </FieldGrid>
                 {gap ? (
-                  <p className="imp-warn" role="status">
+                  <p className="mt-2 mb-3 text-[13px] text-yellow" role="status">
                     {t("Opening balance plus the lines doesn't reach the closing balance ({gap} {cur} apart). A line is missing or a balance was mistyped.", { gap: fmt(gap), cur: currency || "" })}
                   </p>
                 ) : null}
@@ -171,22 +173,8 @@ function ImportFormBody({ account_choices = [], fields = [], form: initial = {},
           />
         </FormPanel>
       </form>
-      <style>{CSS}</style>
-    </div>
+    </Page>
   );
 }
-
-const CSS = `
-.imp-hint { margin: 0 0 10px; font-size: 13px; color: var(--muted-foreground); }
-.imp-warn { margin: 8px 0 12px; font-size: 13px; color: var(--yellow); }
-.imp-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
-.imp-table { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-.imp-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.imp-table th { position: sticky; top: 0; background: var(--secondary); text-align: left; font-weight: 500; color: var(--muted-foreground); padding: 7px 10px; }
-.imp-table td { padding: 7px 10px; border-top: 1px solid var(--border); vertical-align: top; }
-.imp-table .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.imp-table .nw { white-space: nowrap; }
-.imp-table .dim { color: var(--muted-foreground); }
-`;
 
 export default withStandaloneModal(ImportFormBody, "/finance/reconciliation/");

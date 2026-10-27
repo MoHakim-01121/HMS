@@ -2,7 +2,6 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { DA, DC, dBtnClass } from "./detail-a.jsx";
 import { Link, router } from "@inertiajs/react";
-import DetailTable from "./detail-table.jsx";
 import { useConfirm } from "./confirm-dialog.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -17,11 +16,10 @@ import { fmt, fmtDate } from "../../utils/format.js";
    than the recorder confirms; an admin may approve their own entry. Rows the
    viewer may not decide show who recorded them instead of the buttons. */
 const ACTIONS = "inline-flex justify-end gap-1.5";
-const SUB = "block text-[12px] text-muted-foreground";
 
 const base = (row) => (row.kind === "refund" ? `/finance/refunds/${row.id}` : `/finance/deposit-transfers/${row.id}`);
 
-export default function PendingOutTable({ rows = [], showClient = false, plain = false }) {
+export default function PendingOutTable({ rows = [], showClient = false }) {
   const { t } = useI18n();
   const [confirm, confirmDialog] = useConfirm();
   const [rejecting, setRejecting] = useState(null);
@@ -43,47 +41,8 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
     setReason("");
   };
 
-  const columns = [
-    {
-      header: t("Document"),
-      render: (r) => (
-        <span>
-          <span className="tabular-nums">{r.number}</span>
-          <span className={SUB}>{r.kind === "refund" ? t("Refund") : t("Deposit transfer")} · {fmtDate(r.date)}</span>
-        </span>
-      ),
-    },
-    showClient && {
-      header: t("Client"),
-      render: (r) => <Link href={`/finance/clients/${r.client_id}/statement/`}>{r.client}</Link>,
-    },
-    {
-      header: t("Details"),
-      render: (r) => (
-        <span>
-          {r.detail}
-          {r.note ? <span className={SUB}>{r.note}</span> : null}
-        </span>
-      ),
-    },
-    { header: t("Recorded by"), render: (r) => r.created_by },
-    { header: t("Amount (SAR)"), align: "right", strong: true, render: (r) => fmt(r.amount_sar) },
-    {
-      header: "",
-      align: "right",
-      render: (r) => (r.can_decide ? (
-        <span className={ACTIONS}>
-          <Button size="sm" variant="outline" onClick={() => { setRejecting(r); setReason(""); }}>{t("Reject")}</Button>
-          <Button size="sm" onClick={() => approve(r)}>{t("Approve")}</Button>
-        </span>
-      ) : (
-        <span className={SUB}>{t("Awaiting another user")}</span>
-      )),
-    },
-  ];
-
-  // `plain`: the detail-page table (DA.table in detail-a.jsx), as on the Client Ledger.
-  const table = plain ? (
+  // The detail-page table (DA.table in detail-a.jsx), as on the Client Ledger.
+  const table = (
     <div className={DA.scroll}>
       <table data-slot="detail-table" className={DA.table}>
         <thead>
@@ -115,8 +74,6 @@ export default function PendingOutTable({ rows = [], showClient = false, plain =
         </tbody>
       </table>
     </div>
-  ) : (
-    <DetailTable columns={columns} rows={rows} rowKey={(r) => `${r.kind}-${r.id}`} empty={t("Nothing awaiting approval.")} />
   );
 
   return (

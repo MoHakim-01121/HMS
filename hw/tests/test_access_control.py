@@ -137,10 +137,6 @@ class ViewGuardTests(TestCase):
         self.login(role=Role.ADMIN.value)
         self.assertEqual(self.client.get("/users/").status_code, 200)
 
-    def test_style_guide_is_404_for_non_admin(self):
-        self.login(role=Role.MANAGER.value)
-        self.assertEqual(self.client.get("/dev/style-guide/").status_code, 404)
-
     def test_cl_new_requires_authentication(self):
         """Regression: cl_new used to carry no auth decorator at all."""
         resp = self.client.get("/cl/new/")

@@ -5,6 +5,7 @@ import { FormModalContext, ModalContent, ModalHead, ModalTitle, ModalBody, actio
 import FormHeader from "./form-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
+import { Switch } from "./ui/switch.jsx";
 
 // Building blocks of the approved CL and Invoice forms (Record View HMS
 // canvas, "CL Form (disetujui)" / "Invoice Form (disetujui)"): a labelled
@@ -92,6 +93,8 @@ export const FA = {
     "focus:border-foreground focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--foreground)_8%,transparent)]",
     HOVER_EDGE,
   ),
+  // A quiet text button under or beside the fields ("Keep current password").
+  textBtn: cn("inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-semibold text-muted-foreground hover:text-foreground", FOCUS),
   alert: "mt-2 text-[12px] text-danger-text",
   alertTop: "mt-0 mb-3 text-[12px] text-danger-text",
 
@@ -144,6 +147,33 @@ const Plus = () => (
 const SearchIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M20 20l-3.5-3.5" /></svg>
 );
+
+// A setting in a bordered box: title and note on the left, its control on
+// the right. SwitchRow is the common case, a setting that is on or off.
+export function SettingRow({ title, note, className, children }) {
+  return (
+    <div className={cn("flex items-center justify-between gap-4 rounded-[14px] border border-border px-4 py-3", className)}>
+      <span><b className="block text-[14px] font-medium">{title}</b>{note ? <span className="block text-[12px] text-muted-foreground">{note}</span> : null}</span>
+      {children}
+    </div>
+  );
+}
+export const SwitchRow = ({ title, note, className, ...props }) => (
+  <SettingRow title={title} note={note} className={className}><Switch {...props} /></SettingRow>
+);
+
+// One choice out of a few, as a grey track with the chosen option lifted:
+// options = [[value, label]].
+export function Segmented({ value, options, onChange, label }) {
+  return (
+    <div className="inline-flex gap-1 rounded-[12px] bg-secondary p-1" role="radiogroup" aria-label={label}>
+      {options.map(([v, l]) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
+          className={cn("h-[34px] cursor-pointer rounded-[9px] border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-seg-on", FOCUS)}>{l}</button>
+      ))}
+    </div>
+  );
+}
 
 export function Field({ label, required, optional, error, hint, className = "", children, htmlFor }) {
   const { t } = useI18n();

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import Pagination from "../../components/shadcn/pagination.jsx";
 import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
 import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon, DA, DC } from "../../components/shadcn/detail-a.jsx";
-import { SearchTool, ExportMenu, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { SearchTool, ExportMenu, ToolButton, Pager } from "../../components/shadcn/list-a.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
@@ -241,7 +240,7 @@ export default function ClientStatement({
 
       {pending_out.length > 0 ? (
         <DCard title={t("Awaiting approval")} count={pending_out.length}>
-          <PendingOutTable rows={pending_out} plain />
+          <PendingOutTable rows={pending_out} />
         </DCard>
       ) : null}
 
@@ -345,7 +344,12 @@ export default function ClientStatement({
           )}
         </div>
 
-        {!isOpen ? <Pagination pagination={pagination} unit="entries" onPage={(p) => go({ page: p })} /> : null}
+        {!isOpen && pagination?.has_other_pages ? (
+          <div className="border-t border-hairline px-4 py-3">
+            <Pager p={pagination} onPage={(p) => go({ page: p })}
+              summary={t("{start} to {end} of {count} {unit}", { start: pagination.start_index, end: pagination.end_index, count: pagination.count, unit: t("entries") })} />
+          </div>
+        ) : null}
       </section>
     </DPage>
   );

@@ -92,6 +92,14 @@ const PAGES = [
   ["bank-account-tx", "admin", `/finance/bank-accounts/bank/${id.bank}/`],
   ["reconciliation-import", "admin", "/finance/reconciliation/import/"],
   ["client-statement", "admin", `/finance/clients/${id.client}/statement/`],
+  ["remittance-tracking", "admin", "/remittance/?tab=tracking"],
+  ["remittance-recap", "admin", "/remittance/?tab=recap"],
+  ["room-type-new", "admin", `/hotels/${id.hotel}/room-types/new/`],
+  ["room-type-bulk", "admin", `/hotels/${id.hotel}/room-types/bulk/`],
+  ["meal-plans", "admin", `/hotels/${id.hotel}/meal-plans/`],
+  ["penalty-new", "admin", `/cl/${id.cl}/penalty/new/`],
+  ["expense-categories", "admin", "/finance/expenses/categories/"],
+  ["remittance-receipt", "admin", `/remittance/${id.remittance}/receipt/`],
 ].filter(([, , path]) => !path.includes("/null/")); // no such record locally
 
 // Open overlays (menus, selects, dialogs): [shot name, role, path, clicks].
@@ -121,6 +129,7 @@ const ACTIONS = [
   ["calendar-pick", "admin", "/calendar/", ['button[aria-pressed="false"] >> nth=3']],
   ["profile-filter", "admin", "/account/profile/", ['button[aria-haspopup="dialog"]:has-text("Filter")']],
   ["profile-edit", "admin", "/account/profile/", ['button[aria-label^="Edit"] >> nth=0']],
+  ["dialog-new-expense", "admin", "/finance/expenses/", ['button:has-text("New expense")']],
   ["profile-photo", "admin", "/account/profile/", ['button[aria-label="View photo"], button[aria-label="Add a photo"]']],
 ];
 // [suffix, viewport, theme]: dark is what the app ships with; light desktop

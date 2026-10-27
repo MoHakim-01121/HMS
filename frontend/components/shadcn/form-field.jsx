@@ -3,7 +3,17 @@ import { Label } from "./ui/label.jsx";
 import { Input } from "./ui/input.jsx";
 import { cn } from "@/lib/utils";
 
-const SPAN = { 2: "col-span-2", 3: "col-span-3", 4: "col-span-4" };
+const SPAN = { 2: "col-span-2 max-[640px]:col-span-full", 3: "col-span-3 max-[640px]:col-span-full", 4: "col-span-4 max-[640px]:col-span-full" };
+
+// Fields side by side; one column on phones. In the form modal a 3-up row
+// drops to two, since the dialog is narrower than a page.
+const GRID = {
+  2: "grid-cols-2",
+  3: "grid-cols-3 in-data-[slot=modal-body]:grid-cols-2",
+};
+export function FieldGrid({ cols = 2, className, children }) {
+  return <div className={cn("grid gap-4 max-[640px]:grid-cols-1!", GRID[cols], className)}>{children}</div>;
+}
 
 // Whole-number money typed as text: shown grouped ("12,500,000") like the
 // AmountIn fields, handed to onChange as plain digits ("12500000"), a leading

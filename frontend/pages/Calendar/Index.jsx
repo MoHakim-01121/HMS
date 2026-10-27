@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 // Calendar, as on the Record View HMS canvas ("Calendar (disetujui)"): every
 // hotel with a booking in the range, grouped by city, one bar per booking from
@@ -181,7 +182,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
   const hotelIdx = (h) => visibleRows.indexOf(h);
 
   return (
-    <div className="page shadcn-root">
+    <Page>
       <div className={cn(
         "mx-auto max-w-[1440px] text-[14px] leading-[1.5] text-foreground",
         "[&_:is(button,a):focus-visible]:outline-2 [&_:is(button,a):focus-visible]:outline-offset-2 [&_:is(button,a):focus-visible]:outline-ring [&_:is(button,a):focus-visible]:outline-solid",
@@ -361,6 +362,6 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
           </aside>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

@@ -316,6 +316,8 @@
   --shadow-float: 0 1px 2px rgba(10,12,16,.04);
   --shadow-pill: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.04);
   --shadow-seg: 0 1px 2px rgba(10,12,16,.12);
+  --shadow-knob: 0 1px 2px rgba(0,0,0,.2);
+  --shadow-seg-on: 0 1px 3px rgba(0,0,0,.08);
   --shadow-primary: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18);
   --shadow-crop-mask: 0 0 0 400px rgba(10,12,16,.5);
   --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
@@ -328,6 +330,7 @@
   --animate-menu-out: menu-out 150ms var(--ease-in-quick) both;
   --animate-panel-in: panel-in 200ms var(--ease-out-quint) both;
   --animate-fade-in: fade-in 180ms var(--ease-out-quint) both;
+  --animate-page-in: fade-in 150ms var(--ease-out-quint);
   --animate-rise-in: rise-in 180ms var(--ease-out-quint) both;
   --animate-tip-in: tip-in 140ms var(--ease-out-quint) both;
   @keyframes tip-in { from { opacity: 0; transform: translateX(-4px); } }

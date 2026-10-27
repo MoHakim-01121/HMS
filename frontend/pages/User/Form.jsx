@@ -2,8 +2,9 @@ import { useState } from "react";
 import { router, useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { FormA, Field, Picker, ReadOnly, TextIn, Foot, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, Picker, ReadOnly, TextIn, Foot, FA, Caption, btnClass, SettingRow, SwitchRow } from "../../components/shadcn/form-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import { cn } from "@/lib/utils";
 
 // New and edit user, the "User Form" artboard on the Record View HMS canvas:
 // who the account is, its role and branch, its password (set on create,
@@ -92,10 +93,9 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
 
       <div className={FA.sectionHead}><Caption>{t("Password")}</Caption></div>
       {edit && !resetting ? (
-        <div className="us-box">
-          <span><b>{t("Password is set")}</b><span>{t("Reset it when the user forgets it. They sign in with the new one right away.")}</span></span>
+        <SettingRow title={t("Password is set")} note={t("Reset it when the user forgets it. They sign in with the new one right away.")}>
           <button type="button" className={btnClass("o", true)} onClick={() => setResetting(true)}>{t("Reset password")}</button>
-        </div>
+        </SettingRow>
       ) : (
         <div className={FA.fields}>
           <Field label={edit ? t("New password") : t("Password")} required error={err("password")}>
@@ -105,7 +105,7 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
             <TextIn type="password" value={d.password_confirm} onChange={set("password_confirm")} autoComplete="new-password" invalid={!!mismatch || !!errors.password_confirm} />
           </Field>
           {edit ? (
-            <div className={FA.wide}><button type="button" className="us-link" onClick={() => { setResetting(false); form.setData((x) => ({ ...x, password: "", password_confirm: "" })); }}>{t("Keep current password")}</button></div>
+            <div className={FA.wide}><button type="button" className={FA.textBtn} onClick={() => { setResetting(false); form.setData((x) => ({ ...x, password: "", password_confirm: "" })); }}>{t("Keep current password")}</button></div>
           ) : null}
         </div>
       )}
@@ -113,32 +113,15 @@ function FormBody({ edit = null, form_data, errors: serverErrors, role_choices =
       {edit ? (
         <>
           <div className={FA.sectionHead}><Caption>{t("Account")}</Caption></div>
-          <div className="us-box">
-            <span><b>{t("Active")}</b><span>{isSelf ? t("You cannot deactivate your own account.") : edit.is_superuser ? t("A superuser stays active.") : t("An inactive user cannot sign in.")}</span></span>
-            <button type="button" role="switch" aria-checked={d.is_active} aria-label={t("Active")} disabled={isSelf || edit.is_superuser}
-              className={"us-tg" + (d.is_active ? " on" : "")} onClick={() => form.setData("is_active", !d.is_active)} />
-          </div>
+          <SwitchRow title={t("Active")} note={isSelf ? t("You cannot deactivate your own account.") : edit.is_superuser ? t("A superuser stays active.") : t("An inactive user cannot sign in.")}
+            checked={d.is_active} aria-label={t("Active")} disabled={isSelf || edit.is_superuser} onCheckedChange={(v) => form.setData("is_active", v)} />
           {err("is_active") ? <div className={FA.alert} role="alert">{err("is_active")}</div> : null}
         </>
       ) : null}
 
       <Foot why={why} cancelHref="/users/" submitLabel={edit ? t("Save changes") : t("Create user")} processing={form.processing}
-        extra={edit && !isSelf && !edit.is_superuser ? <button type="button" className="us-link danger" style={{ order: -1, marginRight: "auto" }} onClick={del}>{t("Delete user")}</button> : null} />
+        extra={edit && !isSelf && !edit.is_superuser ? <button type="button" className={cn(FA.textBtn, "order-first mr-auto text-danger-text hover:text-danger-text")} onClick={del}>{t("Delete user")}</button> : null} />
       {confirmDialog}
-      <style>{`
-.us-box { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 14px; }
-.us-box b { display: block; font-size: 14px; font-weight: 500; }
-.us-box span span { display: block; font-size: 12px; color: var(--muted-foreground); }
-.us-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
-.us-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
-.us-tg.on { background: var(--foreground); }
-.us-tg.on::after { transform: translateX(16px); }
-.us-tg:disabled { opacity: .5; cursor: not-allowed; }
-.us-link { padding: 0; border: 0; background: none; font: 600 13px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
-.us-link:hover { color: var(--foreground); }
-.us-link.danger { color: var(--danger-text); }
-.us-tg:focus-visible, .us-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-`}</style>
     </FormA>
   );
 }

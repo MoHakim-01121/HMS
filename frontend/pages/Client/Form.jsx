@@ -3,13 +3,14 @@ import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
 import FormHeader from "../../components/shadcn/form-header.jsx";
 import FormPanel from "../../components/shadcn/form-panel.jsx";
 import FormSection from "../../components/shadcn/form-section.jsx";
-import FormField from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid } from "../../components/shadcn/form-field.jsx";
 import FormActions from "../../components/shadcn/form-actions.jsx";
 import PageBack from "../../components/shadcn/page-back.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/shadcn/ui/select.jsx";
 import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
+import Page from "../../components/shadcn/page.jsx";
 
 function FormBody({ client, edit, errors: serverErrors, branch_choices: branchChoices = [] }) {
   const { t } = useI18n();
@@ -36,7 +37,7 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
   };
 
   return (
-    <div className="form-page shadcn-root">
+    <Page size="form">
       <PageBack href={edit ? `/clients/${c.id}/` : "/clients/"} label={t("Back")} />
       <FormHeader
         kicker={t("Client")}
@@ -47,7 +48,7 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label={t("Identity")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <FieldGrid className="mb-3">
               <FormField label={t("Company Name")} name="name" required
                 value={form.data.name} onChange={set("name")} error={errors.name}
                 placeholder="PT. Anugerah Wisata" autoFocus />
@@ -70,7 +71,7 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
               <FormField span={2} label={t("Address")} name="address">
                 <Textarea name="address" rows={3} value={form.data.address} onChange={(e) => form.setData("address", e.target.value)} placeholder={t("Street, building, RT/RW")} />
               </FormField>
-            </div>
+            </FieldGrid>
             <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
               <Checkbox checked={form.data.is_active} onCheckedChange={(v) => form.setData("is_active", !!v)} />
               <span>{t("Active")} <span style={{ color: "var(--muted-foreground)" }}>— {t("Client can be selected when creating new documents")}</span></span>
@@ -78,11 +79,11 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
           </FormSection>
 
           <FormSection label={t("Contact")}>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            <FieldGrid className="mb-3">
               <FormField label={t("PIC")} name="pic" value={form.data.pic} onChange={set("pic")} placeholder={t("Person in charge name")} />
               <FormField label={t("WhatsApp PIC")} name="wa" value={form.data.wa} onChange={set("wa")} placeholder="628123456789" inputMode="tel" />
-            </div>
-            <div className="fg-2" style={{ marginBottom: 12 }}>
+            </FieldGrid>
+            <FieldGrid className="mb-3">
               <FormField label={t("WhatsApp Group")} name="wa_group" value={form.data.wa_group} onChange={set("wa_group")} placeholder={t("120363xxxxx@g.us or Fonnte group ID")} />
               <FormField label={t("Send Reminder To")} name="reminder_target">
                 <Select name="reminder_target" value={form.data.reminder_target} onValueChange={(v) => form.setData("reminder_target", v)}>
@@ -96,15 +97,15 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
                   </SelectContent>
                 </Select>
               </FormField>
-            </div>
+            </FieldGrid>
             <FormField label={t("Email")} name="email" type="email" value={form.data.email} onChange={set("email")} placeholder="email@agency.com" error={errors.email} />
           </FormSection>
 
           <FormSection label={t("Location")} sub={t("for map")}>
-            <div className="fg-2">
+            <FieldGrid>
               <FormField label={t("Latitude")} name="lat" type="number" step="any" value={form.data.lat} onChange={set("lat")} placeholder="-7.2575" />
               <FormField label={t("Longitude")} name="lng" type="number" step="any" value={form.data.lng} onChange={set("lng")} placeholder="112.7521" />
-            </div>
+            </FieldGrid>
             <div className="hint" style={{ marginTop: 8 }}>
               {t("Find city coordinates at")} <a href="https://www.latlong.net/" target="_blank" rel="noreferrer" style={{ color: "var(--foreground)", textDecoration: "underline" }}>latlong.net ↗</a>
             </div>
@@ -122,7 +123,7 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
             processing={form.processing} />
         </FormPanel>
       </form>
-    </div>
+    </Page>
   );
 }
 

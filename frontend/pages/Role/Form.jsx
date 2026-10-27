@@ -2,6 +2,8 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { withStandaloneModal, actionsClass } from "../../components/shadcn/form-modal.jsx";
 import { FormA, Field, ReadOnly, TextIn, Foot, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { cn } from "@/lib/utils";
+import { Switch } from "../../components/shadcn/ui/switch.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // New / edit role, the "Role Form" artboard on the Record View HMS canvas:
@@ -17,6 +19,18 @@ const GROUPS = [
 ];
 
 /** {module: [actions]} → Set of "module:action", the shape the table works in. */
+const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring";
+// The permission matrix: a header row, group bands and one row per module.
+const ROW = "grid min-h-10 min-w-[640px] items-center border-t border-hairline pr-1.5 pl-3.5 hover:bg-[color:color-mix(in_oklch,var(--secondary)_55%,transparent)]";
+const HEAD = "min-h-11 border-t-0 bg-background hover:bg-background";
+const GROUP = "flex min-h-[34px] min-w-[640px] items-center border-t border-border bg-background px-3.5";
+const NAME = "truncate p-0 text-[13px] font-medium";
+const CELL = "grid place-items-center";
+const COL_BTN = cn("inline-flex h-7 cursor-pointer items-center rounded-[8px] border-0 bg-transparent px-2 font-sans text-[12px] leading-[normal] font-semibold text-muted-foreground enabled:hover:bg-secondary enabled:hover:text-foreground disabled:cursor-default", FOCUS);
+const BOX = "size-[18px] cursor-pointer rounded-[5px] border-2 border-input bg-card disabled:cursor-not-allowed disabled:opacity-55";
+const CHECK = cn(BOX, "m-0 grid appearance-none place-content-center checked:border-primary checked:bg-primary checked:after:h-1 checked:after:w-2 checked:after:translate-x-px checked:after:-translate-y-px checked:after:-rotate-45 checked:after:border-b-2 checked:after:border-l-2 checked:after:border-primary-foreground checked:after:content-['']", FOCUS);
+const TRI = cn(BOX, "grid place-content-center p-0 text-primary-foreground", FOCUS);
+
 function toSet(permissions) {
   const set = new Set();
   for (const [module, actions] of Object.entries(permissions || {})) {
@@ -83,11 +97,11 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
   return (
     <FormA title={editing ? role.label : t("New Role")} onSubmit={submit}>
       {locked ? (
-        <div className="ro-info"><b>{t("This role always has full access")}</b><span>{t("It cannot be edited or deleted, so no one can lock the last administrator out.")}</span></div>
+        <div className="mb-3.5 flex flex-col gap-0.5 rounded-[12px] bg-info-tint px-3.5 py-[11px] text-[13px] leading-normal text-info-text"><b>{t("This role always has full access")}</b><span className="text-foreground">{t("It cannot be edited or deleted, so no one can lock the last administrator out.")}</span></div>
       ) : null}
       <div className={FA.fields}>
         <Field label={t("Name")} required error={errors.label ? t(errors.label) : null}>
-          {locked ? <ReadOnly><span style={{ color: "var(--foreground)", fontWeight: 600 }}>{label}</span></ReadOnly>
+          {locked ? <ReadOnly><span className="font-semibold text-foreground">{label}</span></ReadOnly>
             : <TextIn value={label} onChange={setLabel} placeholder={t("Branch supervisor")} autoFocus invalid={!!errors.label} />}
         </Field>
         <Field label={t("Description")} optional error={errors.description ? t(errors.description) : null}>
@@ -101,32 +115,32 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
         <span className={FA.muted}><b className="text-foreground">{granted.size}</b> {t("of {n} ticked", { n: total })}</span>
       </div>
       {errors.permissions ? <div className={FA.alert} role="alert">{t(errors.permissions)}</div> : null}
-      <div className="ro-mx">
+      <div className="overflow-hidden rounded-[14px] border border-border">
         <div className="overflow-x-auto">
-          <div className="ro-r ro-h" style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${actions.length}, 76px) 64px` }}>
-            <span className="mn">{t("Module")}</span>
+          <div className={cn(ROW, HEAD)} style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${actions.length}, 76px) 64px` }}>
+            <span className={cn(NAME, "text-[12px] text-muted-foreground")}>{t("Module")}</span>
             {actions.map((a) => (
-              <span key={a.key} className="c">
-                <button type="button" className="ro-colb" disabled={locked} onClick={() => toggleCol(a)} title={t("Toggle {label} for every module", { label: a.label })}>{a.label}</button>
+              <span key={a.key} className={CELL}>
+                <button type="button" className={COL_BTN} disabled={locked} onClick={() => toggleCol(a)} title={t("Toggle {label} for every module", { label: a.label })}>{a.label}</button>
               </span>
             ))}
-            <span className="c"><span className="ro-colb">{t("All")}</span></span>
+            <span className={CELL}><span className={COL_BTN}>{t("All")}</span></span>
           </div>
           {groups.map(([name, rows]) => [
-            <div key={"g" + name} className="ro-g"><Caption>{t(name)}</Caption></div>,
+            <div key={"g" + name} className={GROUP}><Caption>{t(name)}</Caption></div>,
             ...rows.map((m) => {
               const n = rowCount(m);
               return (
-                <div key={m.key} className="ro-r" style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${actions.length}, 76px) 64px` }}>
-                  <span className="mn">{m.label}</span>
+                <div key={m.key} className={ROW} style={{ gridTemplateColumns: `minmax(0,1fr) repeat(${actions.length}, 76px) 64px` }}>
+                  <span className={NAME}>{m.label}</span>
                   {actions.map((a) => (
-                    <span key={a.key} className="c">
-                      <input type="checkbox" className="ro-cb" checked={locked || has(m.key, a.key)} disabled={locked}
+                    <span key={a.key} className={CELL}>
+                      <input type="checkbox" className={CHECK} checked={locked || has(m.key, a.key)} disabled={locked}
                         onChange={() => toggle(m.key, a.key)} aria-label={`${m.label}: ${a.label}`} />
                     </span>
                   ))}
-                  <span className="c">
-                    <button type="button" className={"ro-tri" + (locked || n === actions.length ? " all" : n ? " some" : "")} disabled={locked}
+                  <span className={CELL}>
+                    <button type="button" className={cn(TRI, (locked || n) && "border-primary bg-primary")} disabled={locked}
                       onClick={() => toggleRow(m)} aria-label={t("All of {module}", { module: m.label })}>
                       {locked || n === actions.length ? <Tick /> : n ? <Dash /> : null}
                     </button>
@@ -135,19 +149,18 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
               );
             }),
           ])}
-          <div className="ro-g"><Caption>{t("Admin only")}</Caption></div>
-          <div className="ro-r ro-lock">
-            <span className="mn">{t("Users and Roles")}</span>
-            <span className="lk">{t("Only the Administrator role manages accounts and roles. It cannot be granted here.")}</span>
+          <div className={GROUP}><Caption>{t("Admin only")}</Caption></div>
+          <div className={cn(ROW, "grid-cols-[minmax(0,1fr)_minmax(0,3fr)]")}>
+            <span className={NAME}>{t("Users and Roles")}</span>
+            <span className="text-[13px] text-muted-foreground">{t("Only the Administrator role manages accounts and roles. It cannot be granted here.")}</span>
           </div>
         </div>
       </div>
 
       <div className={FA.sectionHead}><Caption>{t("Other access")}</Caption></div>
-      <div className="ro-prow">
-        <span><b>{t("Django admin")}</b><span>{t("Members of this role can also open the Django admin site.")}</span></span>
-        <button type="button" role="switch" aria-checked={locked || djangoStaff} aria-label={t("Django admin")} disabled={locked}
-          className={"ro-tg" + (locked || djangoStaff ? " on" : "")} onClick={() => setDjangoStaff((v) => !v)} />
+      <div className="flex items-center justify-between gap-4">
+        <span><b className="block text-[14px] font-semibold">{t("Django admin")}</b><span className="block text-[13px] text-muted-foreground">{t("Members of this role can also open the Django admin site.")}</span></span>
+        <Switch checked={locked || djangoStaff} aria-label={t("Django admin")} disabled={locked} onCheckedChange={setDjangoStaff} />
       </div>
 
       {locked ? (
@@ -156,39 +169,6 @@ function FormBody({ role, modules = [], actions = [], errors = {} }) {
         <Foot why={why} note={editing ? t(role.user_count === 1 ? "1 account holds this role" : "{n} accounts hold this role", { n: role.user_count }) : ""}
           cancelHref="/roles/" submitLabel={editing ? t("Save role") : t("Create role")} processing={processing} />
       )}
-      <style>{`
-.ro-info { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; padding: 11px 14px; border-radius: 12px; background: var(--info-tint); color: var(--info-text); font-size: 13px; line-height: 1.5; }
-.ro-info span { color: var(--foreground); }
-.ro-mx { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
-.ro-r { display: grid; align-items: center; min-height: 40px; padding: 0 6px 0 14px; border-top: 1px solid var(--hairline); min-width: 640px; }
-.ro-r:hover { background: color-mix(in oklch, var(--secondary) 55%, transparent); }
-.ro-r .mn { padding: 0; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ro-r .c { display: grid; place-items: center; }
-.ro-h { min-height: 44px; background: var(--background); border-top: 0; }
-.ro-h:hover { background: var(--background); }
-.ro-h .mn { font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
-.ro-colb { display: inline-flex; align-items: center; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: none; font: 600 12px var(--font-sans); color: var(--muted-foreground); cursor: pointer; }
-.ro-colb:hover:not(:disabled) { background: var(--secondary); color: var(--foreground); }
-.ro-colb:disabled, span.ro-colb { cursor: default; }
-.ro-g { display: flex; align-items: center; min-height: 34px; padding: 0 14px; border-top: 1px solid var(--border); background: var(--background); min-width: 640px; }
-/* input.ro-cb, not .ro-cb: the global input[type="checkbox"] reset outranks a bare class. */
-.ro-r input.ro-cb { appearance: none; margin: 0; width: 18px; height: 18px; border: 2px solid var(--input); border-radius: 5px; display: grid; place-content: center; cursor: pointer; background: var(--card); }
-.ro-r input.ro-cb:checked { background: var(--primary); border-color: var(--primary); }
-.ro-cb:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--primary-foreground); border-bottom: 2px solid var(--primary-foreground); transform: rotate(-45deg) translate(1px, -1px); }
-.ro-r input.ro-cb:disabled, .ro-tri:disabled { cursor: not-allowed; opacity: .55; }
-.ro-tri { width: 18px; height: 18px; padding: 0; border: 2px solid var(--input); border-radius: 5px; background: var(--card); display: grid; place-content: center; cursor: pointer; color: var(--primary-foreground); }
-.ro-tri.all, .ro-tri.some { background: var(--primary); border-color: var(--primary); }
-.ro-lock { grid-template-columns: minmax(0,1fr) minmax(0,3fr); }
-.ro-lock .lk { font-size: 13px; color: var(--muted-foreground); }
-.ro-prow { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.ro-prow b { display: block; font-size: 14px; font-weight: 600; }
-.ro-prow span span { display: block; font-size: 13px; color: var(--muted-foreground); }
-.ro-tg { position: relative; flex: none; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--input); cursor: pointer; padding: 0; transition: background 150ms ease; }
-.ro-tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform 150ms ease; }
-.ro-tg.on { background: var(--foreground); }
-.ro-tg.on::after { transform: translateX(16px); }
-.ro-cb:focus-visible, .ro-tri:focus-visible, .ro-colb:focus-visible, .ro-tg:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-`}</style>
     </FormA>
   );
 }

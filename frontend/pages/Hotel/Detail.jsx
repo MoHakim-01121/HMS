@@ -10,6 +10,7 @@ import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmtDist } from "../../utils/format.js";
+import { cn } from "@/lib/utils";
 
 // Hotel detail, the "Hotel Detail" artboard on the Record View HMS canvas:
 // the head card, then Room types (one row per type, its views as chips) beside
@@ -70,29 +71,34 @@ function HotelMiniMap({ hotel }) {
   return <div ref={ref} />;
 }
 
+// A view of a room type, as a chip; it opens Edit / Remove when editable.
+const CHIP = "my-0.5 mr-1 ml-0 inline-flex h-6 items-center rounded-full border-0 bg-secondary px-[9px] font-sans text-[12px] leading-[normal] font-medium whitespace-nowrap text-foreground";
+const STEP_BTN = "size-10 cursor-pointer rounded-full border-0 bg-secondary font-sans text-[18px] leading-[normal] font-semibold text-foreground hover:bg-input";
+
 function RoomCalculator({ avg }) {
   const { t } = useI18n();
   const [pilgrims, setPilgrims] = useState(35);
   const rooms = pilgrims > 0 ? Math.ceil(pilgrims / avg) : null;
   return (
     <>
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 16 }}>
+      <div className="mt-4 flex flex-1 flex-wrap items-center justify-between gap-4">
         <div>
-          <label htmlFor="hm-pilgrims" style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)" }}>{t("Pilgrims")}</label>
-          <div className="hm-step">
-            <button type="button" aria-label={t("Decrease")} onClick={() => setPilgrims((v) => Math.max(1, v - 1))}>−</button>
-            <input id="hm-pilgrims" type="number" min="1" value={pilgrims} onChange={(e) => setPilgrims(parseInt(e.target.value, 10) || 0)} />
-            <button type="button" aria-label={t("Increase")} onClick={() => setPilgrims((v) => v + 1)}>+</button>
+          <label htmlFor="hm-pilgrims" className="block text-[12px] text-muted-foreground">{t("Pilgrims")}</label>
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <button type="button" className={STEP_BTN} aria-label={t("Decrease")} onClick={() => setPilgrims((v) => Math.max(1, v - 1))}>−</button>
+            <input id="hm-pilgrims" type="number" min="1"
+              className="box-border h-10 w-[72px] appearance-[textfield] rounded-[14px] border-2 border-border bg-card text-center font-sans text-[15px] leading-[normal] font-semibold text-foreground tabular-nums focus:border-foreground focus:outline-none [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none" value={pilgrims} onChange={(e) => setPilgrims(parseInt(e.target.value, 10) || 0)} />
+            <button type="button" className={STEP_BTN} aria-label={t("Increase")} onClick={() => setPilgrims((v) => v + 1)}>+</button>
           </div>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{t("Rooms needed")}</div>
-          <div style={{ marginTop: 2, fontSize: 32, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
-            {rooms ?? "—"} <span style={{ fontSize: 14, fontWeight: 500, color: "var(--muted-foreground)" }}>{t("rooms")}</span>
+        <div className="text-right">
+          <div className="text-[12px] text-muted-foreground">{t("Rooms needed")}</div>
+          <div className="mt-0.5 text-[32px] leading-[1.1] font-semibold tracking-[-0.02em] tabular-nums">
+            {rooms ?? "—"} <span className="text-[14px] font-medium text-muted-foreground">{t("rooms")}</span>
           </div>
         </div>
       </div>
-      <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 13, color: "var(--muted-foreground)" }}>
+      <div className="mt-3.5 border-t border-border pt-3 text-[13px] text-muted-foreground">
         {t("Based on an average of {avg} pax per room.", { avg })}
       </div>
     </>
@@ -104,11 +110,11 @@ function ViewChip({ rt, canEdit, onEdit, onRemove }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const label = rt.view ? t(rt.view) : t("Standard");
-  if (!canEdit) return <span className="hm-chip static">{label}</span>;
+  if (!canEdit) return <span className={CHIP}>{label}</span>;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" className="hm-chip" aria-label={t("{type}, {view}", { type: rt.name, view: label })}>{label}</button>
+        <button type="button" className={cn(CHIP, "cursor-pointer hover:bg-input aria-expanded:bg-input")} aria-label={t("{type}, {view}", { type: rt.name, view: label })}>{label}</button>
       </PopoverTrigger>
       <Menu align="start" sideOffset={4} className="w-[180px]">
         <MenuItem onClick={() => { setOpen(false); onEdit(rt); }}>{t("Edit")}</MenuItem>
@@ -162,7 +168,6 @@ export default function Detail({ hotel }) {
 
   return (
     <DPage>
-      <style>{CSS}</style>
       <DTop href="/hotels/" />
 
       <DHead
@@ -204,9 +209,9 @@ export default function Detail({ hotel }) {
                   <tbody>
                     {shown.map((g) => (
                       <tr key={g.name} className={DA.rowMid}>
-                        <td className={DC.strong} style={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>{g.name}</td>
-                        <td className={DC.n} style={{ verticalAlign: "middle" }}>{g.capacity} {t("pax")}</td>
-                        <td style={{ paddingTop: 10, paddingBottom: 10 }}>
+                        <td className={cn(DC.strong, "align-middle whitespace-nowrap")}>{g.name}</td>
+                        <td className={cn(DC.n, "align-middle")}>{g.capacity} {t("pax")}</td>
+                        <td className="py-2.5">
                           {g.items.map((rt) => (
                             <ViewChip key={rt.id} rt={rt} canEdit={canEdit} onEdit={(x) => openForm(`${base}/room-types/${x.id}/edit/`)} onRemove={removeRoomType} />
                           ))}
@@ -217,8 +222,8 @@ export default function Detail({ hotel }) {
                 </table>
               </div>
               {groups.length > SHOWN ? (
-                <div style={{ marginTop: "auto", padding: "4px 24px 16px", borderTop: "1px solid var(--border)" }}>
-                  <button type="button" className="hm-more" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)}>
+                <div className="mt-auto border-t border-border px-6 pt-1 pb-4">
+                  <button type="button" className="h-9 cursor-pointer border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-semibold text-muted-foreground hover:text-foreground" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)}>
                     {showAll ? t("Show less") : t("Show all {n} types", { n: groups.length })}
                   </button>
                 </div>
@@ -230,10 +235,10 @@ export default function Detail({ hotel }) {
         <DCard title={t("Location")} actions={<a href="/hotels/map/">{t("See full map")} ↗</a>}>
           {hasCoords ? (
             <>
-              <div className={DA.map} role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} style={{ marginTop: 4 }}>
+              <div role="img" aria-label={hotel.distance_label ? t("Map: {name} is {d} from Masjid Al-Haram", { name: hotel.name, d: hotel.distance_label }) : hotel.name} className={cn(DA.map, "mt-1")}>
                 <HotelMiniMap hotel={hotel} />
               </div>
-              <div style={{ padding: "12px 24px 18px", fontSize: 13, color: "var(--muted-foreground)" }}>
+              <div className="px-6 pt-3 pb-[18px] text-[13px] text-muted-foreground">
                 {t("Distance measured from {ref}.", { ref: hotel.ref_label })}
               </div>
             </>
@@ -250,7 +255,7 @@ export default function Detail({ hotel }) {
             <div className={DA.rows}>
               {mealPlans.map((mp) => (
                 <div key={mp.code}>
-                  <span style={{ width: 32, fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 600, color: "var(--muted-foreground)" }}>{mp.code}</span>
+                  <span className="w-8 font-mono text-[13px] font-semibold text-muted-foreground">{mp.code}</span>
                   <span>{t(mp.name)}</span>
                 </div>
               ))}
@@ -276,17 +281,3 @@ export default function Detail({ hotel }) {
   );
 }
 
-const CSS = `
-.hm-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; margin: 2px 4px 2px 0; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 500 12px var(--font-sans); cursor: pointer; white-space: nowrap; }
-.hm-chip:hover, .hm-chip[aria-expanded="true"] { background: var(--input); }
-.hm-chip.static { cursor: default; }
-.hm-chip.static:hover { background: var(--secondary); }
-.hm-more { height: 36px; padding: 0; border: 0; background: none; color: var(--muted-foreground); font: 600 13px var(--font-sans); cursor: pointer; }
-.hm-more:hover { color: var(--foreground); }
-.hm-step { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
-.hm-step button { width: 40px; height: 40px; border: 0; border-radius: 9999px; background: var(--secondary); color: var(--foreground); font: 600 18px var(--font-sans); cursor: pointer; }
-.hm-step button:hover { background: var(--input); }
-.hm-step input { width: 72px; height: 40px; box-sizing: border-box; text-align: center; border: 2px solid var(--border); border-radius: 14px; background: var(--card); color: var(--foreground); font: 600 15px var(--font-sans); font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
-.hm-step input::-webkit-outer-spin-button, .hm-step input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.hm-step input:focus { outline: none; border-color: var(--foreground); }
-`;

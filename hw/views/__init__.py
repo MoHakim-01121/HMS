@@ -59,7 +59,7 @@ from .credit_note_views import (
     invoice_excess_to_deposit,
     invoice_void,
 )
-from .dev_views import health_check, style_guide
+from .dev_views import health_check
 from .exchange_views import exchange_export_csv, exchange_list, exchange_new, exchange_void
 from .expense_views import (
     expense_approve,

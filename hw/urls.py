@@ -128,9 +128,6 @@ urlpatterns = [
     path('penalty/<int:pk>/delete/', views.penalty_delete, name='penalty_delete'),
     path('penalty/<int:pk>/pdf/', views.penalty_pdf, name='penalty_pdf'),
 
-    # Dev / design system preview (superuser only)
-    path('dev/style-guide/', views.style_guide, name='style_guide'),
-
     # Landing page management (team members + pricelist)
     path('manage-landing/', views.landing_manage, name='landing_manage'),
     path('manage-landing/team/new/', views.team_new, name='team_new'),

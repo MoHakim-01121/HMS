@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
-import FormField, { amountText, amountValue } from "../../components/shadcn/form-field.jsx";
+import FormField, { FieldGrid, amountText, amountValue } from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
   Dialog, DialogFooter,
@@ -123,7 +123,7 @@ export default function List({ statements = [], account_choices = [], filters: f
             </ModalHead>
             <ModalBody>
               <form onSubmit={(e) => { e.preventDefault(); submit(); }} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <div className="fg-3">
+                <FieldGrid cols={3} className="gap-3">
                   <FormField label={t("Account")} name="account" required>
                     <Select value={form.account} onValueChange={(v) => setForm({ ...form, account: v })}>
                       <SelectTrigger className="w-full"><SelectValue placeholder={t("Select account...")} /></SelectTrigger>
@@ -140,7 +140,7 @@ export default function List({ statements = [], account_choices = [], filters: f
                     value={form.opening_balance} onChange={(v) => setForm({ ...form, opening_balance: v })} />
                   <FormField label={inCur("Closing Balance")} name="closing_balance" amount signed required
                     value={form.closing_balance} onChange={(v) => setForm({ ...form, closing_balance: v })} />
-                </div>
+                </FieldGrid>
 
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{t("Lines")}</div>

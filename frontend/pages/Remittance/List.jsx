@@ -4,7 +4,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { cn } from "@/lib/utils";
 import TrackingPanel from "./TrackingPanel.jsx";
-import RecapPanel, { RECAP_CSS } from "./RecapPanel.jsx";
+import RecapPanel from "./RecapPanel.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -40,7 +40,6 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
   if (tab !== "transfers") {
     return (
       <ListPage title={t("Remittance")} legend={views}>
-        <style>{RECAP_CSS}</style>
         {tab === "tracking" && <TrackingPanel tracking={tracking} />}
         {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
       </ListPage>
