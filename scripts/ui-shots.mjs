@@ -94,6 +94,8 @@ const PAGES = [
   ["client-statement", "admin", `/finance/clients/${id.client}/statement/`],
   ["remittance-tracking", "admin", "/remittance/?tab=tracking"],
   ["remittance-recap", "admin", "/remittance/?tab=recap"],
+  ["client-map", "admin", "/clients/map/"],
+  ["hotel-map", "admin", "/hotels/map/"],
   ["room-type-new", "admin", `/hotels/${id.hotel}/room-types/new/`],
   ["room-type-bulk", "admin", `/hotels/${id.hotel}/room-types/bulk/`],
   ["meal-plans", "admin", `/hotels/${id.hotel}/meal-plans/`],
@@ -130,6 +132,8 @@ const ACTIONS = [
   ["profile-filter", "admin", "/account/profile/", ['button[aria-haspopup="dialog"]:has-text("Filter")']],
   ["profile-edit", "admin", "/account/profile/", ['button[aria-label^="Edit"] >> nth=0']],
   ["dialog-new-expense", "admin", "/finance/expenses/", ['button:has-text("New expense")']],
+  ["map-filter", "admin", "/hotels/map/", ["#filter-open-btn"]],
+  ["map-legend", "admin", "/hotels/map/", ["#leg-toggle"]],
   ["profile-photo", "admin", "/account/profile/", ['button[aria-label="View photo"], button[aria-label="Add a photo"]']],
 ];
 // [suffix, viewport, theme]: dark is what the app ships with; light desktop

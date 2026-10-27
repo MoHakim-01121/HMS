@@ -4,11 +4,33 @@ import { fetchJson } from "../../utils/fetchJson.js";
 import { distColor } from "../../components/mapColors.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmtDist } from "../../utils/format.js";
+import { cn } from "@/lib/utils";
 
 // Hotel map — full imperative Leaflet app ported from the original hotel_map
 // template. The DOM below mirrors the original (same ids/classes); the script
 // runs once on mount and exposes the handlers it needs on window so the
 // dynamically-rendered hotel cards (built via innerHTML) can call them.
+// The map's own chrome: the filter menu, legend and hotel list.
+const SECTION = "border-b border-border px-3.5 pt-2.5 pb-0.5 [&>div]:mb-1.5";
+const SECTION_TITLE = "text-[10px] font-bold tracking-[1.2px] text-muted-foreground uppercase";
+const DIVIDER = "my-1.5 h-px bg-border";
+const OPTION = "flex cursor-pointer items-center gap-[9px] px-3.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color] duration-100 hover:bg-secondary hover:text-foreground [&_input]:size-3.5 [&_input]:cursor-pointer [&_input]:accent-primary";
+const RADIO = cn(OPTION, "has-checked:font-semibold has-checked:text-foreground");
+const CHECK = OPTION;
+const SWATCH = "inline-block size-2 shrink-0 rounded-[2px]";
+const STARS = "text-[12px] text-warning-text";
+const TOGGLE_ROW = "group/tg flex w-full cursor-pointer items-center justify-between border-0 bg-transparent px-3.5 py-2 text-left [font:inherit] text-inherit focus-visible:rounded-[6px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring";
+const TOGGLE = "relative h-[17px] w-8 shrink-0 rounded-[9px] bg-input transition-[background-color] duration-150 group-aria-checked/tg:bg-primary after:absolute after:top-[3px] after:left-[3px] after:size-[11px] after:rounded-full after:bg-primary-foreground after:transition-[left] after:duration-150 after:content-[''] group-aria-checked/tg:after:left-[18px]";
+const LEG_SECTION = "mt-[9px] mb-[5px] text-[10px] font-bold tracking-[1.2px] text-muted-foreground uppercase first:mt-0";
+const LEG_ROW = "mb-1 flex items-center gap-2 last:mb-0";
+const COUNT = "text-[11px] font-bold tracking-[1.2px] text-muted-foreground uppercase";
+
+const Loading = () => (
+  <div className="flex items-center justify-center gap-[5px] px-5 py-12">
+    {[0, 1, 2].map((i) => <span key={i} className="size-1.5 animate-dot-pulse rounded-full bg-primary [&:nth-child(2)]:[animation-delay:.2s] [&:nth-child(3)]:[animation-delay:.4s]" />)}
+  </div>
+);
+
 export default function HotelMap() {
   const { t } = useI18n();
   useEffect(() => {
@@ -58,14 +80,14 @@ export default function HotelMap() {
       let routesVisible = !isMobile(), avgOnly = false, activeMarker = null, markerMap = {}, activeCardPk = null;
 
       const haversine = (lat1, lng1, lat2, lng2) => { const R = 6371000, p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180; const a = Math.sin(dLat / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dLng / 2) ** 2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); };
-      const distClass = (d) => (d === null ? "dim" : d < 500 ? "green" : d < 1500 ? "yellow" : "red");
+      const distClass = (d) => (d === null ? "text-muted-foreground" : d < 500 ? "text-success-text" : d < 1500 ? "text-warning-text" : "text-danger-text");
       const starsHtml = (n) => "★".repeat(n);
       const starSize = (s) => (s >= 5 ? 14 : s >= 4 ? 12 : 10);
 
       function updateHud(lat, lng) {
         const el = document.getElementById("hud-coords");
         el.textContent = Math.abs(lat).toFixed(4) + "°" + (lat >= 0 ? "N" : "S") + "  " + Math.abs(lng).toFixed(4) + "°" + (lng >= 0 ? "E" : "W");
-        el.classList.add("active");
+        el.dataset.active = "true";
       }
 
       function hotelIcon(color, size, pulse) {
@@ -75,7 +97,7 @@ export default function HotelMap() {
           const cSize = size + 44, cHalf = Math.round(cSize / 2);
           return L.divIcon({ className: "", html:
             '<div style="position:relative;width:' + cSize + "px;height:" + cSize + 'px;">' +
-            '<div style="position:absolute;top:50%;left:50%;width:' + size + "px;height:" + size + "px;margin-top:-" + half + "px;margin-left:-" + half + "px;border-radius:50%;border:1.5px solid " + color + ';animation:pulse-ring 1.4s ease-out infinite;"></div>' +
+            '<div style="position:absolute;top:50%;left:50%;width:' + size + "px;height:" + size + "px;margin-top:-" + half + "px;margin-left:-" + half + "px;border-radius:50%;border:1.5px solid " + color + ';" class="animate-pulse-ring"></div>' +
             '<div style="position:absolute;top:50%;left:50%;width:' + s + "px;height:" + s + "px;margin-top:-" + hs + "px;margin-left:-" + hs + "px;border-radius:3px;background:" + color + ';border:1.5px solid rgba(255,255,255,.55);box-shadow:0 0 10px ' + color + 'BB;"></div>' +
             "</div>", iconSize: [cSize, cSize], iconAnchor: [cHalf, cHalf] });
         }
@@ -84,15 +106,17 @@ export default function HotelMap() {
 
       function buildPopup(h) {
         const dist = h.distance_label || "—";
-        const avgRow = h.avg ? '<div class="pop-row"><span class="pop-label">' + t("Avg") + '</span><span class="pop-val">' + _esc(h.avg) + " pax/room</span></div>" : "";
-        return '<div class="pop-name">' + _esc(h.name) + '</div><div class="pop-stars">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="pop-area">' + _esc(h.area) + "</div>" : "") + '<div class="pop-row"><span class="pop-label">' + t("Distance") + '</span><span class="pop-val ' + distClass(h.distance) + '">' + dist + "</span></div>" + avgRow;
+        const row = '<div class="mb-1 flex items-center justify-between text-[11px]"><span class="text-[10px] font-semibold tracking-[.5px] text-muted-foreground uppercase">';
+        const val = "font-bold tabular-nums ";
+        const avgRow = h.avg ? row + t("Avg") + '</span><span class="' + val + 'text-foreground">' + _esc(h.avg) + " pax/room</span></div>" : "";
+        return '<div class="mb-0.5 text-[13px] font-bold text-foreground">' + _esc(h.name) + '</div><div class="mb-1.5 text-[11px] tracking-[2px] text-warning-text">' + starsHtml(h.stars) + "</div>" + (h.area ? '<div class="mb-1.5 text-[10.5px] text-muted-foreground">' + _esc(h.area) + "</div>" : "") + row + t("Distance") + '</span><span class="' + val + (h.distance === null ? "text-foreground" : distClass(h.distance)) + '">' + dist + "</span></div>" + avgRow;
       }
 
       const getCityFilter = () => { const el = document.querySelector('input[name="fp-city"]:checked'); return el ? el.value : "all"; };
       const getDistFilters = () => Array.from(document.querySelectorAll('#filter-dropdown input[type=checkbox][value=dekat],#filter-dropdown input[type=checkbox][value=sedang],#filter-dropdown input[type=checkbox][value=jauh]')).filter((cb) => cb.checked).map((cb) => cb.value);
       const getStarsFilters = () => Array.from(document.querySelectorAll('input[name="fp-stars"]:checked')).map((cb) => parseInt(cb.value, 10));
       function countActiveFilters() { let n = 0; if (getCityFilter() !== "all") n++; if (getDistFilters().length > 0) n++; if (getStarsFilters().length > 0) n++; if (avgOnly) n++; return n; }
-      function updateFilterBadge() { const n = countActiveFilters(), badge = document.getElementById("filter-badge"), btn = document.getElementById("filter-open-btn"); badge.style.display = n > 0 ? "" : "none"; if (n > 0) badge.textContent = n; btn.classList.toggle("has-filter", n > 0); }
+      function updateFilterBadge() { const n = countActiveFilters(), badge = document.getElementById("filter-badge"), btn = document.getElementById("filter-open-btn"); badge.style.display = n > 0 ? "inline" : "none"; if (n > 0) badge.textContent = n; btn.toggleAttribute("data-active", n > 0); }
       function getFiltered() {
         const q = (document.getElementById("hotel-search").value || "").toLowerCase().trim(), city = getCityFilter(), dists = getDistFilters(), stars = getStarsFilters();
         return allHotels.filter((h) => {
@@ -104,8 +128,7 @@ export default function HotelMap() {
           return true;
         });
       }
-      const syncRadioStyles = () => ["all", "makkah", "madinah"].forEach((v) => { const l = document.getElementById("fp-city-" + v); if (l) l.classList.toggle("active", document.querySelector('input[name="fp-city"][value="' + v + '"]').checked); });
-
+      
       function saveFilters() { try { localStorage.setItem("hmap_filters", JSON.stringify({ city: getCityFilter(), dists: getDistFilters(), stars: getStarsFilters(), avg: avgOnly, q: document.getElementById("hotel-search").value || "" })); } catch { /* noop */ } }
       function loadFilters() {
         try {
@@ -114,7 +137,7 @@ export default function HotelMap() {
           if (f.city) { const r = document.querySelector('input[name="fp-city"][value="' + f.city + '"]'); if (r) r.checked = true; }
           (f.dists || []).forEach((v) => { const cb = document.querySelector('#filter-dropdown input[value="' + v + '"]'); if (cb) cb.checked = true; });
           (f.stars || []).forEach((v) => { const cb = document.querySelector('input[name="fp-stars"][value="' + v + '"]'); if (cb) cb.checked = true; });
-          avgOnly = !!f.avg; if (avgOnly) document.getElementById("sw-avg").classList.add("on");
+          avgOnly = !!f.avg; document.getElementById("tg-avg").setAttribute("aria-checked", String(avgOnly));
           if (f.q) { const inp = document.getElementById("hotel-search"); if (inp) inp.value = f.q; syncSearchClear(); }
         } catch { /* noop */ }
       }
@@ -127,37 +150,36 @@ export default function HotelMap() {
         Object.values(markerMap).forEach((e) => e.marker.setOpacity(0));
         const filtered = getFiltered();
         setTimeout(() => { renderMarkers(filtered); updateCounter(filtered.length); renderPanel(filtered); }, 120);
-        updateFilterBadge(); syncRadioStyles();
+        updateFilterBadge();
       }
       function updateCounter(n) { const label = n + " " + t("Hotel"); document.getElementById("hp-count").textContent = label; const mc = document.getElementById("mob-sheet-count"); if (mc) mc.textContent = label; }
 
-      const toggleLegend = () => { const hidden = document.getElementById("leg-body").classList.toggle("hidden"); document.getElementById("leg-arrow").classList.toggle("up"); document.getElementById("leg-toggle").setAttribute("aria-expanded", String(!hidden)); };
+      const toggleLegend = () => { const body = document.getElementById("leg-body"); const hidden = body.toggleAttribute("data-collapsed"); document.getElementById("leg-toggle").setAttribute("aria-expanded", String(!hidden)); };
 
       let filterOpen = false;
-      const toggleFilter = () => { filterOpen = !filterOpen; document.getElementById("filter-dropdown").classList.toggle("open", filterOpen); document.getElementById("filter-open-btn").classList.toggle("has-filter", filterOpen || countActiveFilters() > 0); };
-      function closeFilter() { filterOpen = false; const dd = document.getElementById("filter-dropdown"); if (dd) dd.classList.remove("open"); const btn = document.getElementById("filter-open-btn"); if (btn) btn.classList.toggle("has-filter", countActiveFilters() > 0); }
+      const toggleFilter = () => { filterOpen = !filterOpen; document.getElementById("filter-dropdown").toggleAttribute("data-open", filterOpen); document.getElementById("filter-open-btn").toggleAttribute("data-active", filterOpen || countActiveFilters() > 0); };
+      function closeFilter() { filterOpen = false; const dd = document.getElementById("filter-dropdown"); if (dd) dd.removeAttribute("data-open"); const btn = document.getElementById("filter-open-btn"); if (btn) btn.toggleAttribute("data-active", countActiveFilters() > 0); }
 
-      const toggleRoutes = () => { routesVisible = !routesVisible; document.getElementById("sw-route").classList.toggle("on", routesVisible); document.getElementById("tg-route").setAttribute("aria-checked", String(routesVisible)); if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup); };
-      const toggleAvg = () => { avgOnly = !avgOnly; document.getElementById("sw-avg").classList.toggle("on", avgOnly); document.getElementById("tg-avg").setAttribute("aria-checked", String(avgOnly)); applyFilters(); };
-      const resetFilters = () => { document.querySelector('input[name="fp-city"][value="all"]').checked = true; document.querySelectorAll("#filter-dropdown input[type=checkbox]").forEach((cb) => { cb.checked = false; }); avgOnly = false; document.getElementById("sw-avg").classList.remove("on"); document.getElementById("hotel-search").value = ""; applyFilters(); };
+      const toggleRoutes = () => { routesVisible = !routesVisible; document.getElementById("tg-route").setAttribute("aria-checked", String(routesVisible)); if (routesVisible) routeGroup.addTo(map); else map.removeLayer(routeGroup); };
+      const toggleAvg = () => { avgOnly = !avgOnly; document.getElementById("tg-avg").setAttribute("aria-checked", String(avgOnly)); applyFilters(); };
+      const resetFilters = () => { document.querySelector('input[name="fp-city"][value="all"]').checked = true; document.querySelectorAll("#filter-dropdown input[type=checkbox]").forEach((cb) => { cb.checked = false; }); avgOnly = false; document.getElementById("tg-avg").setAttribute("aria-checked", "false"); document.getElementById("hotel-search").value = ""; applyFilters(); };
 
-      function buildCardHtml(h, idx) {
+      function buildCardHtml(h) {
         const color = distColor(h.distance), dc = distClass(h.distance);
         const dist = h.distance_label || "—";
-        const delay = typeof idx === "number" ? idx * 22 + "ms" : "0ms";
-        return '<div class="hp-card" data-pk="' + h.pk + '" style="animation-delay:' + delay + '" onclick="selectCard(' + h.pk + ')" onmouseenter="hoverCard(' + h.pk + ')" onmouseleave="hoverCard(null)">' +
-          '<div class="hp-card-top">' +
-          '<div class="hp-dot" style="background:' + color + ';"></div>' +
-          '<span class="hp-card-name">' + _esc(h.name) + "</span>" +
-          '<span class="hp-card-dist ' + dc + '">' + dist + "</span>" +
-          '<a href="' + h.url + '" class="hp-card-link" onclick="event.stopPropagation()" title="' + t("Hotel details") + '">' +
+        return '<div class="cursor-pointer border-b border-border px-3.5 py-2.5 transition-[background-color] duration-[120ms] hover:bg-secondary data-active:bg-secondary data-active:shadow-[inset_0_0_0_1px_var(--input)]" data-pk="' + h.pk + '" onclick="selectCard(' + h.pk + ')" onmouseenter="hoverCard(' + h.pk + ')" onmouseleave="hoverCard(null)">' +
+          '<div class="flex items-center gap-[9px]">' +
+          '<div class="size-2 shrink-0 rounded-[2px]" style="background:' + color + ';"></div>' +
+          '<span class="min-w-0 flex-1 truncate text-[13px] leading-[1.3] font-semibold text-foreground">' + _esc(h.name) + "</span>" +
+          '<span class="shrink-0 text-[11px] font-bold tracking-[.3px] tabular-nums ' + dc + '">' + dist + "</span>" +
+          '<a href="' + h.url + '" class="ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground no-underline transition-[color,background-color] duration-150 hover:bg-secondary hover:text-primary" onclick="event.stopPropagation()" title="' + t("Hotel details") + '">' +
           '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>' +
           "</a></div>" +
-          '<div class="hp-card-sub"><span style="color:var(--warning-text);letter-spacing:1px;">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
+          '<div class="mt-0.5 truncate pl-[17px] text-[10.5px] tracking-[.3px] text-muted-foreground"><span class="tracking-[1px] text-warning-text">' + starsHtml(h.stars) + "</span>" + (h.area ? " · " + _esc(h.area) : "") + "</div></div>";
       }
       function renderPanel(hotels) {
-        const empty = '<div style="padding:48px 20px 40px;text-align:center;"><div style="font-size:13px;color:var(--muted-foreground);margin-bottom:16px;">' + t("No matching hotels") + '</div><button onclick="resetFilters()" style="background:var(--secondary);border:1px solid var(--input);border-radius:8px;padding:8px 16px;color:var(--muted-foreground);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">' + t("Reset Filter") + "</button></div>";
-        const html = hotels.length === 0 ? empty : hotels.map((h, i) => buildCardHtml(h, i)).join("");
+        const empty = '<div class="px-5 pt-12 pb-10 text-center"><div class="mb-4 text-[13px] text-muted-foreground">' + t("No matching hotels") + '</div><button onclick="resetFilters()" class="cursor-pointer rounded-[8px] border border-input bg-secondary px-4 py-2 font-[inherit] text-[12px] font-semibold text-muted-foreground">' + t("Reset Filter") + "</button></div>";
+        const html = hotels.length === 0 ? empty : hotels.map((h) => buildCardHtml(h)).join("");
         if (!isMobile()) document.getElementById("hotel-list").innerHTML = html;
         const mobList = document.getElementById("mob-sheet-list");
         if (mobList) mobList.innerHTML = html;
@@ -165,7 +187,7 @@ export default function HotelMap() {
 
       let panelCollapsed = false;
       function updateZoomOffset() { const el = document.querySelector(".leaflet-bottom.leaflet-right"); if (!el || isMobile()) return; el.style.right = (panelCollapsed ? "10" : "316") + "px"; }
-      const togglePanel = () => { panelCollapsed = !panelCollapsed; document.getElementById("hotel-panel").classList.toggle("collapsed", panelCollapsed); updateZoomOffset(); };
+      const togglePanel = () => { panelCollapsed = !panelCollapsed; document.getElementById("hotel-panel").toggleAttribute("data-collapsed", panelCollapsed); updateZoomOffset(); };
 
       function applyMarkerOpacity(selectedPk) { Object.values(markerMap).forEach((e) => { e.marker.setOpacity(selectedPk === null ? 1 : e.h.pk === selectedPk ? 1 : 0.25); }); }
       const hoverCard = (pk) => { if (pk === null) { applyMarkerOpacity(activeCardPk || null); return; } Object.values(markerMap).forEach((e) => { e.marker.setOpacity(e.h.pk === pk ? 1 : 0.25); }); };
@@ -181,18 +203,18 @@ export default function HotelMap() {
         map.flyTo([h.lat, h.lng], 16, { duration: 0.8 });
         applyMarkerOpacity(pk);
         if (activeCardPk === pk) {
-          document.querySelectorAll(".hp-card").forEach((el) => el.classList.remove("active"));
+          document.querySelectorAll("[data-pk]").forEach((el) => delete el.dataset.active);
           if (activeMarker) { const ad = activeMarker._hotelData; activeMarker.setIcon(hotelIcon(distColor(ad.distance), activeMarker._starSize || 10)); activeMarker = null; }
           applyMarkerOpacity(null); activeCardPk = null; return;
         }
-        document.querySelectorAll(".hp-card").forEach((el) => el.classList.remove("active"));
-        document.querySelectorAll('.hp-card[data-pk="' + pk + '"]').forEach((card) => { card.classList.add("active"); if (!isMobile() && card.offsetParent !== null) card.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+        document.querySelectorAll("[data-pk]").forEach((el) => delete el.dataset.active);
+        document.querySelectorAll('[data-pk="' + pk + '"]').forEach((card) => { card.dataset.active = "true"; if (!isMobile() && card.offsetParent !== null) card.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
         activeCardPk = pk;
       };
 
       function renderMarkers(hotels) {
         routeTip.remove(); markerGroup.clearLayers(); routeGroup.clearLayers(); markerMap = {}; activeMarker = null; activeCardPk = null;
-        document.querySelectorAll(".hp-card").forEach((el) => el.classList.remove("active"));
+        document.querySelectorAll("[data-pk]").forEach((el) => delete el.dataset.active);
         const cycle = ++_renderCycle;
         hotels.forEach((h) => {
           const color = distColor(h.distance), refLL = h.city === "madinah" ? NABAWI : HARAM, sz = starSize(h.stars);
@@ -215,17 +237,15 @@ export default function HotelMap() {
 
       // ── Mobile list sheet ──
       let _sheetState = "closed";
-      const _sheetStates = ["closed", "peek", "half", "full"];
-      let _sheetLocked = false;
+            let _sheetLocked = false;
       function setSheetState(state, force) {
         if (_sheetLocked && !force) return;
         _sheetState = state;
         const sheet = document.getElementById("mob-list-sheet"); if (!sheet) return;
-        _sheetStates.forEach((s) => sheet.classList.remove("state-" + s));
-        sheet.classList.add("state-" + state);
+        sheet.dataset.state = state;
         const hint = document.getElementById("mob-sheet-hint");
         if (hint) hint.textContent = state === "closed" ? t("▲ Open list") : state === "full" ? t("▼ Close") : t("▲▼ Drag");
-        if ((state === "half" || state === "full") && activeCardPk) { setTimeout(() => { const card = document.querySelector('#mob-sheet-list .hp-card[data-pk="' + activeCardPk + '"]'); if (card) card.scrollIntoView({ block: "nearest" }); }, 320); }
+        if ((state === "half" || state === "full") && activeCardPk) { setTimeout(() => { const card = document.querySelector('#mob-sheet-list [data-pk="' + activeCardPk + '"]'); if (card) card.scrollIntoView({ block: "nearest" }); }, 320); }
       }
       function lockSheet(ms) { _sheetLocked = true; setTimeout(() => { _sheetLocked = false; }, ms || 400); }
 
@@ -236,13 +256,13 @@ export default function HotelMap() {
         const inp = document.getElementById("hotel-search"); if (inp) { inp.value = ""; inp.focus(); }
         syncSearchClear(); applyFilters();
         if (activeMarker) { const ad = activeMarker._hotelData; activeMarker.setIcon(hotelIcon(distColor(ad.distance), activeMarker._starSize || 10)); activeMarker = null; }
-        document.querySelectorAll(".hp-card").forEach((el) => el.classList.remove("active")); activeCardPk = null;
+        document.querySelectorAll("[data-pk]").forEach((el) => delete el.dataset.active); activeCardPk = null;
       };
 
       map.on("click", () => {
         closeFilter();
         if (activeMarker) { const ad = activeMarker._hotelData; activeMarker.setIcon(hotelIcon(distColor(ad.distance), activeMarker._starSize || 10)); activeMarker = null; }
-        if (activeCardPk) { document.querySelectorAll(".hp-card").forEach((el) => el.classList.remove("active")); activeCardPk = null; applyMarkerOpacity(null); }
+        if (activeCardPk) { document.querySelectorAll("[data-pk]").forEach((el) => delete el.dataset.active); activeCardPk = null; applyMarkerOpacity(null); }
         if (isMobile()) { if (_sheetState === "full") setSheetState("half"); else if (_sheetState === "half") setSheetState("closed"); }
       });
 
@@ -251,9 +271,9 @@ export default function HotelMap() {
         const sheet = document.getElementById("mob-list-sheet");
         if (!handle || !sheet) return;
         let startY = 0;
-        handle.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; sheet.classList.add("no-anim"); }, { passive: true });
+        handle.addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; sheet.dataset.dragging = "true"; }, { passive: true });
         handle.addEventListener("touchend", (e) => {
-          sheet.classList.remove("no-anim");
+          delete sheet.dataset.dragging;
           const dy = e.changedTouches[0].clientY - startY;
           if (dy < -40) setSheetState("half");
           else if (dy > 40) setSheetState("closed");
@@ -291,7 +311,7 @@ export default function HotelMap() {
           updateZoomOffset();
           const filtered = getFiltered();
           renderMarkers(filtered); updateCounter(filtered.length); renderPanel(filtered);
-          updateFilterBadge(); syncRadioStyles();
+          updateFilterBadge();
           map.setView(getCityFilter() === "madinah" ? NABAWI : HARAM, 14);
         });
 
@@ -307,236 +327,98 @@ export default function HotelMap() {
   }, [t]);
 
   return (
-    <div id="map-wrap">
-      <style>{CSS}</style>
-      <div id="map" />
+    <div id="map-wrap" data-map="hotels" className="relative h-[calc(100vh-48px)] overflow-hidden max-[600px]:fixed max-[600px]:inset-0 max-[600px]:h-auto">
+      <div id="map" className="absolute inset-0 isolate" />
 
-      <div className="map-topbar">
-        <a href="/hotels/" className="map-back-btn" title={t("Back to hotel list")}>
+      <div className="absolute top-3 left-3 z-(--z-overlay) flex items-center gap-2 max-[600px]:inset-x-0 max-[600px]:top-0 max-[600px]:rounded-none max-[600px]:border-b max-[600px]:border-border max-[600px]:bg-card max-[600px]:px-3 max-[600px]:pt-[calc(10px+env(safe-area-inset-top))] max-[600px]:pb-2.5">
+        <a href="/hotels/" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground no-underline transition-[color,border-color] duration-150 hover:border-foreground hover:text-foreground" title={t("Back to hotel list")}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
-        <div className="map-search-wrap">
-          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
-          <input type="text" id="hotel-search" placeholder={t("Search hotel or area...")} onInput={() => window.debounceSearch?.()} />
-          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} style={{ display: "none", background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--muted-foreground)", lineHeight: 1, flexShrink: 0 }} title={t("Clear")}>
+        <div className="group/search flex h-9 min-w-[220px] items-center gap-2 rounded-[20px] border border-input bg-card px-3 shadow-[0_1px_2px_rgb(0_0_0/.06),0_4px_12px_rgb(0_0_0/.06)] focus-within:border-primary focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_35%,transparent)] max-[600px]:min-w-0 max-[600px]:flex-1 max-[600px]:shadow-none">
+          <svg className="shrink-0 text-muted-foreground group-focus-within/search:text-primary" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
+          <input type="text" id="hotel-search" placeholder={t("Search hotel or area...")} onInput={() => window.debounceSearch?.()}
+            className="m-0 size-full appearance-none rounded-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground shadow-none outline-none [-webkit-tap-highlight-color:transparent] placeholder:text-muted-foreground focus:border-0 focus:shadow-none max-[600px]:text-[16px]" />
+          <button id="search-clear-btn" onClick={() => window.clearSearch?.()} className="hidden shrink-0 cursor-pointer border-0 bg-transparent p-0 leading-none text-muted-foreground" title={t("Clear")}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="filter-btn-wrap">
-          <button className="map-tb-btn" id="filter-open-btn" onClick={() => window.toggleFilter?.()}>
+        <div className="relative max-[600px]:shrink-0">
+          <button id="filter-open-btn" onClick={() => window.toggleFilter?.()}
+            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-[20px] border border-input bg-card px-4 text-[12px] font-semibold whitespace-nowrap text-foreground transition-all duration-150 hover:border-muted-foreground data-active:border-primary data-active:bg-secondary data-active:text-primary max-[600px]:shrink-0">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 8h10M10 12h4" /></svg>
             {t("Filter")}
-            <span id="filter-badge" style={{ display: "none", background: "var(--primary)", color: "var(--primary-foreground)", borderRadius: 8, padding: "1px 6px", fontSize: 10, fontWeight: 800 }} />
+            <span id="filter-badge" className="hidden rounded-[8px] bg-primary px-1.5 py-px text-[10px] font-extrabold text-primary-foreground" />
           </button>
 
-          <div id="filter-dropdown" className="map-filter-dropdown">
-            <div className="fp-section"><div className="fp-section-title">{t("City")}</div></div>
-            <label className="fp-radio active" id="fp-city-all"><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> {t("All Cities")}</label>
-            <label className="fp-radio" id="fp-city-makkah"><input type="radio" name="fp-city" value="makkah" onChange={() => window.applyFilters?.()} /> Makkah</label>
-            <label className="fp-radio" id="fp-city-madinah"><input type="radio" name="fp-city" value="madinah" onChange={() => window.applyFilters?.()} /> Madinah</label>
-            <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">{t("Distance to Mosque")}</div></div>
-            <label className="fp-check" id="fp-dist-dekat"><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--success)", display: "inline-block", flexShrink: 0 }} /> {t("≤ 500 M")}</label>
-            <label className="fp-check" id="fp-dist-sedang"><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--warning)", display: "inline-block", flexShrink: 0 }} /> {t("500 M – 1.5 KM")}</label>
-            <label className="fp-check" id="fp-dist-jauh"><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span style={{ width: 8, height: 8, borderRadius: 2, background: "var(--danger)", display: "inline-block", flexShrink: 0 }} /> {t("> 1.5 KM")}</label>
-            <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <div className="fp-section"><div className="fp-section-title">{t("Stars")}</div></div>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★</span></label>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★★</span></label>
-            <label className="fp-check"><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span style={{ color: "var(--warning-text)", fontSize: 12 }}>★★★★★</span></label>
-            <div className="fp-divider" style={{ margin: "6px 0" }} />
-            <button type="button" id="tg-avg" role="switch" aria-checked="false" className="fp-toggle-row" onClick={() => window.toggleAvg?.()}><span className="fp-toggle-label">{t("Has Avg / Capacity")}</span><span id="sw-avg" className="fp-toggle-switch" /></button>
-            <button type="button" id="tg-route" role="switch" aria-checked="true" className="fp-toggle-row" onClick={() => window.toggleRoutes?.()}><span className="fp-toggle-label">{t("Show Routes")}</span><span id="sw-route" className="fp-toggle-switch on" /></button>
-            <div className="fp-reset-wrap"><button type="button" className="fp-reset" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
+          <div id="filter-dropdown" className="pointer-events-none absolute top-[calc(100%+6px)] left-0 z-(--z-overlay) w-60 origin-top-left -translate-y-1.5 scale-[.98] overflow-hidden rounded-[12px] border border-input bg-card pt-1 opacity-0 shadow-[0_4px_24px_rgb(0_0_0/.12)] transition-[opacity,translate,scale] duration-[180ms] data-open:pointer-events-auto data-open:translate-y-0 data-open:scale-100 data-open:opacity-100 max-[600px]:right-0 max-[600px]:left-auto max-[600px]:max-h-[55dvh] max-[600px]:w-[calc(100vw-24px)] max-[600px]:overflow-y-auto">
+            <div className={SECTION}><div className={SECTION_TITLE}>{t("City")}</div></div>
+            <label className={RADIO}><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> {t("All Cities")}</label>
+            <label className={RADIO}><input type="radio" name="fp-city" value="makkah" onChange={() => window.applyFilters?.()} /> Makkah</label>
+            <label className={RADIO}><input type="radio" name="fp-city" value="madinah" onChange={() => window.applyFilters?.()} /> Madinah</label>
+            <div className={DIVIDER} />
+            <div className={SECTION}><div className={SECTION_TITLE}>{t("Distance to Mosque")}</div></div>
+            <label className={CHECK}><input type="checkbox" value="dekat" onChange={() => window.applyFilters?.()} /><span className={cn(SWATCH, "bg-success")} /> {t("≤ 500 M")}</label>
+            <label className={CHECK}><input type="checkbox" value="sedang" onChange={() => window.applyFilters?.()} /><span className={cn(SWATCH, "bg-warning")} /> {t("500 M – 1.5 KM")}</label>
+            <label className={CHECK}><input type="checkbox" value="jauh" onChange={() => window.applyFilters?.()} /><span className={cn(SWATCH, "bg-danger")} /> {t("> 1.5 KM")}</label>
+            <div className={DIVIDER} />
+            <div className={SECTION}><div className={SECTION_TITLE}>{t("Stars")}</div></div>
+            <label className={CHECK}><input type="checkbox" name="fp-stars" value="3" onChange={() => window.applyFilters?.()} /><span className={STARS}>★★★</span></label>
+            <label className={CHECK}><input type="checkbox" name="fp-stars" value="4" onChange={() => window.applyFilters?.()} /><span className={STARS}>★★★★</span></label>
+            <label className={CHECK}><input type="checkbox" name="fp-stars" value="5" onChange={() => window.applyFilters?.()} /><span className={STARS}>★★★★★</span></label>
+            <div className={DIVIDER} />
+            <button type="button" id="tg-avg" role="switch" aria-checked="false" className={TOGGLE_ROW} onClick={() => window.toggleAvg?.()}><span className="text-[13px] text-muted-foreground">{t("Has Avg / Capacity")}</span><span className={TOGGLE} /></button>
+            <button type="button" id="tg-route" role="switch" aria-checked="true" className={TOGGLE_ROW} onClick={() => window.toggleRoutes?.()}><span className="text-[13px] text-muted-foreground">{t("Show Routes")}</span><span className={TOGGLE} /></button>
+            <div className="px-3.5 pt-2.5 pb-3"><button type="button" className="w-full cursor-pointer rounded-[8px] border border-input bg-transparent p-2 text-[12px] font-semibold text-muted-foreground transition-all duration-150 hover:border-muted-foreground" onClick={() => window.resetFilters?.()}>{t("Reset Filter")}</button></div>
           </div>
         </div>
       </div>
 
-      <div className="hud-coords" id="hud-coords">---.-°N  ---.-°E</div>
+      <div id="hud-coords" className="pointer-events-none absolute bottom-5 left-3 z-(--z-overlay) rounded-[8px] border border-border bg-card px-2.5 py-[5px] text-[10.5px] tracking-[.6px] text-muted-foreground tabular-nums transition-[color,border-color] duration-200 data-active:border-primary data-active:text-primary max-[600px]:hidden">---.-°N  ---.-°E</div>
 
-      <div className="map-legend">
-        <button type="button" id="leg-toggle" aria-expanded="true" aria-controls="leg-body" className="leg-toggle" onClick={() => window.toggleLegend?.()}>
-          <span className="leg-toggle-title">{t("Legend")}</span>
-          <svg className="leg-arrow" id="leg-arrow" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+      <div className="absolute top-[60px] left-3 z-(--z-overlay) min-w-[140px] rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[11px] text-muted-foreground max-[600px]:hidden">
+        <button type="button" id="leg-toggle" aria-expanded="true" aria-controls="leg-body" onClick={() => window.toggleLegend?.()}
+          className="group/leg mb-2 flex w-full cursor-pointer items-center justify-between border-0 bg-transparent p-0 [font:inherit] text-inherit select-none focus-visible:rounded-[6px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring">
+          <span className={SECTION_TITLE}>{t("Legend")}</span>
+          <svg className="text-muted-foreground transition-[rotate] duration-200 group-aria-[expanded=false]/leg:-rotate-180" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
         </button>
-        <div id="leg-body">
-          <div className="leg-section">{t("Distance to Mosque")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--success)" }} /> {t("≤ 500 M")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--warning)" }} /> {t("500 M – 1.5 KM")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--danger)" }} /> {t("> 1.5 KM")}</div>
-          <div className="leg-section">{t("Reference Points")}</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--primary)" }} /> Al-Haram Plaza</div>
-          <div className="leg-row"><div className="leg-dot" style={{ background: "var(--danger)" }} /> {t("Mosque")}</div>
+        <div id="leg-body" className="data-collapsed:hidden">
+          <div className={LEG_SECTION}>{t("Distance to Mosque")}</div>
+          <div className={LEG_ROW}><div className={cn(SWATCH, "bg-success")} /> {t("≤ 500 M")}</div>
+          <div className={LEG_ROW}><div className={cn(SWATCH, "bg-warning")} /> {t("500 M – 1.5 KM")}</div>
+          <div className={LEG_ROW}><div className={cn(SWATCH, "bg-danger")} /> {t("> 1.5 KM")}</div>
+          <div className={LEG_SECTION}>{t("Reference Points")}</div>
+          <div className={LEG_ROW}><div className={cn(SWATCH, "bg-primary")} /> Al-Haram Plaza</div>
+          <div className={LEG_ROW}><div className={cn(SWATCH, "bg-danger")} /> {t("Mosque")}</div>
         </div>
       </div>
 
-      <div id="mob-list-sheet" className="mob-list-sheet state-closed">
-        <div className="mob-sheet-handle-area" id="mob-sheet-handle">
-          <div className="mob-sheet-pill" />
-          <div className="mob-sheet-meta">
-            <span className="mob-sheet-count" id="mob-sheet-count">{t("0 Hotel")}</span>
-            <span className="mob-sheet-hint" id="mob-sheet-hint">{t("▲ Open list")}</span>
+      <div id="mob-list-sheet" data-state="closed"
+        className="absolute inset-x-0 bottom-0 z-(--z-dropdown) hidden h-[calc(100%-57px-env(safe-area-inset-top))] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-border bg-card shadow-sheet transition-[translate] duration-[320ms] ease-drawer data-dragging:transition-none data-[state=closed]:translate-y-[calc(100%-62px)] data-[state=full]:translate-y-0 data-[state=half]:translate-y-[45%] max-[600px]:flex">
+        <div id="mob-sheet-handle" className="shrink-0 cursor-row-resize touch-none border-b border-border bg-secondary px-4 pt-2.5 pb-2 select-none">
+          <div className="mx-auto mb-2.5 h-[5px] w-10 rounded-[3px] bg-input" />
+          <div className="flex items-center justify-between">
+            <span id="mob-sheet-count" className={COUNT}>{t("0 Hotel")}</span>
+            <span id="mob-sheet-hint" className="text-[11px] tracking-[.3px] text-muted-foreground">{t("▲ Open list")}</span>
           </div>
         </div>
-        <div className="mob-sheet-list" id="mob-sheet-list">
-          <div className="map-loading" id="mob-loading"><span /><span /><span /></div>
+        <div id="mob-sheet-list" className="relative min-h-0 flex-1 overflow-y-auto [-webkit-overflow-scrolling:touch] after:pointer-events-none after:sticky after:inset-x-0 after:bottom-0 after:-mt-12 after:block after:h-12 after:bg-linear-to-b after:from-transparent after:to-card after:content-[''] [&::-webkit-scrollbar]:hidden">
+          <Loading />
         </div>
       </div>
 
-      <div className="hotel-panel" id="hotel-panel">
-        <button className="panel-toggle" onClick={() => window.togglePanel?.()} title={t("Hide / show panel")}>
-          <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
+      <div id="hotel-panel" className="group/panel absolute top-0 right-0 bottom-0 z-(--z-dropdown) flex w-[300px] flex-col overflow-visible border-l border-border bg-card transition-[translate] duration-250 ease-[cubic-bezier(.4,0,.2,1)] data-collapsed:translate-x-[300px] max-[600px]:hidden!">
+        <button onClick={() => window.togglePanel?.()} title={t("Hide / show panel")}
+          className="absolute top-1/2 -left-[26px] z-1 flex h-[52px] w-[26px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-l-[8px] border border-r-0 border-border bg-card text-muted-foreground transition-[color] duration-150 hover:text-foreground">
+          <svg className="transition-[rotate] duration-250 ease-[cubic-bezier(.4,0,.2,1)] group-data-collapsed/panel:rotate-180" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>
         </button>
-        <div className="hotel-panel-inner">
-          <div className="hp-header"><div className="hp-meta"><span className="hp-count" id="hp-count">{t("0 Hotel")}</span></div></div>
-          <div className="hp-list" id="hotel-list">
-            <div className="map-loading" id="desk-loading"><span /><span /><span /></div>
+        <div className="relative z-1 flex flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 border-b border-border px-3.5 pt-3.5 pb-2.5"><div className="flex items-center justify-between"><span id="hp-count" className={COUNT}>{t("0 Hotel")}</span></div></div>
+          <div id="hotel-list" className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-[3px] [&::-webkit-scrollbar-thumb]:rounded-[2px] [&::-webkit-scrollbar-thumb]:bg-input [&::-webkit-scrollbar-track]:bg-transparent">
+            <Loading />
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-const CSS = `
-#map-wrap { position: relative; height: calc(100vh - 48px); overflow: hidden; }
-#map { position: absolute; inset: 0; isolation: isolate; }
-.hotel-panel { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; background: var(--card); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: visible; z-index: var(--z-dropdown); transition: transform .25s cubic-bezier(.4,0,.2,1); }
-.hotel-panel.collapsed { transform: translateX(300px); }
-.hotel-panel-inner { display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative; z-index: 1; }
-.panel-toggle { position: absolute; left: -26px; top: 50%; transform: translateY(-50%); width: 26px; height: 52px; background: var(--card); border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); transition: color .15s; z-index: 1; }
-.panel-toggle:hover { color: var(--foreground); }
-.panel-toggle svg { transition: transform .25s cubic-bezier(.4,0,.2,1); }
-.hotel-panel.collapsed .panel-toggle svg { transform: rotate(180deg); }
-.hp-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-.hp-meta { display: flex; align-items: center; justify-content: space-between; }
-.hp-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; color: var(--muted-foreground); text-transform: uppercase; }
-.hp-list { flex: 1; overflow-y: auto; min-height: 0; }
-.hp-list::-webkit-scrollbar { width: 3px; }
-.hp-list::-webkit-scrollbar-track { background: transparent; }
-.hp-list::-webkit-scrollbar-thumb { background: var(--input); border-radius: 2px; }
-.hp-card { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .12s; animation: card-in .18s ease both; }
-.hp-card:hover { background: var(--secondary); }
-.hp-card.active { background: var(--secondary); box-shadow: inset 0 0 0 1px var(--input); }
-.hp-card-top { display: flex; align-items: center; gap: 9px; }
-.hp-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.hp-card-name { font-size: 13px; font-weight: 600; color: var(--foreground); line-height: 1.3; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hp-card-dist { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; letter-spacing: .3px; }
-.hp-card-dist.green  { color: var(--success-text); }
-.hp-card-dist.yellow { color: var(--warning-text); }
-.hp-card-dist.red    { color: var(--danger-text); }
-.hp-card-dist.dim    { color: var(--muted-foreground); }
-.hp-card-link { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; margin-left: 2px; color: var(--muted-foreground); text-decoration: none; border-radius: 6px; transition: color .15s, background .15s; }
-.hp-card:hover .hp-card-link { color: var(--muted-foreground); }
-.hp-card-link:hover { color: var(--primary) !important; background: var(--secondary); }
-.hp-card-sub { font-size: 10.5px; color: var(--muted-foreground); padding-left: 17px; margin-top: 2px; letter-spacing: .3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-legend { position: absolute; top: 60px; left: 12px; z-index: var(--z-overlay); background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 11px; min-width: 140px; color: var(--muted-foreground); }
-.leg-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; margin-bottom:8px; width:100%; padding:0; border:0; background:none; font:inherit; color:inherit; }
-.leg-toggle-title { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted-foreground); }
-.leg-arrow { color:var(--muted-foreground); transition:transform .2s; }
-.leg-arrow.up { transform:rotate(-180deg); }
-#leg-body { overflow:hidden; max-height:200px; transition:max-height .25s ease, opacity .2s; opacity:1; }
-#leg-body.hidden { max-height:0; opacity:0; }
-.leg-section { font-size:10px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted-foreground); margin-bottom:5px; margin-top:9px; }
-.leg-section:first-child { margin-top:0; }
-.leg-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
-.leg-row:last-child { margin-bottom:0; }
-.leg-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
-.map-topbar { position: absolute; top: 12px; left: 12px; z-index: var(--z-overlay); display: flex; align-items: center; gap: 8px; }
-.filter-btn-wrap { position: relative; }
-.map-tb-btn { display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: var(--card); border: 1px solid var(--input); border-radius: 20px; color: var(--foreground); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all .15s; }
-.map-tb-btn:hover { border-color: var(--muted-foreground); }
-.map-tb-btn.has-filter { color: var(--primary); border-color: var(--primary); background: var(--secondary); }
-.map-search-wrap { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; min-width: 220px; background: var(--card); border: 1px solid var(--input); border-radius: 20px; box-shadow: 0 1px 2px rgb(0 0 0 / .06), 0 4px 12px rgb(0 0 0 / .06); }
-.map-search-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 35%, transparent); }
-.map-search-wrap:focus-within svg { color: var(--primary); }
-.map-search-wrap svg { color: var(--muted-foreground); flex-shrink: 0; }
-.map-search-wrap input, .map-search-wrap input:focus { background: transparent !important; border: none !important; border-color: transparent !important; outline: none !important; box-shadow: none !important; -webkit-box-shadow: none !important; padding: 0 !important; margin: 0; border-radius: 0 !important; color: var(--foreground); font-size: 13px; font-family: inherit; width: 100%; height: 100%; -webkit-appearance: none; appearance: none; -webkit-tap-highlight-color: transparent; }
-.map-search-wrap input::placeholder { color: var(--muted-foreground); }
-.map-filter-dropdown { position: absolute; top: calc(100% + 6px); left: 0; width: 240px; background: var(--card); border: 1px solid var(--input); border-radius: 12px; box-shadow: 0 4px 24px rgb(0 0 0 / .12); z-index: var(--z-overlay); opacity: 0; pointer-events: none; transform: translateY(-6px) scale(.98); transform-origin: top left; transition: opacity .18s, transform .18s; overflow: hidden; padding-top: 4px; }
-.map-filter-dropdown.open { opacity: 1; pointer-events: all; transform: none; }
-.fp-section { padding: 10px 14px 2px; }
-.fp-section-title { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted-foreground); margin-bottom: 6px; }
-.fp-divider { height: 1px; background: var(--border); margin: 4px 0; }
-.fp-radio, .fp-check { display: flex; align-items: center; gap: 9px; padding: 6px 14px; cursor: pointer; font-size: 13px; color: var(--muted-foreground); transition: background .1s, color .1s; }
-.fp-radio:hover, .fp-check:hover { background: var(--secondary); color: var(--foreground); }
-.fp-radio input[type=radio], .fp-check input[type=checkbox] { accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; }
-.fp-radio.active { color: var(--foreground); font-weight: 600; }
-.fp-toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: left; }
-.fp-toggle-row:focus-visible, .leg-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 6px; }
-.fp-toggle-label { font-size: 13px; color: var(--muted-foreground); }
-.fp-toggle-switch { width: 32px; height: 17px; border-radius: 9px; background: var(--input); position: relative; transition: background .15s; flex-shrink: 0; }
-.fp-toggle-switch.on { background: var(--primary); }
-.fp-toggle-switch::after { content:''; position:absolute; width:11px; height:11px; border-radius:50%; background:var(--primary-foreground); top:3px; left:3px; transition:left .15s; }
-.fp-toggle-switch.on::after { left: 18px; }
-.fp-reset-wrap { padding: 10px 14px 12px; }
-.fp-reset { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--input); background: transparent; color: var(--muted-foreground); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
-.fp-reset:hover { border-color: var(--muted-foreground); color: var(--muted-foreground); }
-.hud-coords { position: absolute; bottom: 20px; left: 12px; z-index: var(--z-overlay); font-variant-numeric: tabular-nums; font-size: 10.5px; letter-spacing: .6px; color: var(--muted-foreground); background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 5px 10px; pointer-events: none; transition: color .2s, border-color .2s; }
-.hud-coords.active { color: var(--primary); border-color: var(--primary); }
-.route-dist-tip { background:var(--secondary) !important; border:1px solid var(--input) !important; color:var(--foreground) !important; font-size:11px !important; font-weight:700 !important; font-variant-numeric:tabular-nums; letter-spacing:.3px !important; padding:4px 9px !important; border-radius:6px !important; white-space:nowrap; pointer-events:none; box-shadow:0 2px 8px rgb(0 0 0 / .08); }
-.route-dist-tip::before { display:none !important; }
-.leaflet-popup-content-wrapper { background:var(--card); border:1px solid var(--input); border-radius:12px; box-shadow:0 4px 24px rgb(0 0 0 / .12); color:var(--foreground); animation:popup-in .16s cubic-bezier(.32,.72,0,1) both; }
-.leaflet-popup-tip { background:var(--card); }
-.leaflet-popup-content { margin:12px 16px; min-width:160px; }
-.pop-name  { font-size:13px; font-weight:700; color:var(--foreground); margin-bottom:2px; }
-.pop-stars { font-size:11px; color:var(--warning-text); letter-spacing:2px; margin-bottom:6px; }
-.pop-area  { font-size:10.5px; color:var(--muted-foreground); margin-bottom:6px; }
-.pop-row   { display:flex; justify-content:space-between; align-items:center; font-size:11px; margin-bottom:4px; }
-.pop-label { font-size:10px; font-weight:600; letter-spacing:.5px; text-transform:uppercase; color:var(--muted-foreground); }
-.pop-val   { font-weight:700; color:var(--foreground); font-variant-numeric:tabular-nums; }
-.pop-val.green  { color: var(--success-text); }
-.pop-val.yellow { color: var(--warning-text); }
-.pop-val.red    { color: var(--danger-text); }
-@keyframes pulse-ring { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.6);opacity:0} }
-@keyframes card-in   { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:translateX(0)} }
-@keyframes popup-in  { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:scale(1) translateY(0)} }
-@keyframes dot-pulse { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
-.map-loading { display:flex; align-items:center; justify-content:center; gap:5px; padding:48px 20px; }
-.map-loading span { width:6px; height:6px; border-radius:50%; background:var(--primary); animation:dot-pulse 1.2s ease-in-out infinite; }
-.map-loading span:nth-child(2) { animation-delay:.2s; }
-.map-loading span:nth-child(3) { animation-delay:.4s; }
-.leaflet-marker-icon { transition: opacity .25s ease; }
-@media (prefers-reduced-motion: reduce) {
-  .hp-card, .leaflet-popup-content-wrapper, .map-loading span { animation: none; }
-  .hotel-panel, .mob-list-sheet, .map-filter-dropdown { transition: none; }
-}
-.leaflet-bottom.leaflet-right { transition: right .25s cubic-bezier(.4,0,.2,1), bottom .25s cubic-bezier(.4,0,.2,1); }
-.leaflet-control-zoom { border: none !important; box-shadow: none !important; }
-.leaflet-control-zoom-in, .leaflet-control-zoom-out { width: 30px !important; height: 30px !important; line-height: 28px !important; font-size: 17px !important; font-weight: 600 !important; background: var(--card) !important; border: 1px solid var(--input) !important; color: var(--muted-foreground) !important; display: block !important; text-align: center !important; transition: background .15s, color .15s, border-color .15s !important; border-radius: 8px !important; }
-.leaflet-control-zoom-in { margin-bottom: 4px !important; }
-.leaflet-control-zoom-in:hover, .leaflet-control-zoom-out:hover { background: var(--secondary) !important; border-color: var(--primary) !important; color: var(--primary) !important; }
-.leaflet-tooltip { background:var(--secondary) !important; border:1px solid var(--input) !important; color:var(--foreground) !important; }
-@media (max-width: 600px) {
-  html, body { overflow: hidden; height: 100%; }
-  #map-wrap { position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: auto; }
-  .leaflet-control-attribution { display: none !important; }
-  #m-bottom-nav { display: none !important; }
-  .hotel-panel { display: none !important; }
-  .hud-coords  { display: none; }
-  .map-legend  { display: none; }
-  .map-topbar { top: 0; left: 0; right: 0; padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top)); gap: 8px; background: var(--card); border-bottom: 1px solid var(--border); border-radius: 0; }
-  .map-search-wrap { flex: 1; min-width: 0; box-shadow: none; }
-  .map-search-wrap input, .map-search-wrap input:focus { font-size: 16px !important; }
-  .filter-btn-wrap, .map-tb-btn { flex-shrink: 0; }
-  .map-filter-dropdown { width: calc(100vw - 24px); left: auto; right: 0; max-height: 55dvh; overflow-y: auto; }
-  .leaflet-bottom.leaflet-right { bottom: auto !important; top: 66px !important; right: 12px !important; }
-}
-.map-back-btn { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; background: var(--card); border: 1px solid var(--border); border-radius: 999px; color: var(--muted-foreground); text-decoration: none; transition: color .15s, border-color .15s; }
-.map-back-btn:hover { color: var(--foreground); border-color: var(--foreground); }
-.mob-list-sheet { display: none; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% - 57px - env(safe-area-inset-top)); background: var(--card); border-top-left-radius: 16px; border-top-right-radius: 16px; border: 1px solid var(--border); border-bottom: none; z-index: var(--z-dropdown); transition: transform .32s cubic-bezier(.32,.72,0,1); box-shadow: 0 -4px 24px rgb(0 0 0 / .12); flex-direction: column; overflow: hidden; }
-@media (max-width: 600px) { .mob-list-sheet { display: flex; } }
-.mob-list-sheet.state-closed { transform: translateY(calc(100% - 62px)); }
-.mob-list-sheet.state-half   { transform: translateY(45%); }
-.mob-list-sheet.state-full   { transform: translateY(0); }
-.mob-list-sheet.no-anim      { transition: none; }
-.mob-sheet-handle-area { flex-shrink: 0; padding: 10px 16px 8px; touch-action: none; user-select: none; cursor: row-resize; border-bottom: 1px solid var(--border); background: var(--secondary); }
-.mob-sheet-pill { width: 40px; height: 5px; background: var(--input); border-radius: 3px; margin: 0 auto 10px; }
-.mob-sheet-meta { display: flex; align-items: center; justify-content: space-between; }
-.mob-sheet-count { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted-foreground); }
-.mob-sheet-hint  { font-size: 11px; color: var(--muted-foreground); letter-spacing: .3px; }
-.mob-sheet-list  { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; position: relative; }
-.mob-sheet-list::-webkit-scrollbar { display: none; }
-.mob-sheet-list::after { content: ''; pointer-events: none; position: sticky; bottom: 0; left: 0; right: 0; height: 48px; display: block; background: linear-gradient(to bottom, transparent, var(--card)); margin-top: -48px; }
-`;

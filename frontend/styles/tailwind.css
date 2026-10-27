@@ -317,6 +317,7 @@
   --shadow-pill: 0 1px 2px rgba(0,0,0,.06), 0 1px 1px rgba(0,0,0,.04);
   --shadow-seg: 0 1px 2px rgba(10,12,16,.12);
   --shadow-knob: 0 1px 2px rgba(0,0,0,.2);
+  --shadow-sheet: 0 -4px 24px rgb(0 0 0 / .12);
   --shadow-seg-on: 0 1px 3px rgba(0,0,0,.08);
   --shadow-primary: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18);
   --shadow-crop-mask: 0 0 0 400px rgba(10,12,16,.5);
@@ -341,6 +342,10 @@
   @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } }
   --animate-content-in: content-in 200ms ease-out both;
   --animate-skel: skel 1.4s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 1.4s ease-out infinite;
+  --animate-dot-pulse: dot-pulse 1.2s ease-in-out infinite;
+  @keyframes pulse-ring { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(2.6); opacity: 0; } }
+  @keyframes dot-pulse { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
   @keyframes content-in { from { opacity: 0; transform: translateY(4px); } }
   @keyframes skel { 0%, 100% { opacity: .45; } 50% { opacity: .8; } }
 }
@@ -994,6 +999,50 @@ body.map-fullscreen {
 
 body.map-fullscreen #map-wrap {
   height: 100vh;
+}
+
+/* ── Leaflet (third-party) ───────────────────────────────────────────────
+   leaflet.css is loaded unlayered from the CDN, so it outranks every utility;
+   its own parts (zoom buttons, popup frame, tooltips) are restyled here. The
+   map pages mark their root with data-map; our content inside a popup uses
+   utilities, with ! where leaflet.css sets the same property.
+   The route tooltip on the hotel detail's mini-map: */
+.leaflet-tooltip.route-dist-tip { background: var(--secondary) !important; border: 1px solid var(--border) !important; color: var(--foreground) !important; font-size: 12px !important; font-weight: 600 !important; padding: 4px 9px !important; border-radius: 6px !important; box-shadow: 0 4px 14px rgba(0,0,0,.45) !important; white-space: nowrap !important; pointer-events: none !important; }
+.leaflet-tooltip.route-dist-tip::before { display: none !important; }
+
+[data-map] .leaflet-control-zoom { border: none !important; box-shadow: none !important; }
+[data-map] :is(.leaflet-control-zoom-in, .leaflet-control-zoom-out) { display: block !important; width: 30px !important; height: 30px !important; line-height: 28px !important; font-size: 17px !important; font-weight: 600 !important; text-align: center !important; background: var(--card) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; color: var(--muted-foreground) !important; transition: background .15s, color .15s, border-color .15s !important; }
+[data-map] .leaflet-control-zoom-in { margin-bottom: 4px !important; }
+[data-map] :is(.leaflet-control-zoom-in, .leaflet-control-zoom-out):hover { background: var(--secondary) !important; border-color: var(--foreground) !important; color: var(--foreground) !important; }
+[data-map] .leaflet-popup-content-wrapper { background: var(--popover) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; box-shadow: 0 4px 24px rgb(0 0 0 / .12) !important; color: var(--foreground) !important; }
+[data-map] .leaflet-popup-tip { background: var(--popover) !important; }
+[data-map] .leaflet-popup-content { margin: 14px 16px !important; min-width: 224px !important; }
+[data-map] .leaflet-tooltip { background: var(--popover) !important; border: 1px solid var(--border) !important; color: var(--foreground) !important; border-radius: 6px !important; }
+[data-map] .leaflet-tooltip::before { display: none !important; }
+[data-map] .leaflet-tooltip.map-tip { border-radius: 8px !important; box-shadow: 0 2px 8px rgb(0 0 0 / .08) !important; padding: 6px 10px !important; margin: 0 !important; font-size: 12px !important; font-weight: 600 !important; white-space: nowrap !important; }
+@media (max-width: 600px) {
+  [data-map] .leaflet-control-attribution { display: none !important; }
+  [data-map] .leaflet-bottom.leaflet-right { top: 64px !important; bottom: auto !important; right: 12px !important; }
+}
+
+/* The hotel map: card popups, primary hover and a sliding zoom column. */
+[data-map=hotels] .leaflet-control-zoom-in, [data-map=hotels] .leaflet-control-zoom-out { border-color: var(--input) !important; }
+[data-map=hotels] :is(.leaflet-control-zoom-in, .leaflet-control-zoom-out):hover { border-color: var(--primary) !important; color: var(--primary) !important; }
+[data-map=hotels] .leaflet-popup-content-wrapper { background: var(--card) !important; border-color: var(--input) !important; animation: popup-in .16s cubic-bezier(.32,.72,0,1) both !important; }
+[data-map=hotels] .leaflet-popup-tip { background: var(--card) !important; }
+[data-map=hotels] .leaflet-popup-content { margin: 12px 16px !important; min-width: 160px !important; }
+[data-map=hotels] .leaflet-tooltip { background: var(--secondary) !important; border-color: var(--input) !important; border-radius: 3px !important; }
+[data-map=hotels] .leaflet-tooltip.route-dist-tip { border-color: var(--input) !important; font-size: 11px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums !important; letter-spacing: .3px !important; border-radius: 6px !important; box-shadow: 0 2px 8px rgb(0 0 0 / .08) !important; }
+[data-map=hotels] .leaflet-marker-icon { transition: opacity .25s ease !important; }
+[data-map=hotels] .leaflet-bottom.leaflet-right { transition: right .25s cubic-bezier(.4,0,.2,1), bottom .25s cubic-bezier(.4,0,.2,1) !important; }
+@media (max-width: 600px) {
+  [data-map=hotels] .leaflet-bottom.leaflet-right { top: 66px !important; }
+}
+@keyframes popup-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Phones: the map page is the whole screen and must not scroll. */
+@media (max-width: 600px) {
+  html:has(body.map-fullscreen), body.map-fullscreen { overflow: hidden; height: 100%; }
 }
 
 /* Public / landing pages — no sidebar or topbar, so drop the body insets
