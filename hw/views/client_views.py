@@ -43,17 +43,27 @@ logger = logging.getLogger(__name__)
 
 
 def _season_activity(clients_qs, start, end):
-    """{client_id: [cl_count, room_nights, last_check_in]} for live CLs of
-    `clients_qs` checking in between start and end."""
+    """{client_id: [cl_count, room_nights, last_sold]} for live CLs of
+    `clients_qs` sold (created) between start and end. A season is read by
+    sale date: a CL booked now for next season's travel is this season's
+    sale (user decision 2026-10-27)."""
     out = {}
-    cls = (ConfirmationLetter.objects.filter(client__in=clients_qs, check_in__gte=start, check_in__lte=end)
+    cls = (ConfirmationLetter.objects.filter(client__in=clients_qs, created_at__date__gte=start, created_at__date__lte=end)
            .exclude(reservation_status='CANCELLED').prefetch_related('rooms'))
     for cl in cls:
+        sold = timezone.localtime(cl.created_at).date()
         row = out.setdefault(cl.client_id, [0, 0, None])
         row[0] += 1
         row[1] += sum(r.quantity for r in cl.rooms.all()) * (cl.num_nights or 0)
-        row[2] = max(row[2], cl.check_in) if row[2] else cl.check_in
+        row[2] = max(row[2], sold) if row[2] else sold
     return out
+
+
+def _sold_dates(clients_qs, agg):
+    """{client_id: local date} of each client's first (Min) or last (Max) live CL sale."""
+    rows = (ConfirmationLetter.objects.filter(client__in=clients_qs).exclude(reservation_status='CANCELLED')
+            .values('client_id').annotate(t=agg('created_at')).values_list('client_id', 't'))
+    return {cid: timezone.localtime(t).date() for cid, t in rows}
 
 
 def _client_season_status(cid, cur, prev, first_seen, start, active):
@@ -90,14 +100,12 @@ def client_list(request):
     if city:
         qs = qs.filter(city__iexact=city)
 
-    last_cl = dict(ConfirmationLetter.objects.filter(client__in=base).exclude(reservation_status='CANCELLED')
-                   .values('client_id').annotate(t=Max('check_in')).values_list('client_id', 't'))
+    last_cl = _sold_dates(base, Max)
     kpis, cur, prev = None, {}, {}
     if season:
         point = min(today, season.date_to)
         cur = _season_activity(base, season.date_from, point)
-        first_seen = dict(ConfirmationLetter.objects.filter(client__in=base).exclude(reservation_status='CANCELLED')
-                          .values('client_id').annotate(t=Min('check_in')).values_list('client_id', 't'))
+        first_seen = _sold_dates(base, Min)
         if prev_season:
             same_point = prev_season.date_from + (point - season.date_from)
             prev = _season_activity(base, prev_season.date_from, prev_season.date_to)
