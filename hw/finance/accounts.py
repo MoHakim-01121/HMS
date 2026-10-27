@@ -21,6 +21,9 @@ CUST_CREDIT = "2100-CUST-CREDIT"
 OPENING_EQUITY = "3000-OPENING"
 # Lawan rupiah yang dikirim Pusat untuk mengganti beban cabang (klaim lunas).
 HO_PUSAT = "3100-HO-PUSAT"
+# Laba tahun-tahun buku sebelumnya. Tidak pernah diposting: trial balance
+# menghitungnya dengan tutup tahun virtual (lihat queries.trial_balance).
+RETAINED_EARNINGS = "3200-RETAINED"
 
 INC_HOTEL = "4100-INC-HOTEL"
 INC_PENALTY = "4300-INC-PENALTY"
@@ -109,6 +112,7 @@ ACCOUNTS = [
     {"code": CUST_CREDIT, "name": "Titipan / Saldo Dana Client", "type": AccountType.LIABILITY},
     {"code": OPENING_EQUITY, "name": "Ekuitas Saldo Awal", "type": AccountType.EQUITY},
     {"code": HO_PUSAT, "name": "Rekening Antar Kantor – Pusat", "type": AccountType.EQUITY},
+    {"code": RETAINED_EARNINGS, "name": "Laba Ditahan", "type": AccountType.EQUITY, "is_postable": False},
     {"code": INC_HOTEL, "name": "Pendapatan Hotel", "type": AccountType.INCOME},
     {"code": INC_PENALTY, "name": "Pendapatan Penalty", "type": AccountType.INCOME},
     {"code": INC_FX_GAIN, "name": "Laba Selisih Kurs", "type": AccountType.INCOME},

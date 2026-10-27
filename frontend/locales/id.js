@@ -2887,4 +2887,7 @@ export const id = {
   "Loss": "Rugi",
   "Show by currency": "Lihat per mata uang",
   "Show total": "Lihat total",
+  "Financial year": "Tahun buku",
+  "Financial year {y}": "Tahun buku {y}",
+  "Includes the year-end close on {d}": "Termasuk tutup tahun {d}",
 };

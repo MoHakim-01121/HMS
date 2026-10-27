@@ -98,45 +98,28 @@ def journal_detail(request, pk):
 
 @require_perm('journal', 'view')
 def trial_balance(request):
-    qs = JournalLine.objects.all()
+    """Neraca Saldo: saldo awal, mutasi dan saldo akhir per akun (lihat
+    queries.trial_balance), dengan pilihan tahun buku dan musim."""
+    from django.db.models.functions import ExtractYear
 
     date_from = _parse_date(request.GET.get('date_from'))
     date_to = _parse_date(request.GET.get('date_to'))
-    if date_from:
-        qs = qs.filter(journal_entry__entry_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(journal_entry__entry_date__lte=date_to)
-
-    raw = qs.values('account').annotate(debit=Sum('debit'), credit=Sum('credit'))
-    by_account = {r['account']: r for r in raw}
-
-    groups = []
-    total_debit = total_credit = 0
-    for acc in LedgerAccount.objects.all():
-        row = by_account.get(acc.code)
-        if not row:
-            continue
-        debit = row['debit'] or 0
-        credit = row['credit'] or 0
-        net = debit - credit
-        total_debit += debit
-        total_credit += credit
-        groups.append({
-            'account': acc.code,
-            'account_display': acc.name,
-            'type': acc.type,
-            'type_display': acc.get_type_display(),
-            'debit': debit,
-            'credit': credit,
-            'net': net,
-        })
-    groups.sort(key=lambda g: (g['type'], -abs(g['net'])))
+    tb = finance_queries.trial_balance(date_from=date_from, date_to=date_to)
+    order = {t: i for i, t in enumerate(('asset', 'liability', 'equity', 'income', 'expense'))}
+    labels = dict(LedgerAccount._meta.get_field('type').choices)
+    rows = sorted(tb['rows'], key=lambda r: (order.get(r['type'], 9), r['account']))
+    for r in rows:
+        r['type_display'] = labels.get(r['type'], r['type'])
+    years = sorted({y for y in JournalEntry.objects.annotate(y=ExtractYear('entry_date'))
+                    .order_by().values_list('y', flat=True).distinct()} | {timezone.localdate().year}, reverse=True)
 
     return inertia_render(request, 'Finance/TrialBalance', props={
-        'groups': groups,
-        'total_debit': total_debit,
-        'total_credit': total_credit,
-        'balanced': total_debit == total_credit,
+        'rows': rows,
+        'total_debit': tb['total_debit'],
+        'total_credit': tb['total_credit'],
+        'balanced': tb['balanced'],
+        'year_ends': tb['year_ends'] if date_from else [],
+        'years': years,
         'seasons': season_choices(),
         'filters': {
             'date_from': date_from.isoformat() if date_from else '',

@@ -46,5 +46,9 @@ class ChartOfAccountsSeedTests(TestCase):
                 )
 
     def test_all_seeded_accounts_postable_by_default(self):
+        # Except Retained Earnings: the trial balance computes it (virtual
+        # year-end close), nothing posts to it.
         seed_chart_of_accounts()
-        self.assertTrue(all(a.is_postable and a.is_active for a in LedgerAccount.objects.all()))
+        accounts = LedgerAccount.objects.all()
+        self.assertTrue(all(a.is_active for a in accounts))
+        self.assertEqual([a.code for a in accounts if not a.is_postable], ['3200-RETAINED'])

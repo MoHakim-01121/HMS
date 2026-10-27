@@ -112,7 +112,7 @@ class FinanceViewsTest(TestCase):
         self.assertTrue(props['balanced'])
         self.assertEqual(props['total_debit'], 8000)
         self.assertEqual(props['total_credit'], 8000)
-        accounts = {g['account']: g for g in props['groups']}
+        accounts = {g['account']: g for g in props['rows']}
         self.assertEqual(accounts[coa.CASH_SBY]['debit'], 5000)
         self.assertEqual(accounts[coa.INC_HOTEL]['credit'], 3000)
 
@@ -121,8 +121,10 @@ class FinanceViewsTest(TestCase):
         r = self.client.get(reverse('trial_balance'), {
             'date_from': '2026-04-01', 'date_to': '2026-12-31',
         })
-        accounts = {g['account'] for g in _props(r)['groups']}
-        self.assertNotIn(coa.CASH_SBY, accounts)
+        # Cash posted in March: the April–December range opens with it and
+        # shows no movement.
+        cash = next(g for g in _props(r)['rows'] if g['account'] == coa.CASH_SBY)
+        self.assertEqual((cash['opening'], cash['debit'], cash['credit'], cash['closing']), (5000, 0, 0, 5000))
 
     # â”€â”€ Client Ledger (statements) â”€â”€
 

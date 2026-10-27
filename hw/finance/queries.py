@@ -1289,31 +1289,93 @@ def clients_overview_totals(rows):
 
 # ── Trial balance ──────────────────────────────────────────────
 
-def trial_balance(*, date_from=None, date_to=None):
-    qs = JournalLine.objects.all()
-    if date_from:
-        qs = qs.filter(journal_entry__entry_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(journal_entry__entry_date__lte=date_to)
+# Tahun buku = tahun kalender (Januari–Desember).
+_PL_TYPES = ("income", "expense")
 
-    totals = {
-        r["account"]: (r["d"] or 0, r["c"] or 0)
-        for r in qs.values("account").annotate(d=Sum("debit"), c=Sum("credit"))
-    }
-    groups, total_d, total_c = [], 0, 0
-    for acc in LedgerAccount.objects.all():
-        d, c = totals.get(acc.code, (0, 0))
-        if not d and not c:
+
+def trial_balance(*, date_from=None, date_to=None):
+    """Saldo awal (per date_from), mutasi debit/kredit, dan saldo akhir (per
+    date_to) tiap akun; saldo bertanda debit − kredit.
+
+    Akun neraca membawa saldonya terus. Pendapatan dan beban mulai nol di
+    awal tiap tahun buku: laba tahun-tahun sebelumnya dibaca di Laba Ditahan
+    lewat tutup tahun virtual, tanpa jurnal penutup. Bila rentang melewati
+    31 Desember, penutupan tahun itu ikut di kolom mutasi (`year_ends`),
+    supaya saldo awal + debit − kredit = saldo akhir di setiap baris."""
+    from datetime import date
+
+    from django.db.models.functions import ExtractYear
+
+    lines = JournalLine.objects.all()
+    if date_to:
+        lines = lines.filter(journal_entry__entry_date__lte=date_to)
+    by_year = lines.annotate(y=ExtractYear("journal_entry__entry_date")).values("account", "y")
+    before = by_year.filter(journal_entry__entry_date__lt=date_from) if date_from else by_year.none()
+    inside = by_year.filter(journal_entry__entry_date__gte=date_from) if date_from else by_year
+    before = list(before.annotate(d=Sum("debit"), c=Sum("credit")))
+    inside = list(inside.annotate(d=Sum("debit"), c=Sum("credit")))
+
+    accounts = {a.code: a for a in LedgerAccount.objects.all()}
+    pl = {code for code, a in accounts.items() if a.type in _PL_TYPES}
+    years = [r["y"] for r in inside + before]
+    first_year = date_from.year if date_from else min(years, default=timezone.localdate().year)
+    last_year = date_to.year if date_to else max(years + [timezone.localdate().year])
+
+    rows = {}
+
+    def row(code):
+        return rows.setdefault(code, {"opening": 0, "debit": 0, "credit": 0})
+
+    # Saldo awal: akun neraca seluruh riwayat; laba-rugi hanya tahun buku
+    # date_from, tahun-tahun sebelumnya ke Laba Ditahan.
+    pl_open = {}
+    for r in before:
+        net = (r["d"] or 0) - (r["c"] or 0)
+        if r["account"] in pl and r["y"] < first_year:
+            row(coa.RETAINED_EARNINGS)["opening"] += net
             continue
-        total_d += d
-        total_c += c
-        groups.append({
-            "account": acc.code, "account_name": acc.name,
-            "type": acc.type, "debit": d, "credit": c, "net": d - c,
+        row(r["account"])["opening"] += net
+        if r["account"] in pl:
+            pl_open[r["account"]] = pl_open.get(r["account"], 0) + net
+
+    pl_year = {}
+    for r in inside:
+        rw = row(r["account"])
+        rw["debit"] += r["d"] or 0
+        rw["credit"] += r["c"] or 0
+        if r["account"] in pl:
+            key = (r["account"], r["y"])
+            pl_year[key] = pl_year.get(key, 0) + (r["d"] or 0) - (r["c"] or 0)
+
+    # Tutup tahun virtual untuk setiap 31 Desember di dalam rentang.
+    year_ends = []
+    for y in range(first_year, last_year):
+        closed = 0
+        for code in pl:
+            bal = pl_year.get((code, y), 0) + (pl_open.get(code, 0) if y == first_year else 0)
+            if bal:
+                row(code)["credit" if bal > 0 else "debit"] += abs(bal)
+                closed += bal
+        if closed:
+            row(coa.RETAINED_EARNINGS)["debit" if closed > 0 else "credit"] += abs(closed)
+        year_ends.append(date(y, 12, 31).isoformat())
+
+    out = []
+    for code, rw in rows.items():
+        if not (rw["opening"] or rw["debit"] or rw["credit"]):
+            continue
+        acc = accounts.get(code)
+        out.append({
+            "account": code, "account_name": acc.name if acc else code,
+            "type": acc.type if acc else "", "normal_balance": acc.normal_balance if acc else "debit",
+            **rw, "closing": rw["opening"] + rw["debit"] - rw["credit"],
         })
+    total_d = sum(r["debit"] for r in out)
+    total_c = sum(r["credit"] for r in out)
     return {
-        "groups": groups,
+        "rows": out,
         "total_debit": total_d,
         "total_credit": total_c,
-        "balanced": total_d == total_c,
+        "balanced": total_d == total_c and not sum(r["opening"] for r in out) and not sum(r["closing"] for r in out),
+        "year_ends": year_ends,
     }
