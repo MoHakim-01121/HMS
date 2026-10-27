@@ -83,7 +83,7 @@ function RoomCalculator({ avg }) {
     <>
       <div className="mt-4 flex flex-1 flex-wrap items-center justify-between gap-4">
         <div>
-          <label htmlFor="hm-pilgrims" className="block text-[12px] text-muted-foreground">{t("Pilgrims")}</label>
+          <label htmlFor="hm-pilgrims" className="block text-[12px] font-medium text-muted-foreground">{t("Pilgrims")}</label>
           <div className="mt-1.5 flex items-center gap-1.5">
             <button type="button" className={STEP_BTN} aria-label={t("Decrease")} onClick={() => setPilgrims((v) => Math.max(1, v - 1))}>−</button>
             <input id="hm-pilgrims" type="number" min="1"

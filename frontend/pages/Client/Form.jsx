@@ -72,9 +72,9 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
                 <Textarea name="address" rows={3} value={form.data.address} onChange={(e) => form.setData("address", e.target.value)} placeholder={t("Street, building, RT/RW")} />
               </FormField>
             </FieldGrid>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+            <label className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
               <Checkbox checked={form.data.is_active} onCheckedChange={(v) => form.setData("is_active", !!v)} />
-              <span>{t("Active")} <span style={{ color: "var(--muted-foreground)" }}>— {t("Client can be selected when creating new documents")}</span></span>
+              <span>{t("Active")} <span className="text-muted-foreground">— {t("Client can be selected when creating new documents")}</span></span>
             </label>
           </FormSection>
 
@@ -106,8 +106,8 @@ function FormBody({ client, edit, errors: serverErrors, branch_choices: branchCh
               <FormField label={t("Latitude")} name="lat" type="number" step="any" value={form.data.lat} onChange={set("lat")} placeholder="-7.2575" />
               <FormField label={t("Longitude")} name="lng" type="number" step="any" value={form.data.lng} onChange={set("lng")} placeholder="112.7521" />
             </FieldGrid>
-            <div className="hint" style={{ marginTop: 8 }}>
-              {t("Find city coordinates at")} <a href="https://www.latlong.net/" target="_blank" rel="noreferrer" style={{ color: "var(--foreground)", textDecoration: "underline" }}>latlong.net ↗</a>
+            <div className="mt-2">
+              {t("Find city coordinates at")} <a href="https://www.latlong.net/" target="_blank" rel="noreferrer" className="text-foreground underline">latlong.net ↗</a>
             </div>
           </FormSection>
 

@@ -87,7 +87,7 @@ export default function PendingOutTable({ rows = [], showClient = false }) {
               <DialogTitle>{t("Reject {number}?", { number: rejecting.number })}</DialogTitle>
             </DialogHeader>
             <p className="mt-1.5 mb-0 text-[13px] leading-[1.6] text-muted-foreground">{t("No money moves. The document stays on record as rejected.")}</p>
-            <label className="mt-4 mb-1.5 block text-[12px] text-muted-foreground" htmlFor="pot-reason">{t("Reason")}</label>
+            <label className="mt-4 mb-1.5 block text-[12px] font-medium text-muted-foreground" htmlFor="pot-reason">{t("Reason")}</label>
             <Textarea id="pot-reason" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setRejecting(null)}>{t("Cancel")}</Button>

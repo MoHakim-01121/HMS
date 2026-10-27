@@ -25,7 +25,9 @@ The app (not the public landing page) has one way to style things. Consistency c
 - Arbitrary colours that tailwind-merge cannot classify need a type hint: `bg-[color:color-mix(...)]`.
 - Dark mode is `[data-theme="dark"]`, not the `dark:` variant (that follows the OS).
 
-**Migration in progress.** Legacy CSS (`frontend/styles/legacy.css`, `list-a.css`, `form-a.css`, `detail-a.css`, `shell.css`, `profile.css`, `calendar.css`, the custom-class sections of `tailwind.css`) is being moved into components; the plan lives in `~/.claude/plans/kita-plan-dulu-sebelum-robust-newell.md`. Do not add to those files or use their classes in new code. `npm run lint:ui` fails on new violations; files still being migrated are listed in `scripts/lint-ui-allowlist.json`, which may only shrink.
+**Migration done (2026-10-27).** The legacy stylesheets are gone. `tailwind.css` sits on Tailwind's preflight plus a small `@layer base` (body type and offset, grain, focus ring, scrollbars, autofill, the native date icon); `color-scheme` lives with the theme tokens. `npm run lint:ui` fails on any new violation; `scripts/lint-ui-allowlist.json` is empty and stays that way.
+
+**Preflight, not the old element rules:** `<label>`, `<input>`, `<select>`, `<table>`, `<a>` get no styling of their own any more. A control needs its size, weight and width from classes (`w-full` on an input that must shrink in a flex row, `appearance-none` on a native select), a `<button>` inherits the font around it (`normal-nums` if the parent is `tabular-nums`), and `svg` is `display: block`.
 
 ## Checking UI changes
 

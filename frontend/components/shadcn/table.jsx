@@ -135,12 +135,12 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
   // rows (on the <td>s — a <tr> draws no border in the separate-borders
   // model), a firmer --input rule over group bands and the total row.
   const head = "px-3 [&:has([role=checkbox])]:pr-3 py-[10px] text-[11.5px] font-semibold text-foreground bg-transparent border-b border-b-hairline";
-  const cell = "p-3 [&:has([role=checkbox])]:pr-3 font-normal bg-card border-t border-t-hairline";
-  const rowHover = "[&:hover>td]:bg-accent";
+  const cell = "p-3 [&:has([role=checkbox])]:pr-3 text-[13px] font-normal bg-card border-t border-t-hairline border-b border-b-border";
+  const rowHover = "[&:hover>td]:bg-accent [&:hover>td:first-child]:rounded-l-[6px] [&:hover>td:last-child]:rounded-r-[6px]";
   let lastSection;
   return frame(
     <div className="overflow-x-auto">
-      <ShadcnTable>
+      <ShadcnTable className="border-separate border-spacing-0">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {selectable && (
@@ -168,7 +168,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
             })}
           </TableRow>
         </TableHeader>
-        <TableBody className="[&>tr:first-child>td]:border-t-0">
+        <TableBody className="[&>tr:first-child>td]:border-t-0 [&>tr:last-child>td]:border-b-0">
           {rows.length ? rows.map((row, i) => {
             const key = rowKey(row, i);
             const sec = section ? section(row, i) : null;
@@ -214,7 +214,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
             </TableRow>
           )}
         </TableBody>
-        {footer && <TableFooter className="[&_td]:border-t [&_td]:border-t-input [&_td]:bg-card [&_td]:p-3 [&_td]:font-semibold">{footer}</TableFooter>}
+        {footer && <TableFooter className="[&_td]:border-t [&_td]:border-t-input [&_td]:bg-card [&_td]:p-3 [&_td]:text-[14px] [&_td]:font-semibold">{footer}</TableFooter>}
       </ShadcnTable>
 
       {selectable && selected.size > 0 && (

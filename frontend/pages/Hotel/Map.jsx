@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const SECTION = "border-b border-border px-3.5 pt-2.5 pb-0.5 [&>div]:mb-1.5";
 const SECTION_TITLE = "text-[10px] font-bold tracking-[1.2px] text-muted-foreground uppercase";
 const DIVIDER = "my-1.5 h-px bg-border";
-const OPTION = "flex cursor-pointer items-center gap-[9px] px-3.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color] duration-100 hover:bg-secondary hover:text-foreground [&_input]:size-3.5 [&_input]:cursor-pointer [&_input]:accent-primary";
+const OPTION = "flex cursor-pointer items-center gap-[9px] px-3.5 py-1.5 text-[13px] font-medium text-muted-foreground transition-[background-color,color] duration-100 hover:bg-secondary hover:text-foreground [&_input]:size-3.5 [&_input]:cursor-pointer [&_input]:accent-primary";
 const RADIO = cn(OPTION, "has-checked:font-semibold has-checked:text-foreground");
 const CHECK = OPTION;
 const SWATCH = "inline-block size-2 shrink-0 rounded-[2px]";

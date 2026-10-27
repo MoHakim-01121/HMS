@@ -69,7 +69,7 @@ export default function Detail({ statement = {} }) {
             ))}
           </SelectContent>
         </Select>
-        <label className="flex items-center gap-1 text-[12px] text-muted-foreground">
+        <label className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground">
           <Checkbox checked={!!forceLine[l.id]} onCheckedChange={(v) => setForceLine({ ...forceLine, [l.id]: !!v })} />
           {t("Force match")}
         </label>

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
 import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { DateRange } from "../../components/shadcn/list-a.jsx";
@@ -73,8 +72,8 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
               </tr></thead>
               <tbody>
                 {expenses.map((e) => (
-                  <tr key={e.id} className={cn(excluded.includes(e.id) ? "dim" : undefined)}>
-                    <td><input type="checkbox" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
+                  <tr key={e.id} className={excluded.includes(e.id) ? DA.rowVoid : undefined}>
+                    <td><input type="checkbox" className="accent-foreground" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
                       aria-label={t("Include {n}", { n: e.expense_number })} /></td>
                     <td className={DC.mono}>{e.expense_number}</td>
                     <td className={DC.nw}>{fmtDate(e.expense_date)}</td>

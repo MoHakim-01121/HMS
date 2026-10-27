@@ -646,7 +646,7 @@ function ActivityCard({ activity }) {
                   {df.range === "custom" && (
                     <div className="mt-3 flex gap-2">
                       {[["From", "from"], ["To", "to"]].map(([label, k]) => (
-                        <label key={k} className="flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-muted-foreground">
+                        <label key={k} className="flex min-w-0 flex-1 flex-col gap-1 text-[12px] font-medium text-muted-foreground">
                           {t(label)}
                           <input type="date" value={df[k]} onChange={(e) => setDf({ ...df, [k]: e.target.value })}
                             className="box-border h-9 rounded-[10px] border-[1.5px] border-field bg-card px-3 font-sans text-[13px] leading-[normal] font-medium text-foreground" />

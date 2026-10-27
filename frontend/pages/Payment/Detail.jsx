@@ -301,7 +301,7 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
             <p style={{ fontSize: 13, color: "var(--muted-foreground)", margin: "6px 0 0", lineHeight: 1.6 }}>
               {t("The {n} SAR will stop counting against this client's balance. This cannot be undone.", { n: fmt(payment.amount_sar) })}
             </p>
-            <label htmlFor="reject-reason" style={{ display: "block", fontSize: 12, color: "var(--muted-foreground)", margin: "16px 0 6px" }}>{t("Reason")}</label>
+            <label htmlFor="reject-reason" className="mt-4 mb-1.5 block text-[12px] font-medium text-muted-foreground">{t("Reason")}</label>
             <Textarea id="reject-reason" rows={3} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
             <DialogFooter>
               <Button variant="outline" onClick={() => setRejectOpen(false)}>{t("Cancel")}</Button>

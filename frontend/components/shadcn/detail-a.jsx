@@ -81,10 +81,10 @@ export const DA = {
   table: cn(
     "w-full border-collapse text-[13px]",
     "[:where(&)_th]:border-b [:where(&)_th]:border-border [:where(&)_th]:bg-transparent [:where(&)_th]:px-4 [:where(&)_th]:py-3 [:where(&)_th]:text-left [:where(&)_th]:text-[12px] [:where(&)_th]:font-semibold [:where(&)_th]:tracking-normal [:where(&)_th]:whitespace-nowrap [:where(&)_th]:normal-case [:where(&)_th]:text-foreground",
-    "[:where(&)_td]:border-b [:where(&)_td]:border-hairline [:where(&)_td]:px-4 [:where(&)_td]:py-3 [:where(&)_td]:align-top",
+    "[:where(&)_td]:border-b [:where(&)_td]:border-hairline [:where(&)_td]:px-4 [:where(&)_td]:py-3 [:where(&)_td]:align-top [:where(&)_tbody_td]:font-medium [:where(&)_tfoot_td]:text-[14px]",
     "[:where(&)_:is(th,td):first-child]:pl-6 [:where(&)_:is(th,td):last-child]:pr-6 max-[600px]:[:where(&)_:is(th,td):first-child]:pl-4 max-[600px]:[:where(&)_:is(th,td):last-child]:pr-4",
     "[:where(&)_tbody_tr:last-child_td]:border-b-0",
-    "[:where(&)_tfoot_td]:border-b-0 [:where(&)_tfoot_td]:font-semibold [:where(&)_tfoot_td]:tabular-nums [:where(&)_tfoot_tr:first-child_td]:border-t [:where(&)_tfoot_tr:first-child_td]:border-t-input",
+    "[:where(&)_tfoot_td]:border-t [:where(&)_tfoot_td]:border-t-border [:where(&)_tfoot_td]:border-b-0 [:where(&)_tfoot_td]:bg-card [:where(&)_tfoot_td]:font-semibold [:where(&)_tfoot_td]:tabular-nums [:where(&)_tfoot_tr:first-child_td]:border-t [:where(&)_tfoot_tr:first-child_td]:border-t-input",
   ),
   rowLast: "[&>td]:border-b-0",
   rowMid: "[&>td]:align-middle",

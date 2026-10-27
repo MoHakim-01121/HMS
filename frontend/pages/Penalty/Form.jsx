@@ -62,7 +62,7 @@ function FormBody({ penalty, cl, suggested_number, today, edit, billing, error, 
           {/* A penalty is always billed on an invoice and paid through the
               Payment module; this form no longer records payment itself. */}
           <FormSection label={t("Billing")}>
-            <div role="note" style={{ fontSize: 13, lineHeight: 1.5, color: "var(--muted-foreground)" }}>
+            <div role="note" className="text-[13px] leading-normal text-muted-foreground">
               {billing?.creates_invoice
                 ? t("This reservation is not on an invoice yet. Saving will issue a new invoice in the name of {branch} that bills this penalty.", { branch: billing.branch })
                 : t("This penalty is billed on invoice {number}, next to its reservation.", { number: billing?.invoice_number || "" })}

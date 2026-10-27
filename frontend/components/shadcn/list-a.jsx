@@ -299,7 +299,7 @@ export function MonthNav({ month, year, years = [], onChange, prefix }) {
 // The toolbar's pill button (Filter, Export, a picker, a link). `as` renders
 // it as another element: "a", "label", Link.
 export const toolClass = cn(
-  "surface box-border inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-medium whitespace-nowrap text-foreground no-underline",
+  "surface box-border inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-medium normal-nums whitespace-nowrap text-foreground no-underline",
   "transition-[border-color,background-color] duration-150 ease-[ease] hover:border-[color:color-mix(in_oklch,var(--foreground)_45%,var(--input))] aria-expanded:border-[color:color-mix(in_oklch,var(--foreground)_45%,var(--input))] [&_svg]:flex-none [&_svg]:text-muted-foreground",
   FOCUS,
 );
@@ -309,7 +309,7 @@ export const ToolButton = forwardRef(({ as: As = "button", className, ...props }
 ToolButton.displayName = "ToolButton";
 
 // A bare input inside a ToolButton-shaped control (search, "As of" date).
-export const toolInput = "h-full min-w-0 rounded-none border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-muted-foreground";
+export const toolInput = "h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-muted-foreground";
 
 export function SearchTool({ value, onSearch, placeholder }) {
   const [q, setQ] = useState(value || "");
@@ -400,7 +400,7 @@ export function Check({ on, onClick, label, count, radio }) {
 
 export function DateRange({ from, to, onFrom, onTo }) {
   const { t } = useI18n();
-  const field = "flex min-w-0 flex-1 flex-col gap-1 text-[12px] text-muted-foreground";
+  const field = "flex min-w-0 flex-1 flex-col gap-1 text-[12px] font-medium text-muted-foreground";
   const input = "box-border h-9 w-full rounded-[10px] border border-input bg-card px-3 font-sans text-[13px] leading-[normal] font-medium text-foreground";
   return (
     <div className="flex gap-2">
@@ -542,9 +542,9 @@ export const Th = ({ className, ...props }) => (
 );
 export const Td = ({ label, className, ...props }) => (
   <td {...props} className={cn(
-    "border-b border-hairline px-4 py-3 align-middle whitespace-nowrap text-foreground tabular-nums", EDGE,
+    "border-b border-hairline px-4 py-3 align-middle font-medium whitespace-nowrap text-foreground tabular-nums", EDGE,
     // In the totals row: no rule under, a firmer one over, bold figures.
-    "in-[tfoot]:cursor-default in-[tfoot]:border-t in-[tfoot]:border-b-0 in-[tfoot]:border-t-input in-[tfoot]:bg-card in-[tfoot]:py-3 in-[tfoot]:font-semibold",
+    "in-[tfoot]:cursor-default in-[tfoot]:border-t in-[tfoot]:border-b-0 in-[tfoot]:border-t-input in-[tfoot]:bg-card in-[tfoot]:py-3 in-[tfoot]:text-[14px] in-[tfoot]:font-semibold",
     label && "in-[tfoot]:font-normal text-muted-foreground",
     className,
   )} />

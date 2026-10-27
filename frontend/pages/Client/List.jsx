@@ -60,7 +60,7 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
             on={only("dormant")} onClick={() => go({ status: only("dormant") ? [] : ["dormant"] })} />
         </Kpis>
       ) : (
-        perms.can("periods", "view") && <Note>{t("Season figures appear once umrah seasons are set up.")} <Link href="/finance/periods/" className="font-semibold">{t("Set up seasons")}</Link></Note>
+        perms.can("periods", "view") && <Note>{t("Season figures appear once umrah seasons are set up.")} <Link href="/finance/periods/" className="font-semibold underline">{t("Set up seasons")}</Link></Note>
       )}
 
       <Toolbar spaced={!!k}

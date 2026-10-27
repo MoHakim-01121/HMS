@@ -15,7 +15,7 @@ import Page from "../../components/shadcn/page.jsx";
 // Native <select>, styled like shadcn's Input — same reason as Hotel/Form.jsx:
 // view is optional, and a Radix Select cannot carry the empty "— Optional —"
 // value that clears it.
-const SELECT_CLASS = "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm";
+const SELECT_CLASS = "flex h-9 w-full appearance-none rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm";
 
 // Occupancy is not asked for: the server derives it from capacity. The name
 // follows view + capacity ("Quad Kaaba View") until the user types their own.
@@ -62,7 +62,7 @@ function RoomTypeFormBody({ hotel, room_type, occupancy_labels = {}, view_choice
       ? (
         <button
           type="button" onClick={applySuggestion}
-          style={{ padding: 0, border: 0, background: "none", font: "inherit", color: "var(--primary)", textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer" }}
+          className="cursor-pointer border-0 bg-transparent p-0 [font:inherit] text-primary underline underline-offset-3"
         >
           {t("Use “{name}”", { name: suggestion })}
         </button>

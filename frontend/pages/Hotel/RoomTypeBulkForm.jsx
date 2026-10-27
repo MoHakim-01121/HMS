@@ -54,9 +54,9 @@ function RoomTypeBulkFormBody({ hotel, capacity_choices = [], view_choices = [],
   // A plain render helper, not a component: a component declared in here
   // would remount every render and drop keyboard focus off the checkbox.
   const choices = (name, master, translate) => (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 20px" }}>
+    <div className="flex flex-wrap gap-x-5 gap-y-2.5">
       {master.map((c) => (
-        <label key={c.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+        <label key={c.value} className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-muted-foreground">
           <Checkbox checked={form.data[name].includes(c.value)} onCheckedChange={(v) => toggle(name, master, c.value, !!v)} />
           <span>{translate ? t(c.label) : c.label}</span>
         </label>
@@ -76,12 +76,12 @@ function RoomTypeBulkFormBody({ hotel, capacity_choices = [], view_choices = [],
         <FormPanel>
           <FormSection label={t("Capacity")}>
             {choices("capacities", capacity_choices, false)}
-            {errors.capacities && <div role="alert" style={{ marginTop: 8, fontSize: 12, color: "var(--destructive)" }}>{errors.capacities}</div>}
+            {errors.capacities && <div role="alert" className="mt-2 text-[12px] text-destructive">{errors.capacities}</div>}
           </FormSection>
 
           <FormSection label={t("Room View")}>
             {choices("views", view_choices, true)}
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-foreground)" }}>
+            <div className="mt-2 text-[12px] text-muted-foreground">
               {t("Optional — leave all unticked for names without a view.")}
             </div>
           </FormSection>

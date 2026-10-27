@@ -68,7 +68,7 @@ export const FA = {
   stepper: cn("box-border flex h-[34px] w-full items-center justify-between rounded-[10px] border-[1.5px] border-field bg-card px-[3px] focus-within:border-foreground", HOVER_EDGE),
   stepperButton: "grid size-6 cursor-pointer place-content-center rounded-[6px] border-0 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground pointer-coarse:relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-[-4px] pointer-coarse:after:inset-y-[-10px] pointer-coarse:after:content-['']",
   qty: cn(BARE, "h-6 w-[34px] text-center text-[14px] font-semibold tabular-nums"),
-  price: cn("box-border flex h-[34px] cursor-text items-center justify-end gap-0.5 rounded-[10px] border-[1.5px] border-field bg-card px-3 transition-[border-color] duration-[120ms] ease-[ease] focus-within:border-foreground", HOVER_EDGE),
+  price: cn("box-border flex h-[34px] cursor-text items-center justify-end gap-0.5 rounded-[10px] text-[12px] border-[1.5px] border-field bg-card px-3 transition-[border-color] duration-[120ms] ease-[ease] focus-within:border-foreground", HOVER_EDGE),
   priceInput: cn(BARE, "w-full text-right text-[14px] font-medium tabular-nums"),
   subtotal: "text-right font-semibold tabular-nums",
   totalPerNight: "pr-3 text-right font-semibold tabular-nums",

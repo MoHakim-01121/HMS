@@ -40,12 +40,12 @@ function MealPlanFormBody({ hotel, available = [], selected = [] }) {
       <form method="post" onSubmit={submit}>
         <FormPanel>
           <FormSection label={t("Meal Plans")}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="flex flex-col gap-2.5">
               {available.map((mp) => (
-                <label key={mp.code} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer" }}>
+                <label key={mp.code} className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-muted-foreground">
                   <Checkbox checked={chosen.has(mp.code)} onCheckedChange={(v) => toggle(mp.code, !!v)} />
-                  <span style={{ fontWeight: 600, minWidth: 28, fontVariantNumeric: "tabular-nums" }}>{mp.code}</span>
-                  <span style={{ color: "var(--muted-foreground)" }}>{t(mp.name)}</span>
+                  <span className="min-w-7 font-semibold tabular-nums">{mp.code}</span>
+                  <span className="text-muted-foreground">{t(mp.name)}</span>
                 </label>
               ))}
             </div>

@@ -5,6 +5,8 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
+import { NativeSelect } from "../../components/shadcn/ui/native-select.jsx";
+import FormField from "../../components/shadcn/form-field.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 /** "6 modules · 24 permissions" — enough to tell two roles apart at a glance. */
@@ -35,21 +37,13 @@ function DeleteDialog({ role, roles, onClose }) {
         </DialogHeader>
 
         {role.user_count > 0 ? (
-          <div className="form-field">
-            <label className="form-label" htmlFor="reassign-to">
-              {t("{count} account(s) use this role. Move them to:", { count: role.user_count })}
-            </label>
-            <select
-              id="reassign-to"
-              className="form-input"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            >
+          <FormField label={t("{count} account(s) use this role. Move them to:", { count: role.user_count })} name="reassign-to">
+            <NativeSelect id="reassign-to" value={target} onChange={(e) => setTarget(e.target.value)}>
               {others.map((r) => (
                 <option key={r.slug} value={r.slug}>{r.label}</option>
               ))}
-            </select>
-          </div>
+            </NativeSelect>
+          </FormField>
         ) : (
           <p className="text-sm text-muted-foreground">{t("No accounts use this role. It will be removed.")}</p>
         )}

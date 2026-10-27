@@ -1,6 +1,48 @@
-@import "./legacy.css" layer(legacy);
 @import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
+
+/* The page itself: Inter at 14px on the canvas, the phone top bar's offset
+   (desktop zeroes it below), a faint grain over everything, the gold focus
+   ring, thin scrollbars and autofill that keeps the field's own colours. */
+@layer base {
+  html { background: var(--background); }
+  body {
+    min-height: 100vh;
+    padding-top: 48px;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--foreground);
+    background: var(--background);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: style;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-top);
+    pointer-events: none;
+    opacity: .018;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+  }
+  [data-theme="light"] body::before { opacity: .012; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--input); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+  input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 100px var(--card) inset;
+    -webkit-text-fill-color: var(--foreground);
+    caret-color: var(--foreground);
+  }
+  /* The native date picker's calendar icon, dimmed to the muted ink. */
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.6); cursor: pointer; }
+}
 
 /* Reduce motion: every animation and transition settles at once, wherever it
    was declared. Spinners keep turning, slowly, because they mean "still busy". */
@@ -19,6 +61,7 @@
 
 :root,
 [data-theme="light"] {
+  color-scheme: light;
   /* Homlu v2.1 Component Library (2026-09-04). Supersedes the "White / Gold /
      Black" warm-luxury ramp. The system is near-monochrome on a cool-neutral
      axis (hue ~250-260, chroma near zero): a faint cool canvas, pure white
@@ -145,9 +188,11 @@
   --z-sticky: 200;
   --z-overlay: 300;
   --z-modal: 400;
+  --z-top: 9999;
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   /* Paper dark (2026-10-21): warm grey-black after Notion dark, not pure black.
      Canvas #141414, card two steps up, warm off-white text. Primary inverts to
      an off-white pill; the focus ring stays gold in both themes. */
@@ -352,7 +397,7 @@
 
 /* The app shell (every AppLayout page, marked by #main) sits on white paper
    with the gold Islamic lattice behind the content. It goes on body, not
-   html — legacy.css paints an opaque body background that would cover a
+   html — the base layer paints an opaque body background that would cover a
    pattern set on html. Public pages (no #main) and the fullscreen maps are
    left alone. */
 body:has(#main):not(.map-fullscreen) {
@@ -395,9 +440,9 @@ body:has(#main):not(.map-fullscreen) {
 /* ── Shell layout tokens (desktop) ─────────────────────────────────────
    --sidebar-w is the sidebar's whole slot (the card plus the gap on each
    side, --shell-gap); --topbar-h the topbar. AppLayout's root pads itself by
-   these, so body keeps no offset of its own: legacy.css gives it a 48px top
-   padding for phones, zeroed here until legacy.css goes. Phones use the
-   mobile top bar and bottom nav below. */
+   these, so body keeps no offset of its own: the base layer gives it a 48px
+   top padding for the phone top bar, zeroed here. Phones use the mobile top
+   bar and bottom nav below. */
 @media (min-width: 601px) {
   :root { --topbar-h: 70px; --sidebar-w: 276px; --sidebar-w-collapsed: 104px; --shell-gap: 14px; }
   body { padding-top: 0; }
