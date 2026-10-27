@@ -67,136 +67,14 @@ def _cl_value(cl):
     return int(round(sum(r.price * r.quantity * nights for r in cl.rooms.all())))
 
 
-def _cl_room_nights(cl):
-    return sum(r.quantity for r in cl.rooms.all()) * (cl.num_nights or 1)
-
-
 def _cl_rooms(cl):
     return sum(r.quantity for r in cl.rooms.all())
-
-
-def _period_range(today):
-    """The season holding today, else the twelve months up to today; and the
-    span before it to compare with."""
-    season = Season.objects.filter(date_from__lte=today, date_to__gte=today).first()
-    if season:
-        prev = Season.objects.filter(date_to__lt=season.date_from).order_by('-date_from').first()
-        return {
-            'name': season.name, 'start': season.date_from, 'end': season.date_to,
-            'prev_name': prev.name if prev else None,
-            'prev_start': prev.date_from if prev else None, 'prev_end': prev.date_to if prev else None,
-        }
-    start = today - relativedelta(years=1) + timedelta(days=1)
-    return {
-        'name': None, 'start': start, 'end': None,
-        'prev_name': None, 'prev_start': start - relativedelta(years=1), 'prev_end': start - timedelta(days=1),
-    }
 
 
 # ── Bookings ────────────────────────────────────────────────────────────
 
 def _live_cls(cls):
     return cls.exclude(reservation_status=CANCELLED)
-
-
-def booking_kpis(cls, month):
-    """CL count, room nights and booked value of CLs checking in during
-    `month`, against the month before, with cumulative sparklines."""
-    prev = month - relativedelta(months=1)
-    nxt = month + relativedelta(months=1)
-    rows = list(_live_cls(cls).filter(check_in__gte=prev, check_in__lt=nxt).prefetch_related('rooms'))
-    cancelled = cls.filter(reservation_status=CANCELLED, check_in__gte=month, check_in__lt=nxt).count()
-    cuts = (5, 10, 15, 20, 25, 31)
-
-    def side(start):
-        mine = [cl for cl in rows if cl.check_in >= start and cl.check_in < start + relativedelta(months=1)]
-        def spark(fn):
-            return [sum(fn(cl) for cl in mine if cl.check_in.day <= c) for c in cuts]
-        return {
-            'cl': len(mine), 'rn': sum(_cl_room_nights(cl) for cl in mine), 'val': sum(_cl_value(cl) for cl in mine),
-            'spark': {'cl': spark(lambda cl: 1), 'rn': spark(_cl_room_nights), 'val': spark(_cl_value)},
-        }
-
-    return {'month': month.isoformat(), 'prev_month': prev.isoformat(), 'cur': side(month), 'prev': side(prev),
-            'cancelled': cancelled}
-
-
-def cl_trend(cls, today, month):
-    """CL per check-in month (12 months to `month`), per week (12 weeks to
-    this one) and per season, split definite/tentative, with the same span a
-    year earlier and the room nights."""
-    start = month - relativedelta(months=11)
-    rows = list(_live_cls(cls).filter(check_in__gte=start - relativedelta(years=1), check_in__lt=month + relativedelta(months=1))
-                .prefetch_related('rooms').only('id', 'check_in', 'check_out', 'reservation_status'))
-
-    def series(keys, key_of, ly_key_of):
-        cur = {k: {'d': 0, 't': 0, 'rn': 0, 'ly': 0} for k in keys}
-        for cl in rows:
-            k = key_of(cl.check_in)
-            if k in cur:
-                cur[k]['t' if cl.reservation_status == TENTATIVE else 'd'] += 1
-                cur[k]['rn'] += _cl_room_nights(cl)
-            ly = ly_key_of(cl.check_in)
-            if ly in cur:
-                cur[ly]['ly'] += 1
-        return cur
-
-    months = [start + relativedelta(months=i) for i in range(12)]
-    mser = series(months, lambda d: d.replace(day=1), lambda d: d.replace(day=1) + relativedelta(years=1))
-    monthly = [{'key': m.isoformat(), **mser[m]} for m in months]
-
-    week0 = today - timedelta(days=today.weekday())
-    weeks = [week0 - timedelta(weeks=11 - i) for i in range(12)]
-    wk = lambda d: d - timedelta(days=d.weekday())
-    wser = series(weeks, wk, lambda d: wk(d) + timedelta(weeks=52))
-    weekly = [{'key': w.isoformat(), **wser[w]} for w in weeks]
-
-    seasons = []
-    for s in reversed(list(Season.objects.filter(date_from__lte=today).order_by('-date_from')[:6])):
-        qs = _live_cls(cls).filter(check_in__gte=s.date_from, check_in__lte=s.date_to)
-        n = qs.aggregate(d=Count('id', filter=~Q(reservation_status=TENTATIVE)), t=Count('id', filter=Q(reservation_status=TENTATIVE)))
-        seasons.append({'key': s.name, 'd': n['d'], 't': n['t'], 'rn': sum(_cl_room_nights(cl) for cl in qs.prefetch_related('rooms')), 'ly': None})
-
-    rng = _period_range(today)
-    so_far = _live_cls(cls).filter(check_in__gte=rng['start'], check_in__lte=today).count()
-    before = None
-    if rng['prev_start']:
-        span = today - rng['start']
-        before = _live_cls(cls).filter(check_in__gte=rng['prev_start'],
-                                       check_in__lte=min(rng['prev_start'] + span, rng['prev_end'])).count()
-    return {
-        'monthly': monthly, 'weekly': weekly, 'seasons': seasons,
-        'season': {'name': rng['name'], 'start': rng['start'].isoformat(), 'count': so_far,
-                   'prev_name': rng['prev_name'], 'prev_count': before},
-    }
-
-
-def top_this_season(cls, today):
-    """Clients by booked value and hotels by CL count over the season (or the
-    last twelve months and what is booked ahead), and the clients who booked
-    in the span before but not in this one."""
-    rng = _period_range(today)
-    qs = _live_cls(cls).filter(check_in__gte=rng['start'])
-    if rng['end']:
-        qs = qs.filter(check_in__lte=rng['end'])
-    by_client = defaultdict(lambda: {'n': 0, 'val': 0})
-    names = {}
-    for cl in qs.select_related('client').prefetch_related('rooms'):
-        c = by_client[cl.client_id]
-        c['n'] += 1
-        c['val'] += _cl_value(cl)
-        names[cl.client_id] = cl.client.display_name
-    clients = sorted(({'id': k, 'name': names[k], 'cl': v['n'], 'val': v['val']} for k, v in by_client.items()),
-                     key=lambda r: (-r['val'], r['name']))[:5]
-    hotels = [{'id': r['hotel_id'], 'name': r['hotel__name'], 'cl': r['n']}
-              for r in qs.values('hotel_id', 'hotel__name').annotate(n=Count('id')).order_by('-n', 'hotel__name')[:5]]
-    inactive = 0
-    if rng['prev_start']:
-        before = set(_live_cls(cls).filter(check_in__gte=rng['prev_start'], check_in__lte=rng['prev_end'])
-                     .values_list('client_id', flat=True))
-        inactive = len(before - set(by_client))
-    return {'season': rng['name'], 'start': rng['start'].isoformat(), 'clients': clients, 'hotels': hotels,
-            'inactive': inactive}
 
 
 def _paid_map(cls_list):
@@ -250,14 +128,6 @@ def waiting_dp(cls, today, limit=ROWS, days=14):
             'rows': [_cl_row(cl, today, 0) for cl in rows[:limit]]}
 
 
-def tentative_soon(cls, today, days=14):
-    qs = _live_cls(cls).filter(reservation_status=TENTATIVE, check_in__gte=today,
-                               check_in__lte=today + timedelta(days=days)).with_parties().order_by('check_in')
-    first = qs.first()
-    return {'count': qs.count(),
-            'nearest': {'date': first.check_in.isoformat(), 'client': first.guest_name} if first else None}
-
-
 # ── Receivables ─────────────────────────────────────────────────────────
 
 def receivables(clients, today):
@@ -271,34 +141,6 @@ def receivables(clients, today):
         'past_clients': len({i['client_id'] for i in past}),
         'clients': aging['clients'], 'past': sorted(past, key=lambda i: -i['days_overdue']),
     }
-
-
-def unpaid_kpi(clients, today, month):
-    now = receivables(clients, today)
-    before = queries.ar_aging(as_of=month - timedelta(days=1), clients=clients)
-    prev_count = sum(len(c['invoices']) for c in before['clients'])
-    return {'count': now['count'], 'total': now['total'], 'past_due': now['past_due'], 'past_count': now['past_count'],
-            'prev_count': prev_count}
-
-
-def past_due_rows(rec, limit=ROWS):
-    ids = [i['id'] for i in rec['past'][:limit]]
-    invs = {inv.pk: inv for inv in Invoice.objects.filter(pk__in=ids).with_lines()}
-    cl_of = {}
-    for inv in invs.values():
-        for line in inv.lines.all():
-            if line.confirmation_letter_id and not line.voided_at:
-                cl_of.setdefault(inv.pk, line.confirmation_letter_id)
-    cl_numbers = dict(ConfirmationLetter.objects.filter(pk__in=cl_of.values()).values_list('pk', 'confirmation_number'))
-    out = []
-    for i in rec['past'][:limit]:
-        inv = invs.get(i['id'])
-        out.append({
-            'id': i['id'], 'number': i['invoice_number'], 'client': i['client'], 'client_id': i['client_id'],
-            'cl': cl_numbers.get(cl_of.get(i['id'])), 'due_date': i['due_date'], 'late': i['days_overdue'],
-            'open': i['amount'], 'total': inv.total_sar if inv else None,
-        })
-    return out
 
 
 def overdue_to_chase(rec, limit=ROWS):
@@ -329,19 +171,6 @@ def overdue_to_chase(rec, limit=ROWS):
             'reminded': timezone.localtime(max(times)).date().isoformat() if times else None,
         })
     return {'clients': len(per), 'total': sum(c['open'] for c in per.values()), 'rows': out}
-
-
-def collection_rate(invoices, month):
-    """Share of hotel invoices issued in `month` already paid, and the same
-    for the month before (both as of now)."""
-    def rate(start):
-        invs = list(invoices.filter(invoice_type='hotel', issued_date__gte=start,
-                                    issued_date__lt=start + relativedelta(months=1)).with_lines())
-        billed = sum(inv.total_sar for inv in invs)
-        paid_map = queries.invoice_paid_map([inv.pk for inv in invs])
-        paid = sum(min(paid_map.get(inv.pk, 0), inv.total_sar) for inv in invs)
-        return {'billed': billed, 'paid': paid, 'pct': round(paid * 100 / billed) if billed else None}
-    return {'cur': rate(month), 'prev': rate(month - relativedelta(months=1))}
 
 
 # ── Money ───────────────────────────────────────────────────────────────
@@ -387,20 +216,6 @@ def _flow_idr(branches, start, end):
     inflow = sum(max(tot[k], 0) for k in ('client_in', 'exchange_in', 'hq_receipts', 'other'))
     outflow = sum(max(-tot[k], 0) for k in ('exchange_out', 'sent_hq', 'operational', 'refund', 'other'))
     return {'in': inflow, 'client_in': max(tot['client_in'], 0), 'out': outflow, 'sent_hq': max(-tot['sent_hq'], 0)}
-
-
-def money_flow(branches, today, month):
-    end = min(today, month + relativedelta(months=1, days=-1))
-    prev = month - relativedelta(months=1)
-    return {'cur': _flow_idr(branches, month, end), 'prev': _flow_idr(branches, prev, month - timedelta(days=1))}
-
-
-def branch_profit(branch, month, today):
-    end = min(today, month + relativedelta(months=1, days=-1))
-    fx = fund_flow.fx_profit(branch=branch.code, date_from=month, date_to=end)
-    expenses = fund_flow.branch_expenses_idr(branch.code, date_from=month, date_to=end)
-    return {'branch': branch.code, 'name': branch.name, 'fx': fx['total_profit_idr'], 'expenses': expenses,
-            'profit': fund_flow.net_profit(fx)}
 
 
 def not_sent(branches):
@@ -576,104 +391,6 @@ def _finance_cues(user, codes, clients, today, branches):
     if can(user, 'periods', 'view'):
         cues['period'] = previous_period(today)
     return cues
-
-
-def manager(user, today, month):
-    codes = view_codes(user)
-    branches = ops_branches(codes)
-    cls = scope(ConfirmationLetter.objects.all(), user, codes=codes)
-    clients = scope(Client.objects.all(), user, codes=codes)
-    out = {}
-    todo = {}
-    if can(user, 'expenses', 'approve'):
-        todo['exp'] = expenses_to_approve(user, codes, today)
-    rec = None
-    if can(user, 'cl', 'view'):
-        out['bookings'] = booking_kpis(cls, month)
-        out['trend'] = cl_trend(cls, today, month)
-        out['top'] = top_this_season(cls, today)
-        out['checkins'] = checkins_week(cls, today)
-        if can(user, 'invoice', 'view'):
-            todo['inv'] = uninvoiced(cls, today)
-            todo['dp'] = waiting_dp(cls, today)
-    if can(user, 'invoice', 'view'):
-        out['unpaid'] = unpaid_kpi(clients, today, month)
-        rec = receivables(clients, today)
-        todo['due'] = {'count': rec['past_count'], 'total': rec['past_due'], 'clients': rec['past_clients'],
-                       'rows': past_due_rows(rec)}
-    out['todo'] = todo
-    if can(user, 'statements', 'view') and branches:
-        end = min(today, month + relativedelta(months=1, days=-1))
-        received = (scope(PaymentRecord.objects.filter(status=PaymentRecord.STATUS_CONFIRMED,
-                                                       payment_date__gte=month, payment_date__lte=end), user, codes=codes)
-                    .aggregate(t=Sum('amount_sar'))['t'] or 0)
-        pend = scope(PaymentRecord.objects.filter(status=PaymentRecord.STATUS_PENDING), user, codes=codes)
-        oldest = pend.aggregate(d=Min('created_at'))['d']
-        profits = [branch_profit(b, month, today) for b in branches]
-        out['money'] = {
-            'balance': balances(codes),
-            'ar': rec['total'] if rec else None, 'ar_past': rec['past_due'] if rec else None,
-            'received': received, 'pending': pend.count(), 'pending_oldest': _days(oldest, today) if oldest else None,
-            'not_sent': not_sent(branches)['idr'],
-            'profit': None if any(p['profit'] is None for p in profits) else sum(p['profit'] for p in profits),
-        }
-    return out
-
-
-def finance(user, today, month):
-    codes = view_codes(user)
-    branches = ops_branches(codes)
-    clients = scope(Client.objects.all(), user, codes=codes)
-    out = {'cues': _finance_cues(user, codes, clients, today, branches)}
-    if can(user, 'invoice', 'view'):
-        out['overdue'] = overdue_to_chase(receivables(clients, today))
-    if can(user, 'statements', 'view'):
-        out['flow'] = money_flow(branches, today, month)
-        out['balance'] = balances(codes)
-        out['profits'] = [branch_profit(b, month, today) for b in branches]
-    return out
-
-
-def admin(user, today, month):
-    codes = view_codes(user)
-    branches = ops_branches(codes)
-    cls = scope(ConfirmationLetter.objects.all(), user, codes=codes)
-    clients = scope(Client.objects.all(), user, codes=codes)
-    rec = receivables(clients, today)
-    out = {
-        'ops': {
-            'expenses': expenses_to_approve(user, codes, today),
-            'tentative': tentative_soon(cls, today),
-            'uninvoiced': uninvoiced(cls, today),
-        },
-        'cues': _finance_cues(user, codes, clients, today, branches),
-        'checkins': checkins_week(cls, today),
-        'overdue': overdue_to_chase(rec),
-        'bookings': booking_kpis(cls, month),
-        'collection': collection_rate(scope(Invoice.objects.exclude(status=Invoice.STATUS_VOID), user, codes=codes), month),
-        'balance': balances(codes),
-        'system': system_items(today),
-    }
-    nxt = month + relativedelta(months=1)
-    profits = {p['branch']: p for p in (branch_profit(b, month, today) for b in branches)}
-    sent = {r['branch']: r['idr'] for r in not_sent(branches)['rows']}
-    per_client_branch = dict(clients.values_list('pk', 'owner_branch_id'))
-    by_branch = []
-    for b in branches:
-        mine = [c for c in rec['clients'] if per_client_branch.get(c['client_id']) == b.code]
-        by_branch.append({
-            'code': b.code, 'name': b.name,
-            'cl': _live_cls(cls).filter(client__owner_branch=b.code, check_in__gte=month, check_in__lt=nxt).count(),
-            'receivable': sum(c['total'] for c in mine),
-            'overdue': sum(i['amount'] for c in mine for i in c['invoices'] if i['days_overdue'] > 0),
-            'not_sent': sent.get(b.code, 0), 'profit': profits[b.code]['profit'],
-            'fx': profits[b.code]['fx'], 'expenses': profits[b.code]['expenses'],
-        })
-    out['branches'] = by_branch
-    return out
-
-
-BUILDERS = {'manager': manager, 'finance': finance, 'admin': admin}
 
 
 # ── Home (Manager dashboard, HMS Dashboard canvas "ManagerHomlu") ───────
