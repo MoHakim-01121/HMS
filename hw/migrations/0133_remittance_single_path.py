@@ -34,7 +34,22 @@ def map_legacy(apps, schema_editor):
         or Account.objects.filter(branch_id='pusat', currency='SAR', is_active=True).order_by('id').first()
     )
     problems = []
-    reversed_ids = JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
+
+    def invoice_line_of(line):
+        """Baris invoice hotel tujuan alokasi; None (dan dicatat) bila bermasalah."""
+        if not line.amount_sar:
+            problems.append(f'alokasi {line.pk} ({line.linked_number}): nominal 0')
+        candidates = InvoiceLine.objects.filter(
+            kind='hotel', confirmation_letter__confirmation_number=line.linked_number,
+        )
+        if line.invoice_id:
+            candidates = candidates.filter(invoice_id=line.invoice_id)
+        target = candidates.filter(voided_at__isnull=True).first() or candidates.order_by('-voided_at').first()
+        if target is None:
+            problems.append(f'alokasi {line.pk} ({line.linked_number}): tidak ada baris invoice reservasinya')
+        return target if line.amount_sar else None
+
+    reversed_ids =JournalEntry.objects.filter(reverses__isnull=False).values_list('reverses_id', flat=True)
     legacy_receive = set(
         JournalLine.objects.filter(
             journal_entry__reference_type='Remittance', journal_entry__is_reversal=False,
@@ -64,21 +79,28 @@ def map_legacy(apps, schema_editor):
         if loose.exists():
             if len(settlements) == 1:
                 loose.update(settlement_id=settlements[0].pk)
+            elif not settlements and rem.status == 'pending':
+                # Belum diterima Pusat: alokasi kini milik penerimaan, jadi
+                # rinciannya disimpan di catatan untuk diisi saat diterima.
+                # Diperiksa dulu seperti baris lain, karena barisnya dihapus.
+                if not all([invoice_line_of(ln) for ln in loose.order_by('pk')]):
+                    continue
+                rows = ', '.join(
+                    f"{ln.linked_number} {f'{ln.amount_sar:,}'.replace(',', '.')} SAR" for ln in loose.order_by('pk')
+                )
+                Remittance.objects.filter(pk=rem.pk).update(
+                    note='\n'.join(x for x in (rem.note, f'Alokasi saat diterima: {rows}') if x))
+                loose.delete()
             else:
                 problems.append(f'{rem.remittance_number}: baris alokasi tanpa penerimaan yang jelas')
 
     for line in Line.objects.order_by('pk'):
-        candidates = InvoiceLine.objects.filter(
-            kind='hotel', confirmation_letter__confirmation_number=line.linked_number,
-        )
-        if line.invoice_id:
-            candidates = candidates.filter(invoice_id=line.invoice_id)
-        target = candidates.filter(voided_at__isnull=True).first() or candidates.order_by('-voided_at').first()
-        if target is None:
-            problems.append(f'alokasi {line.pk} ({line.linked_number}): tidak ada baris invoice reservasinya')
-            continue
-        Line.objects.filter(pk=line.pk).update(invoice_line_id=target.pk)
+        target = invoice_line_of(line)
+        if target is not None:
+            Line.objects.filter(pk=line.pk).update(invoice_line_id=target.pk)
 
+    # Baris pending yang gagal diperiksa tetap ada dan diperiksa lagi di atas.
+    problems = list(dict.fromkeys(problems))
     if problems:
         raise RuntimeError(
             'Setoran berikut perlu dibereskan dulu: ' + '; '.join(problems[:40])
