@@ -155,6 +155,17 @@
   --booking-tentative: oklch(0.87 0.15 95);
   --booking-tentative-hover: oklch(0.83 0.16 93);
   --tentative-text: oklch(0.50 0.11 90);
+  /* Calendar stays by where they stand today: a tint, the edge on its left and
+     the ink on it. In-house green, arriving blue, checked out grey. --cal-tile
+  --stay-house: #E4EEDB;
+  --stay-house-edge: #4F7A35;
+  --stay-house-ink: #2C4620;
+  --stay-soon: #E2EAF4;
+  --stay-soon-edge: #3F6E9E;
+  --stay-soon-ink: #22405E;
+  --stay-over: #EFEFEA;
+  --stay-over-edge: #C3C4B8;
+  --cal-tile: #F7F8F3;
   /* Profile: the activity log's day band, the backdrop behind a photo being cropped. */
   --day-band: oklch(0.975 0.007 75);
   --photo-backdrop: #d5dde3;
@@ -243,6 +254,15 @@
   --success-tint: #13321F;
   --on-warning: #191919;
   --tentative-text: oklch(0.86 0.13 95);
+  --stay-house: #22311D;
+  --stay-house-edge: #8DBA6A;
+  --stay-house-ink: #D3E6C3;
+  --stay-soon: #1D2834;
+  --stay-soon-edge: #7EA6D1;
+  --stay-soon-ink: #CADCEF;
+  --stay-over: #22251F;
+  --stay-over-edge: #4A4E44;
+  --cal-tile: #1E221A;
   --day-band: oklch(0.215 0.007 75);
   --warning-text: #FFB86B;
   --warning-tint: #3A2712;
@@ -339,6 +359,15 @@
   --color-booking-tentative: var(--booking-tentative);
   --color-booking-tentative-hover: var(--booking-tentative-hover);
   --color-tentative-text: var(--tentative-text);
+  --color-stay-house: var(--stay-house);
+  --color-stay-house-edge: var(--stay-house-edge);
+  --color-stay-house-ink: var(--stay-house-ink);
+  --color-stay-soon: var(--stay-soon);
+  --color-stay-soon-edge: var(--stay-soon-edge);
+  --color-stay-soon-ink: var(--stay-soon-ink);
+  --color-stay-over: var(--stay-over);
+  --color-stay-over-edge: var(--stay-over-edge);
+  --color-cal-tile: var(--cal-tile);
   --color-day-band: var(--day-band);
   --color-photo-backdrop: var(--photo-backdrop);
   --color-warning-text: var(--warning-text);
