@@ -3,14 +3,18 @@ import SearchBox from "../../components/shadcn/search-box.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
+import { TableCard, Tr, Th, Td, Empty, Primary } from "../../components/shadcn/list-a.jsx";
+import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 import { cn } from "@/lib/utils";
 
 // Tab Tracking: uang klien di Surabaya yang belum dialokasikan, per reservasi,
-// dikelompokkan menurut dekatnya check-in. Angka ringkasan membentuk hitungan
-// yang bisa dicek (kolom 1 − kolom 2 − kolom 3 = kolom 4). Data dari
-// _compute_tracking_data (hw/views/remittance_views.py).
+// dalam satu tabel yang dikelompokkan menurut dekatnya check-in. Angka
+// ringkasan membentuk hitungan yang bisa dicek (kolom 1 − kolom 2 − kolom 3 =
+// kolom 4). Reservasi yang dicentang menjadi rencana transfer baru
+// (RemittancePlanLine). Data dari _compute_tracking_data
+// (hw/views/remittance_views.py).
 const BUCKETS = [
   { key: "past", label: "Check-in passed" },
   { key: "week", label: "Next 7 days" },
@@ -23,49 +27,75 @@ const COLS = { 4: "grid-cols-4", 5: "grid-cols-5" };
 const AMT = "ml-auto font-medium tabular-nums";
 const DOT = "absolute top-[5px] -left-4 size-2 rounded-full border-[1.5px] border-muted-foreground";
 
-function Row({ row, open, onToggle, t }) {
+const TABLE_COLS = [52, null, 120, 120, 170, 130, 44];
+
+function Row({ row, open, onToggle, checked, onCheck, canPlan, t }) {
   const partial = row.paid_sar < row.total_sar;
+  const planned = row.planned.reduce((sum, p) => sum + p.amount_sar, 0);
   return (
-    <li className="border-border not-first:border-t">
-      <button type="button" aria-expanded={open} onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 py-3 text-left [font:inherit] text-inherit hover:bg-[color:color-mix(in_oklch,var(--muted)_45%,transparent)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring">
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-[13px] font-medium"><span className="mr-2 font-mono text-[12px] font-bold">{row.linked_number}</span>{row.client_name}</span>
-          <span className="truncate text-[12px] text-muted-foreground">
-            {[row.hotel, row.check_in ? t("in {date}", { date: row.check_in }) : null].filter(Boolean).join(" · ")}
-            {partial ? ` · ${t("paid {paid} of {total}", { paid: fmt(row.paid_sar), total: fmt(row.total_sar) })}` : ""}
-          </span>
-        </span>
-        <span className={cn("flex-none text-[14px] font-semibold tabular-nums", row.unallocated <= 0 && "font-medium text-muted-foreground")}>{fmt(row.unallocated)}</span>
-        <Icon name="chevron" size={14} className={cn("flex-none text-muted-foreground transition-[rotate] duration-150", open && "rotate-180")} />
-      </button>
-      {open && (
-        <ol className="m-0 flex list-none flex-col gap-2 pt-0.5 pr-4 pb-3.5 pl-9 [&>li]:relative [&>li]:flex [&>li]:items-baseline [&>li]:gap-2 [&>li]:text-[13px]">
-          <li><span className={cn(DOT, "border-foreground bg-foreground")} />{t("Paid by client")}<span className={AMT}>{fmt(row.paid_sar)}</span></li>
-          {row.history.map((h, i) => (
-            <li key={`${h.rmt_id}-${i}`}>
-              <span className={cn(DOT, "border-foreground bg-foreground")} />
-              {h.kind === "receipt" ? t("Received at HQ {date}", { date: h.date }) : t("Sent {date}", { date: h.date })}
-              <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
-              <span className={AMT}>{fmt(h.amount_sar)}</span>
-            </li>
-          ))}
-          {row.unallocated > 0 && (
-            <li className="text-muted-foreground"><span className={DOT} />{t("Not allocated yet")}<span className={AMT}>{fmt(row.unallocated)}</span></li>
+    <>
+      <Tr aria-expanded={open} onClick={onToggle} row={checked ? "on" : undefined}>
+        <Td onClick={(e) => e.stopPropagation()}>
+          {canPlan && row.to_send > 0 && (
+            <Checkbox checked={checked} onCheckedChange={onCheck} aria-label={t("Plan {number}", { number: row.linked_number })} />
           )}
-        </ol>
+        </Td>
+        <Td className="truncate">
+          <span className="mr-2 font-mono text-[12px] font-bold">{row.linked_number}</span>{row.client_name}
+          <span className="mt-0.5 block truncate text-[12px] font-normal text-muted-foreground">{row.hotel}</span>
+        </Td>
+        <Td>{row.check_in || "—"}</Td>
+        <Td className="text-right">
+          {fmt(row.paid_sar)}
+          {partial && <span className="mt-0.5 block text-[12px] font-normal text-muted-foreground">{t("of {total}", { total: fmt(row.total_sar) })}</span>}
+        </Td>
+        <Td className="text-right">
+          {planned ? fmt(planned) : <span className="text-muted-foreground">—</span>}
+          {row.planned.length > 0 && <span className="mt-0.5 block truncate font-mono text-[11px] font-normal text-muted-foreground">{row.planned.map((p) => p.rmt_number).join(", ")}</span>}
+        </Td>
+        <Td className={cn("text-right font-semibold", row.to_send <= 0 && "font-medium text-muted-foreground")}>{fmt(row.to_send)}</Td>
+        <Td><Icon name="chevron" size={14} className={cn("text-muted-foreground transition-[rotate] duration-150", open && "rotate-180")} /></Td>
+      </Tr>
+      {open && (
+        <Tr row="static">
+          <Td colSpan={TABLE_COLS.length} className="whitespace-normal">
+            <ol className="m-0 flex max-w-[560px] list-none flex-col gap-2 py-1 pl-[52px] [&>li]:relative [&>li]:flex [&>li]:items-baseline [&>li]:gap-2 [&>li]:text-[13px]">
+              <li><span className={cn(DOT, "border-foreground bg-foreground")} />{t("Paid by client")}<span className={AMT}>{fmt(row.paid_sar)}</span></li>
+              {row.history.map((h, i) => (
+                <li key={`${h.rmt_id}-${i}`}>
+                  <span className={cn(DOT, "border-foreground bg-foreground")} />
+                  {h.kind === "receipt" ? t("Received at HQ {date}", { date: h.date }) : t("Sent {date}", { date: h.date })}
+                  <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
+                  <span className={AMT}>{fmt(h.amount_sar)}</span>
+                </li>
+              ))}
+              {row.planned.map((p) => (
+                <li key={`plan-${p.rmt_id}`} className="text-muted-foreground">
+                  <span className={DOT} />
+                  {t("Planned, not received yet")}
+                  <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${p.rmt_id}/`}>{p.rmt_number}</a>
+                  <span className={AMT}>{fmt(p.amount_sar)}</span>
+                </li>
+              ))}
+              {row.to_send > 0 && (
+                <li className="text-muted-foreground"><span className={DOT} />{t("Still to send")}<span className={AMT}>{fmt(row.to_send)}</span></li>
+              )}
+            </ol>
+          </Td>
+        </Tr>
       )}
-    </li>
+    </>
   );
 }
 
-export default function TrackingPanel({ tracking }) {
+export default function TrackingPanel({ tracking, canPlan }) {
   const { t } = useI18n();
   const openForm = useFormModal();
   const perms = usePerms();
   const [query, setQuery] = useState("");
   const [client, setClient] = useState("");
   const [openKey, setOpenKey] = useState(null);
+  const [picked, setPicked] = useState(() => new Set());
 
   const { summary, pending_allocations: pending = [], reservations = [] } = tracking || {};
   const clients = useMemo(() => [...new Set(reservations.map((r) => r.client_name))].sort(), [reservations]);
@@ -90,6 +120,20 @@ export default function TrackingPanel({ tracking }) {
     ...(summary.fee ? [{ op: "−", label: t("Fee/difference"), value: summary.fee }] : []),
     { op: "=", label: t("Still in Surabaya"), value: summary.still_sby, strong: true },
   ];
+  const selectable = visible.filter((r) => r.to_send > 0);
+  const chosen = reservations.filter((r) => picked.has(r.invoice_line_id) && r.to_send > 0);
+  const chosenSar = chosen.reduce((sum, r) => sum + r.to_send, 0);
+  const setMany = (rows, on) => setPicked((prev) => {
+    const next = new Set(prev);
+    rows.forEach((r) => (on ? next.add(r.invoice_line_id) : next.delete(r.invoice_line_id)));
+    return next;
+  });
+  const stateOf = (rows) => {
+    const n = rows.filter((r) => picked.has(r.invoice_line_id)).length;
+    return n === 0 ? false : n === rows.length ? true : "indeterminate";
+  };
+  const planUrl = `/remittance/new/?plan=${chosen.map((r) => `${r.invoice_line_id}:${r.to_send}`).join(",")}`;
+
   const allocationUrl = (p) => `/remittance/${p.remittance_id}/receipt/${p.settlement_id}/allocation/?next=${encodeURIComponent("/remittance/?tab=tracking")}`;
 
   return (
@@ -127,30 +171,60 @@ export default function TrackingPanel({ tracking }) {
             {clients.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
+        {canPlan && chosen.length > 0 && (
+          <div className="ml-auto flex items-center gap-3 max-[600px]:ml-0 max-[600px]:w-full max-[600px]:justify-between">
+            <span className="text-[13px] text-muted-foreground tabular-nums">{t("{n} chosen · {sar} SAR", { n: chosen.length, sar: fmt(chosenSar) })}</span>
+            <Primary label={t("Create remittance")} onClick={() => openForm(planUrl)} />
+          </div>
+        )}
       </div>
 
-      {visible.length ? BUCKETS.map((b) => {
-        const rows = visible.filter((r) => r.bucket === b.key);
-        if (!rows.length) return null;
-        return (
-          <section key={b.key} className="mt-[18px]" aria-labelledby={`tq-${b.key}`}>
-            <h3 id={`tq-${b.key}`} className="mx-1 mt-0 mb-2 flex justify-between gap-3 text-[11px] font-semibold tracking-[.07em] text-muted-foreground uppercase">
-              <span>{t(b.label)} · {rows.length}</span>
-              <span className="tracking-normal text-foreground tabular-nums">{fmt(rows.reduce((sum, r) => sum + r.unallocated, 0))}</span>
-            </h3>
-            <ul className="m-0 list-none overflow-hidden rounded-2xl border border-border bg-card p-0">
-              {rows.map((row) => {
+      <TableCard cols={TABLE_COLS} empty={visible.length ? null : (
+        <Empty title={query || client ? t("No matching reservation.") : t("All client money has been allocated.")} />
+      )}>
+        <thead>
+          <tr>
+            <Th>
+              {canPlan && selectable.length > 0 && (
+                <Checkbox checked={stateOf(selectable)} onCheckedChange={(v) => setMany(selectable, v === true)} aria-label={t("Choose all")} />
+              )}
+            </Th>
+            <Th>{t("Reservation")}</Th>
+            <Th>{t("Check-in")}</Th>
+            <Th className="text-right">{t("Paid by client")}</Th>
+            <Th className="text-right">{t("Planned")}</Th>
+            <Th className="text-right">{t("Still to send")}</Th>
+            <Th />
+          </tr>
+        </thead>
+        <tbody>
+          {BUCKETS.map((b) => {
+            const rows = visible.filter((r) => r.bucket === b.key);
+            if (!rows.length) return null;
+            const open = rows.filter((r) => r.to_send > 0);
+            return [
+              <Tr key={b.key} row="band">
+                <Td>
+                  {canPlan && open.length > 0 && (
+                    <Checkbox checked={stateOf(open)} onCheckedChange={(v) => setMany(open, v === true)} aria-label={t("Choose {group}", { group: t(b.label) })} />
+                  )}
+                </Td>
+                <Td colSpan={4}>{t(b.label)} <span className="ml-1 font-normal text-muted-foreground">{rows.length}</span></Td>
+                <Td className="text-right">{fmt(rows.reduce((sum, r) => sum + r.to_send, 0))}</Td>
+                <Td />
+              </Tr>,
+              ...rows.map((row) => {
                 const key = `${row.linked_number}|${row.invoice_id}`;
-                return <Row key={key} row={row} t={t} open={openKey === key} onToggle={() => setOpenKey(openKey === key ? null : key)} />;
-              })}
-            </ul>
-          </section>
-        );
-      }) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-border p-7 text-center text-[13px] text-muted-foreground">
-          {query || client ? t("No matching reservation.") : t("All client money has been allocated.")}
-        </div>
-      )}
+                return (
+                  <Row key={key} row={row} t={t} canPlan={canPlan}
+                    open={openKey === key} onToggle={() => setOpenKey(openKey === key ? null : key)}
+                    checked={picked.has(row.invoice_line_id)} onCheck={(v) => setMany([row], v === true)} />
+                );
+              }),
+            ];
+          })}
+        </tbody>
+      </TableCard>
     </div>
   );
 }

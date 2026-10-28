@@ -39,7 +39,7 @@ from .penalty import CancellationPenalty
 from .period import FinancialPeriod, Season
 from .receipt import Receipt
 from .reconciliation import BankStatement, BankStatementLine
-from .remittance import Remittance, RemittanceLine
+from .remittance import Remittance, RemittanceLine, RemittancePlanLine
 from .role import RoleDefinition
 from .sequence import DocumentSequence
 from .settlement import RemittanceSettlement
@@ -61,7 +61,7 @@ __all__ = [
     # Invoice
     'Invoice', 'InvoiceLine', 'InvoiceRevision', 'Reservation', 'Attachment', '_attachment_path',
     # Remittance
-    'Remittance', 'RemittanceLine',
+    'Remittance', 'RemittanceLine', 'RemittancePlanLine',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
     'MoneyAccount', 'BankAccount', 'CashAccount', 'StaffAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)

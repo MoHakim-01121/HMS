@@ -40,7 +40,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
   if (tab !== "transfers") {
     return (
       <ListPage title={t("Remittance")} legend={views}>
-        {tab === "tracking" && <TrackingPanel tracking={tracking} />}
+        {tab === "tracking" && <TrackingPanel tracking={tracking} canPlan={perms.can("remittance", "create") && sees_figures} />}
         {tab === "recap" && <RecapPanel monthly={monthly} t={t} />}
       </ListPage>
     );

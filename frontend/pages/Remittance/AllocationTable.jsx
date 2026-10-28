@@ -4,12 +4,12 @@ import { cn } from "@/lib/utils";
 
 // Below 700px the table folds into cards: reservation and amount on one line,
 // client and check-in under it, the allocation input across the bottom.
-const TH = "border-b border-border px-3 py-2.5 text-left text-[12px] font-medium whitespace-nowrap text-muted-foreground";
-const TD = "border-b border-border px-3 py-2.5 align-middle text-[13px] max-[700px]:border-0 max-[700px]:p-0";
-const NUM = "text-right whitespace-nowrap tabular-nums";
+export const TH = "border-b border-border px-3 py-2.5 text-left text-[12px] font-medium whitespace-nowrap text-muted-foreground";
+export const TD = "border-b border-border px-3 py-2.5 align-middle text-[13px] max-[700px]:border-0 max-[700px]:p-0";
+export const NUM = "text-right whitespace-nowrap tabular-nums";
 // The empty list here, and the note on a transfer that has nothing to allocate.
 export const EMPTY = "m-0 rounded-[14px] border border-dashed border-border p-[18px] text-center text-[13px] text-muted-foreground";
-const SUB = "mt-0.5 block text-[11px] font-normal whitespace-nowrap text-muted-foreground";
+export const SUB = "mt-0.5 block text-[11px] font-normal whitespace-nowrap text-muted-foreground";
 
 
 export const allocKey = (row) => `${row.linked_number}|${row.invoice_id ?? ""}`;

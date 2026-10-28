@@ -190,3 +190,24 @@ class RemittanceLine(models.Model):
     @property
     def linked_number(self):
         return self.invoice_line.reservation_number
+
+
+class RemittancePlanLine(models.Model):
+    """Rencana saat kirim: reservasi yang uangnya ikut transfer ini.
+
+    Bukan alokasi -- tidak dijurnal. Tab Tracking menampilkannya sebagai uang
+    di jalan per reservasi, dan form penerimaan memakainya sebagai isian awal
+    (alokasi tetap ditentukan saat Pusat menerima)."""
+    remittance   = models.ForeignKey('Remittance', on_delete=models.CASCADE, related_name='plan_lines')
+    invoice_line = models.ForeignKey('InvoiceLine', on_delete=models.PROTECT, related_name='+')
+    amount_sar   = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Remittance Plan Line'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount_sar__gt=0), name='remittance_plan_amount_positive'),
+            models.UniqueConstraint(fields=['remittance', 'invoice_line'], name='remittance_plan_unique_line'),
+        ]
+
+    def __str__(self):
+        return f"Plan {self.remittance_id} → {self.amount_sar} SAR"

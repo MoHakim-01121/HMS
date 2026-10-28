@@ -77,11 +77,15 @@ def _receipt_props(remittance, *, settlement=None, next_url='', form=None, error
                 ],
             }
         else:
+            received = max((basis or 0) - settled, 0)
             form = {
-                'received_amount_sar': max((basis or 0) - settled, 0) or '',
+                'received_amount_sar': received or '',
                 'received_date': timezone.localdate().isoformat(),
                 'reference': '',
-                'allocations': None,
+                # Dari rencana saat kirim; None = isian otomatis di browser.
+                'allocations': remittance_allocation.plan_fill(
+                    remittance, rows, min(received, remittance_allocation.remaining_to_allocate(remittance)),
+                ),
             }
     return {
         'rem': {

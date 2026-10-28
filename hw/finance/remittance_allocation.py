@@ -409,3 +409,112 @@ def post_allocation(settlement, validated, *, entry_date, created_by=None):
         source_id=settlement.pk,
         created_by=created_by,
     )
+
+
+# --- Rencana saat kirim (RemittancePlanLine) ------------------------------
+
+def _planned_left(plan_lines, remittance_ids):
+    """{(remittance_id, invoice_line_id): sisa rencana} = rencana − yang sudah
+    dialokasikan ke reservasi itu dari transfer yang sama."""
+    from ..models import RemittanceLine
+    allocated = {
+        (r['settlement__remittance_id'], r['invoice_line_id']): int(r['t'] or 0)
+        for r in RemittanceLine.objects.filter(settlement__remittance_id__in=remittance_ids)
+        .order_by().values('settlement__remittance_id', 'invoice_line_id').annotate(t=Sum('amount_sar'))
+    }
+    out = {}
+    for line in plan_lines:
+        key = (line.remittance_id, line.invoice_line_id)
+        left = int(line.amount_sar) - allocated.get(key, 0)
+        if left > 0:
+            out[key] = left
+    return out
+
+
+def open_plans():
+    """Rencana yang masih berjalan, per baris invoice:
+    {invoice_line_id: [{remittance_id, remittance_number, amount_sar}]}.
+
+    Hanya transfer yang masih punya uang di jalan atau belum dialokasikan;
+    rencana transfer yang sudah tuntas tidak lagi berarti apa-apa."""
+    from ..models import RemittancePlanLine
+    lines = list(RemittancePlanLine.objects.select_related('remittance').order_by('remittance_id', 'pk'))
+    if not lines:
+        return {}
+    rems = {line.remittance_id: line.remittance for line in lines}
+    open_ids = {
+        rem.pk for rem, pos in positions_for(rems.values())
+        if pos and pos['in_transit'] + pos['received_unallocated'] > 0
+    }
+    left = _planned_left([line for line in lines if line.remittance_id in open_ids], open_ids)
+    out = {}
+    for (rid, lid), amount in left.items():
+        out.setdefault(lid, []).append({
+            'remittance_id': rid, 'remittance_number': rems[rid].remittance_number, 'amount_sar': amount,
+        })
+    return out
+
+
+def plannable_rows():
+    """Reservasi yang uangnya masih bisa direncanakan untuk transfer baru:
+    uang klien belum dialokasikan dikurangi yang sudah ada di rencana lain.
+    → {invoice_line_id: row} dengan `plannable` > 0."""
+    plans = open_plans()
+    out = {}
+    for r in build_reservasi_mengendap():
+        planned = sum(p['amount_sar'] for p in plans.get(r['reservation_id'], []))
+        free = max(int(r['mengendap']), 0) - planned
+        if free > 0:
+            out[r['reservation_id']] = {**r, 'plannable': free}
+    return out
+
+
+def validate_plan(items):
+    """Payload rencana [{invoice_line_id, amount_sar}] → [(row, amount)].
+    Per reservasi tidak boleh melebihi uang yang masih bisa direncanakan."""
+    merged = {}
+    for item in items or []:
+        try:
+            line_id = int(item.get('invoice_line_id'))
+            amount = round_half_up(item.get('amount_sar') or 0)
+        except (TypeError, ValueError, ArithmeticError, AttributeError):
+            raise FinanceError('Format rencana tidak valid') from None
+        if amount < 0:
+            raise FinanceError('Nominal rencana tidak boleh negatif')
+        if amount:
+            merged[line_id] = merged.get(line_id, 0) + amount
+    if not merged:
+        return []
+    rows = plannable_rows()
+    out = []
+    for line_id, amount in merged.items():
+        row = rows.get(line_id)
+        if row is None:
+            raise FinanceError('Ada reservasi di rencana yang uangnya sudah tidak menunggu disetor')
+        if amount > row['plannable']:
+            raise FinanceError(
+                f'Rencana {row["linked_number"]} {amount:,} SAR melebihi uang yang menunggu disetor '
+                f'({row["plannable"]:,} SAR)'
+            )
+        out.append((row, amount))
+    return out
+
+
+def plan_fill(remittance, rows, amount):
+    """Isian awal penerimaan dari rencana transfer ini, sampai `amount` habis:
+    [{linked_number, invoice_id, amount_sar}], atau None bila tanpa rencana
+    (atau rencananya sudah habis) -- form lalu memakai isian otomatis."""
+    lines = list(remittance.plan_lines.order_by('pk'))
+    if not lines:
+        return None
+    left = _planned_left(lines, [remittance.pk])
+    by_line = {r['reservation_id']: r for r in rows}
+    budget = max(int(amount or 0), 0)
+    out = []
+    for line in lines:
+        row = by_line.get(line.invoice_line_id)
+        take = min(left.get((remittance.pk, line.invoice_line_id), 0), row['available'] if row else 0, budget)
+        if take > 0:
+            out.append({'linked_number': row['linked_number'], 'invoice_id': row['invoice_id'], 'amount_sar': take})
+            budget -= take
+    return out or None

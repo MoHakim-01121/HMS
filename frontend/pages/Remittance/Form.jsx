@@ -6,13 +6,15 @@ import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDec } from "../../utils/format.js";
 import { fxFigures } from "./FxPanel.jsx";
+import PlanTable from "./PlanTable.jsx";
 
 // Send to HQ, the "Remittance Form" artboard on the Record View HMS canvas: a
 // lump sum of rupiah leaves a branch account at a rate. The book rate (what
 // clients paid in rupiah, on average) beside it gives the FX result before
-// saving. Reservations are not chosen here: they are allocated when HQ records
-// the receipt (Receipt.jsx), once it is clear whose money came first.
-function FormBody({ open_transfers = [], today, error, from_accounts = [], to_accounts = [], fx_pool = null }) {
+// saving. Reservations picked on the Tracking tab come along as a plan; they
+// are allocated when HQ records the receipt (Receipt.jsx), which starts from
+// the plan.
+function FormBody({ plan = [], open_transfers = [], today, error, from_accounts = [], to_accounts = [], fx_pool = null }) {
   const { t } = useI18n();
   const form = useForm({
     date: today || "",
@@ -24,6 +26,7 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
     receipt_reference: "",
     note: "",
     proof: null,
+    plan: plan.map((r) => ({ ...r, amount_sar: String(r.amount_sar) })),
   });
   const d = form.data;
   const set = (k) => (v) => form.setData(k, v);
@@ -34,16 +37,25 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
   const fx = fxFigures({ pool: fx_pool, sentIdr: idr, sar });
   const pending = open_transfers.reduce((sum, r) => sum + r.in_transit + r.received_unallocated, 0);
   const from = from_accounts.find((a) => a.value === d.from_bank_account);
+  const planSar = d.plan.reduce((sum, r) => sum + (Number(r.amount_sar) || 0), 0);
+  const planBad = d.plan.some((r) => !(Number(r.amount_sar) > 0) || Number(r.amount_sar) > r.plannable);
+  const setPlan = (id, v) => form.setData("plan", d.plan.map((r) => (r.invoice_line_id === id ? { ...r, amount_sar: v.replace(/\D/g, "") } : r)));
+  const dropPlan = (id) => form.setData("plan", d.plan.filter((r) => r.invoice_line_id !== id));
 
   const why = !d.from_bank_account ? t("Choose the account the money left.")
     : !d.to_account ? t("Add an HQ SAR account in Bank Balances first.")
       : !idr ? t("Enter the amount sent.")
         : !rate ? t("Enter the exchange rate.")
-          : "";
+          : planBad ? t("Check the planned amounts.")
+            : "";
 
   const submit = (e) => {
     e.preventDefault();
     if (why) return;
+    form.transform((data) => ({
+      ...data,
+      plan: JSON.stringify(data.plan.map((r) => ({ invoice_line_id: r.invoice_line_id, amount_sar: Number(r.amount_sar) || 0 }))),
+    }));
     form.post("/remittance/new/", { forceFormData: true });
   };
 
@@ -106,6 +118,26 @@ function FormBody({ open_transfers = [], today, error, from_accounts = [], to_ac
         <div className={cn(FA.alert, "text-warning-text")} role="status">
           {t("{n} SAR of this transfer has no client rupiah behind it, so no original rate.", { n: fmt(fx.uncovered) })}
         </div>
+      ) : null}
+
+      {d.plan.length ? (
+        <>
+          <div className={FA.sectionHead}>
+            <span className={FA.caption}>{t("Planned reservations")}</span>
+            {rate > 0 && (
+              <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-[13px] font-semibold text-foreground hover:underline"
+                onClick={() => form.setData("amount_idr", String(Math.round(planSar * rate)))}>
+                {t("Use {n} IDR as amount", { n: fmt(Math.round(planSar * rate)) })}
+              </button>
+            )}
+          </div>
+          <PlanTable rows={d.plan} onChange={setPlan} onRemove={dropPlan} />
+          {sar && sar !== planSar ? (
+            <div className={cn(FA.alert, "text-muted-foreground")} role="status">
+              {t("This transfer is {sar} SAR and the plan {plan} SAR. HQ allocates what arrives when it records the receipt.", { sar: fmt(sar), plan: fmt(planSar) })}
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       <NoteField label={t("Transfer proof")} optional>

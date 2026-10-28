@@ -17,7 +17,7 @@ from ..branch_scope import get_in_scope_or_404, in_scope, scope
 from ..finance import fund_flow, posting, remittance_allocation
 from ..finance_helpers import FinanceError
 from ..i18n import tr
-from ..models import Remittance, RemittanceLine
+from ..models import Remittance, RemittanceLine, RemittancePlanLine
 from ..permissions import require_perm
 from .helpers import csv_export_response, pagination_props, validate_proof_file
 from .helpers import period_label as _period_label
@@ -57,6 +57,60 @@ def _parse_transfer_fields(request):
         exchange_rate if exchange_rate else None,
         int(received) if received else None,
     )
+
+
+def _plan_from_query(raw):
+    """`?plan=12:1500,14:800` dari tab Tracking → [{invoice_line_id, amount_sar}]."""
+    items = []
+    for part in (raw or '').split(','):
+        line_id, _, amount = part.partition(':')
+        if line_id.strip().isdigit() and amount.strip().isdigit():
+            items.append({'invoice_line_id': int(line_id), 'amount_sar': int(amount)})
+    return items
+
+
+def _plan_from_post(raw):
+    import json
+    try:
+        items = json.loads(raw) if raw else []
+    except ValueError:
+        raise FinanceError('Format rencana tidak valid') from None
+    if not isinstance(items, list):
+        raise FinanceError('Format rencana tidak valid')
+    return items
+
+
+def _plan_props(items, *, strict):
+    """Baris rencana untuk form. Dari Tracking (`strict=False`) nominal dipangkas
+    ke yang masih bisa direncanakan; saat simpan gagal, apa adanya."""
+    from ..models import Invoice
+    rows = remittance_allocation.plannable_rows()
+    # Nama klien seperti di tab Tracking, bukan nama customer di invoice.
+    client_names = dict(
+        Invoice.objects.filter(pk__in={r['invoice_id'] for r in rows.values() if r['invoice_id']})
+        .values_list('pk', 'client__name')
+    )
+    out = []
+    for item in items:
+        try:
+            line_id, amount = int(item['invoice_line_id']), int(item['amount_sar'])
+        except (KeyError, TypeError, ValueError):
+            continue
+        row = rows.get(line_id)
+        if row is None:
+            continue
+        if not strict:
+            amount = min(amount, row['plannable'])
+        out.append({
+            'invoice_line_id': line_id,
+            'linked_number': row['linked_number'],
+            'client_name': client_names.get(row['invoice_id']) or row['customer_name'] or '',
+            'hotel': row['hotel'] or '',
+            'check_in': row['check_in'].strftime('%d/%m/%Y') if row['check_in'] else None,
+            'amount_sar': amount,
+            'plannable': row['plannable'],
+        })
+    return out
 
 
 def _prev_sent_map(rem, linked_numbers):
@@ -263,8 +317,12 @@ def remittance_new(request):
         .exclude(kind=MoneyAccount.KIND_STAFF).order_by('kind', 'bank_name', 'name')
     )
 
-    def form_page(error=None):
+    def form_page(error=None, plan=None):
+        if plan is None:
+            plan = _plan_props(_plan_from_query(request.GET.get('plan')), strict=False)
         return inertia_render(request, "Remittance/Form", props={
+            # Reservasi yang dipilih di tab Tracking untuk transfer ini.
+            'plan': plan,
             'open_transfers': remittance_allocation.open_transfers(),
             'error': error,
             'today': str(timezone.localdate()),
@@ -282,6 +340,15 @@ def remittance_new(request):
     if request.method != 'POST':
         return form_page()
 
+    try:
+        plan_items = _plan_from_post(request.POST.get('plan'))
+    except FinanceError as e:
+        return form_page(str(e), plan=[])
+    posted_plan = _plan_props(plan_items, strict=True)
+
+    def form_page_with_plan(error):
+        return form_page(error, plan=posted_plan)
+
     remittance_date = request.POST.get('date') or str(timezone.localdate())
     receipt_reference = request.POST.get('receipt_reference', '').strip()
     note = request.POST.get('note', '').strip()
@@ -289,7 +356,7 @@ def remittance_new(request):
     if proof:
         proof_error = validate_proof_file(proof)
         if proof_error:
-            return form_page(proof_error)
+            return form_page_with_plan(proof_error)
 
     # `received_amount_sar` (jalur lama) sengaja diabaikan di sini sejak
     # 2026-09-14 -- HQ belum tentu sudah menerima apa pun saat remittance
@@ -301,15 +368,15 @@ def remittance_new(request):
     # fakta sisi KIRIM (uang keluar bank cabang), bukan sisi terima.
     amount_idr, exchange_rate, _legacy_received_sar_ignored = _parse_transfer_fields(request)
     if not amount_idr or not exchange_rate:
-        return form_page('Enter the IDR amount and exchange rate.')
+        return form_page_with_plan('Enter the IDR amount and exchange rate.')
     from_account = next((a for a in from_accounts if str(a.pk) == request.POST.get('from_bank_account')), None)
     if from_account is None:
-        return form_page('Choose the IDR bank account the money left from.'
+        return form_page_with_plan('Choose the IDR bank account the money left from.'
                          if from_accounts else 'Add an IDR bank account in Bank Balances first.')
 
     to_account = next((a for a in to_accounts if str(a.pk) == request.POST.get('to_account')), None) or hq_default
     if to_account is None:
-        return form_page('Add an HQ SAR account in Bank Balances first.')
+        return form_page_with_plan('Add an HQ SAR account in Bank Balances first.')
     # The transfer, its cash book row (the rupiah that left the branch account)
     # and its send journal (SBY -> Transit, not yet any reservation's money)
     # are one fact: when the account does not hold the rupiah or the period is
@@ -318,9 +385,10 @@ def remittance_new(request):
     try:
         remittance_date = date.fromisoformat(remittance_date)
     except ValueError:
-        return form_page('Tanggal transfer tidak valid.')
+        return form_page_with_plan('Tanggal transfer tidak valid.')
     try:
         with transaction.atomic():
+            plan = remittance_allocation.validate_plan(plan_items)
             rem = Remittance.objects.create(
                 remittance_number=Remittance.generate_number(),
                 date=remittance_date,
@@ -339,9 +407,13 @@ def remittance_new(request):
             if proof:
                 rem.proof = proof
                 rem.save()
+            RemittancePlanLine.objects.bulk_create([
+                RemittancePlanLine(remittance=rem, invoice_line_id=row['reservation_id'], amount_sar=amount)
+                for row, amount in plan
+            ])
             posting.resync_remittance(rem, created_by=request.user)
     except FinanceError as e:
-        return form_page(f'Tidak tersimpan: {e}')
+        return form_page_with_plan(f'Tidak tersimpan: {e}')
 
     return redirect('remittance_detail', pk=rem.pk)
 
@@ -739,6 +811,8 @@ def _compute_tracking_data():
         .values_list('pk', 'client__name')
     )
 
+    plans = remittance_allocation.open_plans()
+
     reservations = []
     client_unallocated = 0
     for r in rows:
@@ -747,7 +821,14 @@ def _compute_tracking_data():
         if not unallocated and not events and not r['terbayar_total']:
             continue
         client_unallocated += unallocated
+        planned = plans.get(r['reservation_id'], [])
+        planned_sar = min(sum(p['amount_sar'] for p in planned), unallocated)
         reservations.append({
+            'invoice_line_id': r['reservation_id'],
+            # Sudah ikut rencana transfer yang belum tuntas; sisanya perlu disetor.
+            'planned': [{'rmt_id': p['remittance_id'], 'rmt_number': p['remittance_number'], 'amount_sar': p['amount_sar']}
+                        for p in planned],
+            'to_send': unallocated - planned_sar,
             'linked_number': r['linked_number'],
             'invoice_id': r['invoice_id'],
             'invoice_number': r['invoice_number'],
