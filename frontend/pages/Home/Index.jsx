@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { Link, router, usePage } from "@inertiajs/react";
-import { LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty } from "../../components/shadcn/list-a.jsx";
+import { LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLabel, NavButton, MenuButton, Menu, MenuItem, MenuSep, MenuHint, Kpi, Empty, usePhone } from "../../components/shadcn/list-a.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import {
@@ -84,12 +84,22 @@ function ManagerHome(props) {
   const admin = variant === "admin";
   // Nobody locked or idle: no card, rather than a card-sized empty state.
   const access = admin && people && (people.locked.length || people.idle.length) ? people : null;
+  const phone = usePhone();
+  const work = (todo.length > 0 || checkins) && (
+    <DashGrid g={todo.length && checkins ? "2b" : "2b-one"}>
+      {todo.length > 0 && <Todo items={todo} count={todoCount} />}
+      {checkins && <Checkins data={checkins} />}
+    </DashGrid>
+  );
 
   return (
     <>
         <Head todo={todo} period={period} seasons={seasons} today={props.today} onGo={props.onGo} />
 
         {sales && <KpiRow period={period} sales={sales} profit={profit} sm={sm} isSeason={isSeason} kind={admin ? "admin" : "manager"} receivable={receivable} />}
+
+        {/* Phones put today's work right under the figures, before the charts. */}
+        {phone && work}
 
         {(sm || col) && (
           <DashGrid g={sm && col ? "2" : "2-one"}>
@@ -98,12 +108,7 @@ function ManagerHome(props) {
           </DashGrid>
         )}
 
-        {(todo.length > 0 || checkins) && (
-          <DashGrid g={todo.length && checkins ? "2b" : "2b-one"}>
-            {todo.length > 0 && <Todo items={todo} count={todoCount} />}
-            {checkins && <Checkins data={checkins} />}
-          </DashGrid>
-        )}
+        {!phone && work}
 
         {branches?.length > 0 && <ByBranch rows={branches} period={period} />}
 

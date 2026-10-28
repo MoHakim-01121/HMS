@@ -70,24 +70,32 @@ const KPI_GRIDS = {
   flat4: "grid-cols-[repeat(4,minmax(0,1fr))]",
 };
 
+// Phones (not staff): the accent card on its own row, the KPI cards under it
+// swiping sideways like a list page's (canvas "HMS Mobile v2", Home).
 export function DashKpis({ hero, staff, className, children }) {
   const n = Array.isArray(children) ? children.length : children ? 1 : 0;
   const cols = KPI_GRIDS[`${hero ? "hero" : "flat"}${n}`] || KPI_GRIDS.flat4;
+  const swipe = !staff;
   return (
-    <div className={cn(
-      "grid gap-3",
-      cols,
-      "[:where(&)_[data-slot=kpi]]:min-w-0",
-      "max-[1180px]:grid-cols-2",
-      "max-[600px]:grid-cols-1",
-      hero && "max-[1180px]:[:where(&)>:first-child]:col-span-full",
-      staff && "max-[600px]:contents max-[600px]:[:where(&)_[data-slot=kpi]]:order-3",
-      hero && staff && "max-[600px]:[:where(&)>:first-child]:order-1",
-      className,
-    )}>
-      {hero}
-      {children}
-    </div>
+    <>
+      {swipe && hero && <div className="hidden max-[600px]:flex max-[600px]:flex-col">{hero}</div>}
+      <div className={cn(
+        "grid gap-3",
+        cols,
+        "[:where(&)_[data-slot=kpi]]:min-w-0",
+        "max-[1180px]:grid-cols-2",
+        "max-[600px]:grid-cols-1",
+        hero && "max-[1180px]:[:where(&)>:first-child]:col-span-full",
+        swipe && "max-[600px]:-mx-4 max-[600px]:flex max-[600px]:snap-x max-[600px]:snap-mandatory max-[600px]:gap-2.5 max-[600px]:overflow-x-auto max-[600px]:px-4 max-[600px]:[scrollbar-width:none] max-[600px]:[&::-webkit-scrollbar]:hidden",
+        swipe && hero && "max-[600px]:[&>:first-child]:hidden",
+        staff && "max-[600px]:contents max-[600px]:[:where(&)_[data-slot=kpi]]:order-3",
+        hero && staff && "max-[600px]:[:where(&)>:first-child]:order-1",
+        className,
+      )}>
+        {hero}
+        {children}
+      </div>
+    </>
   );
 }
 

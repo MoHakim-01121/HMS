@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { ListPage, Kpis, Kpi, Toolbar, FilterMenu, FilterSection, Check, Primary, TableCard, Pill, Pager, Empty, fmtN, dShort, useListNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, FilterMenu, FilterSection, Check, Primary, TableCard, PRow, Pill, Pager, Empty, fmtN, dShort, useListNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 
@@ -44,6 +44,16 @@ export default function Claims({ claims = [], kpis = {}, counts = {}, filters: f
       </Toolbar>
 
       <TableCard cols={[110, null, 90, 140, 120, 110]}
+        phone={claims.map((c) => {
+          const [tone, label] = CLAIM_STATUS[c.status] || CLAIM_STATUS.draft;
+          return (
+            <PRow key={c.id} href={`/finance/claims/${c.id}/`} mono no={c.claim_number} dim={["rejected", "cancelled"].includes(c.status)}
+              tag={<Pill tone={tone} sm>{t(label)}</Pill>}
+              title={`${dShort(c.date_from)} – ${dShort(c.date_to)}`} amount={fmtN(c.total_amount)} unit="IDR"
+              meta={[c.branch_name, c.item_count != null ? t(c.item_count === 1 ? "{n} item" : "{n} items", { n: c.item_count }) : null].filter(Boolean).join(" · ")}
+              note={c.paid_date ? t("paid {d}", { d: dShort(c.paid_date) }) : null} />
+          );
+        })}
         empty={!claims.length && <Empty title={t("No claims")} sub={t("Claim the expenses the branch has paid, for the months you choose.")} />}>
         <thead><Tr>
           <Th>{t("Claim")}</Th><Th>{t("Expenses dated")}</Th><Th className="text-right">{t("Expenses")}</Th>

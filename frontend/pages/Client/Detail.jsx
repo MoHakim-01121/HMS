@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { router } from "@inertiajs/react";
 import { loadLeaflet, basemapUrl, basemapOptions } from "../../utils/leaflet.js";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { DPage, DTop, DHead, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DPill, DLines, DLine, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -151,7 +151,20 @@ export default function Detail({ client, cls }) {
 
       <DCard title={t("Reservation history")} meta={t(cls.length === 1 ? "1 reservation" : "{n} reservations", { n: cls.length })}>
         {cls.length ? (
-          <div className={DA.scroll}>
+          <DLines>
+            {cls.map((cl) => {
+              const st = STATUS[cl.status] || STATUS.TENTATIVE;
+              return (
+                <DLine key={cl.pk} href={`/cl/${cl.pk}/`} mono title={cl.confirmation_number}
+                  sub={[cl.hotel_name, fmtStay(cl.check_in, cl.check_out)].filter(Boolean).join(" · ")}
+                  value={<DPill sm tone={st.tone}>{t(st.label)}</DPill>}
+                  valueSub={cl.num_guests != null ? t("{n} pax", { n: cl.num_guests }) : null} />
+              );
+            })}
+          </DLines>
+        ) : null}
+        {cls.length ? (
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Nights")}</th><th className={DC.n}>{t("Pax")}</th><th>{t("Status")}</th></tr></thead>
               <tbody>

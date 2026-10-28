@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DLog, DPill, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DLog, DPill, DLines, DLine, DLinesTotal, DPhoneBar, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -188,7 +188,21 @@ export default function Detail({
       <DHead title={invoice.invoice_number} badge={{ label: t(badge.label), tone: badge.tone }} menu={menu} facts={facts} />
 
       <DCard title={t("Reservations")} meta={t("Amounts in SAR")}>
-        <div className={DA.scroll}>
+        <DLines>
+          {reservations.length ? reservations.map((r) => {
+            const a = toDate(r.check_in);
+            const b = toDate(r.check_out);
+            return (
+              <DLine key={r.id} href={r.cl_pk ? `/cl/${r.cl_pk}/` : undefined} mono
+                title={<>{r.number} <span className="font-sans text-[14px] font-medium text-muted-foreground">· {r.hotel}</span></>}
+                sub={fmtStay(a, b) || t("Not set")} value={fmt(r.total_int)}
+                valueSub={r.remaining_int > 0 && !isVoid ? t("{v} left", { v: fmt(r.remaining_int) }) : null} />
+            );
+          }) : <div className={DC.empty}>{t("No reservations")}</div>}
+          {credited_sar > 0 ? <DLinesTotal label={t("Amount due")}>{fmt(dueSar)} SAR</DLinesTotal>
+            : <DLinesTotal label={isVoid ? t("Invoice total (void)") : t("Invoice total")}>{fmt(invoice.total_sar)} SAR</DLinesTotal>}
+        </DLines>
+        <div className={DA.scrollWide}>
           <table data-slot="detail-table" className={DA.table}>
             <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th>{t("Status")}</th><th className={DC.n}>{t("Total")}</th><th className={DC.n}>{t("Paid")}</th><th className={DC.n}>{t("Remaining")}</th></tr></thead>
             <tbody>
@@ -244,7 +258,16 @@ export default function Detail({
 
       <DCard title={t("Payments")} meta={t("Read-only, managed in Finance")}>
         {payments.length ? (
-          <div className={DA.scroll}>
+          <DLines>
+            {payments.map((p) => (
+              <DLine key={p.id} href={`/finance/payments/${p.id}/`} mono title={p.payment_id || p.payment_number}
+                sub={[p.payment_label || p.payment_date, p.receiving_office || p.received_in_display || p.received_in, p.method].filter(Boolean).join(" · ")}
+                value={fmt(p.amount_sar_int)} valueSub={p.currency !== "SAR" ? `${fmt(p.amount_int)} ${p.currency}` : null} />
+            ))}
+          </DLines>
+        ) : null}
+        {payments.length ? (
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Payment ID")}</th><th>{t("Date")}</th><th>{t("Ref")}</th><th>{t("Method")}</th><th>{t("Received by (office)")}</th><th className={DC.n}>{t("Amount")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>
               <tbody>
@@ -292,10 +315,10 @@ export default function Detail({
                         {voided && note.voided_reason ? `${note.reason} · ${t("voided")}: ${note.voided_reason}` : note.reason}
                         {note.to_deposit_sar > 0 && !voided ? <span className={DC.sub}>{t("{n} SAR to client deposit", { n: fmt(note.to_deposit_sar) })}</span> : null}
                       </td>
-                      <td className={cn(DC.n, DC.bold)}>{voided ? fmt(cn.amount_sar) : `−${fmt(cn.amount_sar)}`}</td>
+                      <td className={cn(DC.n, DC.bold)}>{voided ? fmt(note.amount_sar) : `−${fmt(note.amount_sar)}`}</td>
                       <td className={DC.n}>
                         {canCredit && !voided ? (
-                          <button type="button" className={dBtnClass({ soft: true })} onClick={() => openForm(`/finance/credit-notes/${cn.id}/void/`)}>{t("Void")}</button>
+                          <button type="button" className={dBtnClass({ soft: true })} onClick={() => openForm(`/finance/credit-notes/${note.id}/void/`)}>{t("Void")}</button>
                         ) : null}
                       </td>
                     </tr>
@@ -326,6 +349,9 @@ export default function Detail({
       </section>
 
       {confirmDialog}
+      <DPhoneBar
+        primary={!paid && !isVoid ? { label: <>{t("Record payment")} <span className="font-medium opacity-75">· {fmt(Math.max(0, invoice.remaining_sar))} SAR</span></>, href: `/finance/payments/?invoice=${invoice.pk}` } : null}
+        pdf={{ title: invoice.invoice_number, sub: `${invoice.customer_name} · ${fmt(invoice.total_sar)} SAR`, href: `/invoice/${invoice.pk}/pdf/` }} />
     </DPage>
   );
 }

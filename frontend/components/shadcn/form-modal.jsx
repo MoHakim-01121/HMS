@@ -47,7 +47,9 @@ const SKELETON_DELAY = 16;
 export function ModalContent({ layout, className, ...props }) {
   return (
     <DialogContent showCloseButton={false} {...props} className={cn(
-      "flex max-h-[min(86vh,820px)] flex-col gap-0 overflow-hidden rounded-[24px] p-0 max-[600px]:max-h-[92vh] max-[600px]:rounded-[20px]",
+      "flex max-h-[min(86vh,820px)] flex-col gap-0 overflow-hidden rounded-[24px] p-0",
+      // Phones: the form takes the whole screen, a sheet of its own.
+      "max-[600px]:top-0 max-[600px]:left-0 max-[600px]:h-dvh max-[600px]:max-h-dvh max-[600px]:w-full max-[600px]:max-w-none max-[600px]:translate-x-0 max-[600px]:translate-y-0 max-[600px]:rounded-none max-[600px]:border-0",
       // Centre in what the shell leaves, not in the window: a dialog centred on
       // the viewport sits half a sidebar to the left of the content it belongs
       // to on desktop. --content-left is published by AppLayout (it follows

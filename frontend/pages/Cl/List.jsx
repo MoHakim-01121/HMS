@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
-import { ListPage, Legend, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav, Tr, Th, Td, Menu, MenuItem, MenuSep, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Legend, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, SheetPick, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav, Tr, Th, Td, Menu, MenuItem, MenuSep, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -68,6 +68,12 @@ export default function List({ letters, filters: f, years, counts, salespeople =
 
   const del = (cl) => confirm({ title: t("Delete CL"), message: t("Delete CL {number}?", { number: cl.confirmation_number }), onConfirm: () => router.post(`/cl/${cl.id}/delete/`) });
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (cl) => [
+    { label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, external: true },
+    perms.can("cl", "edit") && { label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
+    perms.can("cl", "delete") && { label: t("Delete"), danger: true, onClick: () => del(cl) },
+  ];
   return (
     <ListPage title={t("Confirmation Letter")} loading={loading}
       legend={kpis && <Legend current={monthName(f.month, t)} previous={prevName} note={t("by sale date")} />}>
@@ -90,8 +96,16 @@ export default function List({ letters, filters: f, years, counts, salespeople =
         <Toolbar spaced={!!kpis}
           left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
           <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search client, hotel, CL number")} />
-          <SalespersonMenu value={f.salesperson} people={salespeople} mine={counts.mine} unassigned={counts.unassigned} total={counts.all}
-            onPick={(salesperson) => go({ salesperson })} />
+          <SheetPick label={t("Salesperson")} value={f.salesperson || ""} onPick={(salesperson) => go({ salesperson })}
+            options={[
+              { value: "", label: t("All salespeople") },
+              { value: "me", label: t("My CLs") },
+              ...salespeople.map((sp) => ({ value: String(sp.id), label: sp.name })),
+              ...(counts.unassigned > 0 ? [{ value: "none", label: t("No salesperson") }] : []),
+            ]}>
+            <SalespersonMenu value={f.salesperson} people={salespeople} mine={counts.mine} unassigned={counts.unassigned} total={counts.all}
+              onPick={(salesperson) => go({ salesperson })} />
+          </SheetPick>
           <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
             onReset={() => setDraft({ ...draft, status: [], inv: "", from: "", to: "" })}
             onApply={() => go({ status: draft.status, inv: draft.inv, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
@@ -132,6 +146,16 @@ export default function List({ letters, filters: f, years, counts, salespeople =
       </div>
 
       <TableCard cols={[76, null, null, 130, 64, 64, 96, 100, 104, 56]}
+        phone={letters.map((cl) => {
+          const [tone, label] = STATUS[cl.reservation_status] || STATUS.TENTATIVE;
+          return (
+            <PRow key={cl.id} menu={<RowMenu label={t("Actions for {n}", { n: cl.confirmation_number })} items={menuFor(cl)} />} href={`/cl/${cl.id}/`} mono no={cl.confirmation_number} dim={cl.reservation_status === "CANCELLED"}
+              tag={<Pill tone={tone} sm>{t(label)}</Pill>}
+              title={cl.guest_name} amount={fmtN(cl.total_price)} unit="SAR"
+              meta={`${cl.hotel_name} · ${stay(cl.check_in, cl.check_out, t)}`}
+              note={t(cl.total_rooms === 1 ? "{n} room" : "{n} rooms", { n: cl.total_rooms })} />
+          );
+        })}
         empty={!letters.length && <Empty title={t("No confirmation letters")}
           sub={salesperson
             ? <>{t("No CLs for {name} in this period.", { name: salesperson })} <button type="button" onClick={() => go({ salesperson: "" })}
@@ -159,11 +183,7 @@ export default function List({ letters, filters: f, years, counts, salespeople =
                 <Td className="text-right">{fmtN(cl.total_price)}</Td>
                 <Td><Pill tone={tone}>{t(label)}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: cl.confirmation_number })} items={[
-                    { label: t("Download PDF"), href: `/cl/${cl.id}/pdf/`, external: true },
-                    perms.can("cl", "edit") && { label: t("Edit"), onClick: () => openForm(`/cl/${cl.id}/edit/`) },
-                    perms.can("cl", "delete") && { label: t("Delete"), danger: true, onClick: () => del(cl) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: cl.confirmation_number })} items={menuFor(cl)} />
                 </Td>
               </Tr>
             );

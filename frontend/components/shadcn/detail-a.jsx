@@ -1,6 +1,7 @@
 import { Fragment, useContext, useState } from "react";
 import { Link } from "@inertiajs/react";
 import { Popover, PopoverTrigger } from "./ui/popover.jsx";
+import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer.jsx";
 import { FormModalContext } from "./form-modal.jsx";
 import { LIcon, Menu, MenuItem, MenuSep } from "./list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -76,8 +77,10 @@ export const DA = {
   pair: "grid grid-cols-2 items-stretch gap-4 max-[820px]:grid-cols-1 [&>section]:flex [&>section]:flex-col",
   map: "relative mx-6 min-h-[200px] flex-1 overflow-hidden rounded-[14px] bg-secondary max-[600px]:mx-4 [&>div]:absolute [&>div]:inset-0",
 
-  // Tables: the table, then classes for whole rows.
+  // Tables: the table, then classes for whole rows. `scrollWide` is a table
+  // that gives way to DLines on a phone.
   scroll: "overflow-x-auto",
+  scrollWide: "overflow-x-auto max-[600px]:hidden",
   table: cn(
     "w-full border-collapse text-[13px]",
     "[:where(&)_th]:border-b [:where(&)_th]:border-border [:where(&)_th]:bg-transparent [:where(&)_th]:px-4 [:where(&)_th]:py-3 [:where(&)_th]:text-left [:where(&)_th]:text-[12px] [:where(&)_th]:font-semibold [:where(&)_th]:tracking-normal [:where(&)_th]:whitespace-nowrap [:where(&)_th]:normal-case [:where(&)_th]:text-foreground",
@@ -116,6 +119,82 @@ export const DC = {
   empty: "px-6 py-8 text-center text-muted-foreground",
   footLabel: "text-right font-medium text-muted-foreground",
 };
+
+// A detail table on a phone (canvas "HMS Mobile v2", details): one line per
+// row, the name and a second line on the left, the figure on the right, then
+// the total. Shown only on phones, beside a table wrapped in DA.scrollWide.
+// `children` is a full-width line under the row (a line's match controls).
+export const DLines = ({ children }) => <div className="hidden max-[600px]:block">{children}</div>;
+export function DLine({ title, sub, value, valueSub, valueTone, href, mono, children }) {
+  const body = (
+    <>
+      <span className="min-w-0 flex-1">
+        <span className={cn("block text-[15px] font-semibold", mono && "font-mono text-[14px] font-bold")}>{title}</span>
+        {sub ? <span className="block text-[12.5px] text-muted-foreground">{sub}</span> : null}
+      </span>
+      <span className="flex-none text-right tabular-nums">
+        <b className={cn("block text-[14.5px] font-semibold", valueTone)}>{value}</b>
+        {valueSub ? <span className="block text-[12px] text-muted-foreground">{valueSub}</span> : null}
+      </span>
+      {children ? <span className="basis-full">{children}</span> : null}
+    </>
+  );
+  const cls = cn("flex items-center justify-between gap-3 border-t border-hairline px-4 py-3 text-foreground no-underline first:border-t-0 hover:no-underline", children && "flex-wrap gap-y-2");
+  return href ? <a href={href} className={cls}>{body}</a> : <div className={cls}>{body}</div>;
+}
+export const DLinesTotal = ({ label, children }) => (
+  <div className="flex items-baseline justify-between gap-3 border-t border-input px-4 py-3.5 font-semibold tabular-nums">
+    <span>{label}</span><span className="text-[16px]">{children}</span>
+  </div>
+);
+
+// A phone's action bar at the foot of a detail page, in place of the bottom
+// nav (the top bar's back link leads out): the page's one primary action and
+// a share button for its PDF, which opens Share / Download / Print.
+// primary = { label, href | onClick } or null; pdf = { title, sub, href }.
+export function DPhoneBar({ primary, pdf }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  if (!primary && !pdf) return null;
+  const share = async () => {
+    setOpen(false);
+    const url = new URL(pdf.href, window.location.href).href;
+    try { await navigator.share({ title: pdf.title, url }); } catch { /* cancelled */ }
+  };
+  const canShare = typeof navigator !== "undefined" && !!navigator.share;
+  const row = "flex min-h-[60px] w-full cursor-pointer items-center gap-3 border-0 border-t border-hairline bg-transparent px-3.5 py-2.5 text-left font-sans text-foreground no-underline first:border-t-0 hover:no-underline active:bg-secondary";
+  const ico = "grid size-9 flex-none place-content-center rounded-[10px] bg-secondary [&_svg]:size-[18px]";
+  const label = (title, sub) => <span className="min-w-0 flex-1"><b className="block text-[14px] font-semibold">{title}</b><span className="text-[12.5px] text-muted-foreground">{sub}</span></span>;
+  const pbtn = "inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 bg-primary px-[18px] font-sans text-[14px] font-semibold whitespace-nowrap text-primary-foreground no-underline hover:no-underline";
+  return (
+    <div data-slot="phone-bar" className="fixed inset-x-0 bottom-0 z-(--z-sticky) hidden items-center gap-2.5 border-t border-border bg-card px-4 pt-2.5 pb-[calc(14px+env(safe-area-inset-bottom))] max-[600px]:flex">
+      {pdf && (
+        <button type="button" aria-label={t("Share or download PDF")} onClick={() => setOpen(true)}
+          className="grid size-11 flex-none cursor-pointer place-content-center rounded-full border border-input bg-card text-foreground [&_svg]:size-[19px]">
+          <S><path d="M12 15V3m0 0L8 7m4-4l4 4M5 12v8h14v-8" /></S>
+        </button>
+      )}
+      {primary && (primary.href
+        ? <Link href={primary.href} className={pbtn}>{primary.label}</Link>
+        : <button type="button" onClick={primary.onClick} className={pbtn}>{primary.label}</button>)}
+      {pdf && (
+        <Drawer open={open} onOpenChange={setOpen} direction="bottom">
+          <DrawerContent aria-describedby={undefined} className="rounded-t-[22px] border-0 px-4 pb-[calc(18px+env(safe-area-inset-bottom))]">
+            <div className="pt-3 pb-2.5">
+              <DrawerTitle className="m-0 text-[17px]">{t("{n} PDF", { n: pdf.title })}</DrawerTitle>
+              {pdf.sub && <p className="m-0 text-[13px] text-muted-foreground">{pdf.sub}</p>}
+            </div>
+            <div className="overflow-hidden rounded-[16px] border border-border">
+              {canShare && <button type="button" className={row} onClick={share}><span className={ico}><S><path d="M12 15V3m0 0L8 7m4-4l4 4M5 12v8h14v-8" /></S></span>{label(t("Share PDF"), t("WhatsApp, email or any app on this phone"))}</button>}
+              <a className={row} href={pdf.href} download onClick={() => setOpen(false)}><span className={ico}>{LIcon.export}</span>{label(t("Download PDF"), t("Save it to this phone"))}</a>
+              <a className={row} href={pdf.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}><span className={ico}><S><path d="M7 8V3h10v5M7 17H4v-7h16v7h-3M7 14h10v7H7z" /></S></span>{label(t("Print"), t("Open the PDF to print it"))}</a>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      )}
+    </div>
+  );
+}
 
 export function DPage({ children, className }) {
   return (
@@ -222,7 +301,7 @@ export function DFacts({ facts, cols }) {
   const list = (facts || []).filter(Boolean);
   if (!list.length) return null;
   return (
-    <dl className={cn("mt-6 mb-0 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-6 gap-y-5 border-t border-border pt-5 max-[600px]:gap-4", COLS[cols])}>
+    <dl className={cn("mt-6 mb-0 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-6 gap-y-5 border-t border-border pt-5 max-[600px]:mt-4 max-[600px]:grid-cols-2 max-[600px]:gap-x-5 max-[600px]:gap-y-4 max-[600px]:pt-4", COLS[cols])}>
       {list.map((f) => (
         <div key={f.k} className="min-w-0">
           <dt className="text-[12px] text-muted-foreground">{f.k}</dt>

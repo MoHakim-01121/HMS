@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -28,6 +28,12 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
 
   const del = (inv) => confirm({ title: t("Delete invoice"), message: t("Delete invoice {number}?", { number: inv.invoice_number }), onConfirm: () => router.post(`/invoice/${inv.id}/delete/`) });
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (inv) => [
+    { label: t("Download PDF"), href: `/invoice/${inv.id}/pdf/`, external: true },
+    perms.can("invoice", "edit") && inv.status !== "void" && { label: t("Edit"), onClick: () => openForm(`/invoice/${inv.id}/edit/`) },
+    perms.can("invoice", "delete") && { label: t("Delete"), danger: true, onClick: () => del(inv) },
+  ];
   return (
     <ListPage title={t("Invoice")} loading={loading}>
       {kpis && (
@@ -70,6 +76,18 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
       </Toolbar>
 
       <TableCard cols={[110, null, 130, 130, 150, 130, 56]}
+        phone={invoices.map((inv) => {
+          const [tone, label] = STATUS[inv.status] || STATUS.unpaid;
+          const left = inv.remaining_sar > 0 ? t("{v} SAR left", { v: fmtN(inv.remaining_sar) })
+            : inv.remaining_sar < 0 ? t("{v} SAR over", { v: fmtN(-inv.remaining_sar) }) : t("Paid in full");
+          return (
+            <PRow key={inv.id} menu={<RowMenu label={t("Actions for {n}", { n: inv.invoice_number })} items={menuFor(inv)} />} href={`/invoice/${inv.id}/`} mono no={inv.invoice_number} dim={inv.status === "void"}
+              tag={<Pill tone={tone} sm>{t(label)}</Pill>}
+              title={inv.customer_name} amount={fmtN(inv.total_sar)} unit="SAR"
+              meta={<>{t("Due {d}", { d: dShort(inv.due_date) })}{inv.days_late > 0 && <span className="text-danger-text"> · {t("{n} days late", { n: inv.days_late })}</span>}</>}
+              note={left} noteTone={inv.remaining_sar > 0 ? "text-danger-text" : inv.remaining_sar < 0 ? "text-success-text" : undefined} />
+          );
+        })}
         empty={!invoices.length && <Empty title={t("No invoices")} sub={f.status === "overdue" ? t("Nothing is overdue.") : t("Nothing falls due in this period with these filters.")} />}>
         <thead><Tr>
           <Th>{t("Invoice")}</Th><Th>{t("Client")}</Th>
@@ -91,11 +109,7 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
                 </Td>
                 <Td><Pill tone={tone}>{t(label)}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: inv.invoice_number })} items={[
-                    { label: t("Download PDF"), href: `/invoice/${inv.id}/pdf/`, external: true },
-                    perms.can("invoice", "edit") && inv.status !== "void" && { label: t("Edit"), onClick: () => openForm(`/invoice/${inv.id}/edit/`) },
-                    perms.can("invoice", "delete") && { label: t("Delete"), danger: true, onClick: () => del(inv) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: inv.invoice_number })} items={menuFor(inv)} />
                 </Td>
               </Tr>
             );

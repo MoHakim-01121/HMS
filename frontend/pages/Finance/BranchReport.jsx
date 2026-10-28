@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { router, usePage } from "@inertiajs/react";
-import { ListPage, Kpis, Kpi, Toolbar, TableCard, Empty, ExportMenu, DateRange, LIcon, fmtN, rowNav, Tr, Th, Td, ToolButton, MonthLabel, NavButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, TableCard, PRow, PTotal, Empty, ExportMenu, DateRange, LIcon, fmtN, rowNav, Tr, Th, Td, ToolButton, MonthLabel, NavButton } from "../../components/shadcn/list-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
@@ -132,6 +132,12 @@ export default function BranchReport({
 
       <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("FX profit per transfer")}</h2>
       <TableCard cols={[110, 76, 110, 140, 96, 96, 130]}
+        phone={transfers.map((x) => (
+          <PRow key={x.id} href={`/remittance/${x.id}/`} mono no={x.remittance_number}
+            end={x.profit_idr == null ? t("Not priced") : `${fmtN(x.profit_idr)} IDR`} amountTone={x.profit_idr == null ? "font-medium text-muted-foreground" : undefined}
+            meta={[dayMonth(x.date, loc), `${fmtN(x.sar)} SAR`, `${fmtN(x.idr_sent)} IDR`].join(" · ")}
+            note={`${rate(x.avg_rate)} → ${rate(x.send_rate)}`} />
+        ))}
         empty={!transfers.length && <Empty title={t("No transfers to head office")} sub={t("The branch earns its FX profit when it sends money to head office.")} />}>
         <thead><Tr>
           <Th>{t("Transfer")}</Th><Th>{t("Date")}</Th><Th className="text-right">SAR</Th><Th className="text-right">{t("IDR sent")}</Th>
@@ -154,6 +160,15 @@ export default function BranchReport({
 
       <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Operating expenses")}</h2>
       <TableCard cols={[null, 160]}
+        phone={!exp.by_category?.length ? [] : (
+          <>
+            {exp.by_category.map((c) => <PRow key={c.name} no={c.name} end={fmtN(c.amount)} />)}
+            <PTotal label={t("Total")}>{fmtN(exp.total)} IDR</PTotal>
+            <PRow no={t("Reimbursed")} end={fmtN(exp.paid_back)} />
+            <PRow no={t("Claimed, waiting")} end={fmtN(exp.claimed)} />
+            <PRow no={t("Not claimed yet")} end={fmtN(exp.unclaimed)} />
+          </>
+        )}
         empty={!exp.by_category?.length && <Empty title={t("No expenses paid")} sub={t("Nothing was paid in this period.")} />}>
         <thead><Tr><Th>{t("Category")}</Th><Th className="text-right">{t("Amount (IDR)")}</Th></Tr></thead>
         <tbody>
@@ -168,7 +183,17 @@ export default function BranchReport({
       </TableCard>
 
       <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Position as of {d}", { d: dayMonth(pos.as_of, loc) })}</h2>
-      <TableCard cols={[null, 90, 160]}>
+      <TableCard cols={[null, 90, 160]}
+        phone={
+          <>
+            {(pos.accounts || []).map((a) => (
+              <PRow key={a.name} no={a.name} end={`${fmtN(a.native)} ${a.currency}`} meta={a.kind === "staff" ? t("Staff advance") : null} />
+            ))}
+            <PRow no={t("Client receivables")} end={`${fmtN(pos.receivable_sar)} SAR`} />
+            <PRow no={t("Client deposits")} end={`${fmtN(pos.deposits_sar)} SAR`} />
+            <PRow no={t("Owed by head office")} end={`${fmtN(pos.owed_by_hq_idr)} IDR`} />
+          </>
+        }>
         <thead><Tr><Th>{t("Account")}</Th><Th>{t("Currency")}</Th><Th className="text-right">{t("Balance")}</Th></Tr></thead>
         <tbody>
           {(pos.accounts || []).map((a) => (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, DateRange, TableCard, Pill, Pager, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, DateRange, TableCard, PRow, Pill, Pager, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Journal entries: the ledger, newest first. Search and the Filter panel
@@ -38,6 +38,12 @@ export default function Journal({
       </Toolbar>
 
       <TableCard cols={[120, 170, null, 120, 130, 130]}
+        phone={entries.map((e) => (
+          <PRow key={e.id} href={`/finance/journal/${e.id}/`} mono no={e.entry_number}
+            tag={e.is_reversal ? <Pill tone="red" sm>{t("Reversal")}</Pill> : <Pill tone="gray" sm>{e.entry_type_display}</Pill>}
+            title={e.description} amount={fmtN(e.debit || e.credit)}
+            meta={dLong(e.entry_date)} />
+        ))}
         empty={!entries.length && <Empty title={t("No journal entries")} sub={t("No entries match your filters.")} />}>
         <thead><Tr>
           <Th>{t("Entry #")}</Th><Th>{t("Type")}</Th><Th>{t("Description")}</Th><Th>{t("Date")}</Th>

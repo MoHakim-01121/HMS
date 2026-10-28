@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -107,7 +107,15 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
       />
 
       <DCard title={t("Lines")} count={lines.length}>
-        <div className={DA.scroll}>
+        <DLines>
+          {lines.map((l) => (
+            <DLine key={l.id} title={l.category_name}
+              sub={[l.description, l.receipts?.length ? null : l.no_receipt_reason ? t("No receipt") : null].filter(Boolean).join(" · ")}
+              value={fmt(l.amount)} valueSub={paid ? `${fmt(l.amount_sar)} SAR` : null} />
+          ))}
+          <DLinesTotal label={t("Total")}>{idr(expense.total_amount)}</DLinesTotal>
+        </DLines>
+        <div className={DA.scrollWide}>
           <table data-slot="detail-table" className={DA.table}>
             <thead>
               <tr>
@@ -146,7 +154,13 @@ export default function Detail({ expense = {}, account_choices = [], journal_ent
 
       {journal_entries.length ? (
         <DCard title={t("Journal Entries")} count={journal_entries.length}>
-          <div className={DA.scroll}>
+          <DLines>
+            {journal_entries.map((e) => (
+              <DLine key={e.id} mono title={e.entry_number} sub={[e.entry_type_display, e.entry_date, e.description].filter(Boolean).join(" · ")}
+                value={fmt(e.total_debit)} />
+            ))}
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th></tr></thead>
               <tbody>

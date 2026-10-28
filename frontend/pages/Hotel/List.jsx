@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { cn } from "@/lib/utils";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -36,6 +36,11 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
 
   const del = (h) => confirm({ title: t("Delete hotel"), message: t("Delete hotel {name}?", { name: h.name }), onConfirm: () => router.post(`/hotels/${h.id}/delete/`) });
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (h) => [
+    perms.can("hotels", "edit") && { label: t("Edit"), onClick: () => openForm(`/hotels/${h.id}/edit/`) },
+    perms.can("hotels", "delete") && { label: t("Delete"), danger: true, onClick: () => del(h) },
+  ];
   return (
     <ListPage title={t("Hotels")} loading={loading}>
       <Toolbar left={<Note>{t("{n} hotels registered", { n: total })}</Note>}>
@@ -55,6 +60,13 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
       </Toolbar>
 
       <TableCard cols={[null, 92, 140, 64, 124, 76, 132, 96, 56]}
+        phone={hotels.map((h) => (
+          <PRow key={h.id} menu={<RowMenu label={t("Actions for {n}", { n: h.name })} items={menuFor(h)} />} href={`/hotels/${h.id}/`} no={h.name} dim={!h.is_active}
+            tag={<Pill tone={h.is_active ? "green" : "gray"} sm>{h.is_active ? t("Active") : t("Inactive")}</Pill>}
+            meta={[h.city_display, h.area, `${h.stars}★`, h.has_allotment ? t("Allotment") : t("No allotment")].filter(Boolean).join(" · ")}
+            note={h.distance == null ? t("No location") : h.distance_label}
+            noteTone={h.distance == null ? undefined : cn("font-semibold", h.distance <= 500 ? "text-success-text" : h.distance <= 1500 ? "text-warning-text" : "text-danger-text")} />
+        ))}
         empty={!hotels.length && <Empty title={t("No hotels")} sub={t("Nothing matches this search and these filters.")} />}>
         <thead><Tr>
           <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}
@@ -75,10 +87,7 @@ export default function List({ hotels, total, filters: f, counts, pagination }) 
                 : <span className={cn(h.distance <= 500 ? "text-success-text" : h.distance <= 1500 ? "text-warning-text" : "font-medium text-danger-text")} style={{ fontWeight: 600 }}>{h.distance_label}</span>}</Td>
               <Td><Pill tone={h.is_active ? "green" : "gray"}>{h.is_active ? t("Active") : t("Inactive")}</Pill></Td>
               <Td className="text-center">
-                <RowMenu label={t("Actions for {n}", { n: h.name })} items={[
-                  perms.can("hotels", "edit") && { label: t("Edit"), onClick: () => openForm(`/hotels/${h.id}/edit/`) },
-                  perms.can("hotels", "delete") && { label: t("Delete"), danger: true, onClick: () => del(h) },
-                ]} />
+                <RowMenu label={t("Actions for {n}", { n: h.name })} items={menuFor(h)} />
               </Td>
             </Tr>
           ))}

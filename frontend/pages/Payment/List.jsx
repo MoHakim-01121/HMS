@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { ListPage, Kpis, Kpi, Delta, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, FlipKpi, KpiRow, KpiValue, KpiFoot } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Delta, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Amt, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, FlipKpi, KpiRow, KpiValue, KpiFoot } from "../../components/shadcn/list-a.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -51,6 +51,13 @@ export default function List({ payments = [], invoice_choices = [], client_choic
   const filterCount = (f.status.length ? 1 : 0) + (f.cur.length ? 1 : 0) + (f.method.length ? 1 : 0);
   const prevName = kpis ? monthName(kpis.prev_month, t) : "";
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (p) => [
+    canConfirm(p) && p.status === "pending" && { label: t("Confirm"), onClick: () => setConfirmDialog(p) },
+    canEdit && ["unallocated", "partial"].includes(p.group) && { label: t("Apply"), onClick: () => router.visit(`/finance/payments/${p.id}/`) },
+    p.has_proof && { label: t("View proof"), href: p.proof_url, external: true },
+    canEdit && p.status === "pending" && { label: t("Reject…"), danger: true, onClick: () => setRejectDialog({ ...p, reason: "" }) },
+  ];
   return (
     <ListPage title={t("Payments")} loading={loading}>
       {kpis && (
@@ -97,6 +104,16 @@ export default function List({ payments = [], invoice_choices = [], client_choic
       </Toolbar>
 
       <TableCard cols={[96, 70, null, 84, 150, 150, 88, 140, 48]}
+        phone={payments.map((p) => {
+          const [tone, label] = GROUP[p.group] || GROUP.cancelled;
+          return (
+            <PRow key={p.id} menu={<RowMenu label={t("Actions for {n}", { n: p.payment_number })} items={menuFor(p)} />} href={`/finance/payments/${p.id}/`} mono no={p.payment_number} dim={p.group === "cancelled"}
+              tag={<Pill tone={tone} sm>{label ? t(label) : t(p.status_display)}</Pill>}
+              title={p.client_name} amount={fmtN(p.amount)} unit={p.currency}
+              meta={[dShort(p.payment_date), p.invoice_number || t("Not assigned"), p.account].filter(Boolean).join(" · ")}
+              note={p.currency !== "SAR" ? `${fmtN(p.amount_sar)} SAR` : null} />
+          );
+        })}
         empty={!payments.length && <Empty title={t("No payments")} sub={t("Nothing matches this period and these filters.")} />}>
         <thead><Tr>
           <Th>{t("Payment")}</Th>
@@ -120,12 +137,7 @@ export default function List({ payments = [], invoice_choices = [], client_choic
                 <Td><Pill tone={tone}>{label ? t(label) : t(p.status_display)}</Pill>
                   {p.group === "partial" && p.unallocated_sar > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} SAR left", { v: fmtN(p.unallocated_sar) })}</span>}</Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: p.payment_number })} items={[
-                    canConfirm(p) && p.status === "pending" && { label: t("Confirm"), onClick: () => setConfirmDialog(p) },
-                    canEdit && ["unallocated", "partial"].includes(p.group) && { label: t("Apply"), onClick: () => router.visit(`/finance/payments/${p.id}/`) },
-                    p.has_proof && { label: t("View proof"), href: p.proof_url, external: true },
-                    canEdit && p.status === "pending" && { label: t("Reject…"), danger: true, onClick: () => setRejectDialog({ ...p, reason: "" }) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: p.payment_number })} items={menuFor(p)} />
                 </Td>
               </Tr>
             );

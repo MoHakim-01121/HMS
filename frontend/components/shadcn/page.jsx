@@ -11,7 +11,7 @@ export const pageVariants = cva(
   {
     variants: {
       size: {
-        page: "max-w-[1040px] px-5 pt-7 pb-15 max-[600px]:px-3 max-[600px]:pt-[calc(48px+env(safe-area-inset-top))] max-[600px]:pb-[calc(72px+env(safe-area-inset-bottom))]",
+        page: "max-w-[1040px] px-5 pt-7 pb-15 max-[600px]:px-4 max-[600px]:pt-[18px] max-[600px]:pb-[calc(112px+env(safe-area-inset-bottom))]",
         form: "max-w-[680px] px-5 pt-5 pb-24 max-[600px]:px-3 max-[600px]:pt-3.5 max-[600px]:pb-28",
       },
     },

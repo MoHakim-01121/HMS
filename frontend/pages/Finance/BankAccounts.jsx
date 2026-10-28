@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Empty, fmtN, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, PTotal, RowMenu, Pill, Amt, Empty, fmtN, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { cn } from "@/lib/utils";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
@@ -33,6 +33,17 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
   const sarTotal = accounts.filter((a) => a.is_active && !a.ledger_shared).reduce((s, a) => s + (a.book_balance || 0), 0);
   const txHref = (a) => `/finance/bank-accounts/${a.kind}/${a.id}/`;
 
+  // The row's actions: the desktop row menu, and the same menu on a phone
+  // row. A staff advance is topped up or taken back, not set up or reconciled.
+  const menuFor = (a) => a.kind === "staff" ? [
+    { label: t("Transactions"), onClick: () => router.visit(txHref(a)) },
+    perms.can("bank", "create") && { label: t("Give or take back money"), onClick: () => openForm("/finance/exchanges/new/") },
+  ] : [
+    { label: t("Transactions"), onClick: () => router.visit(txHref(a)) },
+    a.kind === "bank" && perms.can("bank", "view") && { label: t("Reconcile"), onClick: () => router.visit("/finance/reconciliation/") },
+    canSetUp && { label: t("Edit"), onClick: () => openForm(`/finance/bank-accounts/${a.id}/edit/`) },
+  ];
+
   return (
     <ListPage title={t("Bank and Cash")} loading={loading}>
       <Toolbar left={<Note>{t("Balances as of {d}", { d: longDate(as_of) })}</Note>}>
@@ -59,6 +70,16 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
       </Toolbar>
 
       <TableCard cols={[null, 90, 110, 200, 130, 150, 56]}
+        phone={accounts.length > 0 && <>
+          {[...office, ...staff].map((a) => (
+            <PRow key={a.kind + a.id} menu={<RowMenu label={t("Actions for {n}", { n: a.name })} items={menuFor(a)} />} href={txHref(a)} no={a.name} dim={!a.is_active}
+              end={`${fmtN(a.native_balance)} ${a.currency}`} amountTone={a.native_balance < 0 ? "text-danger-text" : undefined}
+              meta={[a.kind === "bank" ? t("Bank") : a.kind === "cash" ? t("Cash") : t("Staff"), a.branch_name,
+                a.kind === "staff" ? null : a.last_reconciled ? t("reconciled {d}", { d: longDate(a.last_reconciled) }) : t("never reconciled")].filter(Boolean).join(" · ")}
+              note={a.currency !== "SAR" && !a.ledger_shared ? `${fmtN(a.book_balance)} SAR` : null} />
+          ))}
+          <PTotal label={(() => { const n = accounts.filter((a) => a.is_active).length; return t(n === 1 ? "Total, 1 account" : "Total, {n} accounts", { n }); })()}>{fmtN(sarTotal)} SAR</PTotal>
+        </>}
         empty={!accounts.length && <Empty title={t("No accounts")} sub={t("Nothing matches this search and these filters.")} />}>
         <thead><Tr>
           <Th>{t("Account")}</Th><Th>{t("Type")}</Th><Th>{t("Branch")}</Th>
@@ -85,11 +106,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
                   <Td className="text-right text-muted-foreground">{a.ledger_shared ? <span title={t("Several accounts post to this ledger account")}>{t("shared ledger")}</span> : fmtN(a.book_balance)}</Td>
                   <Td>{a.last_reconciled ? longDate(a.last_reconciled) : <span className="text-muted-foreground">{t("Never")}</span>}{!a.is_active && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground"><Pill tone="gray" sm>{t("Inactive")}</Pill></span>}</Td>
                   <Td className="text-center">
-                    <RowMenu label={t("Actions for {n}", { n: a.name })} items={[
-                      { label: t("Transactions"), onClick: () => router.visit(txHref(a)) },
-                      a.kind === "bank" && perms.can("bank", "view") && { label: t("Reconcile"), onClick: () => router.visit("/finance/reconciliation/") },
-                      canSetUp && { label: t("Edit"), onClick: () => openForm(`/finance/bank-accounts/${a.id}/edit/`) },
-                    ]} />
+                    <RowMenu label={t("Actions for {n}", { n: a.name })} items={menuFor(a)} />
                   </Td>
                 </Tr>
               )),
@@ -122,10 +139,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
                     {days != null ? <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t(days === 1 ? "Held 1 day" : "Held {n} days", { n: days })}{a.spent_since ? "" : `, ${t("no expense yet")}`}</span> : null}
                   </Td>
                   <Td className="text-center">
-                    <RowMenu label={t("Actions for {n}", { n: a.name })} items={[
-                      { label: t("Transactions"), onClick: () => router.visit(txHref(a)) },
-                      perms.can("bank", "create") && { label: t("Give or take back money"), onClick: () => openForm("/finance/exchanges/new/") },
-                    ]} />
+                    <RowMenu label={t("Actions for {n}", { n: a.name })} items={menuFor(a)} />
                   </Td>
                 </Tr>
               );

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { FaDialog, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, todayIso, FA } from "../../components/shadcn/form-a.jsx";
+import { FaDialog, Field, Picker, DatePicker, AmountIn, ReadOnly, TextIn, FileDrop, NoteField, Foot, Segmented, PhoneCaption, todayIso, FA } from "../../components/shadcn/form-a.jsx";
+import { usePhone } from "../../components/shadcn/list-a.jsx";
 import { showToast } from "../../components/shadcn/toast.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -10,7 +11,9 @@ import { fmt } from "../../utils/format.js";
 // account it landed in (the account sets the currency), the amount with its
 // SAR value, the date and method, and the proof.
 
-const METHODS = ["Transfer", "Cash", "Card"];
+// Cash or transfer only (canvas "HMS Mobile v2"); older payments may still
+// read "Card", the list shows whatever was recorded.
+const METHODS = ["Transfer", "Cash"];
 
 // SAR value as the backend's convert_to_sar computes it (hw/utils.py): IDR is
 // divided by the rate, other foreign currencies multiplied.
@@ -22,6 +25,7 @@ const toSar = (amount, ccy, rate) => {
 
 export default function RecordPayment({ onClose, client_choices = [], invoice_choices = [], account_choices = [] }) {
   const { t } = useI18n();
+  const phone = usePhone();
   const [clientId, setClientId] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const branches = [...new Map(account_choices.map((a) => [a.branch, a.branch_name || a.branch.toUpperCase()])).entries()];
@@ -64,6 +68,12 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
             : !proof ? t("Attach the proof of payment.")
               : "";
 
+  // On a phone the foot says what the payment does, as the canvas draws it.
+  const left = inv && sar != null ? inv.remaining - sar : null;
+  const invNo = inv?.label.split(" - ")[0];
+  const effect = !phone || !(sar > 0) ? null
+    : `${fmt(sar)} SAR · ${!inv ? t("Held on the client balance") : left <= 0 ? t("{n} will be paid in full.", { n: invNo }) : t("{n} keeps {v} SAR left.", { n: invNo, v: fmt(left) })}`;
+
   const submit = (e) => {
     e.preventDefault();
     if (why || busy) return;
@@ -102,6 +112,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
               ] : []}
               extra={inv ? <span className={FA.meta}>{t("{n} SAR left", { n: fmt(inv.remaining) })}</span> : null} />
           </Field>
+          <PhoneCaption>{t("Amount")}</PhoneCaption>
           <Field label={t("Received at")} required>
             <Picker searchable={false} value={branch} placeholder={t("Choose branch")} heading={t("Received at")}
               options={branches.map(([code, name]) => ({ value: code, label: name }))} onPick={pickBranch} />
@@ -128,25 +139,32 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
               <ReadOnly>{t("Not needed, received in SAR")}</ReadOnly>
             </Field>
           )}
+          <PhoneCaption>{t("Received")}</PhoneCaption>
           <Field label={t("Payment date")} required>
             <DatePicker value={date} onChange={setDate} label={t("Choose payment date")} />
           </Field>
           <Field label={t("Method")} required>
-            <Picker searchable={false} value={method} heading={t("Method")} onPick={(o) => setMethod(o.value)}
-              options={METHODS.map((m) => ({ value: m, label: t(m === "Transfer" ? "Bank transfer" : m) }))} />
+            {phone ? (
+              <Segmented wide label={t("Method")} value={method} onChange={setMethod}
+                options={METHODS.map((m) => [m, t(m)])} />
+            ) : (
+              <Picker searchable={false} value={method} heading={t("Method")} onPick={(o) => setMethod(o.value)}
+                options={METHODS.map((m) => ({ value: m, label: t(m === "Transfer" ? "Bank transfer" : m) }))} />
+            )}
           </Field>
           <Field label={t("Reference")} optional className={FA.wide}>
             <TextIn value={reference} onChange={setReference} placeholder={t("Bank transfer or receipt number")} />
           </Field>
         </div>
 
+        <div className="mt-6 hidden max-[600px]:block"><PhoneCaption>{t("Proof and note")}</PhoneCaption></div>
         <NoteField label={t("Proof of payment")} required>
           <FileDrop file={proof} onFile={setProof} title={t("Upload the transfer slip or receipt")}
             onTooBig={() => showToast(t("File too large. Maximum upload size is 3 MB."), "error")} />
         </NoteField>
         <NoteField label={t("Note")} value={note} onChange={setNote} placeholder={t("Anything the finance team should know")} />
 
-        <Foot why={why} onCancel={onClose} submitLabel={t("Record payment")} processing={busy} />
+        <Foot why={why} note={effect} onCancel={onClose} submitLabel={t("Record payment")} processing={busy} />
       </form>
     </FaDialog>
   );

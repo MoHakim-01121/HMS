@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { ListPage, Toolbar, Primary, TableCard, Section, RowMenu, Pill, Empty, dLong, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, PRow, Section, RowMenu, Pill, Empty, dLong, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
@@ -56,6 +56,13 @@ export default function List({ periods = [], seasons = [], next_season = null })
 
       <Section title={t("Umrah seasons")} />
       <TableCard cols={[null, 260, 100, 56]}
+        phone={seasons.map((s) => (
+          <PRow key={s.id} no={s.name} meta={`${dLong(s.date_from)} – ${dLong(s.date_to)}`} note={t("{n} months", { n: monthsIn(s) })}
+            tag={canManage && <RowMenu label={t("Actions for {n}", { n: s.name })} items={[
+              { label: t("Edit"), onClick: () => setSeason({ ...s }) },
+              { label: t("Delete"), danger: true, onClick: () => confirm({ title: t("Delete Season"), message: t("Delete this season? Its monthly periods and journal entries stay as they are."), onConfirm: () => router.post(`/finance/seasons/${s.id}/delete/`) }) },
+            ]} />} />
+        ))}
         empty={!seasons.length && <Empty title={t("No seasons yet")} sub={t("Add a season with its start and end date to read reports for the whole season.")} />}>
         <thead><Tr><Th>{t("Season")}</Th><Th>{t("Dates")}</Th><Th className="text-right">{t("Months")}</Th><Th className="text-center">{t("Action")}</Th></Tr></thead>
         <tbody>
@@ -77,6 +84,12 @@ export default function List({ periods = [], seasons = [], next_season = null })
 
       <Section title={t("Monthly periods")} />
       <TableCard cols={[120, 130, null, 140, 120, 56]}
+        phone={periods.map((p) => (
+          <PRow key={p.id} href={`/finance/periods/${p.id}/`} no={p.name}
+            tag={<Pill tone={STATUS_TONE[p.status] || "gray"} sm>{p.status_display}</Pill>}
+            meta={`${dLong(p.date_from)} – ${dLong(p.date_to)}`}
+            note={t("{j} journals · {p} payments", { j: p.journal_count, p: p.payment_count })} />
+        ))}
         empty={!periods.length && <Empty title={t("No periods yet")} sub={t("Create periods to generate the twelve months of a year.")} />}>
         <thead><Tr>
           <Th>{t("Period")}</Th><Th>{t("Status")}</Th><Th>{t("Dates")}</Th>

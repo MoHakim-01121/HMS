@@ -1,7 +1,7 @@
 import { router } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 import { usePerms } from "../../utils/perms.js";
@@ -135,7 +135,15 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
 
       <DCard title={t("Journal Entries")} count={entries.length}>
         {entries.length ? (
-          <div className={DA.scroll}>
+          <>
+          <DLines>
+            {entries.map((e) => (
+              <DLine key={e.id} mono title={e.entry_number} sub={[e.entry_type_display, e.entry_date, e.description].filter(Boolean).join(" · ")}
+                value={fmt(e.total_debit)} valueSub={e.is_balanced ? null : t("Not balanced")} valueTone={e.is_balanced ? undefined : "text-danger-text"} />
+            ))}
+            <DLinesTotal label={t("Total")}>{fmt(total_debit)} / {fmt(total_credit)}</DLinesTotal>
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Entry #")}</th><th>{t("Type")}</th><th>{t("Description")}</th><th>{t("Date")}</th><th className={DC.n}>{t("Debit")}</th><th className={DC.n}>{t("Credit")}</th><th className={DC.n}>{t("Balanced")}</th></tr></thead>
               <tbody>
@@ -154,12 +162,21 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
               <tfoot><tr><td colSpan={4}>{t("Total")}</td><td className={DC.n}>{fmt(total_debit)}</td><td className={DC.n}>{fmt(total_credit)}</td><td /></tr></tfoot>
             </table>
           </div>
+          </>
         ) : <div className={DA.empty}>{t("No journal entries in this period.")}</div>}
       </DCard>
 
       <DCard title={t("Payments")} count={payments.length}>
         {payments.length ? (
-          <div className={DA.scroll}>
+          <>
+          <DLines>
+            {payments.map((p) => (
+              <DLine key={p.id} href={`/finance/payments/${p.id}/`} mono title={p.payment_number}
+                sub={[p.client_name, p.payment_date].filter(Boolean).join(" · ")}
+                value={fmt(p.amount_sar)} valueSub={p.status_display} />
+            ))}
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Payment")}</th><th>{t("Client")}</th><th>{t("Date")}</th><th>{t("Status")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>
               <tbody>
@@ -175,6 +192,7 @@ export default function Detail({ period = {}, entries = [], payments = [], accou
               </tbody>
             </table>
           </div>
+          </>
         ) : <div className={DA.empty}>{t("No payments in this period.")}</div>}
       </DCard>
 

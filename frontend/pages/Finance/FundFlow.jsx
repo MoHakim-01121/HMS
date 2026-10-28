@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, ExportMenu, PickMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { Fragment, useState } from "react";
+import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, ExportMenu, PickMenu, TableCard, PRow, PBand, Section, usePhone, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -13,6 +13,7 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
   const [go, loading] = useListNav("/finance/fund-flow/", cur);
   const [draft, setDraft] = useState(cur);
   const [picked, setPicked] = useState(null); // {line, currency} drill-down
+  const phone = usePhone();
   const currencies = flow.currencies;
   const labelOf = Object.fromEntries(flow.lines.map((l) => [l.key, l.label]));
   const csv = `/finance/fund-flow/export/csv/?branch=${branch}&from=${date_from}&to=${date_to}`;
@@ -70,8 +71,22 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
         {perms.can("statements", "export") && <ExportMenu items={[{ label: "CSV", href: csv }]} />}
       </Toolbar>
 
-      <Section title={t("Per currency")} sub={t("Click an amount to see its transactions.")} />
-      <TableCard cols={[null, ...currencies.map(() => 170)]}>
+      <Section title={t("Per currency")} sub={phone ? t("Tap a line to see its transactions.") : t("Click an amount to see its transactions.")} />
+      <TableCard cols={[null, ...currencies.map(() => 170)]}
+        phone={currencies.map((c) => (
+          <Fragment key={c}>
+            <PBand label={c} />
+            {lineRows.filter((l) => edge(l.key) || l.values[c]).map((l) => {
+              const v = l.values[c] || 0;
+              const drill = v !== 0 && !edge(l.key);
+              return (
+                <PRow key={l.key} no={t(l.label)} end={fmtN(v)}
+                  amountTone={v < 0 ? "text-danger-text" : !v ? "font-medium text-muted-foreground" : undefined}
+                  onClick={drill ? () => setPicked({ line: l.key, currency: c }) : undefined} />
+              );
+            })}
+          </Fragment>
+        ))}>
         <thead><Tr><Th>{t("Line")}</Th>{currencies.map((c) => <Th key={c} className="text-right">{c}</Th>)}</Tr></thead>
         <tbody>
           {lineRows.map((l) => (
@@ -101,7 +116,12 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
           <Section title={`${t(labelOf[picked.line])} · ${picked.currency}`}>
             <ToolButton onClick={() => setPicked(null)}>{t("Close")}</ToolButton>
           </Section>
-          <TableCard cols={[120, 220, null, 180]} empty={!shown.length && <Empty title={t("No transactions")} />}>
+          <TableCard cols={[120, 220, null, 180]} empty={!shown.length && <Empty title={t("No transactions")} />}
+            phone={shown.map((x, i) => (
+              <PRow key={`${x.date}-${i}`} href={x.link || undefined} no={x.reference || x.source_type}
+                end={`${fmtN(x.amount)} ${x.currency}`} amountTone={x.amount < 0 ? "text-danger-text" : undefined}
+                meta={[dLong(x.date), x.account].filter(Boolean).join(" · ")} />
+            ))}>
             <thead><Tr><Th>{t("Date")}</Th><Th>{t("Account")}</Th><Th>{t("Reference")}</Th><Th className="text-right">{t("Amount")}</Th></Tr></thead>
             <tbody>
               {shown.map((x, i) => (
@@ -118,7 +138,12 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
       )}
 
       <Section title={t("Per account")} />
-      <TableCard cols={[null, 100, 150, 150, 150, 150]}>
+      <TableCard cols={[null, 100, 150, 150, 150, 150]}
+        phone={flow.accounts.map((a) => (
+          <PRow key={`${a.label}-${a.currency}`} no={a.label} end={`${fmtN(a.closing)} ${a.currency}`}
+            amountTone={a.closing < 0 ? "text-danger-text" : undefined}
+            meta={`${t("Opening")} ${fmtN(a.opening)} · ${t("In")} ${fmtN(a.inflow)} · ${t("Out")} ${fmtN(a.outflow)}`} />
+        ))}>
         <thead><Tr>
           <Th>{t("Account")}</Th><Th>{t("Currency")}</Th><Th className="text-right">{t("Opening")}</Th>
           <Th className="text-right">{t("In")}</Th><Th className="text-right">{t("Out")}</Th><Th className="text-right">{t("Closing")}</Th>
@@ -139,6 +164,13 @@ export default function FundFlow({ branch, branch_choices = [], date_from, date_
 
       <Section title={t("FX profit per transfer")} />
       <TableCard cols={[120, 110, 120, 150, 120, 120, 150]}
+        phone={fx.transfers.map((r) => (
+          <PRow key={r.id} href={`/remittance/${r.id}/`} mono no={r.remittance_number}
+            end={r.profit_idr == null ? t("Not priced") : `${fmtN(r.profit_idr)}${!r.fully_covered ? " *" : ""} IDR`}
+            amountTone={r.profit_idr == null ? "font-medium text-muted-foreground" : r.profit_idr < 0 ? "text-danger-text" : undefined}
+            meta={[dLong(r.date), `${fmtN(r.sar)} SAR`, r.idr_sent != null ? `${fmtN(r.idr_sent)} IDR` : null].filter(Boolean).join(" · ")}
+            note={r.avg_rate != null || r.send_rate != null ? `${r.avg_rate != null ? fmtN(r.avg_rate) : "–"} → ${r.send_rate != null ? fmtN(r.send_rate) : "–"}` : null} />
+        ))}
         empty={!fx.transfers.length && <Empty title={t("No transfers to HQ")} sub={t("Transfers in this period show here with what they earned.")} />}>
         <thead><Tr>
           <Th>{t("Transfer")}</Th><Th>{t("Date")}</Th><Th className="text-right">SAR</Th><Th className="text-right">{t("IDR sent")}</Th>

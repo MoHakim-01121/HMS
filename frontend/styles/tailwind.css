@@ -9,7 +9,7 @@
   html { background: var(--background); }
   body {
     min-height: 100vh;
-    padding-top: 48px;
+    padding-top: calc(56px + env(safe-area-inset-top));
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
@@ -157,6 +157,7 @@
   --tentative-text: oklch(0.50 0.11 90);
   /* Calendar stays by where they stand today: a tint, the edge on its left and
      the ink on it. In-house green, arriving blue, checked out grey. --cal-tile
+     is the date tiles and the band behind group labels. */
   --stay-house: #E4EEDB;
   --stay-house-edge: #4F7A35;
   --stay-house-ink: #2C4620;
@@ -395,6 +396,9 @@
   --shadow-primary: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18);
   --shadow-crop-mask: 0 0 0 400px rgba(10,12,16,.5);
   --shadow-palette: 0 30px 60px -26px rgba(55,53,47,.40);
+  /* Phones: the floating bottom nav card and the round "new" button above it. */
+  --shadow-dock: 0 8px 24px rgba(20,25,10,.22);
+  --shadow-fab: 0 6px 18px rgba(30,35,20,.28);
 
   /* Motion: one enter curve, one exit curve, one drawer curve (iOS sheet). */
   --ease-out-quint: cubic-bezier(.16,1,.3,1);
@@ -461,14 +465,14 @@ body:has(#main):not(.map-fullscreen) {
    shift itself by the same gap, which the library publishes as
    --removed-body-scroll-bar-size (the topbar does). */
 @media (max-width: 600px) {
-  /* Mobile top bar offset — matches the 48px fixed strip */
-  body[data-scroll-locked] { padding-top: calc(48px + env(safe-area-inset-top)) !important; }
+  /* Mobile top bar offset — matches the 56px fixed strip */
+  body[data-scroll-locked] { padding-top: calc(56px + env(safe-area-inset-top)) !important; }
 }
 
 /* ── Shell layout tokens (desktop) ─────────────────────────────────────
    --sidebar-w is the sidebar's whole slot (the card plus the gap on each
    side, --shell-gap); --topbar-h the topbar. AppLayout's root pads itself by
-   these, so body keeps no offset of its own: the base layer gives it a 48px
+   these, so body keeps no offset of its own: the base layer gives it a 56px
    top padding for the phone top bar, zeroed here. Phones use the mobile top
    bar and bottom nav below. */
 @media (min-width: 601px) {

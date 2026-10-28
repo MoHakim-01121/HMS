@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DPill, DLines, DLine, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
@@ -108,7 +108,17 @@ export default function Detail({ statement = {} }) {
 
       <DCard title={t("Statement lines")} count={lines.length || null} meta={agrees ? t("Bank and books agree") : t("Bank vs books: find the missing entry")}>
         {lines.length ? (
-          <div className={DA.scroll}>
+          <>
+          <DLines>
+            {lines.map((l) => (
+              <DLine key={l.id} title={l.description || l.reference || ""}
+                sub={[fmtDate(l.line_date), l.description ? l.reference : null].filter(Boolean).join(" · ")}
+                value={`${l.direction === "in" ? "+" : "−"}${fmt(l.amount)}`} valueTone={l.direction === "in" ? "text-success-text" : undefined}>
+                {matchCell(l)}
+              </DLine>
+            ))}
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th className={DC.date}>{t("Date")}</th><th>{t("Description")}</th><th className={DC.n}>{t("Amount ({cur})", { cur })}</th><th>{t("Match")}</th></tr></thead>
               <tbody>
@@ -123,6 +133,7 @@ export default function Detail({ statement = {} }) {
               </tbody>
             </table>
           </div>
+          </>
         ) : <div className={DA.empty}>{t("This statement has no lines.")}</div>}
       </DCard>
     </DPage>

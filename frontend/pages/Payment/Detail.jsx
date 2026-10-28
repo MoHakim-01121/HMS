@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DTabs, DLog, dayMonth, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DTabs, DLog, DLines, DLine, DLinesTotal, dayMonth, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import ApplyPaymentSheet from "../../components/shadcn/apply-payment-sheet.jsx";
 import {
@@ -220,8 +220,18 @@ export default function Detail({ payment = {}, reservations = [], unbilled_reser
           ]}
         />
 
+        {tab === "allocation" && allocations.length ? (
+          <DLines>
+            {allocations.map((a) => (
+              <DLine key={a.id} mono title={a.reservation_number || `#${a.reservation_id}`}
+                sub={[a.hotel, fmtStay(a.check_in, a.check_out)].filter(Boolean).join(" · ")} value={fmt(a.amount_sar)} />
+            ))}
+            {unallocatedRow ? <DLine title={t("Unallocated")} sub={t("Held on the client balance")} value={fmt(payment.unallocated_sar)} valueTone="text-danger-text" /> : null}
+            <DLinesTotal label={t("Total received")}>{fmt(payment.amount_sar)} SAR</DLinesTotal>
+          </DLines>
+        ) : null}
         {tab === "allocation" ? (
-          <div role="tabpanel" className={DA.scroll}>
+          <div role="tabpanel" className={allocations.length ? DA.scrollWide : DA.scroll}>
             {allocations.length ? (
               <table data-slot="detail-table" className={DA.table}>
                 <thead><tr><th>{t("Reservation")}</th><th>{t("Hotel")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Amount (SAR)")}</th></tr></thead>

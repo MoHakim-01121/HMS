@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, LIcon, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, Primary, TableCard, PRow, RowMenu, Pill, Amt, Pager, Empty, LIcon, fmtN, useListNav, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import FormField, { FieldGrid, amountText, amountValue } from "../../components/shadcn/form-field.jsx";
 import { Icon } from "../../components/icons.jsx";
 import {
@@ -88,6 +88,12 @@ export default function List({ statements = [], account_choices = [], filters: f
       </Toolbar>
 
       <TableCard cols={[null, 190, 200, 120, 180, 120, 56]}
+        phone={statements.map((s) => (
+          <PRow key={s.id} href={`/finance/reconciliation/${s.id}/`} no={s.account_label}
+            tag={<Pill tone={s.state === "done" ? "green" : "amber-o"} sm>{s.state === "done" ? t("Reconciled") : t("In progress")}</Pill>}
+            meta={[periodLabel(s.period_start, s.period_end, t), t("{a} of {b} matched", { a: s.lines_matched, b: s.lines_total })].join(" · ")}
+            note={s.difference ? t("{v} off", { v: fmtN(s.difference) }) : null} noteTone="font-medium text-danger-text" />
+        ))}
         empty={!statements.length && <Empty title={t("No statements")} sub={t("Import the bank's CSV export, or type a statement in, to start reconciling.")} />}>
         <thead><Tr>
           <Th>{t("Account")}</Th><Th><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Statement period")}{LIcon.sortDown}</span></Th>

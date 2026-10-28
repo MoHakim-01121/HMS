@@ -1,6 +1,7 @@
-import { Children, forwardRef, useEffect, useRef, useState } from "react";
+import { Children, createContext, forwardRef, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover.jsx";
+import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
 import Page from "./page.jsx";
@@ -12,6 +13,7 @@ const S = (props) => <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
 export const LIcon = {
   search: <S><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></S>,
   filter: <S><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z" /></S>,
+  sliders: <S><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></S>,
   export: <S><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" /></S>,
   plus: <S strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></S>,
   prev: <S width="16" height="16" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></S>,
@@ -59,6 +61,32 @@ export function useListNav(base, current) {
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring";
 
+// Phones (600px and below) rearrange a few parts rather than restyle them:
+// the filter becomes a bottom sheet, the table a list of rows.
+const PHONE = "(max-width: 600px)";
+export function usePhone() {
+  const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(PHONE).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE);
+    const fn = (e) => setOn(e.matches);
+    mq.addEventListener("change", fn);
+    setOn(mq.matches);
+    return () => mq.removeEventListener("change", fn);
+  }, []);
+  return on;
+}
+
+// What a toolbar's tools leave to the filter sheet on a phone: Export and the
+// one-pick menus (salesperson, season) move into it. Kept in a ref, read when
+// the sheet opens, so the tools re-render without re-rendering the toolbar.
+const ToolCtx = createContext(null);
+function useSheetEntry(key, entry) {
+  const ctx = useContext(ToolCtx);
+  useLayoutEffect(() => { if (ctx) ctx.entries.current[key] = entry; });
+  useEffect(() => () => { if (ctx) delete ctx.entries.current[key]; }, [ctx, key]);
+  return ctx;
+}
+
 // The page frame of a list page or the dashboard: fills what the sidebar
 // leaves, up to 1280px of content, so collapsing the sidebar widens it. The
 // topbar follows the same column (it keys off data-slot="list-main").
@@ -81,7 +109,7 @@ export function ListPage({ title, legend, children, loading }) {
     <PageFrame>
       <PageMain loading={loading}>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em]">{title}</h1>
+          <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em] max-[600px]:text-[26px] max-[600px]:leading-[1.2]">{title}</h1>
           {legend}
         </div>
         {children}
@@ -107,15 +135,19 @@ export const Note = ({ className, children }) => (
 );
 
 // `dense`: five cards or long rupiah figures, values one step smaller.
+// On a phone the cards swipe sideways instead of stacking.
 export const Kpis = ({ children, dense }) => (
-  <div data-dense={dense ? "" : undefined} className="group/kpis flex gap-3 max-[900px]:flex-wrap">{children}</div>
+  <div data-dense={dense ? "" : undefined} className={cn(
+    "group/kpis flex gap-3 max-[900px]:flex-wrap",
+    "max-[600px]:-mx-4 max-[600px]:snap-x max-[600px]:snap-mandatory max-[600px]:flex-nowrap max-[600px]:gap-2.5 max-[600px]:overflow-x-auto max-[600px]:px-4 max-[600px]:[scrollbar-width:none] max-[600px]:[&::-webkit-scrollbar]:hidden",
+  )}>{children}</div>
 );
 
 // The card a KPI sits in (pick B of the "HMS KPI Cards" canvas). Pressable
 // when it is a button or link.
 export const kpiFrame = (pressable, on) => cn(
   "box-border flex min-w-0 flex-[1_1_0] flex-col rounded-card border border-border bg-card px-[18px] pt-4 pb-3 text-left text-inherit no-underline [font:inherit]",
-  "transition-[border-color,box-shadow,scale] duration-150 ease-out-quint max-[900px]:flex-[1_1_calc(50%-6px)] max-[600px]:flex-[1_1_100%]",
+  "transition-[border-color,box-shadow,scale] duration-150 ease-out-quint max-[900px]:flex-[1_1_calc(50%-6px)] max-[600px]:flex-[0_0_80%] max-[600px]:snap-start",
   FOCUS,
   pressable && "cursor-pointer hover:border-input active:scale-[.995]",
   on && "border-foreground ring-1 ring-inset ring-foreground",
@@ -228,19 +260,24 @@ export function Delta({ text, good, title }) {
 
 
 export function Toolbar({ left, children, spaced }) {
+  const entries = useRef({});
+  const [hasFilter, setHasFilter] = useState(false);
+  const ctx = useMemo(() => ({ entries, hasFilter, setHasFilter }), [hasFilter]);
   return (
-    <div className={cn("flex flex-wrap items-center justify-between gap-3", spaced && "mt-9")}>
-      <div className="flex flex-wrap items-center gap-1">{left}</div>
-      {Children.toArray(children).length > 0 && <ToolbarRight>{children}</ToolbarRight>}
-    </div>
+    <ToolCtx.Provider value={ctx}>
+      <div className={cn("flex flex-wrap items-center justify-between gap-3", spaced && "mt-9 max-[600px]:mt-2")}>
+        <div className="flex flex-wrap items-center gap-1 max-[600px]:w-full">{left}</div>
+        {Children.toArray(children).length > 0 && <ToolbarRight>{children}</ToolbarRight>}
+      </div>
+    </ToolCtx.Provider>
   );
 }
 
-export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full">{children}</div>;
+export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full max-[600px]:flex-nowrap">{children}</div>;
 
 // The month label of a month navigator.
 export const MonthLabel = ({ className, children }) => (
-  <span data-slot="month" className={cn("mr-2 min-w-[76px] text-[14px] font-semibold", className)}>{children}</span>
+  <span data-slot="month" className={cn("mr-2 min-w-[76px] text-[14px] font-semibold max-[600px]:mr-auto max-[600px]:text-[15px]", className)}>{children}</span>
 );
 
 // ‹ › beside the month.
@@ -321,7 +358,7 @@ export function SearchTool({ value, onSearch, placeholder }) {
     timer.current = setTimeout(() => onSearch(v.trim()), 300);
   };
   return (
-    <label data-slot="search" className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%]")}>
+    <label data-slot="search" className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%] max-[600px]:h-11 max-[600px]:w-auto max-[600px]:flex-[1_1_0%] max-[600px]:text-[14px]")}>
       {LIcon.search}
       <input className={cn(toolInput, "flex-1")} value={q} onChange={(e) => change(e.target.value)} placeholder={placeholder} aria-label={placeholder}
         onKeyDown={(e) => { if (e.key === "Enter") { clearTimeout(timer.current); onSearch(q.trim()); } }} />
@@ -354,9 +391,70 @@ export const MenuHint = ({ children }) => <span className="block text-[12px] fon
 export const MenuSep = () => <div className="my-1 h-px bg-hairline" />;
 
 // The Filter button and its panel. Children edit a draft; Apply commits it.
+// On a phone: a round button beside the search, the panel a bottom sheet that
+// also holds the toolbar's one-pick menus and Export.
 export function FilterMenu({ count = 0, onApply, onReset, onOpen, children }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const phone = usePhone();
+  const ctx = useContext(ToolCtx);
+  const setHasFilter = ctx?.setHasFilter;
+  useEffect(() => {
+    if (!setHasFilter) return undefined;
+    setHasFilter(true);
+    return () => setHasFilter(false);
+  }, [setHasFilter]);
+  if (phone) {
+    const extra = Object.values(ctx?.entries.current || {});
+    const picks = extra.filter((e) => e.kind === "pick");
+    const exports = extra.find((e) => e.kind === "export")?.items || [];
+    return (
+      <>
+        <button type="button" aria-label={t("Filter and sort")} aria-haspopup="dialog" onClick={() => { setOpen(true); onOpen?.(); }}
+          className={cn(toolClass, "relative size-11 flex-none justify-center p-0 [&_svg]:size-[18px] [&_svg]:text-foreground")}>
+          {LIcon.sliders}
+          {count > 0 && <span className="absolute -top-0.5 -right-0.5 box-border grid h-[18px] min-w-[18px] place-content-center rounded-full border-2 border-background bg-primary px-1 text-[10.5px] font-bold text-primary-foreground">{count}</span>}
+        </button>
+        <Drawer open={open} onOpenChange={setOpen} direction="bottom">
+          <DrawerContent aria-describedby={undefined} className="rounded-t-[22px] border-0 px-4 pb-[calc(18px+env(safe-area-inset-bottom))]">
+            <div className="flex items-center justify-between pt-3">
+              <DrawerTitle className="m-0 text-[17px]">{t("Filter and sort")}</DrawerTitle>
+              <button type="button" onClick={() => onReset()} className="h-9 cursor-pointer border-0 bg-transparent px-1 font-sans text-[13px] font-medium text-muted-foreground">{t("Reset")}</button>
+            </div>
+            <div className="-mx-4 min-h-0 overflow-y-auto px-4 py-3">
+              {picks.map((p) => (
+                <FilterSection key={p.label} label={p.label}>
+                  {p.options.map((o) => (
+                    <Check key={o.value} radio on={o.value === p.value} label={o.label} onClick={() => { setOpen(false); p.onPick(o.value); }} />
+                  ))}
+                </FilterSection>
+              ))}
+              {picks.length > 0 && <div className="mt-4 border-t border-hairline pt-4" />}
+              {children}
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              {exports.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <ToolButton className="h-11 px-[18px] text-[14px]" aria-haspopup="menu">{LIcon.export}{t("Export")}</ToolButton>
+                  </PopoverTrigger>
+                  <Menu side="top" align="start" sideOffset={8} className="w-[260px]">
+                    {exports.map((it) => (
+                      <MenuItem as="a" key={it.label} href={it.href} target={it.external ? "_blank" : undefined} rel="noreferrer">
+                        <span>{it.label}{it.hint && <MenuHint>{it.hint}</MenuHint>}</span>
+                      </MenuItem>
+                    ))}
+                  </Menu>
+                </Popover>
+              )}
+              <button type="button" onClick={() => { setOpen(false); onApply(); }}
+                className="h-11 flex-1 cursor-pointer rounded-full border-0 bg-primary px-4 font-sans text-[14px] font-semibold text-primary-foreground">{t("Apply")}</button>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (o && onOpen) onOpen(); }}>
       <PopoverTrigger asChild>
@@ -386,7 +484,7 @@ export const FilterSection = ({ label, children, hint }) => (
 export function Check({ on, onClick, label, count, radio }) {
   return (
     <button type="button" role={radio ? "radio" : "checkbox"} aria-checked={!!on} onClick={onClick} className={cn(
-      "box-border flex w-full cursor-pointer items-center gap-2 rounded-[8px] border-0 bg-transparent p-2 text-left font-sans text-[13px] leading-[normal] font-normal text-foreground hover:bg-secondary",
+      "box-border flex w-full cursor-pointer items-center gap-2 rounded-[8px] border-0 bg-transparent p-2 text-left font-sans text-[13px] leading-[normal] font-normal text-foreground hover:bg-secondary max-[600px]:min-h-11 max-[600px]:text-[14px]",
       FOCUS,
     )}>
       {radio
@@ -410,15 +508,21 @@ export function DateRange({ from, to, onFrom, onTo }) {
   );
 }
 
-// Export menu: [{ label, hint, href }]
+// Export menu: [{ label, hint, href }]. On a phone it moves into the filter
+// sheet when the toolbar has one, else it shrinks to a round icon button.
 export function ExportMenu({ items }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const phone = usePhone();
+  const ctx = useSheetEntry("export", { kind: "export", items });
   if (!items.length) return null;
+  if (phone && ctx?.hasFilter) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <ToolButton aria-haspopup="menu">{t("Export")}{LIcon.export}</ToolButton>
+        {phone
+          ? <ToolButton aria-haspopup="menu" aria-label={t("Export")} className="size-11 flex-none justify-center p-0 [&_svg]:size-[18px] [&_svg]:text-foreground">{LIcon.export}</ToolButton>
+          : <ToolButton aria-haspopup="menu">{t("Export")}{LIcon.export}</ToolButton>}
       </PopoverTrigger>
       <Menu align="end" sideOffset={8} className="w-[280px]">
         {items.map((it) => (
@@ -435,8 +539,11 @@ export function ExportMenu({ items }) {
 // options = [{ value, label, hint }]; `label` shows when nothing is picked.
 export function PickMenu({ value, options, onPick, label, width = 220 }) {
   const [open, setOpen] = useState(false);
+  const phone = usePhone();
+  const ctx = useSheetEntry(`pick:${label}`, { kind: "pick", label, options, value, onPick });
   const cur = options.find((o) => o.value === value);
   if (!options.length) return null;
+  if (phone && ctx?.hasFilter) return null;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -451,6 +558,14 @@ export function PickMenu({ value, options, onPick, label, width = 220 }) {
       </Menu>
     </Popover>
   );
+}
+
+// Wraps a page's own one-pick menu (the CL salesperson): on a phone with a
+// filter sheet the menu leaves the toolbar and its options join the sheet.
+export function SheetPick({ label, value, options, onPick, children }) {
+  const phone = usePhone();
+  const ctx = useSheetEntry(`pick:${label}`, { kind: "pick", label, options, value, onPick });
+  return phone && ctx?.hasFilter ? null : children;
 }
 
 // A heading between the cards of a page with more than one table.
@@ -470,9 +585,12 @@ export const primaryClass = cn(
   "inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border-0 bg-primary px-4 font-sans text-[13px] leading-[normal] font-semibold whitespace-nowrap text-primary-foreground no-underline [transition:background-color_.15s_ease,transform_.1s_ease] hover:bg-primary-hover active:[transform:scale(.97)]",
   FOCUS,
 );
+// On a phone the "new" button floats as a round + above the bottom nav.
+const FAB = "max-[600px]:fixed max-[600px]:right-4 max-[600px]:bottom-[calc(90px+env(safe-area-inset-bottom))] max-[600px]:z-(--z-sticky) max-[600px]:size-14 max-[600px]:justify-center max-[600px]:p-0 max-[600px]:shadow-fab max-[600px]:[&_svg]:size-6";
 export function Primary({ label, onClick, onPrefetch, href }) {
-  if (href) return <Link className={primaryClass} href={href}>{LIcon.plus}{label}</Link>;
-  return <button type="button" className={primaryClass} onClick={onClick} onPointerEnter={onPrefetch} onFocus={onPrefetch}>{LIcon.plus}{label}</button>;
+  const text = <span className="max-[600px]:sr-only">{label}</span>;
+  if (href) return <Link className={cn(primaryClass, FAB)} href={href} aria-label={label}>{LIcon.plus}{text}</Link>;
+  return <button type="button" className={cn(primaryClass, FAB)} aria-label={label} onClick={onClick} onPointerEnter={onPrefetch} onFocus={onPrefetch}>{LIcon.plus}{text}</button>;
 }
 
 // The row's ⋯ menu: [{ label, onClick | href, danger, external }]; falsy items drop.
@@ -572,7 +690,9 @@ export const Tr = ({ row, className, ...props }) => (
 // built from Tr/Th/Td. Rows open on click; Tab reaches each one and Enter or
 // Space opens it too (static and band rows are not openable and stay out of
 // the tab order).
-export function TableCard({ cols, children, empty }) {
+// `phone`: the same rows as PRow lines, shown instead of the table on a phone
+// (any value hides the table there, so an empty list leaves just `empty`).
+export function TableCard({ cols, children, empty, phone }) {
   const ref = useRef(null);
   useEffect(() => {
     ref.current?.querySelectorAll("tbody tr").forEach((tr) => {
@@ -589,16 +709,86 @@ export function TableCard({ cols, children, empty }) {
   };
   return (
     <section className="surface overflow-hidden rounded-[20px] border border-border bg-card">
-      <div className="overflow-x-auto">
+      <div className={cn("overflow-x-auto", phone !== undefined && "max-[600px]:hidden")}>
         <table className="w-full min-w-[860px] table-fixed border-collapse text-[13px]" ref={ref} onKeyDown={onKey}>
           {cols && <colgroup>{cols.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>}
           {children}
         </table>
       </div>
+      {phone && <div className="hidden max-[600px]:block">{phone}</div>}
       {empty}
     </section>
   );
 }
+
+// One table row on a phone, three lines (canvas "HMS Mobile v2", lists):
+// number and status / name and amount / the rest and a note at the end.
+// `tag` is a Pill; `end` replaces it with a figure (a balance). Rows with
+// `href` open on tap; `onClick` rows act in place. `lead` sits left of the
+// lines (a checkbox); `menu` sits at the right end (the desktop row's
+// RowMenu); `children` opens under the row (a row's history).
+const ROW_LINE = "flex w-full min-w-0 items-center justify-between gap-2.5 [&>:first-child]:min-w-0 [&>:first-child]:truncate [&>:last-child]:flex-none";
+export function PRow({ href, onClick, no, mono, tag, end, title, amount, unit, amountTone, meta, note, noteTone, dim, lead, on, menu, children }) {
+  const body = (
+    <>
+      <span className={ROW_LINE}>
+        <span className={cn(mono ? "font-mono text-[14px] font-bold tracking-[-0.01em]" : "text-[15px] font-semibold", dim && "line-through decoration-muted-foreground")}>{no}</span>
+        {end != null ? <b className={cn("text-[15px] font-semibold tabular-nums", amountTone)}>{end}</b> : tag}
+      </span>
+      {(title || amount != null) && (
+        <span className={ROW_LINE}>
+          <span className="text-[15px] font-medium">{title}</span>
+          {amount != null && <b className={cn("text-[15px] font-semibold tabular-nums", amountTone)}>{amount}{unit && <small className="ml-[3px] text-[13px] font-medium text-muted-foreground">{unit}</small>}</b>}
+        </span>
+      )}
+      {(meta || note) && (
+        <span className={cn(ROW_LINE, "text-[13px] text-muted-foreground")}>
+          <span>{meta}</span>
+          {note && <span className={noteTone}>{note}</span>}
+        </span>
+      )}
+    </>
+  );
+  const cls = cn(
+    "flex flex-col gap-[3px] border-t border-hairline px-4 py-[13px] text-left text-foreground no-underline tabular-nums first:border-t-0 active:bg-secondary",
+    FOCUS,
+  );
+  if (lead || children || menu) {
+    const inner = cn("flex min-w-0 flex-1 flex-col gap-[3px] py-[13px] text-left text-foreground no-underline tabular-nums", menu ? "pr-0" : "pr-4");
+    return (
+      <div className={cn("border-t border-hairline first:border-t-0", on && "bg-[color:color-mix(in_oklch,var(--foreground)_5%,var(--card))]")}>
+        <div className={cn("flex items-center gap-3", !lead && "pl-4")}>
+          {lead && <span className="flex flex-none self-stretch items-center pl-4">{lead}</span>}
+          {href ? <Link href={href} className={cn(inner, FOCUS)}>{body}</Link>
+            : onClick ? <button type="button" onClick={onClick} className={cn(inner, "cursor-pointer border-0 bg-transparent font-sans", FOCUS)}>{body}</button>
+            : <div className={inner}>{body}</div>}
+          {menu && <span className="flex flex-none items-center pr-1.5">{menu}</span>}
+        </div>
+        {children}
+      </div>
+    );
+  }
+  if (href) return <Link href={href} className={cls}>{body}</Link>;
+  if (onClick) return <button type="button" onClick={onClick} className={cn(cls, "w-full cursor-pointer border-x-0 border-b-0 bg-transparent font-sans")}>{body}</button>;
+  return <div className={cls}>{body}</div>;
+}
+
+// A group heading between phone rows, as the table's band row: an optional
+// checkbox, the label and its count, a figure at the end.
+export const PBand = ({ lead, label, count, end }) => (
+  <div className="flex items-center gap-3 border-t border-hairline bg-[color:oklch(0.975_0.007_75)] px-4 py-2 text-[13px] font-semibold tabular-nums first:border-t-0 [[data-theme=dark]_&]:bg-[color:oklch(0.215_0.007_75)]">
+    {lead}
+    <span className="min-w-0 flex-1 truncate">{label}{count != null && <span className="ml-1.5 font-normal text-muted-foreground">{count}</span>}</span>
+    {end != null && <span className="flex-none">{end}</span>}
+  </div>
+);
+
+// The totals line under a phone row list.
+export const PTotal = ({ label, children }) => (
+  <div className="flex items-baseline justify-between gap-3 border-t border-input px-4 py-[13px] text-[15px] font-semibold tabular-nums">
+    <span>{label}</span><span>{children}</span>
+  </div>
+);
 
 export function Empty({ title, sub, lead, className }) {
   return (
@@ -625,7 +815,7 @@ export function Pager({ p, perPage, onPage, onPerPage, summary }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 text-[13px] text-muted-foreground tabular-nums">
       {summary ? <span>{summary}</span> : (
-        <span className="flex items-center gap-2">{t("Show")}
+        <span className="flex items-center gap-2 max-[600px]:hidden">{t("Show")}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild><ToolButton className="h-8 gap-1 px-3" aria-haspopup="menu">{perPage}{LIcon.chev}</ToolButton></PopoverTrigger>
             <Menu side="top" align="start" sideOffset={6} className="w-[90px] min-w-0">
@@ -637,6 +827,7 @@ export function Pager({ p, perPage, onPage, onPerPage, summary }) {
           {t("per page")}
         </span>
       )}
+      {!summary && <span className="hidden max-[600px]:inline">{t("Page {n} of {m}", { n: page, m: pages })}</span>}
       <span className="flex items-center gap-2">
         <button type="button" className={cn(pg, plain)} aria-label={t("Previous page")} disabled={page <= 1} onClick={() => onPage(page - 1)}>{LIcon.prev}</button>
         {nums.map((n, i) => (

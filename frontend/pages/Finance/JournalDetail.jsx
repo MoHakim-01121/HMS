@@ -1,4 +1,4 @@
-import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
@@ -30,7 +30,16 @@ export default function JournalDetail({ entry = {}, created_by = "", reverses_nu
       />
 
       <DCard title={t("Lines")} count={lines.length} meta={t("Amounts in SAR")}>
-        <div className={DA.scroll}>
+        <DLines>
+          {lines.length ? lines.map((l) => (
+            <DLine key={l.id} title={l.account_display} sub={[l.dim, l.note, l.native].filter(Boolean).join(" · ")}
+              value={fmt(Math.abs(l.amount_sar))} valueSub={l.amount_sar > 0 ? t("Debit") : t("Credit")} />
+          )) : <div className={DC.empty}>{t("No lines")}</div>}
+          <DLinesTotal label={balanced ? t("Total") : t("Total, not balanced")}>
+            <span className={cn(!balanced && "text-danger-text")}>{fmt(totalDebit)} / {fmt(totalCredit)}</span>
+          </DLinesTotal>
+        </DLines>
+        <div className={DA.scrollWide}>
           <table data-slot="detail-table" className={DA.table}>
             <thead><tr><th>{t("Account")}</th><th>{t("Reference")}</th><th>{t("Note")}</th><th className={cn(DC.n, DC.nWide)}>{t("Debit")}</th><th className={cn(DC.n, DC.nWide)}>{t("Credit")}</th></tr></thead>
             <tbody>

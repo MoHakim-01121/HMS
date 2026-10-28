@@ -3,7 +3,7 @@ import { Link, router } from "@inertiajs/react";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Legend, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, Note, MenuButton, Menu, MenuItem, MenuHint, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Legend, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, Note, MenuButton, Menu, MenuItem, MenuHint, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -39,6 +39,12 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
   const del = (c) => confirm({ title: t("Delete client"), message: t("Delete client {name}?", { name: c.name }), onConfirm: () => router.post(`/clients/${c.id}/delete/`) });
   const waLink = (wa) => `https://wa.me/${String(wa).replace(/\D/g, "").replace(/^0/, "62")}`;
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (c) => [
+    c.wa && { label: t("Chat on WhatsApp"), href: waLink(c.wa), external: true },
+    perms.can("clients", "edit") && { label: t("Edit"), onClick: () => openForm(`/clients/${c.id}/edit/`) },
+    perms.can("clients", "delete") && { label: t("Delete"), danger: true, onClick: () => del(c) },
+  ];
   return (
     <ListPage title={t("Clients")} loading={loading}
       legend={k && k.prev_season && <Legend current={k.season} previous={t("{s} at the same point", { s: k.prev_season })} note={k.range} />}>
@@ -98,6 +104,15 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
       </Toolbar>
 
       <TableCard cols={[null, 140, 180, 130, 60, 104, 100, 56]}
+        phone={clients.map((c) => {
+          const [tone, label] = STATUS[c.status] || STATUS.inactive;
+          return (
+            <PRow key={c.id} menu={<RowMenu label={t("Actions for {n}", { n: c.name })} items={menuFor(c)} />} href={`/clients/${c.id}/`} no={c.brand || c.name} dim={c.status === "inactive"}
+              tag={<Pill tone={tone} sm>{t(label)}</Pill>}
+              meta={[c.city, t("{n} CL · {r} room nights", { n: c.cl_count, r: fmtN(c.room_nights) })].filter(Boolean).join(" · ")}
+              note={c.last_booking ? dShort(c.last_booking) : t("Never")} />
+          );
+        })}
         empty={!clients.length && <Empty title={t("No clients")} sub={t("Nothing matches this search and these filters.")} />}>
         <thead><Tr>
           <Th>{t("Client")}</Th><Th>{t("City")}</Th><Th>{t("PIC / WhatsApp")}</Th>
@@ -118,11 +133,7 @@ export default function List({ clients, filters: f, seasons, cities, counts, kpi
                 <Td className={"text-right" + (c.room_nights ? "" : " text-muted-foreground")}>{fmtN(c.room_nights)}</Td>
                 <Td><Pill tone={tone}>{t(label)}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: c.name })} items={[
-                    c.wa && { label: t("Chat on WhatsApp"), href: waLink(c.wa), external: true },
-                    perms.can("clients", "edit") && { label: t("Edit"), onClick: () => openForm(`/clients/${c.id}/edit/`) },
-                    perms.can("clients", "delete") && { label: t("Delete"), danger: true, onClick: () => del(c) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: c.name })} items={menuFor(c)} />
                 </Td>
               </Tr>
             );

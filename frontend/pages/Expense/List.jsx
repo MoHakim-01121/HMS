@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { usePerms } from "../../utils/perms.js";
 import NewExpense from "./NewExpense.jsx";
@@ -36,6 +36,13 @@ export default function List({
   const prevName = kpis ? monthName(kpis.prev_month, t) : "";
   const filterCount = (f.status.length ? 1 : 0) + (f.by.length ? 1 : 0);
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (e) => [
+    canApprove && e.status === "submitted" && { label: t("Approve"), onClick: () => router.post(`/finance/expenses/${e.id}/approve/`, {}, { preserveScroll: true }) },
+    e.proof_url && { label: t("View receipt"), href: e.proof_url, external: true },
+    e.status === "approved" && perms.can("expenses", "edit") && { label: t("Pay"), onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
+    canApprove && e.status === "submitted" && { label: t("Reject"), danger: true, onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
+  ];
   return (
     <ListPage title={t("Expenses")} loading={loading}>
       {kpis && (
@@ -76,6 +83,16 @@ export default function List({
       </Toolbar>
 
       <TableCard cols={[104, 76, null, 160, 130, 96, 160, 56]}
+        phone={expenses.map((e) => {
+          const [tone, label] = STATUS[e.status] || STATUS.submitted;
+          const cats = [...new Set(e.lines.map((l) => l.category_name))];
+          return (
+            <PRow key={e.id} menu={<RowMenu label={t("Actions for {n}", { n: e.expense_number })} items={menuFor(e)} />} href={`/finance/expenses/${e.id}/`} mono no={e.expense_number} dim={["rejected", "voided"].includes(e.status)}
+              tag={<Pill tone={tone} sm>{t(label)}</Pill>}
+              title={e.description || cats.join(", ") || t("Expense")} amount={fmtN(e.total_amount)} unit="IDR"
+              meta={[dShort(e.expense_date), e.recorded_by, e.vendor].filter(Boolean).join(" · ")} />
+          );
+        })}
         empty={!expenses.length && <Empty title={t("No expenses")} sub={t("Nothing matches this period and these filters.")} />}>
         <thead><Tr>
           <Th>{t("Expense")}</Th>
@@ -104,12 +121,7 @@ export default function List({
                 })()}</Td>
                 <Td><Pill tone={tone}>{t(label)}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: e.expense_number })} items={[
-                    canApprove && e.status === "submitted" && { label: t("Approve"), onClick: () => router.post(`/finance/expenses/${e.id}/approve/`, {}, { preserveScroll: true }) },
-                    e.proof_url && { label: t("View receipt"), href: e.proof_url, external: true },
-                    e.status === "approved" && perms.can("expenses", "edit") && { label: t("Pay"), onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
-                    canApprove && e.status === "submitted" && { label: t("Reject"), danger: true, onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: e.expense_number })} items={menuFor(e)} />
                 </Td>
               </Tr>
             );

@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, TableCard, Pill, Empty, fmtN, dLong, useListNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Kpis, Kpi, FilterMenu, FilterSection, Check, DateRange, TableCard, PRow, PBand, PTotal, Pill, Empty, fmtN, dLong, useListNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Neraca Saldo: saldo awal, mutasi debit/kredit dan saldo akhir tiap akun,
@@ -74,6 +74,21 @@ export default function TrialBalance({
       </Toolbar>
 
       <TableCard cols={[null, 150, 130, 130, 150]}
+        phone={(
+          <>
+            {types.map((tp) => (
+              <Fragment key={tp.type}>
+                <PBand label={t(tp.label)} count={tp.rows.length} />
+                {tp.rows.map((g) => (
+                  <PRow key={g.account} no={g.account_name} end={fmtN(bal(g, g.closing))}
+                    amountTone={bal(g, g.closing) < 0 ? "text-danger-text" : !g.closing ? "text-muted-foreground" : undefined}
+                    meta={`${t("Opening")} ${fmtN(bal(g, g.opening))} · Dr ${fmtN(g.debit)} · Cr ${fmtN(g.credit)}`} />
+                ))}
+              </Fragment>
+            ))}
+            {rows.length > 0 && <PTotal label={t("Total")}>Dr {fmtN(total_debit)} · Cr {fmtN(total_credit)}</PTotal>}
+          </>
+        )}
         empty={!rows.length && <Empty title={t("No journal data")} sub={t("No entries match your filters.")} />}>
         <thead><Tr>
           <Th>{t("Account")}</Th><Th className="text-right">{t("Opening")}</Th><Th className="text-right">{t("Debit")}</Th>

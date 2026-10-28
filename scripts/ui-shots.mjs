@@ -106,8 +106,14 @@ const PAGES = [
 
 // Open overlays (menus, selects, dialogs): [shot name, role, path, clicks].
 // Shot at viewport size, since overlays are fixed to it. Nothing here submits:
-// "Delete" only opens the confirmation, which is never confirmed.
-const ROW_MENU = '[data-slot="popover-trigger"] >> nth=-1';
+// "Delete" only opens the confirmation, which is never confirmed. `clicks` is
+// one list for every viewport, or { d, m } when the phone layout differs (the
+// light desktop uses `d`); the fifth field limits a shot to one viewport
+// ("m") or leaves one out ("!m"). Selectors take :visible, since a phone keeps
+// the desktop table in the page, hidden.
+const ROW_MENU = '[aria-label^="Actions for"]:visible >> nth=-1';
+const FILTER = 'button:has-text("Filter"):visible, button[aria-label="Filter and sort"]:visible';
+const RECORD_PAYMENT = 'button[aria-label="Record payment"]:visible';
 const ACTIONS = [
   ["open-select", "admin", "/clients/new/", ['[data-slot="select-trigger"] >> nth=0']],
   ["open-branch-select", "admin", "/finance/branch-report/", ['[data-slot="select-trigger"]']],
@@ -118,13 +124,14 @@ const ACTIONS = [
   ["dialog-access-select", "admin", "/users/", [ROW_MENU, "text=Manage access", '[role="dialog"] [data-slot="select-trigger"]']],
   ["dialog-confirm-delete", "admin", "/users/", [ROW_MENU, "text=Delete"]],
   ["search-overlay", "admin", "/cl/", ['#m-top-bar [aria-label="Search"]'], "m"],
-  ["list-filter", "admin", "/cl/", ['button:has-text("Filter")']],
+  ["list-filter", "admin", "/cl/", [FILTER]],
   ["form-dates", "admin", "/cl/new/", ['button[aria-haspopup="dialog"]:has-text("Check-in")']],
-  ["form-date", "admin", "/finance/payments/record/", ['button[aria-haspopup="dialog"] >> nth=0']],
-  ["form-cell-picker", "admin", `/cl/${id.cl}/edit/`, ['button[aria-label="Room type"]']],
-  ["list-export", "admin", "/invoice/", ['button:has-text("Export")']],
+  ["form-record-payment", "admin", "/finance/payments/", [RECORD_PAYMENT]],
+  ["form-date", "admin", "/finance/payments/", [RECORD_PAYMENT, '[role="dialog"] button[aria-haspopup="dialog"]:visible >> nth=0']],
+  ["form-cell-picker", "admin", `/cl/${id.cl}/edit/`, { d: ['button[aria-label="Room type"]'], m: ['[role="dialog"] button:has-text("/ night"):visible >> nth=0'] }],
+  ["list-export", "admin", "/invoice/", { d: ['button:has-text("Export"):visible'], m: [FILTER, '[role="dialog"] button:has-text("Export"):visible'] }],
   ["list-year", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("2026")']],
-  ["list-perpage", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("10")']],
+  ["list-perpage", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("10")'], "!m"],
   ["list-kpi-flip", "admin", "/finance/payments/", ['button[aria-label^="Cash received"]']],
   ["list-kpi-press", "admin", "/finance/payments/", ['button[aria-pressed]:has-text("Unapplied cash")']],
   ["calendar-pop", "admin", "/calendar/", ['section button[aria-expanded="false"]']],
@@ -133,7 +140,7 @@ const ACTIONS = [
   ["profile-edit", "admin", "/account/profile/", ['button[aria-label^="Edit"] >> nth=0']],
   ["dialog-new-expense", "admin", "/finance/expenses/", ['button:has-text("New expense")']],
   ["map-filter", "admin", "/hotels/map/", ["#filter-open-btn"]],
-  ["map-legend", "admin", "/hotels/map/", ["#leg-toggle"]],
+  ["map-legend", "admin", "/hotels/map/", ["#leg-toggle"], "!m"],
   ["profile-photo", "admin", "/account/profile/", ['button[aria-label="View photo"], button[aria-label="Add a photo"]']],
 ];
 // [suffix, viewport, theme]: dark is what the app ships with; light desktop
@@ -176,12 +183,14 @@ for (const [vp, viewport, theme] of VIEWPORTS) {
   }
   for (const [shot, role, path, clicks, onlyVp] of ACTIONS) {
     const file = `${shot}-${vp}.png`;
-    if ((only && !file.includes(only)) || (onlyVp && onlyVp !== vp)) continue;
+    if (only && !file.includes(only)) continue;
+    if (onlyVp && (onlyVp.startsWith("!") ? onlyVp.slice(1) === vp : onlyVp !== vp)) continue;
+    const steps = Array.isArray(clicks) ? clicks : clicks[vp === "m" ? "m" : "d"];
     const page = await pageFor(role);
     try {
       await page.goto(BASE + path, { waitUntil: "networkidle", timeout: 30000 });
       await page.evaluate(() => document.fonts.ready);
-      for (const sel of clicks) {
+      for (const sel of steps) {
         await page.locator(sel).first().click({ timeout: 5000 });
         await page.waitForTimeout(350);
       }

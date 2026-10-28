@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DCard, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { DateRange } from "../../components/shadcn/list-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -64,7 +64,18 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
 
       <DCard title={t("Paid expenses not claimed yet")} count={expenses.length}>
         {expenses.length ? (
-          <div className={DA.scroll}>
+          <>
+          <DLines>
+            {expenses.map((e) => (
+              <DLine key={e.id} mono
+                title={<label className="flex items-center gap-3"><input type="checkbox" className="size-4 accent-foreground" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
+                  aria-label={t("Include {n}", { n: e.expense_number })} />{e.expense_number}</label>}
+                sub={[fmtDate(e.expense_date), e.description].filter(Boolean).join(" · ")}
+                value={fmt(e.amount)} valueTone={excluded.includes(e.id) ? "text-muted-foreground line-through" : undefined} />
+            ))}
+            <DLinesTotal label={t("Total")}>{fmt(total)} IDR</DLinesTotal>
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr>
                 <th style={{ width: 40 }}><span className="sr-only">{t("Include")}</span></th>
@@ -88,6 +99,7 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
               </tr></tfoot>
             </table>
           </div>
+          </>
         ) : (
           <p className="mut" style={{ padding: "4px 24px 20px", margin: 0 }}>{t("No paid expenses to claim in this span.")}</p>
         )}

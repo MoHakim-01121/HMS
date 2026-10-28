@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import { ListPage, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, RowMenu, Pager, Empty, LIcon, fmtN, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, Pill } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, PRow, PTotal, RowMenu, Pager, Empty, LIcon, fmtN, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, Pill } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -17,6 +17,13 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
   const statement = (c) => `/finance/clients/${c.client_id}/statement/`;
   const p = pagination;
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (c) => [
+    { label: t("Open statement"), onClick: () => router.visit(statement(c)) },
+    { label: t("Statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/`, external: true },
+    { label: t("Reservation statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/?mode=byres`, external: true },
+    c.offset > 0 && { label: t("Apply deposit against AR"), onClick: () => router.visit(statement(c)) },
+  ];
   return (
     <ListPage title={t("Client Ledger")} loading={loading}>
       {kpis && (
@@ -55,6 +62,16 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
       </Toolbar>
 
       <TableCard cols={[null, 130, 130, 160, 160, 56]}
+        phone={clients.length > 0 && <>
+          {clients.map((c) => (
+            <PRow key={c.client_id} menu={<RowMenu label={t("Actions for {n}", { n: c.name })} items={menuFor(c)} />} href={statement(c)} no={c.name}
+              end={c.piutang ? `${fmtN(Math.abs(c.piutang))} ${c.piutang > 0 ? "Dr" : "Cr"}` : "0"}
+              meta={t("Debit {d} · Credit {c}", { d: fmtN(c.ar_debit), c: fmtN(c.ar_credit) })}
+              note={c.overdue > 0 ? t("{v} overdue", { v: fmtN(c.overdue) }) : c.saldo_dana ? `${t("Deposit")} ${fmtN(c.saldo_dana)}` : null}
+              noteTone={c.overdue > 0 ? "text-warning-text" : undefined} />
+          ))}
+          <PTotal label={t("All {n} clients", { n: p?.count ?? clients.length })}>{fmtN(Math.abs(totals.piutang))} {totals.piutang >= 0 ? "Dr" : "Cr"}</PTotal>
+        </>}
         empty={!clients.length && <Empty title={t("No clients")} sub={t("Nothing matches this search and filter.")} />}>
         <thead><Tr>
           <Th>{t("Client")}</Th><Th className="text-right">{t("Debit")}</Th><Th className="text-right">{t("Credit")}</Th>
@@ -75,12 +92,7 @@ export default function Statements({ clients = [], totals = {}, kpis, counts = {
                 {c.offset > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground"><Pill tone="gray" sm className="text-foreground">{t("Offset {v}", { v: fmtN(c.offset) })}</Pill></span>}
               </Td>
               <Td className="text-center">
-                <RowMenu label={t("Actions for {n}", { n: c.name })} items={[
-                  { label: t("Open statement"), onClick: () => router.visit(statement(c)) },
-                  { label: t("Statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/`, external: true },
-                  { label: t("Reservation statement PDF"), href: `/finance/clients/${c.client_id}/statement/pdf/?mode=byres`, external: true },
-                  c.offset > 0 && { label: t("Apply deposit against AR"), onClick: () => router.visit(statement(c)) },
-                ]} />
+                <RowMenu label={t("Actions for {n}", { n: c.name })} items={menuFor(c)} />
               </Td>
             </Tr>
           ))}

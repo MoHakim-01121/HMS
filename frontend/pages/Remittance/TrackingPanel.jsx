@@ -3,7 +3,7 @@ import SearchBox from "../../components/shadcn/search-box.jsx";
 import { Icon } from "../../components/icons.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
-import { TableCard, Tr, Th, Td, Empty, Primary } from "../../components/shadcn/list-a.jsx";
+import { TableCard, PRow, PBand, Tr, Th, Td, Empty, Primary } from "../../components/shadcn/list-a.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -28,6 +28,34 @@ const AMT = "ml-auto font-medium tabular-nums";
 const DOT = "absolute top-[5px] -left-4 size-2 rounded-full border-[1.5px] border-muted-foreground";
 
 const TABLE_COLS = [52, null, 120, 120, 170, 130, 44];
+
+// What happened to a reservation's money, oldest first, under its row.
+function History({ row, t, className }) {
+  return (
+    <ol className={cn("m-0 flex max-w-[560px] list-none flex-col gap-2 [&>li]:relative [&>li]:flex [&>li]:items-baseline [&>li]:gap-2 [&>li]:text-[13px]", className)}>
+      <li><span className={cn(DOT, "border-foreground bg-foreground")} />{t("Paid by client")}<span className={AMT}>{fmt(row.paid_sar)}</span></li>
+      {row.history.map((h, i) => (
+        <li key={`${h.rmt_id}-${i}`}>
+          <span className={cn(DOT, "border-foreground bg-foreground")} />
+          {h.kind === "receipt" ? t("Received at HQ {date}", { date: h.date }) : t("Sent {date}", { date: h.date })}
+          <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
+          <span className={AMT}>{fmt(h.amount_sar)}</span>
+        </li>
+      ))}
+      {row.planned.map((p) => (
+        <li key={`plan-${p.rmt_id}`} className="text-muted-foreground">
+          <span className={DOT} />
+          {t("Planned, not received yet")}
+          <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${p.rmt_id}/`}>{p.rmt_number}</a>
+          <span className={AMT}>{fmt(p.amount_sar)}</span>
+        </li>
+      ))}
+      {row.to_send > 0 && (
+        <li className="text-muted-foreground"><span className={DOT} />{t("Still to send")}<span className={AMT}>{fmt(row.to_send)}</span></li>
+      )}
+    </ol>
+  );
+}
 
 function Row({ row, open, onToggle, checked, onCheck, canPlan, t }) {
   const partial = row.paid_sar < row.total_sar;
@@ -59,28 +87,7 @@ function Row({ row, open, onToggle, checked, onCheck, canPlan, t }) {
       {open && (
         <Tr row="static">
           <Td colSpan={TABLE_COLS.length} className="whitespace-normal">
-            <ol className="m-0 flex max-w-[560px] list-none flex-col gap-2 py-1 pl-[52px] [&>li]:relative [&>li]:flex [&>li]:items-baseline [&>li]:gap-2 [&>li]:text-[13px]">
-              <li><span className={cn(DOT, "border-foreground bg-foreground")} />{t("Paid by client")}<span className={AMT}>{fmt(row.paid_sar)}</span></li>
-              {row.history.map((h, i) => (
-                <li key={`${h.rmt_id}-${i}`}>
-                  <span className={cn(DOT, "border-foreground bg-foreground")} />
-                  {h.kind === "receipt" ? t("Received at HQ {date}", { date: h.date }) : t("Sent {date}", { date: h.date })}
-                  <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${h.rmt_id}/`}>{h.rmt_number}</a>
-                  <span className={AMT}>{fmt(h.amount_sar)}</span>
-                </li>
-              ))}
-              {row.planned.map((p) => (
-                <li key={`plan-${p.rmt_id}`} className="text-muted-foreground">
-                  <span className={DOT} />
-                  {t("Planned, not received yet")}
-                  <a className="font-mono text-[12px] text-muted-foreground no-underline hover:text-foreground hover:underline" href={`/remittance/${p.rmt_id}/`}>{p.rmt_number}</a>
-                  <span className={AMT}>{fmt(p.amount_sar)}</span>
-                </li>
-              ))}
-              {row.to_send > 0 && (
-                <li className="text-muted-foreground"><span className={DOT} />{t("Still to send")}<span className={AMT}>{fmt(row.to_send)}</span></li>
-              )}
-            </ol>
+            <History row={row} t={t} className="py-1 pl-[52px]" />
           </Td>
         </Tr>
       )}
@@ -179,7 +186,32 @@ export default function TrackingPanel({ tracking, canPlan }) {
         )}
       </div>
 
-      <TableCard cols={TABLE_COLS} empty={visible.length ? null : (
+      <TableCard cols={TABLE_COLS}
+        phone={BUCKETS.map((b) => {
+          const rows = visible.filter((r) => r.bucket === b.key);
+          if (!rows.length) return null;
+          const open = rows.filter((r) => r.to_send > 0);
+          return [
+            <PBand key={b.key} label={t(b.label)} count={rows.length} end={fmt(rows.reduce((sum, r) => sum + r.to_send, 0))}
+              lead={canPlan && open.length > 0 && <Checkbox checked={stateOf(open)} onCheckedChange={(v) => setMany(open, v === true)} aria-label={t("Choose {group}", { group: t(b.label) })} />} />,
+            ...rows.map((row) => {
+              const key = `${row.linked_number}|${row.invoice_id}`;
+              const checked = picked.has(row.invoice_line_id);
+              return (
+                <PRow key={key} mono no={row.linked_number} on={checked}
+                  lead={canPlan && row.to_send > 0 && <Checkbox checked={checked} onCheckedChange={(v) => setMany([row], v === true)} aria-label={t("Plan {number}", { number: row.linked_number })} />}
+                  end={fmt(row.to_send)} amountTone={row.to_send <= 0 ? "font-medium text-muted-foreground" : undefined}
+                  title={row.client_name}
+                  meta={[row.check_in, row.hotel].filter(Boolean).join(" · ")}
+                  note={row.paid_sar < row.total_sar ? t("{paid} of {total}", { paid: fmt(row.paid_sar), total: fmt(row.total_sar) }) : null}
+                  onClick={() => setOpenKey(openKey === key ? null : key)}>
+                  {openKey === key && <History row={row} t={t} className="pt-0 pr-4 pb-3.5 pl-11" />}
+                </PRow>
+              );
+            }),
+          ];
+        })}
+        empty={visible.length ? null : (
         <Empty title={query || client ? t("No matching reservation.") : t("All client money has been allocated.")} />
       )}>
         <thead>

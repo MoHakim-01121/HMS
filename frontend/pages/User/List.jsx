@@ -1,7 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { Link, router } from "@inertiajs/react";
-import { ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, PRow, RowMenu, Pill, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import FormField from "../../components/shadcn/form-field.jsx";
@@ -242,6 +242,17 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
   const branchLabel = Object.fromEntries(branch_choices.map((c) => [c.value, c.label]));
   const active = users.filter((u) => u.is_active).length;
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (u) => [
+    { label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
+    // Changing your own role would revoke the permission needed
+    // to change it back; the server refuses it too.
+    !u.is_self && { label: t("Manage access"), onClick: () => setAccessUser(u) },
+    { label: t("Reset password"), onClick: () => setResetUser(u) },
+    { label: t("Credential card"), onClick: () => setCardUser(u) },
+    !u.is_self && !u.is_superuser && { label: u.is_active ? t("Deactivate") : t("Activate"), onClick: () => action(u.id, { action: "toggle_active" }) },
+    !u.is_self && !u.is_superuser && { label: t("Delete"), danger: true, onClick: () => del(u) },
+  ];
   return (
     <ListPage title={t("Users")}>
       <Toolbar left={<Note>{t("{n} accounts, {a} active", { n: users.length, a: active })}</Note>}>
@@ -249,7 +260,13 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
         <Primary label={t("New user")} onClick={() => openForm("/users/new/")} onPrefetch={() => openForm.prefetch("/users/new/")} />
       </Toolbar>
 
-      <TableCard cols={[200, null, 110, 160, 200, 56]}>
+      <TableCard cols={[200, null, 110, 160, 200, 56]}
+        phone={users.map((u) => (
+          <PRow key={u.id} menu={<RowMenu label={t("Actions for {n}", { n: u.username })} items={menuFor(u)} />} onClick={() => openForm(`/users/${u.id}/edit/`)} no={u.is_self ? `${u.username} (${t("You")})` : u.username} dim={!u.is_active}
+            tag={<Pill tone={u.is_active ? "green" : "gray"} sm>{u.is_active ? t("Active") : t("Inactive")}</Pill>}
+            meta={[u.full_name, u.branch === "all" ? t("All branches") : u.branch.split(",").map((code) => branchLabel[code] || code).join(", ")].filter(Boolean).join(" · ")}
+            note={u.role_label} />
+        ))}>
         <thead><Tr>
           <Th>{t("Username")}</Th><Th>{t("Name")}</Th><Th>{t("Status")}</Th><Th>{t("Role")}</Th><Th>{t("Branch")}</Th><Th className="text-center">{t("Action")}</Th>
         </Tr></thead>
@@ -262,16 +279,7 @@ export default function List({ users, role_choices = [], branch_choices = [] }) 
               <Td>{u.role_label}</Td>
               <Td className="truncate">{u.branch === "all" ? t("All branches") : u.branch.split(",").map((code) => branchLabel[code] || code).join(", ")}</Td>
               <Td className="text-center">
-                <RowMenu label={t("Actions for {n}", { n: u.username })} items={[
-                  { label: t("Edit"), onClick: () => openForm(`/users/${u.id}/edit/`) },
-                  // Changing your own role would revoke the permission needed
-                  // to change it back; the server refuses it too.
-                  !u.is_self && { label: t("Manage access"), onClick: () => setAccessUser(u) },
-                  { label: t("Reset password"), onClick: () => setResetUser(u) },
-                  { label: t("Credential card"), onClick: () => setCardUser(u) },
-                  !u.is_self && !u.is_superuser && { label: u.is_active ? t("Deactivate") : t("Activate"), onClick: () => action(u.id, { action: "toggle_active" }) },
-                  !u.is_self && !u.is_superuser && { label: t("Delete"), danger: true, onClick: () => del(u) },
-                ]} />
+                <RowMenu label={t("Actions for {n}", { n: u.username })} items={menuFor(u)} />
               </Td>
             </Tr>
           ))}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
-import { ListPage, Toolbar, Primary, TableCard, RowMenu, Pill, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Primary, TableCard, PRow, RowMenu, Pill, rowNav, Tr, Th, Td, Note, ToolButton } from "../../components/shadcn/list-a.jsx";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "../../components/shadcn/ui/dialog.jsx";
@@ -61,6 +61,14 @@ export default function List({ roles = [], modules = [], current_role }) {
   const { t } = useI18n();
   const [deleting, setDeleting] = useState(null);
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (r) => {
+    const editable = !r.locked && r.slug !== current_role;
+    return [
+      editable && { label: t("Edit permissions"), onClick: () => router.visit(`/roles/${r.slug}/edit/`) },
+      !r.is_system && r.slug !== current_role && { label: t("Delete"), danger: true, onClick: () => setDeleting(r) },
+    ];
+  };
   return (
     <ListPage title={t("Roles")}>
       <Toolbar left={<Note>{t("{count} roles across {modules} modules", { count: roles.length, modules: modules.length })}</Note>}>
@@ -68,7 +76,17 @@ export default function List({ roles = [], modules = [], current_role }) {
         <Primary label={t("New role")} href="/roles/new/" />
       </Toolbar>
 
-      <TableCard cols={[260, null, 220, 100, 56]}>
+      <TableCard cols={[260, null, 220, 100, 56]}
+        phone={roles.map((r) => {
+          const { modules: m, grants } = summarise(r.permissions);
+          const editable = !r.locked && r.slug !== current_role;
+          return (
+            <PRow key={r.slug} menu={<RowMenu label={t("Actions for {n}", { n: r.label })} items={menuFor(r)} />} href={editable ? `/roles/${r.slug}/edit/` : undefined} no={r.label}
+              tag={r.locked ? <Pill tone="outline" sm>{t("Locked")}</Pill> : r.is_system ? <Pill tone="gray" sm>{t("Built-in")}</Pill> : null}
+              meta={t("{m} modules · {grants} permissions", { m, grants })}
+              note={t(r.user_count === 1 ? "{n} account" : "{n} accounts", { n: r.user_count })} />
+          );
+        })}>
         <thead><Tr>
           <Th>{t("Role")}</Th><Th>{t("Description")}</Th><Th>{t("Permissions")}</Th><Th className="text-right">{t("Accounts")}</Th><Th className="text-center">{t("Action")}</Th>
         </Tr></thead>
@@ -90,10 +108,7 @@ export default function List({ roles = [], modules = [], current_role }) {
                 <Td className="text-muted-foreground">{t("{m} modules · {grants} permissions", { m, grants })}</Td>
                 <Td className={"text-right" + (r.user_count ? "" : " text-muted-foreground")}>{r.user_count}</Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: r.label })} items={[
-                    editable && { label: t("Edit permissions"), onClick: () => router.visit(`/roles/${r.slug}/edit/`) },
-                    !r.is_system && r.slug !== current_role && { label: t("Delete"), danger: true, onClick: () => setDeleting(r) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: r.label })} items={menuFor(r)} />
                 </Td>
               </Tr>
             );

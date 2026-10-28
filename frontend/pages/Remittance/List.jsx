@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, router } from "@inertiajs/react";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, PTotal, RowMenu, Pill, Amt, Pager, Empty, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { cn } from "@/lib/utils";
 import TrackingPanel from "./TrackingPanel.jsx";
 import RecapPanel from "./RecapPanel.jsx";
@@ -46,6 +46,13 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
     );
   }
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (r) => [
+    r.can_record_receipt && perms.can("remittance", "edit") && { label: t("Record receipt"), onClick: () => router.visit(`/remittance/${r.id}/receipt/`) },
+    r.proof_url && { label: t("View proof"), href: r.proof_url, external: true },
+    perms.can("remittance", "edit") && { label: t("Edit"), onClick: () => openForm(`/remittance/${r.id}/edit/`) },
+    { label: "PDF", href: `/remittance/${r.id}/pdf/`, external: true },
+  ];
   return (
     <ListPage title={t("Remittance")} legend={views} loading={loading}>
       {kpis && (
@@ -88,6 +95,22 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
       </Toolbar>
 
       <TableCard cols={[92, 64, null, 160, 130, 64, 110, 136, 48]}
+        phone={(
+          <>
+            {remittances.map((r) => {
+              const [tone, lbl] = STATE[r.state] || STATE.pending;
+              return (
+                <PRow key={r.id} menu={<RowMenu label={t("Actions for {n}", { n: r.remittance_number })} items={menuFor(r)} />} href={`/remittance/${r.id}/`} mono no={r.remittance_number}
+                  tag={<Pill tone={tone} sm>{t(lbl)}</Pill>}
+                  title={r.from} amount={fmtN(r.amount_sent)} unit={r.currency}
+                  meta={[dShort(r.date), r.received_sar ? `${fmtN(r.received_sar)} SAR` : null, r.state !== "received" ? t("{n} days", { n: r.days }) : null].filter(Boolean).join(" · ")}
+                  note={r.fx_gain_idr != null ? `${signed(r.fx_gain_idr)} IDR` : null}
+                  noteTone={r.fx_gain_idr == null ? undefined : r.fx_gain_idr >= 0 ? "text-success-text" : "text-danger-text"} />
+              );
+            })}
+            {totals && remittances.length > 0 && <PTotal label={t("{p} total", { p: label })}>{fmtN(totals.idr)} IDR</PTotal>}
+          </>
+        )}
         empty={!remittances.length && <Empty title={t("No remittances")} sub={t("Nothing was sent in this period with these filters.")} />}>
         <thead><Tr>
           <Th>{t("Remittance")}</Th><Th>{t("Sent")}</Th><Th>{t("From")}</Th>
@@ -110,12 +133,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
                   : <span className={cn(r.fx_gain_idr >= 0 ? "text-success-text" : "font-medium text-danger-text")}>{signed(r.fx_gain_idr)}</span>}</Td>
                 <Td><Pill tone={tone}>{t(lbl)}</Pill>{r.state !== "received" && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{n} days", { n: r.days })}</span>}</Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: r.remittance_number })} items={[
-                    r.can_record_receipt && perms.can("remittance", "edit") && { label: t("Record receipt"), onClick: () => router.visit(`/remittance/${r.id}/receipt/`) },
-                    r.proof_url && { label: t("View proof"), href: r.proof_url, external: true },
-                    perms.can("remittance", "edit") && { label: t("Edit"), onClick: () => openForm(`/remittance/${r.id}/edit/`) },
-                    { label: "PDF", href: `/remittance/${r.id}/pdf/`, external: true },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: r.remittance_number })} items={menuFor(r)} />
                 </Td>
               </Tr>
             );

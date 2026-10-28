@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@inertiajs/react";
-import { ListPage, Toolbar, Kpis, Kpi, ExportMenu, TableCard, Section, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, toolInput, ToolbarRight } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, Kpis, Kpi, ExportMenu, TableCard, PRow, PTotal, Section, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note, ToolButton, toolInput, ToolbarRight, usePhone } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -20,6 +20,7 @@ export default function ArAging({ aging }) {
   const perms = usePerms();
   const [go, loading] = useListNav("/finance/ar-aging/", { as_of: aging.as_of });
   const [picked, setPicked] = useState(null);
+  const phone = usePhone();
   const client = picked && aging.clients.find((c) => c.client_id === picked);
 
   const amount = (v, late) => (v ? <span>{fmtN(v)}</span> : <span>–</span>);
@@ -42,6 +43,31 @@ export default function ArAging({ aging }) {
       </Toolbar>
 
       <TableCard cols={[null, 120, 120, 120, 120, 120, 140]}
+        phone={aging.clients.length > 0 && <>{aging.clients.map((c) => {
+          const due = c.total - c.buckets.current;
+          const old = LATE.reduce((s, k) => s + c.buckets[k], 0);
+          const on = c.client_id === picked;
+          return (
+            <PRow key={c.client_id} no={c.name} end={fmtN(c.total)} on={on}
+              meta={due ? t("{v} overdue", { v: fmtN(due) }) : t("Not yet due")}
+              note={old ? t("{v} over 30 days", { v: fmtN(old) }) : null} noteTone="font-medium text-danger-text"
+              onClick={() => setPicked(on ? null : c.client_id)}>
+              {on && (
+                <div className="border-t border-hairline pl-4">
+                  {c.invoices.map((i) => (
+                    <PRow key={i.id} href={`/invoice/${i.id}/`} mono no={i.invoice_number} end={fmtN(i.amount)}
+                      meta={i.due_date ? t("Due {d}", { d: dLong(i.due_date) }) : null}
+                      note={i.days_overdue ? t("{n} days", { n: i.days_overdue }) : t("Not yet due")}
+                      noteTone={LATE.includes(i.bucket) ? "font-medium text-danger-text" : undefined} />
+                  ))}
+                  <PRow href={`/finance/clients/${c.client_id}/statement/`} no={t("Statement")} />
+                </div>
+              )}
+            </PRow>
+          );
+        })}
+          <PTotal label={t(aging.clients.length === 1 ? "Total, 1 client" : "Total, {n} clients", { n: aging.clients.length })}>{fmtN(aging.total)} SAR</PTotal>
+        </>}
         empty={!aging.clients.length && <Empty title={t("Nothing owed")} sub={t("No client has an open balance on {d}.", { d: dLong(aging.as_of) })} />}>
         <thead><Tr>
           <Th>{t("Client")}</Th>
@@ -66,7 +92,7 @@ export default function ArAging({ aging }) {
         )}
       </TableCard>
 
-      {client && (
+      {client && !phone && (
         <>
           <Section title={client.name} sub={t("Open invoices as of {d}", { d: dLong(aging.as_of) })}>
             <ToolbarRight>

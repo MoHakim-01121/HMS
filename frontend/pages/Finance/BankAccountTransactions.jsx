@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DCard, DPill, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DPill, DLines, DLine, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 
@@ -56,7 +56,17 @@ export default function BankAccountTransactions({ account, rows = [], filters = 
         )}
       >
         {rows.length ? (
-          <div className={DA.scroll}>
+          <DLines>
+            {rows.map((r) => (
+              <DLine key={r.id} title={`${r.source_type} #${r.source_id}`}
+                sub={[fmtDate(r.transaction_date), r.reference, r.matched ? t("Reconciled") : t("Unmatched")].filter(Boolean).join(" · ")}
+                value={`${r.direction === "in" ? "+" : "−"}${fmt(r.amount_sar)}`} valueTone={r.direction === "in" ? "text-success-text" : undefined}
+                valueSub={t("Balance {v}", { v: fmt(r.running_balance_sar) })} />
+            ))}
+          </DLines>
+        ) : null}
+        {rows.length ? (
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead>
                 <tr>

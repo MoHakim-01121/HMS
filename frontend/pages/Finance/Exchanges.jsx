@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -34,6 +34,14 @@ export default function Exchanges({ exchanges = [], filters: f, years = [], coun
     onConfirm: () => router.post(`/finance/exchanges/${ex.id}/void/`),
   });
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (ex) => {
+    const dead = ex.status === "voided";
+    return [
+      ex.proof_url && { label: t("View proof"), href: ex.proof_url, external: true },
+      !dead && perms.can("bank", "delete") && { label: t("Void transfer"), danger: true, onClick: () => voidEx(ex) },
+    ];
+  };
   return (
     <ListPage title={t("Transfer and Exchange")} loading={loading}>
       <Toolbar left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go(p)} />}>
@@ -59,6 +67,17 @@ export default function Exchanges({ exchanges = [], filters: f, years = [], coun
       </Toolbar>
 
       <TableCard cols={[100, 80, 104, null, null, 150, 96, 56]}
+        phone={exchanges.map((ex) => {
+          const r = rateOf(ex);
+          const dead = ex.status === "voided";
+          return (
+            <PRow key={ex.id} menu={<RowMenu label={t("Actions for {n}", { n: ex.exchange_number })} items={menuFor(ex)} />} mono no={ex.exchange_number} dim={dead}
+              tag={<Pill tone={dead ? "gray" : "green"} sm>{dead ? t("Voided") : t("Active")}</Pill>}
+              title={ex.to_label} amount={fmtN(ex.amount_in)} unit={ex.to_currency}
+              meta={[dShort(ex.exchange_date), t("from {a}", { a: ex.from_label }), `${fmtN(ex.amount_out)} ${ex.from_currency}`].join(" · ")}
+              note={r ? `${fmtN(r.v)} ${r.per}` : t("Transfer")} />
+          );
+        })}
         empty={!exchanges.length && <Empty title={t("No transfers")} sub={t("Nothing moved between accounts in this period.")} />}>
         <thead><Tr>
           <Th>{t("Number")}</Th>
@@ -80,10 +99,7 @@ export default function Exchanges({ exchanges = [], filters: f, years = [], coun
                 <Td className="text-right">{r ? <>{fmtN(r.v)}<span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{r.per}</span></> : <span className="text-muted-foreground">{t("Same currency")}</span>}</Td>
                 <Td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: ex.exchange_number })} items={[
-                    ex.proof_url && { label: t("View proof"), href: ex.proof_url, external: true },
-                    !dead && perms.can("bank", "delete") && { label: t("Void transfer"), danger: true, onClick: () => voidEx(ex) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: ex.exchange_number })} items={menuFor(ex)} />
                 </Td>
               </Tr>
             );

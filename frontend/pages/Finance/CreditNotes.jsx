@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
-import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, TableCard, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, primaryClass, Menu, MenuItem, MenuHint, ToolButton, toolInput } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, ExportMenu, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td, primaryClass, Menu, MenuItem, MenuHint, ToolButton, toolInput } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,14 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
   const filterCount = (f.applied.length ? 1 : 0) + (f.voided ? 1 : 0);
   const period = f.month ? t(MONTHS[+f.month.slice(5, 7) - 1]) : f.year && f.year !== "all" ? f.year : t("All dates");
 
+  // The row's actions: the desktop row menu, and the same menu on a phone row.
+  const menuFor = (c) => {
+    const dead = c.status === "voided";
+    return [
+      { label: t("Download PDF"), href: `/finance/credit-notes/${c.id}/pdf/`, external: true },
+      !dead && perms.can("payments", "approve") && { label: t("Void credit note"), danger: true, onClick: () => router.visit(`/finance/credit-notes/${c.id}/void/`) },
+    ];
+  };
   return (
     <ListPage title={t("Credit Notes")} loading={loading}>
       <Toolbar left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go(p)} />}>
@@ -63,6 +71,12 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
       </Toolbar>
 
       <TableCard cols={[100, 80, null, 100, null, 130, 96, 56]}
+        phone={credit_notes.map((c) => (
+          <PRow key={c.id} menu={<RowMenu label={t("Actions for {n}", { n: c.number })} items={menuFor(c)} />} href={c.invoice_url} mono no={c.number} dim={c.status === "voided"}
+            tag={<Pill tone={c.status === "voided" ? "gray" : "green"} sm>{c.status === "voided" ? t("Voided") : t("Active")}</Pill>}
+            title={c.client} amount={fmtN(c.amount_sar)} unit="SAR"
+            meta={[dShort(c.date), c.invoice_number, c.reason].filter(Boolean).join(" · ")} />
+        ))}
         empty={!credit_notes.length && <Empty title={t("No credit notes")} sub={t("None were issued in this period.")} />}>
         <thead><Tr>
           <Th>{t("Credit note")}</Th><Th><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Date")}{LIcon.sortDown}</span></Th><Th>{t("Client")}</Th><Th>{t("Invoice")}</Th>
@@ -81,10 +95,7 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
                 <Td className="text-right">{fmtN(cn.amount_sar)}{cn.to_deposit_sar > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} to deposit", { v: fmtN(cn.to_deposit_sar) })}</span>}</Td>
                 <Td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></Td>
                 <Td className="text-center">
-                  <RowMenu label={t("Actions for {n}", { n: cn.number })} items={[
-                    { label: t("Download PDF"), href: `/finance/credit-notes/${cn.id}/pdf/`, external: true },
-                    !dead && perms.can("payments", "approve") && { label: t("Void credit note"), danger: true, onClick: () => router.visit(`/finance/credit-notes/${cn.id}/void/`) },
-                  ]} />
+                  <RowMenu label={t("Actions for {n}", { n: cn.number })} items={menuFor(cn)} />
                 </Td>
               </Tr>
             );

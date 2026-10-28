@@ -163,17 +163,23 @@ export const SwitchRow = ({ title, note, className, ...props }) => (
 );
 
 // One choice out of a few, as a grey track with the chosen option lifted:
-// options = [[value, label]].
-export function Segmented({ value, options, onChange, label }) {
+// options = [[value, label]]. `wide` fills the row, the options sharing it.
+export function Segmented({ value, options, onChange, label, wide }) {
   return (
-    <div className="inline-flex gap-1 rounded-[12px] bg-secondary p-1" role="radiogroup" aria-label={label}>
+    <div className={cn("inline-flex gap-1 rounded-[12px] bg-secondary p-1", wide && "flex w-full")} role="radiogroup" aria-label={label}>
       {options.map(([v, l]) => (
         <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
-          className={cn("h-[34px] cursor-pointer rounded-[9px] border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-seg-on", FOCUS)}>{l}</button>
+          className={cn("h-[34px] cursor-pointer rounded-[9px] border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-seg-on", wide && "h-10 flex-1 text-[14px]", FOCUS)}>{l}</button>
       ))}
     </div>
   );
 }
+
+// A group caption inside the field grid, on phones only, where the one
+// column of fields runs long (canvas "HMS Mobile v2", forms).
+export const PhoneCaption = ({ children }) => (
+  <div className={cn(FA.caption, FA.wide, "mt-2 -mb-1 hidden max-[600px]:block")}>{children}</div>
+);
 
 export function Field({ label, required, optional, error, hint, className = "", children, htmlFor }) {
   const { t } = useI18n();
@@ -565,7 +571,7 @@ export const EffectRow = ({ result, children }) => (
   <div className={cn("flex min-h-[30px] items-center justify-between gap-3 text-muted-foreground", result && "mt-1 border-t border-border pt-1.5 font-medium text-foreground [&_b]:text-[16px] [&_b]:font-bold")}>{children}</div>
 );
 
-export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full" role="status">{children}</span>;
+export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full max-[600px]:min-w-0 max-[600px]:flex-1 max-[600px]:basis-auto max-[600px]:text-[12px] max-[600px]:leading-[1.35]" role="status">{children}</span>;
 
 // The footer: why the primary button is not ready yet (or, when it is, an
 // optional `note`), Cancel, and the primary action. In a modal Cancel closes it; on its own it goes back.
@@ -575,9 +581,10 @@ export function Foot({ why, note, cancelHref, onCancel, submitLabel, processing,
   return (
     <div className={actionsClass("a")}>
       {why || note ? <Why>{why || note}</Why> : null}
-      {onCancel ? <button type="button" className={btnClass("o")} onClick={onCancel}>{t("Cancel")}</button>
-        : ctx?.inModal ? <button type="button" className={btnClass("o")} onClick={ctx.close}>{t("Cancel")}</button>
-          : <a className={btnClass("o")} href={cancelHref}>{t("Cancel")}</a>}
+      {/* Phones close the form from its header (✕), so the row keeps the reason and the primary only. */}
+      {onCancel ? <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={onCancel}>{t("Cancel")}</button>
+        : ctx?.inModal ? <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
+          : <a className={cn(btnClass("o"), "max-[600px]:hidden")} href={cancelHref}>{t("Cancel")}</a>}
       {extra}
       <button type="submit" className={btnClass("p")} aria-disabled={!!why || processing} disabled={processing}>{processing ? t("Saving…") : submitLabel}</button>
     </div>

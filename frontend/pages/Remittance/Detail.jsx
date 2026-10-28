@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
-import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DMenu, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DChip, DCard, DMenu, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -145,7 +145,15 @@ export default function Detail({ rem, lines = [], fx }) {
 
       {lines.length ? (
         <DCard title={t("Allocated when sent")} count={lines.length}>
-          <div className={DA.scroll}>
+          <DLines>
+            {lines.map((row, i) => (
+              <DLine key={i} mono title={row.linked_number}
+                sub={[row.invoice?.customer_name, row.hotel, row.check_in].filter(Boolean).join(" · ")}
+                value={fmt(row.amount_sar)} valueSub={row.prev_sent ? t("{n} sent before", { n: fmt(row.prev_sent) }) : null} />
+            ))}
+            <DLinesTotal label={t("Total sent")}>{fmt(rem.total_sar)} SAR</DLinesTotal>
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr><th>{t("Reservation")}</th><th>{t("Stay")}</th><th className={DC.n}>{t("Sent before")}</th><th className={DC.n}>{t("Sent now")}</th></tr></thead>
               <tbody>
@@ -166,7 +174,31 @@ export default function Detail({ rem, lines = [], fx }) {
 
       <DCard title={t("Receipts at HQ")} count={settlements.length || null}>
         {settlements.length ? (
-          <div className={DA.scroll}>
+          <>
+          <DLines>
+            {settlements.map((s) => {
+              const gap = s.received_amount_sar - s.allocations.reduce((sum, a) => sum + a.amount_sar, 0);
+              return (
+                <Fragment key={s.id}>
+                  <DLine title={t("Received {date}", { date: fmtDate(s.received_date) })} sub={s.reference ? t("Ref {ref}", { ref: s.reference }) : null}
+                    value={<span className="inline-flex items-center gap-1">{fmt(s.received_amount_sar)}
+                      <DMenu small label={t("Receipt actions")} items={[
+                        canReceive && rem.can_allocate && { label: t("Change allocation"), icon: "edit", onClick: () => openForm(allocationUrl(s)) },
+                        canDelete && perms.headOffice && s.can_delete && { label: t("Delete receipt"), icon: "trash", danger: true, onClick: () => deleteReceipt(s) },
+                      ]} /></span>} />
+                  {rem.can_allocate ? s.allocations.map((a, i) => (
+                    <DLine key={i} mono title={a.linked_number}
+                      sub={[a.customer_name, a.hotel, a.check_in && fmtDate(a.check_in)].filter(Boolean).join(" · ")} value={fmt(a.amount_sar)} />
+                  )) : null}
+                  {rem.can_allocate && gap ? (
+                    <DLine title={gap > 0 ? t("Not allocated yet") : t("Allocated beyond this receipt")} value={fmt(Math.abs(gap))} valueTone="text-warning-text" />
+                  ) : null}
+                </Fragment>
+              );
+            })}
+            <DLinesTotal label={t("Total received")}>{fmt(receivedSar)} SAR</DLinesTotal>
+          </DLines>
+          <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead>
                 <tr>
@@ -225,6 +257,7 @@ export default function Detail({ rem, lines = [], fx }) {
               </tfoot>
             </table>
           </div>
+          </>
         ) : (
           <div className={DA.empty}>{t("No receipt yet. Money is allocated to reservations when HQ records the receipt.")}</div>
         )}

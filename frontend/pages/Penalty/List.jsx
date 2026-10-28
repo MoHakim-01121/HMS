@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, Pill, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Toolbar, SearchTool, FilterMenu, FilterSection, Check, TableCard, PRow, Pill, Empty, fmtN, dLong, useListNav, rowNav, Tr, Th, Td, Note } from "../../components/shadcn/list-a.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 
 // Cancellation penalties across confirmation letters. Paid or not comes from
@@ -26,6 +26,12 @@ export default function List({ penalties = [], total = 0, filters = {} }) {
       </Toolbar>
 
       <TableCard cols={[130, 110, null, 120, 130, 140]}
+        phone={penalties.map((p) => (
+          <PRow key={p.id} href={`/penalty/${p.id}/`} mono no={p.penalty_number}
+            tag={<Pill tone={p.is_paid ? "green" : "amber"} sm>{p.is_paid ? t("Paid") : t("Unpaid")}</Pill>}
+            title={p.client_name || "—"} amount={fmtN(p.amount_sar)} unit="SAR"
+            meta={[p.cl_id ? `CL ${p.confirmation_number}` : null, t("cancelled {d}", { d: dLong(p.cancellation_date) })].filter(Boolean).join(" · ")} />
+        ))}
         empty={!penalties.length && <Empty title={t("No penalties")} sub={f.q || f.status ? t("No penalties match your filters.") : t("Penalties appear when a confirmed CL is cancelled with a charge.")} />}>
         <thead><Tr>
           <Th>{t("Penalty #")}</Th><Th>{t("Status")}</Th><Th>{t("Client")}</Th><Th>{t("CL")}</Th>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
 import Attachments from "../../components/ui/Attachments.jsx";
-import { DPage, DTop, DHead, DCard, DTabs, DLog, DBtn, DPill, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DCard, DTabs, DLog, DBtn, DPill, DLines, DLine, DLinesTotal, dayMonth, DA, DC, dBtnClass } from "../../components/shadcn/detail-a.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { usePerms } from "../../utils/perms.js";
@@ -187,7 +187,14 @@ export default function Detail({ cl, rooms, penalty, attachments, logs = [] }) {
       ) : null}
 
       <DCard title={t("Rooms")} meta={t("Rates in SAR, per room-night")}>
-        <div className={DA.scroll}>
+        <DLines>
+          {rooms.length ? rooms.map((r, i) => (
+            <DLine key={i} title={<>{r.room_type}{r.meals ? <span className="font-normal text-muted-foreground"> · {r.meals}</span> : null}</>}
+              sub={t("{n} × {rate} / night", { n: r.quantity, rate: fmtRate(r.price) })} value={fmt(r.subtotal)} />
+          )) : <div className={DC.empty}>{t("No room data")}</div>}
+          {rooms.length ? <DLinesTotal label={t("Total")}>{fmt(cl.total_price)} SAR</DLinesTotal> : null}
+        </DLines>
+        <div className={DA.scrollWide}>
           <table data-slot="detail-table" className={DA.table}>
             <thead><tr><th>{t("Room type")}</th><th>{t("Meal")}</th><th className={DC.n}>{t("Qty")}</th><th className={DC.n}>{t("Rate")}</th><th className={DC.n}>{t("Subtotal")}</th></tr></thead>
             <tbody>

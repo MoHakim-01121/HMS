@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { router } from "@inertiajs/react";
 import PendingOutTable from "../../components/shadcn/pending-out-table.jsx";
-import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon, DA, DC } from "../../components/shadcn/detail-a.jsx";
+import { DPage, DTop, DHead, DBanner, DBtn, DCard, DTabs, DIcon, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
 import { SearchTool, ExportMenu, ToolButton, Pager } from "../../components/shadcn/list-a.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
 import { Input } from "../../components/shadcn/ui/input.jsx";
@@ -270,7 +270,31 @@ export default function ClientStatement({
           </p>
         ) : null}
 
-        <div className={DA.scroll}>
+        <DLines>
+          {isOpen ? (
+            <>
+              {openRows.length ? openRows.map((r) => (
+                <DLine key={r.invoice_number} href={invHref(r) || undefined} mono title={r.invoice_number}
+                  sub={[r.due_date ? t("Due {d}", { d: fmtDate(r.due_date) }) : t("Not set"), r.overdue ? t("{n} days late", { n: r.days_overdue }) : null].filter(Boolean).join(" · ")}
+                  value={fmt(r.remaining)} valueTone={r.overdue ? "text-danger-text" : undefined} valueSub={t("of {v}", { v: fmt(r.billed) })} />
+              )) : <div className={DC.empty}>{t("No open invoices. Every charge on this client has been paid.")}</div>}
+              {openRows.length ? <DLinesTotal label={t("Total open")}>{fmt(total_open)}</DLinesTotal> : null}
+            </>
+          ) : (
+            <>
+              {firstPage && !q ? <DLine title={openingLabel} sub={date_from ? fmtDateShort(date_from) : null} value={fmt(opening_balance)} /> : null}
+              {groups.flatMap((g) => g.rows).map((r, j) => (
+                <DLine key={`${r.entry_number}-${j}`} title={[t(LINE_KIND[r.entry_type] || r.entry_type_display || ""), r.invoice_number].filter(Boolean).join(" ")}
+                  sub={[r.date ? fmtDateShort(r.date) : null, r.description].filter(Boolean).join(" · ")}
+                  value={r.amount_sar > 0 ? `+${fmt(r.amount_sar)}` : `−${fmt(-r.amount_sar)}`} valueTone={r.amount_sar < 0 ? "text-success-text" : undefined}
+                  valueSub={t("Balance {v}", { v: fmt(r.balance) })} />
+              ))}
+              {!groups.length ? <div className={DC.empty}>{q ? t("No entries match “{q}”.", { q }) : t("No entries in this period.")}</div> : null}
+              <DLinesTotal label={t("Closing balance")}>{fmt(closing_balance)}</DLinesTotal>
+            </>
+          )}
+        </DLines>
+        <div className={DA.scrollWide}>
           {isOpen ? (
             <table data-slot="detail-table" className={DA.table}>
               <thead>
