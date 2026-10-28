@@ -49,14 +49,14 @@ export function ModalContent({ layout, className, ...props }) {
     <DialogContent showCloseButton={false} {...props} className={cn(
       "flex max-h-[min(86vh,820px)] flex-col gap-0 overflow-hidden rounded-[24px] p-0",
       // Phones: the form takes the whole screen, a sheet of its own.
-      "max-[600px]:top-0 max-[600px]:left-0 max-[600px]:h-dvh max-[600px]:max-h-dvh max-[600px]:w-full max-[600px]:max-w-none max-[600px]:translate-x-0 max-[600px]:translate-y-0 max-[600px]:rounded-none max-[600px]:border-0",
+      "phone:top-0 phone:left-0 phone:h-dvh phone:max-h-dvh phone:w-full phone:max-w-none phone:translate-x-0 phone:translate-y-0 phone:rounded-none phone:border-0",
       // Centre in what the shell leaves, not in the window: a dialog centred on
       // the viewport sits half a sidebar to the left of the content it belongs
       // to on desktop. --content-left is published by AppLayout (it follows
       // the rail when the sidebar collapses); --topbar-h is the shell's own
       // content offset. Both are desktop-only, so phones keep the plain
       // viewport-centred dialog they already had.
-      "min-[601px]:left-[calc(50%_+_var(--content-left,0px)/2)] min-[601px]:top-[calc(50%_+_var(--topbar-h,0px)/2)]",
+      "desk:left-[calc(50%_+_var(--content-left,0px)/2)] desk:top-[calc(50%_+_var(--topbar-h,0px)/2)]",
       // A form with a wide table asks for room on its root: data-modal-width.
       "min-[1080px]:has-[[data-modal-width=wide]]:max-w-[1024px] min-[1100px]:has-[[data-modal-width=wider]]:max-w-[1120px]",
       className,
@@ -69,7 +69,7 @@ export const ModalHead = forwardRef(({ layout, className, ...props }, ref) => (
   <div ref={ref} {...props} className={cn(
     layout === "a"
       ? "flex shrink-0 items-center justify-between gap-4 pt-4 pr-4 pb-0 pl-6 max-[640px]:pr-3 max-[640px]:pl-4"
-      : "flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 max-[600px]:p-4",
+      : "flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4 phone:p-4",
     className,
   )} />
 ));
@@ -85,8 +85,8 @@ export const ModalSub = ({ children }) => <div className="mt-0.5 text-[14px] lea
 // gentle curve, since over ~400px a sharp ease-out reads as a jump.
 export const ModalBody = forwardRef(({ layout, className, ...props }, ref) => (
   <div ref={ref} data-slot="modal-body" {...props} className={cn(
-    "min-h-0 flex-[1_1_auto] overflow-y-auto [scrollbar-gutter:stable] transition-[height] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
-    layout === "a" ? "px-6 pt-4 pb-5 max-[640px]:px-4" : "px-5 py-6 max-[600px]:px-4 max-[600px]:py-5",
+    "min-h-0 flex-[1_1_auto] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] transition-[height] duration-[260ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+    layout === "a" ? "px-6 pt-4 pb-5 max-[640px]:px-4" : "px-5 py-6 phone:px-4 phone:py-5",
     className,
   )} />
 ));
@@ -96,7 +96,7 @@ ModalBody.displayName = "ModalBody";
 // the bottom edge, bleeding over the body's padding so it spans the dialog.
 export const actionsClass = (layout) => layout === "a"
   ? "flex items-center justify-end gap-2 in-data-[slot=modal-body]:sticky in-data-[slot=modal-body]:-bottom-5 in-data-[slot=modal-body]:mx-[-24px] in-data-[slot=modal-body]:mt-5 in-data-[slot=modal-body]:mb-[-20px] in-data-[slot=modal-body]:border-t in-data-[slot=modal-body]:border-border in-data-[slot=modal-body]:bg-card in-data-[slot=modal-body]:px-5 in-data-[slot=modal-body]:py-4 max-[640px]:flex-wrap max-[640px]:in-data-[slot=modal-body]:mx-[-16px] max-[640px]:in-data-[slot=modal-body]:px-4 max-[640px]:in-data-[slot=modal-body]:py-3"
-  : "flex justify-end gap-2 in-data-[slot=modal-body]:sticky in-data-[slot=modal-body]:-bottom-6 in-data-[slot=modal-body]:mx-[-20px] in-data-[slot=modal-body]:mt-2 in-data-[slot=modal-body]:mb-[-24px] in-data-[slot=modal-body]:border-t in-data-[slot=modal-body]:border-border in-data-[slot=modal-body]:bg-card in-data-[slot=modal-body]:px-5 in-data-[slot=modal-body]:py-4 max-[600px]:in-data-[slot=modal-body]:-bottom-5 max-[600px]:in-data-[slot=modal-body]:mx-[-16px] max-[600px]:in-data-[slot=modal-body]:mb-[-20px] max-[600px]:in-data-[slot=modal-body]:px-4";
+  : "flex justify-end gap-2 in-data-[slot=modal-body]:sticky in-data-[slot=modal-body]:-bottom-6 in-data-[slot=modal-body]:mx-[-20px] in-data-[slot=modal-body]:mt-2 in-data-[slot=modal-body]:mb-[-24px] in-data-[slot=modal-body]:border-t in-data-[slot=modal-body]:border-border in-data-[slot=modal-body]:bg-card in-data-[slot=modal-body]:px-5 in-data-[slot=modal-body]:py-4 phone:in-data-[slot=modal-body]:-bottom-5 phone:in-data-[slot=modal-body]:mx-[-16px] phone:in-data-[slot=modal-body]:mb-[-20px] phone:in-data-[slot=modal-body]:px-4";
 
 // A prefetched payload is only worth reusing for as long as it is plausibly
 // still current. Anything that mutates data goes through an Inertia visit, and

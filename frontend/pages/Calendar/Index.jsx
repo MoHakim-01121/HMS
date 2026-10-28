@@ -28,9 +28,9 @@ const MON = {
   id: ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"],
 };
 
-const ICON_BTN = "grid size-[34px] flex-none cursor-pointer place-content-center rounded-full border border-border bg-card text-foreground hover:bg-secondary [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.8]";
+const ICON_BTN = "grid size-[34px] phone:size-11 flex-none cursor-pointer place-content-center rounded-full border border-border bg-card text-foreground hover:bg-secondary [&_svg]:size-4 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-[1.8]";
 const SEG = "inline-flex gap-0.5 rounded-full bg-secondary p-[3px]";
-const SEG_BTN = "h-[30px] cursor-pointer rounded-full border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground";
+const SEG_BTN = "h-[30px] phone:h-10 cursor-pointer rounded-full border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground";
 const SEG_ON = "bg-card text-foreground shadow-pill";
 const CARD = "overflow-clip rounded-[22px] border border-border bg-card";
 const LABEL_COL = "grid-cols-[var(--label-w)_minmax(0,1fr)]";
@@ -254,7 +254,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
       )}>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="m-0 text-[30px] leading-[1.1] font-semibold tracking-[-0.025em] tabular-nums max-[600px]:text-[26px]">{title}</h1>
+            <h1 className="m-0 text-[30px] leading-[1.1] font-semibold tracking-[-0.025em] tabular-nums phone:text-[26px]">{title}</h1>
             <div className="flex items-center gap-1">
               <button type="button" className={ICON_BTN} aria-label={t(month ? "Previous month" : "Previous week")} onClick={() => move(month ? -1 : -7)}>
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" /></svg>
@@ -264,7 +264,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
               </button>
               <button type="button" onClick={goToday}
                 className={cn(
-                  "ml-1 h-[34px] cursor-pointer rounded-full px-4 font-sans text-[13px] leading-[normal] font-semibold",
+                  "ml-1 h-[34px] phone:h-11 cursor-pointer rounded-full px-4 font-sans text-[13px] leading-[normal] font-semibold",
                   day === TODAY ? "border border-border bg-card text-muted-foreground" : "border-0 bg-primary text-primary-foreground",
                 )}>
                 {t("Today")}
@@ -298,13 +298,13 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
                 the check-in chart stay on top and the row names stay on the left. */}
             <div className="max-h-[calc(100dvh-180px)] overflow-auto overscroll-contain [scrollbar-width:thin]">
               {/* The row-name column: narrower on a phone so more days show. */}
-              <div className={cn("relative [--label-w:190px] max-[600px]:[--label-w:112px]", month ? "min-w-[1080px]" : "min-w-[960px] max-[600px]:min-w-[728px]")}>
+              <div className={cn("relative [--label-w:190px] phone:[--label-w:112px]", month ? "min-w-[1080px]" : "min-w-[960px] phone:min-w-[728px]")}>
                 {sel && <div className="absolute inset-0 z-[5]" aria-hidden="true" onClick={() => setSel(null)} />}
 
                 <div className={cn("sticky top-0 z-[4] grid border-b border-border bg-card", LABEL_COL)}>
-                  <div className="sticky left-0 z-[5] flex flex-col justify-end gap-0.5 bg-card px-5 pb-4 max-[600px]:px-3">
+                  <div className="sticky left-0 z-[5] flex flex-col justify-end gap-0.5 bg-card px-5 pb-4 phone:px-3">
                     <span className="text-[13px] font-semibold">{t("Check-ins")}</span>
-                    <span className="text-[12px] text-muted-foreground max-[600px]:hidden">{t("Client per hotel, a day")}</span>
+                    <span className="text-[12px] text-muted-foreground phone:hidden">{t("Client per hotel, a day")}</span>
                     {peak > 0 && <span className="text-[12px] text-muted-foreground tabular-nums">{t("Peak {n}: {days}", { n: peak, days: peakDays })}</span>}
                   </div>
                   <div className={cn("grid gap-y-2.5 pt-3.5 pb-3", month ? "gap-x-[3px] px-1.5" : "gap-x-1.5 px-2.5")}
@@ -354,7 +354,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
                   {groups.map((g, gi) => (
                     <Fragment key={g.value}>
                       <div className={cn("bg-cal-tile pt-3.5 pb-2.5", gi > 0 && "border-t border-border")}>
-                        <div className="sticky left-0 z-[3] flex w-max items-center gap-2 px-5 max-[600px]:px-3">
+                        <div className="sticky left-0 z-[3] flex w-max items-center gap-2 px-5 phone:px-3">
                           <span className="text-[13px] font-semibold">{g.label}</span>
                           <span className="rounded-full bg-card px-2 py-px text-[11px] font-semibold text-muted-foreground ring-1 ring-border ring-inset">{counted(g)}</span>
                         </div>
@@ -363,10 +363,10 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
                         const hit = h.bars.find((r) => r.id === sel);
                         return (
                           <div className={cn("grid border-t border-hairline", LABEL_COL)} key={h.key}>
-                            <div className="sticky left-0 z-[3] flex min-w-0 flex-col justify-center border-r border-hairline bg-card px-5 max-[600px]:px-3">
+                            <div className="sticky left-0 z-[3] flex min-w-0 flex-col justify-center border-r border-hairline bg-card px-5 phone:px-3">
                               {h.url ? (
                                 <Link href={h.url} title={h.name}
-                                  className="min-w-0 overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-foreground no-underline hover:underline hover:underline-offset-3">
+                                  className="min-w-0 overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-foreground no-underline hover:underline hover:underline-offset-3 phone:-my-3 phone:py-3">
                                   {h.name}
                                 </Link>
                               ) : (
@@ -444,7 +444,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
           </section>
 
           {/* Phones read the agenda first, then the timeline. */}
-          <aside className={cn(CARD, "box-border max-w-full p-5 max-[600px]:order-first max-[600px]:p-4", month ? "basis-full" : "flex-[1_1_380px]")} aria-label={t("Agenda")}>
+          <aside className={cn(CARD, "box-border max-w-full p-5 phone:order-first phone:p-4", month ? "basis-full" : "flex-[1_1_380px]")} aria-label={t("Agenda")}>
             <div className="flex items-baseline justify-between gap-2">
               <h2 className="m-0 text-[17px] leading-[1.3] font-semibold tracking-[-0.01em]">{t("Agenda")}</h2>
               <span className="text-[12px] text-muted-foreground tabular-nums">{t("{rooms} that night", { rooms: rooms(tonight) })}</span>

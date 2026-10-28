@@ -25,8 +25,9 @@ import { useI18n } from "../../utils/i18n.jsx";
 export const DH = {
   hi: "m-0 text-[24px] font-semibold tracking-[-0.02em] leading-[1.2]",
   sub: "mt-1 text-[13px] text-muted-foreground",
-  link: "text-[12px] font-medium text-muted-foreground no-underline hover:text-foreground",
-  footLink: "font-semibold text-foreground no-underline",
+  // Links grow to a 40px tap target on a phone without moving the line.
+  link: "text-[12px] font-medium text-muted-foreground no-underline hover:text-foreground phone:-my-3 phone:inline-block phone:py-3",
+  footLink: "font-semibold text-foreground no-underline phone:-my-3 phone:inline-block phone:py-3",
 };
 
 // ── Card grids ─────────────────────────────────────────────────────────────
@@ -78,18 +79,18 @@ export function DashKpis({ hero, staff, className, children }) {
   const swipe = !staff;
   return (
     <>
-      {swipe && hero && <div className="hidden max-[600px]:flex max-[600px]:flex-col">{hero}</div>}
+      {swipe && hero && <div className="hidden phone:flex phone:flex-col">{hero}</div>}
       <div className={cn(
         "grid gap-3",
         cols,
         "[:where(&)_[data-slot=kpi]]:min-w-0",
         "max-[1180px]:grid-cols-2",
-        "max-[600px]:grid-cols-1",
+        "phone:grid-cols-1",
         hero && "max-[1180px]:[:where(&)>:first-child]:col-span-full",
-        swipe && "max-[600px]:-mx-4 max-[600px]:flex max-[600px]:snap-x max-[600px]:snap-mandatory max-[600px]:gap-2.5 max-[600px]:overflow-x-auto max-[600px]:px-4 max-[600px]:[scrollbar-width:none] max-[600px]:[&::-webkit-scrollbar]:hidden",
-        swipe && hero && "max-[600px]:[&>:first-child]:hidden",
-        staff && "max-[600px]:contents max-[600px]:[:where(&)_[data-slot=kpi]]:order-3",
-        hero && staff && "max-[600px]:[:where(&)>:first-child]:order-1",
+        swipe && "phone:-mx-4 phone:flex phone:snap-x phone:snap-mandatory phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
+        swipe && hero && "phone:[&>:first-child]:hidden",
+        staff && "phone:contents phone:[:where(&)_[data-slot=kpi]]:order-3",
+        hero && staff && "phone:[:where(&)>:first-child]:order-1",
         className,
       )}>
         {hero}
@@ -149,8 +150,8 @@ export function HeroCard({ href, label, chip, value, unit, bars, axis, foot, lin
 // ── Grid rows: a table drawn as a grid ─────────────────────────────────────
 export const DGT = {
   table: "text-[13px]",
-  head: "grid min-h-10 items-center gap-3 border-b border-border px-6 text-[12px] font-semibold text-foreground max-[600px]:px-4",
-  row: "grid min-h-14 items-center gap-3 border-b border-hairline px-6 text-inherit no-underline transition-colors duration-[120ms] ease-[ease] last:border-b-0 hover:bg-[color-mix(in_oklch,var(--foreground)_3%,var(--card))] max-[600px]:px-4",
+  head: "grid min-h-10 items-center gap-3 border-b border-border px-6 text-[12px] font-semibold text-foreground phone:px-4",
+  row: "grid min-h-14 items-center gap-3 border-b border-hairline px-6 text-inherit no-underline transition-colors duration-[120ms] ease-[ease] last:border-b-0 hover:bg-[color-mix(in_oklch,var(--foreground)_3%,var(--card))] phone:px-4",
   n: "text-right tabular-nums whitespace-nowrap",
   d: "text-muted-foreground tabular-nums whitespace-nowrap",
   strong: "block font-medium",
@@ -165,17 +166,17 @@ export const DGT = {
 // Column templates per grid table. They ride the row containers (role=row),
 // so one class on the table lays out header and rows alike; on a phone the
 // third column is dropped where the template says so.
-const HIDE_COL_3 = "max-[600px]:[:where(&)_[role=row]>*:nth-child(3)]:hidden";
+const HIDE_COL_3 = "phone:[:where(&)_[role=row]>*:nth-child(3)]:hidden";
 export const DGT_COLS = {
   todo: "[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_56px_140px_16px] " + HIDE_COL_3 +
-    " max-[600px]:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_48px_auto]",
+    " phone:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_48px_auto]",
   ci: "[:where(&)_[role=row]]:grid-cols-[64px_minmax(0,1fr)_48px_104px] " + HIDE_COL_3 +
-    " max-[600px]:[:where(&)_[role=row]]:grid-cols-[48px_minmax(0,1fr)_auto]",
+    " phone:[:where(&)_[role=row]]:grid-cols-[48px_minmax(0,1fr)_auto]",
   pay: "[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_140px_16px]",
   pd: "[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_48px_80px_80px] " + HIDE_COL_3 +
-    " max-[600px]:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_48px_auto]",
+    " phone:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_48px_auto]",
   mypay: "[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_128px_152px] " + HIDE_COL_3 +
-    " max-[600px]:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_auto]",
+    " phone:[:where(&)_[role=row]]:grid-cols-[minmax(0,1fr)_auto]",
 };
 
 export function GridTable({ cols, label, head, className, children }) {
@@ -306,7 +307,7 @@ export function Legend({ items }) {
 // BC — CL sold per month: grey bars, the picked one in green, last season
 // dashed. Every bar carries its value, so there is no y axis, only a baseline.
 export const BC = {
-  chart: "relative mt-6 grid h-52 grid-cols-[repeat(12,minmax(0,1fr))] items-end gap-2 max-[600px]:gap-1",
+  chart: "relative mt-6 grid h-52 grid-cols-[repeat(12,minmax(0,1fr))] items-end gap-2 phone:gap-1",
   gl: "absolute inset-x-0 border-t border-hairline pointer-events-none",
   pre: "absolute bottom-0 left-0 flex h-full items-center justify-center border-0 border-b border-dashed border-hairline text-[12px] text-muted-foreground pointer-events-none",
   col: "group/col relative flex h-full items-end justify-center",
@@ -321,7 +322,7 @@ export const BC = {
   tipH: "mb-1 block font-semibold",
   tipRow: "flex justify-between gap-4 text-muted-foreground",
   tipVal: "font-semibold text-foreground tabular-nums",
-  x: "mt-2 grid grid-cols-[repeat(12,minmax(0,1fr))] gap-2 text-center text-[12px] text-muted-foreground max-[600px]:gap-1",
+  x: "mt-2 grid grid-cols-[repeat(12,minmax(0,1fr))] gap-2 text-center text-[12px] text-muted-foreground phone:gap-1",
   xOn: "font-semibold text-foreground",
   xPre: "opacity-50",
 };
@@ -329,7 +330,7 @@ export const BC = {
 // FC — money in and out: received in green, paid out in ink, the current
 // month on. Bars carry no values here, so this chart keeps its y axis.
 export const FC = {
-  chart: "relative ml-8 mt-6 grid h-52 grid-cols-[repeat(6,minmax(0,1fr))] items-end gap-4 max-[600px]:gap-2",
+  chart: "relative ml-8 mt-6 grid h-52 grid-cols-[repeat(6,minmax(0,1fr))] items-end gap-4 phone:gap-2",
   gl: "absolute inset-x-0 border-t border-hairline pointer-events-none",
   glNum: "absolute -top-2 -left-8 w-6 text-right text-[12px] text-muted-foreground tabular-nums",
   col: "group/col relative flex h-full items-end justify-center gap-1",
@@ -342,7 +343,7 @@ export const FC = {
   tipH: BC.tipH,
   tipRow: BC.tipRow,
   tipVal: BC.tipVal,
-  x: "ml-8 mt-2 grid grid-cols-[repeat(6,minmax(0,1fr))] gap-4 text-center text-[12px] text-muted-foreground max-[600px]:gap-2",
+  x: "ml-8 mt-2 grid grid-cols-[repeat(6,minmax(0,1fr))] gap-4 text-center text-[12px] text-muted-foreground phone:gap-2",
   xOn: "font-semibold text-foreground",
 };
 

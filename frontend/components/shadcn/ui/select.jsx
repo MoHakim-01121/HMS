@@ -34,7 +34,7 @@ function SelectTrigger({
       data-size={size}
       className={cn(
         // Same control look as input.jsx.
-        "flex w-fit items-center justify-between gap-2 rounded-control border-2 border-field bg-card px-3.5 text-[14px] whitespace-nowrap shadow-none transition-[border-color] duration-[140ms] ease-[ease] outline-none max-[600px]:text-[16px] focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-10 data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+        "flex w-fit items-center justify-between gap-2 rounded-control border-2 border-field bg-card px-3.5 text-[14px] whitespace-nowrap shadow-none transition-[border-color] duration-[140ms] ease-[ease] outline-none phone:text-[16px] focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-10 phone:data-[size=default]:h-11 data-[size=sm]:h-9 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
         className
       )}
       {...props}>

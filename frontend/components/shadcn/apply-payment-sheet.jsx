@@ -40,10 +40,10 @@ const Fig = ({ label, value, big, zero }) => (
 const toolClass = cn(
   "h-[30px] cursor-pointer rounded-full border border-input bg-card px-3 font-[family-name:inherit] text-[12px] leading-[inherit] font-semibold text-foreground",
   "transition-[border-color,background-color] duration-[120ms] hover:border-foreground disabled:cursor-default disabled:border-input disabled:opacity-45",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid max-[600px]:h-8",
+  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid phone:h-8",
 );
 const GROUP = "bg-[color:color-mix(in_oklch,var(--muted)_45%,var(--card))] px-[14px] py-2 text-[12px] font-semibold tracking-[.08em] text-muted-foreground uppercase";
-const ROW = "flex items-center gap-[14px] px-[14px] py-[11px] max-[600px]:gap-2.5 max-[600px]:px-3 max-[600px]:py-2.5";
+const ROW = "flex items-center gap-[14px] px-[14px] py-[11px] phone:gap-2.5 phone:px-3 phone:py-2.5";
 const ROW_META = "flex min-w-0 flex-1 flex-col gap-0.5";
 const ROW_NO = "font-mono text-[12px] font-bold text-foreground";
 const ROW_SUB = "truncate text-[12px] text-muted-foreground";
@@ -253,7 +253,7 @@ export default function ApplyPaymentSheet({
                         </div>
                         <div className="flex flex-col items-end gap-[3px]">
                           <Input
-                            className="w-[118px] text-right max-[600px]:w-[112px]"
+                            className="w-[118px] text-right phone:w-[112px]"
                             type="number"
                             min="0"
                             max={capOf(res) ?? undefined}
@@ -294,7 +294,7 @@ export default function ApplyPaymentSheet({
             )}
           </ModalBody>
 
-          <div className="flex shrink-0 justify-end gap-2.5 border-t border-border bg-card px-5 py-4 max-[600px]:px-4 max-[600px]:py-3.5">
+          <div className="flex shrink-0 justify-end gap-2.5 border-t border-border bg-card px-5 py-4 phone:px-4 phone:py-3.5">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
               {t("Cancel")}
             </Button>

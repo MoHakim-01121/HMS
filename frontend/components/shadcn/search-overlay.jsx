@@ -64,7 +64,7 @@ export default function SearchOverlay({ open, onClose }) {
           blur is no longer set here — DialogOverlay carries it for every
           overlay in the app now (see dialog.jsx). */}
       <DialogContent
-        className="overflow-hidden p-0 rounded-[20px] shadow-palette border border-border bg-card max-w-[min(520px,calc(100%-2rem))] top-[64px] translate-y-0 sm:top-[64px] sm:translate-y-0 max-[600px]:top-[64px] max-[600px]:translate-y-0"
+        className="overflow-hidden p-0 rounded-[20px] shadow-palette border border-border bg-card max-w-[min(520px,calc(100%-2rem))] top-[64px] translate-y-0 sm:top-[64px] sm:translate-y-0 phone:top-[64px] phone:translate-y-0"
         showCloseButton={false}
       >
         <Command shouldFilter={false}>
@@ -122,7 +122,7 @@ export default function SearchOverlay({ open, onClose }) {
               </CommandGroup>
             ))}
           </CommandList>
-          <div className="flex items-center gap-3.5 border-t border-hairline px-[18px] py-[11px] max-[600px]:hidden">
+          <div className="flex items-center gap-3.5 border-t border-hairline px-[18px] py-[11px] phone:hidden">
             <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <kbd className="flex h-5 items-center rounded-[8px] bg-secondary px-1.5 text-[10.5px] font-semibold leading-none text-muted-foreground">↑↓</kbd> {t("navigate")}
             </span>

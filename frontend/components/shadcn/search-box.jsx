@@ -9,7 +9,7 @@ export default function SearchBox({ value, onChange, placeholder, className }) {
   return (
     <div className={cn(
       "flex h-[38px] min-w-[180px] flex-1 items-center gap-2.5 rounded-full border border-input bg-card px-3.5 transition-[border-color] duration-150 focus-within:border-foreground",
-      "max-[600px]:h-11 max-[600px]:min-w-0",
+      "phone:h-11 phone:min-w-0",
       className,
     )}>
       <Icon name="search" size={13} className="shrink-0 text-muted-foreground" />
@@ -18,7 +18,7 @@ export default function SearchBox({ value, onChange, placeholder, className }) {
         value={value}
         placeholder={t(placeholder)}
         onChange={(e) => onChange(e.target.value)}
-        className="size-full rounded-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground focus:shadow-none max-[600px]:text-[16px]"
+        className="size-full rounded-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground shadow-none outline-none placeholder:text-muted-foreground focus:shadow-none phone:text-[16px]"
       />
       {value && (
         <button type="button" title={t("Clear search")} onClick={() => onChange("")}

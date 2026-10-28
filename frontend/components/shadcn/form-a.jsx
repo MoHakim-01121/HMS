@@ -6,6 +6,7 @@ import FormHeader from "./form-header.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
 import { Switch } from "./ui/switch.jsx";
+import { focusOnOpen } from "../../utils/device.js";
 
 // Building blocks of the approved CL and Invoice forms (Record View HMS
 // canvas, "CL Form (disetujui)" / "Invoice Form (disetujui)"): a labelled
@@ -27,7 +28,7 @@ export const FA = {
   wide: "col-span-full",
   // A drawn control: a button that opens a picker, or a span around an input.
   control: cn(
-    "box-border flex h-10 w-full cursor-pointer items-center gap-2 rounded-[10px] border-[1.5px] border-field bg-card px-3 text-left font-sans text-[14px] leading-[normal] font-semibold text-foreground",
+    "box-border flex h-10 w-full cursor-pointer items-center gap-2 phone:h-11 rounded-[10px] border-[1.5px] border-field bg-card px-3 text-left font-sans text-[14px] leading-[normal] font-semibold text-foreground",
     "transition-[border-color,box-shadow] duration-[120ms] ease-[ease] aria-expanded:border-foreground aria-expanded:shadow-[0_0_0_3px_color-mix(in_oklch,var(--foreground)_8%,transparent)]",
     "[&>svg]:flex-none [&>svg]:text-muted-foreground [&>svg:last-child:not(:first-child)]:ml-auto",
     HOVER_EDGE, FOCUS,
@@ -169,7 +170,7 @@ export function Segmented({ value, options, onChange, label, wide }) {
     <div className={cn("inline-flex gap-1 rounded-[12px] bg-secondary p-1", wide && "flex w-full")} role="radiogroup" aria-label={label}>
       {options.map(([v, l]) => (
         <button key={v} type="button" role="radio" aria-checked={value === v} onClick={() => onChange(v)}
-          className={cn("h-[34px] cursor-pointer rounded-[9px] border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-seg-on", wide && "h-10 flex-1 text-[14px]", FOCUS)}>{l}</button>
+          className={cn("h-[34px] cursor-pointer rounded-[9px] phone:h-10 border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-medium text-muted-foreground aria-checked:bg-card aria-checked:text-foreground aria-checked:shadow-seg-on", wide && "h-10 flex-1 text-[14px]", FOCUS)}>{l}</button>
       ))}
     </div>
   );
@@ -178,7 +179,7 @@ export function Segmented({ value, options, onChange, label, wide }) {
 // A group caption inside the field grid, on phones only, where the one
 // column of fields runs long (canvas "HMS Mobile v2", forms).
 export const PhoneCaption = ({ children }) => (
-  <div className={cn(FA.caption, FA.wide, "mt-2 -mb-1 hidden max-[600px]:block")}>{children}</div>
+  <div className={cn(FA.caption, FA.wide, "mt-2 -mb-1 hidden phone:block")}>{children}</div>
 );
 
 export function Field({ label, required, optional, error, hint, className = "", children, htmlFor }) {
@@ -235,7 +236,7 @@ export function Picker({ icon, value, options, onPick, placeholder, searchable =
           {searchable && (
             <label className="-mx-1.5 -mt-1.5 mb-1 flex h-10 items-center gap-2 border-b border-hairline px-4 text-muted-foreground">
               <SearchIcon />
-              <input className={cn(BARE, "h-full flex-1 text-[13px] font-medium")} aria-label={t("Search")} placeholder={t("Search")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+              <input className={cn(BARE, "h-full flex-1 text-[13px] font-medium")} aria-label={t("Search")} placeholder={t("Search")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus={focusOnOpen()} />
             </label>
           )}
           <div className="max-h-[300px] overflow-y-auto">
@@ -495,7 +496,7 @@ export function TextIn({ value, onChange, placeholder, icon, suffix, id, type = 
   return (
     <span className={cn(FA.control, FA.hostsInput, invalid && FA.bad)}>
       {icon}
-      <input id={id} type={type} inputMode={inputMode} value={value ?? ""} placeholder={placeholder} autoFocus={autoFocus}
+      <input id={id} type={type} inputMode={inputMode} value={value ?? ""} placeholder={placeholder} autoFocus={autoFocus && focusOnOpen()}
         className={cn(FA.input, className)} onChange={(e) => onChange(e.target.value)} {...rest} />
       {suffix}
     </span>
@@ -509,7 +510,7 @@ export function AmountIn({ ccy, value, onChange, hint, id, invalid, decimals = f
   return (
     <span className={cn(FA.control, FA.hostsInput, invalid && FA.bad)}>
       {ccy ? <span className={FA.ccy}>{ccy}</span> : null}
-      <input id={id} className={cn(FA.input, "text-[16px]")} inputMode={decimals ? "decimal" : "numeric"} placeholder="0" value={shown ?? ""} autoFocus={autoFocus}
+      <input id={id} className={cn(FA.input, "text-[16px]")} inputMode={decimals ? "decimal" : "numeric"} placeholder="0" value={shown ?? ""} autoFocus={autoFocus && focusOnOpen()}
         onChange={(e) => onChange(decimals ? e.target.value.replace(/[^\d.]/g, "") : digitsOf(e.target.value))} />
       {hint ? <span className={FA.meta}>{hint}</span> : null}
     </span>
@@ -571,7 +572,7 @@ export const EffectRow = ({ result, children }) => (
   <div className={cn("flex min-h-[30px] items-center justify-between gap-3 text-muted-foreground", result && "mt-1 border-t border-border pt-1.5 font-medium text-foreground [&_b]:text-[16px] [&_b]:font-bold")}>{children}</div>
 );
 
-export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full max-[600px]:min-w-0 max-[600px]:flex-1 max-[600px]:basis-auto max-[600px]:text-[12px] max-[600px]:leading-[1.35]" role="status">{children}</span>;
+export const Why = ({ children }) => <span className="mr-auto text-[13px] text-muted-foreground max-[640px]:basis-full phone:min-w-0 phone:flex-1 phone:basis-auto phone:text-[12px] phone:leading-[1.35]" role="status">{children}</span>;
 
 // The footer: why the primary button is not ready yet (or, when it is, an
 // optional `note`), Cancel, and the primary action. In a modal Cancel closes it; on its own it goes back.
@@ -582,9 +583,9 @@ export function Foot({ why, note, cancelHref, onCancel, submitLabel, processing,
     <div className={actionsClass("a")}>
       {why || note ? <Why>{why || note}</Why> : null}
       {/* Phones close the form from its header (✕), so the row keeps the reason and the primary only. */}
-      {onCancel ? <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={onCancel}>{t("Cancel")}</button>
-        : ctx?.inModal ? <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
-          : <a className={cn(btnClass("o"), "max-[600px]:hidden")} href={cancelHref}>{t("Cancel")}</a>}
+      {onCancel ? <button type="button" className={cn(btnClass("o"), "phone:hidden")} onClick={onCancel}>{t("Cancel")}</button>
+        : ctx?.inModal ? <button type="button" className={cn(btnClass("o"), "phone:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
+          : <a className={cn(btnClass("o"), "phone:hidden")} href={cancelHref}>{t("Cancel")}</a>}
       {extra}
       <button type="submit" className={btnClass("p")} aria-disabled={!!why || processing} disabled={processing}>{processing ? t("Saving…") : submitLabel}</button>
     </div>

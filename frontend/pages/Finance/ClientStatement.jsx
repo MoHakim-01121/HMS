@@ -415,7 +415,7 @@ function PeriodPicker({ isOpen, label, presets, active, dateFrom, dateTo, onAppl
       <PopoverTrigger asChild>
         <ToolButton className="max-w-[260px]" aria-haspopup="dialog">
           {DIcon.calendar}
-          <span className="max-[600px]:hidden overflow-hidden text-ellipsis whitespace-nowrap tabular-nums">{label}</span>
+          <span className="phone:hidden overflow-hidden text-ellipsis whitespace-nowrap tabular-nums">{label}</span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
         </ToolButton>
       </PopoverTrigger>

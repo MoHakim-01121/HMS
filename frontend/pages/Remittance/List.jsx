@@ -32,7 +32,7 @@ export default function List({ tab = "transfers", remittances = [], filters: f, 
   const views = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
       {[["transfers", t("Transfers"), "/remittance/"], ["tracking", t("Tracking"), "/remittance/?tab=tracking"], ["recap", t("Monthly recap"), "/remittance/?tab=recap"]].map(([k, l, href]) => (
-        k === tab ? <b key={k} className="text-foreground">{l}</b> : <Link key={k} href={href} className="font-medium text-muted-foreground underline">{l}</Link>
+        k === tab ? <b key={k} className="text-foreground">{l}</b> : <Link key={k} href={href} className="font-medium text-muted-foreground underline phone:-my-3 phone:inline-block phone:py-3">{l}</Link>
       ))}
     </span>
   );

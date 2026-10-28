@@ -72,7 +72,7 @@ function HotelMiniMap({ hotel }) {
 }
 
 // A view of a room type, as a chip; it opens Edit / Remove when editable.
-const CHIP = "my-0.5 mr-1 ml-0 inline-flex h-6 items-center rounded-full border-0 bg-secondary px-[9px] font-sans text-[12px] leading-[normal] font-medium whitespace-nowrap text-foreground";
+const CHIP = "my-0.5 mr-1 ml-0 inline-flex h-6 phone:h-8 items-center rounded-full border-0 bg-secondary px-[9px] font-sans text-[12px] leading-[normal] font-medium whitespace-nowrap text-foreground";
 const STEP_BTN = "size-10 cursor-pointer rounded-full border-0 bg-secondary font-sans text-[18px] leading-[normal] font-semibold text-foreground hover:bg-input";
 
 function RoomCalculator({ avg }) {

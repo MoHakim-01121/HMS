@@ -6,6 +6,7 @@ import { saveLanguage } from "../../utils/language.js";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { cn } from "@/lib/utils";
 import Page from "../../components/shadcn/page.jsx";
+import { focusOnOpen } from "../../utils/device.js";
 
 // My Profile, as approved on the Record View HMS canvas (Profile E2): who you
 // are with your photo, two cards side by side (personal info, access), the
@@ -52,7 +53,7 @@ const VAL_MAIN = "overflow-hidden text-ellipsis whitespace-nowrap";
 const VAL_SUB = "text-[12px] leading-[1.45] font-normal text-muted-foreground";
 const MUTE = "font-normal text-muted-foreground";
 const SAVED = "inline-flex flex-none items-center gap-1 text-[12px] font-semibold text-success-text";
-const SEG_BTN = "h-8 cursor-pointer rounded-full border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-semibold text-muted-foreground";
+const SEG_BTN = "h-8 phone:h-10 cursor-pointer rounded-full border-0 bg-transparent px-4 font-sans text-[13px] leading-[normal] font-semibold text-muted-foreground";
 // A drawn text field (search, sheet inputs): the box is the field.
 const FIELD = "box-border flex min-w-0 cursor-text items-center gap-2 rounded-[10px] border-[1.5px] border-field bg-card px-3 focus-within:border-foreground focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring focus-within:outline-solid";
 const FIELD_INPUT = "h-full min-h-0 min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 font-sans leading-[normal] text-foreground shadow-none outline-none";
@@ -63,17 +64,17 @@ const SHEET = cn(
   "max-[640px]:top-auto max-[640px]:bottom-0 max-[640px]:w-full max-[640px]:max-w-full max-[640px]:translate-y-0 max-[640px]:rounded-t-[20px] max-[640px]:rounded-b-none max-[640px]:border-b-0",
 );
 const SHEET_WIDE = "max-w-[480px] sm:max-w-[480px]";
-const ICON_BTN = "grid size-8 cursor-pointer place-content-center rounded-full border-0 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-default disabled:opacity-40";
+const ICON_BTN = "grid size-8 phone:size-11 cursor-pointer place-content-center rounded-full border-0 bg-transparent text-muted-foreground hover:bg-secondary hover:text-foreground disabled:cursor-default disabled:opacity-40";
 const SHEET_FOOT = "flex justify-end gap-2 rounded-b-[20px] border-t border-border bg-card px-5 py-4 max-[640px]:rounded-none max-[640px]:[&_button]:flex-1";
 const PREVIEW_IMG = "pointer-events-none absolute max-w-none select-none [-webkit-user-drag:none]";
-const FILTER_CHIP = "inline-flex h-8 cursor-pointer items-center rounded-full border border-input bg-card px-3 font-sans text-[12px] leading-[normal] font-semibold text-muted-foreground hover:border-foreground hover:text-foreground";
+const FILTER_CHIP = "inline-flex h-8 phone:h-10 cursor-pointer items-center rounded-full border border-input bg-card px-3 font-sans text-[12px] leading-[normal] font-semibold text-muted-foreground hover:border-foreground hover:text-foreground";
 const FILTER_CHIP_ON = "border-foreground bg-foreground text-background hover:text-background";
 const ACT_COLS = "grid grid-cols-[84px_minmax(0,1fr)_minmax(0,1.6fr)_104px] items-center gap-4 px-6";
 const SHEET_BODY = "flex flex-col gap-2 px-6 pt-4 pb-6";
 const SHEET_NOTE = "mt-0 mb-2 text-[13px] leading-[1.5] text-muted-foreground";
 const PHOTO_ERR = "mt-1 flex items-start gap-2 text-[13px] text-danger-text [&_svg]:mt-px [&_svg]:flex-none";
 const PREVIEW = "relative flex-none overflow-hidden rounded-full bg-photo-backdrop ring-1 ring-border";
-const PAGE_BTN = "box-border grid h-[34px] min-w-[34px] cursor-pointer place-content-center rounded-full border-0 bg-transparent px-2 font-sans text-[13px] leading-[normal] font-semibold text-foreground tabular-nums hover:bg-secondary";
+const PAGE_BTN = "box-border grid h-[34px] min-w-[34px] phone:h-11 phone:min-w-11 cursor-pointer place-content-center rounded-full border-0 bg-transparent px-2 font-sans text-[13px] leading-[normal] font-semibold text-foreground tabular-nums hover:bg-secondary";
 
 const PAGE_STEP = cn(PAGE_BTN, "aria-disabled:cursor-default aria-disabled:opacity-35 aria-disabled:hover:bg-transparent");
 
@@ -158,7 +159,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
     <Page>
       <div className="mx-auto flex max-w-[1040px] flex-col gap-4 pt-1 pb-16 text-[14px] leading-[1.5] text-foreground [&_:is(button,input,a):focus-visible]:outline-2 [&_:is(button,input,a):focus-visible]:outline-offset-2 [&_:is(button,input,a):focus-visible]:outline-ring [&_:is(button,input,a):focus-visible]:outline-solid">
         <div>
-          <a href="/" className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground no-underline hover:text-foreground"
+          <a href="/" className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground no-underline hover:text-foreground phone:-my-3 phone:py-3"
             onClick={(e) => { if (window.history.length > 1) { e.preventDefault(); window.history.back(); } }}>{I.back}{t("Back")}</a>
         </div>
         {toast && <div className="flex items-center gap-2 rounded-[12px] bg-success-tint px-4 py-3 text-[13px] font-semibold text-success-text" role="status">{I.ok}{toast}</div>}
@@ -314,7 +315,7 @@ function EditSheet({ field, account, serverErrors, onClose, onSaved }) {
               <label className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-muted-foreground">{cur.label}</span>
                 <span className={cn(FIELD, "h-11 transition-[border-color] duration-[120ms] ease-[ease]", shown && "border-danger focus-within:border-danger")}>
-                  <input aria-label={cur.label} type={cur.type} autoComplete="off" value={draft} autoFocus
+                  <input aria-label={cur.label} type={cur.type} autoComplete="off" value={draft} autoFocus={focusOnOpen()}
                     className={cn(FIELD_INPUT, "text-[14px] font-semibold")}
                     onChange={(e) => { setDraft(e.target.value); setServer(""); }}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
@@ -600,7 +601,7 @@ function ActivityCard({ activity }) {
       <div className={cn(HEAD, "flex-wrap items-center border-b-0")}>
         <div><h2 className={H2}>{t("Activity")}</h2><p className={HEAD_P}>{t("Everything you did in HMS, newest first.")}</p></div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className={cn(FIELD, "h-9 w-[280px] max-w-full max-[640px]:w-auto max-[640px]:flex-1 [&_svg]:flex-none [&_svg]:text-muted-foreground")}>
+          <label className={cn(FIELD, "h-9 phone:h-11 w-[280px] max-w-full max-[640px]:w-auto max-[640px]:flex-1 [&_svg]:flex-none [&_svg]:text-muted-foreground")}>
             {I.search}
             <input aria-label={t("Search activity")} placeholder={t("Search record, field or value")} value={q} onChange={(e) => setQ(e.target.value)}
               className={cn(FIELD_INPUT, "text-[13px] font-medium")} />
@@ -608,7 +609,7 @@ function ActivityCard({ activity }) {
           <div className="relative" ref={panel}>
             <button type="button" aria-haspopup="dialog" aria-expanded={fOpen}
               className={cn(
-                "inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-semibold text-foreground hover:border-foreground [&_svg]:text-muted-foreground",
+                "inline-flex h-9 phone:h-11 cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-semibold text-foreground hover:border-foreground [&_svg]:text-muted-foreground",
                 (fOpen || groupsOn(f)) && "border-foreground bg-secondary",
               )}
               onClick={() => { setDf(f); setFOpen((v) => !v); }}>
@@ -671,12 +672,12 @@ function ActivityCard({ activity }) {
           <span className="mr-1 text-[12px] text-muted-foreground">{t("Active filters")}</span>
           {chips.map((c) => (
             <button type="button" key={c.label} aria-label={t("Remove filter {name}", { name: c.label })} onClick={c.remove}
-              className="inline-flex h-7 cursor-pointer items-center gap-2 rounded-full border border-input bg-secondary pr-2 pl-3 font-sans text-[12px] leading-[normal] font-semibold text-foreground hover:border-foreground [&_svg]:text-muted-foreground">
+              className="inline-flex h-7 phone:h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-secondary pr-2 pl-3 font-sans text-[12px] leading-[normal] font-semibold text-foreground hover:border-foreground [&_svg]:text-muted-foreground">
               {c.label}{I.x}
             </button>
           ))}
           <button type="button" onClick={clearAll}
-            className="cursor-pointer border-0 bg-transparent px-2 py-0 font-sans text-[12px] leading-[normal] font-semibold text-muted-foreground underline underline-offset-3 hover:text-foreground">
+            className="cursor-pointer border-0 bg-transparent px-2 py-0 font-sans text-[12px] leading-[normal] font-semibold text-muted-foreground underline underline-offset-3 hover:text-foreground phone:-my-3 phone:py-3">
             {t("Clear all")}
           </button>
         </div>

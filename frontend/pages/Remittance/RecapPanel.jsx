@@ -20,7 +20,7 @@ export default function RecapPanel({ monthly, t }) {
     <div className="flex flex-col gap-[18px]">
       {monthly.map((m) => (
         <div key={m.period}>
-          <div className="flex items-baseline justify-between gap-3 px-0.5 pb-2 max-[600px]:flex-col max-[600px]:items-start max-[600px]:gap-0.5">
+          <div className="flex items-baseline justify-between gap-3 px-0.5 pb-2 phone:flex-col phone:items-start phone:gap-0.5">
             <span className="text-[14px] font-semibold text-foreground">{m.label}</span>
             <span className="text-[12px] text-muted-foreground tabular-nums">
               {t("Sent")} {fmt(m.total_sent)} · {t("Received")} {fmt(m.total_received)}
@@ -47,7 +47,7 @@ export default function RecapPanel({ monthly, t }) {
                   className: "tabular-nums",
                   render: (x) => (
                     <>
-                      <span className="mr-1.5 hidden text-[10px] font-bold tracking-[.5px] text-muted-foreground uppercase max-[600px]:inline-flex">{t("Received")}</span>
+                      <span className="mr-1.5 hidden text-[10px] font-bold tracking-[.5px] text-muted-foreground uppercase phone:inline-flex">{t("Received")}</span>
                       {x.received ? `${fmt(x.received)} SAR` : "—"}
                       {x.difference ? <span className="block text-[11px] font-normal text-muted-foreground">{t("difference")} {fmt(x.difference)}</span> : null}
                     </>

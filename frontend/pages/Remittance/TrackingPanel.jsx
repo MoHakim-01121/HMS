@@ -170,16 +170,16 @@ export default function TrackingPanel({ tracking, canPlan }) {
         </div>
       ))}
 
-      <div className="mb-3.5 flex flex-wrap items-start gap-2.5 max-[600px]:items-center max-[600px]:gap-2">
+      <div className="mb-3.5 flex flex-wrap items-start gap-2.5 phone:items-center phone:gap-2">
         <SearchBox value={query} onChange={setQuery} placeholder="Search reservation, client, hotel" />
-        <div className="flex items-center gap-2 max-[600px]:w-full max-[600px]:flex-[1_1_100%]">
-          <select className="h-9 min-w-[130px] flex-none appearance-none rounded-full border border-input bg-card px-3 font-[inherit] text-[12.5px] text-foreground max-[600px]:block max-[600px]:h-10 max-[600px]:w-full" value={client} onChange={(e) => setClient(e.target.value)} aria-label={t("Client")}>
+        <div className="flex items-center gap-2 phone:w-full phone:flex-[1_1_100%]">
+          <select className="h-9 min-w-[130px] flex-none appearance-none rounded-full border border-input bg-card px-3 font-[inherit] text-[12.5px] text-foreground phone:block phone:h-10 phone:w-full" value={client} onChange={(e) => setClient(e.target.value)} aria-label={t("Client")}>
             <option value="">{t("All clients")}</option>
             {clients.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
         {canPlan && chosen.length > 0 && (
-          <div className="ml-auto flex items-center gap-3 max-[600px]:ml-0 max-[600px]:w-full max-[600px]:justify-between">
+          <div className="ml-auto flex items-center gap-3 phone:ml-0 phone:w-full phone:justify-between">
             <span className="text-[13px] text-muted-foreground tabular-nums">{t("{n} chosen · {sar} SAR", { n: chosen.length, sar: fmt(chosenSar) })}</span>
             <Primary label={t("Create remittance")} onClick={() => openForm(planUrl)} />
           </div>

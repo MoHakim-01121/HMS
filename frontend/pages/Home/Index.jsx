@@ -39,7 +39,7 @@ const pastDueSub = (t, c, d) => (c === 1 ? t("1 client, {d} days late", { d }) :
 const greeting = (t) => { const h = new Date().getHours(); return h < 11 ? t("Good morning") : h < 15 ? t("Good afternoon") : t("Good evening"); };
 // On a phone, staff's day is ordered: booked value, today's work, the other
 // figures, the charts, their own payments.
-const ORDER = { work: "max-[600px]:order-2", charts: "max-[600px]:order-4", mine: "max-[600px]:order-5" };
+const ORDER = { work: "phone:order-2", charts: "phone:order-4", mine: "phone:order-5" };
 
 export default function Home(props) {
   const [loading, setLoading] = useState(false);
@@ -273,7 +273,7 @@ function SoldPerMonth({ sm, isSeason, title }) {
         : t("sold in {m}, {n} in {m} last season", { m: t(MONTHS[p.d.getMonth()]), n: p.ly });
   return (
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
-      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 phone:p-0")}>
         <h2>{title || t("CL sold per month")}{sm.season && <span className={DA.count}>{t("Season {s}", { s: sm.season })}</span>}</h2>
         <Legend items={[
           { label: isSeason ? t("This season") : t(MONTHS[p.d.getMonth()]), bg: "bg-data" },
@@ -317,7 +317,7 @@ function Collected({ col, deposits }) {
   const pct = col.pct ?? 0;
   return (
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
-      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/" className={DH.link}>{t("AR aging")}</Link></div>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 phone:p-0")}><h2>{t("Collected")}</h2><Link href="/finance/ar-aging/" className={DH.link}>{t("AR aging")}</Link></div>
       {col.billed > 0 ? (
         <>
           <div className={GAUGE.wrap}>
@@ -698,7 +698,7 @@ function MoneyInOut({ flow }) {
   const net = flow.cur.in - flow.cur.out;
   return (
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
-      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 max-[600px]:p-0")}>
+      <div data-slot="card-head" className={cn(DA.cardHead, "p-0 phone:p-0")}>
         <h2>{t("Money in and out")}<span className={DA.count}>{t("per month, M IDR")}</span></h2>
         <Legend items={[
           { label: t("Received"), bg: "bg-data" },

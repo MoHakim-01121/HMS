@@ -13,10 +13,12 @@ import { Button } from "./ui/button.jsx";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 
+// At the default 600px it is the app's `phone` query (a phone on its side too).
+const query = (bp) => (bp === 600 ? "(max-width: 600px), (max-height: 500px) and (pointer: coarse)" : `(max-width:${bp}px)`);
 function useIsMobile(bp = 600) {
-  const [m, setM] = useState(() => typeof window !== "undefined" && window.innerWidth <= bp);
+  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(query(bp)).matches);
   useEffect(() => {
-    const mq = window.matchMedia(`(max-width:${bp}px)`);
+    const mq = window.matchMedia(query(bp));
     const fn = (e) => setM(e.matches);
     mq.addEventListener("change", fn);
     setM(mq.matches);
@@ -220,7 +222,7 @@ export default function Table({ columns, rows, rowKey, onRowClick, empty, footer
       {selectable && selected.size > 0 && (
         <div
           role="toolbar"
-          className="fixed bottom-6 left-1/2 z-[300] flex -translate-x-1/2 animate-rise-in items-center gap-[14px] rounded-2xl border border-border bg-popover px-4 py-[10px] shadow-menu max-[600px]:bottom-[calc(72px+env(safe-area-inset-bottom))]"
+          className="fixed bottom-6 left-1/2 z-[300] flex -translate-x-1/2 animate-rise-in items-center gap-[14px] rounded-2xl border border-border bg-popover px-4 py-[10px] shadow-menu phone:bottom-[calc(72px+env(safe-area-inset-bottom))]"
         >
           <span className="font-mono text-[12px] whitespace-nowrap text-muted-foreground">{t("{count} selected", { count: selected.size })}</span>
           <div className="flex gap-2">

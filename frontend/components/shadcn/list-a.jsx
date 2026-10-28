@@ -61,9 +61,10 @@ export function useListNav(base, current) {
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-// Phones (600px and below) rearrange a few parts rather than restyle them:
-// the filter becomes a bottom sheet, the table a list of rows.
-const PHONE = "(max-width: 600px)";
+// Phones (600px and below, or a phone turned sideways: the `phone` variant in
+// tailwind.css) rearrange a few parts rather than restyle them: the filter
+// becomes a bottom sheet, the table a list of rows.
+const PHONE = "(max-width: 600px), (max-height: 500px) and (pointer: coarse)";
 export function usePhone() {
   const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(PHONE).matches);
   useEffect(() => {
@@ -109,7 +110,7 @@ export function ListPage({ title, legend, children, loading }) {
     <PageFrame>
       <PageMain loading={loading}>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em] max-[600px]:text-[26px] max-[600px]:leading-[1.2]">{title}</h1>
+          <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em] phone:text-[26px] phone:leading-[1.2]">{title}</h1>
           {legend}
         </div>
         {children}
@@ -139,7 +140,7 @@ export const Note = ({ className, children }) => (
 export const Kpis = ({ children, dense }) => (
   <div data-dense={dense ? "" : undefined} className={cn(
     "group/kpis flex gap-3 max-[900px]:flex-wrap",
-    "max-[600px]:-mx-4 max-[600px]:snap-x max-[600px]:snap-mandatory max-[600px]:flex-nowrap max-[600px]:gap-2.5 max-[600px]:overflow-x-auto max-[600px]:px-4 max-[600px]:[scrollbar-width:none] max-[600px]:[&::-webkit-scrollbar]:hidden",
+    "phone:-mx-4 phone:snap-x phone:snap-mandatory phone:flex-nowrap phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
   )}>{children}</div>
 );
 
@@ -147,7 +148,7 @@ export const Kpis = ({ children, dense }) => (
 // when it is a button or link.
 export const kpiFrame = (pressable, on) => cn(
   "box-border flex min-w-0 flex-[1_1_0] flex-col rounded-card border border-border bg-card px-[18px] pt-4 pb-3 text-left text-inherit no-underline [font:inherit]",
-  "transition-[border-color,box-shadow,scale] duration-150 ease-out-quint max-[900px]:flex-[1_1_calc(50%-6px)] max-[600px]:flex-[0_0_80%] max-[600px]:snap-start",
+  "transition-[border-color,box-shadow,scale] duration-150 ease-out-quint max-[900px]:flex-[1_1_calc(50%-6px)] phone:flex-[0_0_80%] phone:snap-start",
   FOCUS,
   pressable && "cursor-pointer hover:border-input active:scale-[.995]",
   on && "border-foreground ring-1 ring-inset ring-foreground",
@@ -265,25 +266,25 @@ export function Toolbar({ left, children, spaced }) {
   const ctx = useMemo(() => ({ entries, hasFilter, setHasFilter }), [hasFilter]);
   return (
     <ToolCtx.Provider value={ctx}>
-      <div className={cn("flex flex-wrap items-center justify-between gap-3", spaced && "mt-9 max-[600px]:mt-2")}>
-        <div className="flex flex-wrap items-center gap-1 max-[600px]:w-full">{left}</div>
+      <div className={cn("flex flex-wrap items-center justify-between gap-3", spaced && "mt-9 phone:mt-2")}>
+        <div className="flex flex-wrap items-center gap-1 phone:w-full">{left}</div>
         {Children.toArray(children).length > 0 && <ToolbarRight>{children}</ToolbarRight>}
       </div>
     </ToolCtx.Provider>
   );
 }
 
-export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full max-[600px]:flex-nowrap">{children}</div>;
+export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full phone:flex-nowrap">{children}</div>;
 
 // The month label of a month navigator.
 export const MonthLabel = ({ className, children }) => (
-  <span data-slot="month" className={cn("mr-2 min-w-[76px] text-[14px] font-semibold max-[600px]:mr-auto max-[600px]:text-[15px]", className)}>{children}</span>
+  <span data-slot="month" className={cn("mr-2 min-w-[76px] text-[14px] font-semibold phone:mr-auto phone:text-[15px]", className)}>{children}</span>
 );
 
 // ‹ › beside the month.
 export const NavButton = (props) => (
   <button type="button" {...props} className={cn(
-    "grid size-[30px] cursor-pointer place-content-center rounded-full border-0 bg-transparent text-foreground transition-colors duration-150 ease-[ease] hover:bg-card disabled:cursor-default disabled:opacity-35 max-[600px]:size-11",
+    "grid size-[30px] cursor-pointer place-content-center rounded-full border-0 bg-transparent text-foreground transition-colors duration-150 ease-[ease] hover:bg-card disabled:cursor-default disabled:opacity-35 phone:size-11",
     FOCUS, props.className,
   )} />
 );
@@ -291,7 +292,7 @@ export const NavButton = (props) => (
 // "2026 ▾": a bare button that opens a menu.
 export const MenuButton = forwardRef(({ className, ...props }, ref) => (
   <button ref={ref} type="button" {...props} className={cn(
-    "ml-2 inline-flex h-[30px] cursor-pointer items-center gap-1 rounded-[8px] border-0 bg-transparent px-2 font-sans text-[14px] leading-[normal] font-semibold text-foreground tabular-nums transition-colors duration-150 ease-[ease] hover:bg-card aria-expanded:bg-card max-[600px]:h-11",
+    "ml-2 inline-flex h-[30px] cursor-pointer items-center gap-1 rounded-[8px] border-0 bg-transparent px-2 font-sans text-[14px] leading-[normal] font-semibold text-foreground tabular-nums transition-colors duration-150 ease-[ease] hover:bg-card aria-expanded:bg-card phone:h-11",
     FOCUS, className,
   )} />
 ));
@@ -336,7 +337,7 @@ export function MonthNav({ month, year, years = [], onChange, prefix }) {
 // The toolbar's pill button (Filter, Export, a picker, a link). `as` renders
 // it as another element: "a", "label", Link.
 export const toolClass = cn(
-  "surface box-border inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-medium normal-nums whitespace-nowrap text-foreground no-underline",
+  "surface box-border inline-flex h-9 cursor-pointer items-center gap-2 phone:h-11 rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-medium normal-nums whitespace-nowrap text-foreground no-underline",
   "transition-[border-color,background-color] duration-150 ease-[ease] hover:border-[color:color-mix(in_oklch,var(--foreground)_45%,var(--input))] aria-expanded:border-[color:color-mix(in_oklch,var(--foreground)_45%,var(--input))] [&_svg]:flex-none [&_svg]:text-muted-foreground",
   FOCUS,
 );
@@ -358,7 +359,7 @@ export function SearchTool({ value, onSearch, placeholder }) {
     timer.current = setTimeout(() => onSearch(v.trim()), 300);
   };
   return (
-    <label data-slot="search" className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%] max-[600px]:h-11 max-[600px]:w-auto max-[600px]:flex-[1_1_0%] max-[600px]:text-[14px]")}>
+    <label data-slot="search" className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%] phone:h-11 phone:w-auto phone:flex-[1_1_0%] phone:text-[14px]")}>
       {LIcon.search}
       <input className={cn(toolInput, "flex-1")} value={q} onChange={(e) => change(e.target.value)} placeholder={placeholder} aria-label={placeholder}
         onKeyDown={(e) => { if (e.key === "Enter") { clearTimeout(timer.current); onSearch(q.trim()); } }} />
@@ -421,7 +422,7 @@ export function FilterMenu({ count = 0, onApply, onReset, onOpen, children }) {
               <DrawerTitle className="m-0 text-[17px]">{t("Filter and sort")}</DrawerTitle>
               <button type="button" onClick={() => onReset()} className="h-9 cursor-pointer border-0 bg-transparent px-1 font-sans text-[13px] font-medium text-muted-foreground">{t("Reset")}</button>
             </div>
-            <div className="-mx-4 min-h-0 overflow-y-auto px-4 py-3">
+            <div className="-mx-4 min-h-0 overflow-y-auto overscroll-contain px-4 py-3">
               {picks.map((p) => (
                 <FilterSection key={p.label} label={p.label}>
                   {p.options.map((o) => (
@@ -462,7 +463,7 @@ export function FilterMenu({ count = 0, onApply, onReset, onOpen, children }) {
           {t("Filter")}{LIcon.filter}{count > 0 && <span className="box-border grid h-5 min-w-5 place-content-center rounded-full bg-primary px-1 text-[12px] font-semibold text-primary-foreground">{count}</span>}
         </ToolButton>
       </PopoverTrigger>
-      <Menu role={null} align="end" sideOffset={8} className="max-h-(--radix-popover-content-available-height) w-[300px] overflow-y-auto p-4" aria-label={t("Filter")}>
+      <Menu role={null} align="end" sideOffset={8} className="max-h-(--radix-popover-content-available-height) w-[300px] overflow-y-auto overscroll-contain p-4" aria-label={t("Filter")}>
         {children}
         <div className="mt-4 flex justify-between gap-2 border-t border-border pt-4">
           <ToolButton className="border-transparent bg-transparent px-2 hover:border-transparent" onClick={() => { onReset(); }}>{t("Reset")}</ToolButton>
@@ -484,7 +485,7 @@ export const FilterSection = ({ label, children, hint }) => (
 export function Check({ on, onClick, label, count, radio }) {
   return (
     <button type="button" role={radio ? "radio" : "checkbox"} aria-checked={!!on} onClick={onClick} className={cn(
-      "box-border flex w-full cursor-pointer items-center gap-2 rounded-[8px] border-0 bg-transparent p-2 text-left font-sans text-[13px] leading-[normal] font-normal text-foreground hover:bg-secondary max-[600px]:min-h-11 max-[600px]:text-[14px]",
+      "box-border flex w-full cursor-pointer items-center gap-2 rounded-[8px] border-0 bg-transparent p-2 text-left font-sans text-[13px] leading-[normal] font-normal text-foreground hover:bg-secondary phone:min-h-11 phone:text-[14px]",
       FOCUS,
     )}>
       {radio
@@ -586,9 +587,9 @@ export const primaryClass = cn(
   FOCUS,
 );
 // On a phone the "new" button floats as a round + above the bottom nav.
-const FAB = "max-[600px]:fixed max-[600px]:right-4 max-[600px]:bottom-[calc(90px+env(safe-area-inset-bottom))] max-[600px]:z-(--z-sticky) max-[600px]:size-14 max-[600px]:justify-center max-[600px]:p-0 max-[600px]:shadow-fab max-[600px]:[&_svg]:size-6";
+const FAB = "phone:fixed phone:right-[max(16px,env(safe-area-inset-right))] phone:bottom-[calc(90px+env(safe-area-inset-bottom))] [@media(max-height:500px)]:bottom-[calc(76px+env(safe-area-inset-bottom))] phone:z-(--z-sticky) phone:size-14 phone:justify-center phone:p-0 phone:shadow-fab phone:[&_svg]:size-6";
 export function Primary({ label, onClick, onPrefetch, href }) {
-  const text = <span className="max-[600px]:sr-only">{label}</span>;
+  const text = <span className="phone:sr-only">{label}</span>;
   if (href) return <Link className={cn(primaryClass, FAB)} href={href} aria-label={label}>{LIcon.plus}{text}</Link>;
   return <button type="button" className={cn(primaryClass, FAB)} aria-label={label} onClick={onClick} onPointerEnter={onPrefetch} onFocus={onPrefetch}>{LIcon.plus}{text}</button>;
 }
@@ -604,7 +605,7 @@ export function RowMenu({ items, label }) {
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={label || t("Actions")} aria-haspopup="menu" className={cn(
-            "grid size-8 cursor-pointer place-content-center rounded-full border-0 bg-transparent text-muted-foreground transition-colors duration-[120ms] ease-[ease] hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary aria-expanded:text-foreground max-[600px]:size-11",
+            "grid size-8 cursor-pointer place-content-center rounded-full border-0 bg-transparent text-muted-foreground transition-colors duration-[120ms] ease-[ease] hover:bg-secondary hover:text-foreground aria-expanded:bg-secondary aria-expanded:text-foreground phone:size-11",
             FOCUS,
           )}>{LIcon.dots}</button>
         </PopoverTrigger>
@@ -709,13 +710,13 @@ export function TableCard({ cols, children, empty, phone }) {
   };
   return (
     <section className="surface overflow-hidden rounded-[20px] border border-border bg-card">
-      <div className={cn("overflow-x-auto", phone !== undefined && "max-[600px]:hidden")}>
+      <div className={cn("overflow-x-auto", phone !== undefined && "phone:hidden")}>
         <table className="w-full min-w-[860px] table-fixed border-collapse text-[13px]" ref={ref} onKeyDown={onKey}>
           {cols && <colgroup>{cols.map((w, i) => <col key={i} style={w ? { width: w } : undefined} />)}</colgroup>}
           {children}
         </table>
       </div>
-      {phone && <div className="hidden max-[600px]:block">{phone}</div>}
+      {phone && <div className="hidden phone:block">{phone}</div>}
       {empty}
     </section>
   );
@@ -808,14 +809,14 @@ export function Pager({ p, perPage, onPage, onPerPage, summary }) {
   const pages = p.num_pages || p.pages || 1;
   const nums = [1, page - 1, page, page + 1, pages].filter((n, i, a) => n >= 1 && n <= pages && a.indexOf(n) === i).sort((a, b) => a - b);
   const pg = cn(
-    "surface box-border grid size-8 cursor-pointer place-content-center rounded-full border border-border bg-card font-sans text-[13px] leading-[normal] font-medium text-foreground tabular-nums transition-[background-color,border-color] duration-[120ms] ease-[ease] hover:border-input disabled:cursor-default disabled:opacity-35 max-[600px]:size-11",
+    "surface box-border grid size-8 cursor-pointer place-content-center rounded-full border border-border bg-card font-sans text-[13px] leading-[normal] font-medium text-foreground tabular-nums transition-[background-color,border-color] duration-[120ms] ease-[ease] hover:border-input disabled:cursor-default disabled:opacity-35 phone:size-11",
     FOCUS,
   );
   const plain = "border-transparent bg-transparent hover:border-transparent";
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 text-[13px] text-muted-foreground tabular-nums">
       {summary ? <span>{summary}</span> : (
-        <span className="flex items-center gap-2 max-[600px]:hidden">{t("Show")}
+        <span className="flex items-center gap-2 phone:hidden">{t("Show")}
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild><ToolButton className="h-8 gap-1 px-3" aria-haspopup="menu">{perPage}{LIcon.chev}</ToolButton></PopoverTrigger>
             <Menu side="top" align="start" sideOffset={6} className="w-[90px] min-w-0">
@@ -827,7 +828,7 @@ export function Pager({ p, perPage, onPage, onPerPage, summary }) {
           {t("per page")}
         </span>
       )}
-      {!summary && <span className="hidden max-[600px]:inline">{t("Page {n} of {m}", { n: page, m: pages })}</span>}
+      {!summary && <span className="hidden phone:inline">{t("Page {n} of {m}", { n: page, m: pages })}</span>}
       <span className="flex items-center gap-2">
         <button type="button" className={cn(pg, plain)} aria-label={t("Previous page")} disabled={page <= 1} onClick={() => onPage(page - 1)}>{LIcon.prev}</button>
         {nums.map((n, i) => (

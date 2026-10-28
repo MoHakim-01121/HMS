@@ -170,9 +170,9 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
         <div className={actionsClass("a")}>
           {why && <Why>{why}</Why>}
           {inModal ? (
-            <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
+            <button type="button" className={cn(btnClass("o"), "phone:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
-            <a className={cn(btnClass("o"), "max-[600px]:hidden")} href={closeHref}>{t("Cancel")}</a>
+            <a className={cn(btnClass("o"), "phone:hidden")} href={closeHref}>{t("Cancel")}</a>
           )}
           {edit && (
             <a className={btnClass("o")} href={`/invoice/${invoice.pk}/pdf/`} target="_blank" rel="noreferrer">{ICON.doc}{t("Preview PDF")}</a>

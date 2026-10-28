@@ -42,7 +42,7 @@ export const DIcon = {
 };
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring";
-const EDGE_X = "px-6 max-[600px]:px-4";
+const EDGE_X = "px-6 phone:px-4";
 
 // The pieces of a detail page, as classes for what a page lays out itself.
 export const DA = {
@@ -51,10 +51,10 @@ export const DA = {
     "[:where(&)_a]:font-semibold [:where(&)_a]:text-foreground [:where(&)_a]:no-underline [:where(&)_a:hover]:underline",
     "[:where(&)_:is(a,button):focus-visible]:outline-2 [:where(&)_:is(a,button):focus-visible]:outline-solid [:where(&)_:is(a,button):focus-visible]:outline-offset-2 [:where(&)_:is(a,button):focus-visible]:outline-ring",
   ),
-  card: "surface min-w-0 overflow-hidden rounded-[20px] border border-border bg-card max-[600px]:rounded-[16px]",
+  card: "surface min-w-0 overflow-hidden rounded-[20px] border border-border bg-card phone:rounded-[16px]",
   cardPad: "px-6 pt-4 pb-6",
   // A card head laid out by the page itself (DCard draws its own).
-  cardHead: "flex items-baseline justify-between gap-3 px-6 pt-4 pb-2 max-[600px]:px-4 [:where(&)_h2]:m-0 [:where(&)_h2]:text-[14px] [:where(&)_h2]:font-semibold",
+  cardHead: "flex items-baseline justify-between gap-3 px-6 pt-4 pb-2 phone:px-4 [:where(&)_h2]:m-0 [:where(&)_h2]:text-[14px] [:where(&)_h2]:font-semibold",
   count: "ml-2 text-[12px] font-medium text-muted-foreground tabular-nums",
   meta: "text-[12px] text-muted-foreground",
   cardFoot: "flex flex-wrap items-center gap-3 border-t border-border px-6 py-4 text-[13px]",
@@ -72,20 +72,20 @@ export const DA = {
   tagSub: "font-medium text-[color:color-mix(in_oklch,var(--muted-foreground)_70%,var(--foreground))]",
   // Lines of label/value in a card.
   rows: cn("pb-3 text-[14px] [:where(&)>div]:flex [:where(&)>div]:gap-4 [:where(&)>div]:border-b [:where(&)>div]:border-hairline [:where(&)>div]:py-3 [:where(&)>div:last-child]:border-b-0", EDGE_X),
-  kv: "mt-4 mb-0 grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-4 text-[14px] max-[600px]:grid-cols-[104px_minmax(0,1fr)] [:where(&)_dt]:text-muted-foreground [:where(&)_dd]:m-0 [:where(&)_dd]:font-medium [:where(&)_dd]:[overflow-wrap:anywhere]",
+  kv: "mt-4 mb-0 grid grid-cols-[120px_minmax(0,1fr)] gap-x-3 gap-y-4 text-[14px] phone:grid-cols-[104px_minmax(0,1fr)] [:where(&)_dt]:text-muted-foreground [:where(&)_dd]:m-0 [:where(&)_dd]:font-medium [:where(&)_dd]:[overflow-wrap:anywhere]",
   // Two cards side by side, one column on narrow screens.
   pair: "grid grid-cols-2 items-stretch gap-4 max-[820px]:grid-cols-1 [&>section]:flex [&>section]:flex-col",
-  map: "relative mx-6 min-h-[200px] flex-1 overflow-hidden rounded-[14px] bg-secondary max-[600px]:mx-4 [&>div]:absolute [&>div]:inset-0",
+  map: "relative mx-6 min-h-[200px] flex-1 overflow-hidden rounded-[14px] bg-secondary phone:mx-4 [&>div]:absolute [&>div]:inset-0",
 
   // Tables: the table, then classes for whole rows. `scrollWide` is a table
   // that gives way to DLines on a phone.
   scroll: "overflow-x-auto",
-  scrollWide: "overflow-x-auto max-[600px]:hidden",
+  scrollWide: "overflow-x-auto phone:hidden",
   table: cn(
     "w-full border-collapse text-[13px]",
     "[:where(&)_th]:border-b [:where(&)_th]:border-border [:where(&)_th]:bg-transparent [:where(&)_th]:px-4 [:where(&)_th]:py-3 [:where(&)_th]:text-left [:where(&)_th]:text-[12px] [:where(&)_th]:font-semibold [:where(&)_th]:tracking-normal [:where(&)_th]:whitespace-nowrap [:where(&)_th]:normal-case [:where(&)_th]:text-foreground",
     "[:where(&)_td]:border-b [:where(&)_td]:border-hairline [:where(&)_td]:px-4 [:where(&)_td]:py-3 [:where(&)_td]:align-top [:where(&)_tbody_td]:font-medium [:where(&)_tfoot_td]:text-[14px]",
-    "[:where(&)_:is(th,td):first-child]:pl-6 [:where(&)_:is(th,td):last-child]:pr-6 max-[600px]:[:where(&)_:is(th,td):first-child]:pl-4 max-[600px]:[:where(&)_:is(th,td):last-child]:pr-4",
+    "[:where(&)_:is(th,td):first-child]:pl-6 [:where(&)_:is(th,td):last-child]:pr-6 phone:[:where(&)_:is(th,td):first-child]:pl-4 phone:[:where(&)_:is(th,td):last-child]:pr-4",
     "[:where(&)_tbody_tr:last-child_td]:border-b-0",
     "[:where(&)_tfoot_td]:border-t [:where(&)_tfoot_td]:border-t-border [:where(&)_tfoot_td]:border-b-0 [:where(&)_tfoot_td]:bg-card [:where(&)_tfoot_td]:font-semibold [:where(&)_tfoot_td]:tabular-nums [:where(&)_tfoot_tr:first-child_td]:border-t [:where(&)_tfoot_tr:first-child_td]:border-t-input",
   ),
@@ -124,7 +124,7 @@ export const DC = {
 // row, the name and a second line on the left, the figure on the right, then
 // the total. Shown only on phones, beside a table wrapped in DA.scrollWide.
 // `children` is a full-width line under the row (a line's match controls).
-export const DLines = ({ children }) => <div className="hidden max-[600px]:block">{children}</div>;
+export const DLines = ({ children }) => <div className="hidden phone:block">{children}</div>;
 export function DLine({ title, sub, value, valueSub, valueTone, href, mono, children }) {
   const body = (
     <>
@@ -167,7 +167,7 @@ export function DPhoneBar({ primary, pdf }) {
   const label = (title, sub) => <span className="min-w-0 flex-1"><b className="block text-[14px] font-semibold">{title}</b><span className="text-[12.5px] text-muted-foreground">{sub}</span></span>;
   const pbtn = "inline-flex h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border-0 bg-primary px-[18px] font-sans text-[14px] font-semibold whitespace-nowrap text-primary-foreground no-underline hover:no-underline";
   return (
-    <div data-slot="phone-bar" className="fixed inset-x-0 bottom-0 z-(--z-sticky) hidden items-center gap-2.5 border-t border-border bg-card px-4 pt-2.5 pb-[calc(14px+env(safe-area-inset-bottom))] max-[600px]:flex">
+    <div data-slot="phone-bar" className="fixed inset-x-0 bottom-0 z-(--z-sticky) hidden items-center gap-2.5 border-t border-border bg-card pt-2.5 pr-[max(16px,env(safe-area-inset-right))] pb-[calc(14px+env(safe-area-inset-bottom))] pl-[max(16px,env(safe-area-inset-left))] phone:flex">
       {pdf && (
         <button type="button" aria-label={t("Share or download PDF")} onClick={() => setOpen(true)}
           className="grid size-11 flex-none cursor-pointer place-content-center rounded-full border border-input bg-card text-foreground [&_svg]:size-[19px]">
@@ -211,7 +211,7 @@ export function DTop({ href, stamp }) {
   if (useContext(FormModalContext)?.inModal) return null;
   return (
     <div className="flex items-center justify-between gap-3 text-[13px] text-muted-foreground">
-      <Link href={href} className="inline-flex items-center gap-1 font-medium text-muted-foreground">{DIcon.back}{t("Back")}</Link>
+      <Link href={href} className="inline-flex items-center gap-1 font-medium text-muted-foreground phone:-my-3 phone:py-3">{DIcon.back}{t("Back")}</Link>
       {stamp ? <span>{stamp}</span> : null}
     </div>
   );
@@ -285,8 +285,8 @@ export function DMenu({ items, label, small }) {
 export function DChip({ href, icon = "clip", children, label, small }) {
   return (
     <a href={href} target="_blank" rel="noreferrer" aria-label={label} className={cn(
-      "box-border inline-flex h-8 max-w-full items-center gap-2 whitespace-nowrap rounded-full border border-border bg-card px-3 text-[13px] font-medium text-foreground no-underline hover:bg-secondary hover:no-underline [&_svg]:size-3.5 [&_svg]:flex-none [&_svg]:text-muted-foreground",
-      small && "h-7 text-[12px] [&_svg]:size-[13px]",
+      "box-border inline-flex h-8 max-w-full items-center gap-2 phone:h-10 whitespace-nowrap rounded-full border border-border bg-card px-3 text-[13px] font-medium text-foreground no-underline hover:bg-secondary hover:no-underline [&_svg]:size-3.5 [&_svg]:flex-none [&_svg]:text-muted-foreground",
+      small && "h-7 text-[12px] phone:h-9 [&_svg]:size-[13px]",
     )}>
       {DIcon[icon]}{children}
     </a>
@@ -301,11 +301,11 @@ export function DFacts({ facts, cols }) {
   const list = (facts || []).filter(Boolean);
   if (!list.length) return null;
   return (
-    <dl className={cn("mt-6 mb-0 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-6 gap-y-5 border-t border-border pt-5 max-[600px]:mt-4 max-[600px]:grid-cols-2 max-[600px]:gap-x-5 max-[600px]:gap-y-4 max-[600px]:pt-4", COLS[cols])}>
+    <dl className={cn("mt-6 mb-0 grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-x-6 gap-y-5 border-t border-border pt-5 phone:mt-4 phone:grid-cols-2 phone:gap-x-5 phone:gap-y-4 phone:pt-4", COLS[cols])}>
       {list.map((f) => (
         <div key={f.k} className="min-w-0">
           <dt className="text-[12px] text-muted-foreground">{f.k}</dt>
-          <dd className={cn("mt-1 mb-0 ml-0 text-[14px] font-medium tabular-nums [overflow-wrap:anywhere]", f.strong && "font-semibold", FACT[f.tone])}>{f.v}</dd>
+          <dd className={cn("mt-1 mb-0 ml-0 text-[14px] font-medium tabular-nums [overflow-wrap:anywhere] phone:[&_a]:-my-3 phone:[&_a]:inline-block phone:[&_a]:py-3", f.strong && "font-semibold", FACT[f.tone])}>{f.v}</dd>
         </div>
       ))}
     </dl>
@@ -318,7 +318,7 @@ export const DDim = ({ children }) => <span className="font-normal text-muted-fo
 export function DHead({ title, badge, menu, chips, facts, cols, note, children }) {
   const { t } = useI18n();
   return (
-    <section className={cn(DA.card, "p-6 max-[600px]:p-4")}>
+    <section className={cn(DA.card, "p-6 phone:p-4")}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <h1 className="m-0 text-[24px] leading-[1.15] font-semibold tracking-[-0.02em] tabular-nums">{title}</h1>
@@ -340,8 +340,9 @@ export function DHead({ title, badge, menu, chips, facts, cols, note, children }
 }
 
 // Plain links and buttons among a card's header actions.
+// On a phone each text button grows to a 40px tap target without moving the head.
 const ACTS = cn(
-  "flex gap-4 text-[13px]",
+  "flex gap-4 text-[13px] phone:[&_:is(a,button):not([data-slot=dbtn])]:-my-3 phone:[&_:is(a,button):not([data-slot=dbtn])]:py-3",
   "[&_:is(a,button):not([data-slot=dbtn])]:cursor-pointer [&_:is(a,button):not([data-slot=dbtn])]:border-0 [&_:is(a,button):not([data-slot=dbtn])]:bg-transparent [&_:is(a,button):not([data-slot=dbtn])]:p-0 [&_:is(a,button):not([data-slot=dbtn])]:font-sans [&_:is(a,button):not([data-slot=dbtn])]:text-[13px] [&_:is(a,button):not([data-slot=dbtn])]:leading-[normal] [&_:is(a,button):not([data-slot=dbtn])]:font-semibold [&_:is(a,button):not([data-slot=dbtn])]:text-muted-foreground [&_button:not([data-slot=dbtn]):hover]:text-foreground",
 );
 
@@ -349,7 +350,7 @@ export function DCard({ title, count, meta, sub, actions, children, className, h
   return (
     <section data-slot="card" className={cn(DA.card, pad && DA.cardPad, className)}>
       {title || meta || actions ? (
-        <div data-slot="card-head" className={cn("flex items-baseline justify-between gap-3", pad ? "p-0" : "px-6 pt-4 pb-2 max-[600px]:px-4", headClassName)}>
+        <div data-slot="card-head" className={cn("flex items-baseline justify-between gap-3", pad ? "p-0" : "px-6 pt-4 pb-2 phone:px-4", headClassName)}>
           <h2 className="m-0 text-[14px] font-semibold">{title}{count != null ? <span className="ml-2 text-[12px] font-medium text-muted-foreground tabular-nums">{count}</span> : null}</h2>
           {meta ? <span className="text-[12px] text-muted-foreground">{meta}</span> : null}
           {actions ? <span className={cn(ACTS, !meta && "ml-auto")}>{actions}</span> : null}

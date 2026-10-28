@@ -321,9 +321,9 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
         <div className={actionsClass("a")}>
           {why && <Why>{why}</Why>}
           {inModal ? (
-            <button type="button" className={cn(btnClass("o"), "max-[600px]:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
+            <button type="button" className={cn(btnClass("o"), "phone:hidden")} onClick={ctx.close}>{t("Cancel")}</button>
           ) : (
-            <a className={cn(btnClass("o"), "max-[600px]:hidden")} href={closeHref}>{t("Cancel")}</a>
+            <a className={cn(btnClass("o"), "phone:hidden")} href={closeHref}>{t("Cancel")}</a>
           )}
           <button type="submit" className={btnClass("p")} aria-disabled={!!why || form.processing} disabled={form.processing}>
             {edit ? t("Save changes") : t("Create CL")}

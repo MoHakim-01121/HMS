@@ -2,6 +2,16 @@
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* The phone layout: up to 600px wide, and a phone turned sideways (a short
+   touch screen), which is too low for the sidebar shell. `desk` is the rest.
+   usePhone() in list-a.jsx matches the same query. */
+@custom-variant phone {
+  @media (max-width: 600px), (max-height: 500px) and (pointer: coarse) { @slot; }
+}
+@custom-variant desk {
+  @media (min-width: 601px) and (min-height: 501px), (min-width: 601px) and (pointer: fine), (min-width: 601px) and (pointer: none) { @slot; }
+}
+
 /* The page itself: Inter at 14px on the canvas, the phone top bar's offset
    (desktop zeroes it below), a faint grain over everything, the gold focus
    ring, thin scrollbars and autofill that keeps the field's own colours. */
@@ -57,6 +67,21 @@
     animation-duration: 2.4s !important;
     animation-iteration-count: infinite !important;
   }
+}
+
+/* Touch: no grey flash over our own pressed states, and no double-tap zoom
+   delay on controls (pinch zoom stays). */
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  :is(a, button, input, select, textarea, label, summary, [role="button"]) { touch-action: manipulation; }
+}
+
+/* Phones: iOS Safari zooms the whole page into any field whose text is under
+   16px, so every field gets 16px there, whatever size its component sets.
+   A field scrolled into view (the first error) stops below the fixed top bar. */
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea { font-size: 16px !important; }
+  html { scroll-padding-top: calc(56px + env(safe-area-inset-top) + 12px); scroll-padding-bottom: 96px; }
 }
 
 :root,
@@ -464,7 +489,7 @@ body:has(#main):not(.map-fullscreen) {
    chrome sits outside that flow, so anything anchored to the right edge has to
    shift itself by the same gap, which the library publishes as
    --removed-body-scroll-bar-size (the topbar does). */
-@media (max-width: 600px) {
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
   /* Mobile top bar offset — matches the 56px fixed strip */
   body[data-scroll-locked] { padding-top: calc(56px + env(safe-area-inset-top)) !important; }
 }
@@ -475,7 +500,7 @@ body:has(#main):not(.map-fullscreen) {
    these, so body keeps no offset of its own: the base layer gives it a 56px
    top padding for the phone top bar, zeroed here. Phones use the mobile top
    bar and bottom nav below. */
-@media (min-width: 601px) {
+@media (min-width: 601px) and (min-height: 501px), (min-width: 601px) and (pointer: fine), (min-width: 601px) and (pointer: none) {
   :root { --topbar-h: 70px; --sidebar-w: 276px; --sidebar-w-collapsed: 104px; --shell-gap: 14px; }
   body { padding-top: 0; }
 }
@@ -516,7 +541,7 @@ body.map-fullscreen #map-wrap {
 [data-map] .leaflet-tooltip { background: var(--popover) !important; border: 1px solid var(--border) !important; color: var(--foreground) !important; border-radius: 6px !important; }
 [data-map] .leaflet-tooltip::before { display: none !important; }
 [data-map] .leaflet-tooltip.map-tip { border-radius: 8px !important; box-shadow: 0 2px 8px rgb(0 0 0 / .08) !important; padding: 6px 10px !important; margin: 0 !important; font-size: 12px !important; font-weight: 600 !important; white-space: nowrap !important; }
-@media (max-width: 600px) {
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
   [data-map] .leaflet-control-attribution { display: none !important; }
   [data-map] .leaflet-bottom.leaflet-right { top: 64px !important; bottom: auto !important; right: 12px !important; }
 }
@@ -531,13 +556,13 @@ body.map-fullscreen #map-wrap {
 [data-map=hotels] .leaflet-tooltip.route-dist-tip { border-color: var(--input) !important; font-size: 11px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums !important; letter-spacing: .3px !important; border-radius: 6px !important; box-shadow: 0 2px 8px rgb(0 0 0 / .08) !important; }
 [data-map=hotels] .leaflet-marker-icon { transition: opacity .25s ease !important; }
 [data-map=hotels] .leaflet-bottom.leaflet-right { transition: right .25s cubic-bezier(.4,0,.2,1), bottom .25s cubic-bezier(.4,0,.2,1) !important; }
-@media (max-width: 600px) {
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
   [data-map=hotels] .leaflet-bottom.leaflet-right { top: 66px !important; }
 }
 @keyframes popup-in { from { opacity: 0; transform: translateY(4px); } }
 
 /* Phones: the map page is the whole screen and must not scroll. */
-@media (max-width: 600px) {
+@media (max-width: 600px), (max-height: 500px) and (pointer: coarse) {
   html:has(body.map-fullscreen), body.map-fullscreen { overflow: hidden; height: 100%; }
 }
 

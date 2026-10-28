@@ -126,7 +126,7 @@ export default function Receipt({ rem, settlement, candidates = [], form: initia
                   </div>
                   <div className="flex items-center gap-1.5 max-[700px]:w-full">
                     <SearchBox value={query} onChange={setQuery} placeholder="Search reservation, client, hotel"
-                      className="h-9 w-[250px] max-[600px]:h-9 max-[700px]:w-auto max-[700px]:min-w-0" />
+                      className="h-9 w-[250px] phone:h-9 max-[700px]:w-auto max-[700px]:min-w-0" />
                     <button type="button" className={TOOL} onClick={autoFill}>{t("Auto-fill")}</button>
                     <button type="button" className={TOOL} onClick={() => setValues({})}>{t("Clear")}</button>
                   </div>

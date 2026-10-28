@@ -157,7 +157,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
           </Field>
         </div>
 
-        <div className="mt-6 hidden max-[600px]:block"><PhoneCaption>{t("Proof and note")}</PhoneCaption></div>
+        <div className="mt-6 hidden phone:block"><PhoneCaption>{t("Proof and note")}</PhoneCaption></div>
         <NoteField label={t("Proof of payment")} required>
           <FileDrop file={proof} onFile={setProof} title={t("Upload the transfer slip or receipt")}
             onTooBig={() => showToast(t("File too large. Maximum upload size is 3 MB."), "error")} />

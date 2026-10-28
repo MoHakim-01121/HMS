@@ -5,6 +5,7 @@ import { ListPage, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Che
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 import { cn } from "@/lib/utils";
+import { focusOnOpen } from "../../utils/device.js";
 
 // A credit note is issued against an invoice: pick the invoice first.
 function NewCreditNote({ invoices }) {
@@ -17,7 +18,7 @@ function NewCreditNote({ invoices }) {
       <PopoverTrigger asChild><button type="button" className={primaryClass}>{LIcon.plus}{t("New credit note")}</button></PopoverTrigger>
       <Menu role={null} align="end" sideOffset={8} className="w-[320px] p-1.5">
         <ToolButton as="label" className="mb-1 w-full cursor-text focus-within:border-foreground">{LIcon.search}
-          <input className={cn(toolInput, "flex-1")} autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Which invoice? Search number or client")} />
+          <input className={cn(toolInput, "flex-1")} autoFocus={focusOnOpen()} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Which invoice? Search number or client")} />
         </ToolButton>
         <div role="menu" className="max-h-[280px] overflow-y-auto">
           {list.map((i) => (

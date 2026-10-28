@@ -21,7 +21,7 @@ export default function ClientMap() {
       function _esc(s) { return (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
       map = L.map("map", { zoomControl: false }).setView([-2.5, 118], 5);
       L.control.zoom({ position: "bottomright" }).addTo(map);
-      function isMobile() { return window.innerWidth <= 600; }
+      function isMobile() { return window.matchMedia("(max-width: 600px), (max-height: 500px) and (pointer: coarse)").matches; }
 
       function fixMapHeight() {
         if (!isMobile()) return;
@@ -129,10 +129,10 @@ export default function ClientMap() {
   }, []);
 
   return (
-    <div id="map-wrap" data-map="clients" className="relative h-[calc(100vh-var(--topbar-h,56px))] overflow-hidden max-[600px]:fixed max-[600px]:inset-0 max-[600px]:h-auto">
+    <div id="map-wrap" data-map="clients" className="relative h-[calc(100vh-var(--topbar-h,56px))] overflow-hidden phone:fixed phone:inset-0 phone:h-auto">
       <div id="map" className="absolute inset-0 isolate" />
 
-      <div className="absolute top-3 left-3 z-(--z-overlay) flex max-w-[calc(100%-24px)] flex-wrap gap-1.5 max-[600px]:inset-x-0 max-[600px]:top-0 max-[600px]:max-w-none max-[600px]:flex-nowrap max-[600px]:overflow-x-auto max-[600px]:border-b max-[600px]:border-border max-[600px]:bg-popover max-[600px]:px-3 max-[600px]:pt-[calc(10px+env(safe-area-inset-top))] max-[600px]:pb-2.5 max-[600px]:[scrollbar-width:none] max-[600px]:[&::-webkit-scrollbar]:hidden">
+      <div className="absolute top-3 left-3 z-(--z-overlay) flex max-w-[calc(100%-24px)] flex-wrap gap-1.5 phone:inset-x-0 phone:top-0 phone:max-w-none phone:flex-nowrap phone:overflow-x-auto phone:border-b phone:border-border phone:bg-popover phone:px-3 phone:pt-[calc(10px+env(safe-area-inset-top))] phone:pb-2.5 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden">
         <a href="/clients/" className="flex size-[34px] shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground no-underline transition-[color,border-color] duration-150 hover:border-foreground hover:text-foreground" title="Back to client list">
           <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
@@ -143,7 +143,7 @@ export default function ClientMap() {
 
 
       <div id="map-sheet-overlay" className="absolute inset-0 z-(--z-base) hidden bg-scrim-soft data-open:block" onClick={() => window.closeSheet?.()} />
-      <div id="map-sheet" className="absolute inset-x-0 bottom-0 z-(--z-dropdown) hidden translate-y-[110%] rounded-t-[20px] border border-b-0 border-border bg-popover pb-[env(safe-area-inset-bottom)] shadow-sheet transition-[translate] duration-300 ease-drawer data-open:translate-y-0 max-[600px]:block">
+      <div id="map-sheet" className="absolute inset-x-0 bottom-0 z-(--z-dropdown) hidden translate-y-[110%] rounded-t-[20px] border border-b-0 border-border bg-popover pb-[env(safe-area-inset-bottom)] shadow-sheet transition-[translate] duration-300 ease-drawer data-open:translate-y-0 phone:block">
         <div className="mx-auto mt-2.5 mb-1 h-[5px] w-10 cursor-pointer rounded-[3px] bg-border" onClick={() => window.closeSheet?.()} />
         <div id="map-sheet-body" className="px-5 pt-1.5 pb-6" />
       </div>

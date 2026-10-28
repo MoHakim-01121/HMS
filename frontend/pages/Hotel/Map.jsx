@@ -49,7 +49,7 @@ export default function HotelMap() {
       map = L.map("map", { zoomControl: false }).setView(HARAM, 14);
       L.control.zoom({ position: "bottomright" }).addTo(map);
 
-      function isMobile() { return window.innerWidth <= 600; }
+      function isMobile() { return window.matchMedia("(max-width: 600px), (max-height: 500px) and (pointer: coarse)").matches; }
 
       function fixMapHeight() {
         if (!isMobile()) return;
@@ -327,31 +327,31 @@ export default function HotelMap() {
   }, [t]);
 
   return (
-    <div id="map-wrap" data-map="hotels" className="relative h-[calc(100vh-48px)] overflow-hidden max-[600px]:fixed max-[600px]:inset-0 max-[600px]:h-auto">
+    <div id="map-wrap" data-map="hotels" className="relative h-[calc(100vh-48px)] overflow-hidden phone:fixed phone:inset-0 phone:h-auto">
       <div id="map" className="absolute inset-0 isolate" />
 
-      <div className="absolute top-3 left-3 z-(--z-overlay) flex items-center gap-2 max-[600px]:inset-x-0 max-[600px]:top-0 max-[600px]:rounded-none max-[600px]:border-b max-[600px]:border-border max-[600px]:bg-card max-[600px]:px-3 max-[600px]:pt-[calc(10px+env(safe-area-inset-top))] max-[600px]:pb-2.5">
+      <div className="absolute top-3 left-3 z-(--z-overlay) flex items-center gap-2 phone:inset-x-0 phone:top-0 phone:rounded-none phone:border-b phone:border-border phone:bg-card phone:px-3 phone:pt-[calc(10px+env(safe-area-inset-top))] phone:pb-2.5">
         <a href="/hotels/" className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground no-underline transition-[color,border-color] duration-150 hover:border-foreground hover:text-foreground" title={t("Back to hotel list")}>
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         </a>
-        <div className="group/search flex h-9 min-w-[220px] items-center gap-2 rounded-[20px] border border-input bg-card px-3 shadow-[0_1px_2px_rgb(0_0_0/.06),0_4px_12px_rgb(0_0_0/.06)] focus-within:border-primary focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_35%,transparent)] max-[600px]:min-w-0 max-[600px]:flex-1 max-[600px]:shadow-none">
+        <div className="group/search flex h-9 min-w-[220px] items-center gap-2 rounded-[20px] border border-input bg-card px-3 shadow-[0_1px_2px_rgb(0_0_0/.06),0_4px_12px_rgb(0_0_0/.06)] focus-within:border-primary focus-within:shadow-[0_0_0_3px_color-mix(in_oklch,var(--ring)_35%,transparent)] phone:min-w-0 phone:flex-1 phone:shadow-none">
           <svg className="shrink-0 text-muted-foreground group-focus-within/search:text-primary" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path strokeLinecap="round" d="M21 21l-4.35-4.35" /></svg>
           <input type="text" id="hotel-search" placeholder={t("Search hotel or area...")} onInput={() => window.debounceSearch?.()}
-            className="m-0 size-full appearance-none rounded-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground shadow-none outline-none [-webkit-tap-highlight-color:transparent] placeholder:text-muted-foreground focus:border-0 focus:shadow-none max-[600px]:text-[16px]" />
+            className="m-0 size-full appearance-none rounded-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground shadow-none outline-none [-webkit-tap-highlight-color:transparent] placeholder:text-muted-foreground focus:border-0 focus:shadow-none phone:text-[16px]" />
           <button id="search-clear-btn" onClick={() => window.clearSearch?.()} className="hidden shrink-0 cursor-pointer border-0 bg-transparent p-0 leading-none text-muted-foreground" title={t("Clear")}>
             <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div className="relative max-[600px]:shrink-0">
+        <div className="relative phone:shrink-0">
           <button id="filter-open-btn" onClick={() => window.toggleFilter?.()}
-            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-[20px] border border-input bg-card px-4 text-[12px] font-semibold whitespace-nowrap text-foreground transition-all duration-150 hover:border-muted-foreground data-active:border-primary data-active:bg-secondary data-active:text-primary max-[600px]:shrink-0">
+            className="flex h-9 cursor-pointer items-center gap-1.5 rounded-[20px] border border-input bg-card px-4 text-[12px] font-semibold whitespace-nowrap text-foreground transition-all duration-150 hover:border-muted-foreground data-active:border-primary data-active:bg-secondary data-active:text-primary phone:shrink-0">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 8h10M10 12h4" /></svg>
             {t("Filter")}
             <span id="filter-badge" className="hidden rounded-[8px] bg-primary px-1.5 py-px text-[10px] font-extrabold text-primary-foreground" />
           </button>
 
-          <div id="filter-dropdown" className="pointer-events-none absolute top-[calc(100%+6px)] left-0 z-(--z-overlay) w-60 origin-top-left -translate-y-1.5 scale-[.98] overflow-hidden rounded-[12px] border border-input bg-card pt-1 opacity-0 shadow-[0_4px_24px_rgb(0_0_0/.12)] transition-[opacity,translate,scale] duration-[180ms] data-open:pointer-events-auto data-open:translate-y-0 data-open:scale-100 data-open:opacity-100 max-[600px]:right-0 max-[600px]:left-auto max-[600px]:max-h-[55dvh] max-[600px]:w-[calc(100vw-24px)] max-[600px]:overflow-y-auto">
+          <div id="filter-dropdown" className="pointer-events-none absolute top-[calc(100%+6px)] left-0 z-(--z-overlay) w-60 origin-top-left -translate-y-1.5 scale-[.98] overflow-hidden rounded-[12px] border border-input bg-card pt-1 opacity-0 shadow-[0_4px_24px_rgb(0_0_0/.12)] transition-[opacity,translate,scale] duration-[180ms] data-open:pointer-events-auto data-open:translate-y-0 data-open:scale-100 data-open:opacity-100 phone:right-0 phone:left-auto phone:max-h-[55dvh] phone:w-[calc(100vw-24px)] phone:overflow-y-auto">
             <div className={SECTION}><div className={SECTION_TITLE}>{t("City")}</div></div>
             <label className={RADIO}><input type="radio" name="fp-city" value="all" defaultChecked onChange={() => window.applyFilters?.()} /> {t("All Cities")}</label>
             <label className={RADIO}><input type="radio" name="fp-city" value="makkah" onChange={() => window.applyFilters?.()} /> Makkah</label>
@@ -374,9 +374,9 @@ export default function HotelMap() {
         </div>
       </div>
 
-      <div id="hud-coords" className="pointer-events-none absolute bottom-5 left-3 z-(--z-overlay) rounded-[8px] border border-border bg-card px-2.5 py-[5px] text-[10.5px] tracking-[.6px] text-muted-foreground tabular-nums transition-[color,border-color] duration-200 data-active:border-primary data-active:text-primary max-[600px]:hidden">---.-°N  ---.-°E</div>
+      <div id="hud-coords" className="pointer-events-none absolute bottom-5 left-3 z-(--z-overlay) rounded-[8px] border border-border bg-card px-2.5 py-[5px] text-[10.5px] tracking-[.6px] text-muted-foreground tabular-nums transition-[color,border-color] duration-200 data-active:border-primary data-active:text-primary phone:hidden">---.-°N  ---.-°E</div>
 
-      <div className="absolute top-[60px] left-3 z-(--z-overlay) min-w-[140px] rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[11px] text-muted-foreground max-[600px]:hidden">
+      <div className="absolute top-[60px] left-3 z-(--z-overlay) min-w-[140px] rounded-[10px] border border-border bg-card px-3.5 py-2.5 text-[11px] text-muted-foreground phone:hidden">
         <button type="button" id="leg-toggle" aria-expanded="true" aria-controls="leg-body" onClick={() => window.toggleLegend?.()}
           className="group/leg mb-2 flex w-full cursor-pointer items-center justify-between border-0 bg-transparent p-0 [font:inherit] text-inherit select-none focus-visible:rounded-[6px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring">
           <span className={SECTION_TITLE}>{t("Legend")}</span>
@@ -394,7 +394,7 @@ export default function HotelMap() {
       </div>
 
       <div id="mob-list-sheet" data-state="closed"
-        className="absolute inset-x-0 bottom-0 z-(--z-dropdown) hidden h-[calc(100%-57px-env(safe-area-inset-top))] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-border bg-card shadow-sheet transition-[translate] duration-[320ms] ease-drawer data-dragging:transition-none data-[state=closed]:translate-y-[calc(100%-62px)] data-[state=full]:translate-y-0 data-[state=half]:translate-y-[45%] max-[600px]:flex">
+        className="absolute inset-x-0 bottom-0 z-(--z-dropdown) hidden h-[calc(100%-57px-env(safe-area-inset-top))] flex-col overflow-hidden rounded-t-2xl border border-b-0 border-border bg-card shadow-sheet transition-[translate] duration-[320ms] ease-drawer data-dragging:transition-none data-[state=closed]:translate-y-[calc(100%-62px)] data-[state=full]:translate-y-0 data-[state=half]:translate-y-[45%] phone:flex">
         <div id="mob-sheet-handle" className="shrink-0 cursor-row-resize touch-none border-b border-border bg-secondary px-4 pt-2.5 pb-2 select-none">
           <div className="mx-auto mb-2.5 h-[5px] w-10 rounded-[3px] bg-input" />
           <div className="flex items-center justify-between">
@@ -407,7 +407,7 @@ export default function HotelMap() {
         </div>
       </div>
 
-      <div id="hotel-panel" className="group/panel absolute top-0 right-0 bottom-0 z-(--z-dropdown) flex w-[300px] flex-col overflow-visible border-l border-border bg-card transition-[translate] duration-250 ease-[cubic-bezier(.4,0,.2,1)] data-collapsed:translate-x-[300px] max-[600px]:hidden!">
+      <div id="hotel-panel" className="group/panel absolute top-0 right-0 bottom-0 z-(--z-dropdown) flex w-[300px] flex-col overflow-visible border-l border-border bg-card transition-[translate] duration-250 ease-[cubic-bezier(.4,0,.2,1)] data-collapsed:translate-x-[300px] phone:hidden!">
         <button onClick={() => window.togglePanel?.()} title={t("Hide / show panel")}
           className="absolute top-1/2 -left-[26px] z-1 flex h-[52px] w-[26px] -translate-y-1/2 cursor-pointer items-center justify-center rounded-l-[8px] border border-r-0 border-border bg-card text-muted-foreground transition-[color] duration-150 hover:text-foreground">
           <svg className="transition-[rotate] duration-250 ease-[cubic-bezier(.4,0,.2,1)] group-data-collapsed/panel:rotate-180" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" /></svg>

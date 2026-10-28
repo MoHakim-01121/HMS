@@ -116,7 +116,7 @@ function MobileMore({ page, perms, theme, onTheme, onClose }) {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="flex-none text-muted-foreground"><path d="M9 6l6 6-6 6" /></svg>
   );
   return (
-    <div className="fixed top-[calc(56px_+_env(safe-area-inset-top))] right-0 bottom-0 left-0 z-[calc(var(--z-sticky,200)_-_1)] hidden flex-col overflow-y-auto bg-background px-4 pt-[18px] pb-[calc(112px_+_env(safe-area-inset-bottom))] max-[600px]:flex">
+    <div className="fixed top-[calc(56px_+_env(safe-area-inset-top))] right-0 bottom-0 left-0 z-[calc(var(--z-sticky,200)_-_1)] hidden flex-col overflow-y-auto overscroll-contain bg-background px-4 pt-[18px] pb-[calc(112px_+_env(safe-area-inset-bottom))] phone:flex">
       <h1 className="m-0 text-[26px] leading-[1.2] font-semibold tracking-[-0.02em]">{t("Menu")}</h1>
       <label className="mt-[18px] flex h-11 flex-none items-center gap-2 rounded-full border border-input bg-card px-4 text-muted-foreground">
         <Icon name="search" size={18} strokeWidth={1.8} />
@@ -167,7 +167,7 @@ function MobileMore({ page, perms, theme, onTheme, onClose }) {
 // lined up with the page's own edges (--page-max wide, 1320px on list pages,
 // centred in what the sidebar leaves).
 const TOPBAR = cn(
-  "canvas fixed top-0 right-0 z-[var(--z-sticky,200)] hidden h-(--topbar-h) items-center justify-between gap-4 min-[601px]:flex",
+  "canvas fixed top-0 right-0 z-[var(--z-sticky,200)] hidden h-(--topbar-h) items-center justify-between gap-4 desk:flex",
   "pt-(--shell-gap) pr-[calc(var(--tb-x)_-_4px)] pb-0 pl-(--tb-x) [body:has([data-slot=list-main])_&]:[--page-max:1320px]",
   "border-b border-b-transparent",
   "transition-[left] duration-300 ease-[cubic-bezier(.32,.72,0,1)] in-data-[scroll-locked]:right-[var(--removed-body-scroll-bar-size,0px)]",
@@ -187,11 +187,12 @@ const MENU_ROW = cn(
 const MENU_META = "ml-auto text-[12px] text-muted-foreground";
 const ACCT_LINE = "overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-muted-foreground";
 
-// Phone chrome (600px and below): top bar, bottom nav, More page and the
-// account / notification bottom sheets.
+// Phone chrome (the `phone` variant: 600px and below, or a phone on its side): top bar, bottom nav, More page and the
+// account / notification bottom sheets. On a short screen (a phone on its
+// side) the bottom nav is a 52px strip with each label beside its icon.
 const M_BTN = "relative flex size-11 cursor-pointer appearance-none items-center justify-center rounded-full border-0 bg-transparent text-foreground transition-[background-color] duration-[120ms] ease-[ease] active:bg-secondary";
-const SCRIM = "fixed inset-0 z-[calc(var(--z-sticky,200)_+_4)] hidden animate-fade-in bg-scrim-soft max-[600px]:block";
-const SHEET = "fixed right-0 bottom-0 left-0 z-[calc(var(--z-sticky,200)_+_5)] hidden translate-y-full flex-col rounded-t-[20px] bg-card pt-3.5 pb-[calc(18px_+_env(safe-area-inset-bottom))] transition-[translate] duration-[240ms] ease-drawer max-[600px]:flex";
+const SCRIM = "fixed inset-0 z-[calc(var(--z-sticky,200)_+_4)] hidden animate-fade-in bg-scrim-soft phone:block";
+const SHEET = "fixed right-0 bottom-0 left-0 z-[calc(var(--z-sticky,200)_+_5)] hidden translate-y-full flex-col rounded-t-[20px] bg-card pt-3.5 pb-[calc(18px_+_env(safe-area-inset-bottom))] transition-[translate] duration-[240ms] ease-drawer phone:flex";
 const GRAB = "mx-auto mt-0 mb-3.5 h-1 w-[38px] rounded-full bg-border";
 const SHEET_ROW = "flex h-[52px] w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-[18px] font-[family-name:inherit] text-[13.5px] font-medium text-foreground no-underline active:bg-secondary [&_svg]:flex-none [&_svg]:text-muted-foreground";
 const SHEET_CLOSE = "mx-[18px] mt-3.5 mb-0 h-12 cursor-pointer rounded-full border border-input bg-card font-[family-name:inherit] text-[13px] font-semibold text-foreground";
@@ -205,8 +206,13 @@ const notifKey = (n) => `${n.type}:${n.ref}:${n.days}`;
 function readSet(key) {
   try { return new Set(JSON.parse(window.localStorage.getItem(key) || "[]")); } catch { return new Set(); }
 }
+// The sidebar's mini state: what the person chose, else mini below 1024px
+// (a tablet), where the full sidebar takes a third of the screen.
 function readMini() {
-  try { return window.localStorage.getItem(MINI_KEY) === "1"; } catch { return false; }
+  try {
+    const v = window.localStorage.getItem(MINI_KEY);
+    return v === null ? window.innerWidth < 1024 : v === "1";
+  } catch { return false; }
 }
 
 export default function AppLayout({ children }) {
@@ -254,7 +260,7 @@ export default function AppLayout({ children }) {
       const tag = document.activeElement?.tagName;
       if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") {
         e.preventDefault();
-        if (window.matchMedia("(min-width: 601px)").matches && searchRef.current) searchRef.current.focus();
+        if (!window.matchMedia("(max-width: 600px), (max-height: 500px) and (pointer: coarse)").matches && searchRef.current) searchRef.current.focus();
         else setSearch(true);
       }
     };
@@ -477,7 +483,7 @@ export default function AppLayout({ children }) {
 
   return (
     <FormModalProvider>
-      <div data-page={page} className={cn(!isMap && "min-[601px]:pt-(--topbar-h)", !isMap && (collapsed ? "min-[601px]:pl-(--sidebar-w-collapsed)" : "min-[601px]:pl-(--sidebar-w)"))}>
+      <div data-page={page} className={cn(!isMap && "desk:pt-(--topbar-h)", !isMap && (collapsed ? "desk:pl-(--sidebar-w-collapsed)" : "desk:pl-(--sidebar-w)"))}>
       <a href="#main"
         className="fixed top-2 left-2 z-[1000] -translate-y-[200%] rounded-full bg-primary px-4 py-2 font-sans text-[13px] leading-[normal] font-semibold text-primary-foreground no-underline transition-[translate] duration-150 ease-[ease] focus:translate-y-0 focus:outline-2 focus:outline-offset-2 focus:outline-ring focus:outline-solid">
         {t("Skip to content")}
@@ -580,7 +586,7 @@ export default function AppLayout({ children }) {
           {/* ── Mobile top bar ── */}
           {!isMap && (
           <header id="m-top-bar"
-            className="fixed top-0 right-0 left-0 z-[var(--z-sticky,200)] flex h-[calc(56px_+_env(safe-area-inset-top))] items-center justify-between gap-0.5 border-b border-border bg-[color:color-mix(in_oklch,var(--background)_86%,transparent)] pt-[env(safe-area-inset-top)] pr-2 pl-4 backdrop-blur-[10px] min-[601px]:hidden">
+            className="fixed top-0 right-0 left-0 z-[var(--z-sticky,200)] flex h-[calc(56px_+_env(safe-area-inset-top))] items-center justify-between gap-0.5 border-b border-border bg-[color:color-mix(in_oklch,var(--background)_86%,transparent)] pt-[env(safe-area-inset-top)] pr-[max(8px,env(safe-area-inset-right))] pl-[max(16px,env(safe-area-inset-left))] backdrop-blur-[10px] desk:hidden">
             {/* The company and the branch every page shows; the page names itself in its heading. */}
             {(() => {
               const label = (
@@ -633,7 +639,7 @@ export default function AppLayout({ children }) {
           {/* ── Mobile bottom nav: the sidebar card as a floating bar, olive, a cream pill on the tab you are on ── */}
           {!isMap && (
           <nav id="m-bottom-nav"
-            className="fixed right-2.5 bottom-[calc(10px_+_env(safe-area-inset-bottom))] left-2.5 z-[var(--z-sticky,200)] grid h-[66px] grid-cols-5 items-center rounded-[22px] bg-sidebar px-1.5 shadow-dock min-[601px]:hidden [body:has([data-slot=phone-bar])_&]:hidden">
+            className="fixed right-[max(10px,env(safe-area-inset-right))] bottom-[calc(10px_+_env(safe-area-inset-bottom))] left-[max(10px,env(safe-area-inset-left))] z-[var(--z-sticky,200)] grid h-[66px] [@media(max-height:500px)]:h-[52px] grid-cols-5 items-center rounded-[22px] bg-sidebar px-1.5 shadow-dock desk:hidden [body:has([data-slot=phone-bar])_&]:hidden">
             {BNAV_TABS.map((tab) => {
               const isMore = tab.key === "_more";
               const isActive = isMore ? mMore : page === tab.key && !mMore;
@@ -644,7 +650,7 @@ export default function AppLayout({ children }) {
                 </>
               );
               const cls = cn(
-                "mx-0.5 flex h-[54px] cursor-pointer appearance-none flex-col items-center justify-center gap-[3px] rounded-[16px] border-0 bg-transparent font-[family-name:inherit] font-medium text-sidebar-muted no-underline transition-[background-color,color] duration-[120ms] ease-[ease] active:opacity-70",
+                "mx-0.5 flex h-[54px] [@media(max-height:500px)]:h-[42px] [@media(max-height:500px)]:flex-row [@media(max-height:500px)]:gap-2 cursor-pointer appearance-none flex-col items-center justify-center gap-[3px] rounded-[16px] border-0 bg-transparent font-[family-name:inherit] font-medium text-sidebar-muted no-underline transition-[background-color,color] duration-[120ms] ease-[ease] active:opacity-70",
                 isActive && "bg-sidebar-on font-semibold text-sidebar-on-fg",
               );
               return isMore ? (

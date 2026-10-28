@@ -165,7 +165,7 @@ export default function ShellSidebar({ page, perms, branch, mini, onPickBranch, 
   return (
     <aside ref={sbRef} aria-label={t("Sidebar")}
       className={cn(
-        "ink-sidebar fixed top-(--shell-gap) bottom-(--shell-gap) left-(--shell-gap) z-[var(--z-sticky,200)] hidden flex-col overflow-visible p-3 min-[601px]:flex",
+        "ink-sidebar fixed top-(--shell-gap) bottom-(--shell-gap) left-(--shell-gap) z-[var(--z-sticky,200)] hidden flex-col overflow-visible p-3 desk:flex",
         "w-[calc(var(--sidebar-w)-2*var(--shell-gap))] rounded-[20px] border border-sidebar bg-sidebar shadow-float transition-[width] duration-300 ease-drawer",
         mini && "w-[calc(var(--sidebar-w-collapsed)-2*var(--shell-gap))]",
       )}>
