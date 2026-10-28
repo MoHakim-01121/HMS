@@ -65,6 +65,20 @@ class UserFormTest(TestCase):
         self.assertEqual((siti.get_full_name(), siti.profile.role, siti.is_active), ('Siti Aminah', 'manager', False))
         self.assertTrue(siti.check_password('baru12345'))
 
+    def test_weak_password_is_rejected_on_edit(self):
+        resp = self.save(self.siti, password='password', password_confirm='password')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('password', resp.json()['props']['errors'])
+        self.assertTrue(User.objects.get(pk=self.siti.pk).check_password('pw12345'))
+
+    def test_weak_password_is_rejected_on_reset(self):
+        resp = self.client.post(f'/users/{self.siti.pk}/edit/', {
+            'action': 'reset_password', 'password': 'password', 'password_confirm': 'password',
+        })
+        self.assertRedirects(resp, '/users/', fetch_redirect_response=False)
+        self.siti.refresh_from_db()
+        self.assertTrue(self.siti.check_password('pw12345'))
+
     def test_blank_password_keeps_the_current_one(self):
         self.save(self.siti)
         self.assertTrue(User.objects.get(pk=self.siti.pk).check_password('pw12345'))

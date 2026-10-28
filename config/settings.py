@@ -120,11 +120,19 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 DATABASE_URL = get_env_variable('DATABASE_URL')
+IS_TEST_RUN = len(sys.argv) > 1 and sys.argv[1] == 'test'
+TEST_DATABASE_URL = get_env_variable('TEST_DATABASE_URL')
 if DATABASE_URL:
     DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=not DEBUG and not IS_TEST_RUN,
+        )
     }
 else:
+    if not DEBUG and not IS_TEST_RUN:
+        raise RuntimeError('DATABASE_URL must be set when DEBUG is False.')
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -132,11 +140,13 @@ else:
         }
     }
 
+if not DEBUG and not IS_TEST_RUN and DATABASES['default']['ENGINE'] != 'django.db.backends.postgresql':
+    raise RuntimeError('Production DATABASE_URL must point to PostgreSQL.')
+
 # Test suite di PostgreSQL (produksi = PG18). Trigger, locking, dan transaksi
 # yang gagal di tengah hanya teruji di sini — SQLite tidak menjalankannya.
 # Dev harian tetap memakai DATABASE_URL/SQLite di atas.
-TEST_DATABASE_URL = get_env_variable('TEST_DATABASE_URL')
-if TEST_DATABASE_URL and len(sys.argv) > 1 and sys.argv[1] == 'test':
+if TEST_DATABASE_URL and IS_TEST_RUN:
     DATABASES = {'default': dj_database_url.parse(TEST_DATABASE_URL)}
 
 # A user covering several branches looks at one branch at a time; with no pick

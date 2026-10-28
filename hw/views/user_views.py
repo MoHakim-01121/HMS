@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
@@ -187,6 +188,17 @@ def user_new(request):
             errors['password'] = "Password is required."
         elif password != confirm:
             errors['password_confirm'] = "Passwords do not match."
+        else:
+            parts = full_name.split(None, 1)
+            candidate = User(
+                username=username,
+                first_name=parts[0][:30] if parts else "",
+                last_name=parts[1][:150] if len(parts) > 1 else "",
+            )
+            try:
+                validate_password(password, user=candidate)
+            except ValidationError as e:
+                errors['password'] = ' '.join(e.messages)
 
         if errors:
             return inertia_render(request, "User/Form", props={
@@ -273,12 +285,17 @@ def user_edit(request, pk):
             elif password != confirm:
                 messages.error(request, tr(request, "Passwords do not match.", "Password tidak sama."))
             else:
-                edit_user.set_password(password)
-                edit_user.save()
-                log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
-                             [{'field': 'password', 'new': 'reset'}])
-                messages.success(request, tr(request, f"Password for '{edit_user.username}' has been reset.", f"Password '{edit_user.username}' sudah direset."))
-                return redirect('user_list')
+                try:
+                    validate_password(password, user=edit_user)
+                except ValidationError as e:
+                    messages.error(request, ' '.join(e.messages))
+                else:
+                    edit_user.set_password(password)
+                    edit_user.save()
+                    log_activity(request.user, ActivityLog.ACTION_EDIT, 'User', edit_user.username,
+                                 [{'field': 'password', 'new': 'reset'}])
+                    messages.success(request, tr(request, f"Password for '{edit_user.username}' has been reset.", f"Password '{edit_user.username}' sudah direset."))
+                    return redirect('user_list')
 
         elif action == 'toggle_active':
             if edit_user == request.user:
@@ -360,6 +377,11 @@ def _save_user_form(request, edit_user):
         errors['branch'] = branch_error
     if password and password != confirm:
         errors['password_confirm'] = "Passwords do not match."
+    elif password:
+        try:
+            validate_password(password, user=edit_user)
+        except ValidationError as e:
+            errors['password'] = ' '.join(e.messages)
     access_changes = role != get_role(edit_user) or branch != _branch_value(edit_user)
     if access_changes and is_self:
         errors['role'] = "You cannot change your own role."

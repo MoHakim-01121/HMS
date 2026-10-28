@@ -186,9 +186,18 @@ class UserAdminTests(TestCase):
         self.assertIn("username", resp.json()["props"]["errors"])
 
     def test_valid_create_redirects(self):
-        resp = self._inertia_post("/users/new/", {"username": "carol", "password": "pw", "password_confirm": "pw"})
+        password = "N0t-a-common-passphrase!2026"
+        resp = self._inertia_post("/users/new/", {"username": "carol", "password": password, "password_confirm": password})
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(User.objects.filter(username="carol").exists())
+
+    def test_weak_password_is_rejected_on_create(self):
+        resp = self._inertia_post("/users/new/", {
+            "username": "carol", "password": "password", "password_confirm": "password",
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("password", resp.json()["props"]["errors"])
+        self.assertFalse(User.objects.filter(username="carol").exists())
 
     def test_credential_card_prints_without_changing_password(self):
         user = User.objects.create_user("bob", password="oldpw")

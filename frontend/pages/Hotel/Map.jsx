@@ -220,7 +220,7 @@ export default function HotelMap() {
           const color = distColor(h.distance), refLL = h.city === "madinah" ? NABAWI : HARAM, sz = starSize(h.stars);
           const m = L.marker([h.lat, h.lng], { icon: hotelIcon(color, sz) });
           m._starSize = sz; m._hotelData = h;
-          m.bindTooltip(h.name, { permanent: false, direction: "top", offset: [0, -10], opacity: 0.95, className: "route-dist-tip" });
+          m.bindTooltip(_esc(h.name), { permanent: false, direction: "top", offset: [0, -10], opacity: 0.95, className: "route-dist-tip" });
           m.bindPopup(buildPopup(h), { maxWidth: 220 });
           m.on("click", (e) => { if (isMobile()) L.DomEvent.stopPropagation(e); });
           markerMap[h.pk] = { marker: m, h }; markerGroup.addLayer(m);

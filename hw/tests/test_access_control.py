@@ -206,7 +206,7 @@ class UserManagementTests(TestCase):
 
     def test_new_user_gets_the_requested_role(self):
         self.client.post("/users/new/", {
-            "username": "freshuser", "password": "pw12345", "password_confirm": "pw12345",
+            "username": "freshuser", "password": "N0t-a-common-passphrase!2026", "password_confirm": "N0t-a-common-passphrase!2026",
             "role": Role.VIEWER.value,
         })
         created = User.objects.get(username="freshuser")
