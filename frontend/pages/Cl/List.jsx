@@ -3,7 +3,7 @@ import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
-import { ListPage, Legend, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, SheetPick, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, stay, useListNav, rowNav, Tr, Th, Td, Menu, MenuItem, MenuSep, ToolButton } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Legend, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, SheetPick, RowMenu, Pill, Pager, Empty, SearchScope, LIcon, MONTHS, fmtN, stay, useListNav, rowNav, Tr, Th, Td, Menu, MenuItem, MenuSep, ToolButton } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -49,7 +49,7 @@ function SalespersonMenu({ value, people, mine, unassigned, total, onPick }) {
 // Confirmation Letter list, as on the Record View HMS canvas: four KPIs for
 // the CLs sold in the month (by the day each was made) with a small trend against the month before
 // (Cancelled filters the table), the toolbar above the table, and paging.
-export default function List({ letters, filters: f, years, counts, salespeople = [], kpis, export_qs, pagination }) {
+export default function List({ letters, filters: f, search_all, years, counts, salespeople = [], kpis, export_qs, pagination }) {
   const { t } = useI18n();
   const perms = usePerms();
   const openForm = useFormModal();
@@ -130,6 +130,7 @@ export default function List({ letters, filters: f, years, counts, salespeople =
           ]} />
           {perms.can("cl", "create") && <Primary label={t("New CL")} onClick={() => openForm("/cl/new/")} onPrefetch={() => openForm.prefetch("/cl/new/")} />}
         </Toolbar>
+        {search_all && <SearchScope />}
         {f.salesperson && salesperson && (
           <div className="flex flex-wrap items-center gap-2">
             <span data-slot="active-filter" className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border bg-card pr-1 pl-2.5 text-[12.5px] leading-none font-medium">
@@ -160,7 +161,7 @@ export default function List({ letters, filters: f, years, counts, salespeople =
           sub={salesperson
             ? <>{t("No CLs for {name} in this period.", { name: salesperson })} <button type="button" onClick={() => go({ salesperson: "" })}
               className="cursor-pointer border-0 bg-transparent p-0 font-medium text-foreground underline underline-offset-2">{t("Show all salespeople")}</button></>
-            : t("Nothing matches this month and these filters.")} />}>
+            : search_all ? t("Nothing matches this search on any date.") : t("Nothing matches this month and these filters.")} />}>
         <thead><Tr>
           <Th>CL</Th><Th>{t("Client")}</Th><Th>{t("Hotel")}</Th>
           <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}

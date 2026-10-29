@@ -2758,6 +2758,8 @@ export const id = {
   "Room formation": "Formasi kamar",
   "No confirmation letters": "Belum ada confirmation letter",
   "Nothing matches this month and these filters.": "Tidak ada yang cocok untuk bulan dan filter ini.",
+  "Nothing matches this search on any date.": "Tidak ada yang cocok dengan pencarian ini di tanggal mana pun.",
+  "Search results from all dates; the cards above stay on the month.": "Hasil pencarian dari semua tanggal; kartu di atas tetap untuk bulan ini.",
   "yesterday": "kemarin",
   "{n} months ago": "{n} bulan lalu",
   "{d} vs the same point of {s}": "{d} dibanding titik yang sama di {s}",

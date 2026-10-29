@@ -183,11 +183,15 @@ def invoice_list(request):
     qs = base_qs
     if q:
         qs = qs.filter(Invoice.objects.name_matches(q))
+    # A search looks past the month nav; a due range picked in the filter
+    # still holds. The KPIs stay on the month.
+    search_all = bool(q) and not (period['from'] or period['to']) and date_from is not None
+    tbl_from, tbl_to = (None, None) if search_all else (date_from, date_to)
     period_qs = qs
-    if date_from:
-        period_qs = period_qs.filter(due_date__gte=date_from)
-    if date_to:
-        period_qs = period_qs.filter(due_date__lte=date_to)
+    if tbl_from:
+        period_qs = period_qs.filter(due_date__gte=tbl_from)
+    if tbl_to:
+        period_qs = period_qs.filter(due_date__lte=tbl_to)
 
     period_invs = list(period_qs.order_by(
         F('due_date').desc(nulls_last=True) if sort == '-due' else F('due_date').asc(nulls_last=True), '-created_at'))
@@ -242,10 +246,11 @@ def invoice_list(request):
     return inertia_render(request, "Invoice/List", props={
         "invoices": invoices,
         "filters": {"q": q, "status": status, "sort": sort, "per": list_per_page(request), **period},
+        "search_all": search_all,
         "years": years, "counts": counts, "kpis": kpis,
         "export_qs": "?" + urlencode([(k, v) for k, v in [
-            ("q", q), ("date_from", date_from.isoformat() if date_from else ""),
-            ("date_to", date_to.isoformat() if date_to else ""),
+            ("q", q), ("date_from", tbl_from.isoformat() if tbl_from else ""),
+            ("date_to", tbl_to.isoformat() if tbl_to else ""),
             ("status", {"paid": "lunas", "unpaid": "belum", "partial": "partial", "void": "void"}.get(status, "")),
         ] if v]),
         "pagination": pagination_props(page_obj),

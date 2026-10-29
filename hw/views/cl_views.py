@@ -178,7 +178,12 @@ def cl_list(request):
     date_from, date_to, period = list_period(request)
 
     by = 'check_in' if (period['from'] or period['to']) else 'sold'
-    period_qs = _apply_cl_filters(base_qs, q, [], date_from, date_to, by)
+    # A search looks past the month nav (the CL wanted is often in another
+    # month); a check-in range picked in the filter still holds. The KPIs
+    # stay on the month.
+    search_all = bool(q) and by == 'sold' and date_from is not None
+    tbl_from, tbl_to = (None, None) if search_all else (date_from, date_to)
+    period_qs = _apply_cl_filters(base_qs, q, [], tbl_from, tbl_to, by)
     qs = _apply_salesperson(period_qs, salesperson, request.user)
     if status_list:
         qs = qs.filter(reservation_status__in=status_list)
@@ -253,13 +258,14 @@ def cl_list(request):
         "filters": {"q": q, "status": [s.lower() for s in status_list], "inv": inv, "sort": sort,
                     "salesperson": salesperson,
                     "per": list_per_page(request), **period},
+        "search_all": search_all,
         "years": years,
         "counts": counts,
         "salespeople": salespeople,
         "kpis": kpis,
         "export_qs": "?" + urlencode([(k, v) for k, v in [
-            ("q", q), ("date_from", date_from.isoformat() if date_from else ""),
-            ("date_to", date_to.isoformat() if date_to else ""), ("sort", sort),
+            ("q", q), ("date_from", tbl_from.isoformat() if tbl_from else ""),
+            ("date_to", tbl_to.isoformat() if tbl_to else ""), ("sort", sort),
             ("by", "sold" if by == "sold" else ""), ("salesperson", salesperson),
         ] + [("status", s.lower()) for s in status_list] if v]),
         "pagination": pagination_props(page_obj),

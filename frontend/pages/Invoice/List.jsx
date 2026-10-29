@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { useConfirm } from "../../components/shadcn/confirm-dialog.jsx";
 import { useFormModal } from "../../components/shadcn/form-modal.jsx";
-import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
+import { ListPage, Kpis, Kpi, Toolbar, MonthNav, SearchTool, FilterMenu, FilterSection, Check, DateRange, ExportMenu, Primary, TableCard, PRow, RowMenu, Pill, Pager, Empty, SearchScope, LIcon, MONTHS, fmtN, dShort, useListNav, rowNav, Tr, Th, Td } from "../../components/shadcn/list-a.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { useI18n } from "../../utils/i18n.jsx";
 
@@ -15,7 +15,7 @@ const monthName = (ym, t) => (ym ? t(MONTHS[+ym.slice(5, 7) - 1]) : "");
 // Hotel invoice list, as on the Record View HMS canvas: KPIs for the month
 // invoices fall due (Overdue filters the table, Unbilled opens the CLs not
 // yet invoiced), the toolbar above the table, and paging.
-export default function List({ invoices, filters: f, years, counts, kpis, export_qs, pagination }) {
+export default function List({ invoices, filters: f, search_all, years, counts, kpis, export_qs, pagination }) {
   const { t } = useI18n();
   const perms = usePerms();
   const openForm = useFormModal();
@@ -53,27 +53,30 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
         </Kpis>
       )}
 
-      <Toolbar spaced={!!kpis}
-        left={<MonthNav prefix={t("Due")} month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
-        <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search invoice or client")} />
-        <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
-          onReset={() => setDraft({ ...draft, status: "", from: "", to: "" })}
-          onApply={() => go({ status: draft.status, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
-          <FilterSection label={t("Status")}>
-            {["paid", "partial", "unpaid", "void"].map((k) => (
-              <Check key={k} radio on={draft.status === k} onClick={() => setDraft({ ...draft, status: draft.status === k ? "" : k })} label={t(STATUS[k][1])} count={counts[k]} />
-            ))}
-          </FilterSection>
-          <FilterSection label={t("Due date range")} hint={t("Used instead of the month above.")}>
-            <DateRange from={draft.from} to={draft.to} onFrom={(v) => setDraft({ ...draft, from: v })} onTo={(v) => setDraft({ ...draft, to: v })} />
-          </FilterSection>
-        </FilterMenu>
-        <ExportMenu items={[
-          { label: "CSV", href: `/invoice/export/csv/${export_qs}` },
-          { label: "PDF", href: `/invoice/export/pdf/${export_qs}`, external: true },
-        ]} />
-        {perms.can("invoice", "create") && <Primary label={t("New invoice")} onClick={() => openForm("/invoice/new/")} onPrefetch={() => openForm.prefetch("/invoice/new/")} />}
-      </Toolbar>
+      <div className="flex flex-col gap-2">
+        <Toolbar spaced={!!kpis}
+          left={<MonthNav prefix={t("Due")} month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
+          <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search invoice or client")} />
+          <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
+            onReset={() => setDraft({ ...draft, status: "", from: "", to: "" })}
+            onApply={() => go({ status: draft.status, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
+            <FilterSection label={t("Status")}>
+              {["paid", "partial", "unpaid", "void"].map((k) => (
+                <Check key={k} radio on={draft.status === k} onClick={() => setDraft({ ...draft, status: draft.status === k ? "" : k })} label={t(STATUS[k][1])} count={counts[k]} />
+              ))}
+            </FilterSection>
+            <FilterSection label={t("Due date range")} hint={t("Used instead of the month above.")}>
+              <DateRange from={draft.from} to={draft.to} onFrom={(v) => setDraft({ ...draft, from: v })} onTo={(v) => setDraft({ ...draft, to: v })} />
+            </FilterSection>
+          </FilterMenu>
+          <ExportMenu items={[
+            { label: "CSV", href: `/invoice/export/csv/${export_qs}` },
+            { label: "PDF", href: `/invoice/export/pdf/${export_qs}`, external: true },
+          ]} />
+          {perms.can("invoice", "create") && <Primary label={t("New invoice")} onClick={() => openForm("/invoice/new/")} onPrefetch={() => openForm.prefetch("/invoice/new/")} />}
+        </Toolbar>
+        {search_all && <SearchScope />}
+      </div>
 
       <TableCard cols={[110, null, 130, 130, 150, 130, 56]}
         phone={invoices.map((inv) => {
@@ -88,7 +91,7 @@ export default function List({ invoices, filters: f, years, counts, kpis, export
               note={left} noteTone={inv.remaining_sar > 0 ? "text-danger-text" : inv.remaining_sar < 0 ? "text-success-text" : undefined} />
           );
         })}
-        empty={!invoices.length && <Empty title={t("No invoices")} sub={f.status === "overdue" ? t("Nothing is overdue.") : t("Nothing falls due in this period with these filters.")} />}>
+        empty={!invoices.length && <Empty title={t("No invoices")} sub={f.status === "overdue" ? t("Nothing is overdue.") : search_all ? t("Nothing matches this search on any date.") : t("Nothing falls due in this period with these filters.")} />}>
         <thead><Tr>
           <Th>{t("Invoice")}</Th><Th>{t("Client")}</Th>
           <Th><button type="button" className="inline-flex items-center gap-1 font-semibold text-foreground" style={{ border: 0, background: "none", padding: 0, font: "inherit", cursor: "pointer" }}

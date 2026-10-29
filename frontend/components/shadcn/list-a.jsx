@@ -21,6 +21,8 @@ export const LIcon = {
   chev: <S strokeWidth="2"><path d="M6 9l6 6 6-6" /></S>,
   sortDown: <S width="13" height="13" strokeWidth="2"><path d="M12 5v14m0 0l-5-5m5 5l5-5" /></S>,
   sortUp: <S width="13" height="13" strokeWidth="2"><path d="M12 19V5m0 0l-5 5m5-5l5 5" /></S>,
+  x: <S width="12" height="12" strokeWidth="2.2"><path d="M6 6l12 12M18 6L6 18" /></S>,
+  spin: <S className="animate-spin" strokeWidth="2"><path d="M12 3a9 9 0 1 0 9 9" /></S>,
   check: <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>,
   dots: <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7" fill="currentColor" /><circle cx="12" cy="12" r="1.7" fill="currentColor" /><circle cx="19" cy="12" r="1.7" fill="currentColor" /></svg>,
   up: <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-6 6m6-6l6 6" /></svg>,
@@ -349,22 +351,39 @@ ToolButton.displayName = "ToolButton";
 // A bare input inside a ToolButton-shaped control (search, "As of" date).
 export const toolInput = "h-full w-full min-w-0 rounded-none border-0 bg-transparent p-0 font-sans text-[13px] leading-[normal] font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-muted-foreground";
 
+// Searches on Enter (not while typing); the icon turns into a spinner until
+// the list comes back.
 export function SearchTool({ value, onSearch, placeholder }) {
+  const { t } = useI18n();
   const [q, setQ] = useState(value || "");
-  const timer = useRef(null);
+  const [busy, setBusy] = useState(false);
   useEffect(() => { setQ(value || ""); }, [value]);
-  const change = (v) => {
-    setQ(v);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => onSearch(v.trim()), 300);
+  const submit = (v) => {
+    setBusy(true);
+    const off = router.on("finish", () => { setBusy(false); off(); });
+    onSearch(v);
   };
   return (
-    <label data-slot="search" className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%] phone:h-11 phone:w-auto phone:flex-[1_1_0%] phone:text-[14px]")}>
-      {LIcon.search}
-      <input className={cn(toolInput, "flex-1")} value={q} onChange={(e) => change(e.target.value)} placeholder={placeholder} aria-label={placeholder}
-        onKeyDown={(e) => { if (e.key === "Enter") { clearTimeout(timer.current); onSearch(q.trim()); } }} />
+    <label data-slot="search" aria-busy={busy || undefined} className={cn(toolClass, "w-[260px] cursor-text focus-within:border-foreground max-[900px]:w-full max-[900px]:flex-[1_1_100%] phone:h-11 phone:w-auto phone:flex-[1_1_0%] phone:text-[14px]")}>
+      {busy ? LIcon.spin : LIcon.search}
+      <input className={cn(toolInput, "flex-1")} value={q} onChange={(e) => setQ(e.target.value)} placeholder={placeholder} aria-label={placeholder}
+        enterKeyHint="search" onKeyDown={(e) => { if (e.key === "Enter") submit(q.trim()); }} />
+      {q && (
+        <button type="button" aria-label={t("Clear search")} title={t("Clear search")}
+          onClick={() => { setQ(""); if (value) submit(""); }}
+          className={cn("-mr-2 grid size-6 flex-none cursor-pointer place-content-center rounded-full border-0 bg-transparent p-0 transition-colors duration-150 ease-[ease] hover:bg-secondary [&_svg]:hover:text-foreground phone:size-8", FOCUS)}>
+          {LIcon.x}
+        </button>
+      )}
     </label>
   );
+}
+
+// Under the toolbar while a search looks past the month nav; the search
+// box's clear button brings the month back.
+export function SearchScope() {
+  const { t } = useI18n();
+  return <Note>{t("Search results from all dates; the cards above stay on the month.")}</Note>;
 }
 
 // A menu panel (portalled popover) and its rows.
