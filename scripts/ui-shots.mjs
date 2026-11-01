@@ -134,7 +134,7 @@ const ACTIONS = [
   ["list-perpage", "admin", "/cl/", ['button[aria-haspopup="menu"]:has-text("10")'], "!m"],
   ["list-kpi-flip", "admin", "/finance/payments/", ['button[aria-label^="Cash received"]']],
   ["list-kpi-press", "admin", "/finance/payments/", ['button[aria-pressed]:has-text("Unapplied cash")']],
-  ["calendar-pop", "admin", "/calendar/", ['section button[aria-expanded="false"]']],
+  ["calendar-pop", "admin", "/calendar/", ['section button[aria-expanded="false"]'], "!m"],
   ["calendar-pick", "admin", "/calendar/", ['button[aria-pressed="false"] >> nth=3']],
   ["profile-filter", "admin", "/account/profile/", ['button[aria-haspopup="dialog"]:has-text("Filter")']],
   ["profile-edit", "admin", "/account/profile/", ['button[aria-label^="Edit"] >> nth=0']],

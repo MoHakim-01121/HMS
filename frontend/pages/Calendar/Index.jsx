@@ -3,13 +3,14 @@ import { Link, router } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import Page from "../../components/shadcn/page.jsx";
+import { PRow, usePhone } from "../../components/shadcn/list-a.jsx";
 
 // Calendar, as on the HMS Calendar v2 canvas ("Redesign"): a row per hotel
 // (or per client), one bar per booking from midday of check-in to midday of
 // check-out, coloured by where the stay stands today. Above the rows, a tile
 // per day and a bar chart of check-ins; beside them an agenda of who comes in,
 // moves hotel and leaves from the picked day on. The server sends real dates;
-// all layout is here.
+// all layout is here. Phones get PhoneCalendar instead (HMS Mobile v2, "K").
 
 // Weekday initials indexed by Date#getUTCDay() (0 = Sunday). Indonesian needs
 // three letters because Senin/Selasa/Sabtu all start with S.
@@ -82,8 +83,118 @@ function Icon({ d, label }) {
   );
 }
 
+// The phone: the days swipe sideways with the check-in chart standing on them;
+// under them the picked day's check-ins, in-house and check-outs, one list at a
+// time. A row is a client at a hotel, the same count as the chart.
+function PhoneCalendar({ title, days, peak, peakDays, day, TODAY, items, hotelOf, loading, onPrev, onNext, prevLabel, nextLabel, onToday, onPick, dateTxt, rooms, plural }) {
+  const { t } = useI18n();
+  const [tab, setTab] = useState("in");
+  const strip = useRef(null);
+  const firstDay = days[0]?.n;
+
+  // The picked day stays in sight when the range changes, without moving the page.
+  useEffect(() => {
+    const box = strip.current;
+    const tile = box?.querySelector('[aria-pressed="true"]');
+    if (tile) box.scrollLeft = tile.offsetLeft - box.offsetLeft - (box.clientWidth - tile.offsetWidth) / 2;
+  }, [firstDay, day]);
+
+  const merged = (xs) => Object.values(xs.reduce((m, r) => {
+    const k = `${r.client}|${r.hotel}`;
+    m[k] = m[k] || { key: k, client: r.client, hotel: hotelOf[r.hotel].name, url: r.url, n: 0, e: r.e, tentative: false };
+    m[k].n += r.rooms;
+    m[k].e = Math.max(m[k].e, r.e);
+    m[k].tentative = m[k].tentative || r.tentative;
+    return m;
+  }, {})).sort((a, b) => a.client.localeCompare(b.client));
+  const until = (g) => `${g.hotel} · ${t("until {date}", { date: dateTxt(g.e) })}`;
+  const picked = dateTxt(day);
+  const TABS = [
+    { k: "in", label: "Check-in", rows: merged(items.filter((r) => r.s === day)), sub: until, none: t("No check-ins on {date}", { date: picked }) },
+    { k: "house", label: "In-house", rows: merged(items.filter((r) => r.s < day && day < r.e)), sub: until, none: t("Nobody in-house on {date}", { date: picked }) },
+    { k: "out", label: "Check-out", rows: merged(items.filter((r) => r.e === day)), sub: (g) => g.hotel, none: t("No check-outs on {date}", { date: picked }) },
+  ];
+  const open = TABS.find((x) => x.k === tab);
+
+  return (
+    <Page className="max-w-[1440px]">
+      <div className={cn("flex flex-col gap-3.5 text-[14px] leading-[1.5] text-foreground", loading && "opacity-60 transition-opacity duration-150")}>
+        <div className="flex items-center gap-1">
+          <h1 className="m-0 mr-auto text-[24px] leading-[1.15] font-semibold tracking-[-0.02em] whitespace-nowrap tabular-nums">{title}</h1>
+          <button type="button" className={ICON_BTN} aria-label={prevLabel} onClick={onPrev}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" /></svg>
+          </button>
+          <button type="button" className={ICON_BTN} aria-label={nextLabel} onClick={onNext}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6" /></svg>
+          </button>
+        </div>
+
+        <div className="flex min-h-11 items-center justify-between gap-2">
+          <p className="m-0 text-[13px] text-muted-foreground tabular-nums">
+            <b className="font-semibold text-foreground">{t("Check-ins")}</b>
+            {" · "}{peak > 0 ? t("Peak {n}: {days}", { n: peak, days: peakDays }) : t("No check-ins")}
+          </p>
+          {day !== TODAY && (
+            <button type="button" onClick={onToday}
+              className="h-11 flex-none cursor-pointer rounded-full border border-input bg-card px-4 font-sans text-[13px] leading-[normal] font-semibold text-foreground">
+              {t("Today")}
+            </button>
+          )}
+        </div>
+
+        <div ref={strip} className="relative -mx-4 flex snap-x snap-proximity gap-1 overflow-x-auto overscroll-x-contain px-4 pb-0.5 [scrollbar-width:none]">
+          {days.map((d) => {
+            const on = d.n === day, top = d.count && d.count === peak;
+            return (
+              <button type="button" key={d.n} aria-pressed={on} onClick={() => onPick(d.n)}
+                aria-label={`${d.aria}, ${plural(d.count, "{n} check-in", "{n} check-ins")}`}
+                className="flex w-[46px] flex-none cursor-pointer snap-start flex-col items-center border-0 bg-transparent p-0 text-foreground [font:inherit]">
+                <span className={cn("min-h-[18px] text-[12px] font-semibold tabular-nums", top ? "text-foreground" : "text-muted-foreground")}>{d.count || ""}</span>
+                <span className="flex h-[58px] items-end">
+                  <span className={cn("block w-6 rounded-t-[4px] rounded-b-[2px]", on ? "bg-primary" : top ? "bg-data" : "bg-chart-bar")}
+                    style={{ height: d.count ? 8 + Math.round((d.count / peak) * 50) : 2 }} />
+                </span>
+                <span className={cn(
+                  "mt-1.5 flex h-[54px] w-[46px] flex-col items-center justify-center rounded-[14px] border text-[17px] leading-[1.2] font-semibold tabular-nums",
+                  on ? "border-primary bg-primary text-primary-foreground" : d.n === TODAY ? "border-[1.5px] border-primary bg-card" : "border-border bg-card",
+                )}>
+                  <small className={cn("text-[11px] font-medium", !on && "text-muted-foreground")}>{d.dow}</small>
+                  {d.num}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-3 rounded-2xl bg-secondary p-[3px]" role="group" aria-label={t("Agenda")}>
+          {TABS.map((x) => (
+            <button type="button" key={x.k} aria-pressed={tab === x.k} onClick={() => setTab(x.k)}
+              className={cn(
+                "flex h-[54px] cursor-pointer flex-col items-center justify-center rounded-[13px] border-0 bg-transparent font-sans text-[12.5px] leading-[1.25] font-medium text-muted-foreground",
+                tab === x.k && SEG_ON,
+              )}>
+              <b className="text-[18px] font-semibold text-foreground tabular-nums">{x.rows.length}</b>
+              {t(x.label)}
+            </button>
+          ))}
+        </div>
+
+        <div className={cn(CARD, "flex flex-col rounded-[20px]")}>
+          {open.rows.map((g) => (
+            <PRow key={g.key} href={g.url} no={g.client}
+              tag={<span className="text-[13px] font-normal text-muted-foreground">{rooms(g.n)}</span>}
+              meta={open.sub(g)} note={g.tentative ? t("Tentative") : null} noteTone={TONE.ty} />
+          ))}
+          {!open.rows.length && <p className="m-0 px-4 py-7 text-center text-[13px] text-muted-foreground">{open.none}</p>}
+        </div>
+      </div>
+    </Page>
+  );
+}
+
 export default function Calendar({ view, start, end, today, cities = [], hotels = [], bookings = [] }) {
   const { t, locale } = useI18n();
+  const phone = usePhone();
   const L = locale === "id" ? "id" : "en";
   const S = dn(start), E = dn(end), TODAY = dn(today);
   const W = E - S + 1;
@@ -244,6 +355,19 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
   const at = (x) => `calc(var(--label-w) + (100% - var(--label-w)) * ${x} / ${W})`;
   const legend = [["house", "In-house"], ["soon", "Arriving"], ["over", "Checked out"]]
     .concat(shown.some((r) => r.tentative) ? [["tent", "Tentative"]] : []);
+
+  if (phone) {
+    // The strip swipes through the range, so the arrows page by a whole range.
+    return (
+      <PhoneCalendar
+        title={title} days={days} peak={peak} peakDays={peakDays} day={day} TODAY={TODAY}
+        items={items} hotelOf={hotelOf} loading={loading}
+        onPrev={() => move(month ? -1 : -W)} onNext={() => move(month ? 1 : W)}
+        prevLabel={t(month ? "Previous month" : "Previous two weeks")} nextLabel={t(month ? "Next month" : "Next two weeks")}
+        onToday={goToday} onPick={pickDay} dateTxt={dateTxt} rooms={rooms} plural={plural}
+      />
+    );
+  }
 
   return (
     <Page className="max-w-[1440px]">
