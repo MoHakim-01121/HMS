@@ -8,6 +8,7 @@ import { saveLanguage } from "../utils/language.js";
 import SearchOverlay from "../components/shadcn/search-overlay.jsx";
 import ShellSidebar from "../components/shell/ShellSidebar.jsx";
 import TopbarSearch from "../components/shell/TopbarSearch.jsx";
+import AskAi, { SparkIcon, canAskAi } from "../components/shell/AskAi.jsx";
 import { NAV_GROUPS, allowed } from "../components/shell/nav.jsx";
 import { usePresence } from "../components/shell/usePresence.js";
 import DraftModal from "../components/shadcn/draft-modal.jsx";
@@ -69,7 +70,7 @@ function pageKeyFromUrl(url) {
     ["/calendar", "calendar"], ["/clients", "clients"],
     ["/remittance", "remittance"],
     ["/cl", "cl"], ["/users", "users"], ["/roles", "roles"], ["/account", "account"],
-    ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/periods", "periods"],
+    ["/finance/payments", "payments"], ["/finance/expenses", "expenses"], ["/finance/claims", "expenses"], ["/finance/periods", "periods"],
     ["/finance/journal", "journal"], ["/finance/trial-balance", "trial_balance"],
     ["/finance/statements", "statements"], ["/finance/clients", "statements"], ["/finance/exchanges", "exchanges"], ["/finance/credit-notes", "credit_notes"], ["/finance/invoices", "invoice"], ["/finance/fund-flow", "fund_flow"], ["/finance/branch-report", "branch_report"], ["/finance/ar-aging", "ar_aging"], ["/finance/bank-accounts", "bank_accounts"],
     ["/finance/reconciliation", "reconciliation"], ["/finance/penalties", "penalties"],
@@ -224,8 +225,10 @@ export default function AppLayout({ children }) {
   const { theme, toggle } = useTheme();
   const page = pageKeyFromUrl(url);
   const isMap = url.split("?")[0].includes("/map/");
+  const isDashboard = ["/", "/dashboard/"].includes(url.split("?")[0]);
 
   const [search, setSearch] = useState(false);
+  const [askAi, setAskAi] = useState(false);
   const [notif, setNotif] = useState(false);
   const [mNotif, setMNotif] = useState(false); // phones: the old sheet
   const [account, setAccount] = useState(false);
@@ -244,19 +247,22 @@ export default function AppLayout({ children }) {
   const main = useRef(null);
   const topbar = useRef(null);
 
+  // Ask AI belongs to the dashboard: leaving it closes the panel.
+  useEffect(() => { if (!isDashboard) setAskAi(false); }, [isDashboard]);
+
   // The browser tab names the page: its heading ("INV-090", "Journal
   // Entries"), Home on the dashboard, so tabs and history can be told apart.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       const h1 = ["/", "/dashboard/"].includes(url.split("?")[0]) ? "" : main.current?.querySelector("h1")?.textContent?.trim();
-      document.title = `${h1 || t(PAGE_TITLES[page] || "Home")} — Konoz United`;
+      document.title = `${h1 || t(PAGE_TITLES[page] || "Home")} — KonozOps`;
     });
     return () => cancelAnimationFrame(id);
   }, [url, page, t]);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { setSearch(false); setNotif(false); setMNotif(false); setAccount(false); setMAccount(false); setMMore(false); setMBranch(false); setConfirmTo(null); }
+      if (e.key === "Escape") { setSearch(false); setAskAi(false); setNotif(false); setMNotif(false); setAccount(false); setMAccount(false); setMMore(false); setMBranch(false); setConfirmTo(null); }
       const tag = document.activeElement?.tagName;
       if (e.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA") {
         e.preventDefault();
@@ -591,7 +597,7 @@ export default function AppLayout({ children }) {
             {(() => {
               const label = (
                 <>
-                  <b className="text-[15px] leading-[1.2] font-semibold text-foreground">Konoz United</b>
+                  <b className="text-[15px] leading-[1.2] font-semibold text-foreground">KonozOps</b>
                   <span className="flex items-center gap-[3px] text-[12px] leading-[1.2] text-muted-foreground">
                     {branch.current?.name || pageTitle}
                     {(branch.choices || []).length > 1 && (
@@ -609,6 +615,13 @@ export default function AppLayout({ children }) {
               );
             })()}
             <div className="flex flex-shrink-0 items-center">
+              {/* On a phone the corner above the bottom nav belongs to the page's "new" button. */}
+              {isDashboard && canAskAi(perms) && (
+                <button type="button" className={M_BTN} aria-label={t("Ask AI")} aria-haspopup="dialog" aria-expanded={askAi}
+                  onClick={(e) => { e.stopPropagation(); setAskAi(true); setMNotif(false); setMAccount(false); }}>
+                  <SparkIcon size={19} />
+                </button>
+              )}
               <button type="button" className={M_BTN} aria-label="Search"
                 onClick={(e) => { e.stopPropagation(); setSearch(true); }}>
                 <Icon name="search" size={19} strokeWidth={1.8} />
@@ -762,7 +775,8 @@ export default function AppLayout({ children }) {
       {/* v2.1 is a flat solid canvas — no ambient blobs or gradients. The one
           texture is the gold Islamic lattice, painted on body by tailwind.css
           for every page that mounts this shell. */}
-      <div ref={main} id="main" tabIndex={-1} className={cn("canvas transition-opacity duration-200 ease-[ease] focus:outline-none", switching && "opacity-35")}>{children}</div>
+      {/* The bottom padding lets the dashboard's last row scroll clear of the Ask AI pill. */}
+      <div ref={main} id="main" tabIndex={-1} className={cn("canvas transition-opacity duration-200 ease-[ease] focus:outline-none", user && isDashboard && canAskAi(perms) && "desk:pb-14", switching && "opacity-35")}>{children}</div>
 
       {confirmTo && (
         <div className="fixed inset-0 z-[80] box-border flex animate-fade-in items-start justify-center bg-scrim px-6 pt-[120px] pb-6"
@@ -796,6 +810,7 @@ export default function AppLayout({ children }) {
       <Toast />
       {user && <SearchOverlay open={search} onClose={() => setSearch(false)} />}
       {user && <DraftModal />}
+      {user && canAskAi(perms) && <AskAi shown={isDashboard} open={askAi} onOpen={() => setAskAi(true)} onClose={() => setAskAi(false)} perms={perms} />}
       </div>
     </FormModalProvider>
   );

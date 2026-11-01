@@ -2,11 +2,14 @@ import json
 import logging
 import urllib.error
 import urllib.request
+from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Count
 from django.utils import timezone
 
 from .models import ConfirmationLetter, Invoice
+from .models.confirmation import ReservationStatus
 
 _API_URL     = "https://api.groq.com/openai/v1/chat/completions"
 # Groq pensiunkan seri Llama untuk akun ini (404 model_not_found) sejak 2026.
@@ -141,6 +144,35 @@ def generate_draft_message(invoice_type: str, invoice) -> str | None:
 CHAT_MODULES = ('invoice', 'cl')
 
 
+def _invoice_totals(user, today):
+    from .branch_scope import scope
+    invoices = list(scope(Invoice.objects.filter(invoice_type="hotel").exclude(status=Invoice.STATUS_VOID), user)
+                    .with_lines())
+    unpaid = [i for i in invoices if i.remaining_sar > 0]
+    overdue = [i for i in unpaid if i.due_date and i.due_date < today]
+    this_month = [i for i in invoices
+                  if (timezone.localtime(i.created_at).year, timezone.localtime(i.created_at).month) == (today.year, today.month)]
+    return (
+        f"Invoice Hotel: {len(invoices)} invoice | {sum(i.total_sar for i in invoices):,.0f} SAR\n"
+        f"Belum lunas: {len(unpaid)} invoice | sisa {sum(i.remaining_sar for i in unpaid):,.0f} SAR\n"
+        f"Lewat jatuh tempo: {len(overdue)} invoice | sisa {sum(i.remaining_sar for i in overdue):,.0f} SAR\n"
+        f"Dibuat bulan ini: {len(this_month)} invoice | {sum(i.total_sar for i in this_month):,.0f} SAR"
+    )
+
+
+def _cl_totals(user, today):
+    from .branch_scope import scope
+    live = scope(ConfirmationLetter.objects.exclude(reservation_status=ReservationStatus.CANCELLED), user)
+    by_status = live.order_by().values_list('reservation_status').annotate(n=Count('pk'))
+    return (
+        f"Confirmation Letter aktif: {live.count()} CL ("
+        + ", ".join(f"{status}: {n}" for status, n in sorted(by_status)) + ")\n"
+        f"Check-in hari ini: {live.filter(check_in=today).count()} CL\n"
+        f"Check-in 7 hari ke depan: {live.filter(check_in__gte=today, check_in__lte=today + timedelta(days=7)).count()} CL\n"
+        f"Sedang menginap: {live.filter(check_in__lt=today, check_out__gt=today).count()} CL"
+    )
+
+
 def get_chat_reply(
     message: str,
     history: list | None = None,
@@ -148,76 +180,28 @@ def get_chat_reply(
     user,
     modules=CHAT_MODULES,
 ) -> str | None:
-    """Answer from recent invoices and CLs of `user`'s branches.
+    """Answer from totals of `user`'s branches. Only counts and sums leave for
+    the model provider, never a client, guest, hotel or document number.
     `modules` is what the user may view: data of any other module or branch is
-    not even read, so it can reach neither the answer nor the model provider."""
-    from .branch_scope import scope
+    not even read."""
     today = timezone.localdate()
-    month = today.month
-    year  = today.year
 
-    invoices = list(scope(Invoice.objects.filter(invoice_type="hotel"), user).with_lines()
-                    .order_by("-created_at")[:20]) if 'invoice' in modules else []
-    cls      = list(scope(ConfirmationLetter.objects.all(), user).prefetch_related('rooms')
-                    .order_by("-created_at")[:20]) if 'cl' in modules else []
-
-    inv_total       = sum(i.total_sar for i in invoices)
-    inv_remaining   = sum(i.remaining_sar for i in invoices)
-    inv_unpaid      = sum(1 for i in invoices if i.remaining_sar > 0)
-    inv_this_month  = [i for i in invoices if i.created_at.month == month and i.created_at.year == year]
-    inv_month_total = sum(i.total_sar for i in inv_this_month)
-
-    # Keyword detection — only include detail sections that are relevant
-    msg_lower = message.lower()
-    is_followup = bool(history)
-    needs_inv = is_followup or any(k in msg_lower for k in [
-        'invoice', 'inv', 'bayar', 'lunas', 'tagih', 'sisa', 'hotel', 'total', 'belum'
-    ])
-    needs_cl = is_followup or any(k in msg_lower for k in [
-        'cl', 'confirmation', 'letter', 'tamu', 'guest', 'check', 'kamar', 'room', 'reservasi'
-    ])
-    if not (needs_inv or needs_cl):
-        needs_inv = needs_cl = True
-    needs_inv = needs_inv and 'invoice' in modules
-    needs_cl = needs_cl and 'cl' in modules
-
-    summary = []
+    totals = []
     if 'invoice' in modules:
-        summary.append(
-            f"Invoice Hotel: {len(invoices)} total | {inv_total:,.0f} SAR | Sisa: {inv_remaining:,.0f} SAR | {inv_unpaid} belum lunas\n"
-            f"Bulan ini: {len(inv_this_month)} invoice | {inv_month_total:,.0f} SAR"
-        )
+        totals.append(_invoice_totals(user, today))
     if 'cl' in modules:
-        summary.append(f"Confirmation Letter: {len(cls)} total")
+        totals.append(_cl_totals(user, today))
 
-    system_parts = [
-        f"Kamu adalah asisten HMS (Hotel Management System). Jawab berdasarkan data berikut.\n"
-        f"Jawab dalam Bahasa Indonesia, singkat dan padat. "
-        f"Gunakan bullet point (- item) untuk daftar biasa. "
-        f"Untuk daftar invoice hotel gunakan: [inv: nomor | nama | total SAR | sisa SAR | Lunas/Belum lunas] satu per baris. "
-        f"Jika ditanya data yang tidak ada di bawah, jawab bahwa pengguna tidak punya akses ke data itu. "
+    system_context = (
+        "Kamu adalah asisten KonozOps (sistem manajemen internal Konoz United). Jawab berdasarkan data berikut.\n"
+        "Jawab dalam Bahasa Indonesia, singkat dan padat. "
+        "Gunakan bullet point (- item) untuk daftar biasa. "
+        "Kamu hanya punya angka total, tanpa nama klien, nama tamu, hotel, atau nomor dokumen. "
+        "Jika ditanya rincian seperti itu, jawab bahwa rincian ada di halaman daftar Invoice atau CL. "
+        "Jika ditanya data lain yang tidak ada di bawah, jawab bahwa data itu tidak tersedia untukmu. "
         f"Jangan ulangi info yang tidak perlu. Data milik: Konoz United. Hari ini: {today}.\n\n"
-        f"=== RINGKASAN ===\n" + "\n".join(summary)
-    ]
-
-    if needs_inv:
-        inv_lines = "\n".join(
-            f"- {i.invoice_number} | {i.customer_name} | Total: {i.total_sar:,.0f} SAR | "
-            f"Sisa: {i.remaining_sar:,.0f} SAR | {'Lunas' if i.remaining_sar == 0 else 'Belum lunas'} | "
-            f"{i.issued_date or '-'}"
-            for i in invoices
-        )
-        system_parts.append(f"\n\n=== INVOICE HOTEL ===\n{inv_lines}")
-
-    if needs_cl:
-        cl_lines = "\n".join(
-            f"- {c.confirmation_number} | {c.guest_name} | {c.hotel_name} | "
-            f"CI: {c.check_in or '-'} CO: {c.check_out or '-'} | {c.total_price:,.0f} SAR | {c.reservation_status}"
-            for c in cls
-        )
-        system_parts.append(f"\n\n=== CONFIRMATION LETTER ===\n{cl_lines}")
-
-    system_context = "".join(system_parts)
+        "=== TOTAL ===\n" + "\n".join(totals)
+    )
 
     messages = [
         {"role": "system", "content": system_context},
