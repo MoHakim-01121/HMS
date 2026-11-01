@@ -15,10 +15,12 @@ from django.db.models import ProtectedError
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
+from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_POST
 from django_ratelimit.decorators import ratelimit
 from inertia import render as inertia_render
 
+from ..client_ip import client_ip_key
 from ..i18n import tr
 from ..models import ActivityLog, RoleDefinition, UserProfile, log_activity
 from ..models.branch import Branch
@@ -37,6 +39,12 @@ from .helpers import request_data
 
 class CompanyLoginView(LoginView):
     template_name = 'hw/partials/login.html'
+
+    # The lock is per username + address, so this stops one address from trying
+    # a password across many usernames.
+    @method_decorator(ratelimit(key=client_ip_key, rate='30/10m', method='POST', block=True))
+    def post(self, request, *args, **kwargs):
+        return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
         response = super().form_valid(form)

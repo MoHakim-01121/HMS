@@ -118,7 +118,7 @@ class ReallocateCorrectionTest(ReallocateControlsBase):
 
         posting.reallocate_payment(payment, [(self.r1, 13000), (self.r2, 2000)], created_by=self.maker)
 
-        today = timezone.now().date()
+        today = timezone.localdate()
         reversal = JournalEntry.objects.filter(reverses__source_payment=payment).get()
         repost = JournalEntry.objects.for_source('PaymentRecord', payment.pk).filter(
             entry_type=JournalEntry.TYPE_PAYMENT,

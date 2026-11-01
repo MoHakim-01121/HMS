@@ -1,3 +1,4 @@
+import logging
 import os
 
 import magic
@@ -7,6 +8,8 @@ from django.views.decorators.http import require_POST
 from ..branch_scope import get_in_scope_or_404
 from ..models import Attachment, ConfirmationLetter, Invoice
 from ..permissions import require_perm
+
+logger = logging.getLogger(__name__)
 
 _ALLOWED_MIME = {
     'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -77,10 +80,12 @@ def attachment_upload(request):
 @require_POST
 def attachment_delete(request, pk):
     att = get_in_scope_or_404(Attachment.objects.all(), request.user, pk=pk)
-    try:
-        if att.file and os.path.isfile(att.file.path):
-            os.remove(att.file.path)
-    except Exception:
-        pass
+    file = att.file
+    # The row first: a leftover file is harmless, a row without its file is not.
     att.delete()
+    if file:
+        try:
+            file.storage.delete(file.name)
+        except OSError:
+            logger.exception("attachment %s: could not remove %s", pk, file.name)
     return JsonResponse({"ok": True})

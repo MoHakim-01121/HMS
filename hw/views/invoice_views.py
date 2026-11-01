@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
-from django.db.models import F
+from django.db.models import F, ProtectedError
 from django.shortcuts import redirect
 from django.utils import timezone
 from inertia import render as inertia_render
@@ -585,17 +585,14 @@ def invoice_delete(request, pk):
             with transaction.atomic():
                 invoice.lines.all().delete()
                 invoice.delete()
-        except Exception as exc:
+        except ProtectedError:
             # A pending PaymentRecord (PROTECT) may still exist even when no
             # journal lines were written; surface that cleanly instead of a 500.
-            from django.db.models.deletion import ProtectedError
-            if isinstance(exc, ProtectedError):
-                messages.error(
-                    request,
-                    tr(request, f'Invoice {num} still has payments recorded against it and cannot be deleted. Void or reverse those payments first.', f'Invoice {num} tidak bisa dihapus karena masih punya pembayaran terkait. Batalkan/balik pembayarannya dulu.'),
-                )
-                return redirect('invoice_detail', pk=pk)
-            raise
+            messages.error(
+                request,
+                tr(request, f'Invoice {num} still has payments recorded against it and cannot be deleted. Void or reverse those payments first.', f'Invoice {num} tidak bisa dihapus karena masih punya pembayaran terkait. Batalkan/balik pembayarannya dulu.'),
+            )
+            return redirect('invoice_detail', pk=pk)
         log_activity(request.user, ActivityLog.ACTION_DELETE, 'Invoice Hotel', num)
         messages.success(request, tr(request, f"Invoice {num} deleted.", f"Invoice {num} dihapus."))
         return redirect("invoice_list")
@@ -674,14 +671,6 @@ def _line_is_referenced(line, column=None):
         or PaymentAllocation.objects.filter(invoice_line=line).exists()
         or CreditNoteLine.objects.filter(invoice_line=line).exists()
     )
-
-
-def _line_has_service_money(line):
-    return _line_has_money(line)
-
-
-def _line_is_service_referenced(line):
-    return _line_is_referenced(line)
 
 
 def _sync_hotel_lines(invoice, cl_ids, user):

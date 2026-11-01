@@ -1,4 +1,5 @@
 import csv
+import re
 from datetime import date, datetime, timedelta
 
 import magic
@@ -25,11 +26,6 @@ def validate_proof_file(f):
     if magic.from_buffer(header, mime=True) not in PROOF_ALLOWED_MIME:
         return "File type not allowed. Use PDF or image (JPG/PNG/GIF/WEBP)."
     return None
-
-
-def _is_mobile(request):
-    ua = request.META.get('HTTP_USER_AGENT', '').lower()
-    return any(t in ua for t in ('mobi', 'android', 'iphone', 'ipod', 'windows phone'))
 
 
 def _page_range_display(page_obj):
@@ -223,6 +219,18 @@ def journal_line_dimension(line):
 
 # ── CSV Export ────────────────────────────────────────────────────────
 
+_CSV_FORMULA_START = ('=', '+', '-', '@', '\t', '\r')
+_CSV_PLAIN_NUMBER = re.compile(r'[+-][\d\s.,()-]*')
+
+
+def _csv_safe(value):
+    """Keep a spreadsheet from running exported text as a formula. A leading
+    sign on digits alone (amount, phone number) or the '-' placeholder stays."""
+    if (isinstance(value, str) and value.startswith(_CSV_FORMULA_START)
+            and not _CSV_PLAIN_NUMBER.fullmatch(value)):
+        return f"'{value}"
+    return value
+
 
 def csv_export_response(filename, headers, rows, encoding='utf-8', bom=True):
     """Create a CSV download response with standard writer boilerplate.
@@ -248,7 +256,7 @@ def csv_export_response(filename, headers, rows, encoding='utf-8', bom=True):
         response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerows([_csv_safe(value) for value in row] for row in rows)
     return response
 
 

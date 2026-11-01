@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import hashlib
 import os
 import re
 import sys
@@ -96,7 +97,10 @@ AUTHENTICATION_BACKENDS = [
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # jam
 AXES_RESET_ON_SUCCESS = True
-AXES_LOCKOUT_PARAMETERS = ['username', 'ip_address']
+# The pair, not each on its own: alone, ip_address locks everyone behind one
+# proxy or office network after five typos. CompanyLoginView limits per address.
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_CLIENT_IP_CALLABLE = 'hw.client_ip.client_ip'
 AXES_LOCKOUT_CALLABLE = 'hw.views.user_views.axes_lockout'
 
 TEMPLATES = [
@@ -248,12 +252,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── Inertia.js ──
 INERTIA_LAYOUT = 'hw/base_inertia.html'
+VITE_MANIFEST = BASE_DIR / 'hw' / 'static' / 'dist' / 'manifest.json'
+# Changes with every build, so a tab left open across a deploy reloads on its
+# next visit instead of running the old JS against the new server.
+if not DEBUG and VITE_MANIFEST.exists():
+    INERTIA_VERSION = hashlib.sha256(VITE_MANIFEST.read_bytes()).hexdigest()[:12]
 
 # ── django-vite ──
 DJANGO_VITE = {
     'default': {
         'dev_mode': DEBUG,
-        'manifest_path': BASE_DIR / 'hw' / 'static' / 'dist' / 'manifest.json',
+        'manifest_path': VITE_MANIFEST,
         'static_url_prefix': '' if DEBUG else 'dist',
         'app_client_class': 'hw.vite_loader.FixedDjangoViteAppClient',
     }

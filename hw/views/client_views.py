@@ -5,7 +5,7 @@ from datetime import time as dt_time
 
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -310,17 +310,14 @@ def client_delete(request, pk):
     name = c.name
     try:
         c.delete()
-    except Exception as exc:
+    except ProtectedError:
         # JournalLine.client / PaymentRecord.client use PROTECT — a client with
         # financial history must never vanish from the ledger's perspective.
-        from django.db.models.deletion import ProtectedError
-        if isinstance(exc, ProtectedError):
-            messages.error(
-                request,
-                tr(request, f'Client "{name}" is in the financial journal or payments and cannot be deleted. Deactivate it instead.', f'Client "{name}" tidak bisa dihapus karena sudah tercatat di jurnal keuangan/pembayaran. Nonaktifkan saja.'),
-            )
-            return redirect('client_detail', pk=pk)
-        raise
+        messages.error(
+            request,
+            tr(request, f'Client "{name}" is in the financial journal or payments and cannot be deleted. Deactivate it instead.', f'Client "{name}" tidak bisa dihapus karena sudah tercatat di jurnal keuangan/pembayaran. Nonaktifkan saja.'),
+        )
+        return redirect('client_detail', pk=pk)
     log_activity(request.user, ActivityLog.ACTION_DELETE, 'Client', name)
     messages.success(request, tr(request, f'Client "{name}" deleted.', f'Client "{name}" dihapus.'))
     return redirect('client_list')

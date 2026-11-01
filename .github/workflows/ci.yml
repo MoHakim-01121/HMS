@@ -33,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run lint:ui
+      - run: npm run build
 
   test:
     name: Django tests (PostgreSQL)
@@ -75,6 +76,14 @@ jobs:
             shared-mime-info libmagic1
 
       - run: pip install -r requirements.txt
+
+      - name: Known vulnerabilities in dependencies
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
+
+      - name: Models match migrations
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run test suite
         run: python manage.py test hw --noinput
