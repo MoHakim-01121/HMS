@@ -23,7 +23,7 @@ export default function ArAging({ aging }) {
   const phone = usePhone();
   const client = picked && aging.clients.find((c) => c.client_id === picked);
 
-  const amount = (v, late) => (v ? <span>{fmtN(v)}</span> : <span>–</span>);
+  const amount = (v) => (v ? <span>{fmtN(v)}</span> : <span>–</span>);
   const late = LATE.reduce((s, k) => s + aging.buckets[k], 0);
   const overdue = aging.total - aging.buckets.current;
 
@@ -78,7 +78,7 @@ export default function ArAging({ aging }) {
           {aging.clients.map((c) => (
             <Tr key={c.client_id} row={c.client_id === picked ? "on" : undefined} onClick={() => setPicked(c.client_id === picked ? null : c.client_id)}>
               <Td className="truncate font-medium">{c.name}</Td>
-              {BUCKETS.map(([k]) => <Td key={k} className="text-right">{amount(c.buckets[k], LATE.includes(k))}</Td>)}
+              {BUCKETS.map(([k]) => <Td key={k} className="text-right">{amount(c.buckets[k])}</Td>)}
               <Td className="text-right"><b>{fmtN(c.total)}</b></Td>
             </Tr>
           ))}
@@ -111,7 +111,7 @@ export default function ArAging({ aging }) {
                   <Td><span className="font-mono text-[13px] font-semibold">{i.invoice_number}</span></Td>
                   <Td>{i.due_date ? dLong(i.due_date) : "–"}</Td>
                   <Td className={"text-right" + (LATE.includes(i.bucket) ? " font-medium text-danger-text" : "")}>{i.days_overdue || <span className="text-muted-foreground">{t("Not yet due")}</span>}</Td>
-                  <Td className="text-right">{amount(i.amount, LATE.includes(i.bucket))}</Td>
+                  <Td className="text-right">{amount(i.amount)}</Td>
                 </Tr>
               ))}
             </tbody>

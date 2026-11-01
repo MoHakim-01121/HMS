@@ -468,10 +468,6 @@ _CASH_BY_LOCATION = {"sby": coa.CASH_SBY, "jkt": coa.CASH_JKT, "pusat": coa.CASH
 _LOCATION_BY_CASH = {v: k for k, v in _CASH_BY_LOCATION.items()}
 
 
-def _pk(v):
-    return getattr(v, "pk", v)
-
-
 def _allocation_dim(allocation):
     """Dimensi jurnal sebuah alokasi: baris invoice yang dibayarnya, dan
     invoice baris itu -- yang bisa invoice lain milik client yang sama dengan

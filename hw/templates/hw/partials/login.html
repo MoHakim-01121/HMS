@@ -4,15 +4,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Sign in — Konoz United</title>
-  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <title>Sign in — KonozOps</title>
+  <meta name="theme-color" content="#2F3A1F">
+  <script>(function(){var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);if(t==='dark')document.querySelector('meta[name="theme-color"]').content='#364326';})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     /* Login, built to the "Login" artboard on the Record View HMS canvas.
-       An olive narrative panel on the left with a slowly turning lattice,
-       and the form panel on the right, in English or Indonesian. Tokens are copied from
+       An olive narrative panel on the left with the swaying 3D emblem on a fading
+       khatam, and the form panel on the right, in English or Indonesian. Tokens are copied from
        frontend/styles/tailwind.css, since this page is served without Vite. */
     *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -47,7 +48,7 @@
       --primary-hover: #F7EEBC;
       --secondary: #21251D;
       --muted-foreground: #9B9A97;
-      --input: #3A4133;
+      --input: #6E7763;
       --border: #2B3026;
       --hairline: #21251D;
       --success-text: #6FE0A0;
@@ -72,35 +73,39 @@
     .aside { --side: #2F3A1F; --side-fg: #F3F5EC; --side-muted: #B4BF9E; --side-on: #F3E7A1;
       position: relative; overflow: hidden; background: var(--side); color: var(--side-fg); }
     [data-theme="dark"] .aside { --side: #364326; }
-    /* Breathing lattice: two tilted planes of squares turning slowly; front
-       cells rise and fall on staggered timers (cells are built by the script). */
-    .stage { position: absolute; inset: 0; perspective: 900px; overflow: hidden; --lat-line: color-mix(in oklch, var(--side-fg) 16%, transparent); --lat-dot: color-mix(in oklch, var(--side-on) 75%, transparent); }
-    .lat { position: absolute; inset: -30%; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; transform-style: preserve-3d; }
-    .lc { position: relative; }
-    .lq, .lq2 { position: absolute; inset: 14%; border: 1px solid var(--lat-line); }
-    .lq2 { transform: rotate(45deg); }
-    .ld { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 999px; background: var(--lat-dot); }
-    .plane { position: absolute; inset: 0; transform-style: preserve-3d; animation: latSpin 92s linear infinite; }
-    .planeB { animation: latSpinB 140s linear infinite; opacity: .24; }
-    @keyframes latSpin  { 0% { transform: rotateX(58deg) rotateZ(0deg) scale(1.02); } 100% { transform: rotateX(58deg) rotateZ(360deg) scale(1.02); } }
-    @keyframes latSpinB { 0% { transform: rotateX(58deg) rotateZ(360deg) scale(1.5); } 100% { transform: rotateX(58deg) rotateZ(0deg) scale(1.5); } }
-    @keyframes latRise  { 0%, 100% { transform: translateZ(0px); } 50% { transform: translateZ(46px); } }
+    /* Still khatam around the logo, fading to plain olive towards the copy.
+       --h scales the logo and the fade with the window; --cy is the logo's centre. */
+    .aside { --h: min(100vh - 190px, 680px, min(100vw - 440px, 60vw) * .95); --cy: calc(50% - 46px);
+      --khatam: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cdefs%3E%3Cg id='k' fill='none' stroke-width='1.2'%3E%3Cpolygon points='68,40 59.8,48.2 59.8,59.8 48.2,59.8 40,68 31.8,59.8 20.2,59.8 20.2,48.2 12,40 20.2,31.8 20.2,20.2 31.8,20.2 40,12 48.2,20.2 59.8,20.2 59.8,31.8'/%3E%3Cpolygon points='49.31,43.86 43.86,49.31 36.14,49.31 30.69,43.86 30.69,36.14 36.14,30.69 43.86,30.69 49.31,36.14'/%3E%3Cpath d='M68 40H80M12 40H0M40 68V80M40 12V0M59.8 59.8L80 80M20.2 59.8L0 80M59.8 20.2L80 0M20.2 20.2L0 0'/%3E%3C/g%3E%3C/defs%3E%3Cuse href='%23k' stroke='%23000000' stroke-opacity='0.2' transform='translate(0.8 0.8)'/%3E%3Cuse href='%23k' stroke='%23FFFFFF' stroke-opacity='0.08'/%3E%3C/svg%3E"); }
+    /* Two layers of the tile: at this size one alone is barely seen. */
+    .ground { position: absolute; inset: 0; background-image: var(--khatam), var(--khatam);
+      -webkit-mask-image: radial-gradient(circle at 50% var(--cy), #000 0, #000 calc(var(--h) * .34), transparent calc(var(--h) * .88));
+      mask-image: radial-gradient(circle at 50% var(--cy), #000 0, #000 calc(var(--h) * .34), transparent calc(var(--h) * .88)); }
+    .shrine { position: absolute; left: 0; right: 0; top: 36px; bottom: 128px; display: flex; justify-content: center; align-items: center; }
+    .mark { display: none; flex-direction: column; align-items: center; gap: calc(var(--h) * .03); }
+    .aside.has-3d .mark { display: flex; }
+    .aside.has-3d .brand { display: none; }
+    .word { display: block; width: calc(var(--h) * .26); height: auto; }
+    /* The emblem: stacked copies give it real thickness, the middle ones tinted
+       as its edge (built by the script). The wordmark stays still. */
+    .scene { width: calc(var(--h) * .34); aspect-ratio: 312 / 331; perspective: 800px; }
+    .solid { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: sway 9s ease-in-out infinite alternate; }
+    .solid img { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .solid .edge { filter: brightness(.74) sepia(.75) saturate(1.3); }
+    .solid .face, .solid .back { backface-visibility: hidden; }
+    @keyframes sway { from { transform: rotateY(-28deg); } to { transform: rotateY(28deg); } }
     .brand { position: absolute; left: 40px; top: 36px; }
     .brand img { height: 148px; width: auto; display: block; }
-    .copy { position: absolute; left: 40px; right: 40px; bottom: 40px; }
+    .copy { position: absolute; left: 40px; right: 40px; bottom: 40px; text-align: center; }
     .copy h2 { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.24; }
-    .copy p { margin: 10px 0 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--side-muted); }
+    .copy p { margin: 10px auto 0; max-width: 420px; font-size: 13px; line-height: 1.7; color: var(--side-muted); }
     /* logo-w = white lockup, logo-k = black lockup. The olive panel always
-       takes the white one; the mobile logo follows the form's theme. */
-    .brand .logo-k, .mlogo .logo-w { display: none; }
-    [data-theme="dark"] .mlogo .logo-k { display: none; }
-    [data-theme="dark"] .mlogo .logo-w { display: block; }
+       takes the white one. */
+    .brand .logo-k { display: none; }
 
     /* Right: form. */
     .main { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 48px 44px; background: var(--card); border-left: 1px solid var(--border); }
     .inner { width: 100%; max-width: 384px; }
-    .mlogo { display: none; }
-    .mlogo img { height: 88px; width: auto; display: block; }
     h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
     .sub { margin: 6px 0 0; text-wrap: pretty; font-size: 13px; line-height: 1.6; color: var(--muted-foreground); }
 
@@ -115,21 +120,21 @@
     .of { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
     .ol { font-size: 12.5px; font-weight: 500; color: var(--muted-foreground); }
     .rq { margin-left: 2px; color: var(--danger-text); }
-    .oi { display: flex; align-items: center; gap: 9px; height: 44px; padding: 0 6px 0 12px; border: 1.5px solid var(--input); border-radius: 10px; background: var(--card); width: 100%; cursor: text; transition: border-color 120ms ease, box-shadow 120ms ease; }
+    .oi { display: flex; align-items: center; gap: 9px; height: 48px; padding: 0 2px 0 14px; border: 1.5px solid var(--input); border-radius: 14px; background: var(--card); width: 100%; cursor: text; transition: border-color 120ms ease, box-shadow 120ms ease; }
     .oi:hover { border-color: color-mix(in oklch, var(--foreground) 45%, var(--input)); }
     .oi:focus-within { border-color: var(--foreground); outline: 2px solid var(--ring); outline-offset: 2px; }
     .oi.bad { border-color: var(--danger); }
     .oi.bad:focus-within { border-color: var(--danger); outline-color: var(--danger); }
-    .oi > svg { flex: none; color: var(--muted-foreground); }
-    .oi input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; font: 600 14px var(--font-sans); color: var(--foreground); outline: none; }
+    .oi input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; padding: 0; font: 500 14px var(--font-sans); color: var(--foreground); outline: none; }
     .oi input::placeholder { color: var(--muted-foreground); font-weight: 400; }
     .oi input:read-only { color: var(--muted-foreground); }
-    .eye { width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px; background: none; color: var(--muted-foreground); cursor: pointer; display: grid; place-content: center; }
+    .eye { width: 44px; height: 44px; flex: none; border: 0; border-radius: 12px; background: none; color: var(--muted-foreground); cursor: pointer; display: grid; place-content: center; }
     .eye:hover { background: var(--secondary); color: var(--foreground); }
     .eye .off, .eye[aria-pressed="true"] .on { display: none; }
     .eye[aria-pressed="true"] .off { display: block; }
     .err { font-size: 12px; color: var(--danger-text); }
-    .err[hidden] { display: none; }
+    .err[hidden], .caps[hidden] { display: none; }
+    .caps { font-size: 12px; font-weight: 500; color: var(--foreground); }
 
     .row { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
     .ck { display: inline-flex; align-items: center; gap: 9px; min-height: 32px; font-size: 13px; font-weight: 500; cursor: pointer; }
@@ -139,7 +144,7 @@
     .forgot { display: inline-flex; align-items: center; min-height: 32px; font-size: 13px; font-weight: 600; color: var(--foreground); text-decoration: none; }
     .forgot:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-    .go { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; height: 44px; margin-top: 20px; border: 0; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font: 600 14px var(--font-sans); cursor: pointer; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18); transition: background-color 120ms ease, transform 120ms ease; }
+    .go { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; height: 48px; margin-top: 20px; border: 0; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); font: 600 14px var(--font-sans); cursor: pointer; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 1px 2px rgba(10,12,16,.18); transition: background-color 120ms ease, transform 120ms ease; }
     .go:hover { background: var(--primary-hover); }
     .go:active { transform: scale(.98); }
     .go[aria-disabled="true"] { background: var(--primary-hover); cursor: progress; }
@@ -150,7 +155,9 @@
     .lang { position: absolute; top: 20px; right: 24px; display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 9999px; }
     .lang button { min-width: 36px; height: 28px; padding: 0 10px; border: 0; border-radius: 9999px; background: none; color: var(--muted-foreground); font: 600 12px var(--font-sans); cursor: pointer; }
     .lang button[aria-pressed="true"] { background: var(--secondary); color: var(--foreground); }
-    .hint { margin: -12px 0 0 27px; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
+    /* Only matters to someone who ticks the box. */
+    .hint { display: none; margin: -12px 0 0 27px; font-size: 12px; line-height: 1.5; color: var(--muted-foreground); }
+    .row:has(input:checked) + .hint { display: block; }
 
     button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
     .oi input:focus, .oi input:focus-visible { outline: none; }
@@ -163,22 +170,66 @@
       transition: background-color 5000s ease-in-out 0s;
     }
 
+    /* A narrow panel wraps the copy, so the logo stands higher to stay clear of it. */
+    @media (max-width: 1000px) {
+      .aside { --h: min(100vh - 240px, 680px, min(100vw - 440px, 60vw) * .95); --cy: calc(50% - 70px); }
+      .shrine { bottom: 176px; }
+    }
+    /* Phone: the olive panel on top with the flat logo in its middle, the form on
+       a sheet over its foot. The khatam covers the whole panel. .fold is
+       set by the script while the keyboard is up. */
     @media (max-width: 760px) {
-      .page { grid-template-columns: 1fr; }
-      .aside { display: none; }
-      .main { justify-content: flex-start; padding: 40px 16px; border-left: 0; }
-      .mlogo { display: block; margin-bottom: 28px; }
+      .page { position: relative; display: flex; flex-direction: column; --side: #2F3A1F; --side-fg: #F3F5EC; --side-muted: #B4BF9E; --side-on: #F3E7A1; --side-on-fg: #33300A; }
+      [data-theme="dark"] .page { --side: #364326; }
+      .aside { position: static; flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; gap: 16px; padding: max(16px, env(safe-area-inset-top)) 20px 44px;
+        background: var(--side) var(--khatam); }
+      .ground, .shrine { display: none; }
+      .aside.has-3d .brand { display: block; }
+      .brand { position: static; margin: auto; }
+      .brand img { height: 160px; }
+      .copy { position: static; align-self: stretch; }
+      .copy h2 { font-size: 20px; letter-spacing: -0.02em; line-height: 1.25; }
+      .copy p { margin: 6px auto 0; line-height: 1.6; }
+
+      .main { position: static; flex: none; justify-content: flex-start; margin-top: -24px; padding: 24px 20px max(20px, env(safe-area-inset-bottom)); border-left: 0; border-radius: 28px 28px 0 0; }
+      .inner { max-width: 480px; }
+      h1 { font-size: 26px; }
+      .fields { margin-top: 18px; }
+      .ol { font-size: 13px; color: var(--foreground); }
+      .oi input { font-size: 16px; }
+      .ck, .forgot { min-height: 44px; }
+      .row { margin-top: -4px; }
+      .hint { margin-top: -16px; }
+      .go { height: 50px; margin-top: 0; font-size: 15px; }
+
+      .lang { top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 1; background: var(--side); border-color: color-mix(in oklch, var(--side-fg) 24%, transparent); }
+      .lang button { min-width: 40px; height: 36px; color: var(--side-muted); }
+      .lang button[aria-pressed="true"] { background: var(--side-on); color: var(--side-on-fg); }
+
+      .fold .aside { flex: none; flex-direction: row; padding: 8px 20px 32px; }
+      .fold .brand { margin: 0 0 0 -6px; }
+      .fold .brand img { height: 48px; }
+      .fold .copy, .fold .sub, .fold .row:has(input:checked) + .hint { display: none; }
+    }
+    @media (max-width: 760px) and (max-height: 720px) {
+      .copy { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .spin { animation-duration: 2s; }
-      .plane, .planeB, .lc { animation: none !important; }
+      .solid { animation: none; }
     }
   </style>
 </head>
 <body>
   <div class="page">
     <aside class="aside">
-      <div class="stage" id="stage" aria-hidden="true"></div>
+      <div class="ground" aria-hidden="true"></div>
+      <div class="shrine">
+        <div class="mark" role="img" aria-label="Konoz United">
+          <div class="scene"><div class="solid" id="solid" data-src="{% static 'hw/img/KONOZEMBLEM.png' %}"></div></div>
+          <img class="word" src="{% static 'hw/img/KONOZWORD.png' %}" alt="">
+        </div>
+      </div>
       <div class="brand">
         <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
         <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
@@ -195,10 +246,6 @@
         <button type="button" data-lang="id" aria-pressed="false">ID</button>
       </div>
       <div class="inner">
-        <div class="mlogo">
-          <img class="logo-w" src="{% static 'hw/img/KONOZLOGOPB.png' %}" alt="Konoz United">
-          <img class="logo-k" src="{% static 'hw/img/KONOZLOGOHB.png' %}" alt="Konoz United">
-        </div>
         <h1 data-id="Masuk">Sign in</h1>
         <p class="sub" data-id="Pakai akun yang diberikan admin.">Use the account your admin gave you.</p>
 
@@ -224,7 +271,6 @@
           <label class="of">
             <span class="ol"><span data-id="Username">Username</span><span class="rq">*</span></span>
             <span class="oi{% if form.errors %} bad{% endif %}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
               <input id="id_username" name="username" autocomplete="username" placeholder="Your username" data-id-ph="Username Anda" required
                 value="{{ form.username.value|default_if_none:'' }}" {% if not form.username.value %}autofocus{% endif %}>
             </span>
@@ -233,7 +279,6 @@
           <label class="of">
             <span class="ol"><span data-id="Password">Password</span><span class="rq">*</span></span>
             <span class="oi{% if form.errors %} bad{% endif %}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path stroke-linecap="round" d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/></svg>
               <input id="id_password" name="password" type="password" autocomplete="current-password" placeholder="Your password" data-id-ph="Password Anda" required
                 {% if form.username.value %}autofocus{% endif %}>
               <button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false">
@@ -242,10 +287,11 @@
               </button>
             </span>
             <span class="err" id="pass-err" hidden data-id="Isi password Anda.">Enter your password.</span>
+            <span class="caps" id="caps" role="status" hidden data-id="Caps Lock menyala.">Caps Lock is on.</span>
           </label>
           <div class="row">
             <label class="ck"><input type="checkbox" name="remember" value="1" aria-describedby="remember-hint"{% if request.POST.remember %} checked{% endif %}><span data-id="Ingat perangkat ini">Remember this device</span></label>
-            <a class="forgot" href="https://wa.me/?text=Hello%20admin%2C%20I%20forgot%20my%20HMS%20password" target="_blank" rel="noopener" data-id="Lupa password">Forgot password</a>
+            <a class="forgot" href="https://wa.me/?text=Hello%20admin%2C%20I%20forgot%20my%20KonozOps%20password" target="_blank" rel="noopener" data-id="Lupa password">Forgot password</a>
           </div>
           <p class="hint" id="remember-hint" data-id="Tetap masuk walau browser ditutup. Keluar otomatis setelah 1 jam tanpa aktivitas.">Stays signed in after the browser closes. Signs out after 1 hour without activity.</p>
           <button type="submit" class="go" id="go" aria-disabled="false"><span class="spin" aria-hidden="true"></span><span id="go-label" data-id="Masuk">Sign in</span></button>
@@ -256,31 +302,44 @@
   </div>
 
   <script>
+    // The 3D emblem, built only on screens that show it, so a phone never loads it.
+    // Without the script the flat logo stays in the panel's corner.
     (function () {
-      var stage = document.getElementById('stage');
-      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      function cell(front, i) {
-        var lc = document.createElement('div');
-        lc.className = 'lc';
-        if (front && !reduce) {
-          var dur = (11 + (i % 5) * 1.6).toFixed(1);
-          var delay = ((i % 7) * 0.55 + Math.floor(i / 7) * 0.35).toFixed(2);
-          lc.style.animation = 'latRise ' + dur + 's ease-in-out ' + delay + 's infinite';
-        }
-        lc.innerHTML = '<span class="lq"></span><span class="lq2"></span>' + (front ? '<span class="ld"></span>' : '');
-        return lc;
+      var desk = window.matchMedia('(min-width: 761px)');
+      var solid = document.getElementById('solid');
+      var DEPTH = 9, STEP = 1.5;
+      function layer(cls, transform) {
+        var img = new Image();
+        img.src = solid.getAttribute('data-src');
+        img.alt = '';
+        img.className = cls;
+        img.style.transform = transform;
+        solid.appendChild(img);
       }
-      function plane(front, cls) {
-        var p = document.createElement('div');
-        p.className = 'plane' + (cls ? ' ' + cls : '');
-        var lat = document.createElement('div');
-        lat.className = 'lat';
-        for (var i = 0; i < 49; i++) lat.appendChild(cell(front, i));
-        p.appendChild(lat);
-        return p;
+      function build() {
+        for (var z = -DEPTH + STEP; z < DEPTH; z += STEP) layer('edge', 'translateZ(' + z + 'px)');
+        layer('face', 'translateZ(' + DEPTH + 'px)');
+        layer('back', 'rotateY(180deg) translateZ(' + DEPTH + 'px)');
+        solid.closest('.aside').classList.add('has-3d');
       }
-      stage.appendChild(plane(false, 'planeB'));
-      stage.appendChild(plane(true, ''));
+      if (desk.matches) build();
+      else desk.addEventListener('change', build, { once: true });
+    })();
+
+    // Phone: no keyboard on arrival, and the panel folds while one is up. It
+    // follows the viewport, not focus, so tapping Sign in cannot move the button.
+    (function () {
+      var phone = window.matchMedia('(max-width: 760px)');
+      var page = document.querySelector('.page');
+      var vv = window.visualViewport;
+      // On load: the browser applies autofocus after this script has run.
+      window.addEventListener('load', function () {
+        if (phone.matches && document.activeElement) document.activeElement.blur();
+      });
+      if (!vv) return;
+      vv.addEventListener('resize', function () {
+        page.classList.toggle('fold', phone.matches && vv.height < 560);
+      });
     })();
 
     // EN / ID before sign-in, when the profile's language is not known yet:
@@ -295,7 +354,7 @@
     function applyLang(lang) {
       LANG = lang;
       document.documentElement.lang = lang;
-      document.title = L('Sign in', 'Masuk') + ' — Konoz United';
+      document.title = L('Sign in', 'Masuk') + ' — KonozOps';
       document.querySelectorAll('[data-id]').forEach(function (el) {
         if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.textContent);
         el.textContent = el.getAttribute(lang === 'id' ? 'data-id' : 'data-en');
@@ -333,6 +392,15 @@
         eye.setAttribute('aria-pressed', String(show));
         eye.setAttribute('aria-label', show ? L('Hide password', 'Sembunyikan password') : L('Show password', 'Tampilkan password'));
       });
+
+      // Warn before a wrong try counts: five of them lock the account.
+      var caps = document.getElementById('caps');
+      function syncCaps(e) {
+        if (e.getModifierState) caps.hidden = !e.getModifierState('CapsLock');
+      }
+      pass.addEventListener('keydown', syncCaps);
+      pass.addEventListener('keyup', syncCaps);
+      pass.addEventListener('blur', function () { caps.hidden = true; });
 
       function mark(input, errId, bad) {
         document.getElementById(errId).hidden = !bad;

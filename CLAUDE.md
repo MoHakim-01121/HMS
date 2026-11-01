@@ -1,6 +1,6 @@
-# HMS
+# KonozOps
 
-Django + Inertia + React 18 hotel management app. Backend in `hw/`, frontend in `frontend/`.
+KonozOps (formerly HMS) — internal management tool of Konoz United. Django + Inertia + React 18 hotel management app. Backend in `hw/`, frontend in `frontend/`.
 
 ## Frontend UI standard: shadcn/ui + Tailwind utilities
 

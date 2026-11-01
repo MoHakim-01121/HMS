@@ -199,7 +199,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
 
         <div className="grid grid-cols-2 items-stretch gap-4 max-[900px]:grid-cols-1">
           <section className={cn(CARD, "flex flex-col")}>
-            <div className={HEAD}><div><h2 className={H2}>{t("Personal info")}</h2><p className={HEAD_P}>{t("How other people in HMS see you.")}</p></div></div>
+            <div className={HEAD}><div><h2 className={H2}>{t("Personal info")}</h2><p className={HEAD_P}>{t("How other people in KonozOps see you.")}</p></div></div>
             {fields.map((f, i) => f.editable ? (
               <button type="button" key={f.key} aria-label={t("Edit {field}", { field: f.label.toLowerCase() })}
                 className={cn(ROW, "cursor-pointer transition-[background-color] duration-[120ms] ease-[ease] hover:bg-secondary", i === 0 && "border-t-0")}
@@ -220,7 +220,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
 
           <section className={cn(CARD, "flex flex-col")}>
             <div className={HEAD}>
-              <div><h2 className={H2}>{t("Access and sign-in")}</h2><p className={HEAD_P}>{t("What you can do in HMS and how you sign in.")}</p></div>
+              <div><h2 className={H2}>{t("Access and sign-in")}</h2><p className={HEAD_P}>{t("What you can do in KonozOps and how you sign in.")}</p></div>
               <span className="flex-none pt-0.5 text-[12px] font-semibold text-muted-foreground">{t("Managed by an administrator")}</span>
             </div>
             <div className={cn(ROW, "border-t-0")}><span className={KEY}>{t("Role")}</span><span className={VAL}><span className={VAL_MAIN}>{account.role}</span>{account.role_meta && <small className={VAL_SUB}>{t(account.role_meta)}</small>}</span></div>
@@ -231,7 +231,7 @@ export default function Profile({ profile, account, activity, errors: serverErro
 
         <section className={CARD}>
           <div className={cn(HEAD, "flex-wrap items-center border-b-0")}>
-            <div><h2 className={H2}>{t("Preferences")}</h2><p className={HEAD_P}>{t("Only changes HMS for you.")}</p></div>
+            <div><h2 className={H2}>{t("Preferences")}</h2><p className={HEAD_P}>{t("Only changes KonozOps for you.")}</p></div>
             <div className="flex flex-wrap items-center gap-4">
               <span className="text-[13px] font-semibold">{t("Language")}</span>
               {langOk && <span className={SAVED} role="status">{I.ok}{t("Saved")}</span>}
@@ -506,7 +506,7 @@ function ViewSheet({ open, url, name, onClose, onChange, onRemoved }) {
         <div className="flex flex-col items-center gap-1 px-6 pt-2 pb-6 text-center">
           <span className="relative mb-4 size-[280px] max-w-full overflow-hidden rounded-full ring-1 ring-border"><img className="block size-full object-cover" src={url} alt={t("Profile photo of {name}", { name })} /></span>
           <span className="text-[17px] font-semibold tracking-[-0.01em]">{name}</span>
-          <span className="text-[13px] text-muted-foreground">{t("Everyone in HMS sees this photo.")}</span>
+          <span className="text-[13px] text-muted-foreground">{t("Everyone in KonozOps sees this photo.")}</span>
         </div>
         <div className={SHEET_FOOT}>
           <span className="mr-auto"><button type="button" className={btn("d")} onClick={remove}>{t("Remove photo")}</button></span>
@@ -599,7 +599,7 @@ function ActivityCard({ activity }) {
   return (
     <section className={cn(CARD, "overflow-visible")} aria-busy={loading}>
       <div className={cn(HEAD, "flex-wrap items-center border-b-0")}>
-        <div><h2 className={H2}>{t("Activity")}</h2><p className={HEAD_P}>{t("Everything you did in HMS, newest first.")}</p></div>
+        <div><h2 className={H2}>{t("Activity")}</h2><p className={HEAD_P}>{t("Everything you did in KonozOps, newest first.")}</p></div>
         <div className="flex flex-wrap items-center gap-3">
           <label className={cn(FIELD, "h-9 phone:h-11 w-[280px] max-w-full max-[640px]:w-auto max-[640px]:flex-1 [&_svg]:flex-none [&_svg]:text-muted-foreground")}>
             {I.search}

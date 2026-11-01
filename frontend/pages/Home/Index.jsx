@@ -6,7 +6,7 @@ import { LIcon, MONTHS, Pill, fmtN, Note, PageFrame, PageMain, Toolbar, MonthLab
 import { Popover, PopoverTrigger } from "../../components/shadcn/ui/popover.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import {
-  DH, HERO, DGT, KV, GAUGE, BC, FC, DashGrid, DashStack, DashKpis, HeroCard,
+  DH, DGT, KV, GAUGE, BC, FC, DashGrid, DashStack, DashKpis, HeroCard,
   GridTable, GridRow, Count, OK_BADGE, RankBars, MoneyRows, MoneyRow, MoneyValue,
   MONEY_UNIT, BigFigure, Legend,
 } from "../../components/shadcn/dash.jsx";
@@ -181,7 +181,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   const mine = kind === "staff";
   const { cur, prev } = sales;
   const prevLabel = period.prev_label;
-  const cmp = (v) => (prev ? `${prevLabel}: ${v}` : t("First season in HMS, nothing to compare"));
+  const cmp = (v) => (prev ? `${prevLabel}: ${v}` : t("First season in KonozOps, nothing to compare"));
   const pct = (a, b) => { const p = prev ? pctOf(a, b) : null; return !p ? null : `${p > 0 ? "+" : "-"}${Math.abs(p)}%`; };
 
   // The accent card: the period's booked value, with its build-up as bars.
@@ -241,7 +241,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
         chip={heroPct ? { text: heroPct, bad: !!heroBad } : null}
         value={fmtN(cur.value)} unit="SAR"
         bars={{ data: bars, label: t("Booked value building up over the period") }} axis={axis}
-        foot={prev ? `${prevLabel}: ${fmtN(prev.value)}` : t("First season in HMS, nothing to compare")} />
+        foot={prev ? `${prevLabel}: ${fmtN(prev.value)}` : t("First season in KonozOps, nothing to compare")} />
     }>
       {kpis.map((k) => (
         <Kpi key={k.label} href={k.href} label={k.label} value={k.v} unit={k.unit} foot={k.foot}
@@ -284,7 +284,7 @@ function SoldPerMonth({ sm, isSeason, title }) {
       <BigFigure value={`${isSeason ? seasonSum : p.cur ?? 0} CL`} note={note} />
       <div className={BC.chart} role="img" aria-label={t("CL sold per month: {list}.", { list: months.map((m, i) => (i < pre ? "-" : m.cur ?? "-")).join(", ") })}>
         <div className={cn(BC.gl, "bottom-0")} />
-        {pre > 0 && <span className={BC.pre} style={{ width: `calc(${(pre / 12) * 100}% - 8px)` }}>{t("Not in HMS yet")}</span>}
+        {pre > 0 && <span className={BC.pre} style={{ width: `calc(${(pre / 12) * 100}% - 8px)` }}>{t("Not in KonozOps yet")}</span>}
         {months.map((m, i) => {
           const on = isSeason ? i <= sm.now : i === pick;
           const down = sm.has_ly && m.cur != null && m.cur < m.ly;
@@ -470,7 +470,6 @@ function ByBranch({ rows, period }) {
 }
 
 function Ranking({ title, meta, rows, empty, hasPrev }) {
-  const { t } = useI18n();
   return (
     <section data-slot="card" className={DA.card}>
       <div data-slot="card-head" className={DA.cardHead}><h2>{title}</h2><span className={DA.meta}>{meta}</span></div>

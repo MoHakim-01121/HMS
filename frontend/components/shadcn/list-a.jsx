@@ -688,7 +688,6 @@ export const Td = ({ label, className, ...props }) => (
   )} />
 );
 // A sortable header's label and arrow.
-export const SortLabel = ({ children }) => <span className="inline-flex items-center gap-1 font-semibold text-foreground">{children}</span>;
 
 // `row`: "static" (not openable), "band" (a group heading), "on" (selected),
 // "dim" (greyed out). Body rows open on click; Tab reaches them.

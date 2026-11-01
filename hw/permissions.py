@@ -22,7 +22,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.db import DatabaseError
-from django.http import Http404, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from .branch_scope import head_office_allows
@@ -311,24 +311,6 @@ def require_perm(module, action):
         def wrapper(request, *args, **kwargs):
             if not can(request.user, module, action):
                 return _deny(request)
-            return view_func(request, *args, **kwargs)
-        wrapper.access_guard = ('perm', module, action)
-        return wrapper
-    return decorator
-
-
-def hide_unless(module, action):
-    """Like ``require_perm`` but answers 404 instead of redirecting.
-
-    Used for endpoints whose existence should not be advertised (health check,
-    dev style guide).
-    """
-    def decorator(view_func):
-        @wraps(view_func)
-        @login_required
-        def wrapper(request, *args, **kwargs):
-            if not can(request.user, module, action):
-                raise Http404
             return view_func(request, *args, **kwargs)
         wrapper.access_guard = ('perm', module, action)
         return wrapper

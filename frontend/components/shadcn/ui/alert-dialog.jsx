@@ -52,7 +52,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          // font-sans: portal escapes .shadcn-root — see dropdown-menu.jsx.
+          // font-sans: portal escapes .shadcn-root — see dialog.jsx.
           // border-border, not bare `border` — Preflight is off, see dialog.jsx.
           // bg-card, not bg-background — a white floating surface, see dialog.jsx.
           "group/alert-dialog-content fixed top-[50%] left-[50%] z-(--z-modal) grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border border-border bg-card p-6 font-sans shadow-lg duration-200 data-[size=sm]:max-w-xs data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[size=default]:sm:max-w-lg",

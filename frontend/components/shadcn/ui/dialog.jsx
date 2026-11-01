@@ -93,7 +93,7 @@ const DialogContent = React.forwardRef(function DialogContent({
         data-slot="dialog-content"
         className={cn(
           // font-sans: Radix portals to document.body, outside every page's
-          // .shadcn-root wrapper — see dropdown-menu.jsx for the full story.
+          // .shadcn-root wrapper.
           // Without it this falls back to body's "Fira Sans".
           // border-border, not stock shadcn's bare `border`: Preflight is off in
           // this project (tailwind.css imports only theme.css + utilities.css),

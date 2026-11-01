@@ -587,6 +587,7 @@ body.public-page {
   --muted-foreground: var(--sidebar-muted);
   --secondary: rgba(255,255,255,.08);
   --border: rgba(255,255,255,.14);
+  --hairline: rgba(255,255,255,.14);
 }
 /* A light menu opened inside the sidebar takes the page's ink back. */
 @utility ink-menu {

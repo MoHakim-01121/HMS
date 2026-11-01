@@ -17,24 +17,3 @@ export function distColor(d) {
   if (d < 1500) return MAP.yellow;
   return MAP.red;
 }
-
-// Gradual concentration gradient: black (no bookings) -> yellow (medium) ->
-// green (most bookings). Interpolates t in [0,1] along the two stops so the
-// dashboard heat map and the client map share the exact same scale.
-export const HEAT = {
-  none: "#000000",
-  mid: MAP.yellow,
-  peak: MAP.green,
-};
-
-function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-function rgbToHex(r, g, b) { return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1); }
-
-export function heatColor(t) {
-  t = Math.max(0, Math.min(1, t));
-  const a = t < 0.5 ? hexToRgb(HEAT.none) : hexToRgb(HEAT.mid);
-  const b = t < 0.5 ? hexToRgb(HEAT.mid) : hexToRgb(HEAT.peak);
-  const k = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-  const c = a.map((v, i) => Math.round(v + (b[i] - v) * k));
-  return rgbToHex(c[0], c[1], c[2]);
-}

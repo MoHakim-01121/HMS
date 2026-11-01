@@ -313,7 +313,6 @@ export function DFacts({ facts, cols }) {
 }
 
 // A quieter part of a fact's value ("· 3 nights").
-export const DDim = ({ children }) => <span className="font-normal text-muted-foreground">{children}</span>;
 
 export function DHead({ title, badge, menu, chips, facts, cols, note, children }) {
   const { t } = useI18n();
@@ -362,7 +361,6 @@ export function DCard({ title, count, meta, sub, actions, children, className, h
   );
 }
 
-export const DCardFoot = ({ className, children }) => <div data-slot="card-foot" className={cn(DA.cardFoot, className)}>{children}</div>;
 
 // Tabs on a card's top edge, with tools (search, period, PDF) on the right.
 export function DTabs({ tabs, value, onChange, tools, label, tall }) {

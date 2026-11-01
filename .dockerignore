@@ -4,6 +4,7 @@
 *.pyc
 __pycache__
 .venv
+.venv-linux
 venv
 node_modules
 staticfiles
@@ -16,9 +17,11 @@ db.sqlite3
 htmlcov
 .vscode
 .idea
-.design
-.designer
-.agents
 .claude
-.superpowers
-.sdd-wt
+# Production data (dumps, bank statements) must never enter an image.
+cutover
+statements
+*.dump
+# Dev-only material, not needed at runtime.
+ui-shots
+docs

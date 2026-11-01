@@ -173,18 +173,6 @@ def invoice_paid_map(invoice_ids):
     }
 
 
-def invoice_paid_map_before(invoice_ids, before_date):
-    """{invoice_id: paid_sar} dihitung hanya dari baris jurnal dengan
-    `entry_date < before_date` — untuk "outstanding per akhir bulan" pada
-    dashboard (pengganti sum legacy `Payment.amount_sar`)."""
-    return {
-        r["invoice_id"]: (r["c"] or 0) - (r["d"] or 0)
-        for r in _settling(invoice_id__in=invoice_ids)
-        .filter(journal_entry__entry_date__lt=before_date)
-        .values("invoice_id").annotate(d=Sum("debit"), c=Sum("credit"))
-    }
-
-
 def payment_history_rows(invoice):
     """Riwayat pembayaran satu invoice untuk display — dari PaymentRecord,
     satu-satunya sumber truth pembayaran (finance page, form invoice, backfill
@@ -888,10 +876,6 @@ def kas_surabaya():
     return cash_balance(coa.CASH_SBY)
 
 
-def kas_jakarta():
-    return cash_balance(coa.CASH_JKT)
-
-
 def kas_pusat():
     return cash_balance(coa.CASH_PUSAT)
 
@@ -1276,15 +1260,6 @@ def clients_overview(*, q="", outstanding_only=False, sort="receivable", clients
 
     overview.sort(key=OVERVIEW_SORTS.get(sort, OVERVIEW_SORTS["receivable"]))
     return overview
-
-
-def clients_overview_totals(rows):
-    """Total per kolom untuk footer daftar statement. Dijumlahkan di server
-    dari seluruh baris yang lolos filter, bukan hanya halaman yang tampil."""
-    return {
-        k: sum(r[k] for r in rows)
-        for k in ("tagihan", "terbayar", "piutang", "saldo_dana")
-    }
 
 
 # ── Trial balance ──────────────────────────────────────────────

@@ -148,7 +148,7 @@ export default function ShellSidebar({ page, perms, branch, mini, onPickBranch, 
       <img className="block size-[34px] flex-none object-contain" src={logoOnDark} alt="" />
       <span className={cn("hidden", mini && "block text-[10px] font-bold tracking-[.06em] text-muted-foreground uppercase")} aria-hidden="true">{code}</span>
       <span className={cn("flex min-w-0 flex-col leading-[1.25]", mini && "hidden")}>
-        <b className="text-[14px] font-bold tracking-[-0.02em] whitespace-nowrap">Konoz United</b>
+        <b className="text-[14px] font-bold tracking-[-0.02em] whitespace-nowrap">KonozOps</b>
         <span className="flex items-center gap-1 overflow-hidden text-[12px] font-medium text-ellipsis whitespace-nowrap text-muted-foreground [&_svg]:flex-none">
           {current ? current.name : t("Hotel Management")}{multi && <Chevron size={12} />}
         </span>
@@ -185,7 +185,7 @@ export default function ShellSidebar({ page, perms, branch, mini, onPickBranch, 
               {brand}
             </button>
           ) : (
-            <Link href="/dashboard/" className={brandClass} aria-label="Konoz United, Home">{brand}</Link>
+            <Link href="/dashboard/" className={brandClass} aria-label="KonozOps, Home">{brand}</Link>
           )}
           {multi && menuShown && (
             <div role="listbox" aria-label={t("Branch")}

@@ -59,9 +59,3 @@ export function fmtStay(a, b) {
   return `${left} – ${fmtDate(db)}`;
 }
 
-// ISO 'YYYY-MM-DD' → 'DD/MM/YYYY', the compact format the server already
-// sends for table columns (CL/Invoice/Remittance). Anything else passes through.
-export const fmtDMY = (iso) => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || "");
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-};
