@@ -39,6 +39,12 @@ class ClaimViewsTest(TestCase):
         self.assertEqual([e['id'] for e in props['expenses']], [self.e1.pk])
         self.assertEqual(props['total_amount'], 1_000_000)
 
+    def test_new_preview_all_time_starts_at_oldest_claimable(self):
+        props = _props(self.client.get('/finance/claims/new/', {'span': 'all'}))
+        self.assertEqual([e['id'] for e in props['expenses']], [self.e1.pk, self.e2.pk])
+        self.assertEqual(props['filters']['date_from'], '2026-01-15')
+        self.assertEqual(props['filters']['span'], 'all')
+
     def test_branch_finance_creates_and_submits(self):
         resp = self._new(exclude=[str(self.e2.pk)])
         claim = ExpenseClaim.objects.get()

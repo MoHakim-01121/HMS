@@ -186,6 +186,7 @@ urlpatterns = [
     path('finance/claims/<int:pk>/cancel/', views.claim_cancel, name='claim_cancel'),
     path('finance/claims/<int:pk>/reject/', views.claim_reject, name='claim_reject'),
     path('finance/claims/<int:pk>/pay/', views.claim_pay, name='claim_pay'),
+    path('finance/claims/<int:pk>/close/', views.claim_close, name='claim_close'),
     path('finance/claims/<int:pk>/unpay/', views.claim_unpay, name='claim_unpay'),
     path('finance/claims/<int:pk>/export/csv/', views.claim_export_csv, name='claim_export_csv'),
     path('finance/claims/<int:pk>/pdf/', views.claim_pdf, name='claim_pdf'),

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { router } from "@inertiajs/react";
 import { DPage, DTop, DHead, DCard, DLines, DLine, DLinesTotal, DA, DC } from "../../components/shadcn/detail-a.jsx";
-import { DateRange } from "../../components/shadcn/list-a.jsx";
+import { Field, DatePicker, Segmented, Caption, FA } from "../../components/shadcn/form-a.jsx";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../../components/shadcn/ui/select.jsx";
 import { Button } from "../../components/shadcn/ui/button.jsx";
-import { Textarea } from "../../components/shadcn/ui/textarea.jsx";
+import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
+import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt, fmtDate } from "../../utils/format.js";
 
@@ -21,11 +22,14 @@ const lastMonths = (n) => {
 // that should wait), and save it as a draft to submit from its page.
 export default function ClaimForm({ expenses = [], filters: f = {}, branch_choices = [] }) {
   const { t } = useI18n();
-  const [range, setRange] = useState({ date_from: f.date_from, date_to: f.date_to });
   const [excluded, setExcluded] = useState([]);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const preview = (r) => router.get("/finance/claims/new/", { ...r, branch: f.branch }, { preserveState: false });
+  // preserveState: the unticked expenses and the note survive a change of span.
+  const preview = (r) => router.get("/finance/claims/new/", { branch: f.branch, ...r }, { preserveState: true, preserveScroll: true });
+  const dates = { date_from: f.date_from, date_to: f.date_to };
+  const span = f.span === "all" ? "all"
+    : [1, 3, 4].find((n) => { const r = lastMonths(n); return r.date_from === f.date_from && r.date_to === f.date_to; }) ?? "";
   const kept = expenses.filter((e) => !excluded.includes(e.id));
   const total = kept.reduce((s, e) => s + e.amount, 0);
   const toggle = (id) => setExcluded((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
@@ -46,16 +50,18 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
       ]} />
 
       <DCard title={t("Span")} pad>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          {[[1, t("This month")], [3, t("3 months")], [4, t("4 months")]].map(([n, label]) => (
-            <Button key={n} type="button" variant="outline" onClick={() => preview(lastMonths(n))}>{label}</Button>
-          ))}
-          <DateRange from={range.date_from} to={range.date_to}
-            onFrom={(v) => setRange({ ...range, date_from: v })} onTo={(v) => setRange({ ...range, date_to: v })} />
-          <Button type="button" variant="outline" onClick={() => preview(range)}>{t("Show")}</Button>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <Segmented label={t("Span")} value={span} onChange={(v) => preview(v === "all" ? { span: "all" } : lastMonths(v))}
+            options={[[1, t("This month")], [3, t("3 months")], [4, t("4 months")], ["all", t("All time")]]} />
+          <Field label={t("From")} className="w-[190px] phone:w-full">
+            <DatePicker label={t("From")} value={f.date_from} onChange={(v) => preview({ ...dates, date_from: v })} />
+          </Field>
+          <Field label={t("To")} className="w-[190px] phone:w-full">
+            <DatePicker label={t("To")} value={f.date_to} onChange={(v) => preview({ ...dates, date_to: v })} />
+          </Field>
           {branch_choices.length > 1 && (
-            <Select value={f.branch || ""} onValueChange={(v) => router.get("/finance/claims/new/", { ...range, branch: v })}>
-              <SelectTrigger style={{ width: 180 }}><SelectValue placeholder={t("Branch")} /></SelectTrigger>
+            <Select value={f.branch || ""} onValueChange={(v) => preview({ ...dates, branch: v })}>
+              <SelectTrigger className="w-[180px]"><SelectValue placeholder={t("Branch")} /></SelectTrigger>
               <SelectContent>{branch_choices.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
             </Select>
           )}
@@ -68,8 +74,8 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
           <DLines>
             {expenses.map((e) => (
               <DLine key={e.id} mono
-                title={<label className="flex items-center gap-3"><input type="checkbox" className="size-4 accent-foreground" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
-                  aria-label={t("Include {n}", { n: e.expense_number })} />{e.expense_number}</label>}
+                title={<span className="flex items-center gap-3"><Checkbox checked={!excluded.includes(e.id)} onCheckedChange={() => toggle(e.id)}
+                  aria-label={t("Include {n}", { n: e.expense_number })} />{e.expense_number}</span>}
                 sub={[fmtDate(e.expense_date), e.description].filter(Boolean).join(" · ")}
                 value={fmt(e.amount)} valueTone={excluded.includes(e.id) ? "text-muted-foreground line-through" : undefined} />
             ))}
@@ -78,13 +84,13 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
           <div className={DA.scrollWide}>
             <table data-slot="detail-table" className={DA.table}>
               <thead><tr>
-                <th style={{ width: 40 }}><span className="sr-only">{t("Include")}</span></th>
+                <th className="w-10"><span className="sr-only">{t("Include")}</span></th>
                 <th>{t("Expense")}</th><th>{t("Date")}</th><th>{t("Description")}</th><th className={DC.n}>{t("Amount (IDR)")}</th>
               </tr></thead>
               <tbody>
                 {expenses.map((e) => (
                   <tr key={e.id} className={excluded.includes(e.id) ? DA.rowVoid : undefined}>
-                    <td><input type="checkbox" className="accent-foreground" checked={!excluded.includes(e.id)} onChange={() => toggle(e.id)}
+                    <td><Checkbox checked={!excluded.includes(e.id)} onCheckedChange={() => toggle(e.id)}
                       aria-label={t("Include {n}", { n: e.expense_number })} /></td>
                     <td className={DC.mono}>{e.expense_number}</td>
                     <td className={DC.nw}>{fmtDate(e.expense_date)}</td>
@@ -94,22 +100,25 @@ export default function ClaimForm({ expenses = [], filters: f = {}, branch_choic
                 ))}
               </tbody>
               <tfoot><tr>
-                <td colSpan={4} style={{ paddingBottom: 16 }}>{t("Total")}</td>
-                <td className={DC.n} style={{ paddingBottom: 16 }}>{fmt(total)} IDR</td>
+                <td colSpan={4} className="pb-4">{t("Total")}</td>
+                <td className={cn(DC.n, "pb-4")}>{fmt(total)} IDR</td>
               </tr></tfoot>
             </table>
           </div>
           </>
         ) : (
-          <p className="mut" style={{ padding: "4px 24px 20px", margin: 0 }}>{t("No paid expenses to claim in this span.")}</p>
+          <p className="m-0 px-6 pt-1 pb-5 text-muted-foreground">{t("No paid expenses to claim in this span.")}</p>
         )}
       </DCard>
 
-      <DCard title={t("Note for head office")} pad>
-        <Textarea rows={2} value={note} aria-label={t("Note for head office")} onChange={(e) => setNote(e.target.value)} />
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+      <DCard pad>
+        <div className="flex flex-col gap-2">
+          <Caption optional>{t("Note for head office")}</Caption>
+          <textarea className={FA.note} value={note} aria-label={t("Note for head office")} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" onClick={() => router.visit("/finance/claims/")}>{t("Cancel")}</Button>
-          <Button onClick={save} disabled={!kept.length || saving || range.date_from !== f.date_from || range.date_to !== f.date_to}>{t("Save draft")}</Button>
+          <Button onClick={save} disabled={!kept.length || saving}>{t("Save draft")}</Button>
         </div>
       </DCard>
     </DPage>

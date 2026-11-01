@@ -22,7 +22,7 @@ from ..models.journal import JournalLine
 from ..models.period import Season
 from . import accounts as coa
 from . import fund_flow
-from .claim_service import reimbursement_summary
+from .claim_service import head_office_credit, reimbursement_summary
 
 KINDS = ('month', 'quarter', 'year', 'season', 'range')
 
@@ -168,7 +168,7 @@ def _position(branch_code, as_of):
         'accounts': rows,
         'receivable_sar': _net_lines(coa.AR, branch_code, as_of, 1),
         'deposits_sar': _net_lines(coa.CUST_CREDIT, branch_code, as_of, -1),
-        'owed_by_hq_idr': owed['claimed'] + owed['unclaimed'],
+        'owed_by_hq_idr': owed['claimed'] + owed['unclaimed'] - head_office_credit(branch_code, as_of=as_of),
         'cash_idr': sum(r['native'] for r in rows if r['currency'] == 'IDR' and r['kind'] != MoneyAccount.KIND_STAFF),
     }
 

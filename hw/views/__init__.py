@@ -22,6 +22,7 @@ from .cl_views import (
 )
 from .claim_views import (
     claim_cancel,
+    claim_close,
     claim_detail,
     claim_export_csv,
     claim_list,

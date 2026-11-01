@@ -9,6 +9,7 @@ membaca request dan menerjemahkan FinanceError menjadi pesan.
 from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db.models import Sum
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
@@ -56,6 +57,11 @@ def _claim_props(c, items=False):
         'date_from': c.date_from.isoformat(), 'date_to': c.date_to.isoformat(),
         'status': c.status, 'status_display': c.get_status_display(),
         'total_amount': c.total_amount, 'total_sar': c.total_sar,
+        'received_amount': c.received_amount, 'remaining': c.remaining, 'borne_amount': c.borne_amount,
+        'received_sar': c.received_sar,
+        'credit_used': sum(p.amount for p in c.payments.all() if p.kind == p.KIND_CREDIT and not p.voided_at),
+        'paid_by_credit': c.status == c.STATUS_PAID and not c.borne_amount and not any(
+            p.kind == p.KIND_TRANSFER and not p.voided_at for p in c.payments.all()),
         'note': c.note, 'decision_note': c.decision_note,
         'paid_date': c.paid_date.isoformat() if c.paid_date else None,
         'paid_to': str(c.paid_to) if c.paid_to_id else None,
@@ -70,6 +76,11 @@ def _claim_props(c, items=False):
         out['items'] = [_expense_row(i.expense) for i in c.items.filter(is_active=True)
                         .select_related('expense').prefetch_related('expense__lines__category')]
         out['item_count'] = len(out['items'])
+        out['payments'] = [{
+            'id': p.pk, 'kind': p.kind, 'date': p.payment_date.isoformat(), 'account': str(p.account) if p.account_id else None,
+            'amount': p.amount, 'excess_amount': p.excess_amount, 'excess_kept': p.excess_kept,
+            'reference': p.reference, 'proof_url': p.proof.url if p.proof else None,
+        } for p in c.payments.filter(voided_at__isnull=True).select_related('account')]
     return out
 
 
@@ -81,16 +92,17 @@ def claim_list(request):
     status = request.GET.get('status', '')
     qs = _visible(request).select_related('branch', 'created_by', 'decided_by', 'paid_to').annotate(
         n_items=Count('items', filter=Q(items__is_active=True)),
-    ).order_by('-created_at', '-id')  # Meta.ordering is dropped by the GROUP BY
+    ).prefetch_related('payments').order_by('-created_at', '-id')  # Meta.ordering is dropped by the GROUP BY
     counts = {s: qs.filter(status=s).count() for s, _ in ExpenseClaim.STATUS_CHOICES}
     if status:
         qs = qs.filter(status=status)
     page_obj = Paginator(qs, list_per_page(request)).get_page(request.GET.get('page'))
     branches = list(operating_branches(request.user))
-    kpis = {'paid': 0, 'claimed': 0, 'unclaimed': 0}
+    kpis = {'paid': 0, 'claimed': 0, 'unclaimed': 0, 'borne': 0, 'credit': 0}
     for b in branches:
         for k, v in svc.reimbursement_summary(b).items():
             kpis[k] += v
+        kpis['credit'] += svc.head_office_credit(b.pk)
     return inertia_render(request, 'Finance/Claims', props={
         'claims': [_claim_props(c) for c in page_obj],
         'kpis': kpis, 'counts': counts,
@@ -119,6 +131,9 @@ def claim_new(request):
     data = request_data(request) if request.method == 'POST' else request.GET
     branch = next((b for b in branches if b.pk == data.get('branch')), branches[0] if len(branches) == 1 else None)
     date_from, date_to = _range(request, data)
+    all_time = request.method == 'GET' and data.get('span') == 'all'
+    if all_time and branch is not None:
+        date_from, date_to = svc.claimable_start(branch) or date_from, timezone.localdate()
     if request.method == 'POST':
         if branch is None:
             messages.error(request, tr(request, 'Choose the claiming branch.', 'Pilih cabang klaim.'))
@@ -142,7 +157,7 @@ def claim_new(request):
         'expenses': expenses,
         'total_amount': sum(e['amount'] for e in expenses),
         'filters': {'date_from': date_from.isoformat(), 'date_to': date_to.isoformat(),
-                    'branch': branch.pk if branch else ''},
+                    'branch': branch.pk if branch else '', 'span': 'all' if all_time else ''},
         'branch_choices': [{'value': b.pk, 'label': b.name} for b in branches],
     })
 
@@ -155,11 +170,18 @@ def claim_detail(request, pk):
     entries = JournalEntry.objects.for_source('ExpenseClaim', claim.pk).order_by('-entry_date')
     return inertia_render(request, 'Finance/ClaimDetail', props={
         'claim': _claim_props(claim, items=True),
+        'head_office_credit': svc.head_office_credit(claim.branch_id),
         'account_choices': [a for a in money_account_choices(branch=claim.branch_id)
                             if a['currency'] == Expense.CURRENCY and a['kind'] != 'staff'],
         'journal_entries': [serialize_journal_entry(e, total_debit=e.total_debit, total_credit=e.total_credit)
                             for e in entries],
     })
+
+
+def _amount(raw):
+    """Rupiah from the form, digits only; empty means the whole remainder."""
+    digits = ''.join(ch for ch in str(raw or '') if ch.isdigit())
+    return int(digits) if digits else None
 
 
 def _act(request, pk, action):
@@ -187,8 +209,23 @@ def _act(request, pk, action):
                 claim, account=resolve_money_account(data.get('account')),
                 paid_date=_parse_date(data.get('paid_date')) or timezone.localdate(), by=request.user,
                 reference=(data.get('reference') or '').strip(), proof=proof,
+                amount=_amount(data.get('amount')), remainder=data.get('remainder') or None,
+                excess_use=data.get('excess_use') or None,
             )
-            messages.success(request, tr(request, f'{claim.claim_number} paid: reimbursement from HQ recorded.', f'{claim.claim_number} lunas: penggantian dari Pusat dicatat.'))
+            claim.refresh_from_db()
+            latest = claim.payments.filter(voided_at__isnull=True).order_by('-pk').first()
+            excess = latest.excess_amount
+            if excess and latest.excess_kept:
+                messages.success(request, tr(request, f'{claim.claim_number} paid; {excess:,} IDR extra kept as branch funds.', f'{claim.claim_number} lunas; kelebihan {excess:,} IDR menjadi dana tambahan cabang.'))
+            elif excess:
+                messages.success(request, tr(request, f'{claim.claim_number} paid; {excess:,} IDR extra kept as head office credit.', f'{claim.claim_number} lunas; kelebihan {excess:,} IDR menjadi titipan Pusat.'))
+            elif claim.status == ExpenseClaim.STATUS_PARTIAL:
+                messages.success(request, tr(request, f'{claim.claim_number}: reimbursement recorded, {claim.remaining:,} IDR still waiting.', f'{claim.claim_number}: penggantian dicatat, {claim.remaining:,} IDR masih menunggu.'))
+            else:
+                messages.success(request, tr(request, f'{claim.claim_number} paid: reimbursement from HQ recorded.', f'{claim.claim_number} lunas: penggantian dari Pusat dicatat.'))
+        elif action == 'close':
+            svc.close_remainder(claim, by=request.user, closed_date=timezone.localdate(), note=reason)
+            messages.success(request, tr(request, f'{claim.claim_number} closed: the rest is borne by the branch.', f'{claim.claim_number} ditutup: sisanya ditanggung cabang.'))
         elif action == 'unpay':
             if not reason:
                 raise FinanceError('Tulis alasan membatalkan pencatatan lunas.')
@@ -222,6 +259,11 @@ def claim_pay(request, pk):
 
 
 @require_perm('bank', 'edit')
+def claim_close(request, pk):
+    return _act(request, pk, 'close')
+
+
+@require_perm('bank', 'edit')
 def claim_unpay(request, pk):
     return _act(request, pk, 'unpay')
 
@@ -249,6 +291,7 @@ def claim_pdf(request, pk):
     claim = get_in_scope_or_404(ExpenseClaim.objects.select_related('branch', 'created_by'), request.user, pk=pk)
     html = render_to_string('hw/claim/claim_pdf.html', {
         'claim': claim, 'items': _items(claim), 'logo_rel_path': _logo_file_url(),
+        'credit_used': claim.payments.filter(kind='credit', voided_at__isnull=True).aggregate(t=Sum('amount'))['t'] or 0,
         'prepared_by': claim.created_by.get_full_name() or claim.created_by.username,
         'printed_at_ts': timezone.localtime(timezone.now()),
     })

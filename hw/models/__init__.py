@@ -16,6 +16,7 @@ from .expense import (
     ExpenseCategory,
     ExpenseClaim,
     ExpenseClaimItem,
+    ExpenseClaimPayment,
     ExpenseLine,
     ExpensePayment,
     ExpenseReceipt,
@@ -65,7 +66,7 @@ __all__ = [
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
     'MoneyAccount', 'BankAccount', 'CashAccount', 'StaffAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
     # Expense (Master Architecture v2.0 FASE D)
-    'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment', 'ExpenseReceipt',
+    'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment', 'ExpenseReceipt', 'ExpenseClaimPayment',
     # Settlement (Master Architecture v2.0 FASE E)
     'RemittanceSettlement',
     # Hotel

@@ -38,13 +38,19 @@ export default function List({
 
   // The row's actions: the desktop row menu, and the same menu on a phone row.
   const menuFor = (e) => [
+    { label: t("View details"), onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
     canApprove && e.status === "submitted" && { label: t("Approve"), onClick: () => router.post(`/finance/expenses/${e.id}/approve/`, {}, { preserveScroll: true }) },
     e.proof_url && { label: t("View receipt"), href: e.proof_url, external: true },
     e.status === "approved" && perms.can("expenses", "edit") && { label: t("Pay"), onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
     canApprove && e.status === "submitted" && { label: t("Reject"), danger: true, onClick: () => router.visit(`/finance/expenses/${e.id}/`) },
   ];
   return (
-    <ListPage title={t("Expenses")} loading={loading}>
+    <ListPage title={t("Expenses")} loading={loading} legend={(
+      <div className="flex items-center gap-2">
+        <ToolButton as="a" href="/finance/claims/">{t("Claims")}</ToolButton>
+        {canManageCategories && <ToolButton as="a" href="/finance/expenses/categories/">{t("Categories")}</ToolButton>}
+      </div>
+    )}>
       {kpis && (
         <Kpis>
           <Kpi label={t("Spent in {m}", { m: monthName(f.month, t) })} value={fmtN(kpis.spent)} unit="IDR"
@@ -77,8 +83,6 @@ export default function List({
           )}
         </FilterMenu>
         {canExport && <ExportMenu items={[{ label: "CSV", href: "/finance/expenses/export/csv/" }]} />}
-        <ToolButton as="a" href="/finance/claims/">{t("Claims")}</ToolButton>
-        {canManageCategories && <ToolButton as="a" href="/finance/expenses/categories/">{t("Categories")}</ToolButton>}
         {canCreate && <Primary label={t("New expense")} onClick={() => setNewOpen(true)} />}
       </Toolbar>
 

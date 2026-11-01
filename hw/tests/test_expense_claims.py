@@ -93,7 +93,7 @@ class ExpenseClaimServiceTest(TestCase):
             {(self.idr.ledger_account_id, claim.total_sar, 0, 3_000_000, 'sby'),
              (coa.HO_PUSAT, 0, claim.total_sar, None, 'sby')},
         )
-        row = BankTransaction.objects.get(source_type='ExpenseClaim', source_id=claim.pk)
+        row = BankTransaction.objects.get(source_type=svc.PAYMENT_SOURCE, source_id=claim.payments.get().pk)
         self.assertEqual((row.direction, row.amount, row.account_id), ('in', 3_000_000, self.idr.pk))
 
     def test_mark_paid_keeps_idr_average(self):
@@ -126,7 +126,7 @@ class ExpenseClaimServiceTest(TestCase):
         claim.refresh_from_db()
         self.assertEqual((claim.status, claim.paid_date, claim.paid_to_id), (ExpenseClaim.STATUS_SUBMITTED, None, None))
         self.assertFalse(JournalEntry.objects.for_source('ExpenseClaim', claim.pk).live().exists())
-        self.assertEqual(BankTransaction.objects.get(source_type='ExpenseClaim', source_id=claim.pk).status,
+        self.assertEqual(BankTransaction.objects.get(source_type=svc.PAYMENT_SOURCE, source_id=claim.payments.get().pk).status,
                          BankTransaction.STATUS_VOIDED)
 
     def test_unpay_in_closed_period_is_refused(self):
@@ -163,10 +163,168 @@ class ExpenseClaimServiceTest(TestCase):
         svc.mark_paid(paid, account=self.idr, paid_date=MAR, by=self.user)
         svc.create_claim(branch=self.sby, date_from=date(2026, 2, 1), date_to=date(2026, 2, 28), created_by=self.user)
         self.assertEqual(svc.reimbursement_summary(self.sby),
-                         {'paid': 1_000_000, 'claimed': 2_000_000, 'unclaimed': 3_000_000})
+                         {'paid': 1_000_000, 'claimed': 2_000_000, 'unclaimed': 3_000_000, 'borne': 0})
         # As of February the January claim was not paid yet.
         self.assertEqual(svc.reimbursement_summary(self.sby, as_of=date(2026, 2, 28)),
-                         {'paid': 0, 'claimed': 3_000_000, 'unclaimed': 0})
+                         {'paid': 0, 'claimed': 3_000_000, 'unclaimed': 0, 'borne': 0})
+
+    def _book(self):
+        rows = BankTransaction.objects.filter(account=self.idr).exclude(status=BankTransaction.STATUS_VOIDED)
+        return sum(r.amount if r.direction == 'in' else -r.amount for r in rows)
+
+    def test_partial_then_rest_settles_the_claim(self):
+        claim = self._submitted()
+        before = self._book()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=2_000_000, remainder=svc.REMAINDER_OPEN)
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.received_amount, claim.remaining),
+                         (ExpenseClaim.STATUS_PARTIAL, 2_000_000, 1_000_000))
+        self.assertEqual(self._book(), before + 2_000_000)
+        self.assertEqual(svc.reimbursement_summary(self.sby),
+                         {'paid': 2_000_000, 'claimed': 1_000_000, 'unclaimed': 3_000_000, 'borne': 0})
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user)
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.remaining, claim.received_sar), (ExpenseClaim.STATUS_PAID, 0, claim.total_sar))
+        self.assertEqual(self._book(), before + 3_000_000)
+        self.assertEqual(claim.payments.count(), 2)
+        entries = JournalEntry.objects.for_source('ExpenseClaim', claim.pk).live()
+        self.assertEqual(sum(l.credit for e in entries for l in e.lines.all() if l.account_id == coa.HO_PUSAT), claim.total_sar)
+
+    def test_partial_with_rest_borne_by_branch(self):
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=2_000_000, remainder=svc.REMAINDER_BORNE)
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.borne_amount, claim.remaining), (ExpenseClaim.STATUS_PAID, 1_000_000, 0))
+        self.assertEqual(svc.reimbursement_summary(self.sby),
+                         {'paid': 2_000_000, 'claimed': 0, 'unclaimed': 3_000_000, 'borne': 1_000_000})
+        self.assertLess(claim.received_sar, claim.total_sar)
+
+    def test_close_remainder_after_partial(self):
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=2_000_000, remainder=svc.REMAINDER_OPEN)
+        svc.close_remainder(claim, by=self.user, closed_date=MAR, note='Pusat menolak sisanya')
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.borne_amount, claim.borne_date), (ExpenseClaim.STATUS_PAID, 1_000_000, MAR))
+        self.assertEqual(JournalEntry.objects.for_source('ExpenseClaim', claim.pk).live().count(), 1)
+
+    def _overpaid(self):
+        """Claim of 3 M, head office sends 3.5 M: 500 k stays as its credit."""
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=3_500_000, excess_use=svc.EXCESS_CREDIT)
+        return claim
+
+    def _next_claim(self):
+        return svc.create_claim(branch=self.sby, date_from=MAR, date_to=MAR, created_by=self.user)
+
+    def test_overpaid_claim_keeps_the_extra_as_head_office_credit(self):
+        before = self._book()
+        claim = self._overpaid()
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.received_amount, claim.remaining), (ExpenseClaim.STATUS_PAID, 3_000_000, 0))
+        self.assertEqual(claim.received_sar, claim.total_sar)
+        self.assertEqual(self._book(), before + 3_500_000)
+        self.assertEqual(svc.head_office_credit('sby'), 500_000)
+        (entry,) = JournalEntry.objects.for_source('ExpenseClaim', claim.pk).live()
+        lines = {l.account_id: l for l in entry.lines.all()}
+        self.assertEqual(lines[self.idr.ledger_account_id].amount_txn, 3_500_000)
+        self.assertGreater(lines[coa.HO_PUSAT].credit, claim.total_sar)
+        self.assertEqual(svc.reimbursement_summary(self.sby)['paid'], 3_000_000)
+
+    def test_extra_kept_as_branch_funds_does_not_cut_the_next_claim(self):
+        before = self._book()
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=3_500_000, excess_use=svc.EXCESS_KEEP)
+        self.assertEqual(self._book(), before + 3_500_000)
+        self.assertEqual(svc.head_office_credit('sby'), 0)
+        following = self._next_claim()
+        svc.submit_claim(following, by=self.user)
+        following.refresh_from_db()
+        self.assertEqual((following.received_amount, following.remaining), (0, 3_000_000))
+        svc.unpay_claim(claim, by=self.user, reason='salah')   # nothing used it, so it can be undone
+        self.assertEqual(self._book(), before)
+
+    def test_extra_needs_a_choice(self):
+        claim = self._submitted()
+        with self.assertRaises(FinanceError):
+            svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=3_500_000)
+        self.assertFalse(claim.payments.exists())
+
+    def test_next_claim_is_cut_by_the_credit_when_submitted(self):
+        self._overpaid()
+        following = self._next_claim()
+        self.assertEqual(following.remaining, 3_000_000)   # a draft keeps the credit free
+        self.assertEqual(svc.head_office_credit('sby'), 500_000)
+        svc.submit_claim(following, by=self.user)
+        following.refresh_from_db()
+        self.assertEqual((following.status, following.received_amount, following.remaining),
+                         (ExpenseClaim.STATUS_SUBMITTED, 500_000, 2_500_000))
+        self.assertEqual(svc.head_office_credit('sby'), 0)
+        book = self._book()
+        svc.mark_paid(following, account=self.idr, paid_date=MAR, by=self.user)
+        following.refresh_from_db()
+        self.assertEqual((following.status, following.remaining, following.received_sar),
+                         (ExpenseClaim.STATUS_PAID, 0, following.total_sar))
+        self.assertEqual(self._book(), book + 2_500_000)
+
+    def test_credit_larger_than_the_claim_pays_it_and_keeps_the_rest(self):
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=7_000_000, excess_use=svc.EXCESS_CREDIT)
+        following = self._next_claim()
+        svc.submit_claim(following, by=self.user)
+        following.refresh_from_db()
+        self.assertEqual((following.status, following.remaining), (ExpenseClaim.STATUS_PAID, 0))
+        self.assertEqual(svc.head_office_credit('sby'), 1_000_000)
+        self.assertFalse(JournalEntry.objects.for_source('ExpenseClaim', following.pk).live().exists())
+        with self.assertRaises(FinanceError):
+            svc.unpay_claim(following, by=self.user, reason='x')
+        svc.cancel_claim(following, by=self.user)
+        self.assertEqual(svc.head_office_credit('sby'), 4_000_000)
+
+    def test_cancel_gives_the_credit_back(self):
+        self._overpaid()
+        following = self._next_claim()
+        svc.submit_claim(following, by=self.user)
+        svc.cancel_claim(following, by=self.user)
+        following.refresh_from_db()
+        self.assertEqual((following.status, following.received_amount), (ExpenseClaim.STATUS_CANCELLED, 0))
+        self.assertEqual(svc.head_office_credit('sby'), 500_000)
+
+    def test_unpay_keeps_the_credit_cut_and_refuses_a_spent_excess(self):
+        claim = self._overpaid()
+        following = self._next_claim()
+        svc.submit_claim(following, by=self.user)
+        with self.assertRaises(FinanceError):
+            svc.unpay_claim(claim, by=self.user, reason='x')   # its 500 k already cut the next claim
+        svc.mark_paid(following, account=self.idr, paid_date=MAR, by=self.user)
+        svc.unpay_claim(following, by=self.user, reason='salah')
+        following.refresh_from_db()
+        self.assertEqual((following.status, following.received_amount, following.remaining),
+                         (ExpenseClaim.STATUS_SUBMITTED, 500_000, 2_500_000))
+
+    def test_partial_refuses_bad_amounts_and_missing_choice(self):
+        claim = self._submitted()
+        for kwargs in ({'amount': 0}, {'amount': 2_000_000}, {'amount': 2_000_000, 'remainder': 'x'}):
+            with self.assertRaises(FinanceError):
+                svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, **kwargs)
+        self.assertFalse(claim.payments.exists())
+
+    def test_unpay_undoes_every_payment_of_a_partial_claim(self):
+        claim = self._submitted()
+        before = self._book()
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=1_000_000, remainder=svc.REMAINDER_OPEN)
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=500_000, remainder=svc.REMAINDER_OPEN)
+        svc.unpay_claim(claim, by=self.user, reason='salah catat')
+        claim.refresh_from_db()
+        self.assertEqual((claim.status, claim.received_amount, claim.remaining), (ExpenseClaim.STATUS_SUBMITTED, 0, 3_000_000))
+        self.assertEqual(self._book(), before)
+        self.assertFalse(JournalEntry.objects.for_source('ExpenseClaim', claim.pk).live().exists())
+
+    def test_summary_as_of_counts_only_transfers_by_that_date(self):
+        claim = self._submitted()
+        svc.mark_paid(claim, account=self.idr, paid_date=FEB, by=self.user, amount=1_000_000, remainder=svc.REMAINDER_OPEN)
+        svc.mark_paid(claim, account=self.idr, paid_date=MAR, by=self.user, amount=2_000_000)
+        self.assertEqual(svc.reimbursement_summary(self.sby, as_of=FEB)['paid'], 1_000_000)
+        self.assertEqual(svc.reimbursement_summary(self.sby, as_of=MAR)['paid'], 3_000_000)
 
     def test_expense_voided_after_it_was_read_does_not_join_a_claim(self):
         stale = svc.claimable_expenses(self.sby, JAN, JAN).get()

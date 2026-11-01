@@ -47,7 +47,7 @@
   <div class="summary">
     <p>Cabang {{ claim.branch.name }} mengajukan penggantian {{ items|length }} pengeluaran operasional bertanggal
       {{ claim.date_from|date:'d M Y' }} sampai {{ claim.date_to|date:'d M Y' }}, sebesar
-      <strong>{{ claim.total_amount|intcomma }} IDR</strong>.</p>
+      <strong>{{ claim.total_amount|intcomma }} IDR</strong>.{% if credit_used %} Dipotong titipan Pusat {{ credit_used|intcomma }} IDR, sehingga yang perlu diganti <strong>{{ claim.remaining|intcomma }} IDR</strong>.{% endif %}</p>
     <p>Mohon ditransfer dalam rupiah sebesar jumlah tersebut ke rekening rupiah cabang.</p>
     {% if claim.paid_date %}<p>Sudah diganti pada {{ claim.paid_date|date:'d M Y' }} ke {{ claim.paid_to }}{% if claim.reference %}, referensi {{ claim.reference }}{% endif %}.</p>{% endif %}
     {% if claim.note %}<p>Catatan: {{ claim.note }}</p>{% endif %}
@@ -66,7 +66,7 @@
       </tr>
       {% endfor %}
     </tbody>
-    <tfoot><tr><td colspan="4">Total</td><td class="n">{{ claim.total_amount|intcomma }}</td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td class="n">{{ claim.total_amount|intcomma }}</td></tr>{% if credit_used %}<tr><td colspan="4">Dipotong titipan Pusat</td><td class="n">-{{ credit_used|intcomma }}</td></tr><tr><td colspan="4">Perlu diganti</td><td class="n">{{ claim.remaining|intcomma }}</td></tr>{% endif %}</tfoot>
   </table>
 
   <div class="sign">

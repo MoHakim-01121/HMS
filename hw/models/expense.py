@@ -218,21 +218,26 @@ class ExpensePayment(models.Model):
 class ExpenseClaim(models.Model):
     """Klaim penggantian: cabang meminta Pusat mengganti beban yang sudah ia
     bayar dalam satu rentang tanggal (keputusan user 2026-10-19). Pusat
-    mengganti dengan rupiah persis sebesar klaim; saat itu klaim lunas dan
-    rupiahnya masuk rekening IDR cabang, lawan Rekening Antar Kantor – Pusat."""
+    bisa mengganti sebagian (keputusan user 2026-10-31): tiap transfer satu
+    ExpenseClaimPayment, rupiahnya masuk rekening IDR cabang, lawan Rekening
+    Antar Kantor – Pusat. Sisanya tetap ditagih (partial), atau ditutup sebagai
+    tanggungan cabang (paid dengan borne_amount). Kelebihan transfer menjadi
+    titipan Pusat dan memotong klaim berikutnya saat diajukan."""
     STATUS_DRAFT     = 'draft'
     STATUS_SUBMITTED = 'submitted'
+    STATUS_PARTIAL   = 'partial'
     STATUS_PAID      = 'paid'
     STATUS_REJECTED  = 'rejected'
     STATUS_CANCELLED = 'cancelled'
     STATUS_CHOICES = [
         (STATUS_DRAFT,     'Draft'),
         (STATUS_SUBMITTED, 'Submitted'),
+        (STATUS_PARTIAL,   'Partly paid'),
         (STATUS_PAID,      'Paid'),
         (STATUS_REJECTED,  'Rejected'),
         (STATUS_CANCELLED, 'Cancelled'),
     ]
-    ACTIVE_STATUSES = (STATUS_DRAFT, STATUS_SUBMITTED, STATUS_PAID)
+    ACTIVE_STATUSES = (STATUS_DRAFT, STATUS_SUBMITTED, STATUS_PARTIAL, STATUS_PAID)
 
     claim_number = models.CharField(max_length=50, unique=True, db_index=True)
     branch       = models.ForeignKey('Branch', on_delete=models.PROTECT, related_name='expense_claims')
@@ -241,6 +246,10 @@ class ExpenseClaim(models.Model):
     status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT, db_index=True)
     total_amount = models.BigIntegerField(default=0)   # rupiah
     total_sar    = models.BigIntegerField(default=0)   # nilai SAR beban saat dibayar
+    received_amount = models.BigIntegerField(default=0)   # rupiah yang sudah diganti Pusat
+    received_sar    = models.BigIntegerField(default=0)
+    borne_amount    = models.BigIntegerField(default=0)   # rupiah yang ditanggung cabang
+    borne_date      = models.DateField(null=True, blank=True)
     note          = models.TextField(blank=True)
     decision_note = models.TextField(blank=True)
 
@@ -261,7 +270,7 @@ class ExpenseClaim(models.Model):
         verbose_name_plural = 'Expense Claims'
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(status__in=['draft', 'submitted', 'paid', 'rejected', 'cancelled']),
+                condition=models.Q(status__in=['draft', 'submitted', 'partial', 'paid', 'rejected', 'cancelled']),
                 name='expense_claim_status_valid',
             ),
             models.CheckConstraint(condition=models.Q(date_from__lte=models.F('date_to')),
@@ -271,10 +280,56 @@ class ExpenseClaim(models.Model):
     def __str__(self):
         return f"{self.claim_number} | {self.branch_id}"
 
+    @property
+    def remaining(self):
+        """Rupiah yang masih ditagih ke Pusat."""
+        return self.total_amount - self.received_amount - self.borne_amount
+
     @staticmethod
     def generate_number():
         from ..numbering import generate_sequential_number
         return generate_sequential_number(ExpenseClaim, 'CLM', field='claim_number', padding=4)
+
+
+class ExpenseClaimPayment(models.Model):
+    """Satu penggantian: transfer dari Pusat, atau potongan dari titipan Pusat
+    (kelebihan transfer klaim lain; tanpa uang bergerak, tanpa jurnal).
+    Dibatalkan = `voided_at` terisi; barisnya tetap ada untuk audit."""
+    KIND_TRANSFER, KIND_CREDIT = 'transfer', 'credit'
+    KIND_CHOICES = [(KIND_TRANSFER, 'Transfer'), (KIND_CREDIT, 'Head office credit')]
+
+    claim        = models.ForeignKey(ExpenseClaim, on_delete=models.PROTECT, related_name='payments')
+    kind         = models.CharField(max_length=10, choices=KIND_CHOICES, default=KIND_TRANSFER)
+    payment_date = models.DateField()
+    account      = models.ForeignKey('MoneyAccount', null=True, blank=True, on_delete=models.PROTECT, related_name='+')
+    amount       = models.BigIntegerField()   # rupiah
+    amount_sar   = models.BigIntegerField()
+    # Bagian transfer yang melebihi sisa klaim (user 2026-10-31): titipan Pusat, atau dana tambahan.
+    excess_amount = models.BigIntegerField(default=0)
+    excess_sar    = models.BigIntegerField(default=0)
+    # Kelebihan yang memang diberikan Pusat untuk dipakai cabang: tidak memotong klaim mana pun.
+    excess_kept   = models.BooleanField(default=False)
+    reference    = models.CharField(max_length=200, blank=True)
+    proof        = models.FileField(upload_to=RandomFileName('expenses/claims/'), null=True, blank=True)
+    created_by   = models.ForeignKey('auth.User', on_delete=models.PROTECT, related_name='+')
+    created_at   = models.DateTimeField(auto_now_add=True)
+    voided_at    = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['payment_date', 'id']
+        verbose_name = 'Expense Claim Payment'
+        verbose_name_plural = 'Expense Claim Payments'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='expense_claim_payment_amount_positive'),
+            models.CheckConstraint(
+                condition=models.Q(kind='credit', account__isnull=True, excess_amount=0)
+                | models.Q(kind='transfer', account__isnull=False),
+                name='expense_claim_payment_kind_account',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.claim.claim_number} +{self.amount:,}"
 
 
 class ExpenseClaimItem(models.Model):

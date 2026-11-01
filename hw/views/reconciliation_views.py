@@ -30,6 +30,7 @@ _SOURCE_LINKS = {
     'PaymentRecord': '/finance/payments/{id}/',
     'Remittance': '/remittance/{id}/',
     'ExpensePayment': None,
+    'ExpenseClaimPayment': None,
     'CurrencyExchangeIn': '/finance/exchanges/',
     'CurrencyExchangeOut': '/finance/exchanges/',
 }
