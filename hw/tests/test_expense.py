@@ -4,7 +4,7 @@ account's own carrying rate. Nothing reaches the books before payment."""
 from datetime import date
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from hw.finance import expense_service
 from hw.finance import queries as fq
@@ -177,3 +177,13 @@ class CategoryTest(ExpenseBase):
         expense_service.update_category(cat, name='Parkir & Tol', is_active=False)
         cat.refresh_from_db()
         self.assertEqual((cat.name, cat.is_active, cat.ledger_account.name), ('Parkir & Tol', False, 'Beban Parkir & Tol'))
+
+
+class SplitTest(SimpleTestCase):
+    def test_small_last_line_never_goes_negative(self):
+        from hw.finance.expense_service import _split
+        # 31 Oct: three salaries and their 5,000 rupiah transfer fees, 1,880 SAR in all.
+        shares = _split(1880, [3_000_000, 3_000_000, 3_000_000, 5_000])
+        self.assertEqual(sum(shares), 1880)
+        self.assertTrue(all(s >= 0 for s in shares))
+        self.assertEqual(_split(10, [1, 1, 1]), [4, 3, 3])

@@ -52,13 +52,15 @@ def _locked(expense):
 
 
 def _split(total, parts):
-    """`total` dibagi sebanding dengan `parts`; sisa pembulatan ke bagian terakhir."""
+    """`total` dibagi sebanding dengan `parts`. Tiap bagian dibulatkan ke bawah,
+    sisa pembulatannya ke bagian dengan pecahan terbesar -- jadi tidak ada
+    bagian negatif walau baris terakhir kecil (gaji lalu biaya transfer)."""
     whole = sum(parts)
-    out, used = [], 0
-    for i, part in enumerate(parts):
-        share = total - used if i == len(parts) - 1 else round_half_up(Decimal(total) * part / whole)
-        out.append(share)
-        used += share
+    exact = [Decimal(total) * part / whole for part in parts]
+    out = [int(x) for x in exact]
+    order = sorted(range(len(parts)), key=lambda i: (-(exact[i] - out[i]), i))
+    for i in order[:total - sum(out)]:
+        out[i] += 1
     return out
 
 
