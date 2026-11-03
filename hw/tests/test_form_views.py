@@ -287,10 +287,19 @@ class ClFormTests(TestCase):
         page = self._post("/cl/new/", {"confirmation_number": "CLX-SP", "rooms": "[]"}).json()
         self.assertIn("salesperson_id", page["props"]["errors"])
 
-    def test_salesperson_list_is_just_the_name(self):
+    def test_salesperson_list_is_the_name_and_whether_active(self):
         props = self.client.get("/cl/new/", HTTP_X_INERTIA="true").json()["props"]
         me = next(s for s in props["salespeople"] if s["id"] == self.user.pk)
-        self.assertEqual(set(me), {"id", "name"})
+        self.assertEqual(set(me), {"id", "name", "active"})
+
+    def test_inactive_user_can_be_the_salesperson(self):
+        gone = User.objects.create_user("gone", password="pw12345", is_active=False)
+        props = self.client.get("/cl/new/", HTTP_X_INERTIA="true").json()["props"]
+        listed = next(s for s in props["salespeople"] if s["id"] == gone.pk)
+        self.assertFalse(listed["active"])
+        self.assertEqual(props["salespeople"][-1]["id"], gone.pk)
+        page = self._post("/cl/new/", {"confirmation_number": "CLX-GONE", "salesperson_id": str(gone.pk), "rooms": "[]"}).json()
+        self.assertNotIn("salesperson_id", page["props"]["errors"])
 
     def test_old_cl_without_salesperson_saves_without_one(self):
         from hw.tests.factories import cl_form_payload

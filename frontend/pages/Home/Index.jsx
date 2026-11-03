@@ -115,7 +115,7 @@ function ManagerHome(props) {
         {(top || mon || access) && (
           <DashGrid g={[top, admin ? access : top, mon].filter(Boolean).length === 3 ? "3" : "3-two"}>
             {top && <TopClients top={top} />}
-            {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, ${t("room nights")}`}
+            {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, ${t("room nights stayed")}`}
               rows={top.hotels.map((r) => ({ ...r, href: `/hotels/${r.id}/`, sub: r.city, v: r.rn }))}
               empty={[t("No stays yet"), t("Hotels appear here after the first check-in.")]} hasPrev={top.has_prev} />}
             {mon && <MoneyNow m={mon} />}
@@ -203,7 +203,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
     { label: t("CL sold"), v: fmtN(cur.cl), d: pct(cur.cl, prev?.cl), good: !prev || cur.cl >= prev.cl,
       foot: cmp(fmtN(prev?.cl)), href: "/cl/" },
     { label: t("Room nights"), v: fmtN(cur.rn), d: pct(cur.rn, prev?.rn), good: !prev || cur.rn >= prev.rn,
-      foot: cmp(fmtN(prev?.rn)), href: "/calendar/" },
+      foot: cmp(fmtN(prev?.rn)), href: "/cl/" },
   ];
   const cancelled = { label: t("Cancelled"), v: fmtN(cur.cancelled), unit: "CL", d: pct(cur.cancelled, prev?.cancelled),
     good: !prev || cur.cancelled <= prev.cancelled,

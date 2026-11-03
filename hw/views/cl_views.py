@@ -164,7 +164,7 @@ def cl_list(request):
     """CL list (Record View HMS canvas): the month (or year) nav shows the CLs
     sold in it, by created_at, with KPIs by sale day against the month before;
     the Check-in range filter, when set, picks by check-in instead."""
-    from .helpers import csv_list, list_per_page, list_period, num_delta, pct_delta, prev_month_range
+    from .helpers import csv_list, list_per_page, list_period, list_seasons, num_delta, pct_delta, prev_month_range
     base_qs = (
         scope(ConfirmationLetter.objects.all(), request.user)
         .defer('note').select_related('client', 'hotel').with_invoice()
@@ -259,7 +259,7 @@ def cl_list(request):
                     "salesperson": salesperson,
                     "per": list_per_page(request), **period},
         "search_all": search_all,
-        "years": years,
+        "years": years, "seasons": list_seasons(),
         "counts": counts,
         "salespeople": salespeople,
         "kpis": kpis,
@@ -295,10 +295,11 @@ def _form_context_data():
 
 
 def _salespeople():
-    """Active HMS users for the CL's Salesperson picker, by name."""
-    users = User.objects.filter(is_active=True)
-    out = [{"id": u.pk, "name": u.get_full_name() or u.username} for u in users]
-    return sorted(out, key=lambda r: r["name"].lower())
+    """Every HMS user for the CL's Salesperson picker: active ones first, then
+    deactivated ones (a sale may be credited to someone who has since left)."""
+    out = [{"id": u.pk, "name": u.get_full_name() or u.username, "active": u.is_active}
+           for u in User.objects.all()]
+    return sorted(out, key=lambda r: (not r["active"], r["name"].lower()))
 
 
 def _resolve_hotel_id(request):
@@ -319,7 +320,7 @@ def _posted_rooms(data):
 def _validate_cl(data, exclude_pk=None, need_salesperson=True):
     errors = {}
     salesperson = data.get("salesperson_id") or None
-    if salesperson and not User.objects.filter(pk=salesperson, is_active=True).exists():
+    if salesperson and not User.objects.filter(pk=salesperson).exists():
         errors["salesperson_id"] = "Choose the salesperson from the list."
     elif need_salesperson and not salesperson:
         errors["salesperson_id"] = "Choose the salesperson."

@@ -1,9 +1,11 @@
 """The Manager dashboard's period rules (dashboard.home_period)."""
-from datetime import date
+from datetime import date, datetime
 
 from django.test import TestCase
+from django.utils import timezone
 
-from hw.dashboard import home_period
+from hw.dashboard import _sales_side, home_period
+from hw.models import ConfirmationLetter
 
 
 class HomePeriodTest(TestCase):
@@ -32,6 +34,36 @@ class HomePeriodTest(TestCase):
     def test_season_without_a_season_on_file_reads_the_month(self):
         per = home_period(date(2026, 10, 19), season=True)
         self.assertEqual(per['kind'], 'month')
+
+
+class RoomNightsSoldTest(TestCase):
+    """Room nights on the dashboard are the nights sold: every night of a CL
+    counts in the period it was sold, whenever the stay is (user decision
+    2026-11-01)."""
+
+    def setUp(self):
+        from hw.models import RoomType
+        from hw.tests.factories import make_cl
+        self.cl = make_cl(check_in=date(2027, 1, 10), check_out=date(2027, 1, 14))
+        room_type = RoomType.objects.create(hotel=self.cl.hotel, name='Quad', capacity=4)
+        self.cl.rooms.create(room_type_ref=room_type, quantity=2, price=100)
+        ConfirmationLetter.objects.filter(pk=self.cl.pk).update(
+            created_at=timezone.make_aware(datetime(2026, 10, 5, 10)))
+
+    def side(self, start, end):
+        return _sales_side(ConfirmationLetter.objects.all(), start, end)
+
+    def test_all_nights_count_in_the_month_sold(self):
+        out = self.side(date(2026, 10, 1), date(2026, 10, 31))
+        self.assertEqual(out['rn'], 8)
+        self.assertEqual(out['spark']['rn'][-1], 8)
+
+    def test_nothing_counts_in_the_month_of_the_stay(self):
+        self.assertEqual(self.side(date(2027, 1, 1), date(2027, 1, 31))['rn'], 0)
+
+    def test_a_cancelled_cl_sells_no_nights(self):
+        ConfirmationLetter.objects.filter(pk=self.cl.pk).update(reservation_status='CANCELLED')
+        self.assertEqual(self.side(date(2026, 10, 1), date(2026, 10, 31))['rn'], 0)
 
 
 class HomeVariantTest(TestCase):

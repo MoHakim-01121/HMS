@@ -241,7 +241,7 @@ export default function Form({ cl, edit, errors: serverErrors, suggested_number,
           </Field>
           <Field label={t("Salesperson")} required={!edit || !!c.salesperson_id} error={errors.salesperson_id && t(errors.salesperson_id)}>
             <Picker icon={ICON.person} value={d.salesperson_id} placeholder={t("Select a salesperson")} heading={t("Salespeople")}
-              options={salespeople.map((s) => ({ value: String(s.id), label: s.name }))}
+              options={salespeople.map((s) => ({ value: String(s.id), label: s.name, meta: s.active ? "" : t("Inactive") }))}
               onPick={(o) => form.setData("salesperson_id", o.value)} invalid={!!errors.salesperson_id} />
           </Field>
         </div>

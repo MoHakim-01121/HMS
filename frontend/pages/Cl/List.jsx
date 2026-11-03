@@ -49,7 +49,7 @@ function SalespersonMenu({ value, people, mine, unassigned, total, onPick }) {
 // Confirmation Letter list, as on the Record View HMS canvas: four KPIs for
 // the CLs sold in the month (by the day each was made) with a small trend against the month before
 // (Cancelled filters the table), the toolbar above the table, and paging.
-export default function List({ letters, filters: f, search_all, years, counts, salespeople = [], kpis, export_qs, pagination }) {
+export default function List({ letters, filters: f, search_all, years, seasons = [], counts, salespeople = [], kpis, export_qs, pagination }) {
   const { t } = useI18n();
   const perms = usePerms();
   const openForm = useFormModal();
@@ -94,7 +94,7 @@ export default function List({ letters, filters: f, search_all, years, counts, s
 
       <div className="flex flex-col gap-2">
         <Toolbar spaced={!!kpis}
-          left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
+          left={<MonthNav month={f.month} year={f.year} season={f.season} years={years} seasons={seasons} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
           <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search client, hotel, CL number")} />
           <SheetPick label={t("Salesperson")} value={f.salesperson || ""} onPick={(salesperson) => go({ salesperson })}
             options={[
@@ -108,7 +108,7 @@ export default function List({ letters, filters: f, search_all, years, counts, s
           </SheetPick>
           <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
             onReset={() => setDraft({ ...draft, status: [], inv: "", from: "", to: "" })}
-            onApply={() => go({ status: draft.status, inv: draft.inv, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
+            onApply={() => go({ status: draft.status, inv: draft.inv, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "", season: "" } : {}) })}>
             <FilterSection label={t("Status")}>
               <Check on={draft.status.includes("definite")} onClick={() => toggle("definite")} label={t("Definite")} count={counts.definite} />
               <Check on={draft.status.includes("tentative")} onClick={() => toggle("tentative")} label={t("Tentative")} count={counts.tentative} />

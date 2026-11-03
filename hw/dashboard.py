@@ -395,10 +395,10 @@ def _finance_cues(user, codes, clients, today, branches):
 
 # ── Home (Manager dashboard, HMS Dashboard canvas "ManagerHomlu") ───────
 #
-# Sales count by the date a CL was sold (created_at); room nights by the night
-# stayed. A running month compares with the same days of the month before
-# ("1 to 19 Sep"); a past month with the whole month before; a season with the
-# season before up to the same day.
+# Sales and room nights count by the date a CL was sold (created_at); only Top
+# hotels reads the nights stayed. A running month compares with the same days
+# of the month before ("1 to 19 Sep"); a past month with the whole month
+# before; a season with the season before up to the same day.
 
 SPARK_CUTS = 6
 HERO_BARS = 10
@@ -452,14 +452,13 @@ def _sold(cls, start, end):
                 .prefetch_related('rooms').only('id', 'created_at', 'check_in', 'check_out', 'client_id', 'hotel_id'))
 
 
+def _nights_sold(cl):
+    return _cl_rooms(cl) * (cl.num_nights or 0)
+
+
 def _nights_in(cl, start, end):
     a, b = max(cl.check_in, start), min(cl.check_out, end + timedelta(days=1))
     return max((b - a).days, 0) * _cl_rooms(cl)
-
-
-def _stayed(cls, start, end):
-    return list(_live_cls(cls).filter(check_in__lte=end, check_out__gt=start).prefetch_related('rooms')
-                .only('id', 'check_in', 'check_out'))
 
 
 def _cum(rows, cuts, when, amount):
@@ -476,19 +475,18 @@ def _sales_side(cls, start, end):
     if not start:
         return None
     sold = _sold(cls, start, end)
-    stayed = _stayed(cls, start, end)
     cuts = _cuts(start, end, SPARK_CUTS)
     cancelled = list(cls.filter(reservation_status=CANCELLED, updated_at__date__gte=start, updated_at__date__lte=end)
                      .prefetch_related('rooms').only('id', 'updated_at', 'check_in', 'check_out'))
     created = lambda cl: _local(cl.created_at)
     return {
         'value': sum(_cl_value(cl) for cl in sold), 'cl': len(sold),
-        'rn': sum(_nights_in(cl, start, end) for cl in stayed),
+        'rn': sum(_nights_sold(cl) for cl in sold),
         'cancelled': len(cancelled), 'lost': sum(_cl_value(cl) for cl in cancelled),
         'spark': {
             'value': _cum(sold, cuts, created, _cl_value),
             'cl': _cum(sold, cuts, created, lambda cl: 1),
-            'rn': [sum(_nights_in(cl, start, c) for cl in stayed) for c in cuts],
+            'rn': _cum(sold, cuts, created, _nights_sold),
             'cancelled': _cum(cancelled, cuts, lambda cl: _local(cl.updated_at), lambda cl: 1),
         },
         'bars': _cum(sold, _cuts(start, end, HERO_BARS), created, _cl_value),

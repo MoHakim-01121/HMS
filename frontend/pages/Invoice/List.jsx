@@ -15,7 +15,7 @@ const monthName = (ym, t) => (ym ? t(MONTHS[+ym.slice(5, 7) - 1]) : "");
 // Hotel invoice list, as on the Record View HMS canvas: KPIs for the month
 // invoices fall due (Overdue filters the table, Unbilled opens the CLs not
 // yet invoiced), the toolbar above the table, and paging.
-export default function List({ invoices, filters: f, search_all, years, counts, kpis, export_qs, pagination }) {
+export default function List({ invoices, filters: f, search_all, years, seasons = [], counts, kpis, export_qs, pagination }) {
   const { t } = useI18n();
   const perms = usePerms();
   const openForm = useFormModal();
@@ -31,6 +31,7 @@ export default function List({ invoices, filters: f, search_all, years, counts, 
   // The row's actions: the desktop row menu, and the same menu on a phone row.
   const menuFor = (inv) => [
     { label: t("Download PDF"), href: `/invoice/${inv.id}/pdf/`, external: true },
+    { label: t("Download detailed PDF"), href: `/invoice/${inv.id}/pdf/?detailed=1`, external: true },
     perms.can("invoice", "edit") && inv.status !== "void" && { label: t("Edit"), onClick: () => openForm(`/invoice/${inv.id}/edit/`) },
     perms.can("invoice", "delete") && { label: t("Delete"), danger: true, onClick: () => del(inv) },
   ];
@@ -55,11 +56,11 @@ export default function List({ invoices, filters: f, search_all, years, counts, 
 
       <div className="flex flex-col gap-2">
         <Toolbar spaced={!!kpis}
-          left={<MonthNav prefix={t("Due")} month={f.month} year={f.year} years={years} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
+          left={<MonthNav prefix={t("Due")} month={f.month} year={f.year} season={f.season} years={years} seasons={seasons} onChange={(p) => go({ ...p, from: "", to: "" })} />}>
           <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search invoice or client")} />
           <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
             onReset={() => setDraft({ ...draft, status: "", from: "", to: "" })}
-            onApply={() => go({ status: draft.status, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "" } : {}) })}>
+            onApply={() => go({ status: draft.status, from: draft.from, to: draft.to, ...(draft.from || draft.to ? { month: "", year: "", season: "" } : {}) })}>
             <FilterSection label={t("Status")}>
               {["paid", "partial", "unpaid", "void"].map((k) => (
                 <Check key={k} radio on={draft.status === k} onClick={() => setDraft({ ...draft, status: draft.status === k ? "" : k })} label={t(STATUS[k][1])} count={counts[k]} />

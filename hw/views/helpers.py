@@ -352,7 +352,8 @@ def request_data(request):
 
 
 def list_period(request):
-    """The period a list page shows, from ?month=YYYY-MM | ?year=YYYY|all.
+    """The period a list page shows, from ?month=YYYY-MM | ?season=<name> |
+    ?year=YYYY|all.
 
     Defaults to the current month. A filter range (?from=&to=) wins over the
     month ("Used instead of the month above" on the list pages). Returns
@@ -362,15 +363,21 @@ def list_period(request):
     from datetime import date as _date
     g = request.GET
     rng_from, rng_to = _parse_date(g.get('from', '')), _parse_date(g.get('to', ''))
-    month, year = g.get('month', ''), g.get('year', '')
+    month, year, season = g.get('month', ''), g.get('year', ''), g.get('season', '')
     today = timezone.localdate()
-    props = {'month': '', 'year': '', 'from': g.get('from', ''), 'to': g.get('to', '')}
+    props = {'month': '', 'year': '', 'season': '', 'from': g.get('from', ''), 'to': g.get('to', '')}
     if rng_from or rng_to:
         props['year'] = 'all'
         return rng_from, rng_to, props
     if year == 'all':
         props['year'] = 'all'
         return None, None, props
+    if season and not month:
+        from ..models import Season
+        s = Season.objects.filter(name=season).first()
+        if s:
+            props['season'] = s.name
+            return s.date_from, s.date_to, props
     if year.isdigit() and len(year) == 4 and not month:
         y = int(year)
         props['year'] = year
@@ -383,6 +390,13 @@ def list_period(request):
     last = first.replace(day=calendar.monthrange(first.year, first.month)[1])
     props['month'] = first.strftime('%Y-%m')
     return first, last, props
+
+
+def list_seasons():
+    """The umrah seasons for MonthNav's picker, newest first."""
+    from ..models import Season
+    return [{'name': s.name, 'from': s.date_from.isoformat(), 'to': s.date_to.isoformat()}
+            for s in Season.objects.order_by('-date_from')]
 
 
 def list_per_page(request, default=10):

@@ -276,7 +276,8 @@ export function Toolbar({ left, children, spaced }) {
   );
 }
 
-export const ToolbarRight = ({ children }) => <div className="flex flex-wrap items-center gap-2 max-[900px]:w-full phone:flex-nowrap">{children}</div>;
+// ml-auto keeps it on the right when a wide month nav wraps it onto its own line.
+export const ToolbarRight = ({ children }) => <div className="ml-auto flex flex-wrap items-center gap-2 max-[900px]:w-full phone:flex-nowrap">{children}</div>;
 
 // The month label of a month navigator.
 export const MonthLabel = ({ className, children }) => (
@@ -302,16 +303,22 @@ MenuButton.displayName = "MenuButton";
 
 // "October  ‹ ›  2026 ▾" — month = "YYYY-MM", or "" with year set (whole
 // year), or both empty for all dates.
-export function MonthNav({ month, year, years = [], onChange, prefix }) {
+// With `seasons` (newest first) the picker lists umrah seasons, each read
+// whole, in place of calendar years.
+export function MonthNav({ month, year, season, years = [], seasons = [], onChange, prefix }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const y = month ? +month.slice(0, 4) : year ? +year : null;
+  const y = month ? +month.slice(0, 4) : year && year !== "all" ? +year : null;
   const m = month ? +month.slice(5, 7) - 1 : null;
+  const bySeason = seasons.length > 0;
+  const cur = bySeason && (season ? seasons.find((s) => s.name === season)
+    : month ? seasons.find((s) => s.from.slice(0, 7) <= month && month <= s.to.slice(0, 7)) : null);
   const shift = (d) => {
     const dt = new Date(y, m + d, 1);
-    onChange({ month: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`, year: "" });
+    onChange({ month: `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`, year: "", season: "" });
   };
-  const label = m != null ? t(MONTHS[m]) : y ? t("Whole year") : t("All dates");
+  const label = m != null ? t(MONTHS[m]) : season && cur ? t("Whole season") : y ? t("Whole year") : t("All dates");
+  const pick = (patch) => { setOpen(false); onChange({ month: "", year: "", season: "", ...patch }); };
   return (
     <>
       {prefix && <span className="mr-2 text-[14px] font-medium text-muted-foreground">{prefix}</span>}
@@ -320,16 +327,22 @@ export function MonthNav({ month, year, years = [], onChange, prefix }) {
       <NavButton aria-label={t("Next month")} disabled={m == null} onClick={() => shift(1)}>{LIcon.next}</NavButton>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <MenuButton aria-haspopup="menu">{y || t("All")}{LIcon.chev}</MenuButton>
+          <MenuButton aria-haspopup="menu">{bySeason ? (cur ? cur.name : y || t("All")) : (y || t("All"))}{LIcon.chev}</MenuButton>
         </PopoverTrigger>
-        <Menu align="start" sideOffset={6} className="w-40">
-          {years.map((yy) => (
-            <MenuItem key={yy} on={yy === y}
-              onClick={() => { setOpen(false); onChange({ month: `${yy}-${String((m ?? new Date().getMonth()) + 1).padStart(2, "0")}`, year: "" }); }}>{yy}</MenuItem>
-          ))}
-          {y && <MenuItem on={m == null} onClick={() => { setOpen(false); onChange({ month: "", year: String(y) }); }}>{t("Whole {year}", { year: y })}</MenuItem>}
+        <Menu align="start" sideOffset={6} className={bySeason ? "w-48" : "w-40"}>
+          {bySeason ? seasons.map((s) => (
+            <MenuItem key={s.name} on={!!season && s.name === season} onClick={() => pick({ season: s.name })}>{t("Whole {season}", { season: s.name })}</MenuItem>
+          )) : (
+            <>
+              {years.map((yy) => (
+                <MenuItem key={yy} on={yy === y}
+                  onClick={() => pick({ month: `${yy}-${String((m ?? new Date().getMonth()) + 1).padStart(2, "0")}` })}>{yy}</MenuItem>
+              ))}
+              {y && <MenuItem on={m == null} onClick={() => pick({ year: String(y) })}>{t("Whole {year}", { year: y })}</MenuItem>}
+            </>
+          )}
           <MenuSep />
-          <MenuItem on={!y} onClick={() => { setOpen(false); onChange({ month: "", year: "all" }); }}>{t("All dates")}</MenuItem>
+          <MenuItem on={year === "all"} onClick={() => pick({ year: "all" })}>{t("All dates")}</MenuItem>
         </Menu>
       </Popover>
     </>
