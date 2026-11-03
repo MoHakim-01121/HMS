@@ -6,7 +6,7 @@ lives in the sibling `*_views.py` modules — nothing is defined in this file.
 """
 from .ai_views import ai_chat, ai_chat_reset, ai_draft_message
 from .attachment_views import attachment_delete, attachment_upload
-from .calendar_views import calendar_view
+from .calendar_views import calendar_checkin_pdf, calendar_view
 from .cl_views import (
     cl_delete,
     cl_detail,

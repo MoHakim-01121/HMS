@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 40px 48px 36px;
+    @bottom-left {
+      content: "Printed {{ now|date:'d M Y, H:i' }}";
+      font-size: 10px; color: #444;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+    @bottom-right {
+      content: "Page " counter(page) "/" counter(pages);
+      font-size: 10px; color: #444;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      padding-top: 6px;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #2b2b2b;
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .doc-title { font-size: 24px; line-height: 1.2; font-weight: 700; color: #3d3a33; }
+  .summary { margin-top: 2px; font-size: 10.5px; color: #555; }
+  .logo { max-height: 52px; width: auto; }
+
+  /* The date and the column titles repeat when a day runs onto the next page. */
+  table { width: 100%; margin-top: 13px; table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+  table + table { margin-top: 60px; }
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; page-break-inside: avoid; }
+
+  tr.day th { padding: 6px 8px; background: #e9e6df; color: #3d3a33; text-align: left; font-size: 13px; font-weight: 700; }
+  tr.day span { float: right; font-size: 10.5px; font-weight: 400; line-height: 17px; }
+
+  tr.heads th { padding: 6px 5px 4px; border-bottom: 1px solid #b5b0a5; color: #555; font-size: 9.5px; font-weight: 700; text-align: left; }
+  tr.heads th.n { padding-right: 0; padding-left: 0; text-align: center; }
+
+  /* A hotel stays whole on a page; only one longer than a page may split. */
+  tr.hotel, tr.keep { break-after: avoid; page-break-after: avoid; }
+  tr.hotel td {
+    padding: 8px 5px;
+    border-bottom: 1px solid #b5b0a5;
+    background: #e9e6df;
+    color: #3d3a33;
+    font-weight: 700;
+    text-align: center;
+  }
+  tbody.hotel-group + tbody.hotel-group tr.hotel td { border-top: 12px solid #fff; }
+
+  td { padding: 6px 5px; border-bottom: 1px solid #ece6da; vertical-align: top; }
+  td.n { padding-right: 0; padding-left: 0; border-left: 1px solid #ece6da; text-align: center; }
+  td.total { font-weight: 700; }
+  .zero { color: #767676; }
+  .client-name { font-weight: 700; }
+  .muted { color: #666; }
+  .nowrap { white-space: nowrap; }
+
+  .empty-msg { padding: 24px; text-align: center; font-style: italic; color: #767676; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <div class="doc-title">Check-in Recap</div>
+    <div class="summary">
+      {{ first|date:"j F Y" }}{% if last != first %} &ndash; {{ last|date:"j F Y" }}{% endif %}:
+      {{ total_checkins }} check-in{{ total_checkins|pluralize }} at {{ total_hotels }} hotel{{ total_hotels|pluralize }},
+      {{ total_rooms }} room{{ total_rooms|pluralize }}, {{ total_pax }} pax
+    </div>
+  </div>
+  <img src="{{ logo_rel_path }}" class="logo">
+</div>
+
+{% if not groups %}
+  <div class="empty-msg">No check-ins in this period.</div>
+{% else %}
+  {% for group in groups %}
+    <table>
+      <colgroup>
+        <col>
+        <col style="width: 52px">
+        <col style="width: 110px">
+        <col style="width: 72px">
+        {% for column in columns %}<col style="width: 42px">{% endfor %}
+        <col style="width: 42px">
+        <col style="width: 36px">
+      </colgroup>
+      <thead>
+        <tr class="day"><th colspan="{{ colspan }}">{{ group.date|date:"l, j F Y" }}<span>{{ group.rooms }} room{{ group.rooms|pluralize }}, {{ group.pax }} pax</span></th></tr>
+        <tr class="heads">
+          <th>Travel / Client</th>
+          <th>RSVN</th>
+          <th>Stay</th>
+          <th>Meal</th>
+          {% for column in columns %}<th class="n">{{ column }}</th>{% endfor %}
+          <th class="n">Rooms</th>
+          <th class="n">Pax</th>
+        </tr>
+      </thead>
+      {% for hotel in group.hotels %}
+        <tbody class="hotel-group">
+          <tr class="hotel"><td colspan="{{ colspan }}">{{ hotel.name }}</td></tr>
+          {% for g in hotel.rows %}
+            <tr{% if not forloop.last %} class="keep"{% endif %}>
+              <td>{% if g.show_client %}<span class="client-name">{{ g.client_name }}</span>{% endif %}{% if g.tentative %} <span class="muted nowrap">(Tentative)</span>{% endif %}{% if g.note %}<div class="muted">{{ g.note }}</div>{% endif %}</td>
+              <td>{{ g.confirmation_number }}</td>
+              <td class="nowrap">{% if g.check_in.month == g.check_out.month %}{{ g.check_in|date:"j" }}&ndash;{% else %}{{ g.check_in|date:"j M" }} &ndash; {% endif %}{{ g.check_out|date:"j M" }} <span class="muted">({{ g.nights }}N)</span></td>
+              <td>{{ g.meal|default:"&mdash;" }}</td>
+              {% for count in g.counts %}<td class="n{% if not count %} zero{% endif %}">{{ count }}</td>{% endfor %}
+              <td class="n total">{{ g.rooms }}</td>
+              <td class="n">{{ g.pax }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      {% endfor %}
+    </table>
+  {% endfor %}
+{% endif %}
+
+</body>
+</html>

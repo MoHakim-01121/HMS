@@ -1,19 +1,25 @@
 import calendar
 from collections import Counter
 from datetime import date, timedelta
+from itertools import groupby
 
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import override
 from inertia import render as inertia_render
 
 from ..branch_scope import scope
 from ..models import ConfirmationLetter, Invoice
 from ..models.choices import HotelCity
 from ..models.confirmation import ReservationStatus
+from ..models.hotel import room_type_name
 from ..permissions import require_perm
 
 # The two-week timeline opens on the Sunday of the week holding the anchor day.
 WEEK_DAYS = 14
+
+# Guests per room of the room columns the check-in recap always prints.
+RECAP_CAPACITIES = (2, 3, 4, 5)
 
 
 def _parse_date(raw, fallback):
@@ -113,3 +119,91 @@ def calendar_view(request):
         "hotels": hotel_list,
         "bookings": bookings,
     })
+
+
+def _recap_rows(cls_of_hotel, capacities):
+    """A hotel's rows: rooms counted per column of `capacities`. A client with
+    several CLs there is named on the first only."""
+    rows, previous = [], None
+    for cl in cls_of_hotel:
+        counts = Counter()
+        for room in cl.rooms.all():
+            counts[room.room_type_ref.capacity] += room.quantity
+        rows.append({
+            'client_name': cl.client.display_name,
+            'show_client': cl.client_id != previous,
+            'confirmation_number': cl.confirmation_number,
+            'tentative': cl.reservation_status == ReservationStatus.TENTATIVE,
+            'counts': [counts[c] for c in capacities],
+            'rooms': sum(counts.values()),
+            'pax': cl.num_guests,
+            'meal': ', '.join(m for m in dict.fromkeys(r.meals for r in cl.rooms.all()) if m),
+            'check_in': cl.check_in,
+            'check_out': cl.check_out,
+            'nights': cl.num_nights,
+            'note': cl.note,
+        })
+        previous = cl.client_id
+    return rows
+
+
+@require_perm('calendar', 'export')
+def calendar_checkin_pdf(request):
+    """Check-in recap for one day or a range, by date, then hotel. The counts
+    match the calendar: two CLs of one client at one hotel are one check-in."""
+    from .helpers import _render_list_pdf
+    from .pdf import _logo_file_url
+
+    first = _parse_date(request.GET.get('start'), timezone.localdate())
+    last = max(_parse_date(request.GET.get('end'), first), first)
+
+    cls_list = list(
+        scope(ConfirmationLetter.objects.all(), request.user)
+        .filter(check_in__range=(first, last))
+        .exclude(reservation_status=ReservationStatus.CANCELLED)
+        .select_related('client', 'hotel')
+        .prefetch_related('rooms__room_type_ref')
+    )
+    # Makkah before Madinah, as on the calendar.
+    city_order = {c: i for i, c in enumerate(HotelCity.values)}
+    cls_list.sort(key=lambda cl: (
+        cl.check_in, city_order.get(cl.hotel.city, 99), cl.hotel_name,
+        cl.client.display_name.casefold(), cl.client_id, cl.confirmation_number,
+    ))
+
+    # Double to Quint always have a column; any other size gets one when booked.
+    capacities = sorted(set(RECAP_CAPACITIES) | {r.room_type_ref.capacity for cl in cls_list for r in cl.rooms.all()})
+
+    groups = []
+    for day, of_day in groupby(cls_list, key=lambda cl: cl.check_in):
+        of_day = list(of_day)
+        groups.append({
+            'date': day,
+            'total': len({(cl.client_id, cl.hotel_id) for cl in of_day}),
+            'rooms': sum(cl.total_rooms for cl in of_day),
+            'pax': sum(cl.num_guests for cl in of_day),
+            'hotels': [
+                {'name': hotel.name, 'rows': _recap_rows(of_hotel, capacities)}
+                for hotel, of_hotel in groupby(of_day, key=lambda cl: cl.hotel)
+            ],
+        })
+
+    # The PDF is in English whichever language the user works in.
+    with override('en'):
+        return _render_list_pdf(
+            request, ConfirmationLetter.objects.none(),
+            template='hw/calendar/checkin_recap_pdf.html',
+            filename=f'checkin-recap-{first}.pdf' if first == last else f'checkin-recap-{first}-to-{last}.pdf',
+            extra_ctx={
+                'first': first,
+                'last': last,
+                'groups': groups,
+                'columns': [room_type_name(c) for c in capacities],
+                'colspan': len(capacities) + 6,
+                'total_checkins': sum(g['total'] for g in groups),
+                'total_hotels': len({cl.hotel_id for cl in cls_list}),
+                'total_rooms': sum(cl.total_rooms for cl in cls_list),
+                'total_pax': sum(cl.num_guests for cl in cls_list),
+                'logo_rel_path': _logo_file_url(),
+            },
+        )

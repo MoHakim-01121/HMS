@@ -3026,4 +3026,10 @@ export const id = {
   "This page could not be displayed": "Halaman ini gagal ditampilkan",
   "Your saved data is safe. Reload the page, or contact the admin if this keeps happening.": "Data yang sudah tersimpan tetap aman. Muat ulang halaman, atau hubungi admin kalau masih terjadi.",
   "Reload page": "Muat ulang halaman",
+
+  // ── Calendar: check-in recap ──
+  "Check-ins on {date}": "Check-in {date}",
+  "Check-ins {from} – {to}": "Check-in {from} – {to}",
+  "Check-in recap of the picked day, PDF": "Rekap check-in hari yang dipilih, PDF",
+  "Check-in recap of the dates shown, PDF": "Rekap check-in tanggal yang tampil, PDF",
 };

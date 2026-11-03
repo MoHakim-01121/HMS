@@ -1,10 +1,13 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.http import HttpResponse
 from django.test import TestCase
 
+from hw.models import RoomType
 from hw.models.confirmation import ReservationStatus
-from hw.tests.factories import make_cl, make_hotel, make_room
+from hw.tests.factories import make_cl, make_client, make_hotel, make_room
 
 
 class CalendarViewTest(TestCase):
@@ -57,3 +60,113 @@ class CalendarViewTest(TestCase):
         self.assertEqual(len(self._props(start='2026-10-01')['bookings']), 0)
         self.assertEqual(len(self._props(view='month', start='2026-10-01')['bookings']), 1)
         self.assertEqual(len(self._props(start=(date(2026, 10, 28) - timedelta(days=3)).isoformat())['bookings']), 1)
+
+
+class CheckinRecapPdfTest(TestCase):
+    """The check-in recap: one day or a range, by date, then hotel."""
+
+    def setUp(self):
+        self.client.force_login(User.objects.create_superuser("cal", password="pw12345"))
+
+    def _ctx(self, **params):
+        with patch('hw.views.helpers._render_list_pdf', return_value=HttpResponse()) as render:
+            res = self.client.get('/calendar/checkin-pdf/', params)
+        self.assertEqual(res.status_code, 200)
+        return render.call_args.kwargs['extra_ctx']
+
+    def test_renders_a_pdf(self):
+        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 18), guest_name='Barokah Umrah')
+        make_room(cl=cl, room_type='Quad', quantity=4)
+        res = self.client.get('/calendar/checkin-pdf/', {'start': '2026-10-15', 'end': '2026-10-15'})
+        self.assertEqual(res['Content-Type'], 'application/pdf')
+        self.assertTrue(res.content.startswith(b'%PDF'))
+        self.assertIn('checkin-recap-2026-10-15.pdf', res['Content-Disposition'])
+
+    def test_groups_by_date_then_hotel_makkah_first(self):
+        madinah = make_hotel('Pullman Madinah', city='madinah')
+        makkah = make_hotel('Swissotel Makkah', city='makkah')
+        make_cl(hotel=madinah, guest_name='Ahmad', check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        make_cl(hotel=makkah, guest_name='Budi', check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        make_cl(hotel=makkah, guest_name='Candra', check_in=date(2026, 10, 16), check_out=date(2026, 10, 17))
+
+        ctx = self._ctx(start='2026-10-15', end='2026-10-16')
+        self.assertEqual([g['date'] for g in ctx['groups']], [date(2026, 10, 15), date(2026, 10, 16)])
+        self.assertEqual([h['name'] for h in ctx['groups'][0]['hotels']], ['Swissotel Makkah', 'Pullman Madinah'])
+        self.assertEqual(ctx['groups'][0]['hotels'][1]['rows'][0]['client_name'], 'Ahmad')
+        self.assertEqual((ctx['total_checkins'], ctx['total_hotels']), (3, 2))
+
+    def test_every_room_column_prints_a_count_zero_included(self):
+        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
+        make_room(cl=cl, room_type='Quad', quantity=4)
+        ctx = self._ctx(start='2026-10-15')
+        self.assertEqual(ctx['columns'], ['Double', 'Triple', 'Quad', 'Quint'])
+        self.assertEqual(ctx['groups'][0]['hotels'][0]['rows'][0]['counts'], [0, 0, 4, 0])
+
+    def test_a_room_size_outside_the_usual_four_gets_a_column(self):
+        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
+        make_room(cl=cl, room_type_ref=RoomType.objects.create(hotel=cl.hotel, name='Bed', capacity=1), quantity=1)
+        ctx = self._ctx(start='2026-10-15')
+        self.assertEqual(ctx['columns'], ['1 Pax', 'Double', 'Triple', 'Quad', 'Quint'])
+        self.assertEqual(ctx['groups'][0]['hotels'][0]['rows'][0]['counts'], [1, 0, 0, 0, 0])
+        self.assertEqual(ctx['colspan'], 11)
+
+    def test_row_carries_rooms_pax_meal_and_the_stay(self):
+        client = make_client('Barokah Umrah')
+        cl = make_cl(client=client, check_in=date(2026, 10, 15), check_out=date(2026, 10, 20), confirmation_number='K-010',
+                     reservation_status=ReservationStatus.TENTATIVE, note='Perlu konfirmasi FB')
+        make_room(cl=cl, room_type='Quad', quantity=4, meals='FB')
+        make_room(cl=cl, room_type='Double', quantity=2, meals='FB')
+
+        ctx = self._ctx(start='2026-10-15')
+        row = ctx['groups'][0]['hotels'][0]['rows'][0]
+        self.assertEqual((row['confirmation_number'], row['counts'], row['rooms'], row['meal'], row['pax'], row['tentative'], row['note']),
+                         ('K-010', [2, 0, 4, 0], 6, 'FB', 20, True, 'Perlu konfirmasi FB'))
+        self.assertEqual((row['check_in'], row['check_out'], row['nights']), (date(2026, 10, 15), date(2026, 10, 20), 5))
+        self.assertEqual((ctx['total_rooms'], ctx['total_pax']), (6, 20))
+
+    def test_mixed_meal_plans_are_all_named(self):
+        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
+        make_room(cl=cl, room_type='Quad', quantity=2, meals='FB')
+        make_room(cl=cl, room_type='Double', quantity=1, meals='BB')
+        row = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows'][0]
+        self.assertEqual((row['counts'], row['meal']), ([1, 0, 2, 0], 'FB, BB'))
+
+    def test_travel_client_name_is_shown_once_and_its_rows_stay_together(self):
+        hotel = make_hotel('Swissotel Makkah')
+        travel = make_client('Barokah Travel')
+        make_cl(hotel=hotel, client=travel, guest_name='Zain', confirmation_number='K-1',
+                check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        make_cl(hotel=hotel, guest_name='Budi', confirmation_number='K-2',
+                check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        make_cl(hotel=hotel, client=travel, guest_name='Ahmad', confirmation_number='K-3',
+                check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        rows = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows']
+        self.assertEqual([r['client_name'] for r in rows], ['Barokah Travel', 'Barokah Travel', 'Budi'])
+        self.assertEqual([r['show_client'] for r in rows], [True, False, True])
+
+    def test_counts_check_ins_as_the_calendar_does(self):
+        hotel = make_hotel('Swissotel Makkah')
+        for _ in range(2):  # two CLs of one client at one hotel are one check-in
+            make_cl(hotel=hotel, guest_name='Ahmad', check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        ctx = self._ctx(start='2026-10-15')
+        self.assertEqual(ctx['groups'][0]['total'], 1)
+        self.assertEqual(ctx['total_checkins'], 1)
+
+    def test_leaves_out_cancelled_and_other_dates(self):
+        make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 17), reservation_status=ReservationStatus.CANCELLED)
+        make_cl(check_in=date(2026, 10, 14), check_out=date(2026, 10, 17))
+        make_cl(check_in=date(2026, 10, 16), check_out=date(2026, 10, 17))
+        self.assertEqual(self._ctx(start='2026-10-15')['groups'], [])
+
+    def test_bad_dates_fall_back_to_today(self):
+        make_cl(check_in=date.today(), check_out=date.today() + timedelta(days=1))
+        self.assertEqual(len(self._ctx(start='nope', end='nope')['groups']), 1)
+
+    def test_end_before_start_is_the_start_day(self):
+        make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
+        self.assertEqual(len(self._ctx(start='2026-10-15', end='2026-10-01')['groups']), 1)
+
+    def test_needs_the_export_permission(self):
+        with patch('hw.permissions.can', side_effect=lambda user, module, action: action != 'export'):
+            res = self.client.get('/calendar/checkin-pdf/', {'start': '2026-10-15'})
+        self.assertEqual(res.status_code, 302)

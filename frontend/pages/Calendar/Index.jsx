@@ -3,7 +3,8 @@ import { Link, router } from "@inertiajs/react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import Page from "../../components/shadcn/page.jsx";
-import { PRow, usePhone } from "../../components/shadcn/list-a.jsx";
+import { ExportMenu, PRow, usePhone } from "../../components/shadcn/list-a.jsx";
+import { usePerms } from "../../utils/perms.js";
 
 // Calendar, as on the HMS Calendar v2 canvas ("Redesign"): a row per hotel
 // (or per client), one bar per booking from midday of check-in to midday of
@@ -86,7 +87,7 @@ function Icon({ d, label }) {
 // The phone: the days swipe sideways with the check-in chart standing on them;
 // under them the picked day's check-ins, in-house and check-outs, one list at a
 // time. A row is a client at a hotel, the same count as the chart.
-function PhoneCalendar({ title, days, peak, peakDays, day, TODAY, items, hotelOf, loading, onPrev, onNext, prevLabel, nextLabel, onToday, onPick, dateTxt, rooms, plural }) {
+function PhoneCalendar({ title, days, peak, peakDays, day, TODAY, items, hotelOf, loading, onPrev, onNext, prevLabel, nextLabel, onToday, onPick, dateTxt, rooms, plural, recap }) {
   const { t } = useI18n();
   const [tab, setTab] = useState("in");
   const strip = useRef(null);
@@ -140,6 +141,7 @@ function PhoneCalendar({ title, days, peak, peakDays, day, TODAY, items, hotelOf
               {t("Today")}
             </button>
           )}
+          <ExportMenu items={recap} />
         </div>
 
         <div ref={strip} className="relative -mx-4 flex snap-x snap-proximity gap-1 overflow-x-auto overscroll-x-contain px-4 pb-0.5 [scrollbar-width:none]">
@@ -195,6 +197,7 @@ function PhoneCalendar({ title, days, peak, peakDays, day, TODAY, items, hotelOf
 export default function Calendar({ view, start, end, today, cities = [], hotels = [], bookings = [] }) {
   const { t, locale } = useI18n();
   const phone = usePhone();
+  const perms = usePerms();
   const L = locale === "id" ? "id" : "en";
   const S = dn(start), E = dn(end), TODAY = dn(today);
   const W = E - S + 1;
@@ -355,6 +358,11 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
   const at = (x) => `calc(var(--label-w) + (100% - var(--label-w)) * ${x} / ${W})`;
   const legend = [["house", "In-house"], ["soon", "Arriving"], ["over", "Checked out"]]
     .concat(shown.some((r) => r.tentative) ? [["tent", "Tentative"]] : []);
+  const recapHref = (a, b) => `/calendar/checkin-pdf/?start=${iso(a)}&end=${iso(b)}`;
+  const recap = perms.can("calendar", "export") ? [
+    { label: t("Check-ins on {date}", { date: dateTxt(day) }), hint: t("Check-in recap of the picked day, PDF"), href: recapHref(day, day), external: true },
+    { label: t("Check-ins {from} – {to}", { from: dateTxt(S), to: dateTxt(E) }), hint: t("Check-in recap of the dates shown, PDF"), href: recapHref(S, E), external: true },
+  ] : [];
 
   if (phone) {
     // The strip swipes through the range, so the arrows page by a whole range.
@@ -364,7 +372,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
         items={items} hotelOf={hotelOf} loading={loading}
         onPrev={() => move(month ? -1 : -W)} onNext={() => move(month ? 1 : W)}
         prevLabel={t(month ? "Previous month" : "Previous two weeks")} nextLabel={t(month ? "Next month" : "Next two weeks")}
-        onToday={goToday} onPick={pickDay} dateTxt={dateTxt} rooms={rooms} plural={plural}
+        onToday={goToday} onPick={pickDay} dateTxt={dateTxt} rooms={rooms} plural={plural} recap={recap}
       />
     );
   }
@@ -395,7 +403,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
               </button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex grow flex-wrap items-center gap-4">
             <ul className="m-0 flex list-none flex-wrap items-center gap-3.5 p-0 text-[12px]" aria-label={t("Legend")}>
               {legend.map(([k, label]) => (
                 <li key={k} className="inline-flex items-center gap-1.5">
@@ -412,6 +420,7 @@ export default function Calendar({ view, start, end, today, cities = [], hotels 
               <button type="button" className={cn(SEG_BTN, !month && SEG_ON)} aria-pressed={!month} onClick={() => setView("weeks")}>{t("2 weeks")}</button>
               <button type="button" className={cn(SEG_BTN, month && SEG_ON)} aria-pressed={month} onClick={() => setView("month")}>{t("Month")}</button>
             </div>
+            <div className="ml-auto"><ExportMenu items={recap} /></div>
           </div>
         </div>
 

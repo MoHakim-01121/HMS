@@ -36,6 +36,7 @@ urlpatterns = [
 
     # Calendar
     path('calendar/', views.calendar_view, name='calendar'),
+    path('calendar/checkin-pdf/', views.calendar_checkin_pdf, name='calendar_checkin_pdf'),
 
     # Search
     path('search/', views.global_search, name='global_search'),
