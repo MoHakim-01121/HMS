@@ -9,8 +9,11 @@ saves and redirects back to the manage screen; validation failures re-render
 the form echoing submitted values + errors.
 """
 import os
+import zipfile
+from io import BytesIO
 
 from django.contrib import messages
+from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.templatetags.static import static
@@ -20,6 +23,63 @@ from inertia import render as inertia_render
 from ..i18n import tr
 from ..models import ActivityLog, Hotel, Pricelist, TeamMember, log_activity
 from ..permissions import can, require_perm
+
+LANDING_UPLOAD_MAX_SIZE = 10 * 1024 * 1024
+_PRICELIST_EXTENSIONS = {'.pdf', '.xls', '.xlsx', '.doc', '.docx'}
+_OLE_SIGNATURE = bytes.fromhex('d0cf11e0a1b11ae1')
+_ZIP_SIGNATURES = (b'PK\x03\x04', b'PK\x05\x06', b'PK\x07\x08')
+
+
+def _clean_team_photo(upload):
+    """Validate and re-encode a public team photo to a safe JPEG."""
+    if upload.size > LANDING_UPLOAD_MAX_SIZE:
+        return None, 'Photo is too large (max 10 MB).'
+    try:
+        from PIL import Image, ImageOps
+
+        image = Image.open(upload)
+        if (image.format or '').upper() not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
+            return None, 'Use a JPG, PNG, WEBP, or GIF image.'
+        if image.width * image.height > 20_000_000:
+            return None, 'Photo dimensions are too large.'
+        image.load()
+        image = ImageOps.exif_transpose(image).convert('RGB')
+        output = BytesIO()
+        image.save(output, format='JPEG', optimize=True)
+    except Exception:
+        return None, 'The uploaded photo is not a valid image.'
+    return ContentFile(output.getvalue(), name='photo.jpg'), None
+
+
+def _pricelist_error(upload):
+    """Accept only the document formats offered by the form, by file content."""
+    if upload.size > LANDING_UPLOAD_MAX_SIZE:
+        return 'File is too large (max 10 MB).'
+
+    extension = os.path.splitext(upload.name)[1].lower()
+    if extension not in _PRICELIST_EXTENSIONS:
+        return 'Use a PDF, XLS, XLSX, DOC, or DOCX file.'
+
+    header = upload.read(2048)
+    upload.seek(0)
+    if extension == '.pdf':
+        return None if header.startswith(b'%PDF-') else 'File content does not match its extension.'
+    if extension in {'.doc', '.xls'}:
+        return None if header.startswith(_OLE_SIGNATURE) else 'File content does not match its extension.'
+    if not header.startswith(_ZIP_SIGNATURES):
+        return 'File content does not match its extension.'
+
+    expected_member = 'word/document.xml' if extension == '.docx' else 'xl/workbook.xml'
+    try:
+        with zipfile.ZipFile(upload) as archive:
+            names = archive.namelist()
+            if len(names) > 2000 or expected_member not in names or '[Content_Types].xml' not in names:
+                return 'File content does not match its extension.'
+    except (OSError, ValueError, zipfile.BadZipFile):
+        return 'The uploaded document is not valid.'
+    finally:
+        upload.seek(0)
+    return None
 
 
 def landing(request):
@@ -215,6 +275,11 @@ def landing_manage(request):
 def team_new(request):
     if request.method == 'POST':
         errors = _validate_team(request.POST)
+        photo = request.FILES.get('photo')
+        if photo:
+            photo, photo_error = _clean_team_photo(photo)
+            if photo_error:
+                errors['photo'] = photo_error
         if errors:
             return inertia_render(request, 'Landing/TeamForm', props={
                 'team': _team_echo(request.POST), 'edit': False, 'errors': errors,
@@ -223,7 +288,7 @@ def team_new(request):
         m = TeamMember.objects.create(
             name=data['name'], position=data['position'],
             wa=data['wa'],
-            photo=request.FILES.get('photo'),
+            photo=photo,
             order=int(data['order']) if str(data['order']).isdigit() else 0,
             is_active=data['is_active'],
         )
@@ -240,6 +305,11 @@ def team_edit(request, pk):
     m = get_object_or_404(TeamMember, pk=pk)
     if request.method == 'POST':
         errors = _validate_team(request.POST)
+        photo = request.FILES.get('photo')
+        if photo:
+            photo, photo_error = _clean_team_photo(photo)
+            if photo_error:
+                errors['photo'] = photo_error
         if errors:
             return inertia_render(request, 'Landing/TeamForm', props={
                 'team': {**_team_echo(request.POST), 'id': m.pk}, 'edit': True, 'errors': errors,
@@ -248,8 +318,8 @@ def team_edit(request, pk):
         m.name = data['name']
         m.position = data['position']
         m.wa = data['wa']
-        if request.FILES.get('photo'):
-            m.photo = request.FILES['photo']
+        if photo:
+            m.photo = photo
         m.order = int(data['order']) if str(data['order']).isdigit() else m.order
         m.is_active = data['is_active']
         m.save()
@@ -282,6 +352,8 @@ def pricelist_new(request):
             errors['title'] = 'Judul pricelist wajib diisi.'
         if not file:
             errors['file'] = 'Pilih file pricelist untuk diunggah.'
+        elif (file_error := _pricelist_error(file)):
+            errors['file'] = file_error
         if errors:
             return inertia_render(request, 'Landing/PricelistForm', props={
                 'pricelist': {'title': title, 'is_active': request.POST.get('is_active') == 'on'},
@@ -311,6 +383,8 @@ def pricelist_edit(request, pk):
         file = request.FILES.get('file')
         if not title:
             errors['title'] = 'Judul pricelist wajib diisi.'
+        if file and (file_error := _pricelist_error(file)):
+            errors['file'] = file_error
         if errors:
             return inertia_render(request, 'Landing/PricelistForm', props={
                 'pricelist': {'id': p.pk, 'title': title, 'filename': _pricelist_payload(p)['filename'],
