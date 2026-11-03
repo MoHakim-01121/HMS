@@ -70,6 +70,25 @@ class SaveSeasonTest(TestCase):
         self.assertNotIn('2027-08', _names())
 
 
+class SeasonOwnsItsDocumentsTest(TestCase):
+    """A season made after invoices exist (prod right after cutover) takes
+    them in, so numbering goes on from the last one instead of INV-001."""
+
+    def test_existing_invoices_join_and_numbering_goes_on(self):
+        from hw.models.invoice import Invoice
+        old = make_invoice(invoice_number='INV-107', issued_date=date(2026, 10, 2))
+        before = make_invoice(invoice_number='INV-050', issued_date=date(2026, 4, 1))
+        season = seasons.save_season(name='Musim 1448H', date_from=date(2026, 5, 31), date_to=date(2027, 5, 19))
+        old.refresh_from_db()
+        before.refresh_from_db()
+        self.assertEqual((old.season_id, before.season_id), (season.pk, None))
+        self.assertEqual(Invoice.suggest_number('hotel', date(2026, 11, 3)), 'INV-108')
+        # Narrowing the season lets go of what is now outside it.
+        seasons.save_season(season, name='Musim 1448H', date_from=date(2026, 11, 1), date_to=date(2027, 5, 19))
+        old.refresh_from_db()
+        self.assertIsNone(old.season_id)
+
+
 class SeasonViewsTest(TestCase):
     def setUp(self):
         self.client.force_login(User.objects.create_superuser('sv', password='pw12345'))

@@ -51,7 +51,30 @@ def save_season(season=None, *, name, date_from, date_to):
         season.name, season.date_from, season.date_to = name, date_from, date_to
         season.save()
         ensure_monthly_periods(date_from, date_to)
+        _assign_documents(season)
     return season
+
+
+def _assign_documents(season):
+    """Invoices and receipts dated inside the season belong to it, those that
+    fell out of a changed range leave it -- as migrations 0162/0163 did for the
+    seasons that existed then. Numbers run per season, so without this a season
+    made after the fact would start again at INV-001 next to the old ones."""
+    from django.db import IntegrityError
+
+    from ..models.invoice import Invoice
+    from ..models.receipt import Receipt
+    span = (season.date_from, season.date_to)
+    try:
+        with transaction.atomic():
+            Invoice.objects.filter(season=season).exclude(issued_date__range=span).update(season=None)
+            Invoice.objects.filter(issued_date__range=span).exclude(season=season).update(season=season)
+            Receipt.objects.filter(season=season).exclude(receipt_date__range=span).update(season=None)
+            Receipt.objects.filter(receipt_date__range=span).exclude(season=season).update(season=season)
+    except IntegrityError:
+        raise ValidationError(
+            'Ada nomor invoice atau kuitansi yang sama di rentang tanggal ini -- ubah salah satunya dulu.'
+        ) from None
 
 
 def season_choices():
