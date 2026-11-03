@@ -1,6 +1,9 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
+/* Inter from our own server (hashed, cached a year), not Google Fonts: the
+   Google stylesheet blocked the first paint for 0.6-1 s (2026-11-04). */
+@import "@fontsource-variable/inter";
 
 /* The phone layout: up to 600px wide, and a phone turned sideways (a short
    touch screen), which is too low for the sidebar shell. `desk` is the rest.
@@ -336,8 +339,8 @@
      literally "Inter, ui-sans-serif, system-ui, sans-serif" with no separate
      mono face for numbers, so --font-mono now just aliases the system stack
      rather than importing a distinct monospace font. */
-  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   /* v2.1: card / sheet radius is a flat 20px, one value everywhere. Distinct
      from the smaller --radius-control used by fields. */
