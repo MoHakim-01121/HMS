@@ -13,7 +13,8 @@ import { fmt } from "../../utils/format.js";
 
 // Cash or transfer only (canvas "HMS Mobile v2"); older payments may still
 // read "Card", the list shows whatever was recorded.
-const METHODS = ["Transfer", "Cash"];
+// Stored as the legacy data has it, so the list filter has one value per method.
+const METHODS = ["Bank Transfer", "Cash"];
 
 // SAR value as the backend's convert_to_sar computes it (hw/utils.py): IDR is
 // divided by the rate, other foreign currencies multiplied.
@@ -34,7 +35,7 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
   const [amount, setAmount] = useState("");
   const [rate, setRate] = useState("");
   const [date, setDate] = useState(todayIso());
-  const [method, setMethod] = useState("Transfer");
+  const [method, setMethod] = useState("Bank Transfer");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [proof, setProof] = useState(null);
@@ -146,10 +147,10 @@ export default function RecordPayment({ onClose, client_choices = [], invoice_ch
           <Field label={t("Method")} required>
             {phone ? (
               <Segmented wide label={t("Method")} value={method} onChange={setMethod}
-                options={METHODS.map((m) => [m, t(m)])} />
+                options={METHODS.map((m) => [m, t(m === "Bank Transfer" ? "Bank transfer" : m)])} />
             ) : (
               <Picker searchable={false} value={method} heading={t("Method")} onPick={(o) => setMethod(o.value)}
-                options={METHODS.map((m) => ({ value: m, label: t(m === "Transfer" ? "Bank transfer" : m) }))} />
+                options={METHODS.map((m) => ({ value: m, label: t(m === "Bank Transfer" ? "Bank transfer" : m) }))} />
             )}
           </Field>
           <Field label={t("Reference")} optional className={FA.wide}>

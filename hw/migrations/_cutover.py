@@ -215,7 +215,7 @@ def move_legacy_payments(apps, schema_editor):
         record = Record.objects.create(
             payment_number=f'PAY-L{p.pk:04d}', payment_date=p.payment_date, amount=p.amount,
             currency=p.currency, exchange_rate=p.exchange_rate or 1, amount_sar=amount_sar,
-            method=p.method or 'Transfer', reference=f'legacy:{p.pk}',
+            method=p.method or 'Bank Transfer', reference=f'legacy:{p.pk}',
             note='\n'.join(x for x in (LEGACY_NOTE, p.note or '') if x), proof=p.proof,
             status='confirmed', confirmed_at=None, created_by_id=user.pk, confirmed_by_id=user.pk,
             client_id=client_id, invoice_id=invoice.pk, period=_period_for(apps, p.payment_date),
