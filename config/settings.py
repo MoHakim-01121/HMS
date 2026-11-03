@@ -179,7 +179,12 @@ WHITENOISE_IMMUTABLE_FILE_TEST = re.compile(r'.*\.[a-fA-F0-9]{8,}\.[a-z]+$')
 # that makes the 1-year WHITENOISE_MAX_AGE below genuinely safe even for the
 # hand-written hw/css/*.css files (previously non-hashed → stale-cache risk).
 if not DEBUG:
+    # Setting STORAGES replaces Django's default, so uploads need their own
+    # entry: without it every page that links a proof file fails (11-03).
     STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
         'staticfiles': {
             'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
         },
