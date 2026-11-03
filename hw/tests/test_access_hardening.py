@@ -29,8 +29,7 @@ from hw.tests.factories import make_cl, make_invoice, make_payment
 PUBLIC_URLS = {
     'login/': 'the login form',
     'logout/': 'ends the session',
-    '': 'public landing page',
-    'properties/': 'public hotel list of the landing page',
+    '': 'redirects to the login, or the dashboard when signed in',
     'health/': 'liveness probe; status only, no details',
 }
 LOGIN_ONLY_URLS = {

@@ -126,7 +126,6 @@ from .landing_views import (
     pricelist_delete,
     pricelist_edit,
     pricelist_new,
-    public_hotels,
     team_delete,
     team_edit,
     team_new,

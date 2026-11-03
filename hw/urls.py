@@ -8,7 +8,6 @@ from .active_branch import switch_branch
 urlpatterns = [
     path('', views.landing, name='landing'),
     path('dashboard/', views.home, name='home'),
-    path('properties/', views.public_hotels, name='public_hotels'),
 
     # Confirmation Letter
     path('cl/', views.cl_list, name='cl_list'),
