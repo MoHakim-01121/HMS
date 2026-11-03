@@ -12,6 +12,8 @@ Amounts are whole units of the invoice currency (hotel invoices are always
 SAR). Whether an invoice is paid is never stored; it is derived from the
 ledger (financial_state).
 """
+from datetime import timedelta
+
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -63,7 +65,10 @@ class Invoice(models.Model):
     ]
 
     invoice_type   = models.CharField(max_length=20, choices=InvoiceType.choices, default=InvoiceType.HOTEL, db_index=True)
-    invoice_number = models.CharField(max_length=100, unique=True)
+    invoice_number = models.CharField(max_length=100)
+    season         = models.ForeignKey(
+        'Season', null=True, blank=True, on_delete=models.PROTECT, related_name='invoices',
+    )
     client         = models.ForeignKey('Client', on_delete=models.PROTECT, related_name='invoices')
     # Issuing branch: a fact at the time of issue. It starts as the client's
     # owner branch and stays put when the client later moves to another branch.
@@ -139,7 +144,28 @@ class Invoice(models.Model):
     def save(self, *args, **kwargs):
         if not self.branch_id and self.client_id:
             self.branch_id = self.client.owner_branch_id
+        season = self.season_for_date(self.issued_date)
+        if self.season_id != (season.pk if season else None):
+            self.season = season
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = {*kwargs['update_fields'], 'season'}
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def season_for_date(issued_date):
+        if issued_date is None:
+            return None
+        from .period import Season
+        return Season.objects.filter(date_from__lte=issued_date, date_to__gte=issued_date).first()
+
+    @classmethod
+    def number_exists_in_season(cls, number, issued_date, *, exclude_pk=None):
+        season = cls.season_for_date(issued_date)
+        scope = {'season_id': season.pk} if season else {'season__isnull': True}
+        qs = cls.objects.filter(invoice_number=number, **scope)
+        if exclude_pk is not None:
+            qs = qs.exclude(pk=exclude_pk)
+        return qs.exists()
 
     def get_absolute_url(self):
         return reverse('invoice_detail', args=[self.pk])
@@ -310,43 +336,36 @@ class Invoice(models.Model):
 
     # ── Numbering ─────────────────────────────────────────────
 
-    @staticmethod
-    def _sequence_key(issued_date=None):
-        """Counter key for the month of `issued_date`, e.g. ``INV-2026-10``.
+    @classmethod
+    def _sequence_context(cls, issued_date=None):
+        """Counter key and invoice scope for the season containing this date."""
+        season = cls.season_for_date(issued_date)
+        if season:
+            return f'INV-SEASON-{season.pk}', {'season_id': season.pk}
+        return 'INV-NO-SEASON', {'season__isnull': True}
 
-        Uses the financial period's name when one covers that date (the format
-        periods have always been named in), else the plain year-month. Read
-        without a row lock: only allocation needs the lock, and the suggestion
-        shown on a GET must use the same key the POST will allocate from.
-        """
-        from .period import FinancialPeriod
-
-        d = issued_date or timezone.localdate()
-        period = (
-            FinancialPeriod.objects.filter(date_from__lte=d, date_to__gte=d)
-            .values_list('name', flat=True)
-            .first()
-        )
-        if period:
-            return f'INV-{period.replace(" ", "-").replace("/", "-")}'
-        return f'INV-{d:%Y%m}'
+    @classmethod
+    def _sequence_key(cls, issued_date=None):
+        return cls._sequence_context(issued_date)[0]
 
     @classmethod
     def generate_number(cls, invoice_type, issued_date=None):
         from ..numbering import generate_sequential_number
 
+        key, season_scope = cls._sequence_context(issued_date)
         return generate_sequential_number(
-            cls, cls._sequence_key(issued_date), field='invoice_number', padding=3,
-            extra_filter={'invoice_type': invoice_type},
+            cls, 'INV', field='invoice_number', padding=3, key=key,
+            extra_filter={'invoice_type': invoice_type, **season_scope},
         )
 
     @classmethod
     def suggest_number(cls, invoice_type, issued_date=None):
         from ..numbering import peek_number
 
+        key, season_scope = cls._sequence_context(issued_date)
         return peek_number(
-            cls, cls._sequence_key(issued_date), field='invoice_number', padding=3,
-            extra_filter={'invoice_type': invoice_type},
+            cls, 'INV', field='invoice_number', padding=3, key=key,
+            extra_filter={'invoice_type': invoice_type, **season_scope},
         )
 
     @classmethod
@@ -354,9 +373,10 @@ class Invoice(models.Model):
         """Counter mengikuti nomor yang diketik user."""
         from ..numbering import advance_number
 
+        key, season_scope = cls._sequence_context(issued_date)
         advance_number(
-            cls, cls._sequence_key(issued_date), number, field='invoice_number',
-            extra_filter={'invoice_type': invoice_type},
+            cls, 'INV', number, field='invoice_number', key=key,
+            extra_filter={'invoice_type': invoice_type, **season_scope},
         )
 
 

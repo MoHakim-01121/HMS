@@ -151,11 +151,11 @@ class FinancialPeriod(models.Model):
 
 
 class Season(models.Model):
-    """Musim umrah — rentang laporan, bukan unit tutup buku.
+    """Musim umrah — rentang laporan dan nomor invoice, bukan unit tutup buku.
 
     Buku tetap ditutup per bulan (FinancialPeriod); musim hanya menamai
-    rentang tanggal, mis. "Musim 1448H", supaya laporan (Trial Balance, Arus
-    Dana, Statement) bisa dibaca satu musim penuh. Membuat musim melengkapi
+    rentang tanggal, mis. "Musim 1448H", supaya laporan bisa dibaca satu musim
+    penuh dan nomor invoice berulang dari INV-001. Membuat musim melengkapi
     periode bulanan yang dibutuhkannya — lihat hw/finance/seasons.py.
     """
 

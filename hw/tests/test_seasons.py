@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from hw.finance import seasons
+from hw.tests.factories import make_invoice
 from hw.models.period import FinancialPeriod, Season
 
 
@@ -84,6 +85,19 @@ class SeasonViewsTest(TestCase):
         # The months stay: they hold the books.
         self.assertEqual(len(_names()), 11)
 
+    def test_a_season_with_invoices_cannot_be_deleted(self):
+        season = Season.objects.create(
+            name='Musim 1448H', date_from=date(2026, 6, 1), date_to=date(2027, 5, 31),
+        )
+        make_invoice(invoice_number='INV-001', issued_date=date(2026, 6, 2))
+
+        response = self.client.post(f'/finance/seasons/{season.pk}/delete/')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(Season.objects.filter(pk=season.pk).exists())
+        flash = self.client.get('/finance/periods/', HTTP_X_INERTIA='true').json()['props']['flash']
+        self.assertIn('cannot be deleted', flash['error'])
+
     def test_refused_season_flashes_the_reason(self):
         self.client.post('/finance/seasons/create/', {'name': 'X', 'date_from': '2026-06-01', 'date_to': '2026-05-01'})
         self.assertFalse(Season.objects.exists())
@@ -97,6 +111,20 @@ class SeasonViewsTest(TestCase):
             with self.subTest(url=url):
                 props = self.client.get(url, HTTP_X_INERTIA='true').json()['props']
                 self.assertEqual(props['seasons'], want)
+
+    def test_cl_and_invoice_lists_read_a_whole_season(self):
+        seasons.save_season(name='Musim 1448H', date_from=date(2026, 6, 1), date_to=date(2027, 3, 31))
+        for url in ('/cl/', '/invoice/'):
+            with self.subTest(url=url):
+                props = self.client.get(url, {'season': 'Musim 1448H'}, HTTP_X_INERTIA='true').json()['props']
+                self.assertEqual(props['seasons'], [{'name': 'Musim 1448H', 'from': '2026-06-01', 'to': '2027-03-31'}])
+                self.assertEqual((props['filters']['season'], props['filters']['month']), ('Musim 1448H', ''))
+                self.assertIn('date_from=2026-06-01', props['export_qs'])
+                self.assertIn('date_to=2027-03-31', props['export_qs'])
+                # An unknown season falls back to the current month.
+                props = self.client.get(url, {'season': 'Nope'}, HTTP_X_INERTIA='true').json()['props']
+                self.assertEqual(props['filters']['season'], '')
+                self.assertTrue(props['filters']['month'])
 
 
 class PeriodCreateTest(TestCase):

@@ -172,7 +172,7 @@ def _due_month_kpis(base_qs, first, last, user):
 def invoice_list(request):
     """Invoice list (Record View HMS canvas): KPIs for the month invoices fall
     due, the toolbar, and the table one page at a time."""
-    from .helpers import list_per_page, list_period, pct_delta, prev_month_range
+    from .helpers import list_per_page, list_period, list_seasons, pct_delta, prev_month_range
     base_qs = _hotel_invoices(request).with_lines()
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', '')
@@ -247,7 +247,7 @@ def invoice_list(request):
         "invoices": invoices,
         "filters": {"q": q, "status": status, "sort": sort, "per": list_per_page(request), **period},
         "search_all": search_all,
-        "years": years, "counts": counts, "kpis": kpis,
+        "years": years, "seasons": list_seasons(), "counts": counts, "kpis": kpis,
         "export_qs": "?" + urlencode([(k, v) for k, v in [
             ("q", q), ("date_from", tbl_from.isoformat() if tbl_from else ""),
             ("date_to", tbl_to.isoformat() if tbl_to else ""),
@@ -278,9 +278,10 @@ def _invoice_stats(invoice_qs):
 
 @require_perm('invoice', 'create')
 def invoice_new(request):
-    suggested_number = Invoice.suggest_number(InvoiceType.HOTEL)
+    suggested_number = Invoice.suggest_number(InvoiceType.HOTEL, issued_date=timezone.localdate())
 
     if request.method == "POST":
+        issued_d = _parse_date(request.POST.get("issued_date"))
         # The approved form has no number field: the next number is issued
         # with the invoice. A number posted by an older client still wins.
         posted_number = request.POST.get("invoice_number", "").strip()
@@ -298,7 +299,7 @@ def invoice_new(request):
                 "errors": errors,
             })
 
-        if posted_number and Invoice.objects.filter(invoice_number=posted_number).exists():
+        if posted_number and Invoice.number_exists_in_season(posted_number, issued_d):
             return _reject({"invoice_number": f"Invoice number '{posted_number}' is already in use."})
 
         cl_ids = _billable_cl_ids(request)
@@ -309,7 +310,6 @@ def invoice_new(request):
 
         try:
             with transaction.atomic():
-                issued_d = _parse_date(request.POST.get("issued_date"))
                 if posted_number:
                     invoice_number = posted_number
                 else:
@@ -506,6 +506,8 @@ def invoice_edit(request, pk):
         return redirect('invoice_detail', pk=pk)
 
     if request.method == "POST":
+        issued_d = _parse_date(request.POST.get("issued_date"))
+
         def _res_snapshot(inv):
             rows = [
                 f"{r.hotel} {r.check_in}–{r.check_out} ({int(r.total_sar or 0)} SAR)"
@@ -528,7 +530,7 @@ def invoice_edit(request, pk):
                 "errors": errors,
             })
 
-        if Invoice.objects.filter(invoice_number=new_number).exclude(pk=invoice.pk).exists():
+        if Invoice.number_exists_in_season(new_number, issued_d, exclude_pk=invoice.pk):
             return _reject({"invoice_number": f"Invoice number '{new_number}' is already in use."})
 
         cl_ids = _billable_cl_ids(request, invoice)
@@ -611,7 +613,7 @@ def invoice_delete(request, pk):
 @require_perm('invoice', 'export')
 def invoice_pdf(request, pk):
     invoice = get_in_scope_or_404(Invoice.objects.filter(invoice_type=InvoiceType.HOTEL), request.user, pk=pk)
-    return _render_invoice_pdf(invoice)
+    return _render_invoice_pdf(invoice, detailed=request.GET.get("detailed") == "1")
 
 
 @require_perm('invoice', 'export')

@@ -52,13 +52,14 @@ def _tail(number, prefix):
     return int(m.group(1)) if m else None
 
 
-def _max_existing(model, prefix, field, extra_filter):
-    qs = model.objects.filter(**{f'{field}__startswith': _prefix(prefix)}, **(extra_filter or {}))
+def _max_existing(model, prefix, field, extra_filter, legacy_prefixes=()):
     best = 0
-    for value in qs.values_list(field, flat=True).iterator():
-        n = _tail(value, prefix)
-        if n is not None and n > best:
-            best = n
+    for candidate in dict.fromkeys((prefix, *legacy_prefixes)):
+        qs = model.objects.filter(**{f'{field}__startswith': _prefix(candidate)}, **(extra_filter or {}))
+        for value in qs.values_list(field, flat=True).iterator():
+            n = _tail(value, candidate)
+            if n is not None and n > best:
+                best = n
     return best
 
 
@@ -72,60 +73,102 @@ def _first_free(model, prefix, field, padding, extra_filter, start):
             return n, number
 
 
-def _locked_sequence(key, model, prefix, field, extra_filter):
+def _locked_sequence(key, model, prefix, field, extra_filter, legacy_prefixes=()):
     from .models.sequence import DocumentSequence
+
+    legacy_keys = [
+        _key(candidate, None) for candidate in legacy_prefixes
+        if _key(candidate, None) != key
+    ]
     seq = DocumentSequence.objects.select_for_update().filter(key=key).first()
     if seq is None:
-        start = _max_existing(model, prefix, field, extra_filter)
+        start = _max_existing(model, prefix, field, extra_filter, legacy_prefixes)
+        if legacy_keys:
+            start = max(start, max(
+                DocumentSequence.objects.filter(key__in=legacy_keys).values_list('last_value', flat=True),
+                default=0,
+            ))
         try:
             with transaction.atomic():
                 DocumentSequence.objects.create(key=key, last_value=start)
         except IntegrityError:
             pass  # transaksi lain membuatnya lebih dulu; kita tunggu kuncinya di bawah
         seq = DocumentSequence.objects.select_for_update().get(key=key)
+    elif legacy_prefixes:
+        start = _max_existing(model, prefix, field, extra_filter, legacy_prefixes)
+        if legacy_keys:
+            start = max(start, max(
+                DocumentSequence.objects.filter(key__in=legacy_keys).values_list('last_value', flat=True),
+                default=0,
+            ))
+        if start > seq.last_value:
+            seq.last_value = start
+            seq.save(update_fields=['last_value'])
     return seq
 
 
-def next_number(model, prefix, *, field=None, padding=3, extra_filter=None, key=None, allocate=True):
+def next_number(model, prefix, *, field=None, padding=3, extra_filter=None, key=None, allocate=True,
+                legacy_prefixes=()):
     field = _field(model, field)
     key = _key(prefix, key)
     if not allocate:
-        return peek_number(model, prefix, field=field, padding=padding, extra_filter=extra_filter, key=key)
+        return peek_number(
+            model, prefix, field=field, padding=padding, extra_filter=extra_filter, key=key,
+            legacy_prefixes=legacy_prefixes,
+        )
     if not connection.in_atomic_block:
         raise NumberingError(
             f"Nomor {key} harus dialokasikan di dalam transaction.atomic() "
             "yang juga menyimpan dokumennya."
         )
     with transaction.atomic():
-        seq = _locked_sequence(key, model, prefix, field, extra_filter)
+        seq = _locked_sequence(key, model, prefix, field, extra_filter, legacy_prefixes)
         n, number = _first_free(model, prefix, field, padding, extra_filter, seq.last_value)
         seq.last_value = n
         seq.save(update_fields=['last_value'])
     return number
 
 
-def generate_sequential_number(model, prefix, field=None, padding=3, extra_filter=None, key=None):
+def generate_sequential_number(model, prefix, field=None, padding=3, extra_filter=None, key=None,
+                               legacy_prefixes=()):
     """Alokasikan nomor berikutnya (lihat docstring modul)."""
-    return next_number(model, prefix, field=field, padding=padding, extra_filter=extra_filter, key=key)
+    return next_number(
+        model, prefix, field=field, padding=padding, extra_filter=extra_filter, key=key,
+        legacy_prefixes=legacy_prefixes,
+    )
 
 
-def peek_number(model, prefix, *, field=None, padding=3, extra_filter=None, key=None):
+def peek_number(model, prefix, *, field=None, padding=3, extra_filter=None, key=None,
+                legacy_prefixes=()):
     """Nomor usulan tanpa mengunci atau memakai counter."""
     from .models.sequence import DocumentSequence
     field = _field(model, field)
     seq = DocumentSequence.objects.filter(key=_key(prefix, key)).first()
-    start = seq.last_value if seq else _max_existing(model, prefix, field, extra_filter)
+    start = seq.last_value if seq else 0
+    start = max(start, _max_existing(model, prefix, field, extra_filter, legacy_prefixes))
+    legacy_keys = [
+        _key(candidate, None) for candidate in legacy_prefixes
+        if _key(candidate, None) != _key(prefix, key)
+    ]
+    if legacy_keys:
+        start = max(start, max(
+            DocumentSequence.objects.filter(key__in=legacy_keys).values_list('last_value', flat=True),
+            default=0,
+        ))
     return _first_free(model, prefix, field, padding, extra_filter, start)[1]
 
 
-def advance_number(model, prefix, number, *, field=None, extra_filter=None, key=None):
+def advance_number(model, prefix, number, *, field=None, extra_filter=None, key=None,
+                   legacy_prefixes=()):
     """Naikkan counter ke `number` bila nomor itu (ketikan user) melampauinya."""
     n = _tail(number, prefix)
     if n is None:
         return
     field = _field(model, field)
     with transaction.atomic():
-        seq = _locked_sequence(_key(prefix, key), model, prefix, field, extra_filter)
+        seq = _locked_sequence(
+            _key(prefix, key), model, prefix, field, extra_filter, legacy_prefixes,
+        )
         if n > seq.last_value:
             seq.last_value = n
             seq.save(update_fields=['last_value'])

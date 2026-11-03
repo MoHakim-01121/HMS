@@ -57,10 +57,11 @@ def ensure_receipt(payment, created_by=None):
         return existing
 
     confirmation = _resolve_confirmation(payment)
+    receipt_date = payment.payment_date or timezone.localdate()
 
     return Receipt.objects.create(
-        receipt_number=Receipt.generate_number(),
-        receipt_date=payment.payment_date or timezone.localdate(),
+        receipt_number=Receipt.generate_number(receipt_date),
+        receipt_date=receipt_date,
         payment=payment,
         invoice=payment.invoice,
         client=payment.client,

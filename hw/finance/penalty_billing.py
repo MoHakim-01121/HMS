@@ -48,7 +48,9 @@ def bill_penalty(penalty, *, user=None):
     created = hotel_line is None
     if created:
         invoice = Invoice.objects.create(
-            invoice_type='hotel', invoice_number=Invoice.generate_number('hotel'),
+            invoice_type='hotel', invoice_number=Invoice.generate_number(
+                'hotel', issued_date=penalty.cancellation_date or timezone.localdate(),
+            ),
             client_id=cl.client_id, branch_id=cl.client.owner_branch_id,
             issued_date=penalty.cancellation_date or timezone.localdate(),
             currency='SAR', created_by=user,

@@ -4,7 +4,7 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db.models import Sum
+from django.db.models import ProtectedError, Sum
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from inertia import render as inertia_render
@@ -173,9 +173,17 @@ def season_save(request, pk=None):
 
 @require_perm('periods', 'edit')
 def season_delete(request, pk):
-    """A season only names a date range: deleting it leaves periods and journal as they are."""
+    """Delete an unused season; invoices retain their issuing season."""
     season = get_object_or_404(Season, pk=pk)
     if request.method == 'POST':
-        season.delete()
-        messages.success(request, tr(request, f'Season {season.name} deleted.', f'Musim {season.name} dihapus.'))
+        try:
+            season.delete()
+        except ProtectedError:
+            messages.error(request, tr(
+                request,
+                'A season with invoices or receipts cannot be deleted.',
+                'Musim yang memiliki invoice atau receipt tidak dapat dihapus.',
+            ))
+        else:
+            messages.success(request, tr(request, f'Season {season.name} deleted.', f'Musim {season.name} dihapus.'))
     return redirect('period_list')
