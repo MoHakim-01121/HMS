@@ -10,7 +10,7 @@ from django.shortcuts import redirect
 from django.utils import timezone
 from inertia import render as inertia_render
 
-from ..branch_scope import get_in_scope_or_404, scope, with_head_office
+from ..branch_scope import get_in_scope_or_404, payment_receiving_branches, scope
 from ..finance import posting
 from ..finance_helpers import (
     FinanceError,
@@ -449,7 +449,7 @@ def payment_list(request):
         ] if x),
         'invoice_choices': invoice_choices,
         'client_choices': client_choices,
-        'account_choices': lambda: money_account_choices(branches=with_head_office(request.user)),
+        'account_choices': lambda: money_account_choices(branches=payment_receiving_branches(request.user)),
         'pagination': pagination_props(page_obj),
     })
 
@@ -614,7 +614,7 @@ def payment_record(request):
         received_in = data.get('received_in', 'sby')
         if received_in not in ('sby', 'jkt', 'pusat'):
             received_in = 'sby'
-    allowed = with_head_office(request.user)
+    allowed = payment_receiving_branches(request.user)
     if allowed is not None and received_in not in allowed:
         messages.error(request, tr(request, 'The receiving account is outside your branch.', 'Rekening penerima di luar cabang Anda.'))
         return redirect('payment_list')

@@ -197,6 +197,26 @@ def with_head_office(user):
     return frozenset(codes) | frozenset(Branch.objects.filter(is_hq=True).values_list('code', flat=True))
 
 
+# Branches that do not use the system but where Surabaya's clients may pay:
+# money paid there counts as reached head office (user, 2026-11-03).
+RECEIVE_ONLY_BRANCHES = frozenset({'jkt'})
+
+
+def payment_receiving_branches(user):
+    """Branches whose accounts a user may record client payments into.
+
+    Jakarta is not an active HMS branch, but Surabaya may record money its
+    clients paid there. This exception is only for payment receiving accounts;
+    it does not grant access to Jakarta's other records or operations.
+    """
+    codes = with_head_office(user)
+    if codes is None:
+        return None
+    if 'sby' in codes:
+        return frozenset(codes) | RECEIVE_ONLY_BRANCHES
+    return codes
+
+
 def head_office_only(view):
     """Guard a view (under its require_perm) for head office's own steps that
     share a permission with branch work — e.g. recording what head office

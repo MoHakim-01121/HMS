@@ -63,6 +63,16 @@ class BankAccountManageTests(TestCase):
         self.client.post('/finance/bank-accounts/new/', post_data(kind='cash', name='kas kecil'))
         self.assertEqual(CashAccount.objects.filter(name__iexact='Kas Kecil').count(), 1)
 
+    def test_jakarta_dollar_box_while_jakarta_does_not_use_the_system(self):
+        # Jakarta is inactive (receive-only): Surabaya's clients may still pay
+        # there in dollars, so the box can be made for it.
+        from hw.models.bank import CashAccount
+        self.client.force_login(self.admin)
+        self.client.post('/finance/bank-accounts/new/', post_data(
+            kind='cash', name='Kas Jakarta USD', branch='jkt', currency='USD', bank_name='', account_identifier=''))
+        box = CashAccount.objects.get(name='Kas Jakarta USD')
+        self.assertEqual((box.branch_id, box.currency, box.ledger_account_id), ('jkt', 'USD', '1000-KAS-JKT-USD'))
+
     def test_ledger_account_with_another_currency_is_refused(self):
         self.client.force_login(self.admin)
         resp = self.client.post('/finance/bank-accounts/new/', post_data(ledger_account='1000-KAS-SBY'), HTTP_X_INERTIA='true')

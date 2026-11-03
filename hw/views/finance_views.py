@@ -290,10 +290,19 @@ def _bank_form_props(acc=None, data=None, errors=None):
         'edit': acc is not None,
         'locked': bool(acc and _bank_account_in_use(acc)),
         'errors': errors or {},
-        'branch_choices': [{'value': b.code, 'label': b.name} for b in Branch.objects.filter(is_active=True)],
+        'branch_choices': [{'value': b.code, 'label': b.name} for b in _account_branches(Branch)],
         'currency_choices': list(BANK_CURRENCIES),
         'ledger_choices': ledger_choices,
     }
+
+
+def _account_branches(Branch):
+    """Branches an account can belong to: the active ones and the receive-only
+    points (Jakarta), whose rupiah and dollar accounts Surabaya books into."""
+    from django.db.models import Q
+
+    from ..branch_scope import RECEIVE_ONLY_BRANCHES
+    return Branch.objects.filter(Q(is_active=True) | Q(code__in=RECEIVE_ONLY_BRANCHES)).order_by('-is_hq', 'name')
 
 
 def _default_ledger_for_branch(branch_code, currency):
@@ -334,7 +343,7 @@ def _save_bank_account(request, acc):
         data['ledger_account'] = acc.ledger_account_id
 
     errors = {}
-    if not Branch.objects.filter(code=data['branch'], is_active=True).exists():
+    if not _account_branches(Branch).filter(code=data['branch']).exists():
         errors['branch'] = 'Pick a branch.'
     if kind == 'bank':
         if not data['bank_name']:

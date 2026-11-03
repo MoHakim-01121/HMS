@@ -4,9 +4,11 @@ A branch's staff see and act on their own branch only; head office and the
 admin role cover every branch. Organisation-wide modules need every branch.
 Expenses belong to a branch, never to head office.
 """
+import base64
 from datetime import date, timedelta
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from hw.branch_scope import branch_codes, covers_all, operating_branches
@@ -250,9 +252,8 @@ class OperationalScopeTest(TestCase):
 
 
 class FinanceScopeTest(TestCase):
-    """Money follows the same rule: a Surabaya account works on Surabaya's
-    accounts and on Surabaya's clients' payments (also those head office
-    received), never on Jakarta's; head office records remittance receipts."""
+    """Money follows branch scope, with Jakarta available as a receiving
+    location for Surabaya client payments; head office records remittance receipts."""
 
     def setUp(self):
         import shutil
@@ -307,16 +308,29 @@ class FinanceScopeTest(TestCase):
 
     def test_payment_accounts_are_the_branchs_and_head_offices(self):
         self.client.force_login(self.sby_mgr)
+        FinancialPeriod.objects.create(
+            name='2026-06', date_from=date(2026, 6, 1), date_to=date(2026, 6, 30),
+        )
+        # Jakarta is not operating HMS, but Surabaya must still record payments
+        # from its clients that arrive in Jakarta.
+        Branch.objects.filter(code='jkt').update(is_active=False)
         props = self.client.get('/finance/payments/', HTTP_X_INERTIA='true').json()['props']
-        self.assertEqual({a['branch'] for a in props['account_choices']}, {'sby', 'pusat'})
-        from django.contrib.messages import get_messages
+        self.assertEqual({a['branch'] for a in props['account_choices']}, {'sby', 'pusat', 'jkt'})
         before = PaymentRecord.objects.count()
         resp = self.client.post('/finance/payments/record/', {
             'client_id': self.pay['own'].client_id, 'amount': '5', 'payment_date': '2026-06-06',
             'account': self.jkt_account.token, 'method': 'Transfer',
+            'proof': SimpleUploadedFile(
+                'proof.png',
+                base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='),
+                content_type='image/png',
+            ),
         })
-        self.assertIn('The receiving account is outside your branch.', [str(m) for m in get_messages(resp.wsgi_request)])
-        self.assertEqual(PaymentRecord.objects.count(), before)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(PaymentRecord.objects.count(), before + 1)
+        payment = PaymentRecord.objects.latest('pk')
+        self.assertEqual(payment.client_id, self.pay['own'].client_id)
+        self.assertEqual(payment.receiving_branch_code, 'jkt')
 
     def test_remittances_and_their_receipts(self):
         self.client.force_login(self.sby_mgr)
