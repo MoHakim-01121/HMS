@@ -89,6 +89,7 @@ urlpatterns = [
     path('remittance/export/csv/', views.remittance_export_csv, name='remittance_export_csv'),
     path('remittance/export/pdf/', views.remittance_period_pdf, name='remittance_period_pdf'),
     path('remittance/export/ledger/', views.remittance_ledger_pdf, name='remittance_ledger_pdf'),
+    path('remittance/draft/pdf/', views.remittance_draft_pdf, name='remittance_draft_pdf'),
     path('remittance/<int:pk>/', views.remittance_detail, name='remittance_detail'),
     path('remittance/<int:pk>/edit/', views.remittance_edit, name='remittance_edit'),
     path('remittance/<int:pk>/pdf/', views.remittance_pdf, name='remittance_pdf'),

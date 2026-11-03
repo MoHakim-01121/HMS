@@ -672,6 +672,34 @@ def remittance_pdf(request, pk):
     )
 
 
+@require_perm('remittance', 'create')
+def remittance_draft_pdf(request):
+    """Draft setoran untuk dilaporkan ke owner/manager sebelum transfer:
+    reservasi yang dicentang di tab Tracking (`?plan=` yang sama dengan form
+    baru) dan SAR yang menunggu disetor. Tidak menyimpan apa pun."""
+    from datetime import datetime
+
+    from .helpers import _render_list_pdf
+    from .pdf import _logo_file_url
+    if not _sees_remittance_figures(request.user):
+        raise Http404
+    lines = _plan_props(_plan_from_query(request.GET.get('plan')), strict=False)
+    # Check-in terdekat dulu, seperti PDF remittance; tanpa check-in di bawah.
+    lines.sort(key=lambda r: (
+        r['check_in'] is None,
+        datetime.strptime(r['check_in'], '%d/%m/%Y').date() if r['check_in'] else date.max,
+        r['linked_number'] or '',
+    ))
+    today = timezone.localdate()
+    return _render_list_pdf(
+        request, Remittance.objects.none(),
+        template='hw/remittance/remittance_draft_pdf.html',
+        filename=f'remittance_draft_{today}.pdf',
+        extra_ctx={'lines': lines, 'today': today, 'logo_url': _logo_file_url(),
+                   'total_sar': sum(r['amount_sar'] for r in lines)},
+    )
+
+
 @require_perm('remittance', 'edit')
 @require_POST
 def remittance_upload_proof(request, pk):

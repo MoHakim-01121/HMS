@@ -1,0 +1,185 @@
+{% load humanize %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Remittance draft — {{ today|date:"d M Y" }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 56px 64px 48px;
+      @bottom-left {
+        content: "Draft {{ today|date:'d M Y' }} · not sent";
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " / " counter(pages);
+        font-size: 10px; color: #111;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+    .doc-title { font-size: 28px; font-weight: 700; color: #111; }
+    .logo { max-height: 68px; width: auto; }
+
+    .meta { margin-bottom: 28px; font-size: 12px; }
+    .meta-row { display: flex; gap: 8px; }
+    .meta-row .mk { font-weight: 700; color: #111; min-width: 140px; }
+    .meta-row .mv { color: #111; }
+
+    .two-col { display: flex; gap: 40px; padding-bottom: 28px; border-bottom: 1px solid #ddd; }
+    .two-col > div { flex: 1; }
+    .col-title { font-weight: 700; font-size: 12px; color: #111; margin-bottom: 4px; }
+    .col-body { font-size: 12px; color: #444; line-height: 1.7; }
+
+    .amount-headline {
+      font-size: 22px;
+      font-weight: 700;
+      color: #111;
+      margin-top: 40px;
+      margin-bottom: 56px;
+      text-align: right;
+    }
+    .amount-headline .sub { display: block; font-size: 12px; font-weight: 400; color: #555; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 400;
+      color: #333;
+      padding: 0 8px 10px 0;
+      border-bottom: 1px solid #111;
+    }
+    thead th.r { text-align: right; padding-right: 0; }
+    tbody tr { page-break-inside: avoid; }
+    tbody td { padding: 8px 8px 8px 0; vertical-align: top; color: #111; border-bottom: 1px solid #eee; }
+    tbody td.r { text-align: right; padding-right: 0; }
+
+    .totals {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .total-row { display: flex; padding: 3px 0 1px; font-size: 12px; width: 200px; border-top: 1px solid #ddd; }
+    .total-row .tkey { flex: 1; font-weight: 700; }
+    .total-row .tval { text-align: right; font-weight: 700; }
+
+    .empty { margin-top: 12px; color: #666; }
+
+    /* Tanda tangan sebagai footnote: selalu di ujung bawah halaman terakhir. */
+    @page { @footnote { border-top: none; padding-top: 0; } }
+    .signatures { float: footnote; footnote-display: block; }
+    .signatures::footnote-call, .signatures::footnote-marker { content: none; }
+    .sig-row { width: 100%; border-collapse: collapse; }
+    .sig-row td { width: 180px; padding: 0; vertical-align: top; border-bottom: none; }
+    .sig-row td.gap { width: auto; }
+    .sig-title { font-size: 12px; color: #333; }
+    .sig-line { margin-top: 56px; border-top: 1px solid #111; padding-top: 4px; font-size: 11px; color: #666; }
+
+    .watermark {
+      position: fixed;
+      top: 45%; left: 50%;
+      transform: translate(-50%, -50%) rotate(-40deg);
+      font-size: 110px; font-weight: 900;
+      color: rgba(0,0,0,0.04);
+      white-space: nowrap;
+      letter-spacing: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="watermark">DRAFT</div>
+
+<div class="top">
+  <div class="doc-title">Remittance draft</div>
+  <img src="{{ logo_url }}" class="logo">
+</div>
+
+<div class="meta">
+  <div class="meta-row"><span class="mk">Prepared on</span><span class="mv">{{ today|date:"d M Y" }}</span></div>
+  <div class="meta-row"><span class="mk">Reservations</span><span class="mv">{{ lines|length }}</span></div>
+  <div class="meta-row"><span class="mk">Status</span><span class="mv">Plan for approval, not sent yet</span></div>
+</div>
+
+<div class="two-col">
+  <div>
+    <div class="col-title">Konoz United Surabaya</div>
+    <div class="col-body">
+      Jl. Ikan Mungsing VII No.51, Perak Bar.,<br>
+      Kec. Krembangan, Surabaya, Jawa Timur 60177<br>
+      konozsurabaya@gmail.com
+    </div>
+  </div>
+  <div>
+    <div class="col-title">To</div>
+    <div class="col-body">Konoz United Main Branch</div>
+  </div>
+</div>
+
+<div class="amount-headline">{{ total_sar|intcomma }} SAR<span class="sub">to send to HQ</span></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Res</th>
+      <th>Client</th>
+      <th>Hotel</th>
+      <th class="r">Check-in</th>
+      <th class="r">To send (SAR)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in lines %}
+    <tr>
+      <td style="color:#999;padding-right:16px;">{{ forloop.counter }}</td>
+      <td style="font-family:monospace;font-weight:600;padding-right:24px;">{{ row.linked_number }}</td>
+      <td>{{ row.client_name|default:"—" }}</td>
+      <td>{{ row.hotel|default:"—" }}</td>
+      <td class="r">{{ row.check_in|default:"—" }}</td>
+      <td class="r" style="font-weight:600;">{{ row.amount_sar|intcomma }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if not lines %}<div class="empty">No reservation is waiting to be sent.</div>{% endif %}
+
+<div class="totals">
+  <div class="total-row">
+    <span class="tkey">Total</span>
+    <span class="tval">{{ total_sar|intcomma }} SAR</span>
+  </div>
+</div>
+
+<div class="signatures"><table class="sig-row"><tr>
+  <td>
+    <div class="sig-title">Prepared by</div>
+    <div class="sig-line">Finance</div>
+  </td>
+  <td class="gap"></td>
+  <td>
+    <div class="sig-title">Approved by</div>
+    <div class="sig-line">Owner / Manager</div>
+  </td>
+</tr></table></div>
+
+</body>
+</html>

@@ -5,6 +5,7 @@ import { useFormModal } from "../../components/shadcn/form-modal.jsx";
 import { usePerms } from "../../utils/perms.js";
 import { TableCard, PRow, PBand, Tr, Th, Td, Empty, Primary } from "../../components/shadcn/list-a.jsx";
 import { Checkbox } from "../../components/shadcn/ui/checkbox.jsx";
+import { Button } from "../../components/shadcn/ui/button.jsx";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
 import { cn } from "@/lib/utils";
@@ -139,7 +140,8 @@ export default function TrackingPanel({ tracking, canPlan }) {
     const n = rows.filter((r) => picked.has(r.invoice_line_id)).length;
     return n === 0 ? false : n === rows.length ? true : "indeterminate";
   };
-  const planUrl = `/remittance/new/?plan=${chosen.map((r) => `${r.invoice_line_id}:${r.to_send}`).join(",")}`;
+  const planQuery = `plan=${chosen.map((r) => `${r.invoice_line_id}:${r.to_send}`).join(",")}`;
+  const planUrl = `/remittance/new/?${planQuery}`;
 
   const allocationUrl = (p) => `/remittance/${p.remittance_id}/receipt/${p.settlement_id}/allocation/?next=${encodeURIComponent("/remittance/?tab=tracking")}`;
 
@@ -181,6 +183,9 @@ export default function TrackingPanel({ tracking, canPlan }) {
         {canPlan && chosen.length > 0 && (
           <div className="ml-auto flex items-center gap-3 phone:ml-0 phone:w-full phone:justify-between">
             <span className="text-[13px] text-muted-foreground tabular-nums">{t("{n} chosen · {sar} SAR", { n: chosen.length, sar: fmt(chosenSar) })}</span>
+            <Button asChild variant="outline">
+              <a href={`/remittance/draft/pdf/?${planQuery}`} target="_blank" rel="noreferrer"><Icon name="file-text" size={15} />{t("Print draft")}</a>
+            </Button>
             <Primary label={t("Create remittance")} onClick={() => openForm(planUrl)} />
           </div>
         )}
@@ -260,4 +265,3 @@ export default function TrackingPanel({ tracking, canPlan }) {
     </div>
   );
 }
-

@@ -178,6 +178,7 @@ from .reconciliation_views import (
 from .remittance_views import (
     remittance_delete,
     remittance_detail,
+    remittance_draft_pdf,
     remittance_edit,
     remittance_export_csv,
     remittance_ledger_pdf,

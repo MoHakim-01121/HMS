@@ -3003,6 +3003,7 @@ export const id = {
   "Still to send": "Perlu disetor",
   "{n} chosen · {sar} SAR": "{n} dipilih · {sar} SAR",
   "Create remittance": "Buat setoran",
+  "Print draft": "Cetak draft",
   "Choose all": "Pilih semua",
   "Choose {group}": "Pilih {group}",
   "Planned for {number}": "Rencana untuk {number}",

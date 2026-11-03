@@ -131,6 +131,15 @@ class PlanViewTest(PlanBase):
         self.assertEqual([(p['linked_number'], p['amount_sar']) for p in props['plan']], [('B', 9500)])
         self.assertEqual(Remittance.objects.count(), 1)
 
+    def test_draft_pdf_lists_the_chosen_money_and_saves_nothing(self):
+        resp = self.client.get(f'/remittance/draft/pdf/?plan={self.b.pk}:9500,{self.c.pk}:2000,999999:5')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+        self.assertEqual(sorted((p['linked_number'], p['amount_sar']) for p in resp.context['lines']), [('B', 9000), ('C', 2000)])
+        self.assertEqual(resp.context['total_sar'], 11000)
+        self.assertEqual(Remittance.objects.count(), 1)
+        self.assertFalse(RemittancePlanLine.objects.exists())
+
     def test_receipt_form_starts_from_the_plan(self):
         self._plan(self.rem, B=9000)
         form = self._page(f'/remittance/{self.rem.pk}/receipt/')['form']
