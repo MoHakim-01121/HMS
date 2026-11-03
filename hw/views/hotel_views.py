@@ -231,6 +231,13 @@ def hotel_new(request):
         # the whole active master, then narrow it from the detail page.
         # Starting empty would leave only new hotels on free-text Meals.
         h.meal_plans.set(MealPlan.objects.filter(is_active=True))
+        # Every hotel sells the four standard rooms, so a new one starts with
+        # them (Double … Quint, Non View); views it also sells are added after.
+        RoomType.objects.bulk_create([
+            RoomType(hotel=h, name=room_type_name(capacity, RoomView.NON_VIEW),
+                     capacity=capacity, view=RoomView.NON_VIEW)
+            for capacity in OCCUPANCY_BY_CAPACITY
+        ])
         log_activity(request.user, ActivityLog.ACTION_CREATE, 'Hotel', h.name)
         return redirect('hotel_detail', pk=h.pk)
     return inertia_render(request, "Hotel/Form", props={"edit": False, "hotel": None})

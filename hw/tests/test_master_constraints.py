@@ -65,6 +65,15 @@ class HotelFormTest(TestCase):
         h.refresh_from_db()
         self.assertTrue(h.is_active)
 
+    def test_new_hotel_starts_with_the_four_non_view_rooms(self):
+        self.client.post(reverse('hotel_new'), {'name': 'Default Rooms', 'city': 'makkah', 'stars': '4', 'is_active': 'on'})
+        h = Hotel.objects.get(name='Default Rooms')
+        self.assertEqual(
+            list(h.room_types.order_by('capacity').values_list('name', 'capacity', 'view')),
+            [('Double Non View', 2, 'non_view'), ('Triple Non View', 3, 'non_view'),
+             ('Quad Non View', 4, 'non_view'), ('Quint Non View', 5, 'non_view')],
+        )
+
     def test_out_of_range_stars_refused(self):
         self.client.post(reverse('hotel_new'), {'name': 'New', 'city': 'makkah', 'stars': '9', 'is_active': 'on'})
         self.assertFalse(Hotel.objects.filter(name='New').exists())

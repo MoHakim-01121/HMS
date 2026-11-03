@@ -41,6 +41,7 @@ from hw.finance.posting import (
     resync_remittance,
 )
 from hw.finance.remittance_allocation import live_allocation_entries, post_allocation
+from hw.finance.seasons import ensure_monthly_periods
 from hw.finance.settlement_service import post_receipt
 from hw.models import (
     BankTransaction,
@@ -112,7 +113,10 @@ class Command(BaseCommand):
 
     def _replay(self):
         events = self._events()
-        self._ensure_periods([e[0] for e in events] + [timezone.localdate()])
+        self._ensure_periods([e[0] for e in events])
+        # Sampai akhir tahun berjalan, supaya posting tidak berhenti di awal bulan depan.
+        today = timezone.localdate()
+        ensure_monthly_periods(today, date(today.year, 12, 31))
         stats = {'charge': 0, 'payment': 0, 'exchange': 0, 'send': 0, 'receive': 0, 'allocate': 0, 'deposit': 0}
         for day, kind, _, obj in events:
             if kind == CHARGE:
