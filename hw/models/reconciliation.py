@@ -40,7 +40,25 @@ class BankStatement(models.Model):
 
     @property
     def is_fully_matched(self):
-        return not self.lines.filter(matched_transaction__isnull=True).exists()
+        return not self.lines.filter(match__isnull=True).exists()
+
+
+class BankMatch(models.Model):
+    """One reconciliation decision: these statement lines are these cash-book
+    rows. Usually one of each; a client paying two invoices in one transfer is
+    one line and two rows, a salary run with its transfer fees is several lines
+    and one row. The two sides add up to the same signed amount unless a
+    person forced it."""
+    account    = models.ForeignKey('MoneyAccount', on_delete=models.PROTECT, related_name='+')
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Bank Match'
+        verbose_name_plural = 'Bank Matches'
+
+    def __str__(self):
+        return f'Match #{self.pk} ({self.account})'
 
 
 class BankStatementLine(models.Model):
@@ -50,11 +68,9 @@ class BankStatementLine(models.Model):
     direction   = models.CharField(max_length=3, choices=[('in', 'Money In'), ('out', 'Money Out')])
     amount      = models.PositiveBigIntegerField()   # in the statement's currency
     reference   = models.CharField(max_length=200, blank=True)
-    # Set once matched to a BankTransaction — the whole point of this table.
+    # Set once matched to cash-book rows — the whole point of this table.
     # Null means still unreconciled.
-    matched_transaction = models.ForeignKey(
-        'BankTransaction', null=True, blank=True, on_delete=models.SET_NULL, related_name='statement_lines',
-    )
+    match = models.ForeignKey(BankMatch, null=True, blank=True, on_delete=models.SET_NULL, related_name='lines')
 
     class Meta:
         ordering = ['line_date', 'id']

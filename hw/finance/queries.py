@@ -987,7 +987,7 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
     qs = (
         BankTransaction.objects.filter(account_id=account.pk)
         .exclude(status=BankTransaction.STATUS_VOIDED)
-        .prefetch_related('statement_lines').order_by('transaction_date', 'id')
+        .order_by('transaction_date', 'id')
     )
     if date_from:
         qs = qs.filter(transaction_date__gte=date_from)
@@ -1008,7 +1008,7 @@ def account_transactions(kind, account_id, *, date_from=None, date_to=None):
             'source_id': tx.source_id,
             'reference': tx.reference,
             'status': tx.status,
-            'matched': tx.statement_lines.exists(),
+            'matched': tx.match_id is not None,
         })
     rows.reverse()
     return {'account': {'id': account.pk, 'kind': kind, 'name': str(account), 'currency': account.currency}, 'rows': rows}

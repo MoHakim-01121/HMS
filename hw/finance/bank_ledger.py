@@ -102,7 +102,7 @@ def sync_bank_transaction(*, account, direction, amount_sar, source_type, source
                   reference=reference)
     if all(getattr(tx, k) == v for k, v in wanted.items()):
         return tx
-    if tx.status == BankTransaction.STATUS_RECONCILED or tx.statement_lines.exists():
+    if tx.status == BankTransaction.STATUS_RECONCILED or tx.match_id:
         raise FinanceError('Transaksi ini sudah dicocokkan dengan mutasi bank — batalkan pencocokannya dulu.')
     with transaction.atomic():
         if direction == 'out':
@@ -132,7 +132,7 @@ def void_bank_transactions(source_type, source_ids):
     qs = BankTransaction.objects.filter(
         source_type=source_type, source_id__in=list(source_ids),
     ).exclude(status=BankTransaction.STATUS_VOIDED)
-    if qs.filter(Q(status=BankTransaction.STATUS_RECONCILED) | Q(statement_lines__isnull=False)).exists():
+    if qs.filter(Q(status=BankTransaction.STATUS_RECONCILED) | Q(match__isnull=False)).exists():
         raise FinanceError(
             'Transaksi ini sudah dicocokkan dengan mutasi bank di Reconciliation — '
             'batalkan pencocokannya dulu.'
@@ -162,7 +162,7 @@ def sync_opening_balance(account):
         )
         if same:
             return tx
-        if tx.status == BankTransaction.STATUS_RECONCILED or tx.statement_lines.exists():
+        if tx.status == BankTransaction.STATUS_RECONCILED or tx.match_id:
             raise FinanceError('Saldo awal sudah dicocokkan dengan mutasi bank — batalkan pencocokannya dulu.')
         if not wanted:
             BankTransaction.objects.filter(pk=tx.pk).update(status=BankTransaction.STATUS_VOIDED)

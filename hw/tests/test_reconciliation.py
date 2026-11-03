@@ -54,7 +54,8 @@ class MatchLineTest(ReconciliationBase):
         rs.match_line(self.line, self.tx)
         self.line.refresh_from_db()
         self.tx.refresh_from_db()
-        self.assertEqual(self.line.matched_transaction_id, self.tx.pk)
+        self.assertEqual(self.line.match_id, self.tx.match_id)
+        self.assertIsNotNone(self.line.match_id)
         self.assertEqual(self.tx.status, BankTransaction.STATUS_RECONCILED)
         self.assertTrue(self.statement.is_fully_matched)
 
@@ -69,14 +70,16 @@ class MatchLineTest(ReconciliationBase):
         self.line.save(update_fields=['amount'])
         rs.match_line(self.line, self.tx, force=True)
         self.line.refresh_from_db()
-        self.assertEqual(self.line.matched_transaction_id, self.tx.pk)
+        self.tx.refresh_from_db()
+        self.assertEqual(self.line.match_id, self.tx.match_id)
+        self.assertIsNotNone(self.line.match_id)
 
     def test_unmatch_reverts_transaction_status(self):
         rs.match_line(self.line, self.tx)
         rs.unmatch_line(self.line)
         self.line.refresh_from_db()
         self.tx.refresh_from_db()
-        self.assertIsNone(self.line.matched_transaction_id)
+        self.assertIsNone(self.line.match_id)
         self.assertEqual(self.tx.status, BankTransaction.STATUS_POSTED)
 
     def test_candidates_scoped_to_account_and_unmatched(self):
@@ -84,6 +87,78 @@ class MatchLineTest(ReconciliationBase):
         self.assertIn(self.tx, list(candidates))
         rs.match_line(self.line, self.tx)
         self.assertNotIn(self.tx, list(rs.unmatched_transaction_candidates(self.line)))
+
+
+class MatchGroupTest(ReconciliationBase):
+    """One transfer for two invoices, and a salary run with its fee booked as one row."""
+
+    def setUp(self):
+        super().setUp()
+        self.txs = []
+        for amount in (3000, 2000):
+            pr = create_payment_record(
+                self.inv, self.client_obj, date(2026, 8, 5), amount, method='Transfer',
+                receiving_account=self.cash_sby, created_by=self.user,
+            )
+            confirm_payment(pr, self.user)
+            self.txs.append(BankTransaction.objects.get(source_type='PaymentRecord', source_id=pr.pk))
+        self.statement = rs.create_statement(
+            account=self.cash_sby, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
+            opening_balance=0, closing_balance=5000,
+            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount': 5000, 'description': 'Dua invoice'}],
+        )
+        self.line = self.statement.lines.get()
+
+    def test_one_line_two_transactions(self):
+        match = rs.match_group([self.line], self.txs, created_by=self.user)
+        self.line.refresh_from_db()
+        self.assertEqual(self.line.match_id, match.pk)
+        for tx in self.txs:
+            tx.refresh_from_db()
+            self.assertEqual((tx.match_id, tx.status), (match.pk, BankTransaction.STATUS_RECONCILED))
+        self.assertTrue(self.statement.is_fully_matched)
+        self.assertEqual(rs.suggest_matches(self.statement), {})
+
+    def test_totals_must_agree_without_force(self):
+        with self.assertRaises(rs.MatchMismatchError):
+            rs.match_group([self.line], self.txs[:1])
+        rs.match_group([self.line], self.txs[:1], force=True)
+        self.line.refresh_from_db()
+        self.assertIsNotNone(self.line.match_id)
+
+    def test_money_in_and_out_net_out(self):
+        refund = rs.create_statement(
+            account=self.cash_sby, period_start=date(2026, 9, 1), period_end=date(2026, 9, 30),
+            opening_balance=5000, closing_balance=3000,
+            lines=[{'line_date': date(2026, 9, 2), 'direction': 'out', 'amount': 2000, 'description': 'Refund'}],
+        ).lines.get()
+        # Bank +5000 then −2000 refunded; the book kept only the 3000 net.
+        with self.assertRaises(rs.MatchMismatchError):
+            rs.match_group([self.line, refund], self.txs)
+        rs.match_group([self.line, refund], self.txs[:1])
+        refund.refresh_from_db()
+        self.line.refresh_from_db()
+        self.assertEqual(refund.match_id, self.line.match_id)
+
+    def test_unmatch_frees_the_whole_group(self):
+        rs.match_group([self.line], self.txs)
+        rs.unmatch_line(self.line)
+        self.line.refresh_from_db()
+        self.assertIsNone(self.line.match_id)
+        for tx in self.txs:
+            tx.refresh_from_db()
+            self.assertEqual((tx.match_id, tx.status), (None, BankTransaction.STATUS_POSTED))
+        self.assertEqual(len(rs.unmatched_transaction_candidates(self.line)), 2)
+
+    def test_matched_row_cannot_join_another_match(self):
+        rs.match_group([self.line], self.txs)
+        other = rs.create_statement(
+            account=self.cash_sby, period_start=date(2026, 8, 1), period_end=date(2026, 8, 31),
+            opening_balance=0, closing_balance=3000,
+            lines=[{'line_date': date(2026, 8, 5), 'direction': 'in', 'amount': 3000, 'description': 'x'}],
+        ).lines.get()
+        with self.assertRaises(rs.FinanceError):
+            rs.match_group([other], self.txs[:1])
 
 
 class StatementSummaryTest(ReconciliationBase):

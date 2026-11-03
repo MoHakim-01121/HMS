@@ -46,8 +46,23 @@ def _tx_props(tx):
     }
 
 
+def _match_props(line):
+    """The match a line belongs to: its cash-book rows, and the other lines
+    of the same match when one transfer was split or several were joined."""
+    m = line.match
+    if m is None:
+        return None
+    return {
+        'id': m.pk,
+        'transactions': [_tx_props(tx) for tx in m.transactions.all()],
+        'other_lines': [
+            {'id': l.pk, 'line_date': l.line_date.isoformat(), 'direction': l.direction, 'amount': l.amount}
+            for l in m.lines.all() if l.pk != line.pk
+        ],
+    }
+
+
 def _line_props(line, candidates=None, suggested=None):
-    tx = line.matched_transaction
     return {
         'id': line.pk,
         'line_date': line.line_date.isoformat(),
@@ -55,7 +70,7 @@ def _line_props(line, candidates=None, suggested=None):
         'direction': line.direction,
         'amount': line.amount,
         'reference': line.reference,
-        'matched_transaction': _tx_props(tx) if tx else None,
+        'match': _match_props(line),
         'suggested': _tx_props(suggested) if suggested else None,
         'candidates': [_tx_props(c) for c in (candidates or [])],
     }
@@ -78,10 +93,10 @@ def _statement_props(statement, with_lines=False):
         props['lines'] = [
             _line_props(
                 l,
-                rs.unmatched_transaction_candidates(l) if not l.matched_transaction_id else None,
+                rs.unmatched_transaction_candidates(l) if not l.match_id else None,
                 suggestions.get(l.pk),
             )
-            for l in statement.lines.select_related('matched_transaction').all()
+            for l in statement.lines.prefetch_related('match__transactions', 'match__lines').all()
         ]
         props['suggested_count'] = len(suggestions)
     return props
@@ -274,13 +289,45 @@ def reconciliation_match(request, pk):
 
     force = str(data.get('force', '')).lower() in ('1', 'true', 'on')
     try:
-        rs.match_line(line, tx, force=force)
+        rs.match_line(line, tx, force=force, created_by=request.user)
         messages.success(request, tr(request, 'Line matched.', 'Baris berhasil dicocokkan.'))
     except rs.MatchMismatchError as e:
         messages.error(request, tr(request, f'{e} — tick "force match" to go ahead anyway.', f'{e} — centang "paksa cocokkan" kalau tetap ingin melanjutkan.'))
     except FinanceError as e:
         messages.error(request, str(e))
     return redirect('reconciliation_detail', pk=line.statement_id)
+
+
+@require_perm('bank', 'edit')
+@require_POST
+def reconciliation_match_group(request, pk):
+    """Several lines and/or several cash-book rows as one match; their signed
+    totals must agree unless the user ticked force."""
+    statement = get_in_scope_or_404(BankStatement.objects.all(), request.user, pk=pk)
+    data = _payload(request)
+
+    def ids(key):
+        raw = data.get(key) or []
+        if isinstance(raw, str):
+            raw = raw.split(',')
+        return [int(x) for x in raw if str(x).strip().isdigit()]
+
+    line_ids, tx_ids = ids('line_ids'), ids('transaction_ids')
+    lines = list(BankStatementLine.objects.filter(statement__account_id=statement.account_id, pk__in=line_ids))
+    txs = list(BankTransaction.objects.filter(pk__in=tx_ids))
+    force = str(data.get('force', '')).lower() in ('1', 'true', 'on')
+    if len(lines) != len(set(line_ids)) or len(txs) != len(set(tx_ids)):
+        messages.error(request, tr(request, 'Line or transaction not found.', 'Baris atau transaksi tidak ditemukan.'))
+        return redirect('reconciliation_detail', pk=pk)
+    try:
+        rs.match_group(lines, txs, force=force, created_by=request.user)
+        messages.success(request, tr(request, f'{len(lines)} lines matched with {len(txs)} transactions.',
+                                     f'{len(lines)} baris dicocokkan dengan {len(txs)} transaksi.'))
+    except rs.MatchMismatchError as e:
+        messages.error(request, tr(request, f'{e} — tick "force match" to go ahead anyway.', f'{e} — centang "paksa cocokkan" kalau tetap ingin melanjutkan.'))
+    except FinanceError as e:
+        messages.error(request, str(e))
+    return redirect('reconciliation_detail', pk=pk)
 
 
 @require_perm('bank', 'edit')

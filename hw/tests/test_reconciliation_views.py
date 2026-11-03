@@ -94,12 +94,14 @@ class ReconciliationMatchViewTest(ReconciliationViewsBase):
         })
         self.assertEqual(resp.status_code, 302)
         self.line.refresh_from_db()
-        self.assertEqual(self.line.matched_transaction_id, self.tx.pk)
+        self.tx.refresh_from_db()
+        self.assertEqual(self.line.match_id, self.tx.match_id)
+        self.assertIsNotNone(self.line.match_id)
 
         resp = self.client.post(f'/finance/reconciliation/lines/{self.line.pk}/unmatch/')
         self.assertEqual(resp.status_code, 302)
         self.line.refresh_from_db()
-        self.assertIsNone(self.line.matched_transaction_id)
+        self.assertIsNone(self.line.match_id)
 
     def test_staff_and_manager_cannot_match(self):
         for user in (self.staff, self.manager):
@@ -109,4 +111,4 @@ class ReconciliationMatchViewTest(ReconciliationViewsBase):
             })
             self.assertEqual(resp.status_code, 302)
         self.line.refresh_from_db()
-        self.assertIsNone(self.line.matched_transaction_id)
+        self.assertIsNone(self.line.match_id)

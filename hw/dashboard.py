@@ -313,7 +313,7 @@ def unapplied_cash(clients):
 
 
 def unreconciled(user, codes):
-    qs = scope(BankStatementLine.objects.filter(matched_transaction__isnull=True), user, codes=codes)
+    qs = scope(BankStatementLine.objects.filter(match__isnull=True), user, codes=codes)
     agg = qs.aggregate(n=Count('id'), d=Min('line_date'))
     top = (qs.values('statement__account_id').annotate(n=Count('id')).order_by('-n').first())
     name = ''

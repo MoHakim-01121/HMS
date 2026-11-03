@@ -8,8 +8,8 @@ MoneyAccount — so a bank statement can be reconciled line-by-line
 against something narrower than "the whole journal". It is idempotent per
 (source_type, source_id): re-confirming the same event never doubles it.
 
-BankStatement/BankStatementLine/Reconciliation (§52) are NOT built yet —
-matching + discrepancy UI is its own scoping conversation, deferred.
+`match` links the row to the bank statement line(s) it was reconciled with
+(hw/models/reconciliation.py BankMatch).
 """
 from django.db import models
 
@@ -49,6 +49,9 @@ class BankTransaction(models.Model):
     source_id    = models.PositiveIntegerField(db_index=True)
     reference    = models.CharField(max_length=200, blank=True)
     status       = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_POSTED)
+    match        = models.ForeignKey(
+        'BankMatch', null=True, blank=True, on_delete=models.SET_NULL, related_name='transactions',
+    )
     created_at   = models.DateTimeField(auto_now_add=True)
 
     class Meta:

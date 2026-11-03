@@ -431,7 +431,7 @@ def remittance_detail(request, pk):
     from ..models.bank_transaction import BankTransaction
     reconciled_receipts = set(
         BankTransaction.objects.filter(source_type='RemittanceSettlement', source_id__in=[x.pk for x in settlements])
-        .filter(Q(status=BankTransaction.STATUS_RECONCILED) | Q(statement_lines__isnull=False))
+        .filter(Q(status=BankTransaction.STATUS_RECONCILED) | Q(match__isnull=False))
         .values_list('source_id', flat=True)
     )
     alloc_res = {

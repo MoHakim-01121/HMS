@@ -39,7 +39,7 @@ from .penalty import CancellationPenalty
 # ── Finance Redesign (new models) ──────────────────────────────
 from .period import FinancialPeriod, Season
 from .receipt import Receipt
-from .reconciliation import BankStatement, BankStatementLine
+from .reconciliation import BankMatch, BankStatement, BankStatementLine
 from .remittance import Remittance, RemittanceLine, RemittancePlanLine
 from .role import RoleDefinition
 from .sequence import DocumentSequence
@@ -64,7 +64,7 @@ __all__ = [
     # Remittance
     'Remittance', 'RemittanceLine', 'RemittancePlanLine',
     # Bank / Cash accounts (Master Architecture v2.0 FASE B)
-    'MoneyAccount', 'BankAccount', 'CashAccount', 'StaffAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine',
+    'MoneyAccount', 'BankAccount', 'CashAccount', 'StaffAccount', 'BankTransaction', 'CurrencyExchange', 'BankStatement', 'BankStatementLine', 'BankMatch',
     # Expense (Master Architecture v2.0 FASE D)
     'Expense', 'ExpenseCategory', 'ExpenseLine', 'ExpensePayment', 'ExpenseReceipt', 'ExpenseClaimPayment',
     # Settlement (Master Architecture v2.0 FASE E)

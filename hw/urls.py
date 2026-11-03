@@ -224,6 +224,7 @@ urlpatterns = [
     path('finance/reconciliation/new/', views.reconciliation_new, name='reconciliation_new'),
     path('finance/reconciliation/import/', views.reconciliation_import, name='reconciliation_import'),
     path('finance/reconciliation/<int:pk>/match-suggested/', views.reconciliation_match_suggested, name='reconciliation_match_suggested'),
+    path('finance/reconciliation/<int:pk>/match-group/', views.reconciliation_match_group, name='reconciliation_match_group'),
     path('finance/reconciliation/<int:pk>/', views.reconciliation_detail, name='reconciliation_detail'),
     path('finance/reconciliation/lines/<int:pk>/match/', views.reconciliation_match, name='reconciliation_match'),
     path('finance/reconciliation/lines/<int:pk>/unmatch/', views.reconciliation_unmatch, name='reconciliation_unmatch'),

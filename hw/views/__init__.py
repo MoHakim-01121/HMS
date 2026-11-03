@@ -170,6 +170,7 @@ from .reconciliation_views import (
     reconciliation_import,
     reconciliation_list,
     reconciliation_match,
+    reconciliation_match_group,
     reconciliation_match_suggested,
     reconciliation_new,
     reconciliation_unmatch,

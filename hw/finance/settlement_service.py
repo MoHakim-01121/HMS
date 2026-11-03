@@ -143,7 +143,7 @@ def delete_settlement(settlement, *, created_by=None, entry_date=None):
     bank_tx = BankTransaction.objects.filter(
         source_type='RemittanceSettlement', source_id=settlement.pk,
     ).first()
-    if bank_tx and (bank_tx.status == BankTransaction.STATUS_RECONCILED or bank_tx.statement_lines.exists()):
+    if bank_tx and (bank_tx.status == BankTransaction.STATUS_RECONCILED or bank_tx.match_id):
         raise FinanceError(
             f'Penerimaan {remittance.remittance_number} sudah direkonsiliasi dengan mutasi bank — '
             'batalkan pencocokannya dulu.'

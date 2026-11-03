@@ -8,13 +8,18 @@ Matching stays an explicit human action: the system SUGGESTS a transaction
 for a line (same direction, same amount, date within a few days, each
 transaction used once) but never links anything on its own. A mismatch is
 surfaced as a difference for a human to resolve, not corrected silently.
+
+A match is a group (BankMatch): one or more statement lines against one or
+more cash-book rows whose signed amounts add up to the same total — one
+transfer paying two invoices, or a salary run and its transfer fees booked
+as one expense.
 """
 from datetime import timedelta
 
 from django.db import transaction
 
 from ..models.bank_transaction import BankTransaction
-from ..models.reconciliation import BankStatement, BankStatementLine
+from ..models.reconciliation import BankMatch, BankStatement, BankStatementLine
 from .errors import FinanceError
 
 # How far a statement line's date may be from the cash-book date and still be
@@ -58,7 +63,7 @@ def create_statement(*, account, period_start, period_end, opening_balance, clos
 def _open_transactions(statement):
     """Live cash-book rows of the statement's account not yet matched."""
     return BankTransaction.objects.filter(
-        statement_lines__isnull=True, amount__isnull=False, account=statement.account,
+        match__isnull=True, amount__isnull=False, account=statement.account,
     ).exclude(status=BankTransaction.STATUS_VOIDED)
 
 
@@ -82,7 +87,7 @@ def suggest_matches(statement):
     """{line_id: transaction} for unmatched lines with exactly one sensible
     partner: same direction, same amount, within SUGGEST_DAYS days. Closest
     date wins; a transaction is suggested for one line only."""
-    lines = list(statement.lines.filter(matched_transaction__isnull=True).order_by('line_date', 'pk'))
+    lines = list(statement.lines.filter(match__isnull=True).order_by('line_date', 'pk'))
     if not lines:
         return {}
     pool = list(_open_transactions(statement).filter(
@@ -106,34 +111,66 @@ def suggest_matches(statement):
 
 
 class MatchMismatchError(FinanceError):
-    """Line and transaction disagree on direction/amount — surfaced, not silently forced."""
+    """Line(s) and transaction(s) disagree on the amount — surfaced, not silently forced."""
+
+
+def _signed(direction, amount):
+    return amount if direction == 'in' else -amount
 
 
 @transaction.atomic
-def match_line(statement_line, bank_transaction, *, force=False):
-    """Link one statement line to one BankTransaction of the same account.
-    Raises MatchMismatchError on a direction/amount disagreement unless
+def match_group(statement_lines, bank_transactions, *, force=False, created_by=None):
+    """Link statement lines to cash-book rows of the same account as one match.
+    Their signed totals must agree (money in minus money out) unless
     `force=True` (a human looked and decided to match anyway). Never invents
     or adjusts either side's numbers."""
-    statement = statement_line.statement
-    if bank_transaction.account_id != statement.account_id:
-        raise FinanceError('Transaksi itu bukan dari rekening statement ini.')
-    if bank_transaction.status == BankTransaction.STATUS_VOIDED:
-        raise FinanceError('Transaksi itu sudah dibatalkan.')
-    if bank_transaction.statement_lines.exclude(pk=statement_line.pk).exists():
-        raise FinanceError('Transaksi itu sudah dicocokkan dengan baris lain.')
-    if not force and (
-        statement_line.direction != bank_transaction.direction
-        or statement_line.amount != bank_transaction.amount
-    ):
+    lines = list(statement_lines)
+    txs = list(bank_transactions)
+    if not lines or not txs:
+        raise FinanceError('Pilih minimal satu baris statement dan satu transaksi.')
+    account_id = lines[0].statement.account_id
+    if any(l.statement.account_id != account_id for l in lines):
+        raise FinanceError('Baris statement harus dari rekening yang sama.')
+    if any(l.match_id for l in lines):
+        raise FinanceError('Baris statement itu sudah dicocokkan.')
+    for tx in txs:
+        if tx.account_id != account_id:
+            raise FinanceError('Transaksi itu bukan dari rekening statement ini.')
+        if tx.status == BankTransaction.STATUS_VOIDED:
+            raise FinanceError('Transaksi itu sudah dibatalkan.')
+        if tx.match_id:
+            raise FinanceError('Transaksi itu sudah dicocokkan dengan baris lain.')
+    bank = sum(_signed(l.direction, l.amount) for l in lines)
+    book = sum(_signed(tx.direction, tx.amount or 0) for tx in txs)
+    if not force and bank != book:
+        cur = lines[0].statement.currency
         raise MatchMismatchError(
-            f"Baris statement ({statement_line.direction} {statement_line.amount:,} {statement.currency}) "
+            f'Baris statement ({bank:+,} {cur}) tidak cocok dengan transaksi ({book:+,} {cur})'
+            if len(lines) + len(txs) > 2 else
+            f"Baris statement ({lines[0].direction} {lines[0].amount:,} {cur}) "
+            f"tidak cocok dengan transaksi ({txs[0].direction} {(txs[0].amount or 0):,} {txs[0].currency})"
+        )
+    match = BankMatch.objects.create(account_id=account_id, created_by=created_by)
+    BankStatementLine.objects.filter(pk__in=[l.pk for l in lines]).update(match=match)
+    BankTransaction.objects.filter(pk__in=[tx.pk for tx in txs]).update(
+        match=match, status=BankTransaction.STATUS_RECONCILED,
+    )
+    for obj in (*lines, *txs):
+        obj.match = match
+    for tx in txs:
+        tx.status = BankTransaction.STATUS_RECONCILED
+    return match
+
+
+def match_line(statement_line, bank_transaction, *, force=False, created_by=None):
+    """One line against one cash-book row."""
+    if bank_transaction.direction != statement_line.direction and not force:
+        cur = statement_line.statement.currency
+        raise MatchMismatchError(
+            f"Baris statement ({statement_line.direction} {statement_line.amount:,} {cur}) "
             f"tidak cocok dengan transaksi ({bank_transaction.direction} {(bank_transaction.amount or 0):,} {bank_transaction.currency})"
         )
-    statement_line.matched_transaction = bank_transaction
-    statement_line.save(update_fields=['matched_transaction'])
-    bank_transaction.status = BankTransaction.STATUS_RECONCILED
-    bank_transaction.save(update_fields=['status'])
+    match_group([statement_line], [bank_transaction], force=force, created_by=created_by)
     return statement_line
 
 
@@ -147,13 +184,19 @@ def match_suggested(statement):
     return done
 
 
+@transaction.atomic
 def unmatch_line(statement_line):
-    tx = statement_line.matched_transaction
-    statement_line.matched_transaction = None
-    statement_line.save(update_fields=['matched_transaction'])
-    if tx and not tx.statement_lines.exists():
-        tx.status = BankTransaction.STATUS_POSTED
-        tx.save(update_fields=['status'])
+    """Undo the match the line belongs to, with every line and row in it."""
+    match = statement_line.match
+    if match is None:
+        return
+    BankTransaction.objects.filter(match=match).exclude(status=BankTransaction.STATUS_VOIDED).update(
+        match=None, status=BankTransaction.STATUS_POSTED,
+    )
+    BankTransaction.objects.filter(match=match).update(match=None)
+    BankStatementLine.objects.filter(match=match).update(match=None)
+    match.delete()
+    statement_line.match = None
 
 
 def book_balance(account, through_date):
@@ -182,6 +225,6 @@ def statement_summary(statement):
         # Non-zero = lines are missing from the statement or a balance was mistyped.
         'statement_gap': statement.opening_balance + net - statement.closing_balance,
         'lines_total': len(lines),
-        'lines_matched': sum(1 for l in lines if l.matched_transaction_id),
-        'is_fully_matched': all(l.matched_transaction_id for l in lines),
+        'lines_matched': sum(1 for l in lines if l.match_id),
+        'is_fully_matched': all(l.match_id for l in lines),
     }
