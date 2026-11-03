@@ -440,6 +440,7 @@ export default function AppLayout({ children }) {
 
   const notifLabel = (n) => {
     const kind = n.type === "check_in" ? "Check-in" : n.type === "check_out" ? "Check-out" : "Due";
+    if (n.days < 0) return t("Overdue");
     if (n.days === 0) return t(`${kind} today`);
     if (n.days === 1) return t(`${kind} tomorrow`);
     return t(`${kind} in {n} days`, { n: n.days });

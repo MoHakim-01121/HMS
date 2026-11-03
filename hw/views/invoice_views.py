@@ -324,6 +324,7 @@ def invoice_new(request):
                     branch_id=_posted_branch(request, client),
                     issued_date=issued_d,
                     due_date=_parse_date(request.POST.get("due_date")),
+                    down_payment_percent=_posted_down_payment(request),
                     currency="SAR",
                     created_by=request.user,
                 )
@@ -463,6 +464,13 @@ def invoice_detail(request, pk):
             "due_iso": invoice.due_date.isoformat() if invoice.due_date else None,
             "terms_days": (invoice.due_date - invoice.issued_date).days
             if invoice.due_date and invoice.issued_date else None,
+            "down_payment": {
+                "percent": invoice.down_payment_percent,
+                "sar": invoice.down_payment_sar,
+                "outstanding_sar": invoice.down_payment_outstanding_sar,
+                "due_date": invoice.down_payment_due_date.strftime("%d %b %Y") if invoice.down_payment_due_date else None,
+                "overdue": invoice.down_payment_overdue,
+            } if invoice.down_payment_sar else None,
             "settled_date": date.fromisoformat(last_payment).strftime("%d %b %Y") if last_payment else None,
             "created_at": invoice.created_at.strftime("%d %b %Y") if invoice.created_at else None,
             "created_iso": invoice.created_at.date().isoformat() if invoice.created_at else None,
@@ -505,7 +513,7 @@ def invoice_edit(request, pk):
             ]
             return ' | '.join(rows) if rows else '—'
 
-        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date'])
+        _before = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'down_payment_percent'])
         _res_before = _res_snapshot(invoice)
         new_number = request.POST.get("invoice_number", "").strip() or invoice.invoice_number
 
@@ -539,9 +547,9 @@ def invoice_edit(request, pk):
                 invoice.invoice_number = new_number
                 invoice.client = client
                 invoice.branch_id = _posted_branch(request, client, current=invoice.branch_id)
-                issued_d = _parse_date(request.POST.get("issued_date"))
                 invoice.issued_date = issued_d
                 invoice.due_date = _parse_date(request.POST.get("due_date"))
+                invoice.down_payment_percent = _posted_down_payment(request)
                 invoice.save()
                 Invoice.claim_number(InvoiceType.HOTEL, invoice.invoice_number, issued_date=issued_d or invoice.issued_date)
                 _sync_hotel_lines(invoice, cl_ids, request.user)
@@ -550,12 +558,12 @@ def invoice_edit(request, pk):
             # closed period) must roll back cleanly and show the user a form error,
             # not a raw 500.
             return _reject({"finance": str(e)})
-        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date'])
+        _after = snapshot_fields(invoice, ['customer_name', 'invoice_number', 'issued_date', 'due_date', 'down_payment_percent'])
         _res_after = _res_snapshot(invoice)
         changes = track_changes(
             {**_before, 'reservations': _res_before},
             {**_after, 'reservations': _res_after},
-            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'reservations': 'Reservations'},
+            labels={'customer_name': 'Customer Name', 'invoice_number': 'Invoice No.', 'issued_date': 'Issued Date', 'due_date': 'Due Date', 'down_payment_percent': 'Down payment %', 'reservations': 'Reservations'},
         )
         log_activity(request.user, ActivityLog.ACTION_EDIT, 'Invoice Hotel', invoice.invoice_number, changes)
         messages.success(request, tr(request, f"Invoice {invoice.invoice_number} updated.", f"Invoice {invoice.invoice_number} diperbarui."))
@@ -728,6 +736,7 @@ def _invoice_echo(request):
         "invoice_number": request.POST.get("invoice_number", ""),
         "issued_date": request.POST.get("issued_date", ""),
         "due_date": request.POST.get("due_date", ""),
+        "down_payment_percent": request.POST.get("down_payment_percent", ""),
         "branch": request.POST.get("branch", ""),
         "reservations": _loads("reservations"),
         "payments": _loads("payments"),
@@ -744,6 +753,7 @@ def _serialize_hotel_invoice(invoice):
         "invoice_number": invoice.invoice_number,
         "issued_date": invoice.issued_date.strftime("%Y-%m-%d") if invoice.issued_date else "",
         "due_date": invoice.due_date.strftime("%Y-%m-%d") if invoice.due_date else "",
+        "down_payment_percent": invoice.down_payment_percent,
         "branch": invoice.branch_id or "",
         # Read-only figures for the form's summary rail — payments themselves are
         # recorded through the Payment module, not this form.
@@ -795,9 +805,17 @@ def _billable_cl_ids(request, invoice=None):
     return [i for i in ids if i in allowed]
 
 
+def _posted_down_payment(request):
+    raw = (request.POST.get("down_payment_percent") or "").strip()
+    return int(raw) if raw.isdigit() else 0
+
+
 def _validate_hotel_invoice(request, cl_ids, client):
     """{field: message} for a hotel invoice form. A hotel invoice bills one
     client's reservations, so it needs the client and at least one CL of theirs."""
+    raw_down_payment = (request.POST.get("down_payment_percent") or "").strip()
+    if raw_down_payment and (not raw_down_payment.isdigit() or int(raw_down_payment) > 100):
+        return {"down_payment_percent": "Down payment must be between 0 and 100 percent."}
     if not cl_ids:
         return {"reservations": "Pick at least one confirmation letter that isn't already on an invoice."}
     if client is None:

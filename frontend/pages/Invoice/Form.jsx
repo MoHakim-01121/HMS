@@ -1,7 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { useForm } from "@inertiajs/react";
 import { actionsClass, FormModalContext, StandaloneFormModal } from "../../components/shadcn/form-modal.jsx";
-import { Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso, FormAFrame, Why, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { AmountIn, Field, Picker, DatePicker, addDaysIso, dateLabel, todayIso, FormAFrame, Why, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -50,6 +50,10 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
   const [sel, setSel] = useState(seeded);
   // Editing: the stored due date, kept until a term is picked.
   const [term, setTerm] = useState(edit && src.due_date ? "keep" : "receipt");
+  // Null until someone types: a new invoice then follows the usual rule. A
+  // saved or refused form keeps its own figure.
+  const storedDp = src.down_payment_percent;
+  const [typedDp, setTypedDp] = useState(storedDp === undefined || storedDp === "" ? null : String(storedDp));
   const form = useForm({});
   const errs = { ...errors, ...form.errors };
 
@@ -73,6 +77,11 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
   const curTerm = terms.find((x) => x.id === term) || terms[0];
   const due = dueOf(curTerm);
 
+  // Usually 30% when the first check-in is more than 30 days after issue.
+  const farOut = issue && firstIn && (new Date(firstIn) - new Date(issue)) / 86400000 > 30;
+  const dp = typedDp ?? (farOut ? "30" : "0");
+  const dpSar = Math.floor((total * Number(dp) + 50) / 100);
+
   const allOn = avail.length > 0 && avail.every((c) => sel.includes(c.id));
   const someOn = chosen.length > 0;
   const toggle = (id) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -95,6 +104,7 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
       client_id: clientId, customer_name: client?.name || "",
       invoice_number: edit ? invoice.invoice_number : "",
       issued_date: issue, due_date: due || issue,
+      down_payment_percent: dp,
       reservations: JSON.stringify(rows),
       linked_cl_ids: JSON.stringify(chosen.map((c) => c.id)),
     }));
@@ -130,6 +140,10 @@ export default function Form({ invoice, edit, cl_data = [], clients = [], initia
                 return { value: x.id, label: x.label, meta };
               })}
               onPick={(o) => setTerm(o.value)} />
+          </Field>
+          <Field label={t("Down payment")} className={FA.wide} error={errs.down_payment_percent && t(errs.down_payment_percent)}
+            hint={Number(dp) > 0 ? t("{amount} SAR due {date}", { amount: fmt(dpSar), date: issue ? dateLabel(addDaysIso(issue, 1)) : "—" }) : t("No down payment")}>
+            <AmountIn ccy="%" value={dp} onChange={setTypedDp} invalid={!!errs.down_payment_percent} />
           </Field>
         </div>
 

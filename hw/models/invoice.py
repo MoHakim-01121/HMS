@@ -71,6 +71,9 @@ class Invoice(models.Model):
     branch         = models.ForeignKey('Branch', on_delete=models.PROTECT, related_name='invoices')
     issued_date    = models.DateField(null=True, blank=True)
     due_date       = models.DateField(null=True, blank=True, db_index=True)
+    # Agreed with the client per invoice: usually 30 when the first check-in is
+    # more than 30 days after issue. 0 means no down payment.
+    down_payment_percent = models.PositiveSmallIntegerField(default=0)
     # In PostgreSQL this column has a FOREIGN KEY to hw_currency (see the
     # migration); in Django it stays text so `invoice.currency == 'SAR'` holds.
     currency       = models.CharField(max_length=3, default='SAR')
@@ -111,6 +114,18 @@ class Invoice(models.Model):
                     | models.Q(due_date__gte=models.F('issued_date'))
                 ),
                 name='invoice_due_not_before_issued',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(down_payment_percent__lte=100),
+                name='invoice_down_payment_percent_range',
+            ),
+            models.UniqueConstraint(
+                fields=['season', 'invoice_number'], condition=models.Q(season__isnull=False),
+                name='invoice_number_season_uniq',
+            ),
+            models.UniqueConstraint(
+                fields=['invoice_number'], condition=models.Q(season__isnull=True),
+                name='invoice_number_no_season_uniq',
             ),
             models.CheckConstraint(
                 condition=~models.Q(status='void') | models.Q(voided_at__isnull=False),
@@ -255,6 +270,27 @@ class Invoice(models.Model):
     @property
     def remaining_sar(self):
         return self.due_sar - self.applied_paid_sar
+
+    @property
+    def down_payment_sar(self):
+        """The agreed down payment, rounded half up; 0 when none or void."""
+        return (self.due_sar * self.down_payment_percent + 50) // 100
+
+    @property
+    def down_payment_due_date(self):
+        """24 hours after issue, by date: an invoice stores no issue time."""
+        if not self.down_payment_percent or not self.issued_date:
+            return None
+        return self.issued_date + timedelta(days=1)
+
+    @property
+    def down_payment_outstanding_sar(self):
+        return max(self.down_payment_sar - self.applied_paid_sar, 0)
+
+    @property
+    def down_payment_overdue(self):
+        due = self.down_payment_due_date
+        return bool(due and due < timezone.localdate() and self.down_payment_outstanding_sar > 0)
 
     @property
     def is_fully_paid(self):

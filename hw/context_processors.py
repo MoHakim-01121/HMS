@@ -48,6 +48,23 @@ def _invoice_notifs(user, today, threshold, limit, invoice_types):
             "remaining": round(inv.remaining_sar),
             "url": reverse("invoice_detail", args=[inv.pk]),
         })
+
+    # Down payments due within the window or already late.
+    down_payments = scope(Invoice.objects.all(), user).filter(
+        down_payment_percent__gt=0, issued_date__lte=threshold, invoice_type__in=invoice_types,
+    ).exclude(status=Invoice.STATUS_VOID)
+    for inv in down_payments.with_lines().order_by("-issued_date")[:limit]:
+        outstanding = inv.down_payment_outstanding_sar
+        if outstanding <= 0:
+            continue
+        notifs.append({
+            "type": "invoice_due",
+            "ref": inv.invoice_number,
+            "days": (inv.down_payment_due_date - today).days,
+            "title": f"{inv.customer_name} · DP",
+            "remaining": round(outstanding),
+            "url": reverse("invoice_detail", args=[inv.pk]),
+        })
     return notifs
 
 
