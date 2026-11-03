@@ -222,6 +222,7 @@ export const id = {
   "Document": "Dokumen",
   "documents": "dokumen",
   "Download PDF": "Unduh PDF",
+  "Download detailed PDF": "Unduh PDF rinci",
   "Download PDF {date}": "Unduh PDF {date}",
   "Download PDF of all upcoming check-ins": "Unduh PDF semua check-in mendatang",
   "Draft Message": "Pesan Draf",

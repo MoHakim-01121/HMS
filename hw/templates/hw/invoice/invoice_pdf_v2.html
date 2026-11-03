@@ -8,12 +8,6 @@
     @page {
       size: A4;
       margin: 56px 64px 48px;
-      @bottom-left {
-        content: string(doc-date);
-        font-size: 10px; color: #111;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        padding-top: 6px;
-      }
       @bottom-right {
         content: "Page " counter(page) "/" counter(pages);
         font-size: 10px; color: #111;
@@ -21,7 +15,6 @@
         padding-top: 6px;
       }
     }
-    .doc-date-anchor { string-set: doc-date content(); display: none; }
     /* Full-width gray rule that repeats just above the page footer */
     .page-footer-rule {
       position: fixed;
@@ -57,25 +50,14 @@
     .col-body { font-size: 12px; color: #444; line-height: 1.7; }
 
     .amount-headline {
-      display: flex;
-      align-items: center;
-      gap: 10px;
       font-size: 22px;
       font-weight: 700;
       color: #111;
       margin-top: 40px;
-      margin-bottom: 56px;
+      margin-bottom: 32px;
     }
-    .badge-status {
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 8px;
-      border-radius: 4px;
-      letter-spacing: 0.05em;
-    }
-    .badge-paid    { background: #d1fae5; color: #065f46; }
-    .badge-partial { background: #fef3c7; color: #92400e; }
-    .badge-unpaid  { background: #fee2e2; color: #991b1b; }
+    .amount-sub { color: #444; margin: -24px 0 32px; }
+    .void-notice { color: #991b1b; margin: -20px 0 32px; }
 
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     thead th {
@@ -90,7 +72,6 @@
     thead th.r { text-align: right; }
     tbody td { padding: 8px 0; vertical-align: top; color: #111; }
     tbody td.r { text-align: right; }
-    .td-name { font-weight: 400; }
     .td-sub { font-size: 11px; color: #666; margin-top: 2px; }
 
     .totals {
@@ -116,6 +97,21 @@
 
     .section { margin-top: 36px; }
     .section-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 12px; }
+    .detailed th, .detailed td { padding-right: 12px; white-space: nowrap; }
+    .detailed th:last-child, .detailed td:last-child { padding-right: 0; }
+    .detailed tbody { break-inside: avoid; }
+    .detailed tbody td { padding-top: 2px; padding-bottom: 2px; }
+    .detailed tbody tr:first-child td { padding-top: 12px; }
+    .detailed tbody tr.total td { font-weight: 700; padding-bottom: 12px; border-bottom: 1px solid #ddd; }
+    .detailed tbody tr.single td { padding-bottom: 12px; border-bottom: 1px solid #ddd; }
+    .detailed tbody:last-of-type tr.total td,
+    .detailed tbody:last-of-type tr.single td { border-bottom: 0; }
+    .detailed td.who { width: 166px; padding-bottom: 12px; border-bottom: 1px solid #ddd; }
+    .detailed tbody:last-of-type td.who { border-bottom: 0; }
+    .detailed .stay { color: #555; }
+    .payment-history th, .payment-history td { padding-right: 16px; white-space: nowrap; }
+    .payment-history th:last-child, .payment-history td:last-child { padding-right: 0; }
+    .pay-to { color: #444; }
 
     .terms { page-break-before: always; padding-top: 20px; }
     .terms-title { font-size: 18px; font-weight: 700; color: #111; margin-bottom: 20px; }
@@ -131,7 +127,7 @@
       top: 45%; left: 50%;
       transform: translate(-50%, -50%) rotate(-40deg);
       font-size: 90px; font-weight: 900;
-      color: rgba(0,0,0,0.04);
+      color: rgba(185, 28, 28, 0.10);
       white-space: nowrap;
       letter-spacing: 8px;
     }
@@ -141,8 +137,7 @@
 <body>
 
 <div class="page-footer-rule"></div>
-<span class="doc-date-anchor">{% if issued_date %}{{ issued_date|date:"d M Y" }}{% endif %}</span>
-<div class="watermark">{% if remaining_int <= 0 %}PAID{% elif payments %}PARTIAL{% else %}UNPAID{% endif %}</div>
+{% if is_void %}<div class="watermark">VOID</div>{% endif %}
 
 <div style="position:fixed;top:0;left:0;width:21cm;height:29.7cm;pointer-events:none;z-index:0;">
   <svg xmlns="http://www.w3.org/2000/svg" width="21cm" height="29.7cm">
@@ -183,16 +178,70 @@
 </div>
 
 <div class="amount-headline">
-  {% if remaining_int < 0 %}{{ excess_sar }} SAR overpaid{% elif remaining_int == 0 %}{{ total_reservation_sar }} SAR paid{% else %}{{ remaining }} SAR due on {% if due_date %}{{ due_date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}
+  {% if is_void %}Invoice void{% elif remaining_int < 0 %}{{ excess_sar }} SAR overpaid{% elif remaining_int == 0 %}{{ total_reservation_sar }} SAR paid{% elif dp_outstanding %}{{ dp_outstanding }} SAR down payment due on {{ dp_due|date:"d M Y" }}{% else %}{{ remaining }} SAR due{% endif %}
 </div>
 
+{% if dp_outstanding and not is_void and remaining_int > 0 %}
+<div class="amount-sub">
+  {{ dp_percent }}% down payment within 24 hours of issue. The remaining {{ after_dp }} SAR follows by the due date.
+</div>
+{% endif %}
+
+{% if is_void %}
+<div class="void-notice"><strong>This invoice has been voided</strong> and no longer bills these reservations.</div>
+{% endif %}
+
+{% if detailed %}
+<table class="detailed">
+  <thead>
+    <tr>
+      <th>Reservation</th>
+      <th>Room</th>
+      <th>Meal</th>
+      <th class="r">Qty</th>
+      <th class="r">Rate/night (SAR)</th>
+      <th class="r">Amount (SAR)</th>
+      <th class="r">Remaining (SAR)</th>
+    </tr>
+  </thead>
+  {% for r in reservations %}
+  <tbody class="reservation">
+    {% for room in r.rooms %}
+    <tr{% if r.single_room %} class="single"{% endif %}>
+      {% if forloop.first %}
+      <td class="who" rowspan="{{ r.rowspan }}"><strong>RSV {{ r.number }}</strong><br>{{ r.hotel }}<br><span class="stay">{{ r.stay|default:"—" }}</span></td>
+      {% endif %}
+      <td>{{ room.type }}</td>
+      <td>{{ room.meal }}</td>
+      <td class="r">{{ room.quantity }}</td>
+      <td class="r">{{ room.rate }}</td>
+      {% if r.single_room %}
+      <td class="r"><strong>{{ room.amount }}</strong></td>
+      <td class="r"><strong>{% if is_void %}—{% else %}{{ r.remaining }}{% endif %}</strong></td>
+      {% else %}
+      <td class="r">{{ room.amount }}</td>
+      <td></td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+    {% if not r.single_room %}
+    <tr class="total">
+      {% if not r.rooms %}<td class="who"><strong>RSV {{ r.number }}</strong><br>{{ r.hotel }}<br><span class="stay">{{ r.stay|default:"—" }}</span></td>{% endif %}
+      <td colspan="4"></td>
+      <td class="r">{{ r.total }}</td>
+      <td class="r">{% if is_void %}—{% else %}{{ r.remaining }}{% endif %}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+  {% endfor %}
+</table>
+{% else %}
 <table>
   <thead>
     <tr>
-      <th>Res No</th>
+      <th>RSV</th>
       <th>Hotel</th>
-      <th class="r">Check-in</th>
-      <th class="r">Check-out</th>
+      <th>Stay</th>
       <th class="r">Amount (SAR)</th>
       <th class="r">Remaining (SAR)</th>
     </tr>
@@ -200,26 +249,29 @@
   <tbody>
     {% for r in reservations %}
     <tr>
-      <td><div class="td-name">{{ r.number }}</div></td>
+      <td>{{ r.number }}</td>
       <td>{{ r.hotel }}</td>
-      <td class="r">{% if r.check_in %}{{ r.check_in|date:"d M Y" }}{% else %}—{% endif %}</td>
-      <td class="r">{% if r.check_out %}{{ r.check_out|date:"d M Y" }}{% else %}—{% endif %}</td>
-      <td class="r">{{ r.total }} SAR</td>
-      <td class="r">{{ r.remaining }} SAR</td>
+      <td>{{ r.stay|default:"—" }}</td>
+      <td class="r">{{ r.total }}</td>
+      <td class="r">{% if is_void %}—{% else %}{{ r.remaining }}{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
 
+{% if not is_void %}
 <div class="totals">
-  <div class="total-row">
-    <span class="tkey">Subtotal</span>
-    <span class="tval">{{ total_reservation_sar }} SAR</span>
-  </div>
   <div class="total-row">
     <span class="tkey">Total</span>
     <span class="tval">{{ total_reservation_sar }} SAR</span>
   </div>
+  {% if credited_sar %}
+  <div class="total-row">
+    <span class="tkey">Credit notes</span>
+    <span class="tval">-{{ credited_sar }} SAR</span>
+  </div>
+  {% endif %}
   <div class="total-row">
     <span class="tkey">Amount paid</span>
     <span class="tval">{{ total_paid_sar }} SAR</span>
@@ -229,16 +281,17 @@
     <span class="tval">{% if remaining_int < 0 %}{{ excess_sar }}{% else %}{{ remaining }}{% endif %} SAR</span>
   </div>
 </div>
+{% endif %}
 
 {% if payments %}
 <div class="section">
   <div class="section-title">Payment history</div>
-  <table>
+  <table class="payment-history">
     <thead>
       <tr>
         <th>Payment ID</th>
         <th>Date</th>
-        <th>Ref</th>
+        <th>RSV</th>
         <th>Method</th>
         <th>Received by (office)</th>
         <th class="r">Amount</th>
@@ -248,20 +301,29 @@
     <tbody>
       {% for p in payments %}
       <tr>
-        <td><div class="td-name">{{ p.payment_id }}</div></td>
-        <td>{% if p.date %}{{ p.date|date:"d M Y" }}{% else %}—{% endif %}</td>
-        <td>{{ p.reservation_no }}</td>
-        <td>{{ p.method }}</td>
-        <td>{{ p.received_in }}</td>
+        <td>{% if p.first %}{{ p.payment_id }}{% endif %}</td>
+        <td>{% if p.first %}{% if p.date %}{{ p.date|date:"d M Y" }}{% else %}—{% endif %}{% endif %}</td>
+        <td>{{ p.rsv }}</td>
+        <td>{% if p.first %}{{ p.method }}{% endif %}</td>
+        <td>{% if p.first %}{{ p.received_in }}{% endif %}</td>
         <td class="r">
           {{ p.amount }} {{ p.currency }}
-          {% if p.currency != 'SAR' %}<div class="td-sub">@ {{ p.exchange }}</div>{% endif %}
+          {% if p.first and p.currency != 'SAR' %}<div class="td-sub">@ {{ p.exchange }}</div>{% endif %}
         </td>
-        <td class="r">{{ p.amount_sar }} SAR</td>
+        <td class="r">{{ p.amount_sar }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+</div>
+{% endif %}
+
+{% if pay_to %}
+<div class="section">
+  <div class="section-title">Pay to</div>
+  <div class="pay-to">
+    {% for acc in pay_to %}<div>{{ acc.bank_name }}, {{ acc.account_name }}, {{ acc.account_identifier }}, {{ acc.currency }}</div>{% endfor %}
+  </div>
 </div>
 {% endif %}
 

@@ -213,6 +213,10 @@ def payment_history_rows(invoice):
             'payment_id': pr.payment_number,
             'status': pr.status,
             'unallocated_sar': pr.amount_sar - sum(a.amount_sar for a in pr.allocations.all()),
+            'allocations': [{
+                'rsv': a.reservation.reservation_number if a.reservation_id and a.reservation else a.invoice_line.description,
+                'amount_sar': a.amount_sar,
+            } for a in sorted(pr.allocations.all(), key=lambda a: a.pk)],
             'ref': ', '.join(refs) or pr.reference or pr.payment_number,
             'payment_number': pr.payment_number,
             'payment_date': pr.payment_date,

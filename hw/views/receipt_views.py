@@ -12,9 +12,9 @@ list/detail module.
 The PDF is deliberately two zones. The upper zone prints what the Receipt row
 itself stores -- amount, method, date, note -- which ensure_receipt copies off
 the payment at issue time, so a reprint always shows the amount that was
-actually receipted. The lower zone ("Application of funds") prints live
-allocation state, which legitimately changes after issue when finance
-re-applies the money, so it carries an "as at" date and says so.
+actually receipted. The lower zone (the description table and the invoice
+balance) prints live state, which legitimately changes after issue when
+finance re-applies the money, so the balance line carries an "as at" date.
 """
 import logging
 
@@ -26,6 +26,7 @@ from ..branch_scope import get_in_scope_or_404
 from ..i18n import tr
 from ..models import Receipt
 from ..permissions import require_perm
+from .pdf import _stay_label
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +82,37 @@ def _number_in_words(n):
     return ' '.join(reversed([c for c in out if c]))
 
 
-def _stay_label(check_in, check_out):
-    """'05 – 12 Oct 2026' for one stay, collapsing a repeated year."""
-    if not check_in and not check_out:
-        return ''
-    full = '%d %b %Y'
-    if check_in and check_out:
-        if check_in.year == check_out.year:
-            return f"{check_in.strftime('%d %b')} – {check_out.strftime(full)}"
-        return f"{check_in.strftime(full)} – {check_out.strftime(full)}"
-    return (check_in or check_out).strftime(full)
+_CURRENCY_NAMES = {'SAR': 'Saudi Riyal', 'IDR': 'Indonesian Rupiah', 'USD': 'US Dollar'}
+
+
+def _amount_in_words(amount, currency):
+    words = _number_in_words(amount).capitalize()
+    return f"{words} {_CURRENCY_NAMES.get(currency, currency)}"
+
+
+def _paid_how(method):
+    """'by bank transfer'; the method 'Direct' reads 'directly'."""
+    method = (method or 'cash').lower()
+    return 'directly' if method == 'direct' else f"by {method}"
+
+
+def _client_reference(reference):
+    """The bank reference for print; 'legacy:<id>' is a marker from the data migration."""
+    return None if (reference or '').startswith('legacy:') else reference
+
+
+def _invoice_balance(invoice):
+    """Live total/paid/balance of the paid invoice; None for a deposit or void invoice."""
+    if invoice is None or invoice.is_void:
+        return None
+    balance = invoice.remaining_sar
+    return {
+        'due': f"{invoice.due_sar:,}",
+        'paid': f"{invoice.applied_paid_sar:,}",
+        'balance': f"{abs(balance):,}",
+        'owing': balance > 0,
+        'overpaid': balance < 0,
+    }
 
 
 def _allocation_rows(payment):
@@ -113,19 +135,16 @@ def _allocation_rows(payment):
         # client; name that invoice so the receipt reads unambiguously.
         other_invoice = line.invoice.invoice_number if line.invoice_id != payment.invoice_id else ''
         if line.kind == line.KIND_HOTEL:
-            rows.append({
-                'label': line.reservation_number,
-                'sublabel': ' · '.join(p for p in (line.hotel, other_invoice) if p),
-                'stay': _stay_label(line.check_in, line.check_out),
-                'amount_sar': a.amount_sar,
-            })
+            parts = (line.reservation_number, line.hotel, other_invoice, _stay_label(line.check_in, line.check_out))
+            label = line.reservation_number
         else:
-            rows.append({
-                'label': line.description,
-                'sublabel': ' · '.join(p for p in (f'Service item x{line.quantity}', other_invoice) if p),
-                'stay': '',
-                'amount_sar': a.amount_sar,
-            })
+            parts = (line.description, f'Service item x{line.quantity}', other_invoice)
+            label = line.description
+        rows.append({
+            'label': label,
+            'description': ', '.join(p for p in parts if p),
+            'amount_sar': a.amount_sar,
+        })
 
     for row in rows:
         row['amount_fmt'] = f"{row['amount_sar']:,}"
@@ -154,9 +173,9 @@ def receipt_pdf(request, pk):
     if currency == 'SAR':
         exchange_label = None
     elif currency == 'IDR':
-        exchange_label = f"1 SAR = {rate:,.2f} IDR"
+        exchange_label = f"1 SAR = {rate:,.2f}".removesuffix('.00') + " IDR"
     elif currency is not None and rate is not None:
-        exchange_label = f"1 {currency} = {rate:,.2f} SAR"
+        exchange_label = f"1 {currency} = {rate:,.2f}".removesuffix('.00') + " SAR"
     else:
         exchange_label = None
 
@@ -178,6 +197,9 @@ def receipt_pdf(request, pk):
                 receipt.receipt_number, unapplied_sar, helper_unapplied,
             )
 
+    paid_amount = payment.amount if payment else receipt.amount_sar
+    paid_currency = currency or 'SAR'
+
     context = {
         "logo_rel_path": _logo_file_url(),
         "receipt_number": receipt.receipt_number,
@@ -192,19 +214,20 @@ def receipt_pdf(request, pk):
         "check_in": cl.check_in if cl else None,
         "check_out": cl.check_out if cl else None,
         "amount_sar_fmt": f"{receipt.amount_sar:,}",
-        "amount_in_words": _number_in_words(receipt.amount_sar).capitalize(),
-        "original_amount": payment.amount if payment else None,
-        "original_amount_fmt": f"{payment.amount:,}" if payment else None,
-        "currency": currency,
+        "paid_amount_fmt": f"{paid_amount:,}",
+        "amount_sar_words": _amount_in_words(receipt.amount_sar, 'SAR'),
+        "paid_currency": paid_currency,
         "exchange_label": exchange_label,
+        "received_office": payment.get_received_in_display() if payment and payment.receiving_account_id else None,
+        "invoice_balance": _invoice_balance(receipt.invoice),
         "payment_method": receipt.payment_method,
-        "bank_reference": payment.reference if payment else None,
+        "paid_how": _paid_how(receipt.payment_method),
+        "bank_reference": _client_reference(payment.reference) if payment else None,
         "payment_note": receipt.payment_note,
         "status": receipt.status,
         "voided_reason": receipt.voided_reason,
         "received_by": receipt.created_by.get_full_name() or receipt.created_by.username,
         "allocation_rows": allocation_rows,
-        "allocated_sar_fmt": f"{allocated_sar:,}" if allocation_rows and allocated_sar else None,
         "unapplied_sar_fmt": f"{unapplied_sar:,}" if unapplied_sar else None,
         "printed_at_ts": timezone.localtime(timezone.now()),
     }

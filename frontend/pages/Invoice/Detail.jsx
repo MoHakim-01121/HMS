@@ -86,6 +86,7 @@ export default function Detail({
     !paid && !isVoid && { label: t("Record payment"), icon: "pay", href: `/finance/payments/?invoice=${invoice.pk}` },
     canEdit && { label: paid ? t("Paid message") : t("Draft message"), icon: "message", onClick: () => openDraft(paid ? "invoice_lunas" : "invoice", invoice.pk, wa_send) },
     { label: t("Download PDF"), icon: "pdf", href: `/invoice/${invoice.pk}/pdf/`, external: true },
+    { label: t("Download detailed PDF"), icon: "pdf", href: `/invoice/${invoice.pk}/pdf/?detailed=1`, external: true },
     paid && invoice.receipt && { label: t("Receipt"), icon: "receipt", href: `/receipts/${invoice.receipt.pk}/pdf/`, external: true },
     canEdit && { label: t("Edit"), icon: "edit", separator: true, onClick: () => openForm(`/invoice/${invoice.pk}/edit/`) },
     canCredit && !isVoid && { label: t("Credit note…"), icon: "file", separator: !canEdit, onClick: () => openForm(`/finance/invoices/${invoice.pk}/credit-notes/new/`) },
@@ -119,6 +120,11 @@ export default function Detail({
     !isVoid && (paid
       ? invoice.settled_date && { k: t("Settled"), v: invoice.settled_date }
       : { k: t("Due"), v: invoice.due_date || t("No due date"), tone: dueTone }),
+    !isVoid && !paid && invoice.down_payment?.outstanding_sar > 0 && {
+      k: t("Down payment"),
+      v: t("{amount} SAR due {date}", { amount: fmt(invoice.down_payment.outstanding_sar), date: invoice.down_payment.due_date || "—" }),
+      tone: invoice.down_payment.overdue ? "danger" : undefined,
+    },
     { k: t("Issued"), v: invoice.issued_date || t("Not issued") },
     stay && { k: t("Stay"), v: stay },
     {

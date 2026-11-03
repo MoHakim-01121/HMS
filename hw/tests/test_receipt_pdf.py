@@ -13,11 +13,21 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 
+from hw.finance import posting
 from hw.models import Client, Receipt
+from hw.models.period import Season
 from hw.models.payment import PaymentAllocation, PaymentRecord
 from hw.models.period import FinancialPeriod
 from hw.tests.factories import make_hotel_line, make_invoice, make_payment
-from hw.views.receipt_views import _allocation_rows, _number_in_words, _stay_label
+from hw.views.receipt_views import (
+    _allocation_rows,
+    _amount_in_words,
+    _client_reference,
+    _invoice_balance,
+    _number_in_words,
+    _paid_how,
+    _stay_label,
+)
 
 
 class ReceiptPdfBase(TestCase):
@@ -117,18 +127,68 @@ class AllocationRowsTest(ReceiptPdfBase):
 
 
 class StayLabelTest(TestCase):
+    def test_same_month_collapses_month_and_year(self):
+        self.assertEqual(
+            _stay_label(date(2026, 12, 1), date(2026, 12, 6)), '01 – 06 Dec 2026 (5N)',
+        )
+
     def test_same_year_collapses_the_first_year(self):
         self.assertEqual(
-            _stay_label(date(2026, 10, 5), date(2026, 10, 12)), '05 Oct – 12 Oct 2026',
+            _stay_label(date(2026, 11, 26), date(2026, 12, 1)), '26 Nov – 01 Dec 2026 (5N)',
         )
 
     def test_cross_year_keeps_both_years(self):
         self.assertEqual(
-            _stay_label(date(2026, 12, 28), date(2027, 1, 3)), '28 Dec 2026 – 03 Jan 2027',
+            _stay_label(date(2026, 12, 28), date(2027, 1, 3)), '28 Dec 2026 – 03 Jan 2027 (6N)',
         )
 
     def test_missing_dates_render_empty(self):
         self.assertEqual(_stay_label(None, None), '')
+
+
+class AllocationDescriptionTest(ReceiptPdfBase):
+    def test_hotel_row_reads_as_one_description(self):
+        payment = self._payment(30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
+        self.assertEqual(
+            _allocation_rows(payment)[0]['description'],
+            'RCP-R1, Dar Al Eiman, 05 – 12 Oct 2026 (7N)',
+        )
+
+
+class InvoiceBalanceTest(ReceiptPdfBase):
+    def test_partly_paid_invoice_owes_the_rest(self):
+        payment = self._payment(30000)
+        PaymentAllocation.objects.create(payment=payment, invoice_line=self.r1, amount_sar=30000)
+        posting.post_payment(payment, created_by=self.user)  # paid comes from the journal
+
+        balance = _invoice_balance(self.invoice)
+        self.assertEqual(balance['due'], '45,000')
+        self.assertEqual(balance['paid'], '30,000')
+        self.assertEqual(balance['balance'], '15,000')
+        self.assertTrue(balance['owing'])
+        self.assertFalse(balance['overpaid'])
+
+    def test_deposit_has_no_invoice_balance(self):
+        self.assertIsNone(_invoice_balance(None))
+
+
+class PaymentLineTest(TestCase):
+    def test_method_reads_as_a_phrase(self):
+        self.assertEqual(_paid_how('Bank Transfer'), 'by bank transfer')
+        self.assertEqual(_paid_how('Direct'), 'directly')
+
+    def test_migration_marker_is_not_a_reference(self):
+        self.assertIsNone(_client_reference('legacy:1057'))
+        self.assertEqual(_client_reference('BCA 0211-8847'), 'BCA 0211-8847')
+
+
+class AmountWordsTest(TestCase):
+    def test_words_name_the_currency(self):
+        self.assertEqual(
+            _amount_in_words(57000000, 'IDR'), 'Fifty-seven million Indonesian Rupiah',
+        )
+        self.assertEqual(_amount_in_words(300, 'SAR'), 'Three hundred Saudi Riyal')
 
 
 class NumberInWordsTest(TestCase):
@@ -206,6 +266,9 @@ class ReceiptPdfRenderTest(ReceiptPdfBase):
         """Confirm flow (ensure_receipt) membuat kwitansi untuk deposit:
         invoice None, client & amount sesuai payment, idempotent (1 aktif)."""
         from hw.finance.receipt_service import ensure_receipt
+        season = Season.objects.create(
+            name='Musim 1448H', date_from=date(2026, 5, 31), date_to=date(2027, 5, 19),
+        )
         payment = make_payment(
             payment_number='PAY-RCP-DPT2', invoice=None, client=self.client_obj,
             payment_date=date(2026, 9, 17), amount=7000, currency='SAR',
@@ -219,6 +282,7 @@ class ReceiptPdfRenderTest(ReceiptPdfBase):
         self.assertIsNone(receipt.invoice_id)
         self.assertEqual(receipt.client_id, self.client_obj.pk)
         self.assertEqual(receipt.amount_sar, 7000)
+        self.assertEqual((receipt.receipt_number, receipt.season_id), ('RCP-0001', season.pk))
 
         again = ensure_receipt(payment, created_by=self.user)
         self.assertEqual(again.pk, receipt.pk)
