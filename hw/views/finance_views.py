@@ -181,7 +181,7 @@ def _bank_rows(request):
 
     from ..models.bank_transaction import BankTransaction
     from ..models.branch import Branch
-    from ..models.reconciliation import BankStatement
+    from ..models.reconciliation import BankStatementLine
     rows = finance_queries.money_accounts_overview(include_inactive=True, branches=branch_codes(request.user))
     ids = [r['id'] for r in rows]
     native = {
@@ -191,7 +191,19 @@ def _bank_rows(request):
             When(direction=BankTransaction.DIRECTION_IN, then=F('amount')),
             default=-F('amount'), output_field=IntegerField())))
     }
-    last = dict(BankStatement.objects.filter(account_id__in=ids).values('account_id').annotate(d=Max('period_end')).values_list('account_id', 'd'))
+    # Reconciled up to the last bank line matched, not the statement's period
+    # end: a running month's statement ends on the 30th while the bank has
+    # only reached the 3rd.
+    last = dict(
+        BankStatementLine.objects.filter(statement__account_id__in=ids, match__isnull=False)
+        .values('statement__account_id').annotate(d=Max('line_date')).values_list('statement__account_id', 'd')
+    )
+    # Accounts that share a ledger account share its SAR value: count it once,
+    # on the bank account of the group (else the lowest id).
+    carrier = {}
+    for r in sorted(rows, key=lambda r: (r['kind'] != 'bank', r['id'])):
+        if r['kind'] != 'staff':
+            carrier.setdefault(r['ledger_account'], r['id'])
     names = dict(Branch.objects.values_list('code', 'name'))
     for r in rows:
         if r['kind'] == 'staff':  # already in the account's own currency
@@ -201,6 +213,7 @@ def _bank_rows(request):
         r['native_balance'] = native.get(r['id'], 0) if r['currency'] != 'SAR' else (native.get(r['id']) if r['id'] in native else r['book_balance'])
         r['branch_name'] = names.get(r['branch'], r['branch'])
         r['last_reconciled'] = last[r['id']].isoformat() if last.get(r['id']) else None
+        r['carries_ledger'] = carrier.get(r['ledger_account']) == r['id']
     return rows
 
 

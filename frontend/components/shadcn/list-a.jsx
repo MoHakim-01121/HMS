@@ -157,9 +157,11 @@ export const kpiFrame = (pressable, on) => cn(
 );
 
 // Label on the left, the card's one badge (a delta or a status) on the right.
+// When the title and its badge do not fit on one line the badge wraps under
+// the title, so the title is never cut to "L…".
 export const KpiHead = ({ label, children }) => (
-  <span className="flex items-center justify-between gap-2">
-    <span className="min-w-0 truncate text-[13px] text-muted-foreground">{label}</span>
+  <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+    <span className="max-w-full truncate text-[13px] text-muted-foreground">{label}</span>
     {children}
   </span>
 );

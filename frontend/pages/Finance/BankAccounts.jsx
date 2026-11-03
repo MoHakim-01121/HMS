@@ -30,7 +30,8 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
     if (!b || b.cur !== a.currency) { b = { cur: a.currency, rows: [] }; bands.push(b); }
     b.rows.push(a);
   }
-  const sarTotal = accounts.filter((a) => a.is_active && !a.ledger_shared).reduce((s, a) => s + (a.book_balance || 0), 0);
+  // A ledger shared by several accounts counts once, on the account that carries it.
+  const sarTotal = accounts.filter((a) => a.is_active && a.carries_ledger).reduce((s, a) => s + (a.book_balance || 0), 0);
   const txHref = (a) => `/finance/bank-accounts/${a.kind}/${a.id}/`;
 
   // The row's actions: the desktop row menu, and the same menu on a phone
@@ -76,7 +77,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
               end={`${fmtN(a.native_balance)} ${a.currency}`} amountTone={a.native_balance < 0 ? "text-danger-text" : undefined}
               meta={[a.kind === "bank" ? t("Bank") : a.kind === "cash" ? t("Cash") : t("Staff"), a.branch_name,
                 a.kind === "staff" ? null : a.last_reconciled ? t("reconciled {d}", { d: longDate(a.last_reconciled) }) : t("never reconciled")].filter(Boolean).join(" · ")}
-              note={a.currency !== "SAR" && !a.ledger_shared ? `${fmtN(a.book_balance)} SAR` : null} />
+              note={a.currency !== "SAR" && a.carries_ledger ? `${fmtN(a.book_balance)} SAR` : null} />
           ))}
           <PTotal label={(() => { const n = accounts.filter((a) => a.is_active).length; return t(n === 1 ? "Total, 1 account" : "Total, {n} accounts", { n }); })()}>{fmtN(sarTotal)} SAR</PTotal>
         </>}
@@ -89,7 +90,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
           {bands.map((b) => {
             const live = b.rows.filter((a) => a.is_active);
             const sum = live.reduce((s, a) => s + (a.native_balance || 0), 0);
-            const sar = live.filter((a) => !a.ledger_shared).reduce((s, a) => s + (a.book_balance || 0), 0);
+            const sar = live.filter((a) => a.carries_ledger).reduce((s, a) => s + (a.book_balance || 0), 0);
             return [
               <Tr key={"band-" + b.cur} row="band">
                 <Td colSpan={3}>{t(b.rows.length === 1 ? "{c}, 1 account" : "{c}, {n} accounts", { c: t(CUR_NAME[b.cur] || b.cur), n: b.rows.length })}</Td>
@@ -103,7 +104,7 @@ export default function BankAccounts({ accounts = [], filters: f, counts = {}, a
                   <Td>{a.kind === "bank" ? t("Bank") : t("Cash")}</Td>
                   <Td>{a.branch_name}</Td>
                   <Td className={"text-right" + (a.native_balance < 0 ? " font-medium text-danger-text" : "")}><Amt code={a.currency} value={a.native_balance} /></Td>
-                  <Td className="text-right text-muted-foreground">{a.ledger_shared ? <span title={t("Several accounts post to this ledger account")}>{t("shared ledger")}</span> : fmtN(a.book_balance)}</Td>
+                  <Td className="text-right text-muted-foreground">{a.ledger_shared && !a.carries_ledger ? <span title={t("Several accounts post to this ledger account")}>{t("shared ledger")}</span> : fmtN(a.book_balance)}</Td>
                   <Td>{a.last_reconciled ? longDate(a.last_reconciled) : <span className="text-muted-foreground">{t("Never")}</span>}{!a.is_active && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground"><Pill tone="gray" sm>{t("Inactive")}</Pill></span>}</Td>
                   <Td className="text-center">
                     <RowMenu label={t("Actions for {n}", { n: a.name })} items={menuFor(a)} />

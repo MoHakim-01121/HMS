@@ -30,6 +30,19 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const ARC = 289; // length of the gauge's half circle (r = 92)
 
 const iso = (s) => new Date(s + "T00:00:00");
+// A season named "Musim 1448H" is not shown as "Season Musim 1448H".
+const seasonName = (t, s) => (/^(musim|season)\b/i.test(s) ? s : t("Season {s}", { s }));
+// The window compared with, in the reader's language: "October", "1 to 4 Oct".
+// A season comparison keeps the season's name.
+const prevSpan = (t, p) => {
+  if (!p.prev_start || !p.prev_end || p.kind === "season") return p.prev_label && seasonName(t, p.prev_label);
+  const a = iso(p.prev_start), b = iso(p.prev_end);
+  const lastDay = new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate();
+  if (a.getDate() === 1 && b.getDate() === lastDay && a.getMonth() === b.getMonth()) return t(MONTHS[a.getMonth()]);
+  return a.getMonth() === b.getMonth()
+    ? t("{a} to {b}", { a: a.getDate(), b: `${b.getDate()} ${MON[b.getMonth()]}` })
+    : t("{a} to {b}", { a: `${a.getDate()} ${MON[a.getMonth()]}`, b: `${b.getDate()} ${MON[b.getMonth()]}` });
+};
 const dDay = (s) => { const d = iso(s); return `${d.getDate()} ${MON[d.getMonth()]}`; };
 const dWeek = (s) => { const d = iso(s); return `${DAYS[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`; };
 const millions = (v) => `${(Math.round((v || 0) / 100000) / 10).toLocaleString("en-US")} M`;
@@ -115,7 +128,7 @@ function ManagerHome(props) {
         {(top || mon || access) && (
           <DashGrid g={[top, admin ? access : top, mon].filter(Boolean).length === 3 ? "3" : "3-two"}>
             {top && <TopClients top={top} />}
-            {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, ${t("room nights stayed")}`}
+            {top && !admin && <Ranking title={t("Top hotels")} meta={`${top.season ? seasonName(t, top.season) : t("12 months")}, ${t("room nights stayed")}`}
               rows={top.hotels.map((r) => ({ ...r, href: `/hotels/${r.id}/`, sub: r.city, v: r.rn }))}
               empty={[t("No stays yet"), t("Hotels appear here after the first check-in.")]} hasPrev={top.has_prev} />}
             {mon && <MoneyNow m={mon} />}
@@ -129,7 +142,7 @@ function ManagerHome(props) {
 function TopClients({ top, title }) {
   const { t } = useI18n();
   return (
-    <Ranking title={title || t("Top clients")} meta={`${top.season ? t("Season {s}", { s: top.season }) : t("12 months")}, SAR`}
+    <Ranking title={title || t("Top clients")} meta={`${top.season ? seasonName(t, top.season) : t("12 months")}, SAR`}
       rows={top.clients.map((r) => ({ ...r, href: `/clients/${r.id}/`, sub: t("{n} CL", { n: r.cl }), v: r.val }))}
       empty={[t("No sales this season yet"), t("Clients appear here after their first CL.")]} hasPrev={top.has_prev} />
   );
@@ -155,14 +168,14 @@ function PeriodBar({ period, seasons, today, onGo, note }) {
       <NavButton aria-label={t("Next month")} disabled={isSeason || atNow} onClick={() => shift(1)}>{LIcon.next}</NavButton>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <MenuButton aria-haspopup="menu">{isSeason ? t("Season {s}", { s: period.label }) : t("Monthly")}{LIcon.chev}</MenuButton>
+          <MenuButton aria-haspopup="menu">{isSeason ? seasonName(t, period.label) : t("Monthly")}{LIcon.chev}</MenuButton>
         </PopoverTrigger>
         <Menu align="start" sideOffset={6} className="w-[220px]">
           <MenuItem on={!isSeason} onClick={() => { setOpen(false); onGo({ month: thisMonth }); }}>{t("Month by month")}</MenuItem>
           {seasons.length > 0 && <MenuSep />}
           {seasons.slice(0, 1).map((s) => (
             <MenuItem key={s.name} on={isSeason} onClick={() => { setOpen(false); onGo({ season: 1 }); }}>
-              <span>{t("Season {s}", { s: s.name })}<MenuHint>{dDay(s.start)} {s.start.slice(0, 4)} {t("to")} {dDay(s.end)} {s.end.slice(0, 4)}</MenuHint></span>
+              <span>{seasonName(t, s.name)}<MenuHint>{dDay(s.start)} {s.start.slice(0, 4)} {t("to")} {dDay(s.end)} {s.end.slice(0, 4)}</MenuHint></span>
             </MenuItem>
           ))}
         </Menu>
@@ -180,7 +193,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   const { t } = useI18n();
   const mine = kind === "staff";
   const { cur, prev } = sales;
-  const prevLabel = period.prev_label;
+  const prevLabel = prevSpan(t, period);
   const cmp = (v) => (prev ? `${prevLabel}: ${v}` : t("First season in KonozOps, nothing to compare"));
   const pct = (a, b) => { const p = prev ? pctOf(a, b) : null; return !p ? null : `${p > 0 ? "+" : "-"}${Math.abs(p)}%`; };
 
@@ -263,7 +276,7 @@ function SoldPerMonth({ sm, isSeason, title }) {
   const seasonSum = months.slice(0, sm.now + 1).reduce((a, m) => a + (m.cur || 0), 0);
   const lySum = months.slice(0, sm.now + 1).reduce((a, m) => a + m.ly, 0);
   const p = months[pick];
-  const lyName = sm.prev_season ? t("Season {s}", { s: sm.prev_season }) : t("A year earlier");
+  const lyName = sm.prev_season ? seasonName(t, sm.prev_season) : t("A year earlier");
   const note = isSeason
     ? (sm.has_ly ? t("sold so far this season, {n} at the same point last season", { n: lySum }) : t("sold so far this season"))
     : !sm.has_ly
@@ -274,7 +287,7 @@ function SoldPerMonth({ sm, isSeason, title }) {
   return (
     <section data-slot="card" className={cn(DA.card, DA.cardPad)}>
       <div data-slot="card-head" className={cn(DA.cardHead, "p-0 phone:p-0")}>
-        <h2>{title || t("CL sold per month")}{sm.season && <span className={DA.count}>{t("Season {s}", { s: sm.season })}</span>}</h2>
+        <h2>{title || t("CL sold per month")}{sm.season && <span className={DA.count}>{seasonName(t, sm.season)}</span>}</h2>
         <Legend items={[
           { label: isSeason ? t("This season") : t(MONTHS[p.d.getMonth()]), bg: "bg-data" },
           { label: t("Other months"), bg: "bg-chart-bar" },
@@ -444,7 +457,7 @@ function ByBranch({ rows, period }) {
   const sum = (k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
   return (
     <section data-slot="card" className={DA.card}>
-      <div data-slot="card-head" className={DA.cardHead}><h2>{t("By branch")}<span className={DA.count}>{rows.length}</span></h2><span className={DA.meta}>{period.kind === "season" ? t("Season {s}", { s: period.label }) : t(period.label)}, {t("SAR unless noted")}</span></div>
+      <div data-slot="card-head" className={DA.cardHead}><h2>{t("By branch")}<span className={DA.count}>{rows.length}</span></h2><span className={DA.meta}>{period.kind === "season" ? seasonName(t, period.label) : t(period.label)}, {t("SAR unless noted")}</span></div>
       <div className={DA.scroll}>
         <table data-slot="detail-table" className={DA.table}>
           <thead><tr><th>{t("Branch")}</th><th className={DC.n}>{t("CL sold")}</th><th className={DC.n}>{t("Booked value")}</th><th className={DC.n}>{t("Past due")}</th><th className={DC.n}>{t("Not sent to HQ")}</th><th className={DC.n}>{t("Profit")}</th></tr></thead>
@@ -646,7 +659,7 @@ function FinanceHome(props) {
 
 function FinanceKpis({ period, cash, received, flow, receivable, profit }) {
   const { t } = useI18n();
-  const prevLabel = period.prev_label;
+  const prevLabel = prevSpan(t, period);
   const pct = (a, b) => { const p = b ? pctOf(a, b) : null; return !p ? null : `${p > 0 ? "+" : "-"}${Math.abs(p)}%`; };
   const kpis = [];
   if (received) {
