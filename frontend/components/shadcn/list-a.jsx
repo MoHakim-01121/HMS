@@ -633,7 +633,10 @@ export function RowMenu({ items, label }) {
   const list = items.filter(Boolean);
   if (!list.length) return null;
   return (
-    <span className="inline-block" onClick={(e) => e.stopPropagation()}>
+    // No stopPropagation here: Radix closes an open menu only when the click
+    // reaches the document, so stopping it left two menus open. The row
+    // ignores clicks from controls and menus itself (Tr).
+    <span className="inline-block">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button type="button" aria-label={label || t("Actions")} aria-haspopup="menu" className={cn(
@@ -704,8 +707,20 @@ export const Td = ({ label, className, ...props }) => (
 
 // `row`: "static" (not openable), "band" (a group heading), "on" (selected),
 // "dim" (greyed out). Body rows open on click; Tab reaches them.
-export const Tr = ({ row, className, ...props }) => (
-  <tr data-row={row} {...props} className={cn(
+// A click on a control in the row, or in a menu or dialog opened from it (a
+// portal, but still the row's child in React), is not a click on the row.
+const ROW_CONTROL = 'button, a, input, select, textarea, label, [role="menu"], [role="menuitem"], [role="dialog"], [role="alertdialog"]';
+// A control that wraps the row itself (a table inside a dialog) does not count.
+const fromControl = (e) => {
+  const control = e.target instanceof Element ? e.target.closest(ROW_CONTROL) : null;
+  return !!control && !control.contains(e.currentTarget);
+};
+
+export const Tr = ({ row, className, onClick, onAuxClick, ...props }) => (
+  <tr data-row={row} {...props}
+    onClick={onClick && ((e) => { if (!fromControl(e)) onClick(e); })}
+    onAuxClick={onAuxClick && ((e) => { if (!fromControl(e)) onAuxClick(e); })}
+    className={cn(
     "[tbody>&]:cursor-pointer [tbody>&]:transition-colors [tbody>&]:duration-[120ms] [tbody>&]:ease-[ease]",
     "[tbody>&:hover>td]:bg-[color:color-mix(in_oklch,var(--foreground)_3%,var(--card))]",
     "[tbody>&:focus-visible]:outline-2 [tbody>&:focus-visible]:-outline-offset-2 [tbody>&:focus-visible]:outline-ring [tbody>&:focus-visible]:outline-solid",
