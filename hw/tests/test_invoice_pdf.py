@@ -9,9 +9,9 @@ from django.utils import timezone
 from hw.finance import posting
 from hw.finance.queries import payment_history_rows
 from hw.models import Client
+from hw.models.invoice import InvoiceLine
 from hw.models.payment import PaymentAllocation, PaymentRecord
 from hw.models.period import FinancialPeriod
-from hw.models.invoice import InvoiceLine
 from hw.tests.factories import make_cl, make_hotel_line, make_invoice, make_payment, make_room
 from hw.views.pdf import _payment_history_context, _render_invoice_pdf, _reservation_room_rows
 

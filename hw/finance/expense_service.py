@@ -21,7 +21,6 @@ from django.utils import timezone
 from ..branch_scope import in_scope
 from ..models.expense import Expense, ExpenseCategory, ExpenseLine, ExpensePayment, ExpenseReceipt
 from ..models.journal import JournalEntry
-from ..utils import round_half_up
 from . import accounts as coa
 from .bank_ledger import record_bank_transaction, void_bank_transactions
 from .errors import FinanceError

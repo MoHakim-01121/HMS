@@ -151,6 +151,9 @@ class Invoice(models.Model):
                 kwargs['update_fields'] = {*kwargs['update_fields'], 'season'}
         super().save(*args, **kwargs)
 
+    def get_absolute_url(self):
+        return reverse('invoice_detail', args=[self.pk])
+
     @staticmethod
     def season_for_date(issued_date):
         if issued_date is None:
@@ -166,9 +169,6 @@ class Invoice(models.Model):
         if exclude_pk is not None:
             qs = qs.exclude(pk=exclude_pk)
         return qs.exists()
-
-    def get_absolute_url(self):
-        return reverse('invoice_detail', args=[self.pk])
 
     @property
     def customer_name(self):

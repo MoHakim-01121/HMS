@@ -11,8 +11,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from hw.finance import seasons
-from hw.tests.factories import make_invoice
 from hw.models.period import FinancialPeriod, Season
+from hw.tests.factories import make_invoice
 
 
 def _names():

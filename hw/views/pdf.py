@@ -145,6 +145,7 @@ INVOICE_PDF_LAYOUT = 3
 
 def _render_invoice_pdf(invoice, *, detailed=False):
     from django.core.cache import cache
+
     from ..finance import queries as fq
 
     filename = f"{invoice.invoice_number}{'-detailed' if detailed else ''}.pdf"

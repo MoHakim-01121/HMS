@@ -15,9 +15,8 @@ from django.test import TestCase
 
 from hw.finance import posting
 from hw.models import Client, Receipt
-from hw.models.period import Season
 from hw.models.payment import PaymentAllocation, PaymentRecord
-from hw.models.period import FinancialPeriod
+from hw.models.period import FinancialPeriod, Season
 from hw.tests.factories import make_hotel_line, make_invoice, make_payment
 from hw.views.receipt_views import (
     _allocation_rows,

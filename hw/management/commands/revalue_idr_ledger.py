@@ -191,7 +191,7 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
-            for entry, amount, posted, value, how in changes:
+            for entry, _amount, posted, value, _how in changes:
                 delta = value - posted
                 if entry.entry_type == JournalEntry.TYPE_REMITTANCE:
                     name = entry.source_remittance.remittance_number
