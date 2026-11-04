@@ -2,12 +2,13 @@ import logging
 import os
 
 import magic
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from ..branch_scope import get_in_scope_or_404
 from ..models import Attachment, ConfirmationLetter, Invoice
-from ..permissions import require_perm
+from ..permissions import can
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +29,21 @@ _MIME_TO_EXT = {
 }
 
 
-@require_perm('invoice', 'edit')
+@login_required
 @require_POST
 def attachment_upload(request):
-    f = request.FILES.get("file")
-    if not f:
-        return JsonResponse({"error": "No file"}, status=400)
-
     invoice_id = request.POST.get("invoice_id")
     cl_id = request.POST.get("cl_id")
     if not invoice_id and not cl_id:
         return JsonResponse({"error": "No target"}, status=400)
+
+    module = 'invoice' if invoice_id else 'cl'
+    if not can(request.user, module, 'edit'):
+        return JsonResponse({"error": "You don't have permission to edit this attachment."}, status=403)
+
+    f = request.FILES.get("file")
+    if not f:
+        return JsonResponse({"error": "No file"}, status=400)
 
     if f.size > 10 * 1024 * 1024:
         return JsonResponse({"error": "File too large (max 10 MB)"}, status=400)
@@ -76,10 +81,14 @@ def attachment_upload(request):
     })
 
 
-@require_perm('invoice', 'edit')
+@login_required
 @require_POST
 def attachment_delete(request, pk):
     att = get_in_scope_or_404(Attachment.objects.all(), request.user, pk=pk)
+    module = 'invoice' if att.invoice_id else 'cl'
+    if not can(request.user, module, 'edit'):
+        return JsonResponse({"error": "You don't have permission to edit this attachment."}, status=403)
+
     file = att.file
     # The row first: a leftover file is harmless, a row without its file is not.
     att.delete()
@@ -89,3 +98,8 @@ def attachment_delete(request, pk):
         except OSError:
             logger.exception("attachment %s: could not remove %s", pk, file.name)
     return JsonResponse({"ok": True})
+
+
+# These endpoints decide which permission is required from the target record.
+attachment_upload.access_guard = ('perm', 'attachment-target', 'edit')
+attachment_delete.access_guard = ('perm', 'attachment-target', 'edit')

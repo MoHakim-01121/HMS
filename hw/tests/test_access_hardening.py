@@ -171,7 +171,7 @@ class ProtectedMediaTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp['Content-Type'], 'application/pdf')
         self.assertTrue(resp['Content-Disposition'].startswith('inline'))
-        self.assertIn('private', resp['Cache-Control'])
+        self.assertEqual(resp['Cache-Control'], 'private, no-store')
         self.assertEqual(b''.join(resp.streaming_content), b'%PDF-1.4 proof')
 
     def test_spreadsheets_are_downloaded_not_shown(self):

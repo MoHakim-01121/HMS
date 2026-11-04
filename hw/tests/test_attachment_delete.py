@@ -6,9 +6,10 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
-from hw.models import Attachment
+from hw.models import Attachment, RoleDefinition, UserProfile
 from hw.tests.factories import make_cl
 
 
@@ -26,6 +27,45 @@ class AttachmentDeleteTests(TestCase):
 
     def _delete(self):
         return self.client.post(f'/attachments/{self.att.pk}/delete/')
+
+    def _login_with_permissions(self, slug, permissions):
+        RoleDefinition.objects.create(slug=slug, label=slug, permissions=permissions)
+        user = User.objects.create_user(slug, password='pw12345')
+        UserProfile.objects.filter(user=user).update(role=slug)
+        user.refresh_from_db()
+        self.client.force_login(user)
+
+    def test_cl_editor_can_upload_and_delete_cl_attachment(self):
+        cl = make_cl()
+        self._login_with_permissions('cl-editor-only', {'cl': ['edit']})
+
+        response = self.client.post('/attachments/upload/', {
+            'cl_id': cl.pk,
+            'file': SimpleUploadedFile('proof.pdf', b'%PDF-1.4\nproof'),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        attachment = Attachment.objects.get(pk=response.json()['id'])
+        self.assertEqual(attachment.cl_id, cl.pk)
+        deleted = self.client.post(f'/attachments/{attachment.pk}/delete/')
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(Attachment.objects.filter(pk=attachment.pk).exists())
+
+    def test_invoice_editor_cannot_manage_cl_attachment(self):
+        cl = make_cl()
+        self.att.cl = cl
+        self.att.save()
+        self._login_with_permissions('invoice-editor-only', {'invoice': ['edit']})
+
+        upload = self.client.post('/attachments/upload/', {
+            'cl_id': cl.pk,
+            'file': SimpleUploadedFile('proof.pdf', b'%PDF-1.4\nproof'),
+        })
+        deleted = self.client.post(f'/attachments/{self.att.pk}/delete/')
+
+        self.assertEqual(upload.status_code, 403)
+        self.assertEqual(deleted.status_code, 403)
+        self.assertTrue(Attachment.objects.filter(pk=self.att.pk).exists())
 
     def test_removes_the_row_and_the_file(self):
         self.assertEqual(self._delete().status_code, 200)

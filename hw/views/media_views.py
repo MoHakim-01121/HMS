@@ -132,7 +132,7 @@ def protected_media(request, path):
         response = FileResponse(open(full, 'rb'), content_type=content_type)
     disposition = 'inline' if content_type in _INLINE_TYPES else 'attachment'
     response['Content-Disposition'] = f"{disposition}; filename*=UTF-8''{quote(os.path.basename(full))}"
-    response['Cache-Control'] = 'public, max-age=86400' if rule == PUBLIC else 'private, max-age=3600'
+    response['Cache-Control'] = 'public, max-age=86400' if rule == PUBLIC else 'private, no-store'
     return response
 
 
