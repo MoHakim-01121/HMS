@@ -41,7 +41,9 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
   const [go, loading] = useListNav("/finance/credit-notes/", f);
   const [draft, setDraft] = useState(f);
   const tog = (v) => setDraft((d) => ({ ...d, applied: d.applied.includes(v) ? d.applied.filter((x) => x !== v) : [...d.applied, v] }));
-  const filterCount = (f.applied.length ? 1 : 0) + (f.voided ? 1 : 0);
+  const togBorne = (v) => setDraft((d) => ({ ...d, borne: d.borne.includes(v) ? d.borne.filter((x) => x !== v) : [...d.borne, v] }));
+  const filterCount = (f.applied.length ? 1 : 0) + (f.borne.length ? 1 : 0) + (f.voided ? 1 : 0);
+  const borneLabel = (c) => c.borne_by_name || t("Head office");
   const period = f.month ? t(MONTHS[+f.month.slice(5, 7) - 1]) : f.year && f.year !== "all" ? f.year : t("All dates");
 
   // The row's actions: the desktop row menu, and the same menu on a phone row.
@@ -57,11 +59,15 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
       <Toolbar left={<MonthNav month={f.month} year={f.year} years={years} onChange={(p) => go(p)} />}>
         <SearchTool value={f.q} onSearch={(q) => go({ q })} placeholder={t("Search credit note, client, invoice")} />
         <FilterMenu count={filterCount} onOpen={() => setDraft(f)}
-          onReset={() => setDraft({ ...draft, applied: [], voided: "" })}
-          onApply={() => go({ applied: draft.applied, voided: draft.voided })}>
+          onReset={() => setDraft({ ...draft, applied: [], borne: [], voided: "" })}
+          onApply={() => go({ applied: draft.applied, borne: draft.borne, voided: draft.voided })}>
           <FilterSection label={t("Credit applied to")}>
             <Check on={draft.applied.includes("ar")} onClick={() => tog("ar")} label={t("Accounts receivable")} count={counts.ar} />
             <Check on={draft.applied.includes("deposit")} onClick={() => tog("deposit")} label={t("Customer deposit")} count={counts.deposit} />
+          </FilterSection>
+          <FilterSection label={t("Borne by")}>
+            <Check on={draft.borne.includes("hq")} onClick={() => togBorne("hq")} label={t("Head office")} count={counts.hq} />
+            <Check on={draft.borne.includes("branch")} onClick={() => togBorne("branch")} label={t("Branch")} count={counts.branch} />
           </FilterSection>
           <FilterSection>
             <Check on={!!draft.voided} onClick={() => setDraft({ ...draft, voided: draft.voided ? "" : "1" })} label={t("Show voided")} count={counts.voided} />
@@ -71,17 +77,18 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
         {perms.can("invoice", "create") && <NewCreditNote invoices={invoice_choices} />}
       </Toolbar>
 
-      <TableCard cols={[100, 80, null, 100, null, 130, 96, 56]}
+      <TableCard cols={[100, 80, null, 100, null, 120, 130, 96, 56]}
         phone={credit_notes.map((c) => (
           <PRow key={c.id} menu={<RowMenu label={t("Actions for {n}", { n: c.number })} items={menuFor(c)} />} href={c.invoice_url} mono no={c.number} dim={c.status === "voided"}
             tag={<Pill tone={c.status === "voided" ? "gray" : "green"} sm>{c.status === "voided" ? t("Voided") : t("Active")}</Pill>}
             title={c.client} amount={fmtN(c.amount_sar)} unit="SAR"
-            meta={[dShort(c.date), c.invoice_number, c.reason].filter(Boolean).join(" · ")} />
+            meta={[dShort(c.date), c.invoice_number, c.reason].filter(Boolean).join(" · ")}
+            note={c.borne_by_name ? t("Borne by {branch}", { branch: c.borne_by_name }) : null} />
         ))}
         empty={!credit_notes.length && <Empty title={t("No credit notes")} sub={t("None were issued in this period.")} />}>
         <thead><Tr>
           <Th>{t("Credit note")}</Th><Th><span className="inline-flex items-center gap-1 font-semibold text-foreground">{t("Date")}{LIcon.sortDown}</span></Th><Th>{t("Client")}</Th><Th>{t("Invoice")}</Th>
-          <Th>{t("Reason")}</Th><Th className="text-right">{t("Amount (SAR)")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
+          <Th>{t("Reason")}</Th><Th>{t("Borne by")}</Th><Th className="text-right">{t("Amount (SAR)")}</Th><Th>{t("Status")}</Th><Th className="text-center">{t("Action")}</Th>
         </Tr></thead>
         <tbody>
           {credit_notes.map((cn) => {
@@ -93,6 +100,7 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
                 <Td className="truncate font-medium">{cn.client}</Td>
                 <Td><span className="font-mono text-[13px] font-semibold">{cn.invoice_number}</span></Td>
                 <Td className="truncate" title={cn.reason}>{cn.reason}</Td>
+                <Td className="truncate">{borneLabel(cn)}</Td>
                 <Td className="text-right">{fmtN(cn.amount_sar)}{cn.to_deposit_sar > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} to deposit", { v: fmtN(cn.to_deposit_sar) })}</span>}</Td>
                 <Td><Pill tone={dead ? "gray" : "green"}>{dead ? t("Voided") : t("Active")}</Pill></Td>
                 <Td className="text-center">
@@ -104,7 +112,7 @@ export default function CreditNotes({ credit_notes = [], filters: f, years = [],
         </tbody>
         {summary && credit_notes.length > 0 && (
           <tfoot><Tr>
-            <Td colSpan={5}>{t("{p}, {n} credit notes", { p: period, n: summary.count })}</Td>
+            <Td colSpan={6}>{t("{p}, {n} credit notes", { p: period, n: summary.count })}</Td>
             <Td className="text-right">{fmtN(summary.amount)}{summary.to_deposit > 0 && <span className="mt-0.5 block overflow-hidden text-ellipsis text-[12px] font-normal text-muted-foreground">{t("{v} to deposit", { v: fmtN(summary.to_deposit) })}</span>}</Td>
             <Td colSpan={2} label>{t("Voided not counted")}</Td>
           </Tr></tfoot>

@@ -162,6 +162,7 @@ class _Pool:
 
 def _branch_events(branch, date_to):
     """Chronological client-money events of one branch that move the pools."""
+    from ..models.credit_note import CreditNote
     from ..models.currency_exchange import CurrencyExchange
     from ..models.payment import PaymentRecord
     from ..models.remittance import Remittance
@@ -180,6 +181,13 @@ def _branch_events(branch, date_to):
     for tx in BankTransaction.objects.filter(source_type='Refund').exclude(status=BankTransaction.STATUS_VOIDED).select_related('account'):
         if _account(tx).branch_id == branch and tx.currency != 'SAR' and (not date_to or tx.transaction_date <= date_to):
             events.append((tx.transaction_date, 2, tx.pk, 'refund', tx))
+    # A credit note the branch bears adds SAR it owes head office with no
+    # client money behind it (CreditNote.borne_by).
+    for cn in (CreditNote.objects.filter(borne_by=CreditNote.BORNE_BRANCH, status=CreditNote.STATUS_ACTIVE,
+                                         invoice__branch_id=branch)
+               .select_related('invoice').prefetch_related('lines')):
+        if not date_to or cn.issued_date <= date_to:
+            events.append((cn.issued_date, 1.5, cn.pk, 'discount', cn))
     for rem in Remittance.objects.select_related('from_account'):
         sender = rem.from_account.branch_id if rem.from_account_id else 'sby'
         if sender == branch and (not date_to or rem.date <= date_to):
@@ -205,6 +213,19 @@ def _replay(branch, *, date_from=None, date_to=None, stop_before=None):
     from . import queries
     pools = defaultdict(_Pool)
     transfers = []
+    # Discounts the branch bears, priced in rupiah at the IDR pool's average
+    # cost when issued (or the last one known; failing that, the next client
+    # payment's rate). Their SAR joins the pool at that cost, so a transfer
+    # that sends the full price stays covered and FX profit stays the spread.
+    discounts, waiting, last_rate = [], [], None
+
+    def price_waiting():
+        for d, cn_sar in waiting:
+            pools['IDR'].amount += Decimal(cn_sar) * last_rate
+            pools['IDR'].sar += Decimal(cn_sar)
+            d['idr'] = int((Decimal(cn_sar) * last_rate).quantize(Decimal('1')))
+        waiting.clear()
+
     events = _branch_events(branch, date_to)
     # SAR actually sent per transfer, in one query.
     sent_map = queries.remittance_sent_map([o.pk for *_x, k, o in events if k == 'remittance'])
@@ -213,6 +234,19 @@ def _replay(branch, *, date_from=None, date_to=None, stop_before=None):
             pool = pools[obj.currency]
             pool.amount += Decimal(obj.amount)
             pool.sar += Decimal(obj.amount_sar)
+            if obj.currency == 'IDR' and obj.amount_sar:
+                last_rate = pools['IDR'].rate or last_rate
+                price_waiting()
+        elif kind == 'discount':
+            sar = obj.amount_sar
+            d = {'id': obj.pk, 'number': obj.credit_note_number, 'date': obj.issued_date.isoformat(),
+                 'invoice': obj.invoice.invoice_number, 'sar': sar, 'idr': None}
+            if not date_from or obj.issued_date >= date_from:
+                discounts.append(d)
+            last_rate = pools['IDR'].rate or last_rate
+            waiting.append((d, sar))
+            if last_rate:
+                price_waiting()
         elif kind == 'exchange':
             src, dst = pools[obj.from_currency], pools[obj.to_currency]
             share = min(Decimal(obj.amount_out) / src.amount, Decimal(1)) if src.amount > 0 else Decimal(0)
@@ -233,6 +267,7 @@ def _replay(branch, *, date_from=None, date_to=None, stop_before=None):
                 continue
             pool = pools['IDR']
             rate = pool.rate
+            last_rate = rate or last_rate
             if obj.is_legacy and obj.original_amount:
                 # Setoran lama: rupiah client di baliknya diisi user.
                 covered = min(Decimal(sar), pool.sar)
@@ -262,14 +297,14 @@ def _replay(branch, *, date_from=None, date_to=None, stop_before=None):
                 'is_legacy': obj.is_legacy,
                 'original_amount': obj.original_amount,
             })
-    return pools, transfers
+    return pools, transfers, discounts
 
 
 def idr_pool(branch='sby', *, before=None):
     """Uang client rupiah cabang yang belum disetor, dan kurs asalnya:
     {'amount', 'sar', 'rate'}. `before`: id setoran — posisi tepat sebelum
     setoran itu (untuk form edit); tanpa itu, posisi sekarang."""
-    pools, _ = _replay(branch, stop_before=before)
+    pools, _t, _d = _replay(branch, stop_before=before)
     pool = pools['IDR']
     return {
         'amount': int(pool.amount.quantize(Decimal('1'))),
@@ -299,11 +334,12 @@ def net_profit(fx):
 
     Expenses do not reduce it: the branch fronts them and head office pays
     them back per claim (user, 2026-10-19; replaces "laba cabang = sisa uang
-    bersih" of 2026-09-29). None while no transfer in the period has a
-    priced FX profit."""
+    bersih" of 2026-09-29). Discounts the branch bore on credit notes do
+    (2026-11-04): no one pays those back. None while no transfer in the
+    period has a priced FX profit."""
     if fx['transfers'] and fx['unpriced'] == len(fx['transfers']):
         return None
-    return fx['total_profit_idr']
+    return fx['total_profit_idr'] - fx.get('discount_idr', 0)
 
 
 def fx_profit(*, branch='sby', date_from=None, date_to=None):
@@ -316,7 +352,7 @@ def fx_profit(*, branch='sby', date_from=None, date_to=None):
     pool at its average rate — profit = that cost − rupiah actually sent.
     Setoran lama dihitung dari nominal original yang diisi user, atau tidak
     dihitung (profit None) selama kosong."""
-    pools, transfers = _replay(branch, date_from=date_from, date_to=date_to)
+    pools, transfers, discounts = _replay(branch, date_from=date_from, date_to=date_to)
     held = {c: {'amount': int(p.amount.quantize(Decimal('1'))), 'sar': int(p.sar.quantize(Decimal('1')))}
             for c, p in pools.items() if p.amount or p.sar}
     return {
@@ -325,5 +361,9 @@ def fx_profit(*, branch='sby', date_from=None, date_to=None):
         # Transfers whose profit cannot be computed yet (old deposit with no
         # original amount): the total leaves them out, so say how many.
         'unpriced': sum(1 for t in transfers if t['profit_idr'] is None),
+        # Credit notes the branch bore (CreditNote.borne_by): they reduce its
+        # profit. 'idr' is None until a rupiah rate is known to price one.
+        'discounts': discounts,
+        'discount_idr': sum(d['idr'] or 0 for d in discounts),
         'client_money_held': held,
     }

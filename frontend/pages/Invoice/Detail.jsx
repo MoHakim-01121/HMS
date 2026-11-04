@@ -320,6 +320,7 @@ export default function Detail({
                       <td className={voided ? "line-through" : undefined}>
                         {voided && note.voided_reason ? `${note.reason} · ${t("voided")}: ${note.voided_reason}` : note.reason}
                         {note.to_deposit_sar > 0 && !voided ? <span className={DC.sub}>{t("{n} SAR to client deposit", { n: fmt(note.to_deposit_sar) })}</span> : null}
+                        {note.borne_by_name ? <span className={DC.sub}>{t("Borne by {branch}", { branch: note.borne_by_name })}</span> : null}
                       </td>
                       <td className={cn(DC.n, DC.bold)}>{voided ? fmt(note.amount_sar) : `−${fmt(note.amount_sar)}`}</td>
                       <td className={DC.n}>

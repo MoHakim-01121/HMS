@@ -32,6 +32,8 @@ INC_FX_GAIN = "4900-INC-FXGAIN"
 EXP_BANKFEE = "5100-EXP-BANKFEE"
 EXP_FX_LOSS = "5200-EXP-FXLOSS"
 EXP_PENALTY = "5300-EXP-PENALTY"
+# Credit notes a branch gave and bears itself (CreditNote.borne_by = branch).
+EXP_BRANCH_DISCOUNT = "5350-EXP-BR-DISC"
 
 # Beban operasional cabang (FASE D). Kategori Expense memetakan ke sini.
 EXP_SALARY        = "5400-EXP-SALARY"
@@ -119,6 +121,7 @@ ACCOUNTS = [
     {"code": EXP_BANKFEE, "name": "Beban Biaya Transfer/Bank", "type": AccountType.EXPENSE},
     {"code": EXP_FX_LOSS, "name": "Rugi Selisih Kurs", "type": AccountType.EXPENSE},
     {"code": EXP_PENALTY, "name": "Beban Penalty", "type": AccountType.EXPENSE},
+    {"code": EXP_BRANCH_DISCOUNT, "name": "Beban Diskon Ditanggung Cabang", "type": AccountType.EXPENSE},
     {"code": EXP_SALARY, "name": "Beban Gaji & Honor", "type": AccountType.EXPENSE},
     {"code": EXP_UTILITIES, "name": "Beban Listrik & Air", "type": AccountType.EXPENSE},
     {"code": EXP_TELECOM, "name": "Beban Internet & Telepon", "type": AccountType.EXPENSE},

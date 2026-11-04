@@ -215,3 +215,124 @@ class InertiaJsonPostTest(CreditNoteTest):
         self.assertEqual(cn.status, CreditNote.STATUS_VOIDED)
         self.client.post(f'/finance/invoices/{self.inv.pk}/void/', json.dumps({'reason': 'Duplicate'}), content_type='application/json')
         self.assertTrue(self._refresh().is_void)
+
+
+class BranchBorneCreditNoteTest(CreditNoteTest):
+    """A credit note the branch bears (CreditNote.borne_by = branch, 2026-11-04):
+    head office keeps its revenue, the branch still owes it the full SAR, and
+    the branch's profit carries the discount."""
+
+    def _branch_cn(self, amount, **kw):
+        return self._cn(amount, borne_by=CreditNote.BORNE_BRANCH, **kw)
+
+    def _pay_line(self, sar, res):
+        p = create_payment_record(self.inv, self.client_obj, DAY, sar * 4900, currency='IDR', exchange_rate=4900,
+                                  method='Transfer', receiving_account=self.idr, created_by=self.user, reservation=res)
+        confirm_payment(p, self.user)
+        return p
+
+    def _breakdown(self):
+        return queries.reservation_cash_breakdown().get(self.r2.pk, {})
+
+    def test_debits_branch_expense_not_hq_revenue(self):
+        self.assertEqual(self.inv.branch_id, 'sby')
+        cn = self._branch_cn(900)
+        self.assertTrue(cn.is_branch_borne)
+        lines = JournalLine.objects.filter(journal_entry__source_credit_note__isnull=False)
+        self.assertFalse(lines.filter(account_id=coa.INC_HOTEL).exists())
+        dr = lines.get(account_id=coa.EXP_BRANCH_DISCOUNT)
+        self.assertEqual((dr.debit, dr.branch_id), (900, 'sby'))
+        # The client sees the same reduction as with a head-office credit note.
+        inv = self._refresh()
+        self.assertEqual(inv.credited_sar, 900)
+        self.assertEqual(queries.invoice_outstanding_sar(inv.pk), 17_100)
+
+    def test_branch_still_owes_full_price(self):
+        self._pay_line(4_000, self.r1)
+        self._branch_cn(900, res=self.r1)
+        bd = queries.reservation_cash_breakdown()[self.r1.pk]
+        self.assertEqual(bd['terbayar_sby'], 4_000)          # what the client paid, unchanged
+        self.assertEqual(bd['ditanggung_cabang'], 900)
+        self.assertEqual(bd['mengendap'], 4_900)             # the branch sends the 900 too
+
+    def test_hq_borne_does_not_add_to_what_branch_owes(self):
+        self._pay_line(4_000, self.r1)
+        self._cn(900, res=self.r1)
+        bd = queries.reservation_cash_breakdown()[self.r1.pk]
+        self.assertEqual((bd['ditanggung_cabang'], bd['mengendap']), (0, 4_000))
+
+    def test_part_already_paid_goes_to_deposit_not_owed_twice(self):
+        # Paid in full: the credit goes to the client's deposit, which the
+        # branch refunds from its own money; it owes head office what was paid.
+        self._pay_line(10_000, self.r1)
+        self._pay_line(8_000, self.r2)
+        cn = self._branch_cn(900)
+        self.assertEqual(cn.to_deposit_sar, 900)
+        self.assertEqual(self._breakdown()['mengendap'], 8_000)
+        self.assertEqual(queries.client_credit_balance(self.client_obj.pk), 900)
+
+    def test_void_undoes_it(self):
+        cn = self._branch_cn(900)
+        cns.void_credit_note(cn, reason='Mistake', created_by=self.user)
+        self.assertEqual(self._breakdown().get('mengendap', 0), 0)
+        from hw.finance import fund_flow
+        self.assertEqual(fund_flow.fx_profit(branch='sby')['discounts'], [])
+
+    def test_discount_lowers_branch_profit_at_pool_rate(self):
+        from hw.finance import fund_flow
+        self._pay(4_000)                                     # 4,000 SAR at 4,900 IDR
+        cn = self._branch_cn(900)
+        fx = fund_flow.fx_profit(branch='sby', date_from=date(2026, 9, 1), date_to=date(2026, 9, 30))
+        self.assertEqual([(d['number'], d['sar'], d['idr']) for d in fx['discounts']],
+                         [(cn.credit_note_number, 900, 900 * 4_900)])
+        self.assertEqual(fund_flow.net_profit(fx), -900 * 4_900)
+        # The discount joins the pool as SAR owed at cost: 4,900 SAR to send.
+        self.assertEqual(fx['client_money_held']['IDR']['sar'], 4_900)
+        # Outside the period it is not this period's discount.
+        later = fund_flow.fx_profit(branch='sby', date_from=date(2026, 10, 1), date_to=date(2026, 10, 31))
+        self.assertEqual(later['discounts'], [])
+
+    def test_discount_before_any_payment_priced_at_next_payment(self):
+        from hw.finance import fund_flow
+        cns.issue_credit_note(self.inv, lines=[{'kind': 'reservation', 'id': self.r2.pk, 'amount_sar': 900}],
+                              reason='x', issued_date=date(2026, 9, 5), created_by=self.user,
+                              borne_by=CreditNote.BORNE_BRANCH)
+        self.assertIsNone(fund_flow.fx_profit(branch='sby')['discounts'][0]['idr'])   # no rate known yet
+        self._pay(4_000)
+        d = fund_flow.fx_profit(branch='sby')['discounts'][0]
+        self.assertEqual(d['idr'], 900 * 4_900)
+
+    def test_hq_invoice_cannot_be_branch_borne(self):
+        Invoice.objects.filter(pk=self.inv.pk).update(branch_id=coa.HQ_BRANCH)
+        self._refresh()
+        with self.assertRaises(FinanceError):
+            self._branch_cn(900)
+        with self.assertRaises(FinanceError):
+            self._cn(900, borne_by='nobody')
+
+    def test_views_and_list(self):
+        form = self.client.get(f'/finance/invoices/{self.inv.pk}/credit-notes/new/', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual(form['branch']['code'], 'sby')
+        self.assertEqual(form['form']['borne_by'], 'hq')
+        resp = self.client.post(f'/finance/invoices/{self.inv.pk}/credit-notes/new/', {
+            'issued_date': '2026-09-10', 'reason': 'Discount by Surabaya', 'borne_by': 'branch',
+            'amounts': f'{{"reservation:{self.r1.pk}": 900}}',
+        })
+        self.assertEqual(resp.status_code, 302)
+        cn = CreditNote.objects.get()
+        self.assertTrue(cn.is_branch_borne)
+        self._cn(500)                                        # one borne by head office
+        props = self.client.get('/finance/credit-notes/?year=all', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual((props['counts']['hq'], props['counts']['branch']), (1, 1))
+        only = self.client.get('/finance/credit-notes/?year=all&borne=branch', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual([r['number'] for r in only['credit_notes']], [cn.credit_note_number])
+        self.assertEqual(only['credit_notes'][0]['borne_by_name'], 'Surabaya')
+        detail = self.client.get(f'/invoice/{self.inv.pk}/', HTTP_X_INERTIA='true').json()['props']
+        self.assertEqual(sorted(r['borne_by'] for r in detail['credit_notes']), ['branch', 'hq'])
+        csv = self.client.get('/finance/credit-notes/export/csv/').content.decode()
+        self.assertIn('Surabaya', csv)
+        report = self.client.get('/finance/branch-report/?branch=sby&kind=month&value=2026-09',
+                                 HTTP_X_INERTIA='true').json()['props']['report']['profit']
+        self.assertEqual([d['sar'] for d in report['discounts']], [900])
+        self.assertEqual(report['fx_idr'], 0)
+        self.assertEqual(self.client.get('/finance/branch-report/export/csv/?branch=sby&kind=month&value=2026-09').status_code, 200)

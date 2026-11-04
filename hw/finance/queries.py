@@ -1110,7 +1110,7 @@ def selisih_kurs():
 def reservation_cash_breakdown():
     """Bulk per-reservation cash breakdown untuk dashboard remittance:
     {reservation_id: {terbayar_sby, terbayar_jkt, terbayar_direct,
-    sudah_dikirim, mengendap, mengendap_jkt}} — derivasi dari JournalLine
+    sudah_dikirim, ditanggung_cabang, mengendap, mengendap_jkt}} — derivasi dari JournalLine
     (payment legs ke kas + remittance send credit kas cabang per reservasi)."""
     from collections import defaultdict
     qs = JournalLine.objects.filter(invoice_line__kind=_HOTEL).exclude(
@@ -1123,9 +1123,18 @@ def reservation_cash_breakdown():
     send = (qs.filter(journal_entry__entry_type=JournalEntry.TYPE_ALLOCATE)
             .values("invoice_line_id", "account_id", "account__parent_id").annotate(c=Sum("credit")))
 
+    # Credit notes a branch bears: the part that cleared Piutang is money the
+    # branch still owes head office for the reservation, as if the client had
+    # paid it there (the part that went to Titipan was paid already).
+    borne = (qs.filter(
+        journal_entry__entry_type=JournalEntry.TYPE_CREDIT_NOTE, account_id=coa.AR, credit__gt=0,
+        journal_entry_id__in=JournalLine.objects.filter(account_id=coa.EXP_BRANCH_DISCOUNT).values("journal_entry_id"),
+    ).values("invoice_line_id", "invoice_line__invoice__branch_id").annotate(c=Sum("credit")))
+
     out = defaultdict(lambda: {
         "terbayar_sby": 0, "terbayar_jkt": 0, "terbayar_direct": 0,
         "sent_from_sby": 0, "sent_from_jkt": 0,
+        "borne_sby": 0, "borne_jkt": 0,
     })
     for r in pay:
         rid, root = r["invoice_line_id"], _root(r["account_id"], r["account__parent_id"])
@@ -1135,6 +1144,9 @@ def reservation_cash_breakdown():
             out[rid]["terbayar_jkt"] += r["d"]
         elif root == coa.CASH_PUSAT:
             out[rid]["terbayar_direct"] += r["d"]
+    for r in borne:
+        key = "borne_jkt" if r["invoice_line__invoice__branch_id"] == "jkt" else "borne_sby"
+        out[r["invoice_line_id"]][key] += r["c"]
     for r in send:
         rid, root = r["invoice_line_id"], _root(r["account_id"], r["account__parent_id"])
         if root == coa.CASH_SBY:
@@ -1148,8 +1160,9 @@ def reservation_cash_breakdown():
             "terbayar_jkt": d["terbayar_jkt"],
             "terbayar_direct": d["terbayar_direct"],
             "sudah_dikirim": d["sent_from_sby"] + d["terbayar_direct"],
-            "mengendap": d["terbayar_sby"] - d["sent_from_sby"],
-            "mengendap_jkt": d["terbayar_jkt"] - d["sent_from_jkt"],
+            "ditanggung_cabang": d["borne_sby"] + d["borne_jkt"],
+            "mengendap": d["terbayar_sby"] + d["borne_sby"] - d["sent_from_sby"],
+            "mengendap_jkt": d["terbayar_jkt"] + d["borne_jkt"] - d["sent_from_jkt"],
         }
         for rid, d in out.items()
     }

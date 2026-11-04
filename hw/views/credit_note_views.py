@@ -91,7 +91,10 @@ def _cn_form_props(invoice, data=None, error=None):
         },
         'lines': cns.creditable_lines(invoice),
         'cancel': _detail_url(invoice),
-        'form': data or {'issued_date': timezone.localdate().isoformat(), 'reason': '', 'amounts': {}},
+        # Who can bear it: head office always; the issuing branch too, unless that is head office.
+        'branch': {'code': invoice.branch_id, 'name': invoice.branch.name} if cns.can_branch_bear(invoice) else None,
+        'form': data or {'issued_date': timezone.localdate().isoformat(), 'reason': '', 'amounts': {},
+                         'borne_by': CreditNote.BORNE_HQ},
         'error': error,
     }
 
@@ -116,6 +119,7 @@ def credit_note_new(request, pk):
         'issued_date': str(P.get('issued_date') or ''),
         'reason': str(P.get('reason') or ''),
         'amounts': amounts,
+        'borne_by': str(P.get('borne_by') or CreditNote.BORNE_HQ),
     }
     lines = []
     for key, amount in amounts.items():
@@ -125,12 +129,16 @@ def credit_note_new(request, pk):
         cn = cns.issue_credit_note(
             invoice, lines=lines, reason=data['reason'],
             issued_date=_parse_date(data['issued_date']), created_by=request.user,
+            borne_by=data['borne_by'],
         )
     except FinanceError as e:
         return inertia_render(request, 'Finance/CreditNoteForm', props=_cn_form_props(invoice, data, str(e)))
     log_activity(request.user, ActivityLog.ACTION_CREATE, 'Credit Note', cn.credit_note_number)
     msg = tr(request, f'Credit note {cn.credit_note_number} ({cn.amount_sar:,} SAR) created.',
              f'Nota kredit {cn.credit_note_number} ({cn.amount_sar:,} SAR) dibuat.')
+    if cn.is_branch_borne:
+        msg += tr(request, f' Borne by {invoice.branch.name}: it still sends head office the full price.',
+                  f' Ditanggung {invoice.branch.name}: cabang tetap mengirim harga penuh ke Pusat.')
     if cn.to_deposit_sar:
         msg += tr(request, f' {cn.to_deposit_sar:,} SAR was already paid and is now held for the client.',
                   f' {cn.to_deposit_sar:,} SAR sudah dibayar dan kini jadi titipan client.')
@@ -150,6 +158,8 @@ def credit_note_rows(qs):
         'amount_sar': sum(line.amount_sar for line in cn.lines.all()),
         'to_deposit_sar': cn.to_deposit_sar,
         'reason': cn.reason,
+        'borne_by': cn.borne_by,
+        'borne_by_name': cn.invoice.branch.name if cn.is_branch_borne else None,
         'status': cn.status,
         'voided_reason': cn.voided_reason,
     } for cn in qs]
@@ -167,9 +177,10 @@ def credit_note_list(request):
     from .helpers import csv_list, list_per_page, list_period, pagination_props
     q = request.GET.get('q', '').strip()
     applied = csv_list(request, 'applied', ['ar', 'deposit'])
+    borne = csv_list(request, 'borne', [CreditNote.BORNE_HQ, CreditNote.BORNE_BRANCH])
     voided = request.GET.get('voided') == '1'
     date_from, date_to, period = list_period(request)
-    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice', 'client').prefetch_related('lines')
+    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice__branch', 'client').prefetch_related('lines')
     if q:
         qs = qs.filter(Q(credit_note_number__icontains=q) | Q(client__name__icontains=q)
                        | Q(invoice__invoice_number__icontains=q) | Q(reason__icontains=q))
@@ -180,7 +191,8 @@ def credit_note_list(request):
     period_rows = credit_note_rows(qs.order_by('-issued_date', '-pk'))
     live = [r for r in period_rows if r['status'] == CreditNote.STATUS_ACTIVE]
     kind = lambda r: 'deposit' if r['to_deposit_sar'] else 'ar'
-    rows = [r for r in period_rows if (voided or r['status'] == CreditNote.STATUS_ACTIVE) and (not applied or kind(r) in applied)]
+    rows = [r for r in period_rows if (voided or r['status'] == CreditNote.STATUS_ACTIVE)
+            and (not applied or kind(r) in applied) and (not borne or r['borne_by'] in borne)]
     page_obj = Paginator(rows, list_per_page(request)).get_page(request.GET.get('page'))
 
     def invoice_choices():
@@ -190,9 +202,11 @@ def credit_note_list(request):
     years = sorted({d.year for d in scope(CreditNote.objects.all(), request.user).dates('issued_date', 'year')} | {timezone.localdate().year})
     return inertia_render(request, 'Finance/CreditNotes', props={
         'credit_notes': list(page_obj),
-        'filters': {'q': q, 'applied': applied, 'voided': '1' if voided else '', 'per': list_per_page(request), **period},
+        'filters': {'q': q, 'applied': applied, 'borne': borne, 'voided': '1' if voided else '', 'per': list_per_page(request), **period},
         'years': years,
         'counts': {'ar': sum(1 for r in period_rows if kind(r) == 'ar'), 'deposit': sum(1 for r in period_rows if kind(r) == 'deposit'),
+                   'hq': sum(1 for r in period_rows if r['borne_by'] == CreditNote.BORNE_HQ),
+                   'branch': sum(1 for r in period_rows if r['borne_by'] == CreditNote.BORNE_BRANCH),
                    'voided': len(period_rows) - len(live)},
         'summary': {'count': len(live), 'amount': sum(r['amount_sar'] for r in live), 'to_deposit': sum(r['to_deposit_sar'] for r in live)},
         'invoice_choices': invoice_choices,
@@ -203,9 +217,10 @@ def credit_note_list(request):
 @require_perm('invoice', 'export')
 def credit_note_export_csv(request):
     from .helpers import csv_export_response
-    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice', 'client').prefetch_related('lines').order_by('-issued_date')
-    return csv_export_response('credit_notes.csv', ['Credit note', 'Date', 'Client', 'Invoice', 'Reason', 'Amount SAR', 'To deposit SAR', 'Status'], [
-        [r['number'], r['date'], r['client'], r['invoice_number'], r['reason'], r['amount_sar'], r['to_deposit_sar'], r['status']]
+    qs = scope(CreditNote.objects.all(), request.user).select_related('invoice__branch', 'client').prefetch_related('lines').order_by('-issued_date')
+    return csv_export_response('credit_notes.csv', ['Credit note', 'Date', 'Client', 'Invoice', 'Reason', 'Amount SAR', 'To deposit SAR', 'Borne by', 'Status'], [
+        [r['number'], r['date'], r['client'], r['invoice_number'], r['reason'], r['amount_sar'], r['to_deposit_sar'],
+         r['borne_by_name'] or 'Head office', r['status']]
         for r in credit_note_rows(qs)
     ])
 
@@ -266,7 +281,7 @@ def credit_note_pdf(request, pk):
 
 def invoice_credit_props(invoice):
     """Void state and credit notes for an invoice detail page (hotel or service)."""
-    qs = invoice.credit_notes.select_related('invoice', 'client').prefetch_related('lines')
+    qs = invoice.credit_notes.select_related('invoice__branch', 'client').prefetch_related('lines')
     return {
         'void': {
             'reason': invoice.void_reason,

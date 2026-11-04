@@ -3064,4 +3064,12 @@ export const id = {
   "October": "Oktober",
   "November": "November",
   "December": "Desember",
+  "Head office": "Pusat",
+  "Borne by": "Ditanggung oleh",
+  "Borne by {branch}": "Ditanggung {branch}",
+  "{branch} still sends head office the full price. The credit is a branch expense and lowers the branch's profit.": "{branch} tetap mengirim harga penuh ke Pusat. Nota kredit ini jadi beban cabang dan mengurangi laba cabang.",
+  "Head office's hotel revenue goes down by the credit.": "Pendapatan hotel Pusat berkurang sebesar nota kredit ini.",
+  "Discounts borne by the branch": "Diskon ditanggung cabang",
+  "Branch net profit": "Laba bersih cabang",
+  "FX profit {fx} IDR, less {d} IDR of discounts the branch bore": "Laba kurs {fx} IDR, dikurangi diskon ditanggung cabang {d} IDR",
 };

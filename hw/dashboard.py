@@ -496,16 +496,18 @@ def _sales_side(cls, start, end):
 def _profit(branches, start, end):
     if not start or not branches:
         return None
-    fx = exp = 0
+    fx = exp = disc = 0
     priced = False
     for b in branches:
         f = fund_flow.fx_profit(branch=b.code, date_from=start, date_to=end)
         if fund_flow.net_profit(f) is not None:
             priced = True
         fx += f['total_profit_idr'] or 0
+        disc += f['discount_idr']
         exp += fund_flow.branch_expenses_idr(b.code, date_from=start, date_to=end) or 0
     # Expenses are shown beside the profit, never deducted: Pusat pays them back.
-    return {'fx': fx, 'expenses': exp, 'profit': fx if priced else None}
+    # Discounts the branch bore on credit notes are deducted: no one pays them back.
+    return {'fx': fx, 'expenses': exp, 'profit': fx - disc if priced else None}
 
 
 def _season_months(today, per):

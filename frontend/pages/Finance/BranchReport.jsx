@@ -102,8 +102,10 @@ export default function BranchReport({
     );
   }
 
-  const profitValue = profit.fx_idr == null ? "—" : fmtN(profit.fx_idr);
+  const profitValue = profit.net_idr == null ? "—" : fmtN(profit.net_idr);
   const transfers = profit.transfers || [];
+  const discounts = profit.discounts || [];
+  const fxLine = profit.fx_idr == null ? "—" : fmtN(profit.fx_idr);
 
   return (
     <ListPage title={t("Branch report")}>
@@ -121,7 +123,8 @@ export default function BranchReport({
         <Kpi label={t("Branch profit")} value={profitValue} unit="IDR"
           delta={profit_delta && { text: profit_delta, good: !profit_delta.startsWith("-"), title: t("{d} vs {m}", { d: profit_delta, m: prevLabel }) }}
           foot={profit.unpriced ? t("{n} transfers without a priced FX profit", { n: profit.unpriced })
-            : previous ? t("FX profit on transfers to head office. {m}: {v} IDR", { m: prevLabel, v: previous.fx_idr == null ? "—" : fmtN(previous.fx_idr) })
+            : discounts.length ? t("FX profit {fx} IDR, less {d} IDR of discounts the branch bore", { fx: fxLine, d: fmtN(profit.discount_idr) })
+            : previous ? t("FX profit on transfers to head office. {m}: {v} IDR", { m: prevLabel, v: previous.net_idr == null ? "—" : fmtN(previous.net_idr) })
             : t("FX profit on transfers to head office")} />
         <Kpi label={t("Operating expenses")} value={fmtN(exp.total)} unit="IDR"
           foot={previous ? t("{m}: {v} IDR. Paid back by head office, not deducted.", { m: prevLabel, v: fmtN(previous.expenses) }) : t("Paid back by head office, not deducted.")} />
@@ -157,6 +160,40 @@ export default function BranchReport({
           ))}
         </tbody>
       </TableCard>
+
+      {discounts.length ? (<>
+        <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Discounts borne by the branch")}</h2>
+        <TableCard cols={[150, 76, 150, 110, 130]}
+          phone={(
+            <>
+              {discounts.map((d) => (
+                <PRow key={d.id} mono no={d.number} end={d.idr == null ? t("Not priced") : `−${fmtN(d.idr)} IDR`}
+                  meta={[dayMonth(d.date, loc), d.invoice, `${fmtN(d.sar)} SAR`].join(" · ")} />
+              ))}
+              <PRow no={t("FX profit")} end={`${fxLine} IDR`} />
+              <PRow no={t("Discounts borne by the branch")} end={`−${fmtN(profit.discount_idr)} IDR`} />
+              <PTotal label={t("Branch net profit")}>{profitValue} IDR</PTotal>
+            </>
+          )}>
+          <thead><Tr>
+            <Th>{t("Credit note")}</Th><Th>{t("Date")}</Th><Th>{t("Invoice")}</Th><Th className="text-right">SAR</Th><Th className="text-right">IDR</Th>
+          </Tr></thead>
+          <tbody>
+            {discounts.map((d) => (
+              <Tr key={d.id}>
+                <Td><span className="font-mono text-[13px] font-semibold">{d.number}</span></Td>
+                <Td>{dayMonth(d.date, loc)}</Td>
+                <Td>{d.invoice}</Td>
+                <Td className="text-right">{fmtN(d.sar)}</Td>
+                <Td className="text-right">{d.idr == null ? <span className="text-muted-foreground">{t("Not priced")}</span> : `−${fmtN(d.idr)}`}</Td>
+              </Tr>
+            ))}
+            <Tr><Td colSpan={4} className="text-muted-foreground">{t("FX profit")}</Td><Td className="text-right">{fxLine}</Td></Tr>
+            <Tr><Td colSpan={4} className="text-muted-foreground">{t("Discounts borne by the branch")}</Td><Td className="text-right">−{fmtN(profit.discount_idr)}</Td></Tr>
+            <Tr><Td colSpan={4}><span className="font-medium">{t("Branch net profit")}</span></Td><Td className="text-right"><span className="font-medium">{profitValue}</span></Td></Tr>
+          </tbody>
+        </TableCard>
+      </>) : null}
 
       <h2 className="mt-8 mb-3 text-[16px] font-semibold text-foreground">{t("Operating expenses")}</h2>
       <TableCard cols={[null, 160]}

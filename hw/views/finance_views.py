@@ -759,7 +759,7 @@ def _iso_period(p):
 
 @require_perm('statements', 'view')
 def branch_report_view(request):
-    """Laporan cabang: laba (= laba kurs), biaya operasional dan
+    """Laporan cabang: laba (laba kurs − diskon yang ditanggung cabang), biaya operasional dan
     penggantiannya, posisi per akhir periode; pembanding periode sebelumnya."""
     from ..finance import branch_report as br
     branch, branches, period = _branch_report_params(request)
@@ -768,7 +768,7 @@ def branch_report_view(request):
         return redirect('fund_flow_report')
     report = br.branch_report(branch, period['date_from'], period['date_to'])
     previous = br.headline(branch, period['prev']['date_from'], period['prev']['date_to']) if period['prev'] else None
-    delta = br.profit_delta(report['profit']['fx_idr'], previous['fx_idr']) if previous else None
+    delta = br.profit_delta(report['profit']['net_idr'], previous['net_idr']) if previous else None
     return inertia_render(request, 'Finance/BranchReport', props={
         'branch': branch,
         'branch_choices': [{'value': b.code, 'label': b.name} for b in branches],
@@ -791,14 +791,21 @@ def branch_report_csv(request):
     head = ['Branch report', branch, period['label'], period['date_from'].isoformat(), period['date_to'].isoformat()]
     unpriced = rep['profit']['unpriced']
     profit = rep['profit']['fx_idr']
-    rows = [['Branch profit (FX, IDR)', f'Not priced ({unpriced} transfers without an original amount)' if profit is None else profit]]
+    rows = [['FX profit (IDR)', f'Not priced ({unpriced} transfers without an original amount)' if profit is None else profit]]
     if profit is not None and unpriced:
         rows.append(['Transfers not priced', unpriced])
+    if rep['profit']['discounts']:
+        rows.append(['Discounts borne by the branch (IDR)', -rep['profit']['discount_idr']])
+    rows.append(['Branch net profit (IDR)', 'Not priced' if rep['profit']['net_idr'] is None else rep['profit']['net_idr']])
     rows += [[], ['Transfer', 'Date', 'SAR', 'IDR sent', 'Average rate', 'Send rate', 'FX profit (IDR)']]
     rows += [[t['remittance_number'], t['date'], t['sar'], t['idr_sent'], t['avg_rate'], t['send_rate'], t['profit_idr']]
              if t['profit_idr'] is not None else
              [t['remittance_number'], t['date'], t['sar'], t['idr_sent'], t['avg_rate'], t['send_rate'], 'Not priced']
              for t in rep['profit']['transfers']]
+    if rep['profit']['discounts']:
+        rows += [[], ['Credit note', 'Date', 'Invoice', 'SAR', 'IDR']]
+        rows += [[d['number'], d['date'], d['invoice'], d['sar'], 'Not priced' if d['idr'] is None else d['idr']]
+                 for d in rep['profit']['discounts']]
     e = rep['expenses']
     rows += [[], ['Operating expenses (IDR)', e['total']]]
     rows += [[c['name'], c['amount']] for c in e['by_category']]

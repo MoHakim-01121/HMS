@@ -123,7 +123,19 @@ def profit_delta(cur, prev):
 def _fx_idr(fx):
     """Laba kurs periode: None hanya bila setiap setoran belum bisa dihitung
     (sama dengan fund_flow.net_profit); tanpa setoran = 0."""
-    return fund_flow.net_profit(fx)
+    if fx['transfers'] and fx['unpriced'] == len(fx['transfers']):
+        return None
+    return fx['total_profit_idr']
+
+
+def _profit(fx):
+    """Laba kurs, diskon yang ditanggung cabang (nota kredit), laba bersih."""
+    return {
+        'fx_idr': _fx_idr(fx), 'transfers': fx['transfers'], 'unpriced': fx['unpriced'],
+        'discounts': fx['discounts'], 'discount_idr': fx['discount_idr'],
+        'discount_unpriced': sum(1 for d in fx['discounts'] if d['idr'] is None),
+        'net_idr': fund_flow.net_profit(fx),
+    }
 
 
 def _expenses(branch_code, date_from, date_to):
@@ -176,13 +188,14 @@ def _position(branch_code, as_of):
 def branch_report(branch_code, date_from, date_to):
     fx = fund_flow.fx_profit(branch=branch_code, date_from=date_from, date_to=date_to)
     return {
-        'profit': {'fx_idr': _fx_idr(fx), 'transfers': fx['transfers'], 'unpriced': fx['unpriced']},
+        'profit': _profit(fx),
         'expenses': _expenses(branch_code, date_from, date_to),
         'position': _position(branch_code, date_to),
     }
 
 
 def headline(branch_code, date_from, date_to):
-    """Angka pembanding periode sebelumnya: laba kurs dan biaya."""
+    """Angka pembanding periode sebelumnya: laba bersih dan biaya."""
     fx = fund_flow.fx_profit(branch=branch_code, date_from=date_from, date_to=date_to)
-    return {'fx_idr': _fx_idr(fx), 'expenses': _expenses(branch_code, date_from, date_to)['total']}
+    return {'fx_idr': _fx_idr(fx), 'net_idr': fund_flow.net_profit(fx),
+            'expenses': _expenses(branch_code, date_from, date_to)['total']}

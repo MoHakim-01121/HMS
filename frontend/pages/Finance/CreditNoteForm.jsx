@@ -1,6 +1,6 @@
 import { useForm } from "@inertiajs/react";
 import { withStandaloneModal } from "../../components/shadcn/form-modal.jsx";
-import { FormA, Field, DatePicker, ReadOnly, TextIn, Foot, digitsOf, groupDigits, FA, Caption, btnClass } from "../../components/shadcn/form-a.jsx";
+import { FormA, Field, DatePicker, ReadOnly, TextIn, Foot, digitsOf, groupDigits, FA, Caption, btnClass, Segmented } from "../../components/shadcn/form-a.jsx";
 import { cn } from "@/lib/utils";
 import { useI18n } from "../../utils/i18n.jsx";
 import { fmt } from "../../utils/format.js";
@@ -12,13 +12,15 @@ const keyOf = (l) => `${l.kind}:${l.id}`;
 // still bills, and see the effect on the invoice before issuing. If the
 // client already paid more than the invoice will bill afterwards, the excess
 // becomes customer deposit. Opened from an invoice, so client and invoice are
-// fixed.
-function CreditNoteFormBody({ invoice, lines = [], cancel, form: initial = {}, error }) {
+// fixed. Head office bears the reduction by default; on a branch's invoice
+// the branch can bear it instead and still sends head office the full price.
+function CreditNoteFormBody({ invoice, lines = [], cancel, branch = null, form: initial = {}, error }) {
   const { t } = useI18n();
   const form = useForm({
     issued_date: initial.issued_date || "",
     reason: initial.reason || "",
     amounts: initial.amounts || {},
+    borne_by: initial.borne_by || "hq",
   });
   const amountOf = (l) => Number(form.data.amounts[keyOf(l)]) || 0;
   const setAmount = (l, v) => form.setData("amounts", { ...form.data.amounts, [keyOf(l)]: v });
@@ -53,6 +55,15 @@ function CreditNoteFormBody({ invoice, lines = [], cancel, form: initial = {}, e
         <Field label={t("Reason")} required>
           <TextIn value={form.data.reason} onChange={(v) => form.setData("reason", v)} placeholder={t("For example, booking cancelled, rate corrected")} />
         </Field>
+        {branch ? (
+          <Field label={t("Borne by")} required className={cn(FA.wide, "items-start")}
+            hint={form.data.borne_by === "branch"
+              ? t("{branch} still sends head office the full price. The credit is a branch expense and lowers the branch's profit.", { branch: branch.name })
+              : t("Head office's hotel revenue goes down by the credit.")}>
+            <Segmented label={t("Borne by")} value={form.data.borne_by} onChange={(v) => form.setData("borne_by", v)}
+              options={[["hq", t("Head office")], ["branch", branch.name]]} />
+          </Field>
+        ) : null}
       </div>
 
       <div className={FA.sectionHead}>

@@ -8,6 +8,11 @@ Credit note: an invoice that stays valid but bills too much is reduced by a
 numbered document. Dr Pendapatan (same account and branch dimension as the
 charge) / Cr Piutang up to what the invoice still has open; anything beyond
 that was already paid, so it becomes client deposit (Cr Titipan).
+
+A credit note the branch bears debits Beban Diskon Cabang on the invoice's
+branch instead of Pendapatan: head office keeps its revenue, and the part
+credited to Piutang counts as money the branch still has to send
+(queries.reservation_cash_breakdown).
 """
 from django.db import transaction
 from django.utils import timezone
@@ -120,12 +125,21 @@ def creditable_lines(invoice):
     return rows
 
 
+def can_branch_bear(invoice):
+    """A branch can bear a credit note only on an invoice it issued."""
+    return bool(invoice.branch_id) and invoice.branch_id != coa.HQ_BRANCH
+
+
 @transaction.atomic
-def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
+def issue_credit_note(invoice, *, lines, reason, issued_date, created_by, borne_by=CreditNote.BORNE_HQ):
     """lines: [{'kind': 'reservation'|'penalty', 'id': pk, 'amount_sar': int}].
     Lines with amount 0 are ignored. Returns the CreditNote."""
     invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
     reason = (reason or '').strip()
+    if borne_by not in dict(CreditNote.BORNE_CHOICES):
+        raise FinanceError('Pilih siapa yang menanggung nota kredit ini.')
+    if borne_by == CreditNote.BORNE_BRANCH and not can_branch_bear(invoice):
+        raise FinanceError('Invoice Pusat: nota kreditnya tidak bisa ditanggung cabang.')
     if invoice.status == Invoice.STATUS_VOID:
         raise FinanceError('Invoice void tidak bisa diberi nota kredit.')
     if not invoice.client_id:
@@ -160,7 +174,7 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
     cn = CreditNote.objects.create(
         credit_note_number=CreditNote.generate_number(issued_date), invoice=invoice,
         client_id=invoice.client_id, issued_date=issued_date, reason=reason,
-        to_deposit_sar=to_deposit, created_by=created_by,
+        to_deposit_sar=to_deposit, borne_by=borne_by, created_by=created_by,
     )
     income = _income_account(invoice)
     hotel_by_cl = {
@@ -187,6 +201,8 @@ def issue_credit_note(invoice, *, lines, reason, issued_date, created_by):
         CreditNoteLine.objects.create(
             credit_note=cn, invoice_line_id=row['id'], description=row['label'], amount_sar=amount,
         )
+        if borne_by == CreditNote.BORNE_BRANCH:
+            line_income, branch = coa.EXP_BRANCH_DISCOUNT, invoice.branch_id
         journal.append({'account': line_income, 'debit': amount, 'branch': branch, **dims})
         to_ar = min(amount, ar_room)
         ar_room -= to_ar
