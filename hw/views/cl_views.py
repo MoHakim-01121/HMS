@@ -90,6 +90,22 @@ def _apply_salesperson(qs, value, user):
     return qs
 
 
+def _salesperson_filter_label(request):
+    """The name the PDF prints under Records when the list is filtered by
+    one salesperson; '' when it is not."""
+    value = _cl_salesperson_filter(request)
+    if value == 'none':
+        return 'No salesperson'
+    if value == 'me':
+        u = request.user
+        return u.get_full_name() or u.username
+    if value:
+        from django.contrib.auth import get_user_model
+        u = get_user_model().objects.filter(pk=int(value)).first()
+        return (u.get_full_name() or u.username) if u else ''
+    return ''
+
+
 def _cl_filter_params(request):
     """Read the standard CL list filters (q/status/date range/basis/salesperson)
     off the querystring."""
@@ -670,6 +686,7 @@ def cl_list_pdf(request):
             "total_paid":    total_paid,
             "total_remain":  total_remain,
             "logo_rel_path": _logo_file_url(),
+            "salesperson_label": _salesperson_filter_label(request),
         },
     )
 
@@ -699,6 +716,7 @@ def cl_list_pdf_v2(request):
             "total_rooms":   total_rooms,
             "total_sar":     total_sar,
             "logo_rel_path": _logo_file_url(),
+            "salesperson_label": _salesperson_filter_label(request),
         },
     )
 

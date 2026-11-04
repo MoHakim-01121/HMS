@@ -321,6 +321,11 @@ export function MonthNav({ month, year, season, years = [], seasons = [], onChan
   };
   const label = m != null ? t(MONTHS[m]) : season && cur ? t("Whole season") : y ? t("Whole year") : t("All dates");
   const pick = (patch) => { setOpen(false); onChange({ month: "", year: "", season: "", ...patch }); };
+  // Back to one month from a whole season or all dates: this month, held
+  // inside the season being read.
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const backMonth = cur ? [cur.from.slice(0, 7), thisMonth, cur.to.slice(0, 7)].sort()[1] : thisMonth;
   return (
     <>
       {prefix && <span className="mr-2 text-[14px] font-medium text-muted-foreground">{prefix}</span>}
@@ -332,9 +337,19 @@ export function MonthNav({ month, year, season, years = [], seasons = [], onChan
           <MenuButton aria-haspopup="menu">{bySeason ? (cur ? cur.name : y || t("All")) : (y || t("All"))}{LIcon.chev}</MenuButton>
         </PopoverTrigger>
         <Menu align="start" sideOffset={6} className={bySeason ? "w-48" : "w-40"}>
-          {bySeason ? seasons.map((s) => (
-            <MenuItem key={s.name} on={!!season && s.name === season} onClick={() => pick({ season: s.name })}>{t("Whole {season}", { season: s.name })}</MenuItem>
-          )) : (
+          {bySeason ? (
+            <>
+              {m == null && (
+                <>
+                  <MenuItem onClick={() => pick({ month: backMonth })}>{t("Month by month")}</MenuItem>
+                  <MenuSep />
+                </>
+              )}
+              {seasons.map((s) => (
+                <MenuItem key={s.name} on={!!season && s.name === season} onClick={() => pick({ season: s.name })}>{t("Whole {season}", { season: s.name })}</MenuItem>
+              ))}
+            </>
+          ) : (
             <>
               {years.map((yy) => (
                 <MenuItem key={yy} on={yy === y}

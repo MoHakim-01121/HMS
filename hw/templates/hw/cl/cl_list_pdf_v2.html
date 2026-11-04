@@ -121,6 +121,7 @@
 
 <div class="meta">
   <div class="meta-row"><span class="mk">Records</span><span class="mv">{{ letters|length }}</span></div>
+  {% if salesperson_label %}<div class="meta-row"><span class="mk">Salesperson</span><span class="mv">{{ salesperson_label }}</span></div>{% endif %}
   {% if q %}<div class="meta-row"><span class="mk">Filter</span><span class="mv">"{{ q }}"</span></div>{% endif %}
   <div class="meta-row"><span class="mk">Generated</span><span class="mv">{{ now|date:"d M Y, H:i" }}</span></div>
 </div>
