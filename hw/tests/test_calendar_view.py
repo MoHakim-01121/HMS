@@ -95,22 +95,31 @@ class CheckinRecapPdfTest(TestCase):
         self.assertEqual(ctx['groups'][0]['hotels'][1]['rows'][0]['client_name'], 'Ahmad')
         self.assertEqual((ctx['total_checkins'], ctx['total_hotels']), (3, 2))
 
-    def test_every_room_column_prints_a_count_zero_included(self):
+    def test_one_line_per_room_type_and_meal_smallest_room_first(self):
         cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
-        make_room(cl=cl, room_type='Quad', quantity=4)
-        ctx = self._ctx(start='2026-10-15')
-        self.assertEqual(ctx['columns'], ['Double', 'Triple', 'Quad', 'Quint'])
-        self.assertEqual(ctx['groups'][0]['hotels'][0]['rows'][0]['counts'], [0, 0, 4, 0])
+        make_room(cl=cl, room_type='Quad', quantity=4, meals='FB')
+        make_room(cl=cl, room_type='Double', quantity=2, meals='BB')
+        make_room(cl=cl, room_type='Quad', quantity=1, meals='FB')
+        row = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows'][0]
+        self.assertEqual([(l['room_type'], l['rooms'], l['pax']) for l in row['lines']],
+                         [('Double - BB', 2, 4), ('Quad - FB', 5, 20)])
+        self.assertEqual((row['rooms'], row['pax'], row['span']), (7, 24, 3))
 
-    def test_a_room_size_outside_the_usual_four_gets_a_column(self):
+    def test_views_of_one_size_run_kaaba_haram_city_then_none(self):
         cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
-        make_room(cl=cl, room_type_ref=RoomType.objects.create(hotel=cl.hotel, name='Bed', capacity=1), quantity=1)
-        ctx = self._ctx(start='2026-10-15')
-        self.assertEqual(ctx['columns'], ['1 Pax', 'Double', 'Triple', 'Quad', 'Quint'])
-        self.assertEqual(ctx['groups'][0]['hotels'][0]['rows'][0]['counts'], [1, 0, 0, 0, 0])
-        self.assertEqual(ctx['colspan'], 11)
+        for name, view in (('Quad', ''), ('Quad City View', 'city'), ('Quad Kaaba View', 'kaaba'), ('Quad Haram View', 'haram')):
+            make_room(cl=cl, room_type_ref=RoomType.objects.create(hotel=cl.hotel, name=name, capacity=4, view=view), quantity=1)
+        row = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows'][0]
+        self.assertEqual([l['room_type'] for l in row['lines']],
+                         ['Quad Kaaba View', 'Quad Haram View', 'Quad City View', 'Quad'])
 
-    def test_row_carries_rooms_pax_meal_and_the_stay(self):
+    def test_a_single_room_type_has_no_total_row(self):
+        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
+        make_room(cl=cl, room_type='Quad', quantity=8, meals='FB')
+        row = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows'][0]
+        self.assertEqual((row['lines'][0]['room_type'], row['span']), ('Quad - FB', 1))
+
+    def test_row_carries_the_booking_and_the_hotel_its_totals(self):
         client = make_client('Barokah Umrah')
         cl = make_cl(client=client, check_in=date(2026, 10, 15), check_out=date(2026, 10, 20), confirmation_number='K-010',
                      reservation_status=ReservationStatus.TENTATIVE, note='Perlu konfirmasi FB')
@@ -118,20 +127,15 @@ class CheckinRecapPdfTest(TestCase):
         make_room(cl=cl, room_type='Double', quantity=2, meals='FB')
 
         ctx = self._ctx(start='2026-10-15')
-        row = ctx['groups'][0]['hotels'][0]['rows'][0]
-        self.assertEqual((row['confirmation_number'], row['counts'], row['rooms'], row['meal'], row['pax'], row['tentative'], row['note']),
-                         ('K-010', [2, 0, 4, 0], 6, 'FB', 20, True, 'Perlu konfirmasi FB'))
-        self.assertEqual((row['check_in'], row['check_out'], row['nights']), (date(2026, 10, 15), date(2026, 10, 20), 5))
+        hotel = ctx['groups'][0]['hotels'][0]
+        row = hotel['rows'][0]
+        self.assertEqual((row['confirmation_number'], row['rooms'], row['pax'], row['tentative'], row['note']),
+                         ('K-010', 6, 20, True, 'Perlu konfirmasi FB'))
+        self.assertEqual((row['check_in'], row['check_out']), (date(2026, 10, 15), date(2026, 10, 20)))
+        self.assertEqual((hotel['rooms'], hotel['pax']), (6, 20))
         self.assertEqual((ctx['total_rooms'], ctx['total_pax']), (6, 20))
 
-    def test_mixed_meal_plans_are_all_named(self):
-        cl = make_cl(check_in=date(2026, 10, 15), check_out=date(2026, 10, 20))
-        make_room(cl=cl, room_type='Quad', quantity=2, meals='FB')
-        make_room(cl=cl, room_type='Double', quantity=1, meals='BB')
-        row = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows'][0]
-        self.assertEqual((row['counts'], row['meal']), ([1, 0, 2, 0], 'FB, BB'))
-
-    def test_travel_client_name_is_shown_once_and_its_rows_stay_together(self):
+    def test_every_booking_names_its_travel_client(self):
         hotel = make_hotel('Swissotel Makkah')
         travel = make_client('Barokah Travel')
         make_cl(hotel=hotel, client=travel, guest_name='Zain', confirmation_number='K-1',
@@ -142,7 +146,6 @@ class CheckinRecapPdfTest(TestCase):
                 check_in=date(2026, 10, 15), check_out=date(2026, 10, 17))
         rows = self._ctx(start='2026-10-15')['groups'][0]['hotels'][0]['rows']
         self.assertEqual([r['client_name'] for r in rows], ['Barokah Travel', 'Barokah Travel', 'Budi'])
-        self.assertEqual([r['show_client'] for r in rows], [True, False, True])
 
     def test_counts_check_ins_as_the_calendar_does(self):
         hotel = make_hotel('Swissotel Makkah')
