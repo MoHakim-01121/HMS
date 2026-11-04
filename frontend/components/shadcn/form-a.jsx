@@ -267,6 +267,16 @@ export function Picker({ icon, value, options, onPick, placeholder, searchable =
 }
 
 // A compact select for table cells (room type, meal plan).
+// Opens a long list on the chosen option rather than its top. Waits a frame
+// for Radix to set the available height that caps the list.
+function centreChosen(list) {
+  if (!list) return;
+  requestAnimationFrame(() => {
+    const on = list.querySelector('[aria-selected="true"]');
+    if (on) list.scrollTop = on.offsetTop - (list.clientHeight - on.offsetHeight) / 2;
+  });
+}
+
 export function CellPicker({ value, options, onPick, placeholder, disabled, label }) {
   const [open, setOpen] = useState(false);
   const cur = options.find((o) => String(o.value) === String(value));
@@ -277,8 +287,10 @@ export function CellPicker({ value, options, onPick, placeholder, disabled, labe
           <span className={cn(FA.text, !cur && FA.placeholder)}>{cur ? cur.label : placeholder}</span><Chevron />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={6} className={cn(FA.popover, "min-w-[220px]")}>
-        <div role="listbox">
+      <PopoverContent align="start" sideOffset={6} className={cn(FA.popover, "min-w-[220px] overflow-hidden")}>
+        {/* Scrolls like Picker's list, and never taller than the room Radix
+            leaves beside the trigger, so a long list cannot run off screen. */}
+        <div role="listbox" ref={centreChosen} className="relative -m-2 max-h-[min(300px,var(--radix-popover-content-available-height))] overflow-y-auto p-2">
           {options.map((o) => (
             <Option key={o.value} on={cur === o} label={o.label} meta={o.meta} onClick={() => { onPick(o); setOpen(false); }} />
           ))}
