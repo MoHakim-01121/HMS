@@ -1,6 +1,7 @@
 import base64
 import hashlib
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 from django.conf import settings
@@ -21,14 +22,22 @@ def _logo_file_url():
     return f"data:{mime};base64,{data}"
 
 
+@lru_cache(maxsize=None)
+def _template_version(name):
+    """Short hash of a PDF template's source, part of the PDF cache keys: a
+    deploy that changes the layout stops the database cache serving the old
+    one. Cached per process; a deploy restarts the workers."""
+    from django.template.loader import get_template
+    source = Path(get_template(name).origin.name).read_bytes()
+    return hashlib.sha256(source).hexdigest()[:12]
+
+
+CL_PDF_TEMPLATE = "hw/cl/cl_pdf_konoz.html"
+INVOICE_PDF_TEMPLATE = "hw/invoice/invoice_pdf_v2.html"
+
+
 def _render_cl_pdf(cl):
     from django.core.cache import cache
-    cache_key = f"pdf:cl:{cl.pk}:{cl.updated_at.isoformat()}"
-    cached_pdf = cache.get(cache_key)
-    if cached_pdf is not None:
-        response = HttpResponse(cached_pdf, content_type="application/pdf")
-        response["Content-Disposition"] = f'inline; filename="{cl.confirmation_number}.pdf"'
-        return response
 
     nights = cl.num_nights
     nights_factor = nights if nights > 0 else 1
@@ -57,13 +66,22 @@ def _render_cl_pdf(cl):
         "rooms": rooms,
         "total_rooms": cl.total_rooms,
         "total_price": cl.total_price,
-        "logo_rel_path": _logo_file_url(),
     }
+    # The key is what the PDF shows, not cl.updated_at: renaming the hotel or
+    # editing a room changes the document without saving the CL row.
+    fingerprint = hashlib.sha256(repr(sorted(context.items())).encode()).hexdigest()
+    cache_key = f"pdf:cl:{_template_version(CL_PDF_TEMPLATE)}:{cl.pk}:{fingerprint}"
+    filename = f"{cl.confirmation_number}.pdf"
+    cached_pdf = cache.get(cache_key)
+    if cached_pdf is not None:
+        response = HttpResponse(cached_pdf, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
 
-    html = render_to_string("hw/cl/cl_pdf_konoz.html", context)
+    context["logo_rel_path"] = _logo_file_url()
+    html = render_to_string(CL_PDF_TEMPLATE, context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     cache.set(cache_key, pdf, 3600)
-    filename = f"{cl.confirmation_number}.pdf"
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'inline; filename="{filename}"'
     return response
@@ -138,11 +156,6 @@ def _reservation_room_rows(row, line):
     return rows
 
 
-# Part of the cache key: bump it when invoice_pdf_v2.html changes, or the
-# database cache keeps serving the old layout for up to an hour after a deploy.
-INVOICE_PDF_LAYOUT = 3
-
-
 def _render_invoice_pdf(invoice, *, detailed=False):
     from django.core.cache import cache
 
@@ -164,7 +177,7 @@ def _render_invoice_pdf(invoice, *, detailed=False):
     # too, since re-applying a payment can change the PDF without changing the
     # invoice's total paid amount.
     cache_key = (
-        f"pdf:invoice:v{INVOICE_PDF_LAYOUT}:{invoice.pk}:{invoice.updated_at.isoformat()}"
+        f"pdf:invoice:{_template_version(INVOICE_PDF_TEMPLATE)}:{invoice.pk}:{invoice.updated_at.isoformat()}"
         f":{invoice.total_paid_sar}:{invoice.credited_sar}:{invoice.down_payment_percent}"
         f":{detailed}:{payment_fingerprint}"
     )
@@ -222,7 +235,7 @@ def _render_invoice_pdf(invoice, *, detailed=False):
         "doc_hash": doc_hash,
     }
 
-    html = render_to_string("hw/invoice/invoice_pdf_v2.html", context)
+    html = render_to_string(INVOICE_PDF_TEMPLATE, context)
     pdf = HTML(string=html, base_url=str(settings.BASE_DIR)).write_pdf()
     cache.set(cache_key, pdf, 3600)
     response = HttpResponse(pdf, content_type="application/pdf")
