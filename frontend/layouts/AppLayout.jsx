@@ -673,7 +673,8 @@ export default function AppLayout({ children }) {
                   {inner}
                 </button>
               ) : (
-                <Link key={tab.key} href={NAV[tab.key]} className={cls}>{inner}</Link>
+                <Link key={tab.key} href={NAV[tab.key]} className={cls}
+                  onClick={() => { setMMore(false); setMNotif(false); setMAccount(false); }}>{inner}</Link>
               );
             })}
           </nav>
