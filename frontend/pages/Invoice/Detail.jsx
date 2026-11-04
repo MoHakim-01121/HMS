@@ -357,7 +357,9 @@ export default function Detail({
 
       {confirmDialog}
       <DPhoneBar
-        primary={!paid && !isVoid ? { label: <>{t("Record payment")} <span className="font-medium opacity-75">· {fmt(Math.max(0, invoice.remaining_sar))} SAR</span></>, href: `/finance/payments/?invoice=${invoice.pk}` } : null}
+        primary={isVoid ? null
+          : paid ? { label: t("Paid"), disabled: true }
+          : { label: <>{t("Record payment")} <span className="font-medium opacity-75">· {fmt(Math.max(0, invoice.remaining_sar))} SAR</span></>, href: `/finance/payments/?invoice=${invoice.pk}` }}
         pdf={{ title: invoice.invoice_number, sub: `${invoice.customer_name} · ${fmt(invoice.total_sar)} SAR`, href: `/invoice/${invoice.pk}/pdf/` }} />
     </DPage>
   );

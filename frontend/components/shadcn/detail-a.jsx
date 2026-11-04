@@ -174,7 +174,9 @@ export function DPhoneBar({ primary, pdf }) {
           <S><path d="M12 15V3m0 0L8 7m4-4l4 4M5 12v8h14v-8" /></S>
         </button>
       )}
-      {primary && (primary.href
+      {primary && (primary.disabled
+        ? <button type="button" disabled className={cn(pbtn, "cursor-default bg-secondary text-muted-foreground")}>{primary.label}</button>
+        : primary.href
         ? <Link href={primary.href} className={pbtn}>{primary.label}</Link>
         : <button type="button" onClick={primary.onClick} className={pbtn}>{primary.label}</button>)}
       {pdf && (

@@ -82,11 +82,15 @@ export function usePhone() {
 // What a toolbar's tools leave to the filter sheet on a phone: Export and the
 // one-pick menus (salesperson, season) move into it. Kept in a ref, read when
 // the sheet opens, so the tools re-render without re-rendering the toolbar.
+// The removal keys on the stable ref, not on ctx: ctx changes when the filter
+// registers, and a passive cleanup on that change ran after the layout write
+// and deleted the entry until the tool happened to re-render.
 const ToolCtx = createContext(null);
 function useSheetEntry(key, entry) {
   const ctx = useContext(ToolCtx);
-  useLayoutEffect(() => { if (ctx) ctx.entries.current[key] = entry; });
-  useEffect(() => () => { if (ctx) delete ctx.entries.current[key]; }, [ctx, key]);
+  const entries = ctx?.entries;
+  useLayoutEffect(() => { if (entries) entries.current[key] = entry; });
+  useLayoutEffect(() => () => { if (entries) delete entries.current[key]; }, [entries, key]);
   return ctx;
 }
 
