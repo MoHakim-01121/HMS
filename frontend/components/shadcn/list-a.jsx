@@ -142,7 +142,7 @@ export const Note = ({ className, children }) => (
 export const Kpis = ({ children, dense }) => (
   <div data-dense={dense ? "" : undefined} className={cn(
     "group/kpis flex gap-3 max-[900px]:flex-wrap",
-    "phone:-mx-4 phone:snap-x phone:snap-mandatory phone:flex-nowrap phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
+    "phone:-mx-4 phone:scroll-px-4 phone:snap-x phone:snap-mandatory phone:flex-nowrap phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
   )}>{children}</div>
 );
 

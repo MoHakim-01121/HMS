@@ -50,8 +50,8 @@ const money = (v, ccy) => (ccy === "IDR" && Math.abs(v) >= 1e6 ? millions(v) : f
 const pctOf = (cur, prev) => (prev ? Math.round(((cur - prev) * 100) / prev) : null);
 const pastDueSub = (t, c, d) => (c === 1 ? t("1 client, {d} days late", { d }) : t("{c} clients, oldest {d} days", { c, d }));
 const greeting = (t) => { const h = new Date().getHours(); return h < 11 ? t("Good morning") : h < 15 ? t("Good afternoon") : t("Good evening"); };
-// On a phone, staff's day is ordered: booked value, today's work, the other
-// figures, the charts, their own payments.
+// On a phone, staff's day is ordered: booked value and the swiping figures,
+// today's work, the charts, their own payments.
 const ORDER = { work: "phone:order-2", charts: "phone:order-4", mine: "phone:order-5" };
 
 export default function Home(props) {
@@ -248,7 +248,7 @@ function KpiRow({ period, sales, profit, sm, isSeason, kind = "manager", receiva
   }
 
   return (
-    <DashKpis staff={mine} hero={
+    <DashKpis hero={
       <HeroCard href="/cl/"
         label={isSeason ? t("Booked value, season {s}", { s: period.label }) : t("Booked value, {m}", { m: t(period.label) })}
         chip={heroPct ? { text: heroPct, bad: !!heroBad } : null}

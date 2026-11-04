@@ -62,8 +62,7 @@ export function DashStack({ className, children }) {
 // ── The KPI strip ─────────────────────────────────────────────────────────
 // hero: the accent card node; children: the KPI cards (three or four, with or
 // without the hero — the column templates follow). Two across under 1180, one
-// under 600. staff: on a phone the strip dissolves (`contents`) so the booked
-// value sits right under today's work, then the KPI cards.
+// under 600.
 const KPI_GRIDS = {
   hero3: "grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,1fr))]",
   hero4: "grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,1fr))]",
@@ -71,15 +70,14 @@ const KPI_GRIDS = {
   flat4: "grid-cols-[repeat(4,minmax(0,1fr))]",
 };
 
-// Phones (not staff): the accent card on its own row, the KPI cards under it
+// Phones, every role: the accent card on its own row, the KPI cards under it
 // swiping sideways like a list page's (canvas "HMS Mobile v2", Home).
-export function DashKpis({ hero, staff, className, children }) {
+export function DashKpis({ hero, className, children }) {
   const n = Array.isArray(children) ? children.length : children ? 1 : 0;
   const cols = KPI_GRIDS[`${hero ? "hero" : "flat"}${n}`] || KPI_GRIDS.flat4;
-  const swipe = !staff;
   return (
     <>
-      {swipe && hero && <div className="hidden phone:flex phone:flex-col">{hero}</div>}
+      {hero && <div className="hidden phone:flex phone:flex-col">{hero}</div>}
       <div className={cn(
         "grid gap-3",
         cols,
@@ -87,10 +85,8 @@ export function DashKpis({ hero, staff, className, children }) {
         "max-[1180px]:grid-cols-2",
         "phone:grid-cols-1",
         hero && "max-[1180px]:[:where(&)>:first-child]:col-span-full",
-        swipe && "phone:-mx-4 phone:flex phone:snap-x phone:snap-mandatory phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
-        swipe && hero && "phone:[&>:first-child]:hidden",
-        staff && "phone:contents phone:[:where(&)_[data-slot=kpi]]:order-3",
-        hero && staff && "phone:[:where(&)>:first-child]:order-1",
+        "phone:-mx-4 phone:flex phone:scroll-px-4 phone:snap-x phone:snap-mandatory phone:gap-2.5 phone:overflow-x-auto phone:px-4 phone:[scrollbar-width:none] phone:[&::-webkit-scrollbar]:hidden",
+        hero && "phone:[&>:first-child]:hidden",
         className,
       )}>
         {hero}
