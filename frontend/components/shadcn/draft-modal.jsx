@@ -63,16 +63,16 @@ export default function DraftModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div style={{ minHeight: 120 }}>
-          {state.kind === "loading" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--muted-foreground)", fontSize: 13 }}>{t("Generating message…")}</div>}
-          {state.kind === "error" && <div style={{ display: "flex", minHeight: 120, alignItems: "center", justifyContent: "center", color: "var(--destructive)", fontSize: 13 }}>{t("Failed to reach the server.")}</div>}
+        <div className="flex min-h-[120px] min-w-0 flex-col">
+          {state.kind === "loading" && <div className="flex min-h-[120px] items-center justify-center text-[13px] text-muted-foreground">{t("Generating message…")}</div>}
+          {state.kind === "error" && <div className="flex min-h-[120px] items-center justify-center text-[13px] text-destructive">{t("Failed to reach the server.")}</div>}
           {state.kind === "ready" && (
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10}
-              aria-label={title} style={{ lineHeight: 1.7 }} />
+              aria-label={title} className="field-sizing-fixed h-[min(340px,calc(100dvh-16rem))] min-h-[140px] resize-none leading-[1.7]" />
           )}
         </div>
         {state.kind === "ready" && (
@@ -90,8 +90,8 @@ export default function DraftModal() {
           </DialogFooter>
         )}
         {state.kind === "ready" && !waHref && (
-          <p style={{ display: "flex", alignItems: "center", gap: 6, margin: "12px 2px 0", fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+          <p className="mx-0.5 -mt-1 flex items-center gap-1.5 text-[12px] leading-normal text-muted-foreground">
+            <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" className="shrink-0">
               <circle cx="12" cy="12" r="9" />
               <path strokeLinecap="round" d="M12 11v5M12 8h.01" />
             </svg>
