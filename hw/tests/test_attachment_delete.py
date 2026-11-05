@@ -67,6 +67,27 @@ class AttachmentDeleteTests(TestCase):
         self.assertEqual(deleted.status_code, 403)
         self.assertTrue(Attachment.objects.filter(pk=self.att.pk).exists())
 
+    def _upload_as_cl_editor(self, name, content):
+        self._login_with_permissions('cl-uploader', {'cl': ['edit']})
+        return self.client.post('/attachments/upload/', {
+            'cl_id': make_cl().pk, 'file': SimpleUploadedFile(name, content),
+        })
+
+    def test_csv_upload_is_accepted(self):
+        # libmagic reports a CSV as text/plain.
+        resp = self._upload_as_cl_editor('rooms.csv', b'name,amount\nAli,100\nBudi,200\n')
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+    def test_jpeg_extension_is_accepted(self):
+        jpeg = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00' + b'\x00' * 64
+        resp = self._upload_as_cl_editor('photo.jpeg', jpeg)
+        self.assertEqual(resp.status_code, 200, resp.content)
+
+    def test_mismatched_extension_is_refused_with_a_reason(self):
+        resp = self._upload_as_cl_editor('proof.png', b'%PDF-1.4\nproof')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.json()['error'], 'The file extension does not match its content.')
+
     def test_removes_the_row_and_the_file(self):
         self.assertEqual(self._delete().status_code, 200)
         self.assertFalse(Attachment.objects.filter(pk=self.att.pk).exists())

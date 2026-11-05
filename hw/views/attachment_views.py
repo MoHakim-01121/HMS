@@ -20,12 +20,14 @@ _ALLOWED_MIME = {
     'text/csv', 'text/plain',
 }
 
+# Extensions accepted for each detected type. libmagic reports most CSV files
+# as text/plain, and JPEGs are named .jpg or .jpeg.
 _MIME_TO_EXT = {
-    'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp',
-    'application/pdf': '.pdf',
-    'application/vnd.ms-excel': '.xls',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
-    'text/csv': '.csv', 'text/plain': '.txt',
+    'image/jpeg': {'.jpg', '.jpeg'}, 'image/png': {'.png'}, 'image/gif': {'.gif'}, 'image/webp': {'.webp'},
+    'application/pdf': {'.pdf'},
+    'application/vnd.ms-excel': {'.xls'},
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {'.xlsx'},
+    'text/csv': {'.csv'}, 'text/plain': {'.txt', '.csv'},
 }
 
 
@@ -59,8 +61,8 @@ def attachment_upload(request):
     # Optional: verify extension matches detected type
     ext = os.path.splitext(f.name)[1].lower()
     expected_ext = _MIME_TO_EXT.get(detected_mime)
-    if expected_ext and ext != expected_ext:
-        return JsonResponse({"error": f"File extension {ext} does not match content type {detected_mime}."}, status=400)
+    if expected_ext and ext not in expected_ext:
+        return JsonResponse({"error": "The file extension does not match its content."}, status=400)
 
     att = Attachment(name=f.name, size=f.size)
     # Only on an invoice or CL of the user's branches.

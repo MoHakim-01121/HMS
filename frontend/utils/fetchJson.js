@@ -10,6 +10,12 @@ export async function fetchJson(url, { method = "GET", body, json } = {}) {
     payload = JSON.stringify(json);
   }
   const res = await fetch(url, { method, headers, body: payload });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    // Keep the server's JSON body ({ error: "..." }) so callers can show why.
+    const err = new Error(`HTTP ${res.status}`);
+    err.status = res.status;
+    err.data = await res.json().catch(() => null);
+    throw err;
+  }
   return res.json();
 }

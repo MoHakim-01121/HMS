@@ -29,9 +29,11 @@ export default function Attachments({ targetType, targetId, initial = [], onCoun
       return next;
     });
   const [confirm, confirmDialog] = useConfirm();
-  // Both endpoints (/attachments/upload/, /attachments/<pk>/delete/) are
-  // guarded server-side by invoice.edit; read-only roles get the list only.
-  const canEdit = usePerms().can("invoice", "edit");
+  // Both endpoints (/attachments/upload/, /attachments/<pk>/delete/) need edit
+  // on the record the file belongs to (cl or invoice); read-only roles get the list only.
+  const canEdit = usePerms().can(targetType === "cl" ? "cl" : "invoice", "edit");
+  // The server says why it refused (wrong type, too large); show that, translated.
+  const failed = (err, fallback) => showToast(err?.data?.error ? t(err.data.error) : t(fallback), "error");
 
   const upload = async (e) => {
     const files = Array.from(e.target.files);
@@ -44,10 +46,9 @@ export default function Attachments({ targetType, targetId, initial = [], onCoun
           method: "POST",
           body: fd,
         });
-        if (d.error) { showToast(d.error, "error"); continue; }
         setItems((prev) => [...prev, { id: d.id, icon: d.icon, url: d.url, name: d.name, size: d.size }]);
-      } catch {
-        showToast(t("Upload failed"), "error");
+      } catch (err) {
+        failed(err, "Upload failed");
       }
     }
     e.target.value = "";
@@ -61,7 +62,9 @@ export default function Attachments({ targetType, targetId, initial = [], onCoun
         try {
           const d = await fetchJson(`/attachments/${pk}/delete/`, { method: "POST" });
           if (d.ok) setItems((prev) => prev.filter((x) => x.id !== pk));
-        } catch { /* ignore */ }
+        } catch (err) {
+          failed(err, "Could not delete the attachment");
+        }
       },
     });
   };
@@ -94,7 +97,7 @@ export default function Attachments({ targetType, targetId, initial = [], onCoun
         <label className="mt-2 box-border flex h-9 w-full cursor-pointer items-center justify-center gap-[7px] rounded-[10px] border border-dashed border-input bg-transparent text-[12.5px] font-semibold text-muted-foreground hover:border-foreground hover:text-foreground">
           <Icon name="plus" size={13} strokeWidth={1.8} />
           {t("Upload file")}
-          <input type="file" className="hidden" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={upload} />
+          <input type="file" className="hidden" multiple accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.xls,.xlsx,.csv,.txt" onChange={upload} />
         </label>
       )}
       {confirmDialog}

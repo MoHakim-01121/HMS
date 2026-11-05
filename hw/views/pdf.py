@@ -1,7 +1,7 @@
 import base64
 import hashlib
 from datetime import datetime
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 from django.conf import settings
@@ -22,7 +22,7 @@ def _logo_file_url():
     return f"data:{mime};base64,{data}"
 
 
-@lru_cache(maxsize=None)
+@cache
 def _template_version(name):
     """Short hash of a PDF template's source, part of the PDF cache keys: a
     deploy that changes the layout stops the database cache serving the old
